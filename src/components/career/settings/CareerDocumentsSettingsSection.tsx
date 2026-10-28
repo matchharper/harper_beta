@@ -1,4 +1,5 @@
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { openDocumentFile } from "@/lib/career/openDocumentFile";
 import {
   Ellipsis,
   Eye,
@@ -191,10 +192,18 @@ const CareerDocumentsSettingsSection = ({
       onEditDocument(document);
     } else if (document.originType === "harper_generated_resume" || document.contentType === "text/markdown") {
       onOpenDocument(document);
-    } else if (document.downloadUrl) {
+    } else if (document.storagePath || document.downloadUrl) {
       // Opening an uploaded file is not evidence of a completed download.
       logCareerEvent("document_open", { documentId: document.id, source: "document_list" });
-      window.open(document.downloadUrl, "_blank", "noopener,noreferrer");
+      void openDocumentFile(document.id).catch(() => {
+        showToast({
+          message: t(
+            "career.profile.documents.preview_failed",
+            "문서를 불러오지 못했습니다. 삭제되었거나 접근할 수 없는 문서일 수 있습니다."
+          ),
+          variant: "error",
+        });
+      });
     }
   };
 
@@ -257,7 +266,7 @@ const CareerDocumentsSettingsSection = ({
             document.kind === "call_note" ||
             isGmailCareerHistory ||
             document.contentType === "text/markdown" ||
-            Boolean(document.downloadUrl);
+            Boolean(document.storagePath || document.downloadUrl);
           return (
             <CareerProfileSourceCard
               className="min-w-0 w-full md:w-full"

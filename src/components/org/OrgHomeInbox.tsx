@@ -1,5 +1,3 @@
-import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
-import { canUsePendingConnections } from "@/lib/org/billing/types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -109,7 +107,6 @@ export function OrgHomeInbox() {
   const lastGroupId = useRef<string | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   const wasMobileDetail = useRef(false);
-  const entitlements = useOrgEntitlements(workspaceId);
   const mutationCount = useIsMutating({
     predicate: (mutation) => {
       const input = mutation.state.variables as
@@ -128,12 +125,7 @@ export function OrgHomeInbox() {
           (item) => item.roleId === role.roleId
         );
         return ["pending_connection", "company_intro"].flatMap((stage) => {
-          const all = items.filter(
-            (item) =>
-              item.stage === stage &&
-              (stage !== "pending_connection" ||
-                canUsePendingConnections(entitlements.data, role.roleId))
-          );
+          const all = items.filter((item) => item.stage === stage);
           const remaining = all
             .filter((item) => !item.savedAt)
             .sort((a, b) =>
@@ -160,7 +152,7 @@ export function OrgHomeInbox() {
             : [];
         });
       }),
-    [board?.items, roles, entitlements.data]
+    [board?.items, roles]
   );
   const requestedGroup = groups.find(
     (group) => group.id === router.query.queue
@@ -180,8 +172,7 @@ export function OrgHomeInbox() {
       : undefined;
   const hasBlockingInboxError =
     !feed &&
-    (isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ||
-      isOrgQueryBlockingError(entitlements.error, entitlements.data));
+    isOrgQueryBlockingError(boardQuery.error, boardQuery.data);
   const selectedFeedRole =
     roles.find((role) => role.roleId === router.query.feedRole)?.roleId ?? null;
   const routeTo = (
@@ -256,8 +247,7 @@ export function OrgHomeInbox() {
       !router.isReady ||
       !boardQuery.data ||
       isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ||
-      mutationCount ||
-      entitlements.isLoading
+      mutationCount
     )
       return;
     if (
@@ -365,10 +355,9 @@ export function OrgHomeInbox() {
         {hasBlockingInboxError ? (
           <div className="col-start-1 row-start-3">
             <OrgErrorState
-              message={(boardQuery.error ?? entitlements.error)!.message}
+              message={boardQuery.error!.message}
               onRetry={() => {
                 void boardQuery.refetch();
-                void entitlements.refetch();
               }}
             />
           </div>
@@ -482,7 +471,7 @@ export function OrgHomeInbox() {
             )}
             {!feed && !groups.length && (
               <ReviewEmptyState
-                loading={boardQuery.isLoading || entitlements.isLoading}
+                loading={boardQuery.isLoading}
               />
             )}
           </aside>
@@ -502,12 +491,11 @@ export function OrgHomeInbox() {
             data-org-review-scroll={feed ? undefined : true}
           >
             {!feed && mobileMenu}
-            {!feed && (boardQuery.error || entitlements.error) && (
+            {!feed && boardQuery.error && (
               <OrgErrorState
-                message={(boardQuery.error ?? entitlements.error)!.message}
+                message={boardQuery.error!.message}
                 onRetry={() => {
                   void boardQuery.refetch();
-                  void entitlements.refetch();
                 }}
               />
             )}
@@ -567,7 +555,7 @@ export function OrgHomeInbox() {
               <>
                 {!isDesktop && listBackHeader(mobileNavigationTitle)}
                 <ReviewEmptyState
-                  loading={boardQuery.isLoading || entitlements.isLoading}
+                  loading={boardQuery.isLoading}
                 />
               </>
             )}

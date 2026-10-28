@@ -10,7 +10,6 @@ before(async () => {
     SUPABASE_SERVICE_ROLE_KEY: "unit",
     OPENAI_API_KEY: "unit",
     OPENROUTER_API_KEY: "unit",
-    EMAIL_RUNTIME_TARGET: "vercel_queue",
   });
   const mod = Module as any,
     load = mod._load;
@@ -61,6 +60,7 @@ function store() {
   return { job, admin };
 }
 test("publish failure leaves a durable owned job for Cron recovery and does not lose the inbound event", async () => {
+  delete process.env.EMAIL_RUNTIME_TARGET;
   const { job, admin } = store();
   await dispatcher.dispatchInboundEmailReply(jobId, admin, async () => {
     throw new Error("temporary queue outage");
@@ -112,4 +112,14 @@ test("Queue payload validates only the minimal machine contract and drops arbitr
     }),
     { version: 1, kind: "contact", jobId }
   );
+});
+
+test("scheduled dispatch leaves Ops tests on the operator's server", async () => {
+  const { job, admin } = store();
+  job.kind = "ops_email_test";
+  const result = await dispatcher.dispatchEmailRuntimeJobs(admin, async () => {
+    assert.fail("Ops tests must not be published to an external Queue");
+  });
+  assert.deepEqual(result, { dispatched: 0, deferred: 0 });
+  assert.equal(job.status, "queued");
 });

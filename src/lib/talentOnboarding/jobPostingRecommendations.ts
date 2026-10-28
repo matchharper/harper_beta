@@ -19,10 +19,6 @@ import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
-  type RoleSummaryLanguageKey,
-  validateRoleSummaryLanguage,
-} from "@/lib/talentOnboarding/roleSummaryLanguage";
-import {
   fetchTalentContextPromptSnapshot,
   fetchTalentStructuredProfile,
   getTalentSupabaseAdmin,
@@ -3080,6 +3076,8 @@ function normalizeExternalFitCache(
   };
 }
 
+type RoleSummaryLanguageKey = "en" | "ko";
+
 function roleSummaryLanguageKey(
   outputLanguage: string
 ): RoleSummaryLanguageKey {
@@ -3920,7 +3918,6 @@ async function saveFullJdRoleSummariesBatch(args: {
   const languageKey = roleSummaryLanguageKey(args.outputLanguage);
   const cardByRoleId = new Map(args.cards.map((card) => [card.roleId, card]));
   const updates: Array<{ payload: string; roleId: string }> = [];
-  let skippedLanguageValidation = 0;
   for (const evaluation of args.evaluations) {
     const roleId = cleanText(evaluation.roleId, 120);
     const card = cardByRoleId.get(roleId);
@@ -3933,11 +3930,6 @@ async function saveFullJdRoleSummariesBatch(args: {
       ROLE_FIT_SUMMARY_MAX_LENGTH
     );
     if (!content) continue;
-    const validation = validateRoleSummaryLanguage(content, languageKey);
-    if (!validation.confidentMatch) {
-      skippedLanguageValidation += 1;
-      continue;
-    }
     updates.push({
       payload: JSON.stringify({
         content,
@@ -3949,7 +3941,7 @@ async function saveFullJdRoleSummariesBatch(args: {
     });
   }
   if (updates.length === 0) {
-    return { skippedLanguageValidation, stored: 0 };
+    return { stored: 0 };
   }
   const valuesSql = updates
     .map(
@@ -3994,7 +3986,7 @@ WHERE role.role_id = incoming.role_id
   if (error) {
     throw new Error(error.message ?? "Failed to save full JD role summaries");
   }
-  return { skippedLanguageValidation, stored: updates.length };
+  return { stored: updates.length };
 }
 
 async function persistFullJdBatchEvaluations(args: {
@@ -4329,13 +4321,12 @@ function buildRecommendationEvidence(item: EnrichedRankedRole) {
   ].filter((entry) => entry.text);
 }
 
-async function saveValidatedRoleFitSummaries(args: {
+async function saveRoleFitSummaries(args: {
   admin: AdminClient;
   outputLanguage: string;
   recommendations: EnrichedRankedRole[];
 }) {
   const languageKey = roleSummaryLanguageKey(args.outputLanguage);
-  let skippedLanguageValidation = 0;
   let stored = 0;
   for (const item of args.recommendations) {
     const roleId = cleanText(item.roleId || item.role.role_id, 120);
@@ -4354,20 +4345,6 @@ async function saveValidatedRoleFitSummaries(args: {
       ROLE_FIT_SUMMARY_MAX_LENGTH
     );
     if (!content) continue;
-    const validation = validateRoleSummaryLanguage(content, languageKey);
-    if (!validation.confidentMatch) {
-      skippedLanguageValidation += 1;
-      debugLog("role summary language validation skipped", {
-        englishSignalCount: validation.englishSignalCount,
-        englishWordCount: validation.englishWordCount,
-        hangulCharCount: validation.hangulCharCount,
-        languageKey,
-        latinCharCount: validation.latinCharCount,
-        reason: validation.reason,
-        roleId,
-      });
-      continue;
-    }
     const payload = JSON.stringify({
       content,
       generatedAt: new Date().toISOString(),
@@ -4406,7 +4383,7 @@ WHERE role_id = ${sqlLiteral(roleId)}::uuid
     if (error) throw new Error(error.message ?? "Failed to save role summary");
     stored += 1;
   }
-  return { skippedLanguageValidation, stored };
+  return { stored };
 }
 
 export async function persistRecommendations(args: {
@@ -4416,14 +4393,14 @@ export async function persistRecommendations(args: {
   userId: string;
 }) {
   try {
-    const result = await saveValidatedRoleFitSummaries({
+    const result = await saveRoleFitSummaries({
       admin: args.admin,
       outputLanguage: args.outputLanguage,
       recommendations: args.recommendations,
     });
-    debugLog("validated role fit summary save completed", result);
+    debugLog("role fit summary save completed", result);
   } catch (error) {
-    debugLog("validated role fit summary save skipped", {
+    debugLog("role fit summary save skipped", {
       message: error instanceof Error ? error.message : String(error),
     });
   }

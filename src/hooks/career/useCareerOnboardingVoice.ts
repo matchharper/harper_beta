@@ -1076,6 +1076,9 @@ export const useCareerOnboardingVoice = ({
     (error: string) => {
       console.error("[CareerOnboardingVoice] Realtime error:", error);
       setChatError(error);
+      if (inputModeRef.current === "call") {
+        showToast({ message: error, variant: "white" });
+      }
     },
     [setChatError]
   );

@@ -38,6 +38,36 @@ before(async () => {
 after(async () => {
   await db?.close();
 });
+test("default runtime migration moves unclaimed work and preserves active owners and delivery receipts", async () => {
+  const migrated = new PGlite();
+  try {
+    await migrated.exec(schema);
+    await migrated.exec(await readFile(new URL("../../../../supabase/migrations/20261013035308_email_vercel_runtime.sql", import.meta.url), "utf8"));
+    await migrated.query(`INSERT INTO email_reply_jobs(id,status,locked_by,locked_at,resend_email_id)
+      VALUES($1,'processing','old-owner',now(),'existing-receipt'),($2,'queued',null,null,null)`, [jobId, otherJob]);
+    await migrated.query(`INSERT INTO contact_queue(id,status,locked_by,locked_at,scheduled_at)
+      VALUES($1,'processing','old-owner',now(),now()),($2,'queued',null,null,now()+interval '1 day')`, [jobId, otherJob]);
+    await migrated.query(`INSERT INTO career_email_onboarding_leads(id,conversation_id,talent_id,review_locked_by,review_locked_at)
+      VALUES($1,$3,$4,'old-owner',now()),($2,$3,$4,null,null)`, [jobId, otherJob, conversation, talent]);
+    await migrated.exec(await readFile(new URL("../../../../supabase/migrations/20261027062947_email_runtime_default.sql", import.meta.url), "utf8"));
+
+    for (const table of ["email_reply_jobs", "contact_queue", "career_email_onboarding_leads"]) {
+      const existing = (await migrated.query<any>(`SELECT * FROM ${table} ORDER BY id`)).rows;
+      assert.equal(existing.find(r => r.id === jobId).worker_target, "legacy");
+      assert.equal(existing.find(r => r.id === otherJob).worker_target, "vercel_queue");
+      const created = (await migrated.query<any>(`INSERT INTO ${table}(id) VALUES($1) RETURNING worker_target`, [talent])).rows[0];
+      assert.equal(created.worker_target, "vercel_queue");
+    }
+    const active = (await migrated.query<any>("SELECT status,locked_by,resend_email_id FROM email_reply_jobs WHERE id=$1", [jobId])).rows[0];
+    assert.deepEqual(active, { status: "processing", locked_by: "old-owner", resend_email_id: "existing-receipt" });
+    const contact = (await migrated.query<any>("SELECT scheduled_at > now() AS future,locked_by FROM contact_queue WHERE id=$1", [otherJob])).rows[0];
+    assert.equal(contact.future, true);
+    const review = (await migrated.query<any>("SELECT review_locked_by FROM career_email_onboarding_leads WHERE id=$1", [jobId])).rows[0];
+    assert.equal(review.review_locked_by, "old-owner");
+    for (const fn of ["claim_email_reply_jobs", "claim_contact_queue_jobs", "claim_career_email_onboarding_reviews"])
+      assert.deepEqual((await migrated.query(`SELECT * FROM ${fn}('old-worker')`)).rows, []);
+  } finally { await migrated.close(); }
+});
 beforeEach(async () => {
   await db.exec(
     "TRUNCATE career_email_onboarding_events,org_intro_email_threads,email_reply_jobs,contact_queue,career_email_onboarding_leads,talent_messages,talent_conversations,career_email_messages,company_talent_requests,meeting_schedule_rounds RESTART IDENTITY"

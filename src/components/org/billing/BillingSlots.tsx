@@ -2,6 +2,7 @@ import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Link from "next/link";
 import { Check, ChevronDown, Info, Plus } from "lucide-react";
+import { Ticket } from "@/components/ui/ticket";
 import { MuteButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -109,10 +110,17 @@ export function BillingSlots({
             )}
           </p>
           <p className="ml-auto whitespace-nowrap tabular-nums">
-            {c(
-              `${formatIntroCount(remaining)} 남음`,
-              `${formatIntroCount(remaining)} left`
-            )}
+            <span className="sr-only">
+              {c(
+                `${formatIntroCount(remaining)} 남음`,
+                `${formatIntroCount(remaining)} left`
+              )}
+            </span>
+            <span className="inline-flex items-center gap-1" aria-hidden="true">
+              {remaining ?? "—"}
+              <Ticket size={12} />
+              {c("남음", "left")}
+            </span>
           </p>
         </div>
         {remaining !== null ? (
@@ -147,7 +155,12 @@ export function BillingSlots({
       {free && (
         <div className="mb-12">
           <OrgSectionHeader
-            title={c("공용 Intro", "Shared Intros")}
+            title={
+              <span className="inline-flex items-center gap-2">
+                {c("공용 Intro", "Shared Intros")}
+                <Ticket />
+              </span>
+            }
             description={c(
               "매월 제공되는 기본 Intro입니다. 모든 역할에 공통적으로 사용됩니다.",
               "Renewed monthly and shared across all roles."
@@ -173,17 +186,21 @@ export function BillingSlots({
               ) : (
                 <p>{c("매월 갱신", "Resets monthly")}</p>
               )}
-              <p
-                className="ml-auto whitespace-nowrap tabular-nums"
-                aria-label={c(
-                  `공용 Intro ${free.remaining}개 남음`,
-                  `${free.remaining} shared ${free.remaining === 1 ? "Intro" : "Intros"} left`
-                )}
-              >
-                {c(
-                  `${formatIntroCount(free.remaining)} 남음`,
-                  `${formatIntroCount(free.remaining)} left`
-                )}
+              <p className="ml-auto whitespace-nowrap tabular-nums">
+                <span className="sr-only">
+                  {c(
+                    `공용 Intro ${free.remaining}개 남음`,
+                    `${free.remaining} shared ${free.remaining === 1 ? "Intro" : "Intros"} left`
+                  )}
+                </span>
+                <span
+                  className="inline-flex items-center gap-1"
+                  aria-hidden="true"
+                >
+                  {free.remaining}
+                  <Ticket size={12} />
+                  {c("남음", "left")}
+                </span>
               </p>
             </div>
             <div
@@ -321,8 +338,8 @@ export function BillingSlots({
           </span>
           <Tooltips
             text={c(
-              "슬롯에 배정되지 않은 채용 중인 Role도 공용 Intro로 이용할 수 있어요. 유료 기능이 필요한 Role을 슬롯에 배정하세요.",
-              "An active role without a slot can use shared Intros. Assign a slot to give a role access to paid features."
+              "슬롯 Intro를 사용할 Role을 배정하세요. 슬롯이 없는 Role도 공용 Intro로 요청과 연결 수락을 진행할 수 있어요.",
+              "Assign a role to use the slot’s Intros. Roles without a slot can use shared Intros for requests and connection acceptance."
             )}
           >
             <Info

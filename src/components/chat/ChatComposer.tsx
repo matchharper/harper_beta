@@ -28,7 +28,7 @@ import { BareButton, MuteButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME =
-  "border-white md:border-black/4 bg-neutral-50/50 shadow-[0_2px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm";
+  "border-white md:border-black/4 bg-white/50 shadow-[0_2px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm";
 
 export function ChatComposerSurface({
   className,
@@ -297,11 +297,11 @@ export const ChatComposerFrame = forwardRef<
           onChange={handleChange}
           onFocus={handleFocus}
           className={cn(
-            "min-h-[72px] min-w-0 resize-none border-none px-3.5 py-4 text-base leading-5 text-neutral-primary outline-none transition-[min-height,padding,opacity] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] placeholder:text-neutral-placeholder disabled:cursor-not-allowed md:text-sm motion-reduce:transition-none",
+            "min-h-[72px] min-w-0 resize-none border-none px-3.5 py-4 text-[16px] leading-5 text-neutral-primary outline-none transition-[min-height,padding,opacity] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] placeholder:text-sm placeholder:text-neutral-placeholder disabled:cursor-not-allowed md:text-sm motion-reduce:transition-none",
             expanded
               ? "max-md:col-span-2 max-md:col-start-1 max-md:row-start-1 max-md:min-h-12 max-md:w-full max-md:px-3.5 max-md:py-3"
               : cn(
-                  "flex items-center max-md:row-start-1 max-md:h-12 truncate",
+                  "flex items-center max-md:row-start-1 max-md:h-12 max-md:truncate",
                   mobileLeadingAction
                     ? "max-md:col-start-2 max-md:pr-2 max-md:pl-0"
                     : "max-md:col-start-1 max-md:pl-3.5 max-md:pr-2"

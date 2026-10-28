@@ -1,3 +1,5 @@
+import { formatPromptText } from "@/lib/llm/promptText";
+
 type Data = Record<string, unknown>;
 function record(value: unknown): Data | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -55,5 +57,5 @@ export function withCompactTalentToolModelResult(name: string, result: unknown):
     default:
       return result;
   }
-  return { ...raw, modelOutput: JSON.stringify(model) };
+  return { ...raw, modelOutput: formatPromptText(model) };
 }

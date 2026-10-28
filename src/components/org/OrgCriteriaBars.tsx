@@ -3,7 +3,6 @@ import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
   companyCriterionFitnessLabel,
   companyCriterionScoreLabel,
-  companyCriterionScoreExplanation,
   type OrgCompanyCriteriaEvaluation,
 } from "@/lib/org/companyCriteriaEvaluations";
 import { cn } from "@/lib/utils";
@@ -34,10 +33,7 @@ export function OrgCriteriaBars({
       {Array.from({ length: 6 }, (_, index) => {
         const evaluation = evaluations[index];
         const fit = evaluation
-          ? companyCriterionFitnessLabel(
-              evaluation.fitness,
-              locale
-            )
+          ? companyCriterionFitnessLabel(evaluation.fitness, locale)
           : c("평가 없음", "Not evaluated");
         const scoreLabel = companyCriterionScoreLabel(evaluation?.score);
         const label = evaluation
@@ -66,14 +62,10 @@ export function OrgCriteriaBars({
               <>
                 <div className="font-medium">{evaluation.name}</div>
                 <div className="mt-1 text-neutral-muted">
-                  {fit}{scoreLabel ? ` · ${scoreLabel}` : ""}
+                  {fit}
+                  {scoreLabel ? ` · ${scoreLabel}` : ""}
                 </div>
                 <p className="mt-2">{evaluation.content}</p>
-                {scoreLabel ? (
-                  <p className="mt-3 text-neutral-muted">
-                    {companyCriterionScoreExplanation(locale)}
-                  </p>
-                ) : null}
               </>
             ) : (
               fit

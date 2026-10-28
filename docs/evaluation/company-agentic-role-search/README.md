@@ -1,5 +1,7 @@
 # 회사 대화 기반 Role 검색 평가
 
+[Run Search 추가·교체 계약 로컬 확인](REPORT-PUBLICATION-ADD-20261027.md): 기존 ARS05를 변경 없이 실행했으나 평가용 DB 컬럼 부재와 공유 checkout source drift로 모델의 실제 추가 완료는 검증하지 못했다. 별도 웹·Worker·임시 PostgreSQL 대상 검증과 구분한다.
+
 [운영 원본 정기 선정·메시지 저장 검증](LIVE-SCHEDULED-PREVIEW-V1.md): 2026-10-24 vooy·가우디오랩 현재 원본으로 재현한다. 사용자가 허용한 DB 쓰기는 평가·선정 명단·메시지 원문이며 실제 추천·연결 상태 변경과 외부 발송은 제외한다.
 
 [정기 compact-selection-v2](SCHEDULED-SELECTION-V2.md)는 Top 50 + 수락 전원 입력에서 회사 LLM이 바로 선정하는 새 계약이다. v1 원문 전체 비교 방식과 결과를 보존하고 별도 run으로 검증한다.

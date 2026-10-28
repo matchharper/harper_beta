@@ -224,14 +224,14 @@ test("composer collects decisions without chat turns, restores answers, and sepa
     );
     state.actions = items;
     await render();
-    assert.equal(dom.window.document.querySelectorAll("textarea").length, 1);
+    assert.equal(dom.window.document.querySelectorAll("textarea").length, 3);
     assert.equal(
       dom.window.document.querySelector('[aria-label="Ordinary composer"]'),
       null
     );
     assert.equal(dom.window.document.querySelectorAll("del").length, 1);
     assert.equal(
-      dom.window.document.querySelectorAll('button[aria-label="제안 문구 수정"]').length,
+      dom.window.document.querySelectorAll('textarea[aria-label="제안 문구 수정"]').length,
       2
     );
     assert.match(dom.window.document.body.textContent!, /1 \/ 2/);
@@ -746,7 +746,7 @@ test("saved answers show inspection waiting, then a recoverable continuation wit
   assert.doesNotMatch(render(), /Continue with saved answers/);
 });
 
-test("all question choice surfaces use the same numbered buttons; writing remains open ended", async () => {
+test("decisions are unnumbered with mobile Apply on the right; other choices stay numbered", async () => {
   const {renderToStaticMarkup} = await import("react-dom/server");
   const {ApplicationPreparationContext} = await import("./ApplicationPreparationContext");
   const {ApplicationPreparationComposer} = await import("./ApplicationPreparationComposer");
@@ -770,7 +770,16 @@ test("all question choice surfaces use the same numbered buttons; writing remain
       assert.ok(group);
       const buttons=Array.from(group.querySelectorAll("button"));
       assert.equal(buttons.length,item.kind === "material" && item.documentId && !item.documentPurpose ? 3 : 2);
-      buttons.forEach((button,index)=>{assert.equal(button.firstElementChild?.textContent,String(index+1));buttonClasses.push(button.className);});
+      if (item.kind === "change") {
+        assert.ok(group.classList.contains("grid-cols-2"));
+        assert.ok(group.classList.contains("sm:grid-cols-1"));
+        assert.deepEqual(buttons.map(button => button.textContent), ["Apply", "Don't apply"]);
+        assert.ok(buttons[1].classList.contains("-order-1"));
+        assert.ok(buttons[1].classList.contains("sm:order-none"));
+        buttons.forEach(button => assert.equal(button.firstElementChild, null));
+      } else {
+        buttons.forEach((button,index)=>{assert.equal(button.firstElementChild?.textContent,String(index+1));buttonClasses.push(button.className);});
+      }
     }
     dom.window.close();
   }

@@ -3,6 +3,8 @@ import { test } from "node:test";
 import { buildCareerConversationPromptPlan } from "@/lib/career/prompts";
 import { CAREER_HARPER_LINK_OUTPUT_RULE } from "@/lib/career/prompts/rawPrompts";
 import { adaptEmailPromptBlocks, EMAIL_CHANNEL_RULES } from "./prompt";
+import { buildPreparationPrompt } from "@/lib/career/simulation/preparationPrompt";
+import { createSimulationSession } from "@/lib/career/simulation/session";
 
 test("email adapts channel instructions without mutating the web prompt or its data", () => {
   const args = {
@@ -53,6 +55,22 @@ test("outbound email uses the supplied clock and one channel contract", () => {
   assert.equal(email.map(b => b.text).join("\n").split(channel).length - 1, 1);
   assert.ok(!channel.includes(EMAIL_CHANNEL_RULES));
   assert.ok(email.some(b => b.text.includes("Historical conversation")));
+});
+
+test("email application instructions use one current text context and leave web presentation unchanged", () => {
+  const session = createSimulationSession({ roleRef: "role:1", roleName: "Engineer", documentId: "resume", documentName: "Resume" });
+  const web = buildPreparationPrompt(session);
+  const before = JSON.stringify(web);
+  const email = adaptEmailPromptBlocks(buildPreparationPrompt(session, ["ready_for_role"], "email"),
+    { subject: "Apply", thread: "", attachments: [] }, "Verified current email application facts");
+  assert.ok(!email.some(b => b.key === "application_preparation_context"));
+  const text = email.map(b => b.text).join("\n");
+  assert.match(text, /choose the resume yourself/);
+  assert.match(text, /수정 1\./);
+  assert.match(text, /질문 1\./);
+  assert.doesNotMatch(text, /its start card precedes/);
+  assert.equal(JSON.stringify(web), before);
+  assert.doesNotMatch(before, /수정 1\.|질문 1\./);
 });
 
 test("email projects setting labels and omits generic enrichment without losing role clarification or facts", () => {

@@ -58,7 +58,7 @@ export function OrgCandidateReview({
         detail={detail}
       />
       <OrgCandidateReviewContent
-        className={headerProps.navigationTitle ? "px-2 pt-3" : "px-4 pt-8 mt-4"}
+        className={headerProps.navigationTitle ? "px-0 pt-3 md:px-2" : "px-0 pt-6 md:mt-4 md:px-4 md:pt-8"}
         detail={detail}
         error={error}
         onRetry={onRetry}

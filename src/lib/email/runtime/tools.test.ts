@@ -134,6 +134,22 @@ test("read tools remain fresh and lost execution ownership prevents all effects"
   assert.equal(calls, 2);
 });
 
+test("Ops email tests block external effects before any executor or cached success is used", async () => {
+  const { ctx, job } = context();
+  job.kind = "ops_email_test";
+  let calls = 0;
+  const executeDefault = async () => ({ ok: true, sequence: ++calls });
+  for (const name of ["contact_company", "apply_for_role", "update_recommended_opportunity_feedback",
+    "request_internal_role_reconsideration", "update_onboarding_progress", "update_setting",
+    "update_talent_profile", "write_talent_context", "update_document", "unknown_future_tool"]) {
+    const result = await executeEmailTool(ctx, { name, input: {}, executeDefault }) as any;
+    assert.equal(result.error, "ops_email_test_external_effect_disabled", name);
+  }
+  assert.equal(calls, 0);
+  await executeEmailTool(ctx, { name: "list_documents", input: {}, executeDefault });
+  assert.equal(calls, 1);
+});
+
 function acceptanceContext() {
   const rec: any = {
     id: "recommendation",
@@ -346,6 +362,18 @@ test("email acceptance guidance is an adapter copy and cannot mutate the shared 
     (t) => t.function.name === "update_recommended_opportunity_feedback"
   )!;
   assert.match(tool.function.description, /records the pending confirmation/);
+  const start = selection.tools.find(t => t.function.name === "simulate_application")!;
+  assert.match(start.function.description, /Choose the suitable source yourself/);
+  const revise = selection.tools.find(t => t.function.name === "manage_application_suggestions")!;
+  assert.match(revise.function.description, /save the approved subset with ready_for_role in this turn/);
+  const coaching = selection.tools.find(t => t.function.name === "manage_career_coaching_activity")!;
+  const parameters = coaching.function.parameters as { properties: { action: { enum: string[] } }; required: string[] };
+  assert.deepEqual(parameters.properties.action.enum, ["end"]);
+  assert.ok(parameters.required.includes("activityMessageId"));
+  assert.ok(parameters.required.includes("expectedRevision"));
+  const { manageApplicationSuggestionsTool } = await import("@/lib/career/simulation/suggestions");
+  assert.match(manageApplicationSuggestionsTool.function.description, /composer/);
+  assert.notEqual(revise, manageApplicationSuggestionsTool);
   assert.equal(JSON.stringify(getOpenAIChatTools("chat")), before);
 });
 

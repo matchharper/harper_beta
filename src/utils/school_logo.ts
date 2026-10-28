@@ -1,4 +1,4 @@
-// map.ts
+import { koreaUniversityEnToKo } from "./language_map";
 
 export const SCHOOL_LOGO_MAP: Record<string, string> = {
   // Ivy / Top US
@@ -31,7 +31,6 @@ export const SCHOOL_LOGO_MAP: Record<string, string> = {
   // "2477": "", // UCLA
   "3523":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/1631339899678.jpeg", // 코넬
-  "": "",
 
   "14022":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/Cu_gVCIwkvNcl724fek5ZsHXLUTAsxo7lKHTYzjICbQdu65tJrGpJQf6kursNwBp5LCyO-yICGl4mc8oCpqdTFH8Ejf9M8AOSZeh5DKLkEshp2Xa99QAZlqtjjpOQ3NmjhnQ8uAdnM2LmSBiLJJAxQ.svg", // 칭와
@@ -82,8 +81,6 @@ export const SCHOOL_LOGO_MAP: Record<string, string> = {
   "15096079": "", // 동국대학교
   "15095343": "", // 국민대
   "15096088": "", // 한국외대
-  "": "", //
-  "": "", //
 
   // 과기/국립
   "19048":
@@ -107,24 +104,68 @@ export const SCHOOL_LOGO_MAP: Record<string, string> = {
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/_logo.jpeg", // 경기대학교
   "15094663":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/1631375602419.jpeg", // 아주대학교
-  "": "", //
-  "": "", //
 };
 
-// utils
+// Reuse the existing logo assets for name-only education records. Korean/English
+// aliases are resolved by the same university-name map used elsewhere in profiles.
+const SCHOOL_NAME_IDS = new Map<string, string>([
+  ["서울대학교", "15096106"],
+  ["고려대학교", "15094694"],
+  ["연세대학교", "15094718"],
+  ["한국과학기술원(kaist)", "15095344"],
+  ["포항공과대학교(postech)", "307477"],
+  ["숭실대학교", "15096944"],
+  ["성균관대학교", "15096111"],
+  ["한양대학교", "15095335"],
+  ["이화여자대학교", "19045"],
+  ["중앙대학교", "15096073"],
+  ["서강대학교", "15096107"],
+  ["경희대학교", "15094702"],
+  ["부산대학교", "15095355"],
+  ["경북대학교", "15094704"],
+  ["홍익대학교", "15096090"],
+  ["전남대학교", "15095321"],
+  ["울산과학기술원(unist)", "19048"],
+  ["대구경북과학기술원(dgist)", "19049"],
+  ["광주과학기술원(gist)", "19050"],
+  ["서울시립대학교", "15094713"],
+  ["인하대학교", "15095338"],
+  ["건국대학교", "15096927"],
+  ["서울여자대학교", "15095359"],
+  ["한국항공대학교", "15094680"],
+  ["경기대학교", "15094701"],
+  ["아주대학교", "15094663"],
+  ["harvard university", "142423"],
+  ["stanford university", "17919"],
+  ["massachusetts institute of technology", "16396"],
+  ["mit", "16396"],
+  ["california institute of technology", "16504"],
+  ["caltech", "16504"],
+  ["yale university", "18951"],
+  ["princeton university", "19017"],
+  ["brown university", "16517"],
+  ["dartmouth college", "18483"],
+  ["cornell university", "3523"],
+  ["university of pennsylvania", "19016"],
+  ["university of washington", "2584"],
+  ["georgia institute of technology", "3558"],
+  ["carnegie mellon university", "3147"],
+  ["new york university", "3159"],
+  ["tsinghua university", "14022"],
+]);
 
-export const getSchoolLogo = (url?: string): string | undefined => {
-  if (!url) return undefined;
+export const getSchoolLogo = (
+  url?: string | null,
+  school?: string | null
+): string | undefined => {
+  // Preserve the more specific existing LinkedIn ID lookup, including URLs
+  // carrying a query string or fragment.
+  const schoolId = url?.trim().split(/[?#]/)[0].split("/").filter(Boolean).at(-1);
+  const linkedLogo = schoolId ? SCHOOL_LOGO_MAP[schoolId] : undefined;
+  if (linkedLogo) return linkedLogo;
 
-  try {
-    // https://linkedin.com/school/142423/
-    const parts = url.split("/").filter(Boolean);
-    const schoolId = parts[parts.length - 1];
-
-    if (!schoolId) return undefined;
-
-    return SCHOOL_LOGO_MAP[schoolId];
-  } catch {
-    return undefined;
-  }
+  const name = school?.trim();
+  if (!name) return undefined;
+  const id = SCHOOL_NAME_IDS.get(koreaUniversityEnToKo(name).trim().toLowerCase());
+  return id ? SCHOOL_LOGO_MAP[id] || undefined : undefined;
 };

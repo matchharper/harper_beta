@@ -161,6 +161,7 @@ export function ChatAssistantPending({
 
 export function ChatMessageBubbleFrame({
   active = false,
+  animateEntrance = false,
   children,
   className,
   isUser,
@@ -169,6 +170,7 @@ export function ChatMessageBubbleFrame({
   unstyled = false,
 }: {
   active?: boolean;
+  animateEntrance?: boolean;
   children: ReactNode;
   className?: string;
   isUser: boolean;
@@ -179,6 +181,7 @@ export function ChatMessageBubbleFrame({
   return (
     <article
       className={cn(
+        animateEntrance && "chat-message-enter",
         !unstyled && "transition-colors duration-300",
         !unstyled && typographyClassName,
         !unstyled &&

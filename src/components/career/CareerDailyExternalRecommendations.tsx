@@ -67,7 +67,7 @@ export function TodayExternalRecommendationsCard({
     <button
       type="button"
       onClick={() => onOpenOpportunity(roles[0].roleId, "new")}
-      className="mt-2 mb-3 flex w-full items-center gap-2 rounded-xl bg-action-faded px-3 py-3 text-left transition-colors hover:bg-action-faded/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action"
+      className="mt-4 flex w-full items-center gap-2 rounded-xl bg-action-faded px-3 py-3 text-left transition-colors hover:bg-action-faded/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action"
     >
       <span
         aria-hidden="true"

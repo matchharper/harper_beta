@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { cn } from "@/lib/utils";
@@ -15,11 +15,15 @@ export function TalentDetailPager({
   disabled = false,
   navigation,
   onNavigate,
+  onNextPage,
+  nextPagePending = false,
 }: {
   compact?: boolean;
   disabled?: boolean;
   navigation: TalentDetailNavigationState;
   onNavigate: (target: TalentDetailNavigationState["next"] | null) => void;
+  onNextPage?: () => void;
+  nextPagePending?: boolean;
 }) {
   const { c } = useOrgLocale();
   return (
@@ -36,7 +40,7 @@ export function TalentDetailPager({
     >
       <MuteButton
         aria-label={c("이전 후보자", "Previous candidate")}
-        className="rounded-none border-0 shadow-none"
+        className="rounded-none border-0 shadow-none max-md:px-1 max-md:py-1.5"
         disabled={disabled || !navigation.previous}
         onClick={() => onNavigate(navigation.previous)}
         size={compact ? "sm" : "md"}
@@ -47,7 +51,7 @@ export function TalentDetailPager({
       <div
         aria-live="polite"
         className={cn(
-          "flex items-center justify-center tabular-nums text-neutral-primary",
+          "flex items-center justify-center tabular-nums text-neutral-primary max-md:min-w-9 max-md:px-1 max-md:text-[12px]",
           compact ? "min-w-12 px-2 text-[12px]" : "min-w-14 px-2.5 text-[14px]"
         )}
       >
@@ -55,13 +59,21 @@ export function TalentDetailPager({
       </div>
       <MuteButton
         aria-label={c("다음 후보자", "Next candidate")}
-        className="rounded-none border-0 shadow-none"
-        disabled={disabled || !navigation.next}
-        onClick={() => onNavigate(navigation.next)}
+        className="rounded-none border-0 shadow-none max-md:px-1 max-md:py-1.5"
+        disabled={
+          disabled || nextPagePending || (!navigation.next && !onNextPage)
+        }
+        onClick={() =>
+          navigation.next ? onNavigate(navigation.next) : onNextPage?.()
+        }
         size={compact ? "sm" : "md"}
         variant="transparent"
       >
-        <ChevronRight aria-hidden className="size-4" />
+        {nextPagePending ? (
+          <LoaderCircle aria-hidden className="size-4 animate-spin" />
+        ) : (
+          <ChevronRight aria-hidden className="size-4" />
+        )}
       </MuteButton>
     </div>
   );

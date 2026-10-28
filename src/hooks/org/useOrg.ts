@@ -50,6 +50,8 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 import {
   orgBillingMatches,
+  mapOrgBoardCache,
+  type OrgBoardCache,
   orgBoardMatches,
   orgDetailMatches,
   reconcileOrgCompanyIntro,
@@ -368,6 +370,18 @@ export function useLeaveOrgWorkspace() {
   });
 }
 
+export function useDeleteOrgWorkspace() {
+  return useMutation({
+    retry: false,
+    mutationFn: (args: { workspaceId: string; confirmationName: string }) =>
+      fetchWithInternalAuth<{ ok: true; workspaceId: string }>("/api/org/workspace", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(args),
+      }),
+  });
+}
+
 export function orgBoardQueryOptions(filters: OrgBoardFilters) {
   const workspaceId = filters.workspaceId?.trim() ?? "";
   const roleId = filters.roleId?.trim() ?? "";
@@ -480,6 +494,8 @@ export function useOrgBoardProfileLabels(args: {
 }
 
 export function orgTalentDetailQueryOptions(args: {
+  initialData?: OrgCandidateDetailResult;
+  staleTime?: number;
   enabled?: boolean;
   recommendationId?: string | null;
   roleId?: string | null;
@@ -492,6 +508,7 @@ export function orgTalentDetailQueryOptions(args: {
   const recommendationId = args.recommendationId?.trim() ?? "";
 
   return queryOptions({
+    initialData: args.initialData,
     queryKey: queryKeys.org.detail({
       recommendationId,
       roleId,
@@ -509,11 +526,13 @@ export function orgTalentDetailQueryOptions(args: {
     },
     enabled:
       (args.enabled ?? true) && Boolean(workspaceId) && Boolean(talentId),
-    staleTime: 20_000,
+    staleTime: args.staleTime ?? 20_000,
   });
 }
 
 export function useOrgTalentDetail(args: {
+  initialData?: OrgCandidateDetailResult;
+  staleTime?: number;
   enabled?: boolean;
   recommendationId?: string | null;
   roleId?: string | null;
@@ -562,8 +581,8 @@ export function useSetOrgCandidateStage() {
         queryClient.cancelQueries(detail),
         queryClient.cancelQueries(accepted),
       ]);
-      queryClient.setQueriesData<OrgBoardResponse>(board, (current) =>
-        applyOrgCandidateStageToBoard(current, result, variables)
+      queryClient.setQueriesData<OrgBoardCache>(board, (current) =>
+        mapOrgBoardCache(current, page => applyOrgCandidateStageToBoard(page, result, variables) ?? page)
       );
       queryClient.setQueriesData<OrgCandidateDetailResult>(detail, (current) =>
         isOrgCandidateProfilePreview(current) ? current : applyOrgCandidateStageToDetail(current, result, variables)

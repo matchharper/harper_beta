@@ -237,6 +237,7 @@ export async function ingestResendInboundEvent(args: {
   }
   return {
     inboundEventId: String(result?.inboundEventId ?? ""),
+    jobId: String(result?.jobId ?? ""),
     inserted: result?.inserted === true,
     queued: result?.queued === true,
   };

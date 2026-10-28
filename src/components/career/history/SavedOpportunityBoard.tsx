@@ -18,6 +18,8 @@ import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/inter
 import UpcomingMeetingStrip from "./UpcomingMeetingStrip";
 
 type SavedOpportunityBoardProps = {
+  initialLoading?: boolean;
+  loadError?: boolean;
   columnLoadState: Record<
     SavedOpportunityBoardStatus,
     {
@@ -180,6 +182,8 @@ const SavedOpportunityBoardCard = React.memo(
 );
 
 function SavedOpportunityBoard({
+  initialLoading = false,
+  loadError = false,
   columnLoadState,
   counts,
   items,
@@ -319,7 +323,7 @@ function SavedOpportunityBoard({
                   );
                 })}
 
-                {columnItems.length === 0 && loadState.loading ? (
+                {columnItems.length === 0 && (initialLoading || loadState.loading || (loadState.hasMore && !loadError)) ? (
                   <div className="flex items-center justify-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 py-8 text-center text-[13px] font-medium text-neutral-muted">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     {t(
@@ -336,7 +340,7 @@ function SavedOpportunityBoard({
                   </div>
                 ) : null}
 
-                {loadState.hasMore ? (
+                {loadState.hasMore && (columnItems.length > 0 || loadError) ? (
                   <BareButton
                     type="button"
                     disabled={loadState.loading}

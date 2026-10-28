@@ -194,7 +194,7 @@ export function useOrgEntitlements(workspaceId: string) {
         ...data,
         capacity: summary.capacity,
         creditSlots: summary.creditSlots,
-        pendingConnections: summary.model !== "free",
+        pendingConnections: true,
       };
     },
   });

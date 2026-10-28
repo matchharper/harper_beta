@@ -90,7 +90,7 @@ test("Company pricing copy states the approved commercial boundary", () => {
     .join("\n");
 
   assert.match(pricingCopy, /Free Role은 한 번에 1개/);
-  assert.match(pricingCopy, /월 10 Intro.*별도로 유지/);
+  assert.match(pricingCopy, /월 3 Intro.*별도로 유지/);
   assert.match(pricingCopy, /월 50 Intro/);
   assert.match(pricingCopy, /Free와 표준 슬롯 구독에는 채용 성공보수가 없어요/);
   assert.match(pricingCopy, /Enterprise.*별도/);
@@ -112,8 +112,9 @@ test("Company FAQ explains consequences and concrete next actions", () => {
     hasTag(item, "topic:recommendation-paused")
   );
 
-  assert.match(connect?.question ?? "", /연결 수락/);
-  assert.match(connect?.answer ?? "", /^연결 수락은/);
+  assert.match(connect?.question ?? "", /Accept Intro/);
+  assert.match(connect?.answer ?? "", /버튼을 처음 누르는 것만으로 발송되지는 않으며/);
+  assert.match(connect?.answer ?? "", /방식과 세부 내용을 확인한 뒤 수락하면 진행/);
   assert.doesNotMatch(connect?.answer ?? "", /\bConnect\b/);
   assert.match(reject?.question ?? "", /연결 거절/);
   assert.match(reject?.answer ?? "", /^연결 거절은/);
@@ -139,7 +140,7 @@ test("Company connection explanations keep internal review private", () => {
 
   assert.match(connectionCopy, /회사와 역할/);
   assert.match(connectionCopy, /대화해 볼 의사/);
-  assert.match(connectionCopy, /슬롯이 배정된 Role/);
+  assert.match(connectionCopy, /Free Role에서도 이용할 수/);
   assert.doesNotMatch(connectionCopy, /Harper 팀의 마지막 확인/);
   assert.doesNotMatch(connectionCopy, /Harper의 마지막 검토/);
 });

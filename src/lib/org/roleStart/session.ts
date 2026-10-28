@@ -3,6 +3,7 @@ import "server-only";
 import { after } from "next/server";
 
 import type { OrgRoleCriterionGrade } from "@/lib/org/roleCriteria";
+import type { BillingErrorCode } from "@/lib/org/billing/types";
 import {
   normalizeProbes,
   normalizeRoleStartBrief,
@@ -164,7 +165,8 @@ export type RoleStartCandidate = {
 };
 
 export type RoleStartEvaluation = {
-  rating: OrgRoleCriterionGrade;
+  /** Null when the team submitted only written feedback. */
+  rating: OrgRoleCriterionGrade | null;
   answer: string | null;
   note: string | null;
   /** Picked "확인 필요"/"맞지 않음" reasons, stored as codes for the first batch. */
@@ -185,6 +187,8 @@ export type RoleStartProgress = {
   status?: "running" | "done" | "error";
   /** Generic step kind; the screen words it. text is set only for a specific outcome. */
   kind?: string;
+  /** Display-only error code, retained when registration fails in the background. */
+  billingCode?: BillingErrorCode;
 };
 
 export type RoleStartQuestionCandidate = Omit<RoleStartQuestion, "status" | "askedAt" | "overlap">;

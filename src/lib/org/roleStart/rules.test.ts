@@ -141,7 +141,7 @@ test("an info candidate's rating moves a criterion only between 있으면 좋음
       { id: "c3", name: "B2C", criteria: "B2C", requirement: "preferred" as const, importance: 1, kind: "similarity" as const },
     ],
   };
-  const session = (ratings: Record<string, string>) =>
+  const session = (ratings: Record<string, string | null>) =>
     ({
       firstCandidates: Object.keys(ratings).map((criterionId) => ({
         talentId: criterionId,
@@ -155,6 +155,9 @@ test("an info candidate's rating moves a criterion only between 있으면 좋음
   const aboutItself = new Map([["c1", new Set(["c1"])], ["c2", new Set(["c2"])], ["c3", new Set(["c3"])]]);
   const disliked = applyProbeRatings(three, session({ c1: "bad", c2: "bad", c3: "bad" }), aboutItself).brief;
   assert.deepEqual(disliked.criteria.map(levelOf), ["required", "important", "important"], "있으면 좋음 → 중요, never 필수");
+  const unrated = applyProbeRatings(three, session({ c1: null, c2: null, c3: null }), aboutItself);
+  assert.deepEqual(unrated.brief, three, "written feedback alone is not a positive or negative rating");
+  assert.deepEqual(unrated.settled, []);
 });
 
 test("맞지 않음 changes the open criterion only when the team's reason is about it", async () => {

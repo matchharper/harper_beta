@@ -241,16 +241,16 @@ const CareerHomePanel = (props: CareerHomePanelProps) => {
     ? profileVisibility === "dont_share"
       ? t(
           "career.home.career_home_panel.1dfqgdw",
-          "외부 공개 포지션 추천과 내부 회사 연결 제안이 모두 꺼져 있어요."
+          "새로운 추천과 회사 연결 안내를 중지한 상태예요."
         )
       : talentPreferences.getExternalRecommendation
         ? t(
             "career.home.career_home_panel.1dtmpgt",
-            "외부 공개 포지션 추천과 내부 회사 연결 제안을 받고 있어요."
+            "채용 공고와 제가 연결시켜 드릴 수 있는 기회를 함께 알려드리고 있어요."
           )
         : t(
             "career.home.career_home_panel.1l3sw8y",
-            "내부 회사 연결 제안만 받고 있어요. 외부 공개 포지션 추천은 받지 않고 있어요."
+            "제가 연결시켜 드릴 수 있는 기회들만 알려드리고 있어요."
           )
     : null;
 

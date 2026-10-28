@@ -32,17 +32,16 @@ export function useOrgRoleActions(args: {
         status: options.status,
         workspaceId: args.workspaceId,
       });
-      addToast({
-        message:
-          action === "delete"
-            ? c("역할을 삭제했습니다.", "Role deleted.")
-            : action === "end"
-              ? c("채용을 종료했습니다.", "Hiring ended.")
-              : action === "pause"
-                ? c("역할을 일시 중지했습니다.", "Role paused.")
-                : c("역할을 다시 시작했습니다.", "Role resumed."),
-        variant: "success",
-      });
+      if (action !== "resume")
+        addToast({
+          message:
+            action === "delete"
+              ? c("역할을 삭제했습니다.", "Role deleted.")
+              : action === "end"
+                ? c("채용을 종료했습니다.", "Hiring ended.")
+                : c("역할을 일시 중지했습니다.", "Role paused."),
+          variant: "success",
+        });
       if (action === "delete") args.onDeleted?.(role);
     } catch (error) {
       addToast({

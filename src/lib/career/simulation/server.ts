@@ -1,5 +1,6 @@
 import { runApplicationInspection } from "./applicationInspection";
 import { inspectApplicationForm } from "./applicationFormInspection";
+import { applicationFormText } from "./applicationFormText";
 import { createPreparation } from "./preparation";
 import { askApplicationInput } from "./applicationInput";
 import { writeApplicationSuggestions } from "./suggestionWriter";
@@ -161,6 +162,15 @@ export async function executeApplicationSimulation(
     if (current.state.analysisStatus === "completed") return { ok: true, alreadyStarted: true, status: "completed", sessionMessageId: current.messageId };
   } else if (current?.state.status === "active") {
     if (
+      current.state.roleRef !== args.roleRef ||
+      current.state.documentId !== (document?.id ?? null)
+    )
+      return {
+        ok: false,
+        reason:
+          "A different role or source resume is active. A clear request to switch authorizes ending that preparation with manage_simulation_session before starting this one. Preserve its saved work; do not treat it as the requested target or ask for redundant switch confirmation.",
+      };
+    if (
       (args.startOfferId && current.state.activity?.offerId === args.startOfferId) ||
       (email && current.state.activity?.sourceMessageId === args.emailSourceMessageId)
     )
@@ -169,15 +179,6 @@ export async function executeApplicationSimulation(
         alreadyStarted: true,
         status: current.state.analysisStatus,
         sessionMessageId: current.messageId,
-      };
-    if (
-      current.state.roleRef !== args.roleRef ||
-      current.state.documentId !== (document?.id ?? null)
-    )
-      return {
-        ok: false,
-        reason:
-          "A different simulation is active. Ask whether to switch, then end the current session before retrying.",
       };
     if (current.state.analysisStatus === "running")
       return {
@@ -227,14 +228,19 @@ export async function executeApplicationSimulation(
         },
       },
     });
+    if (current && !current.created) {
+      if (current.state.roleRef !== args.roleRef || current.state.documentId !== (document?.id ?? null))
+        throw new Error("Application start returned a different role or source resume");
+      return {
+        ok: true,
+        alreadyStarted: true,
+        status: current.state.analysisStatus,
+        sessionStatus: current.state.status,
+        sessionMessageId: current.messageId,
+      };
+    }
   }
   if (!current) throw new Error("Could not start simulation session");
-  if (!args.resumeMessageId && args.startOfferId && !current.created)
-    return {
-      ok: true,
-      alreadyStarted: true,
-      status: current.state.analysisStatus,
-    };
   args.onMessage?.(current.message);
   if (args.deferPreparation) return { ok: true, preparationPending: true, sessionMessageId: current.messageId };
   const startedAt = Date.now();
@@ -455,7 +461,7 @@ export async function executeApplicationSimulation(
       candidate,
       resume,
       role: role + "\nCompany research:\n" + JSON.stringify(research),
-      application: JSON.stringify(email ? current.state.applicationForm : { status: "pending", url: current.state.applicationUrl, instruction: "Application requirements are being inspected separately. Focus this first batch on meaningful resume improvements and important role-related experience gaps. Do not ask about application fields or draft additional materials before they are observed." }),
+      application: email ? applicationFormText(current.state.applicationForm) : JSON.stringify({ status: "pending", url: current.state.applicationUrl, instruction: "Application requirements are being inspected separately. Focus this first batch on meaningful resume improvements and important role-related experience gaps. Do not ask about application fields or draft additional materials before they are observed." }),
       language: getCareerPromptLanguageName(args.locale),
       model: args.textChatModel,
       signal,

@@ -18,7 +18,7 @@ function readsStartedAt(session: RoleStartSession) {
  * A chat edit of the Brief still running (one older than 5 minutes was cut
  * off), or the last one's failure within 10 minutes.
  */
-function chatBriefEdit(session: RoleStartSession) {
+export function chatBriefEdit(session: Pick<RoleStartSession, "progress">) {
   const entry = session.progress.find((item) => item.key === CHAT_BRIEF_EDIT);
   const age = Date.now() - Date.parse(entry?.at ?? "");
   if (entry?.status === "running" && age <= 5 * 60_000) return "running" as const;
@@ -71,7 +71,10 @@ export function roleStartView(session: RoleStartSession | null) {
     // Lines written before generic step wording carried counts; they are not sent.
     progress: session.progress
       .filter((entry) => entry.step)
-      .map(({ text, step, status, kind }, index) => ({ key: `p${index}`, text: text || null, step, status, kind: kind ?? null })),
+      .map(({ text, step, status, kind, billingCode }, index) => ({
+        key: `p${index}`, text: text || null, step, status, kind: kind ?? null,
+        ...(status === "error" && billingCode ? { billingCode } : {}),
+      })),
     briefEdit: chatBriefEdit(session),
     notice: session.timings.thin === "true" ? { thin: true, conditions: thinConditionsOf(session) } : null,
   };

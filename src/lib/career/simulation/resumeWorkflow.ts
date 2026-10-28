@@ -16,7 +16,7 @@ export function recordApplicationResume(s: SimulationSession, resume: {
   state.preparation.finalDocumentFingerprint = null;
   state.preparation.approvedVersion = null;
   for (const batch of state.activity?.batches ?? []) {
-    if (batch.status === "waiting" && batch.items?.some(item => item.documentPurpose === "final_resume")) {
+    if (batch.status === "waiting" && batch.items?.length && batch.items.every(item => item.documentPurpose === "final_resume")) {
       batch.status = "cancelled";
       state.preparation.showInputs = false;
     }

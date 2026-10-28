@@ -33,6 +33,10 @@ before(async () => {
       },
     };
     if (name === "@/lib/org/roleStart/service") return {
+      evaluateRoleStartCandidate: async (input: unknown) => {
+        calls.push(input);
+        return { phase: "evaluating" };
+      },
       beginRoleStartDraft: async (input: unknown) => {
         calls.push(input);
         return { session: { phase: "drafting" }, completion };
@@ -45,10 +49,10 @@ before(async () => {
   try { ({ POST } = await import("./route")); } finally { loader._load = original; }
 });
 
-function request(action: string) {
+function request(action: string, body: Record<string, unknown> = {}) {
   return new NextRequest("https://example.invalid/api/org/role-start", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, roleId, workspaceId }),
+    body: JSON.stringify({ action, roleId, workspaceId, ...body }),
   });
 }
 
@@ -77,4 +81,23 @@ test("starting Brief returns the persisted session while drafting continues afte
   finishDraft();
   await background[0]();
   assert.equal(finished, true);
+});
+
+test("candidate feedback accepts text alone or a rating, but rejects blank and invalid input", async () => {
+  const talentId = "synthetic-candidate";
+  for (const body of [
+    { reasonText: "관련 업무 범위를 더 확인하고 싶어요." },
+    { rating: null, reasonText: "제품을 직접 만든 경험이 중요해요." },
+    { rating: "good" },
+  ]) {
+    const response = await POST(request("evaluate", { talentId, ...body }));
+    assert.equal(response.status, 200);
+    assert.equal((calls.at(-1) as { rating: unknown }).rating, body.rating ?? null);
+    assert.equal((calls.at(-1) as { reasonText: unknown }).reasonText, body.reasonText ?? null);
+  }
+  const before = calls.length;
+  for (const body of [{}, { rating: null, reasonText: " \n " }, { reasonText: 42 }, { rating: "invalid", reasonText: "의견" }]) {
+    assert.equal((await POST(request("evaluate", { talentId, ...body }))).status, 400);
+  }
+  assert.equal(calls.length, before, "invalid submissions never reach the service");
 });

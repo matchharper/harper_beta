@@ -2,20 +2,23 @@ import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Image from "next/image";
-import { UserPlus } from "lucide-react";
+import { Menu, UserPlus } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
-import { OrgMobileNavigationProvider } from "@/components/org/workspace/OrgMobileNavigation";
+import {
+  OrgMobileNavigationProvider,
+  useOrgMobileNavigation,
+} from "@/components/org/workspace/OrgMobileNavigation";
 import {
   OrgSection,
   OrgSectionHeader,
 } from "@/components/org/workspace/OrgSection";
 import { OrgWorkspaceSidebar } from "@/components/org/workspace/OrgWorkspaceSidebar";
-import { CardButton } from "@/components/ui/button";
+import { CardButton, MuteButton } from "@/components/ui/button";
 import {
   OrgWorkspaceProvider,
   type OrgWorkspaceContextValue,
@@ -219,9 +222,24 @@ const roleRows = [
 ];
 
 function PreviewHome() {
+  const { openNavigation } = useOrgMobileNavigation();
   return (
     <div className="space-y-8">
-      <OrgPageHeader title="Home" />
+      <OrgPageHeader
+        title={
+          <span className="flex items-center gap-2">
+            <MuteButton
+              aria-label="메뉴 열기"
+              className="md:hidden"
+              onClick={openNavigation}
+              variant="transparent"
+            >
+              <Menu aria-hidden className="size-4.5" />
+            </MuteButton>
+            Home
+          </span>
+        }
+      />
       <OrgSection>
         <OrgSectionHeader
           description="2 active · 1 paused · 1 waiting"

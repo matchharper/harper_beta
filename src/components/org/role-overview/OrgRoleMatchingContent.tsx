@@ -1,11 +1,13 @@
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgDocumentEditorCopy } from "@/i18n/org/useOrgDocumentEditorCopy";
-import { BadgeCheck, Plus, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { BadgeCheck, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { OrgSection } from "@/components/org/workspace/OrgSection";
 import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChangesBar";
 import { MuteButton } from "@/components/ui/button";
-import { RoleBriefSection, useRoleStartBriefFlag } from "@/components/org/role-start/RoleBriefSection";
+import { RoleBriefSection } from "@/components/org/role-start/RoleBriefSection";
+import { roleMatchingBriefQueryOptions } from "@/hooks/org/roleMatchingBriefQuery";
 import { CriterionLevelButtons } from "./CriterionLevelButtons";
 import { DocumentEditor } from "@/components/ui/document-editor";
 import { Input } from "@/components/ui/input";
@@ -62,9 +64,24 @@ type MatchingContentProps = {
 
 export function OrgRoleMatchingContent(props: MatchingContentProps) {
   // A Role started from role start shows its Brief; others keep this tab as is.
-  const structured = useRoleStartBriefFlag(props.role.roleId, props.workspaceId);
-  if (structured === undefined) return null;
-  if (structured) return <RoleBriefSection roleId={props.role.roleId} showBottomBorder={props.showBottomBorder} workspaceId={props.workspaceId} />;
+  const { c } = useOrgLocale();
+  const query = useQuery(roleMatchingBriefQueryOptions(props.workspaceId, props.role.roleId));
+  if (!query.data) return (
+    <OrgSection className={props.showBottomBorder ? "last:border-b" : undefined}>
+      <div className="flex min-h-24 items-center gap-3 text-[13px] text-neutral-muted" role="status">
+        {query.isError ? <>
+          {c("기준을 불러오지 못했어요.", "Could not load the criteria.")}
+          <MuteButton onClick={() => void query.refetch()} variant="transparent">
+            {c("다시 불러오기", "Retry")}
+          </MuteButton>
+        </> : <>
+          <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+          {c("불러오는 중입니다.", "Loading.")}
+        </>}
+      </div>
+    </OrgSection>
+  );
+  if (query.data.structured) return <RoleBriefSection roleId={props.role.roleId} showBottomBorder={props.showBottomBorder} workspaceId={props.workspaceId} />;
   return <MatchingContent {...props} />;
 }
 

@@ -22,7 +22,7 @@ const argument = (name: string) => {
   return i < 0 ? undefined : process.argv[i + 1];
 };
 const version = argument("--dataset") ?? "v1";
-if (!["v1", "application-v1", "application-v2", "application-question-v1", "application-continuity-v1"].includes(version)) throw Error("Unknown dataset");
+if (!["v1", "application-v1", "application-v2", "application-question-v1", "application-continuity-v1", "application-email-flow-v1"].includes(version)) throw Error("Unknown dataset");
 const dataset = readJson(path.join(root, `cases-${version}.json`));
 const gold = readJson(path.join(root, `gold-${version}.json`));
 const frozen = readJson(path.join(root, `manifest-${version}.json`));
@@ -156,7 +156,6 @@ async function main() {
     )
       process.env[key] = "";
   Object.assign(process.env, env, {
-    EMAIL_RUNTIME_TARGET: "vercel_queue",
     EMAIL_RUNTIME_CONCURRENCY: "2",
     RESEND_API_KEY: `local-e2e-email-eval-${randomUUID()}`,
   });
@@ -242,7 +241,9 @@ async function main() {
         const {endSimulationSession} = await import("../src/lib/career/simulation/session");
         const current = await sessionOperation({...store,operation:"read",messageId});
         if (!current?.state.browser || current.state.browser.status !== "queued") throw Error("Expected authorized queued browser");
-        const next = endSimulationSession({...current.state,browser:{...current.state.browser,status:"succeeded",result:{summary:"Application received by the synthetic test site.",url:"https://application.email-qa.invalid/receipt",evidence:"Synthetic capture receipt: one application accepted; fixture transport only."}}},"completed");
+        const next = endSimulationSession({...current.state,browser:{...current.state.browser,status:"succeeded",
+          approval:{fingerprint:"synthetic-email-eval",approved:true,executed:true,evidenceMessageId:current.state.browser.sourceMessageId,summary:"Synthetic authorized browser boundary; not a live transmission."},
+          result:{summary:"Application received by the synthetic test site.",url:"https://application.email-qa.invalid/receipt",evidence:"Synthetic capture receipt: one application accepted; fixture transport only."}}},"completed");
         records[context.getStore()!].syntheticSubmissions ??= [];
         records[context.getStore()!].syntheticSubmissions.push({documentId:current.state.browser.documentId,purpose:current.state.browser.purpose});
         await saveSession(store,current,next,"eval-browser-receipt:"+messageId);
@@ -325,6 +326,7 @@ async function main() {
     "src/lib/email/runtime/context.ts",
     "src/lib/email/runtime/model.ts",
     "src/lib/career/simulation/server.ts",
+    "src/lib/career/simulation/applicationFormText.ts",
     "src/lib/career/simulation/preparationPrompt.ts",
     "src/lib/career/simulation/suggestionWriter.ts",
     "src/lib/career/simulation/toolExecution.ts",
@@ -515,6 +517,9 @@ async function main() {
             id:ids.documentId,talent_id:ids.talentId,kind:"resume",file_name:"이가온 이력서.txt",origin_type:"upload",extracted_text:attachmentBytes.toString(),is_primary:true,
           });
         }
+          if (c.application?.extraResumes) for (const resume of c.application.extraResumes) await insert("talent_documents", {
+            id: randomUUID(), talent_id: ids.talentId, kind: "resume", file_name: resume.fileName, origin_type: "upload", extracted_text: resume.text, is_primary: false,
+          });
         const alias = (
           await createEmailReplyAlias({
             admin,

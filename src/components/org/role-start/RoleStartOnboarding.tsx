@@ -7,6 +7,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import { roleSetupReply } from "@/lib/org/roleStart/setupReply";
+import { billingErrorCopy } from "@/lib/org/billing/types";
 import {
   ArrowLeft,
   ArrowRight,
@@ -1678,7 +1679,7 @@ function AlignStep(props: {
             ) : !candidate.verdict && !candidate.failed ? (
               <div className="mt-6">
                 <LoadingLine
-                  text={c("이 후보를 살펴보고 있어요", "Reviewing this person")}
+                  text={c("정보를 가져오고 있습니다", "Getting information")}
                 />
               </div>
             ) : candidate.failed ? (
@@ -1763,7 +1764,7 @@ function FinalizeStep(props: {
   }) => Promise<void>;
   onBack: () => void;
 }) {
-  const { c } = useOrgLocale();
+  const { c, locale } = useOrgLocale();
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const { bootstrap, user } = useOrgWorkspace();
@@ -1778,6 +1779,9 @@ function FinalizeStep(props: {
   });
   const registering =
     props.session.phase === "registering" || props.session.phase === "batch";
+  const registrationError = props.session.progress.find(
+    (item) => item.step === "batch" && item.status === "error"
+  );
 
   const savedDays = (
     props.role.introSearchDate ?? DEFAULT_INTRO_SEARCH_DAYS
@@ -2002,7 +2006,10 @@ function FinalizeStep(props: {
     <Centered className="gap-8">
       <div>
         <RoleStartStepHeader
-          title={c("이렇게 시작할게요", "Here's how the role runs")}
+          title={c(
+            "감사합니다. 이제 준비는 끝났어요. 이 역할의 채용은 이렇게 시작할게요.",
+            "Thank you. The onboarding is now complete. The hiring for this role will start like this."
+          )}
         >
           <p className="mt-2 text-[18px] leading-[2.4rem] text-neutral-primary">
             {c("매주", "Every")} {dayChip} {hourChip}
@@ -2015,13 +2022,10 @@ function FinalizeStep(props: {
             )}{" "}
             {channelChip}
             {shownMail
-              ? c("로 알려 드릴게요. 소개 메일에는", ". Intro emails copy")
-              : c(
-                  "에 알려 드릴게요. 소개 메일에는",
-                  ". Intro emails copy"
-                )}{" "}
+              ? c("로 알려 드릴게요. 담당자는", ". We’ll assign")
+              : c("에 알려 드릴게요. 담당자는", ". We’ll assign")}{" "}
             {ownerChip}
-            {c("님을 참조로 넣을게요.", ".")}
+            {c("님으로 할게요.", " as the owner.")}
           </p>
         </RoleStartStepHeader>
         {settingsQuery.isError || slackStatusQuery.isError ? (
@@ -2096,16 +2100,15 @@ function FinalizeStep(props: {
             </Link>
           </MuteButton>
         ) : null}
-        {!registering &&
-        props.session.progress.some(
-          (item) => item.step === "batch" && item.status === "error"
-        ) ? (
+        {!registering && registrationError ? (
           // A registration that stopped came back here: say so before the team tries again.
-          <p className="mt-2 text-[13px] leading-5 text-critical">
-            {c(
-              "지난번 등록을 마치지 못했어요. 다시 눌러 주세요.",
-              "The last registration did not finish. Please try again."
-            )}
+          <p role="alert" className="mt-2 text-[13px] leading-5 text-critical">
+            {registrationError.billingCode
+              ? billingErrorCopy(registrationError.billingCode, locale)
+              : c(
+                  "지난번 등록을 마치지 못했어요. 다시 눌러 주세요.",
+                  "The last registration did not finish. Please try again."
+                )}
           </p>
         ) : null}
       </div>

@@ -52,7 +52,11 @@ export function WorkspacePlans({
       features: [
         c("카드 등록 필요없음", "No credit card required"),
         c("활성 Role 1개", "1 active role"),
-        c("월 10개의 Intro", "10 Intros every month"),
+        c("월 3개의 Intro", "3 Intros every month"),
+        c(
+          "후보자 추천과 연결 대기",
+          "Candidate recommendations and Ready to connect"
+        ),
         c("Slack 연결 지원", "Slack integration included"),
         c("채용 성공보수 없음", "No placement fee"),
       ],
@@ -99,12 +103,9 @@ export function WorkspacePlans({
                 "Try again shortly or contact Harper."
               ),
       features: [
+        c("슬롯당 활성 Role 1개 추가", "1 additional active role per slot"),
         c("슬롯당 매월 50 Intro", "50 monthly Intros per slot"),
-        c("공용 월 10 Intro도 계속 제공", "Plus 10 shared Intros per month"),
-        c(
-          "Harper-first 채용: Harper가 먼저 후보자를 찾고, 역할을 소개하고, 수락한 사람만 연결",
-          "Harper finds candidates, introduces your role, and brings you people who want to talk."
-        ),
+        c("Free의 모든 기능", "All Free features"),
         c("Slack 연결 지원", "Slack integration included"),
         c("채용 성공보수 없음", "No placement fee"),
       ],
@@ -232,3 +233,10 @@ export function WorkspacePlans({
     </div>
   );
 }
+
+// {"talentId":"94eeb940-e1ab-40b1-842f-1fe44cedcef6","info": "name: Soonil Bae, headline: Applied Research Engineer · LLM Pre-training & Post-training · Data, Evaluation & Agentic Systems, location: Seoul, South Korea","joinedAt":"2026-09-30 10:25",
+//   "recentExperience":["Director General, Science & Technology Research Division at Korean National Police Agency (Police Science Institute) : 2015-09-01 - ", "Principal Research Engineer at Samsung Techwin : 2009-09-01 - 2015-09-30"
+//     "recentEducation":["PhD - Computer Science at Texas A&M University : 2001-01-01 -2008-12-31", "Master's degree - Computer Science at Yonsei University : 1990-01-01 - 1992-12-31", "Bachelor's degree - Computer Science at Yonsei University : 1986-01-01 - 1990-12-31"],
+//     "assessment":{"candidateFit":65.75,"companyFit":67.25,"mutualFit":70.25,
+//       "criteria":["criteria1: excellent", "criteria2: excellent", "criteria3: excellent", "criteria4: uncertain", "criteria5: uncertain", "criteria6: uncertain"]}}}
+//       "currentCompanyRelationship":{"hasCompanyHistory":false,"introStatus":null,"hasSharedProgress":false,"newPairAvailable":true},"evaluation":{"id":"9b0a7e87-6911-4e5e-98e6-d21293a7c605","runId":"0de0527e-64d0-41bb-936d-2726fa83f8fa","discoveryRunId":null,"stage":2,"briefVersion":"f74d3dc1879bcd8687c652995131bbda","inputContractVersion":"worker_behavior_v1","evaluatedAt":"2026-10-26 18:41",

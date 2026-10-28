@@ -190,7 +190,7 @@ Recurring search settings, requesting a fresh search, and reading existing candi
 
 Role Settings lets you enable candidate search and set its days and time. New Roles default to enabled at 9 AM on Monday, Wednesday, and Friday in Asia/Seoul. Existing Roles keep their saved settings.
 
-This controls recurring searches for company-reviewed suggestions. Turning it off does not block direct search requests or disable all candidate-first recommendations available under a slot or existing agreement. Setting changes do not cancel searches already started or proposals already delivered.
+This controls recurring searches for company-reviewed suggestions. Turning it off does not block direct search requests or disable candidate-first recommendations for active Roles, including Free Roles. Setting changes do not cancel searches already started or proposals already delivered.
 
 ### Run Search <!-- id: candidate-search-run-search -->
 
@@ -317,17 +317,17 @@ org:pipeline
 
 An Intro is a unit used to request an introduction or accept a connection. An Intro request is the action; the Intro balance measures available usage, rather than completed introductions. Use 1 Intro and 2 Intros for quantities.
 
-Role count, paid-feature access, and Intro balance are separate limits. Existing agreements retain their agreed conditions.
+Free and assigned roles share the same recommendation and connection features; active role capacity and Intro allowances differ. Existing agreements retain their agreed conditions.
 
 ### Standard access <!-- id: slots-and-credits-standard-access -->
 
 | Plan | Role count | Intros and features |
 | --- | --- | --- |
-| Free | 1 active Role; unlimited drafts | 10 monthly Intros shared across all Roles |
-| Slot | 1 active Role per slot, plus 1 Free Role | Paid features and 50 monthly Intros for the assigned Role; the shared 10 remain separate |
+| Free | 1 active Role; unlimited drafts | 3 monthly Intros shared across all Roles |
+| Slot | 1 active Role per slot, plus 1 Free Role | 50 monthly Intros for the assigned Role; the shared 3 remain separate |
 | Enterprise or existing agreement | Agreed terms | Check your company's contract |
 
-Ready to connect requires an assigned slot or access under an existing agreement. Shared Intros alone do not unlock it. Free and standard slot subscriptions have no hiring success fee.
+Free roles also receive candidate-first recommendations and have access to Ready to connect. Shared Intros can fund both Intro requests and connection acceptance. Free and standard slot subscriptions have no hiring success fee.
 
 ### Spending and renewal <!-- id: slots-and-credits-spending-and-renewal -->
 
@@ -337,7 +337,7 @@ Intros renew monthly and do not roll over. Annual billing still uses monthly Int
 
 ### Assignment and access expiry <!-- id: slots-and-credits-assignment-and-access-expiry -->
 
-When a slot expires, its paid features end. After assigning remaining slots, the oldest eligible Free Role stays active and surplus Free Roles are paused. Existing candidates, Intros and progress history are preserved. Review the previous Role's access when reassigning a slot.
+When a slot expires, its Intro allowance and additional active-role capacity end. Harper can assign remaining valid slots, but existing active roles stay active even above capacity. Capacity is checked only when starting, reactivating, or restoring an expired role. Existing candidates, Intros and progress history are preserved. Review the previous Role's access when reassigning a slot.
 
 ```callout
 Current billing access

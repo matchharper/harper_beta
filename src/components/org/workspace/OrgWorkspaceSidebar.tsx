@@ -31,8 +31,8 @@ import {
   useState,
 } from "react";
 import { MuteButton } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogTitle } from "@/components/ui/dialog";
+import { PushNavigationContent } from "@/components/ui/push-navigation";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
 import type { OrgDocumentsHeading } from "@/components/org/workspace/OrgDocumentsMarkdown";
@@ -50,7 +50,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavigation";
-import { useOrgInbox } from "@/hooks/org/useOrg";
 import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgRoleActions } from "@/hooks/org/useOrgRoleActions";
@@ -273,7 +272,6 @@ function NavLink({
   icon: Icon,
   iconBackground = false,
   label,
-  pendingConnectionCount,
   onBlocked,
 }: {
   active: boolean;
@@ -283,21 +281,12 @@ function NavLink({
   icon: ComponentType<{ className?: string }>;
   iconBackground?: boolean;
   label: string;
-  pendingConnectionCount?: number;
   onBlocked?: () => void;
 }) {
-  const { c } = useOrgLocale();
-  const tooltipText =
-    pendingConnectionCount !== undefined
-      ? c("{p0} · 연결 대기 {p1}명", "{p0} · Ready to connect: {p1}", {
-          p0: label,
-          p1: pendingConnectionCount,
-        })
-      : label;
   const link = (
     <Link
       aria-disabled={blocked || undefined}
-      aria-label={compact ? tooltipText : undefined}
+      aria-label={compact ? label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
         getNavItemClassName({ active, compact }),
@@ -323,16 +312,11 @@ function NavLink({
         />
       )}
       {compact ? null : <span className="relative z-20">{label}</span>}
-      {!compact && pendingConnectionCount !== undefined ? (
-        <div className="relative z-20 ml-auto rounded-full text-[10px] py-0.5 bg-action-500 px-1.5 tabular-nums text-white">
-          {pendingConnectionCount}
-        </div>
-      ) : null}
     </Link>
   );
 
   return compact ? (
-    <Tooltips side="right" text={tooltipText}>
+    <Tooltips side="right" text={label}>
       {link}
     </Tooltips>
   ) : (
@@ -675,17 +659,6 @@ export function OrgWorkspaceSidebar({
     workspace,
     workspaces,
   } = useOrgWorkspace();
-  const inboxQuery = useOrgInbox({ workspaceId: workspace.workspaceId });
-  const pendingConnectionCount = useMemo(
-    () =>
-      inboxQuery.data?.items.reduce(
-        (count, item) =>
-          count +
-          (item.stage === "pending_connection" && !item.savedAt ? 1 : 0),
-        0
-      ),
-    [inboxQuery.data?.items]
-  );
   const primaryNav = permissions.canManageCandidates
     ? PRIMARY_NAV.flatMap((item) =>
         item.id === "jobs" ? [item, NEW_ROLE_NAV] : [item]
@@ -972,9 +945,6 @@ export function OrgWorkspaceSidebar({
                       icon={item.icon}
                       iconBackground={item.id === "new-role"}
                       label={item.label}
-                      pendingConnectionCount={
-                        item.id === "home" ? pendingConnectionCount : undefined
-                      }
                     />
                   ))}
                 </nav>
@@ -1008,9 +978,6 @@ export function OrgWorkspaceSidebar({
                       href={navHref(item.id)}
                       icon={item.icon}
                       label={item.label}
-                      pendingConnectionCount={
-                        item.id === "home" ? pendingConnectionCount : undefined
-                      }
                     />
                   </div>
                 ))}
@@ -1138,11 +1105,7 @@ export function OrgWorkspaceSidebar({
         open={navigationOpen}
         onOpenChange={handleMobileNavigationOpenChange}
       >
-        <DialogContent
-          className="!inset-y-0 !left-0 !right-auto !top-0 z-[60] flex h-svh w-[min(82vw,280px)] max-w-[280px] !translate-x-0 !translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 border-r border-neutral-1000-a05 bg-bg-default p-0 shadow-[18px_0_48px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)] duration-300 data-[state=closed]:slide-out-to-left-full data-[state=closed]:zoom-out-100 data-[state=open]:slide-in-from-left-full data-[state=open]:zoom-in-100 md:hidden"
-          hideCloseButton
-          overlayClassName="z-[59] bg-transparent backdrop-blur-none md:hidden"
-        >
+        <PushNavigationContent className="overflow-hidden">
           <DialogTitle className="sr-only">
             {c("Organization 메뉴", "Organization menu")}
           </DialogTitle>
@@ -1310,21 +1273,6 @@ export function OrgWorkspaceSidebar({
                           <Icon className="size-4" strokeWidth={1.55} />
                         )}
                         <span>{item.label}</span>
-                        {item.id === "home" &&
-                        pendingConnectionCount !== undefined ? (
-                          <Badge
-                            aria-label={c(
-                              "연결 대기 {p0}명",
-                              "Ready to connect: {p0}",
-                              { p0: pendingConnectionCount }
-                            )}
-                            className="ml-auto min-w-5 bg-blue-500 px-1.5 tabular-nums text-white"
-                            radius="full"
-                            size="sm"
-                          >
-                            {pendingConnectionCount}
-                          </Badge>
-                        ) : null}
                       </Link>
                     );
                   })}
@@ -1423,7 +1371,7 @@ export function OrgWorkspaceSidebar({
               </DropdownMenu>
             </div>
           </div>
-        </DialogContent>
+        </PushNavigationContent>
       </Dialog>
     </>
   );

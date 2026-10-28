@@ -13,9 +13,9 @@ import {
   ChevronRight,
   X,
   ArrowUp,
-  Pencil,
   Info,
   Loader2,
+  Check,
 } from "lucide-react";
 import { MuteButton, CardButton } from "@/components/ui/button";
 import { ChatComposerSurface } from "@/components/chat/ChatComposer";
@@ -37,9 +37,10 @@ import { ApplicationEndConfirmation } from "./ApplicationEndConfirmation";
 import { useApplicationComposerDraft } from "./useApplicationComposerDraft";
 import { preparationKind } from "@/lib/career/simulation/preparation";
 import type { PreparationResponse } from "@/lib/career/simulation/preparation";
+import { cn } from "@/lib/utils";
 
 const numberedOptionClassName =
-  "flex w-full items-center justify-start gap-2 rounded-xl min-h-10 sm:min-h-9 px-2 py-1 text-left text-[length:inherit] font-normal leading-[inherit]";
+  "flex w-full items-center justify-start gap-2 rounded-xl min-h-10 sm:min-h-9 px-2 py-1 text-left text-[length:inherit] text-sm font-normal leading-[inherit]";
 const optionNumberClassName =
   "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-black text-xs text-white";
 
@@ -186,20 +187,39 @@ export function ApplicationPreparationComposerSlot({
   const review = record
     ? pendingApplicationBatch(record.state)?.review
     : undefined;
-  const waitingForInspection = record?.state.status === "active" &&
+  const waitingForInspection =
+    record?.state.status === "active" &&
     isApplicationInspectionPending(record.state) &&
-    record.state.activity?.batches.some(b => b.status === "submitted" && b.continuation !== "done");
-  const canContinue = !pending && !waitingForInspection && record?.state.status === "active" &&
-    record.state.activity?.batches.some(b => b.status === "submitted" && ["pending", "failed"].includes(b.continuation));
+    record.state.activity?.batches.some(
+      (b) => b.status === "submitted" && b.continuation !== "done"
+    );
+  const canContinue =
+    !pending &&
+    !waitingForInspection &&
+    record?.state.status === "active" &&
+    record.state.activity?.batches.some(
+      (b) =>
+        b.status === "submitted" &&
+        ["pending", "failed"].includes(b.continuation)
+    );
   return shouldShowPreparationQuestions(record?.state) &&
     (!review || renderedReviewId === review.id) ? (
     <ApplicationPreparationComposer />
   ) : (
     <>
       {waitingForInspection && (
-        <div role="status" className="mb-3 flex items-center gap-2 text-sm text-neutral-muted">
-          <Loader2 aria-hidden className="size-4 shrink-0 animate-spin motion-reduce:animate-none" />
-          {t("career.application.inspection.waiting", "답변을 저장했어요. 지원에 필요한 항목을 마저 확인하고 있어요.")}
+        <div
+          role="status"
+          className="mb-3 flex items-center gap-2 text-sm text-neutral-muted"
+        >
+          <Loader2
+            aria-hidden
+            className="size-4 shrink-0 animate-spin motion-reduce:animate-none"
+          />
+          {t(
+            "career.application.inspection.waiting",
+            "답변을 저장했어요. 지원에 필요한 항목을 마저 확인하고 있어요."
+          )}
         </div>
       )}
       {error && (
@@ -216,7 +236,10 @@ export function ApplicationPreparationComposerSlot({
       {!error && canContinue && (
         <div className="mb-3">
           <MuteButton onClick={() => void command({ operation: "continue" })}>
-            {t("career.application.answers.continue", "저장된 답변으로 준비 계속하기")}
+            {t(
+              "career.application.answers.continue",
+              "저장된 답변으로 준비 계속하기"
+            )}
           </MuteButton>
         </div>
       )}
@@ -243,10 +266,15 @@ export function ApplicationPreparationComposer() {
   const [endConfirmationOpen, setEndConfirmationOpen] = useState(false);
   const endTriggerRef = useRef<HTMLButtonElement>(null);
   const draftScope = `harper-application-composer:v1:${record?.state.sessionId}:${record ? pendingApplicationBatch(record.state)?.id : ""}`;
-  const [draftInputs, setDraftInputs, clearInputs] = useApplicationComposerDraft(`${draftScope}:answers`);
-  const [editedTexts, setEditedTexts, clearEdits] = useApplicationComposerDraft(`${draftScope}:edits`);
-  const clearDrafts = () => { clearInputs(); clearEdits(); };
-  const [editor, setEditor] = useState<string | null>(null);
+  const [draftInputs, setDraftInputs, clearInputs] =
+    useApplicationComposerDraft(`${draftScope}:answers`);
+  const [editedTexts, setEditedTexts, clearEdits] = useApplicationComposerDraft(
+    `${draftScope}:edits`
+  );
+  const clearDrafts = () => {
+    clearInputs();
+    clearEdits();
+  };
   const [highlight, setHighlight] = useState<{
     key: string;
     index: number;
@@ -303,7 +331,10 @@ export function ApplicationPreparationComposer() {
     timer.current = setTimeout(() => {
       void command({ operation: "respond", itemId: item.id, response })
         .then((ok) => {
-          if (ok && index === items.length - 1) { clearDrafts(); return; }
+          if (ok && index === items.length - 1) {
+            clearDrafts();
+            return;
+          }
           if (ok)
             setDraftInputs((prev) => {
               const next = { ...prev };
@@ -321,7 +352,6 @@ export function ApplicationPreparationComposer() {
   const navigate = (offset: number) => {
     const next = items[index + offset];
     if (next && !busy && !lock.current) {
-      setEditor(null);
       setHighlight(null);
       void command({ operation: "navigate", itemId: next.id });
     }
@@ -380,46 +410,28 @@ export function ApplicationPreparationComposer() {
       : draftInputs[inputKey] === undefined
         ? p.responses[item.id]?.decision
         : undefined;
-  const editable = (value: string, key: string) =>
-    editor === key ? (
-      <Textarea
-        autoFocus
-        autoResize
-        rows={2}
-        value={editedTexts[key] ?? value}
-        aria-label={t("career.application.suggestions.edit", "제안 문구 수정")}
-        className="max-h-48 text-[length:inherit] leading-[inherit]"
-        onChange={(e) =>
-          setEditedTexts((prev) => ({ ...prev, [key]: e.target.value }))
+  const editable = (value: string, key: string) => (
+    <Textarea
+      key={key}
+      unstyled
+      autoResize
+      rows={1}
+      readOnly={busy}
+      value={editedTexts[key] ?? value}
+      aria-label={t("career.application.suggestions.edit", "제안 문구 수정")}
+      placeholder={t("career.application.suggestions.deleted", "이 문구 삭제")}
+      className="block w-full resize-none border-0 bg-transparent px-2 py-1.5 -mx-2 text-left text-[16px] font-[inherit] leading-[inherit] text-[color:inherit] whitespace-pre-wrap break-words outline-none shadow-none placeholder:text-[color:inherit] focus:bg-transparent focus:outline-none focus:ring-0 focus:shadow-none md:text-[length:inherit]"
+      onChange={(e) =>
+        setEditedTexts((prev) => ({ ...prev, [key]: e.target.value }))
+      }
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.currentTarget.blur();
         }
-        onBlur={(event) => {
-          // Keep the layout stable until the close button's click opens its dialog.
-          if (event.relatedTarget !== endTriggerRef.current) setEditor(null);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            setEditor(null);
-          }
-        }}
-      />
-    ) : (
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => setEditor(key)}
-        aria-label={t("career.application.suggestions.edit", "제안 문구 수정")}
-        className="group block w-full rounded-lg px-2 py-1.5 -mx-2 text-left whitespace-pre-wrap break-words hover:bg-bg-weak focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-      >
-        {(editedTexts[key] ?? value) ||
-          t("career.application.suggestions.deleted", "이 문구 삭제")}
-        <Pencil
-          size={12}
-          aria-hidden
-          className="ml-2 inline text-neutral-soft opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
-        />
-      </button>
-    );
+      }}
+    />
+  );
   return (
     <ChatComposerSurface
       data-preparation-questions=""
@@ -427,9 +439,9 @@ export function ApplicationPreparationComposer() {
       data-response-flash={flash?.key === inputKey ? flash.decision : undefined}
       aria-busy={busy}
       style={careerTimelineTypographyStyle}
-      className={`flex max-h-[min(540px,70dvh)] flex-col p-3 md:p-4 transition-[background-color,box-shadow] duration-150 motion-reduce:transition-none ${flash?.key === inputKey ? "bg-bg-weak ring-1 ring-primary/20" : ""} ${careerTimelineMessageTextClassName}`}
+      className={`flex max-h-[min(540px,70dvh)] flex-col p-3 md:p-4 transition-[background-color,box-shadow] duration-150 motion-reduce:transition-none ${flash?.key === inputKey ? "ring-1 ring-primary/20" : ""} ${careerTimelineMessageTextClassName}`}
     >
-      <div className="grid shrink-0 grid-cols-1 gap-2 pb-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+      <div className="grid shrink-0 grid-cols-1 gap-2 pb-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <div className="row-start-2 flex min-w-0 items-start gap-2 sm:row-start-1">
           <strong className="min-w-0 break-words text-inherit font-medium">
             {item.documentPurpose === "final_resume"
@@ -491,90 +503,96 @@ export function ApplicationPreparationComposer() {
           </MuteButton>
         </div>
       </div>
-      <div className="min-h-0 max-h-[min(300px,38dvh)] space-y-3 overflow-y-auto overscroll-contain [overflow-wrap:anywhere]">
-        {kind === "change" &&
-          edits.map((edit, i) => (
-            <div
-              key={i}
-              className="space-y-1.5 border-t border-neutral-1000-a05 pt-2"
-            >
-              {edit.target && (
-                <p className="text-xs text-neutral-muted">{edit.target}</p>
-              )}
-              {edit.originalText && (
-                <>
-                  <p className="text-xs text-neutral-muted">
-                    {t("career.prep.original", "원문")}
-                  </p>
-                  <del className="block whitespace-pre-wrap text-critical">
-                    {edit.originalText}
-                  </del>
-                </>
-              )}
-              {(edit.suggestedText ||
-                editedTexts[`${inputKey}:${i}`] !== undefined) && (
-                <>
-                  <p className="text-xs text-neutral-muted">
-                    {t("career.prep.example", "수정 예시")}
-                  </p>
-                  <div className="text-neutral-primary">
-                    {editable(edit.suggestedText, `${inputKey}:${i}`)}
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-        {kind === "question" && (
-          <p className="whitespace-pre-wrap">{item.reason || item.proposal}</p>
-        )}
-        {kind === "choice" && item.proposal && (
-          <p className="whitespace-pre-wrap">{item.proposal}</p>
-        )}
-        {kind === "material" &&
-          item.draftText === undefined &&
-          item.documentPurpose !== "final_resume" && (
+      <div className="relative flex min-h-0 max-h-[min(300px,38dvh)] flex-col">
+        <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain py-4 [overflow-wrap:anywhere]">
+          {kind === "change" &&
+            edits.map((edit, i) => (
+              <div
+                key={i}
+                className="space-y-1.5 border-t border-neutral-1000-a05 pt-2"
+              >
+                {edit.target && (
+                  <p className="text-xs text-neutral-muted">{edit.target}</p>
+                )}
+                {edit.originalText && (
+                  <>
+                    <p className="text-xs text-neutral-muted">
+                      {t("career.prep.original", "원문")}
+                    </p>
+                    <del className="block whitespace-pre-wrap text-critical">
+                      {edit.originalText}
+                    </del>
+                  </>
+                )}
+                {(edit.suggestedText ||
+                  editedTexts[`${inputKey}:${i}`] !== undefined) && (
+                  <>
+                    <p className="text-xs text-neutral-muted">
+                      {t("career.prep.example", "수정 예시")}
+                    </p>
+                    <div className="text-neutral-primary">
+                      {editable(edit.suggestedText, `${inputKey}:${i}`)}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          {kind === "question" && (
+            <p className="whitespace-pre-wrap">
+              {item.reason || item.proposal}
+            </p>
+          )}
+          {kind === "choice" && item.proposal && (
             <p className="whitespace-pre-wrap">{item.proposal}</p>
           )}
-        {kind === "material" &&
-          item.draftText !== undefined &&
-          editable(item.draftText, `${inputKey}:material`)}
-        {kind === "material" && item.documentName && (
-          <p className="break-words">{item.documentName}</p>
-        )}
-
-        {p.responses[item.id] && (
-          <p className="text-xs text-neutral-muted">
-            {t(
-              "career.prep.saved",
-              "이 항목의 응답이 저장됐어요. 다시 선택하거나 수정할 수 있어요."
+          {kind === "material" &&
+            item.draftText === undefined &&
+            item.documentPurpose !== "final_resume" && (
+              <p className="whitespace-pre-wrap">{item.proposal}</p>
             )}
-          </p>
-        )}
+          {kind === "material" &&
+            item.draftText !== undefined &&
+            editable(item.draftText, `${inputKey}:material`)}
+          {kind === "material" && item.documentName && (
+            <p className="break-words">{item.documentName}</p>
+          )}
+        </div>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-4 bg-linear-to-b from-white/50 to-transparent"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-4 bg-linear-to-t from-white/50 to-transparent"
+        />
       </div>
       {canDecide && (
-        <div className="mt-3 grid auto-rows-fr shrink-0 gap-1">
-          {(["accept", "ignore"] as const).map((decision, i) => (
-            <CardButton
+        <div className="grid auto-rows-fr grid-cols-2 shrink-0 gap-2 bg-linear-to-t from-white to-transparent">
+          {(["ignore", "accept"] as const).map((decision, i) => (
+            <MuteButton
               key={decision}
-              selected={
-                selected === decision ||
-                (highlight?.key === inputKey && highlight.index === i)
-              }
+              className={cn(
+                decision === "accept"
+                  ? "bg-neutral-primary text-white hover:bg-neutral-primary/80"
+                  : "text-red-600",
+                selected === decision
+                  ? "bg-action text-white hover:bg-action/80"
+                  : "",
+                "rounded-full"
+              )}
               aria-pressed={selected === decision}
               disabled={busy}
-              className={numberedOptionClassName}
               onClick={() => void answer({ decision })}
             >
-              <span className={optionNumberClassName}>{i + 1}</span>
               {decision === "accept"
                 ? t("career.application.suggestions.accept", "적용")
                 : t("career.application.suggestions.ignore", "적용하지 않기")}
-            </CardButton>
+            </MuteButton>
           ))}
         </div>
       )}
       {kind === "choice" && (
-        <div className="mt-3 grid auto-rows-fr max-h-[min(144px,20dvh)] shrink-0 gap-1 overflow-y-auto">
+        <div className="grid auto-rows-fr max-h-[min(144px,20dvh)] shrink-0 gap-1 overflow-y-auto">
           {item.options?.map((option, i) => (
             <CardButton
               key={option.id}
@@ -682,7 +700,7 @@ export function ApplicationPreparationComposer() {
         </div>
       )}
       <form
-        className="mt-3 flex shrink-0 items-end gap-2"
+        className="mt-2 flex shrink-0 items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           if (text.trim() && !busy) void answer({ decision: "answer", text });
@@ -693,7 +711,7 @@ export function ApplicationPreparationComposer() {
           autoResize
           key={inputKey}
           rows={1}
-          className="min-h-8 max-h-24 flex-1 resize-none bg-transparent outline-none focus:ring-0 focus:shadow-none focus:bg-transparent py-1 text-[length:inherit] leading-[inherit]"
+          className="min-h-8 max-h-24 flex-1 resize-none bg-transparent outline-none focus:ring-0 focus:shadow-none focus:bg-transparent py-1 text-[16px] leading-[inherit] md:text-[length:inherit]"
           value={text}
           disabled={busy}
           aria-label={

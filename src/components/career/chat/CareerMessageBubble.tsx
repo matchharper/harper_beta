@@ -441,6 +441,7 @@ const CareerMessageBubble = ({
         />
       ) : null}
       <ChatMessageBubbleFrame
+        animateEntrance={isUser && String(message.id).startsWith("temp-user-")}
         active={isAssistantSpeaking}
         className={cn(
           isUser ? "max-w-[min(740px,92%)]" : "max-w-[min(740px,100%)]",

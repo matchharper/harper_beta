@@ -127,31 +127,3 @@ export async function enqueueOrgAgenticMatchingSearch(args: {
   if (!['queued','already_queued','already_running','already_completed','not_queued'].includes(String(result.status))) throw new Error('Unexpected search receipt');
   return { ...result, status: String(result.status), reason: typeof result.reason === "string" ? result.reason : null, options, effect: 'evaluation_only' };
 }
-
-export async function enqueueOrgRecommendationPublication(args: {
-  admin: OrgAgentAdminClient; roleId: string; userId: string; workspaceId: string;
-  requestId: string; sourceMessageId: number; input: Record<string, unknown>;
-}) {
-  const {input} = args;
-  if (!Array.isArray(input.talentIds) || !input.talentIds.every(id => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id))
-    || new Set(input.talentIds).size !== input.talentIds.length) throw new OrgAgentToolInputError('Select unique exact talentIds; an empty list explicitly clears the untouched pool.');
-  if (typeof input.briefVersion !== 'string' || !input.briefVersion || typeof input.poolVersion !== 'string' || !input.poolVersion)
-    throw new OrgAgentToolInputError('Read matching.view=selection for the current briefVersion and poolVersion before publishing.');
-  if(input.sourceRunId!==undefined&&(typeof input.sourceRunId!=='string'||!/^[0-9a-f-]{36}$/i.test(input.sourceRunId)))
-    throw new OrgAgentToolInputError('sourceRunId must be an exact saved run identifier.');
-  const options = {scope:'evaluated',startStage:2,limit:Math.max(1,input.talentIds.length),recommendCount:input.talentIds.length,
-    talentIds:input.talentIds,publication:{expectedBriefVersion:input.briefVersion,expectedPoolVersion:input.poolVersion,
-      ...(input.sourceRunId?{sourceRunId:input.sourceRunId}:{})},
-    sourceMessageId:args.sourceMessageId,...(typeof input.reason === 'string' ? {reason:input.reason} : {})};
-  const {data,error} = await (args.admin.rpc as any)('enqueue_company_agentic_search_v1', {
-    p_company_workspace_id:args.workspaceId,p_company_user_id:args.userId,p_role_id:args.roleId,
-    p_options:options,p_request_id:args.requestId,
-  });
-  if (error) {
-    if (isMatchingSearchAuthorizationRejection(error)) return {status:'not_queued',reason:'workspace_forbidden',options};
-    throw error;
-  }
-  const result=record(data);
-  if (!['queued','already_queued','already_running','already_completed','not_queued'].includes(String(result.status))) throw new Error('Unexpected publication receipt');
-  return {...result,status:String(result.status),options,effect:'replace_unreviewed_company_first',candidateContact:false};
-}

@@ -1,4 +1,5 @@
 import { GENERATED_RESUME_ORIGIN } from "@/lib/resumes/schema";
+import { readPdfExportDiagnostics } from "@/lib/documents/pdfDiagnostics";
 import type { Database } from "@/types/database.types";
 import type { TalentAdminClient } from "./admin";
 import {
@@ -20,10 +21,11 @@ type TalentDocumentMetadataRow = Pick<
   | "is_public"
   | "kind"
   | "origin_type"
+  | "revision"
 >;
 
 const DOCUMENT_LIST_SELECT =
-  "id, kind, file_name, is_public, is_primary, created_at, origin_type";
+  "id, kind, file_name, is_public, is_primary, created_at, origin_type, revision";
 const DOCUMENT_UPDATE_SELECT = `${DOCUMENT_LIST_SELECT}, is_deleted`;
 const DEFAULT_LIST_LIMIT = 10;
 const MAX_LIST_LIMIT = 20;
@@ -72,6 +74,7 @@ function toDocumentMetadata(
     isPublic: document.is_public,
     kind: document.kind,
     source: document.origin_type ?? "user_upload",
+    ...(document.revision != null ? { revision: document.revision } : {}),
   };
 }
 
@@ -131,8 +134,11 @@ export async function listTalentDocumentsForTool(args: {
   const documents = pageRows.map((document) =>
     toDocumentMetadata(document, documentIdsWithExtractedText.has(document.id))
   );
+  const pdfExports = await readPdfExportDiagnostics({
+    ...args, documentIds: pageRows.filter(document => [GENERATED_RESUME_ORIGIN, "harper_authored_document"].includes(document.origin_type ?? "")).map(document => document.id),
+  });
   return {
-    documents,
+    documents: documents.map(document => pdfExports.has(document.documentId) ? { ...document, pdfExport: pdfExports.get(document.documentId) } : document),
     hasMore,
     limit,
     nextOffset: hasMore ? offset + documents.length : null,
@@ -155,6 +161,7 @@ export async function readTalentDocumentForTool(args: {
   textAvailable?: boolean;
   matchFound?: boolean;
   matchOffset?: number | null;
+  pdfExport?: Record<string, unknown>;
 }> {
   const documentId = optionalString(args.input.document_id);
   if (!documentId) throw new Error("document_id is required.");
@@ -168,6 +175,10 @@ export async function readTalentDocumentForTool(args: {
   if (document.kind !== "resume" && document.kind !== "document") {
     throw new Error("Document not found.");
   }
+  const pdfExports = await readPdfExportDiagnostics({
+    ...args, documentIds: [GENERATED_RESUME_ORIGIN, "harper_authored_document"].includes(document.origin_type ?? "") ? [document.id] : [],
+  });
+  const pdfExport = pdfExports.get(document.id);
 
   if (args.input.format === "structured") {
     if (
@@ -181,6 +192,7 @@ export async function readTalentDocumentForTool(args: {
       document: toDocumentMetadata(document, Boolean(document.extracted_text)),
       structuredContent: document.structured_content,
       revision: document.revision,
+      ...(pdfExport ? { pdfExport } : {}),
     };
   }
   const content = document.extracted_text?.trim() ?? "";
@@ -208,6 +220,7 @@ export async function readTalentDocumentForTool(args: {
   return {
     document: toDocumentMetadata(document, content.length > 0),
     revision: document.revision,
+    ...(pdfExport ? { pdfExport } : {}),
     ...(query ? { matchFound: matchOffset !== -1, matchOffset } : {}),
     excerpt,
     hasMore,

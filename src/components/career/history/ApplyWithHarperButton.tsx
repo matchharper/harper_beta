@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { ArrowRight, Zap } from "lucide-react";
+import { Zap } from "lucide-react";
 import { MuteButton, type MuteButtonProps } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerChatPanelContext } from "../CareerChatPanelContext";
@@ -40,6 +40,15 @@ export default function ApplyWithHarperButton({
     chat.chatPending ||
     chat.assistantTyping ||
     chat.opportunityFeedbackFollowUpPending;
+
+  if (
+    item.isInternal ||
+    item.sourceType === "internal" ||
+    item.savedStage === "connected" ||
+    item.savedStage === "closed" ||
+    item.status === "ended" ||
+    item.status === "deleted"
+  ) return null;
 
   const start = async () => {
     if (disabled || sendingRef.current) return;

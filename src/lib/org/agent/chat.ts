@@ -1,3 +1,4 @@
+import { formatToolResultText } from "@/lib/llm/promptText";
 import { stringifyLlmDateTimes } from '@/lib/llm/promptDateTime';
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { createCandidateEmailPrivacy } from "./candidateEmailPrivacy";
@@ -898,7 +899,7 @@ export async function runOrgAgentToolLoop(
           role: "tool",
           tool_call_id: toolCall.id,
           name: toolName,
-          content: JSON.stringify(result),
+          content: formatToolResultText(result),
         });
         state.toolResults.push({
           callId: toolCall.id,

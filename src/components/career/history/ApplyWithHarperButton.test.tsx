@@ -73,7 +73,8 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
   const render = async (
     locale: "ko" | "en",
     roleId: string,
-    overrides: Partial<CareerChatPanelContextValue> = {}
+    overrides: Partial<CareerChatPanelContextValue> = {},
+    itemOverrides: Partial<CareerHistoryOpportunity> = {}
   ) =>
     act(async () =>
       root.render(
@@ -87,6 +88,7 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
                   roleId,
                   companyName: "Example",
                   title: "Engineer",
+                  ...itemOverrides,
                 } as CareerHistoryOpportunity
               }
               onOpenChat={() => events.push("open")}
@@ -97,6 +99,14 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
     );
   const button = () => dom.window.document.querySelector("button")!;
   try {
+    for (const itemOverrides of [
+      { isInternal: true }, { sourceType: "internal" as const },
+      { savedStage: "connected" as const }, { savedStage: "closed" as const },
+      { status: "ended" }, { status: "deleted" },
+    ]) {
+      await render("ko", "hidden-cta", {}, itemOverrides);
+      assert.equal(button(), null);
+    }
     await render("ko", "role-a");
     assert.equal(button().textContent, "Apply with Harper");
     await act(async () => {

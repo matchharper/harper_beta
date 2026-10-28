@@ -2,10 +2,6 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
-import {
-  canSwitchAuthPersonaWithoutLogout,
-  readAuthPersona,
-} from "@/lib/authSessionPersona";
 import { useAuthStore } from "@/store/useAuthStore";
 import { trackSignUp } from "@/lib/ga";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
@@ -211,16 +207,9 @@ export default function AuthCallback() {
       const accessToken = session?.access_token;
       if (session) {
         const loginPersona = isTalentDestination ? "talent" : "company";
-        const currentPersona = readAuthPersona(session);
-        // A callback URL opened with the existing session is not a new login.
-        if (
-          currentPersona &&
-          currentPersona !== loginPersona &&
-          !canSwitchAuthPersonaWithoutLogout(user.email)
-        ) {
-          void router.replace(nextPath);
-          return;
-        }
+        // The verified callback's destination wins over another tab adopting
+        // this session while getUser() was pending. Updating the shared binding
+        // also makes the other tab show its persona-switch gate.
         useAuthStore.getState().setLoginPersona(session, loginPersona);
       }
 

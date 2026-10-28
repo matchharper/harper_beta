@@ -5,6 +5,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { getSchoolLogo } from "@/utils/school_logo";
 import { ProfileSection } from "./ProfileSection";
 
 export type TalentExperienceItem = {
@@ -20,6 +21,7 @@ export type TalentExperienceItem = {
 };
 
 export type TalentEducationItem = {
+  url?: string | null;
   degree?: string | null;
   description?: string | null;
   endDate?: string | null;
@@ -265,6 +267,7 @@ export function TalentEducationSection({
             .map((value) => value?.trim())
             .filter(Boolean)
             .join(", ");
+          const schoolLogo = getSchoolLogo(education.url, education.school);
 
           return (
             <ProfileEntry
@@ -281,6 +284,18 @@ export function TalentEducationSection({
                     aria-hidden
                     className="h-4 w-4 text-black/30"
                   />
+                  {schoolLogo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={schoolLogo}
+                      src={schoolLogo}
+                      alt=""
+                      className="absolute inset-0 h-full w-full bg-bg-floating object-contain"
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                    />
+                  ) : null}
                 </ProfileEntryIcon>
               }
               description={education.description}

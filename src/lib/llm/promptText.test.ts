@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatPromptText } from "./promptText";
+import { formatPromptText, formatToolResultText } from "./promptText";
 
 test("company facts preserve amounts, unknowns, and complete multiline source text", () => {
   const description = "확인된 회사 소개\n".repeat(500);
@@ -11,6 +11,12 @@ test("company facts preserve amounts, unknowns, and complete multiline source te
   assert.match(output, /USD 12 million/);
   assert.match(output, /최근 투자 단계: 미확인/);
   assert.throws(() => JSON.parse(output));
+});
+
+test("tool projections preserve authored model text and callable references without replaying UI payloads", () => {
+  const modelOutput = "\nstatus=queued\nrunId=run-exact\n";
+  assert.equal(formatToolResultText({modelOutput, uiPayload: {private: "not-for-model"}}), modelOutput);
+  assert.equal(formatToolResultText({roleId: "role-exact", revision: 4}), "roleId: role-exact\nrevision: 4");
 });
 
 test("model metadata uses KST minutes; authored text and identifiers remain exact", () => {

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ToastVariant = "default" | "success" | "error" | "white";
+export type ToastVariant = "default" | "success" | "error" | "white" | "dark";
 
 export type ToastItem = {
   id: string;

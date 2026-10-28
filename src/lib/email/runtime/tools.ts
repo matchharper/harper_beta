@@ -39,11 +39,28 @@ import {
 import { createHash } from "crypto";
 import { updateEmailJob } from "./store";
 import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
+import { opsEmailTestToolBlock } from "./opsTest";
+import { readCareerCapabilityCoaching } from "@/lib/career/capabilities/server";
+import { formatPromptText } from "@/lib/llm/promptText";
+
+export async function emailCoachingContext(ctx: EmailJobContext) {
+  const activity = await readCareerCapabilityCoaching({
+    admin: ctx.admin, userId: ctx.talentId, conversationId: ctx.conversationId,
+  });
+  return formatPromptText({
+    currentCoaching: activity ? {
+      activityMessageId: activity.messageId, expectedRevision: activity.revision,
+      status: activity.status, topic: activity.topic,
+    } : null,
+    instruction: "A clear request to leave the current coaching activity and begin application preparation authorizes manage_career_coaching_activity action=end using this exact message ID and revision. Then continue the requested application in the same turn. Questions about possibilities alone do not authorize ending it. Email does not open coaching cards or calls.",
+  });
+}
 
 // One shared schema/executor for each existing business capability. Only the
 // attachment transport and email onboarding progress need channel executors.
 export const EMAIL_SHARED_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
+  TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY,
   TALENT_TOOL_NAMES.UPDATE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
@@ -103,7 +120,7 @@ export function emailToolSelection(
         t.function.name
       ) &&
       (!onboarding ||
-        !["read_talent_context", "write_talent_context"].includes(
+        !["read_talent_context", "write_talent_context", "manage_career_coaching_activity"].includes(
           t.function.name
         ))
   );
@@ -118,11 +135,28 @@ export function emailToolSelection(
           },
         }
       : tool.function.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION
-        ? { ...tool, function: { ...tool.function, description: "Start preparing an application for one known role and readable owned resume immediately. Reads the JD and actual application requirements before producing suggestions. In email there is no start card. If no resume exists, read known profile facts and use generate_resume with user authorization or offer an attachment first. Does not submit or edit the source file." } }
-        : tool
+        ? { ...tool, function: { ...tool.function, description: "Start preparing an application for one known role using the readable owned resume you selected from list_documents/read_document. Choose the suitable source yourself unless the user specified one; multiple resumes do not require a selection-confirmation email. The user's request to apply authorizes preparation. This waits for JD and actual application form/access inspection before producing suggestions. In email there is no start card. If no readable resume exists, use generate_resume with user authorization or offer an attachment. Does not submit or edit the source file." } }
+        : tool.function.name === TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY
+          ? { ...tool, function: { ...tool.function,
+              description: "End the current focused coaching activity when the user clearly stops it or asks to move to application preparation. Use the current coaching message ID and revision. This preserves its conversation and facts, performs no submission, and lets you continue the requested application in this turn. This email tool does not create coaching cards or calls.",
+              parameters: { type: "object", additionalProperties: false,
+                required: ["action", "activityMessageId", "expectedRevision"],
+                properties: {
+                  action: { type: "string", enum: ["end"] },
+                  activityMessageId: { type: "integer", minimum: 1 },
+                  expectedRevision: { type: "integer", minimum: 1 },
+                },
+              },
+            } }
+          : tool
   );
-  if (!onboarding) tools.push(manageApplicationSuggestionsTool, readyForRoleTool, {
-    ...applyToRoleTool, function: { ...applyToRoleTool.function, description: "Start the existing application browser after ready_for_role when the user has authorized applying with the prepared materials. Actual transmissions are held and returned to this conversation for a decision based on real user instructions. Questions and verified results resume this email automatically. Never infer completion from starting." },
+  if (!onboarding) tools.push({
+    ...manageApplicationSuggestionsTool,
+    function: { ...manageApplicationSuggestionsTool.function,
+      description: "Resolve or revise the application's suggestions using the latest natural email reply. Use existing item IDs. decision=accept saves approval of the shown change; include suggestion with decision=accept for a rewrite the user directly requested. Do not ask for a second confirmation. Questions are resolved with ignore after using their answers; optional unanswered questions may be omitted without blocking authorized work. Use ask only for genuinely new unapproved writing or an essential unknown, then explain that review in the email. This tool records decisions, not resume edits: save the approved subset with ready_for_role in this turn even while other questions remain. Save before publishing new asks; keep unanswered questions open. Perform an already authorized application only after preparation is complete.",
+    },
+  }, readyForRoleTool, {
+    ...applyToRoleTool, function: { ...applyToRoleTool.function, description: "Start the existing application browser after ready_for_role when the user has authorized applying with the prepared materials. Use manage_simulation_session action=inspect to recheck inconclusive or stale access before applying. Actual transmissions are held and returned to this conversation for a decision based on real user instructions. Questions and verified results resume this email automatically. Never infer completion from starting." },
   }, {
     ...applicationPreparationSessionTool,
     function: {
@@ -451,6 +485,17 @@ async function executeChannelTool(
   ctx: EmailJobContext,
   args: Parameters<CareerTextTurnAdapter["executeTool"]>[0]
 ) {
+  if (args.name === TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY) {
+    if (args.input.action !== "end")
+      return { ok: false, reason: "Email supports ending the current coaching activity; new coaching cards and calls require Career." };
+    const raw = asObject(await args.executeDefault());
+    const result = {
+      ok: raw.ok, status: raw.status, error: raw.error,
+      coachingContext: await emailCoachingContext(ctx),
+      assistantInstruction: "Use the current coaching state and actual result. After a successful end, continue the user's requested application in this turn. An unsuccessful mutation did not end coaching; use the current revision if the same authorized change is still needed.",
+    };
+    return { ...result, modelOutput: formatPromptText(result) };
+  }
   if (
     args.name === TALENT_TOOL_NAMES.CONTACT_COMPANY &&
     process.env.EMAIL_REPLY_DRY_RUN === "true"
@@ -538,6 +583,8 @@ export async function executeEmailTool(
   args: Parameters<CareerTextTurnAdapter["executeTool"]>[0]
 ) {
   const job = await assertEmailLease(ctx.admin, "reply", ctx.job.id, ctx.owner);
+  const blocked = opsEmailTestToolBlock(job, args.name);
+  if (blocked) return blocked;
   const application = await executeEmailApplicationTool(ctx, args.name, args.input);
   if (application !== undefined) return application;
   if (!MUTATING_EMAIL_TOOLS.has(args.name))

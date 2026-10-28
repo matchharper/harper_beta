@@ -5,7 +5,6 @@ import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeStringify from "rehype-stringify";
-import { JSDOM } from "jsdom";
 import { isPostingRoleId } from "@/lib/career/postingLinks";
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
 import { stripMockInterviewMarkers } from "@/lib/career/mockInterviewOffers";
@@ -77,6 +76,42 @@ function decorateEmailAst(node: EmailAstNode, baseUrl: string): void {
     node.properties.style = EMAIL_STYLES[node.tagName];
 }
 
+function emailPlainText(node: EmailAstNode, parent?: EmailAstNode, depth = 0): string {
+  if (node.type === "text") {
+    const text = node.value ?? "";
+    return !text.trim() && ["root", "table", "thead", "tbody", "tr", "ul", "ol"].includes(parent?.tagName ?? parent?.type ?? "")
+      ? ""
+      : text;
+  }
+  const tag = node.tagName;
+  if (tag === "br") return "\n";
+  if (tag === "pre") {
+    const literal = (item: EmailAstNode): string => item.value ?? (item.children ?? []).map(literal).join("");
+    return `${literal(node)}\n\n`;
+  }
+  if (tag === "table") {
+    const rows = (item: EmailAstNode): EmailAstNode[] => item.tagName === "tr" ? [item] : (item.children ?? []).flatMap(rows);
+    return `${rows(node).map(row => (row.children ?? [])
+      .filter(cell => cell.tagName === "th" || cell.tagName === "td")
+      .map(cell => emailPlainText(cell).trim()).join(" | ")).join("\n")}\n\n`;
+  }
+  const children = (node.children ?? [])
+    .map(child => emailPlainText(child, node, tag === "ul" || tag === "ol" ? depth + 1 : depth))
+    .join("");
+  if (tag === "a") {
+    const href = String(node.properties?.href ?? "");
+    return !href || children.trim() === href ? children : `${children} (${href})`;
+  }
+  if (tag === "li") {
+    const index = (parent?.children ?? []).filter(child => child.tagName === "li").indexOf(node);
+    const prefix = parent?.tagName === "ol" ? `${index + Number(parent.properties?.start ?? 1)}. ` : "• ";
+    return `${"  ".repeat(Math.max(0, depth - 1))}${prefix}${children.trim()}\n`;
+  }
+  if (tag === "ul" || tag === "ol") return `\n${children}\n`;
+  if (tag && ["p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote"].includes(tag)) return `${children}\n\n`;
+  return children;
+}
+
 // Only application control payloads are removed here. Wording and meaning are
 // authored by the same Career LLM; this renderer only interprets Markdown.
 export function emailVisibleMarkdown(content: string) {
@@ -103,8 +138,7 @@ export function renderReplyEmail(
 ) {
   const markdown = options.audience === "company" ? content : emailVisibleMarkdown(content);
   const baseUrl = options.baseUrl ?? "https://matchharper.com";
-  const htmlBody = String(
-    unified()
+  const processor = unified()
       .use(remarkParse)
       .use(remarkGfm)
       .use(remarkRehype)
@@ -112,67 +146,13 @@ export function renderReplyEmail(
       .use(
         () => (tree: unknown) => decorateEmailAst(tree as EmailAstNode, baseUrl)
       )
-      .use(rehypeStringify)
-      .processSync(markdown)
-  );
-  const dom = new JSDOM(htmlBody);
-  const document = dom.window.document;
-  const plain = (node: Node, depth = 0): string => {
-    if (node.nodeType === dom.window.Node.TEXT_NODE) {
-      const text = node.textContent ?? "";
-      const parent = node.parentElement?.tagName ?? "";
-      return !text.trim() &&
-        ["BODY", "TABLE", "THEAD", "TBODY", "TR", "UL", "OL"].includes(parent)
-        ? ""
-        : text;
-    }
-    if (!(node instanceof dom.window.Element)) return "";
-    const tag = node.tagName;
-    if (tag === "BR") return "\n";
-    if (tag === "PRE") return `${node.textContent ?? ""}\n\n`;
-    if (tag === "TABLE")
-      return `${Array.from(node.querySelectorAll("tr"))
-        .map((row) =>
-          Array.from(row.children)
-            .map((cell) =>
-              Array.from(cell.childNodes)
-                .map((child) => plain(child))
-                .join("")
-                .trim()
-            )
-            .join(" | ")
-        )
-        .join("\n")}\n\n`;
-    const children = Array.from(node.childNodes)
-      .map((child) =>
-        plain(child, ["UL", "OL"].includes(tag) ? depth + 1 : depth)
-      )
-      .join("");
-    if (tag === "A") {
-      const href = node.getAttribute("href") ?? "";
-      return !href || children.trim() === href
-        ? children
-        : `${children} (${href})`;
-    }
-    if (tag === "LI") {
-      const parent = node.parentElement;
-      const prefix =
-        parent?.tagName === "OL"
-          ? `${Array.from(parent.children).indexOf(node) + Number(parent.getAttribute("start") || 1)}. `
-          : "• ";
-      return `${"  ".repeat(Math.max(0, depth - 1))}${prefix}${children.trim()}\n`;
-    }
-    if (["UL", "OL"].includes(tag)) return `\n${children}\n`;
-    if (["P", "H1", "H2", "H3", "H4", "BLOCKQUOTE"].includes(tag))
-      return `${children}\n\n`;
-    return children;
-  };
-  const textBody = Array.from(document.body.childNodes)
-    .map((node) => plain(node))
-    .join("")
+      .use(rehypeStringify);
+  // Both MIME parts use the same sanitized tree; no browser DOM is needed.
+  const tree = processor.runSync(processor.parse(markdown));
+  const htmlBody = processor.stringify(tree);
+  const textBody = emailPlainText(tree as EmailAstNode)
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  dom.window.close();
   return {
     text: options.footer
       ? `${textBody}\n\n${HARPER_EMAIL_FOOTER_TEXT}`

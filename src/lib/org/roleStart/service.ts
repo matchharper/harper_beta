@@ -2,6 +2,7 @@ import { formatPromptText } from "@/lib/llm/promptText";
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
+import { billingErrorCode, type BillingErrorCode } from "@/lib/org/billing/types";
 import {
   fetchRoleCreationState,
   getRoleCreationMissingFields,
@@ -238,7 +239,8 @@ async function step(
   section: RoleStartProgressStep,
   kind: StepKind,
   status: "running" | "done" | "error",
-  text?: string
+  text?: string,
+  billingCode?: BillingErrorCode | null
 ) {
   try {
     await upsertRoleStartProgress(roleId, {
@@ -247,6 +249,7 @@ async function step(
       status,
       kind,
       text: text ?? "",
+      ...(billingCode ? { billingCode } : {}),
     });
   } catch (error) {
     console.error("[role-start] progress", error);
@@ -3060,7 +3063,7 @@ async function fetchRoleCreationStateForBackground(session: RoleStartSession, us
 export async function evaluateRoleStartCandidate(
   args: Access & {
     talentId: string;
-    rating: OrgRoleCriterionGrade;
+    rating?: OrgRoleCriterionGrade | null;
     answer?: string | null;
     note?: string | null;
     reasonIds?: string[] | null;
@@ -3075,18 +3078,21 @@ export async function evaluateRoleStartCandidate(
   }
   const candidate = session.firstCandidates.find((item) => item.talentId === args.talentId);
   if (!candidate) throw new OrgHttpError(404, "후보를 찾을 수 없어요.");
+  const rating = args.rating ?? null;
+  const reasonText = typeof args.reasonText === "string" ? args.reasonText.trim().slice(0, 1_000) : "";
+  if (!rating && !reasonText) throw new OrgHttpError(400, "평가를 고르거나 의견을 적어 주세요.");
   // Every rating can carry reasons: chips for its rating and the team's own words.
   const chips = [...(candidate.verdict?.reasonChips ?? []), ...likedReasonChips(candidate.verdict)].filter((chip) =>
-    chip.appliesTo.includes(args.rating)
+    rating !== null && chip.appliesTo.includes(rating)
   );
   const sql = roleStartSql();
   const entry = {
     reasons: chips
       .filter((chip) => (args.reasonIds ?? []).includes(chip.id))
       .map(({ id, criterionId, kind, label, evidence, scope }) => ({ chipId: id, criterionId, kind, label, evidence, ...(scope ? { scope } : {}) })),
-    reasonText: String(args.reasonText ?? "").trim().slice(0, 1_000) || null,
+    reasonText: reasonText || null,
     reasonsSkipped: args.reasonsSkipped === true,
-    rating: args.rating,
+    rating,
     answer: String(args.answer ?? "").trim().slice(0, 500) || null,
     note: String(args.note ?? "").trim().slice(0, 1_000) || null,
     at: new Date().toISOString(),
@@ -3216,7 +3222,7 @@ export function applyProbeRatings(
   for (const candidate of session.firstCandidates) {
     const probe = candidate.probe;
     const evaluation = session.evaluations[candidate.talentId];
-    if (!probe || !evaluation || evaluation.rating === "uncertain") continue;
+    if (!probe || !evaluation?.rating || evaluation.rating === "uncertain") continue;
     const liked = evaluation.rating === "excellent" || evaluation.rating === "good";
     const about = reasonTargets.get(candidate.talentId) ?? new Set<string>();
     if (probe.type === "criterion_low") {
@@ -3473,7 +3479,7 @@ export async function runRoleStartFirstBatch(args: {
     await activateRoleStartRole({ roleId: args.roleId, userId: args.userId, user: args.user, workspaceId: args.workspaceId ?? session.workspaceId });
   } catch (error) {
     console.error("[role-start] activation after ratings failed", error);
-    await step(args.roleId, "batch", "choose", "error", "등록을 마치지 못했어요");
+    await step(args.roleId, "batch", "choose", "error", "등록을 마치지 못했어요", billingErrorCode(error));
     await saveRoleStartSession({ roleId: args.roleId, expectedPhase: "registering", patch: { phase: "evaluating" } });
     return;
   }

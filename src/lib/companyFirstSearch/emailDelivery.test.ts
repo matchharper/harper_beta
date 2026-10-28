@@ -159,7 +159,7 @@ test("one closed recipient beside a sent one still marks the run sent", async ()
 
 test("disabled company email keeps the rows for retry instead of dropping them", async () => {
   const harness = run({ emailEnabled: false });
-  await assert.rejects(deliverCompanyFirstEmailRun(harness.rows[0], harness.deps), /EMAIL_RUNTIME_TARGET/);
+  await assert.rejects(deliverCompanyFirstEmailRun(harness.rows[0], harness.deps), /email dry run/);
   assert.equal(harness.delivered.length, 0);
   assert.ok(harness.log.includes("failed:clover"));
 });

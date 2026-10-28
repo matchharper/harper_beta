@@ -1,6 +1,8 @@
 import { notifyWorkspaceSignupSafely } from "@/lib/org/signupNotification.server";
 import { after, NextRequest, NextResponse } from "next/server";
 import { runSignupResearch } from "@/lib/org/signupServer";
+import { deleteOrgWorkspace } from "@/lib/org/workspaceDeletion.server";
+import { invalidateOrgPermissions } from "@/lib/org/permissionCache.server";
 
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import {
@@ -81,6 +83,27 @@ export async function PATCH(req: NextRequest) {
       workspaceId: body.workspaceId ?? "",
     });
     return NextResponse.json(payload);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuthenticatedUser(req);
+    const body = (await req.json().catch(() => null)) ?? {};
+    const result = await deleteOrgWorkspace({
+      userId: user.id,
+      workspaceId: body.workspaceId,
+      confirmationName: body.confirmationName,
+    });
+    // A cache failure must not report a committed deletion as a failed request.
+    try {
+      invalidateOrgPermissions(result.workspaceId);
+    } catch (error) {
+      console.error("[org/workspace/delete] permission cache", error);
+    }
+    return NextResponse.json(result);
   } catch (error) {
     return toErrorResponse(error);
   }

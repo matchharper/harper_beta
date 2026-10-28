@@ -24,6 +24,8 @@ function makeDailyUserStatsReport(
     },
     activeTalentsCount: 0,
     accountDeletedCount: 0,
+    applicationStartCount: 0,
+    applicationStartUserCount: 0,
     callTranscriptMessageCount: 0,
     chatMessageCount: 0,
     chatUniqueTalentCount: 0,

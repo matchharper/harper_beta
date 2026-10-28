@@ -3,6 +3,7 @@ import { sessionOperation, type SessionStoreArgs } from "./sessionStore";
 import { pendingApplicationBatch } from "./applicationInput";
 import type { SimulationSession } from "./session";
 import type { TalentMessageResponse } from "@/lib/talentOnboarding/models";
+import { applicationExecutionFacts } from "./applicationExecution";
 
 const commandSchema = z.object({
   action: z.enum(["list", "resume"]),
@@ -72,6 +73,7 @@ export async function manageSavedApplications(
     roleName: saved.state.roleName, sessionStatus: saved.state.status,
     pendingQuestions: pendingApplicationBatch(saved.state)?.itemIds.length ?? 0,
     applicationStatus: saved.state.browser?.status ?? null,
+    application: applicationExecutionFacts(saved.state),
     browserStarted: false,
     assistantInstruction: "Continue from the restored preparation and existing answers. Do not repeat the initial analysis or request approval again for already approved edits. A pending question batch is available in the composer. Resuming does not grant submission consent or restart a website attempt; use its recorded outcome without implying a submission.",
   };

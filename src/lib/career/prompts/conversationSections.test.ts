@@ -21,9 +21,10 @@ test("tells the Career LLM that the initial search continues in the background",
     onboardingCompletedAt: "2026-09-14T00:00:00.000Z",
   });
 
-  assert.match(section, /searching in the background/);
-  assert.match(section, /keep chatting while it runs/);
-  assert.match(section, /within up to 1 hour/);
+  assert.match(section, /Queued means waiting to start/);
+  assert.match(section, /user can keep chatting/);
+  assert.match(section, /acknowledge the missed expectation/);
+  assert.match(section, /not from this reply/);
 });
 
 test("offers optional waiting-period guidance while the conversation-completed run is active", () => {
@@ -37,7 +38,7 @@ test("offers optional waiting-period guidance while the conversation-completed r
 
   assert.match(
     section,
-    /initial post-onboarding opportunity search is running/
+    /initial post-onboarding opportunity search is pending/
   );
   assert.match(section, /even if it produces no opportunity/);
   assert.match(section, /sends no recommendation email/);
@@ -57,7 +58,7 @@ test("removes waiting-period and referral guidance when the conversation-complet
 
   assert.doesNotMatch(
     section,
-    /initial post-onboarding opportunity search is running/
+    /initial post-onboarding opportunity search is pending/
   );
   assert.doesNotMatch(section, /referral-program|KRW 5,000,000/i);
 });

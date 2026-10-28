@@ -11,6 +11,7 @@ import { MuteButton } from "@/components/ui/button";
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Ticket } from "@/components/ui/ticket";
 
 export function CompanyIntroRequestDialog({
   candidateName,
@@ -116,6 +117,7 @@ export function CompanyIntroRequestDialog({
           >
             {pending ? <LoaderCircle className="size-4 animate-spin" /> : null}
             {c("Intro 보내기", "Send intro")}
+            {/* <Ticket /> */}
           </MuteButton>
         </div>
       }

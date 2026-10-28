@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { createSimulationSession } from "./session";
 import { createPreparation } from "./preparation";
 import { suggestionAction } from "./suggestionSchema";
+import { askApplicationInput, pendingApplicationBatch } from "./applicationInput";
+import { manageApplicationSuggestions } from "./suggestions";
 import {
   readyForRole,
   readyForRoleSchema,
@@ -123,12 +125,14 @@ function fixture() {
     sourceId,
   };
 }
-test("readiness waits for inspection and returns the verified support and manual application URL", async () => {
+test("private saving remains available during inspection without pinning a submission version", async () => {
   const f = fixture();
   f.record.state.actions = [];
   f.record.state.applicationUrl = "https://example.test/apply";
   f.record.state.applicationInspection = { status: "running", runId: "inspection" };
-  await assert.rejects(readyForRole(f.store, f.record, { action: "reuse" }, 1, "pending"), /still being checked/);
+  const pending = await readyForRole(f.store, f.record, { action: "reuse" }, 1, "pending");
+  assert.equal(pending.result.preparationComplete, false);
+  assert.equal(pending.record.state.preparation?.finalDocumentId, null);
   for (const status of ["supported", "unsupported", "unknown"] as const) {
     f.record.state.applicationInspection.status = "completed";
     f.record.state.applicationForm = { status: status === "supported" ? "read" : "unavailable", url: f.record.state.applicationUrl, checkedAt: new Date().toISOString(), fields: [], limitations: [], submission: { status, reason: "Observed access result" } };
@@ -137,6 +141,32 @@ test("readiness waits for inspection and returns the verified support and manual
     assert.equal(ready.result.applicationUrl, "https://example.test/apply");
     assert.equal(ready.result.applicationStarted, false);
   }
+});
+test("approved edits save while an unanswered question remains, then reuse the saved copy after resolution", async () => {
+  const f = fixture();
+  f.record.state.actions.push(suggestionAction({ kind: "question", title: "Portfolio URL?", reason: "Required field" }, "Q"));
+  f.record.state = askApplicationInput(f.record.state, {
+    purpose: "suggestions", items: [{ actionId: "Q" }],
+  }, "question");
+  const originalBatch = pendingApplicationBatch(f.record.state)!;
+  const partial = await readyForRole(f.store, f.record, {
+    action: "create", content: {
+      language: "en", basics: { name: "Alex Example" },
+      experience: [{ title: "Engineer", bullets: ["Built internal APIs"] }],
+    },
+  }, 1, "save-approved");
+  assert.match(partial.result.savedResumeText, /Built internal APIs/);
+  assert.equal(partial.result.preparationComplete, false);
+  assert.equal(partial.record.state.preparation?.finalDocumentId, null);
+  assert.equal(pendingApplicationBatch(partial.record.state)?.id, originalBatch.id);
+  assert.equal(partial.record.state.actions.find(a => a.id === "Q")?.status, "pending");
+  const resolved = manageApplicationSuggestions(partial.record.state, {
+    changes: [{ id: "Q", decision: "ignore" }],
+  }, "resolved-from-reply", 2);
+  const final = await readyForRole(f.store, { ...partial.record, state: resolved }, { action: "reuse" }, 2, "pin-existing-copy");
+  assert.equal(final.result.preparationComplete, true);
+  assert.equal(final.result.documentId, partial.result.documentId);
+  assert.equal(f.docs.size, 2);
 });
 test("ready saves a private tailored copy, preserves the uploaded original and pins the actual revision", async () => {
   const f = fixture(),
@@ -254,7 +284,7 @@ test("readiness preserves partial form uncertainty alongside accessible submissi
   assert.equal(result.submission.status, "supported");
   assert.equal(result.applicationStarted, false);
 });
-test("readiness cannot bypass accepted changes, a pending response, ownership or source preservation", async () => {
+test("saving preserves unresolved items and cannot bypass accepted changes, ownership or source preservation", async () => {
   const f = fixture();
   await assert.rejects(
     () => readyForRole(f.store, f.record, {}, 1, "empty"),
@@ -279,10 +309,11 @@ test("readiness cannot bypass accepted changes, a pending response, ownership or
     /Uploaded resumes/
   );
   f.record.state.actions[0].status = "pending";
-  await assert.rejects(
-    () => readyForRole(f.store, f.record, {}, 1, "unanswered"),
-    /outstanding/
-  );
+  const partial = await readyForRole(f.store, f.record, {}, 1, "unanswered");
+  assert.equal(partial.result.preparationComplete, false);
+  assert.deepEqual(partial.result.pendingItemIds, ["C"]);
+  assert.equal(partial.record.state.actions[0].status, "pending");
+  assert.equal(partial.record.state.preparation?.finalDocumentId, null);
   f.record.state.actions[0].status = "skipped";
   f.docs.get(f.sourceId).talent_id = "another-owner";
   await assert.rejects(

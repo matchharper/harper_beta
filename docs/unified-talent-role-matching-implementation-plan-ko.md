@@ -1,5 +1,14 @@
 # Talent × Role 매칭 통합 구현 계획
 
+## 2026-10-27 Free 추천·연결 확대 (로컬 구현·미배포)
+
+슬롯이 없는 Free Role도 talent-first 추천, 회사 선추천, 연결 대기 조회·연결 수락을 이용한다. Free와 표준 슬롯 Workspace의 공용 Intro는 매월 3개다. 활성 Free Role 1개·초안 무제한, 슬롯당 추가 활성 Role 1개·월 50 Intro는 유지한다. Intro 요청·연결 수락은 각각 1 Intro를 사용하며, 자기 슬롯 잔액 다음 공용 잔액을 쓴다. 조회·검색·후보자 선추천은 Intro를 차감하지 않는다.
+
+정기 월·수·금 09시 KST talent-first, 첫 활성화, 수동 talent-first, 온보딩·선정·전달·우선 검토의 유료 전용 제한을 해제한다. 기존 Role 상태·일정·동의·공유·차단·test-only·중복 방지 조건은 유지한다. 연결 대기 화면은 결제 조회에 의존하지 않고 잠금·구매 gate를 표시하지 않는다.
+
+`20261027074848_free_role_matching_and_three_intros.sql`은 현재 표준 공용 기간의 실제 Intro/연결 사용량을 보존해 잔액을 `max(0, 3 - 사용량)`으로 바꾸고 이후 갱신도 3개로 만든다. 유료 기간·과거 기간·별도 계약은 보존한다. 가격 목록을 고정한 CHECK 2개는 제거하며 잔액 범위·소유권·기간 중복 방지는 유지한다. 운영 DB 적용·웹/Worker 배포·실제 추천/발송은 수행하지 않았다. Notion은 배포 후 실제 동작 기준으로 갱신한다. 아래 날짜가 명시된 과거 10 Intro·유료 전용 설명은 당시 이력이며 이 로컬 정책의 정본이 아니다.
+
+
 > 2026-10-16 운영 적용: `preserve_matching_selections_on_source_change`를 운영 migration `20261016010408`로 적용하고 source-edit 무효화 trigger 제거를 확인했다. 기존 선정을 소급 복원하거나 과거 사건을 재발송하지 않았다. 아래 10월 15일 미적용 표기는 작성 당시 이력이다.
 
 > 2026-10-15 로컬 변경·미적용: 입력 변경 시 `source_changed`로 기존 matching review를 닫거나 fit을 즉시 만료시키는 DB trigger 및 프로필·Brief 변경 후 자동 재평가 enqueue를 제거했다. 아래 입력 변경 기반 자동 무효화·재평가 설명은 이 변경으로 대체한다. 일반 TTL, 새 평가 결과의 fingerprint 정합성, 명시적·정기 검색, 발송 시 현재 권한·차단·역할 유효성 검사는 유지한다. Migration은 과거 종료된 선정을 자동 복원하지 않는다. Migration: `20261015112457_preserve_matching_selections_on_source_change.sql`.
@@ -89,9 +98,9 @@ flowchart TD
 | Trigger | 실행 범위 | Fit 이후 | 후보자·회사에게 나가는 것 |
 | --- | --- | --- | --- |
 | 후보자 온보딩 완료 | 해당 후보자에게 역할 검색 1회 | 온보딩 rerank | 첫 추천을 바로 보여주고 기존 첫 추천 메일 흐름으로 전달 |
-| 역할이 처음 검색 가능한 활성 상태가 됨 | Hiring Brief 준비 후 첫 허용 slot에 해당 역할 검색 1회 | Role-run rerank | Paid는 월·수·금에 후보자 선택 가능. Free는 허용된 회사 자동 제안만 가능 |
-| 매주 월·수·금 09:00 | Paid에 해당하는 검색 가능한 활성 내부 역할 | Role-run rerank | 회사 추천 설정과 관계없이 talent-first 후보를 검토. 같은 회사 설정 slot이면 양쪽 가능 |
-| 회사 자동 추천 ON + 설정 요일·시간 | Free 또는 Paid의 해당 활성 역할 | Role-run rerank | Free는 company-first만. Paid는 월·수·금이면 양쪽, 나머지 요일이면 company-first만 |
+| 역할이 처음 검색 가능한 활성 상태가 됨 | Hiring Brief 준비 후 해당 역할 검색 즉시 1회 | Role-run rerank | Free·Paid 모두 요일과 관계없이 후보자 선추천 검토. 회사 방향은 현재 전달 자격·설정을 따른다 |
+| 매주 월·수·금 09:00 | Free·Paid의 검색 가능한 활성 내부 역할 | Role-run rerank | 회사 추천 설정과 관계없이 talent-first 후보를 검토. 같은 회사 설정 slot이면 양쪽 가능 |
+| 회사 자동 추천 ON + 설정 요일·시간 | Free 또는 Paid의 해당 활성 역할 | Role-run rerank | Free·Paid 모두 월·수·금이면 양쪽, 나머지 요일이면 company-first만. 첫 활성화·수동 talent-first는 별도 실행 |
 | 회사가 명시적으로 즉시 검색 요청 | 요청한 역할 및 비교에 필요한 같은 회사 역할 | 회사 요청 목적의 rerank | 기존 명시적 검색 계약대로 회사 제안. 이것만으로 별도 후보자 연락을 발송하지 않는다 |
 | 후보자가 우선순위 검토 요청 | 기존 fit 확인 + 다음 역할 검색의 필수 평가 목록에 포함 | 19절의 분기 | 기존 fit이 추천을 뒷받침하면 즉시 정식 역할 제안, fit이 없으면 다음 역할 검색에서 평가 |
 | Brief 또는 검증된 Profile이 실제 변경 | 해당 후보자의 관련 pair + 현재 방향에 맞는 제한된 새 검색 | 후보자 기준 재검토 | 다음 전달에 반영. 답변했다고 즉시 회사에 공유하지 않는다 |
@@ -100,29 +109,29 @@ flowchart TD
 
 상세 규칙:
 
-1. `role_matching_slot_type_v1`은 현재 billing과 Role 배정을 읽는다. 확인된 유효 기간의 Slot에 배정된 Role은 Paid다. 등록된 standard workspace에 유효한 Paid Slot이 없으면 Free다. Paid Slot이 있는데 배정되지 않은 Role은 검색 불가다. `is_harper_tailored_role=true`, 기존 legacy 권한, scale은 Paid처럼 동작한다. 결제 상태 문자열이나 회사 전체 유료 여부만으로 Role 권한을 추정하지 않는다.
-2. Paid의 talent-first 발견·새 Role-run 선택은 **월·수·금에만** 허용한다. Free는 talent-first를 하지 않는다. 회사 자동 제안은 `is_company_first_search=true`인 설정 요일·시각에만 가능하다. 이를 끄거나 설정 요일이 아니면 추가 회사 slot을 만들지 않는다. 같은 시각의 baseline과 회사 slot은 합치고, 다른 시각이면 회사 제안은 해당 회사 slot에서만 수행한다. 명시적 회사 Run Search는 요일·자동 설정과 무관한 company-first 전용이다.
+1. `role_matching_slot_type_v1`은 현재 billing과 Role 배정을 읽는다. 확인된 유효 기간의 Slot에 배정된 Role은 Paid다. 등록된 standard workspace에서 유효한 Slot에 배정되지 않은 활성 Role은 Free다. 활성 Free Role 한도는 1개이며 다른 Role의 유료 Slot 보유 여부로 이 Role의 기능을 제한하지 않는다. `is_harper_tailored_role=true`, 기존 legacy 권한, scale은 Paid처럼 동작한다. 결제 상태 문자열이나 회사 전체 유료 여부만으로 Role 권한을 추정하지 않는다.
+2. Free·Paid 모두 정기 talent-first 발견·새 Role-run 선택은 **월·수·금**에 수행한다. 최초 활성화와 명시적 수동 talent-first 요청은 요일과 무관하게 수행한다. 회사 자동 제안은 `is_company_first_search=true`인 설정 요일·시각에만 가능하다. 이를 끄거나 설정 요일이 아니면 추가 회사 slot을 만들지 않는다. 같은 시각의 baseline과 회사 slot은 합치고, 다른 시각이면 회사 제안은 해당 회사 slot에서만 수행한다. 명시적 회사 Run Search는 요일·자동 설정과 무관한 company-first 전용이다.
 3. 새 역할 생성은 초안 저장마다 실행하지 않는다. 필수 JD·Hiring Brief와 공개·활성 조건을 갖춘 첫 activation revision으로 dedupe한다. Calibration이 필수인 기존 경로는 완료 후 실행한다.
-4. 최초 activation도 방향별 요일·설정을 지킨다. 오늘 허용된 방향이 없으면 다음 허용 slot에 실행한다. Free에서 회사 자동 추천이 꺼져 있으면 activation 검색을 등록하지 않는다. Hiring Brief가 빈 초안은 검색에서 제외하고 Brief가 준비된 첫 revision에서 등록한다.
+4. 최초 activation은 Free·Paid 모두 즉시 검색을 등록한다. 후보자 선추천은 요일·회사 자동 추천 설정과 무관하며, 저장 단계에서도 해당 Role의 최초 활성화 실행 기록을 확인해 같은 예외를 적용한다. Hiring Brief가 빈 초안은 검색에서 제외하고 Brief가 준비된 첫 revision에서 등록한다.
 5. 신규 역할 trigger가 기존 talent opportunity worker를 후보자 수만큼 enqueue하는 경로를 제거한다. Role run에서 후보자를 찾고 실제 전달 대상만 후보자 단위로 모은다.
 6. Brief refresh·우선순위 검토는 세 번째 대규모 검색 체계가 아니다. 기존 두 entry point가 사용하는 evaluator를 재사용하는 보정 작업이다.
 7. 검색이 없었던 것과 실행했으나 적합자가 없었던 것을 run 기록에서 구분한다. 실패를 “후보자 0명”으로 기록하지 않는다.
 8. 회사 ready backlog가 꽉 차도 baseline fit과 talent-first 발견을 함께 멈추지 않는다. 회사 경로의 capacity와 후보자 경로의 가능성을 별도로 전달한다.
 9. Hiring Brief·역할 조건이 수정되면 기존 fit은 즉시 invalid이지만, 활성 역할 전부를 후보자 수만큼 즉시 재평가하지 않는다. 다음 role slot 또는 명시적 즉시 검색에서 필요한 pair를 갱신한다. 진행 중인 추천/Intro는 실행 직전 현재 조건을 다시 읽는다.
 
-Paid 활성 역할의 우선 검토 요청은 **다음 월·수·금 baseline 또는 더 이른 허용 회사 run**의 별도 요청 pool에서 검토한다. Free에는 talent-first baseline이 없으며 허용된 회사 run에서만 검토한다. 등록 시 이미 있는 fit은 읽지만, 요청별 평가 작업이나 별도 검색을 만들지 않는다. 역할별로 오래된 활성 요청부터 최대 50명을 일반 검색 한도와 별개로 평가 목록에 합친다. 회사 자동 제안 설정이 꺼졌다는 이유로 baseline 검토를 멈추지 않는다. 월·수·금 run은 원래 실행되어야 한다. 회사 알림과 공개 권한은 기존 설정을 따른다.
+Free·Paid 활성 역할의 우선 검토 요청은 **다음 월·수·금 baseline 또는 더 이른 허용 회사 run**의 별도 요청 pool에서 검토한다. 등록 시 이미 있는 fit은 읽지만, 요청별 평가 작업이나 별도 검색을 만들지 않는다. 역할별로 오래된 활성 요청부터 최대 50명을 일반 검색 한도와 별개로 평가 목록에 합친다. 회사 자동 제안 설정이 꺼졌다는 이유로 baseline 검토를 멈추지 않는다. 월·수·금 run은 원래 실행되어야 한다. 회사 알림과 공개 권한은 기존 설정을 따른다.
 
-2026-10-08 이 규칙은 로컬 코드와 `20261008043437_role_matching_route_eligibility.sql`에 구현했다. 이번 변경은 운영 DB에 적용하거나 웹·Worker에 배포하지 않았다. 기존 온보딩·사용자 요청에 따른 즉시 검토와 72시간 전달은 Role-run의 월·수·금 발견과 별개지만, 새로운 talent-first 추천은 현재 Paid 권한이 필요하다. 회사의 실제 Intro 요청은 별도 명시 요청 경로다.
+2026-10-27 이 절의 Free·Paid 공통 자격과 최초 활성화 예외는 로컬 코드 및 `20261027074848_free_role_matching_and_three_intros.sql` 기준이다. 운영 DB 적용·웹·Worker 배포는 하지 않았다. 기존 온보딩·사용자 요청에 따른 즉시 검토와 72시간 전달은 Role-run의 정기 월·수·금 발견과 별개이며 Free·Paid 모두 이용한다. 회사의 실제 Intro 요청은 별도 명시 요청 경로다.
 
 Retrieval의 신규 인원 한도를 채우기 전에 공개 범위·삭제·온보딩·내부 추천 opt-out·회사 차단과 현재 방향의 이력 제외를 적용한다. 저장 fit·우선 검토를 합친 이후에도 scoring 직전에 후보자–Role별 허용 방향을 확인한다. 회사 제안 이력이 있어도 talent-first가 가능하면 남기고, 기존 후보자 카드가 있어도 company-first가 가능하면 남긴다. 양쪽 모두 막힌 pair는 scoring·rerank에서 제외한다. 회사 explicit pass, 실제 Intro 진행, 활성 pipeline은 새 talent-first를 막는다. Company-first는 `open_to_matches`만, talent-first는 `exceptional_only`도 가능하다. LOW 응답 신호는 기존대로 soft ranking이다.
 
-예약 slot과 실제 실행일을 따로 확인한다. 오전 baseline이 늦게 실행됐다는 이유로 오후 회사 slot 권한을 얻지 않으며, 지난 날짜 slot의 재개로 새 talent-first를 만들지 않는다. 저장 직전 현재 Slot·수신 채널·역할 fingerprint와 방향별 이력을 다시 확인하고, DB도 Free·잘못된 요일·명시적 회사 검색의 talent-first 선택 저장을 차단한다. 회사 전달 채널·ready backlog는 회사 방향만 막고 Paid의 유효한 talent-first를 멈추지 않는다. 수동 회사 Run Search의 enqueue에서는 후보자 연결 대기 상한을 제거하고 ready·채널·권한 경계는 유지한다.
+예약 slot과 실제 실행일을 따로 확인한다. 오전 baseline이 늦게 실행됐다는 이유로 오후 회사 slot 권한을 얻지 않으며, 지난 날짜 slot의 재개로 새 talent-first를 만들지 않는다. 저장 직전 현재 Slot·수신 채널·역할 fingerprint와 방향별 이력을 다시 확인하고, DB는 비활성·만료·접근 불가 Role, 허용일이 아닌 정기 검색, 명시적 회사 검색의 talent-first 선택 저장을 차단한다. 검증된 첫 활성화·수동 talent-first는 요일 예외를 적용한다. 회사 전달 채널·ready backlog는 회사 방향만 막고 Free·Paid의 유효한 talent-first를 멈추지 않는다. 수동 회사 Run Search의 enqueue에서는 후보자 연결 대기 상한을 제거하고 ready·채널·권한 경계는 유지한다.
 
 Scheduler 중단 후에는 역할별 누락 slot을 모두 재생하지 않고 **가장 최근 due slot 한 개**로 catch-up한다. 미완료 run은 기존 ID로 재개하고 더 오래된 누락 slot은 새 발송을 만드는 run으로 복제하지 않는다. 설정 변경 시 이미 실행 중인 snapshot은 고정하되 최종 실행 권한은 현재 설정을 확인한다. 후보자 전달 scheduler도 중단 기간의 매 3일 연락을 몰아서 발송하지 않고 현재 재료로 한 번 판단한다.
 
 ### 예시: 몇 주 전에 가입한 개발자가 PM을 원하고, 화요일에 PM 역할이 열림
 
-Paid PM 역할이 화요일에 활성화되고 화요일 회사 자동 추천 설정이 없다면 수요일 09:00에 Profile 검색과 Brief의 희망 방향 검색을 함께 실행한다. 강한 fit이면 role rerank가 talent-first 후보로 선택할 수 있다. 화요일이 회사 설정일이면 화요일에는 company-first만 검토한다. 마지막 일반 연락이 일요일 10시였다면 수요일 10시 이후 전달 대상이 된다. 온보딩을 다시 실행하거나 목요일이라는 고정 개인 추천일을 만들지 않는다. 이미 회사에 제안한 pair여도 후보자에게 추천할 가능성은 따로 판단한다.
+Free 또는 Paid PM 역할이 화요일에 처음 활성화되면 즉시 Profile 검색과 Brief의 희망 방향 검색을 함께 실행한다. 강한 fit이면 요일과 관계없이 role rerank가 talent-first 후보로 선택하고 저장할 수 있다. 첫 활성화 뒤 정기 talent-first는 월·수·금에 검토한다. 마지막 일반 연락이 일요일 10시였다면 수요일 10시 이후 전달 대상이 된다. 온보딩을 다시 실행하거나 목요일이라는 고정 개인 추천일을 만들지 않는다. 이미 회사에 제안한 pair여도 후보자에게 추천할 가능성은 따로 판단한다.
 
 ## 4. 검색 후보군: 현재 직함만으로 찾지 않는다
 

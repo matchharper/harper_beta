@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentType, type ReactNode } from "react";
+import { type ComponentType, type ReactNode } from "react";
 import Image from "next/image";
 import { PanelLeftClose } from "lucide-react";
 import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
@@ -9,10 +9,14 @@ import { MuteButton } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
-  DialogContent,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  PushNavigationContent,
+  usePushNavigation,
+} from "@/components/ui/push-navigation";
+export { PushNavigationFrame as CareerMobileNavigationFrame } from "@/components/ui/push-navigation";
 import { useCareerT } from "@/i18n/useCareerT";
 import { cn } from "@/lib/utils";
 
@@ -43,17 +47,12 @@ export default function CareerMobileNavigationMenu({
   options,
 }: CareerMobileNavigationMenuProps) {
   const t = useCareerT();
-  const [open, setOpen] = useState(false);
+  const { open, setOpen } = usePushNavigation();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent
-        hideCloseButton
-        aria-describedby={undefined}
-        overlayClassName="z-[80] motion-reduce:animate-none"
-        className="!inset-y-0 !left-0 !right-auto !top-0 z-[81] flex h-svh w-[min(82vw,280px)] max-w-[280px] !translate-x-0 !translate-y-0 flex-col gap-0 rounded-none border-0 border-r border-neutral-1000-a05 bg-bg-basement p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] duration-300 data-[state=closed]:slide-out-to-left-full data-[state=closed]:zoom-out-100 data-[state=open]:slide-in-from-left-full data-[state=open]:zoom-in-100 motion-reduce:animate-none"
-      >
+      <PushNavigationContent className="p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]">
         <DialogTitle className="sr-only">Career</DialogTitle>
         <div className="mb-4 flex h-9 shrink-0 items-center justify-between pl-2.5">
           <Image
@@ -128,7 +127,7 @@ export default function CareerMobileNavigationMenu({
             );
           })}
         </nav>
-      </DialogContent>
+      </PushNavigationContent>
     </Dialog>
   );
 }

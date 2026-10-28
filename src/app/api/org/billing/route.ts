@@ -1,3 +1,5 @@
+import { scheduleBillingActivity } from "@/lib/org/billing/activity.server";
+import { PROMOTION_COOKIE } from "@/lib/org/billing/promotion";
 import { requestedSlotId } from "@/lib/org/billing/compat";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -65,8 +67,13 @@ export async function GET(req: NextRequest) {
     });
     const canManage = authority === "owner" || authority === "admin";
     const view = req.nextUrl.searchParams.get("view") ?? "summary";
-    const accessibleRoleIds = await visibleOrgRoleIds({ admin: getSupabaseAdmin(), user, workspaceId: id });
-    if (accessibleRoleIds !== null && view !== "capacity") throw new WorkspaceBillingError("billing_owner_required", 403);
+    const accessibleRoleIds = await visibleOrgRoleIds({
+      admin: getSupabaseAdmin(),
+      user,
+      workspaceId: id,
+    });
+    if (accessibleRoleIds !== null && view !== "capacity")
+      throw new WorkspaceBillingError("billing_owner_required", 403);
     if (!["summary", "capacity", "usage", "invoices"].includes(view))
       throw new OrgHttpError(400, "Invalid billing view");
     if (view === "invoices" && authority !== "owner")
@@ -138,22 +145,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         capacity: summary.capacity,
         activeRoles: summary.activeRoles,
-        pendingConnections: summary.model !== "free",
-        creditSlots: accessibleRoleIds === null ? summary.creditSlots : summary.creditSlots.filter(slot => slot.slotId === null || Boolean(slot.roleId && accessibleRoleIds.includes(slot.roleId))),
+        pendingConnections: true,
+        creditSlots:
+          accessibleRoleIds === null
+            ? summary.creditSlots
+            : summary.creditSlots.filter(
+                (slot) =>
+                  slot.slotId === null ||
+                  Boolean(
+                    slot.roleId && accessibleRoleIds.includes(slot.roleId)
+                  )
+              ),
       });
     const [slots, catalog] = await Promise.all([
       withSlotPrices(id, summary.slots),
-      getBillingCatalog().catch((error) => {
-        console.error("[billing/catalog]", error);
-        return {
-          available: false,
-          amount: null,
-          annualAmount: null,
-          testMode: false,
-          currency: null,
-          taxBehavior: "unspecified",
-        };
-      }),
+      getBillingCatalog(req.cookies.get(PROMOTION_COOKIE)?.value).catch(
+        (error) => {
+          console.error("[billing/catalog]", error);
+          return {
+            available: false,
+            amount: null,
+            annualAmount: null,
+            testMode: false,
+            currency: null,
+            taxBehavior: "unspecified",
+          };
+        }
+      ),
     ]);
     return NextResponse.json({
       summary: { ...summary, slots, canManage },
@@ -164,6 +182,13 @@ export async function GET(req: NextRequest) {
   }
 }
 export async function POST(req: NextRequest) {
+  let activity:
+    | {
+        userId: string;
+        action: string;
+        metadata: Record<string, string | number | boolean | null>;
+      }
+    | undefined;
   try {
     const user = await requireAuthenticatedUser(req);
     const body = await req.json();
@@ -175,73 +200,125 @@ export async function POST(req: NextRequest) {
       workspaceId: id,
       permission: "manage_workspace",
     });
-    switch (body.action) {
-      case "checkout":
-        if (body.interval !== "month" && body.interval !== "year")
-          throw new OrgHttpError(400, "Invalid billing interval");
-        if (
-          !isSlotPurchaseQuantity(
-            body.quantity === undefined ? 1 : body.quantity
-          )
-        )
-          throw new OrgHttpError(400, "Invalid slot quantity");
-        return NextResponse.json(
-          await createSlotCheckout(
-            id,
-            user.id,
-            user.email,
-            body.locale,
-            body.interval,
-            body.quantity === undefined ? 1 : body.quantity
-          )
-        );
-      case "confirm": {
-        if (
-          typeof body.sessionId !== "string" ||
-          !body.sessionId.startsWith("cs_")
-        )
-          throw new OrgHttpError(400, "Invalid checkout");
-        return NextResponse.json(await confirmSlotCheckout(id, body.sessionId));
-      }
-      case "portal":
-        if (authority !== "owner")
-          throw new WorkspaceBillingError("billing_owner_required", 403);
-        return NextResponse.json(await createBillingPortal(id));
-      case "refresh":
-        await syncWorkspaceSubscriptions(id);
-        return NextResponse.json({ ok: true });
-      case "cancel":
-      case "resume": {
-        if (typeof slotId !== "string" || !Number.isSafeInteger(body.revision))
-          throw new OrgHttpError(400, "Invalid Slot");
-        return NextResponse.json(
-          await updateSlotCancellation(
-            id,
-            slotId,
-            body.revision,
-            body.action === "cancel"
-          )
-        );
-      }
-      case "assign": {
-        if (
-          typeof slotId !== "string" ||
-          !Number.isSafeInteger(body.revision) ||
-          (body.roleId !== null && typeof body.roleId !== "string")
-        )
-          throw new OrgHttpError(400, "Invalid assignment");
-        await billingRpc("workspace_billing_assign_slot_v1", {
-          p_workspace: id,
-          p_slot: slotId,
-          p_role: body.roleId,
-          p_revision: body.revision,
-        });
-        return NextResponse.json({ ok: true });
-      }
-      default:
-        throw new OrgHttpError(400, "Unknown action");
+    const trackedActions = [
+      "checkout",
+      "confirm",
+      "portal",
+      "cancel",
+      "resume",
+      "assign",
+    ];
+    if (trackedActions.includes(body.action)) {
+      activity = {
+        userId: user.id,
+        action: body.action,
+        metadata: {
+          workspaceId: id,
+          interval: typeof body.interval === "string" ? body.interval : null,
+          quantity: typeof body.quantity === "number" ? body.quantity : null,
+          sessionId: typeof body.sessionId === "string" ? body.sessionId : null,
+          slotId: typeof slotId === "string" ? slotId : null,
+        },
+      };
     }
+    const execute = async () => {
+      switch (body.action) {
+        case "checkout":
+          if (body.interval !== "month" && body.interval !== "year")
+            throw new OrgHttpError(400, "Invalid billing interval");
+          if (
+            !isSlotPurchaseQuantity(
+              body.quantity === undefined ? 1 : body.quantity
+            )
+          )
+            throw new OrgHttpError(400, "Invalid slot quantity");
+          return NextResponse.json(
+            await createSlotCheckout(
+              id,
+              user.id,
+              user.email,
+              body.locale,
+              body.interval,
+              body.quantity === undefined ? 1 : body.quantity,
+              {
+                token: req.cookies.get(PROMOTION_COOKIE)?.value,
+                expectedUnitAmount: body.expectedUnitAmount,
+              }
+            )
+          );
+        case "confirm": {
+          if (
+            typeof body.sessionId !== "string" ||
+            !body.sessionId.startsWith("cs_")
+          )
+            throw new OrgHttpError(400, "Invalid checkout");
+          const result = await confirmSlotCheckout(id, body.sessionId);
+          if (activity) activity.metadata.confirmed = result.confirmed;
+          return NextResponse.json(result);
+        }
+        case "portal":
+          if (authority !== "owner")
+            throw new WorkspaceBillingError("billing_owner_required", 403);
+          return NextResponse.json(await createBillingPortal(id));
+        case "refresh":
+          await syncWorkspaceSubscriptions(id);
+          return NextResponse.json({ ok: true });
+        case "cancel":
+        case "resume": {
+          if (
+            typeof slotId !== "string" ||
+            !Number.isSafeInteger(body.revision)
+          )
+            throw new OrgHttpError(400, "Invalid Slot");
+          return NextResponse.json(
+            await updateSlotCancellation(
+              id,
+              slotId,
+              body.revision,
+              body.action === "cancel"
+            )
+          );
+        }
+        case "assign": {
+          if (
+            typeof slotId !== "string" ||
+            !Number.isSafeInteger(body.revision) ||
+            (body.roleId !== null && typeof body.roleId !== "string")
+          )
+            throw new OrgHttpError(400, "Invalid assignment");
+          await billingRpc("workspace_billing_assign_slot_v1", {
+            p_workspace: id,
+            p_slot: slotId,
+            p_role: body.roleId,
+            p_revision: body.revision,
+          });
+          return NextResponse.json({ ok: true });
+        }
+        default:
+          throw new OrgHttpError(400, "Unknown action");
+      }
+    };
+    const response = await execute();
+    if (activity)
+      scheduleBillingActivity(
+        `org_billing_${activity.action}_${activity.metadata.confirmed === false ? "pending" : "succeeded"}`,
+        activity.userId,
+        activity.metadata
+      );
+    return response;
   } catch (error) {
+    if (activity)
+      scheduleBillingActivity(
+        `org_billing_${activity.action}_failed`,
+        activity.userId,
+        {
+          ...activity.metadata,
+          errorCode:
+            error instanceof WorkspaceBillingError
+              ? error.code
+              : "request_failed",
+        }
+      );
     return failure(error);
   }
 }

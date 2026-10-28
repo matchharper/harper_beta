@@ -1,4 +1,7 @@
 import {applicationStagehandRuntime as remote} from "./applicationStagehandRuntime";
+import { client } from "@/lib/llm/llm";
+import { applicationExecutionFacts } from "./applicationExecution";
+import { resumeSavedPreparation } from "./savedApplications";
 import { documentFingerprint } from "./resumeAttachment";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -38,6 +41,8 @@ function fixture() {
   state.preparation.finalDocumentFingerprint = documentFingerprint({content_sha256: "hash-1", storage_path: "owner/resume.pdf"});
   state.activity = { version: 1, offerId: 1, outputs: {}, batches: [] };
   state.applicationUrl = "https://example.org/jobs/engineer";
+  state.applicationInspection = { status: "completed", runId: "inspection" };
+  state.applicationForm = { status: "read", url: state.applicationUrl, checkedAt: state.startedAt, fields: [], limitations: [], submission: { status: "supported", reason: "Observed public form" } };
   let documentHash = "hash-1";
   const admin = {
     rpc: async (_: string, args: Record<string, unknown>) => {
@@ -112,19 +117,130 @@ const fixtureRuntime: ApplicationBrowserRuntime = {
   upload:async()=>{throw new Error("Unexpected upload");},
   stop:async()=>{},
 };
+
+test("pre-submission failures retry in the same preparation and preserve prior evidence and answers", async () => {
+  const f = fixture();
+  const state = f.record().state;
+  state.preparation!.finalDocumentId = "final-file";
+  state.facts = [{ id: "confirmed", text: "Confirmed application answer", messageId: 1 }];
+  f.set(state);
+  const first = await startApplicationBrowser(f.store, f.record(), { purpose: "Apply" }, 100);
+  first.state.browser!.status = "failed";
+  first.state.browser!.diagnostic = { error: "PDF text validation failed." };
+  first.state.browser!.result = { summary: "Preparation failed", url: first.state.browser!.url, evidence: "PDF text validation failed." };
+  f.set(first.state);
+  const retried = await startApplicationBrowser(f.store, f.record(), { purpose: "Retry" }, 101);
+  assert.notEqual(retried.state.browser!.id, first.state.browser!.id);
+  assert.equal(retried.execution.started, true);
+  assert.deepEqual(retried.state.preparation, first.state.preparation);
+  assert.deepEqual(retried.state.facts, first.state.facts);
+  assert.equal(retried.state.browser!.previousAttempts?.[0].diagnostic?.error, "PDF text validation failed.");
+  assert.equal(retried.state.browser!.approval, undefined);
+  retried.state.browser!.status = "failed";
+  f.set(retried.state);
+  const replay = await startApplicationBrowser(f.store, f.record(), { purpose: "Retry", restart: true }, 101);
+  assert.equal(replay.execution.started, false);
+  assert.equal(replay.state.browser!.id, retried.state.browser!.id);
+  const oldRequestReplay = await startApplicationBrowser(f.store, f.record(), { purpose: "Old delivery retried", restart: true }, 100);
+  assert.equal(oldRequestReplay.state.browser!.id, retried.state.browser!.id);
+});
+
+test("confirmed, uncertain and dispatched submissions return evidence unless a new attempt is explicitly requested", async () => {
+  for (const status of ["succeeded", "uncertain", "failed"] as const) {
+    const f = fixture(), state = f.record().state;
+    state.preparation!.finalDocumentId = "final-file";
+    f.set(state);
+    const original = await startApplicationBrowser(f.store, f.record(), { purpose: "Apply" }, 100);
+    original.state.browser!.status = status;
+    original.state.browser!.result = { summary: "Observed website result", url: original.state.browser!.url, evidence: "Website receipt or existing application" };
+    if (status === "succeeded") original.state.browser!.approval = { approved: true, executed: true, summary: "Approved submission", fingerprint: "f" };
+    if (status === "failed") original.state.browser!.transmissionAttemptedAt = new Date().toISOString();
+    // Completed work is resumed through the ordinary saved-preparation tool.
+    f.set(resumeSavedPreparation(endSimulationSession(original.state, "completed")));
+    const blocked = await startApplicationBrowser(f.store, f.record(), { purpose: "Retry" }, 101);
+    assert.equal(blocked.execution.started, false);
+    assert.equal(blocked.execution.awaitingUserInput, false);
+    assert.equal(blocked.execution.requiresExplicitRestart, true);
+    assert.equal(blocked.execution.application?.submission, status === "succeeded" ? "confirmed" : "unknown");
+    const restarted = await startApplicationBrowser(f.store, f.record(), { purpose: "User explicitly requests another application after reviewing the prior outcome", restart: true }, 102);
+    assert.equal(restarted.execution.started, true);
+    assert.notEqual(restarted.state.browser!.id, original.state.browser!.id);
+    assert.equal(restarted.state.browser!.previousAttempts?.[0].result?.evidence, "Website receipt or existing application");
+    assert.equal(restarted.state.browser!.approval, undefined);
+    assert.equal(restarted.state.browser!.transmissionAttemptedAt, undefined);
+  }
+});
+
+test("restart never replaces waiting work or a worker still delivering its failed outcome", async () => {
+  for (const status of ["waiting", "failed"] as const) {
+    const f = fixture(), state = f.record().state;
+    state.preparation!.finalDocumentId = "final-file";
+    f.set(state);
+    const old = await startApplicationBrowser(f.store, f.record(), { purpose: "Apply" }, 100);
+    old.state.browser!.status = status;
+    if (status === "failed") old.state.browser!.leaseUntil = new Date(Date.now() + 60000).toISOString();
+    f.set(old.state);
+    const current = await startApplicationBrowser(f.store, f.record(), { purpose: "Restart", restart: true }, 101);
+    assert.equal(current.execution.started, false);
+    assert.equal(current.execution.awaitingUserInput, true);
+    assert.equal(current.state.browser!.id, old.state.browser!.id);
+  }
+});
+
+test("PDF provider failure reaches the outcome LLM with its stage and cause before any browser starts", async (t) => {
+  const f = fixture(), state = f.record().state;
+  const doc = { id: "final-file", kind: "resume", origin_type: "harper_generated_resume", revision: 1, file_name: "Fixture.pdf",
+    structured_content: { schema_version: 1, content: { language: "en", basics: { name: "Fixture Person" } } } };
+  state.preparation!.finalDocumentId = doc.id;
+  state.preparation!.finalDocumentFingerprint = documentFingerprint(doc);
+  f.set(state);
+  const query = { select: () => query, eq: () => query, order: () => query, contains: () => query,
+    limit: async () => ({ data: [], error: null }), maybeSingle: async () => ({ data: null, error: null }),
+    insert: () => query, single: async () => ({ data: { id: 1234 }, error: null }) };
+  t.mock.method(f.store.admin, "from", ((table: string) => table === "talent_documents"
+    ? { select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: doc, error: null }) }) }) }) }) }
+    : query) as any);
+  const saved = process.env.BROWSERLESS_API_TOKEN;
+  process.env.BROWSERLESS_API_TOKEN = "fixture-secret-token";
+  t.after(() => { if (saved === undefined) delete process.env.BROWSERLESS_API_TOKEN; else process.env.BROWSERLESS_API_TOKEN = saved; });
+  let outcomePrompt = "";
+  t.mock.method(globalThis, "fetch", async () => Response.json({ error: "Browserless concurrency limit", token: "fixture-secret-token" }, { status: 429 }));
+  t.mock.method(client.responses, "create", (async (body: unknown) => {
+    outcomePrompt = JSON.stringify(body);
+    return { id: "fixture-outcome", object: "response", status: "completed",
+      output: [{ type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "PDF preparation failed." }] }],
+    };
+  }) as any);
+  const create = t.mock.method(remote, "create", async () => { throw new Error("Browser must not start"); });
+  await startApplicationBrowser(f.store, f.record(), { purpose: "Apply" }, 100);
+  await runApplicationBrowser(f.store, 10);
+  const failed = f.record().state;
+  assert.equal(failed.browser!.status, "failed");
+  assert.equal(failed.browser!.stage, "preparing_attachments");
+  assert.equal(create.mock.callCount(), 0);
+  assert.match(outcomePrompt, /preparing_attachments/);
+  assert.match(outcomePrompt, /Browserless concurrency limit/);
+  assert.match(outcomePrompt, /429/);
+  assert.match(outcomePrompt, /not_submitted/);
+  assert.doesNotMatch(outcomePrompt, /fixture-secret-token/);
+  assert.equal(applicationExecutionFacts(failed)?.browserStarted, false);
+  assert.equal((await startApplicationBrowser(f.store, f.record(), { purpose: "Retry" }, 101)).execution.started, true);
+});
 test("pending and unsupported inspections block assisted application before browser creation", async () => {
   const f = fixture();
   const record = f.record();
   record.state.applicationInspection = { status: "running", runId: "test" };
+  f.set(record.state);
   await assert.rejects(startApplicationBrowser(f.store, record, { purpose: "Apply" }), /still being checked/);
   record.state.applicationInspection.status = "completed";
   for (const status of ["unsupported", "unknown"] as const) {
     record.state.applicationForm = { status: "unavailable", url: "https://example.test/apply", checkedAt: new Date().toISOString(), fields: [], limitations: [], submission: { status, reason: "Observed access limit" } };
-    await assert.rejects(startApplicationBrowser(f.store, record, { purpose: "Apply" }), /unavailable for this form/);
+    f.set(record.state);
+    await assert.rejects(startApplicationBrowser(f.store, record, { purpose: "Apply" }), status === "unsupported" ? /observed access barrier/ : /has not been established/);
     assert.equal(record.state.browser, undefined);
   }
 });
-test("analysis resume is never implicitly submitted; final selection is owner checked and duplicate starts fail", async () => {
+test("analysis resume is never implicitly submitted; final selection is owner checked and active starts are reused", async () => {
   const f = fixture();
   await assert.rejects(
     () => startApplicationBrowser(f.store, f.record(), { purpose: "Apply" }),
@@ -150,11 +266,10 @@ test("analysis resume is never implicitly submitted; final selection is owner ch
   assert.equal(started.state.browser?.documentId, "final-file");
   assert.equal(started.state.browser?.sourceMessageId, 123);
   assert.equal(started.state.browser?.status, "queued");
-  await assert.rejects(
-    () =>
-      startApplicationBrowser(f.store, f.record(), { purpose: "Apply again" }),
-    /already exists/
-  );
+  const reused = await startApplicationBrowser(f.store, f.record(), { purpose: "Apply again" });
+  assert.equal(reused.state.browser?.id, started.state.browser?.id);
+  assert.equal(reused.execution.started, false);
+  assert.equal(reused.execution.applicationInProgress, true);
   const competing = fixture();
   const initial = competing.record();
   initial.state.preparation!.finalDocumentId = "final-file";
@@ -251,6 +366,10 @@ test("browser submission confirmation needs an explicit option; free text and sk
       assert.equal(saved.state.activity!.batches.at(-1)!.continuation, "done");
       assert.equal(saved.state.browser!.status, "queued");
       assert.equal(saved.state.browser!.approval!.executed, response.decision === "answer" && "optionId" in response && response.optionId === "submit");
+      assert.equal(Boolean(saved.state.browser!.transmissionAttemptedAt), saved.state.browser!.approval!.executed);
+      const later = structuredClone(saved.state);
+      later.browser!.approval = undefined;
+      assert.equal(applicationExecutionFacts(later)?.submission, saved.state.browser!.approval!.executed ? "unknown" : "not_submitted");
       await resumeApplicationBrowser(f.store, saved, batch.id);
       assert.equal(events.length, 1);
     }
@@ -594,6 +713,35 @@ test("manual application choice blocks browser launch even with a confirmed file
   f.set(s);
   await assert.rejects(()=>startApplicationBrowser(f.store,f.record(),{purpose:"Apply"}),/chose to apply themselves/);
   assert.equal(f.record().state.browser,undefined);
+});
+
+test("a lost website transmission returns its cause, stays uncertain and cannot replay approval", async (t) => {
+  const f = fixture(); let s = f.record().state;
+  s.preparation!.finalDocumentId = "final-file";
+  s.activity!.channel = "email";
+  f.set(s);
+  s = (await startApplicationBrowser(f.store, f.record(), { purpose: "Apply" }, 100)).state;
+  heldSubmission(s, "unused");
+  s.browser!.driver = { ...s.browser!.driver!, provider: "browserbase", sessionId: "compute", environmentId: "environment", browserSessionId: "browser" };
+  s.browser!.sessionId = "compute"; s.browser!.taskSent = true; f.set(s);
+  const held = s.browser!.pendingRequest!;
+  t.mock.method(remote, "status", async () => ({ status: "waiting", sessionId: "browser", steps: 4, maxSteps: 100, pendingRequest: held,
+    required_actions: [{ type: "function_call", name: "confirm_application_submission", call_id: held.id, turn_id: "stagehand" }] }));
+  t.mock.method(remote, "stop", async () => {});
+  const send = t.mock.method(remote, "resolve", async () => { throw Object.assign(new Error("Executor connection lost after transmission"), { status: 502 }); });
+  await runApplicationBrowser(f.store, 10);
+  s = f.record().state; const batch = s.activity!.batches.at(-1)!;
+  s = finishApplicationAnswer(mutateSimulationSession(s, { action: "respond", actionId: batch.itemIds[0], response: { decision: "answer", optionId: "submit" } }, 101)); f.set(s);
+  const failed = await resumeApplicationBrowser(f.store, f.record(), batch.id);
+  assert.equal(failed.state.browser!.status, "uncertain");
+  assert.equal(failed.state.browser!.failure?.stage, "releasing_website_request");
+  assert.match(failed.state.browser!.failure!.error, /Executor connection lost/);
+  assert.match(failed.state.browser!.failure!.error, /502/);
+  await resumeApplicationBrowser(f.store, failed, batch.id);
+  assert.equal(send.mock.callCount(), 1);
+  const next = await startApplicationBrowser(f.store, failed, { purpose: "Retry" }, 102);
+  assert.equal(next.execution.started, false);
+  assert.equal(next.execution.requiresExplicitRestart, true);
 });
 
 for (const provider of ["browserbase", "browser-use"] as const)

@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { OrgPendingConnectionGate } from "@/components/org/billing/OrgPendingConnectionGate";
+import { ReviewEmptyState } from "@/components/org/OrgHomeInbox";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 
 export default function PendingConnectionPreviewPage() {
@@ -15,7 +15,7 @@ export default function PendingConnectionPreviewPage() {
           <p className="border-b border-neutral-1000-a05 pb-4 text-sm">
             {c("연결 대기", "Ready to connect")}
           </p>
-          <OrgPendingConnectionGate workspaceId="connection-preview" />
+          <ReviewEmptyState />
         </div>
       </main>
     </>

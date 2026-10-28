@@ -5,6 +5,7 @@ import {
   parseResumeInput,
   resumeFileName,
   structureResume,
+  readResumeContent,
   type ResumeContent,
 } from "./schema";
 import { resumeHtml, resumePlainText, renderResumePdf } from "./render";
@@ -49,6 +50,26 @@ const create = () => ({
   action: "create",
   document_name: "김하늘_이력서_PM",
   content: structuredClone(sample),
+});
+
+test("resume content survives long prose and many entries without arbitrary caps", () => {
+  const input = create();
+  const description = "A documented project and its outcome. ".repeat(4200);
+  input.content.experience = Array.from({ length: 61 }, (_, index) => ({
+    title: `Project ${index + 1}`,
+    description: index === 0 ? description : "Known experience",
+    bullets: Array.from({ length: 31 }, (_, bullet) => `Contribution ${bullet + 1}`),
+  }));
+  input.content.additional_sections = Array.from({ length: 16 }, (_, index) => ({
+    title: `Publication group ${index + 1}`, entries: [{ title: "Publication" }],
+  }));
+  const saved = structureResume(parseResumeInput(input));
+  const reread = readResumeContent(saved);
+  assert.equal(reread.experience?.length, 61);
+  assert.equal(reread.experience?.[0].description, description);
+  assert.equal(reread.experience?.[60].bullets?.length, 31);
+  assert.equal(reread.additional_sections?.length, 16);
+  assert.ok(resumePlainText(reread).includes(description.trim()));
 });
 
 test("create, update and copy contracts and private fields are enforced", () => {

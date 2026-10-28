@@ -10,6 +10,7 @@ import {
   PREVIEW_CARDS,
   previewCard,
   previewCatalog,
+  type OrgBillingPreview,
 } from "@/lib/org/billing/preview";
 import {
   type BillingCatalog,
@@ -92,7 +93,7 @@ export function OrgBillingPortalPreview({
   onClose: () => void;
   checkout: PreviewCheckout | null;
   catalog?: BillingCatalog;
-  onComplete: () => void;
+  onComplete: (preview: OrgBillingPreview) => void;
 }) {
   return open ? (
     <PortalContent
@@ -116,7 +117,7 @@ function PortalContent({
   checkout: PreviewCheckout | null;
   catalog?: BillingCatalog;
   onClose: () => void;
-  onComplete: () => void;
+  onComplete: (preview: OrgBillingPreview) => void;
 }) {
   const { formatBillingMoney } = useOrgBillingFormat();
   const { preview, setPreview } = useOrgBillingPreview(workspaceId);
@@ -150,7 +151,7 @@ function PortalContent({
     checkout?.interval === "year" ? prices.annualAmount : prices.amount;
   const complete = () => {
     if (!checkout) return;
-    setPreview({
+    const next: OrgBillingPreview = {
       ...preview,
       slotCount: Math.min(
         100,
@@ -162,8 +163,9 @@ function PortalContent({
       credits: "full",
       history: "sample",
       slotRenewals: undefined,
-    });
-    onComplete();
+    };
+    setPreview(next);
+    onComplete(next);
   };
   const pay = () => {
     setError("");

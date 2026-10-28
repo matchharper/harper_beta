@@ -43,6 +43,7 @@ import {
   OrgSectionHeader,
 } from "@/components/org/workspace/OrgSection";
 import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChangesBar";
+import { OrgWorkspaceDangerZone } from "@/components/org/workspace/OrgWorkspaceDangerZone";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 
@@ -78,6 +79,7 @@ import {
   type OrgMembershipRole,
 } from "@/lib/org/permissions";
 import { createOrgEditingDismissHandlers } from "@/lib/org/editingInteraction";
+import { resolveOrgWorkspaceLocale } from "@/lib/org/workspaceLocale";
 import type {
   OrgMember,
   OrgWorkspace,
@@ -676,7 +678,7 @@ export function OrgTeamPage({
   const modalFormId2 = useId();
 
   const sourceT = useOrgSourceT();
-  const { locale, setLocale, c } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const documentEditorCopy = useOrgDocumentEditorCopy();
   const {
     bootstrap: { invitations, members, teams = [] },
@@ -710,6 +712,7 @@ export function OrgTeamPage({
   const [memberRoleDraft, setMemberRoleDraft] = useState("");
   const [memberRoleError, setMemberRoleError] = useState<string | null>(null);
   const companyProfile = workspace.companyProfile;
+  const workspaceLocale = resolveOrgWorkspaceLocale(workspace.locale, companyProfile?.location);
   const initialCompanyDraft: CompanyDraft = {
     companyName: workspace.companyName,
     employeeCountEnd: companyProfile?.employeeCountEnd ?? null,
@@ -1032,14 +1035,14 @@ export function OrgTeamPage({
             <div className="flex flex-wrap items-center justify-end gap-2">
               {!companyOnly && (
                 <Select
-                  value={locale}
-                  disabled={languageSaving}
+                  value={workspaceLocale}
+                  disabled={languageSaving || !canEditCompany}
                   onValueChange={async (next) => {
-                    if ((next !== "ko" && next !== "en") || next === locale)
+                    if (!canEditCompany || (next !== "ko" && next !== "en") || next === workspace.locale)
                       return;
                     setLanguageSaving(true);
                     try {
-                      await setLocale(next);
+                      await updateWorkspace.mutateAsync({ workspaceId: workspace.workspaceId, locale: next });
                     } catch {
                       addToast({
                         message: c(
@@ -1056,10 +1059,10 @@ export function OrgTeamPage({
                   <SelectTrigger
                     size="sm"
                     className="w-auto gap-1.5 border-0 bg-bg-weak px-2.5 text-[13px] leading-[18px] font-medium hover:bg-neutral-1000-a10 data-[size=sm]:h-7"
-                    aria-label={c("언어 설정", "Language settings")}
+                    aria-label={c("회사 공용 언어", "Workspace language")}
                   >
                     <SelectValue>
-                      {locale === "ko" ? "한국어" : "English"}
+                      {workspaceLocale === "ko" ? "한국어" : "English"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent
@@ -1895,6 +1898,8 @@ export function OrgTeamPage({
           </div>
         </OrgSection>
       ) : null}
+
+      {showCompany && !companyOnly && !readOnlyCompany ? <OrgWorkspaceDangerZone /> : null}
 
       {showCompany &&
       canEditCompany &&

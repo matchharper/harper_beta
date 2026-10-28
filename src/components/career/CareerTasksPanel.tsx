@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState, type ReactNode } from "react";
-import { MuteButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   SectionDescription,
@@ -49,7 +49,7 @@ import type {
 type CareerTasksPanelProps = {
   onOpenChat: () => void;
   onOpenChatAction: (action: CareerComposerPendingAction) => void;
-  onOpenOpportunity: (roleId: string, historyTab: "new" | "saved") => void;
+  onOpenOpportunity: (roleId: string, historyTab: "new" | "saved", savedStage?: "connected" | "closed") => void;
   onOpenProfile: () => void;
   showTitle?: boolean;
 };
@@ -62,6 +62,7 @@ function TaskRow({
   action,
   align = "col",
   emphasized = false,
+  truncateDescription = true,
 }: {
   icon: ReactNode;
   meta?: string;
@@ -70,6 +71,7 @@ function TaskRow({
   action?: ReactNode;
   align?: "row" | "col";
   emphasized?: boolean;
+  truncateDescription?: boolean;
 }) {
   return (
     <article className="flex items-start gap-3 border-b border-neutral-1000-a05 py-5 last:border-b-0">
@@ -94,7 +96,7 @@ function TaskRow({
             as="p"
             type="desc"
             tone="muted"
-            className="mt-1.5 whitespace-pre-wrap break-words line-clamp-3"
+            className={`mt-1.5 whitespace-pre-wrap break-words${truncateDescription ? " line-clamp-3" : ""}`}
           >
             {description}
           </Text>
@@ -180,6 +182,7 @@ export default function CareerTasksPanel({
     callStartPending,
     onStartCallMode,
     onStartConversationStarter,
+    onOpenSettings,
   } = useCareerSidebarContext();
   const { talentPreferences, profileVisibility } = useCareerProfileContext();
   const {
@@ -389,56 +392,60 @@ export default function CareerTasksPanel({
         ? {
             title: t(
               "career.tasks.searching",
-              "적합한 연결을 계속 찾고 있어요"
+              "적합한 기회를 계속 찾고 있어요"
             ),
             description: t(
               "career.tasks.searching_open_description",
-              "적절한 기회를 찾고 연결해드릴게요."
+              "• 일반 채용 공고도 추천해드려요.\n• 허용하신 설정에 따라 회사에 먼저 회원님을 소개할 수 있어요."
             ),
+            showSettings: true,
           }
         : {
             title: t(
-              "career.tasks.searching_exceptional",
+              "career.tasks.searching",
               "적합한 기회를 계속 찾고 있어요"
             ),
             description: t(
               "career.tasks.searching_exceptional_description",
-              "공개 포지션과 내부 연결을 살펴봐요. 회사에는 허용하신 뒤에만 소개해요."
+              "• 일반 채용 공고도 추천해드려요.\n• 회사에 먼저 회원님을 소개하지 않아요."
             ),
+            showSettings: true,
           };
     }
     if (internalEnabled && profileVisibility === "open_to_matches") {
       return {
         title: t(
           "career.tasks.internal_search_open",
-          "회사 연결 기회를 살펴보고 있어요"
+          "제가 연결시켜 드릴 수 있는 기회들만 알려드리고 있어요."
         ),
         description: externalPausedBySetting
           ? t(
               "career.tasks.internal_search_open_description",
-              "공개 포지션 추천은 꺼두셨어요. 잘 맞는 회사에는 먼저 제안할 수도 있어요."
+              "• 일반적인 공고 추천은 받지 않겠다고 하셨어요.\n• 허용하신 설정에 따라 회사에 먼저 회원님을 소개할 수 있어요."
             )
           : t(
               "career.tasks.internal_search_open_stopped_description",
-              "공개 포지션 추천은 현재 쉬고 있어요. 잘 맞는 회사에는 먼저 제안할 수도 있어요."
+              "• 일반 채용 공고 추천은 중지되어 있어요.\n• 허용하신 설정에 따라 회사에 먼저 회원님을 소개할 수 있어요."
             ),
+        showSettings: true,
       };
     }
     if (internalEnabled) {
       return {
         title: t(
           "career.tasks.internal_search",
-          "잘 맞는 내부 연결 기회를 살펴보고 있어요"
+          "제가 연결시켜 드릴 수 있는 기회들만 알려드리고 있어요."
         ),
         description: externalPausedBySetting
           ? t(
               "career.tasks.internal_search_exceptional_description",
-              "공개 포지션 추천은 꺼두셨어요. 회사 소개는 허용하신 뒤에만 진행돼요."
+              "• 일반적인 공고 추천은 받지 않겠다고 하셨어요.\n• 회사에 먼저 회원님을 소개하지 않아요."
             )
           : t(
               "career.tasks.internal_search_stopped_description",
-              "공개 포지션 추천은 현재 쉬고 있어요. 회사 소개는 허용하신 뒤에만 진행돼요."
+              "일반 채용 공고 추천은 중지되어 있어요. 제가 연결시켜 드릴 수 있는 기회는 계속 알려드리고, 회사에 회원님을 소개하기 전에 의사를 확인해요."
             ),
+        showSettings: true,
       };
     }
     return {
@@ -742,7 +749,27 @@ export default function CareerTasksPanel({
             icon={<Scan className="h-4 w-4" />}
             title={searchActivity.title}
             description={searchActivity.description}
-            action={<></>}
+            truncateDescription={!searchActivity.showSettings}
+            action={
+              searchActivity.showSettings ? (
+                <Text as="p" type="desc" tone="muted">
+                  {t(
+                    "career.tasks.search_settings_prompt",
+                    "이 설정을 바꾸고 싶으시면 저에게 이야기해주시거나, "
+                  )}
+                  <BareButton
+                    type="button"
+                    onClick={onOpenSettings}
+                    className="rounded-sm underline underline-offset-2 hover:text-neutral-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  >
+                    {t(
+                      "career.tasks.search_settings_link",
+                      "여기서 조정해주세요."
+                    )}
+                  </BareButton>
+                </Text>
+              ) : null
+            }
           />
           {tasks.priorityReviews.map((review) => (
             <TaskRow
@@ -928,7 +955,7 @@ export default function CareerTasksPanel({
                       <MuteButton
                         variant="neutral"
                         size="sm"
-                        onClick={() => onOpenOpportunity(item.roleId, "saved")}
+                        onClick={() => onOpenOpportunity(item.roleId, "saved", "closed")}
                       >
                         {t("career.tasks.view_progress", "자세히 보기")}
                         <ChevronRight className="h-3.5 w-3.5" />

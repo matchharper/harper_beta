@@ -3,6 +3,7 @@ import { runToolCall, unwrapToolCall } from "@/lib/llm/toolExecution";
 import { formatToolError, serializeToolResultForModel, toolResultDiagnostics } from "@/lib/llm/toolError";
 import "server-only";
 import { formatPromptText } from "@/lib/llm/promptText";
+import { formatRoleCreationToolResult } from "./roleToolResult";
 import { companyCompletionProviderHint, validateCompanyCompletion } from "./completionContract";
 
 import type { User } from "@supabase/supabase-js";
@@ -873,7 +874,7 @@ export async function runOrgRoleCreationChat(args: {
           summary: execution.updateSummary ?? doneLog.label,
         });
         messages.push({
-          content: serializeToolResultForModel(execution.result, formatPromptText, [...toolResultDiagnostics(execution.result, false), ...toolCapture.diagnostics]),
+          content: serializeToolResultForModel(execution.result, value => formatRoleCreationToolResult(call.function.name, value), [...toolResultDiagnostics(execution.result, false), ...toolCapture.diagnostics]),
           role: "tool",
           tool_call_id: call.id,
         });

@@ -12846,6 +12846,16 @@ export type Database = {
       }
     }
     Functions: {
+      delete_company_workspace_v1: {
+        Args: {
+          p_workspace: string
+          p_actor: string
+          p_confirmation_name: string
+          p_stripe_customer: string | null
+          p_billing_checkout: Json | null
+        }
+        Returns: undefined
+      }
       claim_workspace_signup_notification_v1: {
         Args: { p_workspace: string }
         Returns: Json

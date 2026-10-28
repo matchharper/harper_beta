@@ -19,7 +19,7 @@ test("Markdown renders headings, tables and links without executable or remote c
   assert.ok(!template.html.includes("<script>"));
   assert.ok(!template.html.includes("javascript:"));
   assert.ok(!template.html.includes("<img"));
-  assert.ok(template.textChunks.includes("설명"));
+  assert.ok(template.html.includes("설명"));
 });
 
 test("PDF export rechecks ownership/deletion and the exact revision after rendering", async () => {

@@ -11,7 +11,13 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useCareerProfileContext } from "./CareerSidebarContext";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -59,7 +65,7 @@ const getProfileVisibilityOptions = (
     label: "Open to matches",
     description: t(
       "career.profile.career_profile_settings_section.13fr2yp",
-      "강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다."
+      "Harper가 회사에 먼저 회원님을 소개할 수 있어요. 회사에서 만나고 싶다고 하면 알려드리고, 진행할지는 회원님이 결정해요."
     ),
     Icon: ShieldCheck,
   },
@@ -459,7 +465,7 @@ export const CareerProfileSharingSettingsSection = ({
               }
               hint={t(
                 "career.common.career.1bbxwls",
-                "어떤 수준의 매칭에서 회사가 프로필을 볼 수 있는지 정합니다."
+                "Harper가 회사에게 먼저 회원님을 소개해도 되는지 결정합니다."
               )}
             >
               <div className="space-y-3">

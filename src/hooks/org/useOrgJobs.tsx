@@ -1,4 +1,5 @@
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { useRouter } from "next/router";
 import {
   createContext,
   type Context,
@@ -173,11 +174,30 @@ function OrgJobsRouteProvider({
   );
 }
 
-function OrgJobsBoardProvider({ children }: { children: ReactNode }) {
+function OrgJobsBoardProvider({
+  children,
+  inbox = false,
+}: {
+  children: ReactNode;
+  inbox?: boolean;
+}) {
   const navigation = useOrgJobsNavigation();
+  const router = useRouter();
+  const stage =
+    router.query.inboxStage === "company_intro" ||
+    router.query.inboxStage === "pending_connection"
+      ? router.query.inboxStage
+      : "pending_connection";
   const value = useOrgJobsBoardData({
     selectedRoleId: navigation.selectedRoleId,
     workspaceId: navigation.workspaceId,
+    inbox: inbox
+      ? {
+          stage: router.query.review === "saved" ? "saved" : stage,
+          sort: router.query.sort === "recommended" ? "recommended" : "latest",
+          enabled: true,
+        }
+      : undefined,
   });
   return (
     <OrgJobsBoardContext.Provider value={value}>
@@ -188,7 +208,19 @@ function OrgJobsBoardProvider({ children }: { children: ReactNode }) {
 
 function OrgJobsDetailProvider({ children }: { children: ReactNode }) {
   const navigation = useOrgJobsNavigation();
+  const board = useOptionalOrgJobsBoard();
+  const pages = board?.inboxQuery?.data?.pages;
   const value = useOrgJobsDetailData({
+    batchLoading: board?.inboxQuery?.isPending,
+    batchDetail: pages?.find((page) =>
+      page.items.some(
+        (item) =>
+          item.recommendationId === navigation.detailRecommendationId &&
+          item.talentId === navigation.detailTalentId &&
+          item.roleId === navigation.detailRoleId &&
+          Boolean(page.details?.[item.recommendationId])
+      )
+    )?.details?.[navigation.detailRecommendationId],
     detailRecommendationId: navigation.detailRecommendationId,
     detailRoleId: navigation.detailRoleId,
     detailTalentId: navigation.detailTalentId,
@@ -247,10 +279,12 @@ function OrgJobsCandidateActionsProvider({
 export function OrgJobsProvider({
   children,
   includeBoard = true,
+  inbox = false,
   routePage = "jobs",
 }: {
   children: ReactNode;
   includeBoard?: boolean;
+  inbox?: boolean;
   routePage?: Extract<OrgWorkspacePageId, "home" | "inbox" | "jobs" | "role">;
 }) {
   const detailProviders = (
@@ -265,7 +299,9 @@ export function OrgJobsProvider({
     <OrgJobsRoleActionsProvider>
       <OrgJobsRouteProvider routePage={routePage}>
         {includeBoard ? (
-          <OrgJobsBoardProvider>{detailProviders}</OrgJobsBoardProvider>
+          <OrgJobsBoardProvider inbox={inbox}>
+            {detailProviders}
+          </OrgJobsBoardProvider>
         ) : (
           detailProviders
         )}

@@ -5,6 +5,11 @@ import { simulationSessionContext, mutateSimulationSession, sessionMutationSchem
 import { executeApplicationPreparationTool, respondToApplicationQuestion } from "@/lib/career/simulation/toolExecution";
 import { pendingApplicationBatch } from "@/lib/career/simulation/applicationInput";
 import { startApplicationBrowser, resumeApplicationBrowser, runApplicationBrowser } from "@/lib/career/simulation/applicationBrowserServer";
+import { applicationExecutionFacts } from "@/lib/career/simulation/applicationExecution";
+import { formatPromptText } from "@/lib/llm/promptText";
+import { applicationFormText } from "@/lib/career/simulation/applicationFormText";
+import { isApplicationInspectionPending } from "@/lib/career/simulation/applicationForm";
+import { awaitApplicationInspection } from "@/lib/career/simulation/applicationInspection";
 import { executeApplicationSimulation } from "@/lib/career/simulation/server";
 import { stopApplicationBrowser } from "@/lib/career/simulation/agentsApi";
 import { fetchTalentDocument } from "@/lib/talentOnboarding/documentStore";
@@ -15,6 +20,7 @@ import { documentFingerprint } from "@/lib/career/simulation/resumeAttachment";
 import { assertEmailLease, updateEmailJob, readRow } from "./store";
 import { asObject, EmailContinuationPending, EmailPermanentError, type EmailJobContext } from "./types";
 import { EMAIL_ASSISTANT_MODEL } from "./model";
+import { isOpsEmailTest } from "./opsTest";
 
 export const emailApplicationStore = (ctx: EmailJobContext) => ({ admin: ctx.admin, userId: ctx.talentId, conversationId: ctx.conversationId });
 export async function loadEmailApplication(ctx: EmailJobContext) {
@@ -50,6 +56,9 @@ async function linkApplicationBrowser(ctx: EmailJobContext, runId: string) {
 export async function continueEmailApplication(ctx: EmailJobContext) {
   const record = await loadEmailApplication(ctx);
   if (!record || record.state.status !== "active") return record;
+  // Never continue or stop a real website execution from a test conversation.
+  if (isOpsEmailTest(ctx.job) && record.state.browser)
+    throw new EmailPermanentError("Ops email tests cannot operate an application browser");
   const job = await assertEmailLease(ctx.admin, "reply", ctx.job.id, ctx.owner);
   // A new inbound message must be interpreted before continuing earlier work.
   if (asObject(job.metadata).applicationMessageId !== record.messageId) return record;
@@ -79,6 +88,10 @@ export async function continueEmailApplication(ctx: EmailJobContext) {
     }
     throw new EmailContinuationPending("Application preparation checkpoint saved");
   }
+  if (isApplicationInspectionPending(record.state)) {
+    await awaitApplicationInspection(emailApplicationStore(ctx), record);
+    throw new EmailContinuationPending("Application inspection checkpoint saved");
+  }
   if (record.state.browser && ["queued", "running"].includes(record.state.browser.status)) {
     await linkApplicationBrowser(ctx, record.state.browser.id);
     await runApplicationBrowser(emailApplicationStore(ctx), record.messageId);
@@ -102,11 +115,36 @@ export async function emailApplicationContext(ctx: EmailJobContext, record: Sess
     context.actions = context.actions.filter(a => a.status === "completed");
     if (context.preparation) context.preparation.responses = {};
   }
-  return JSON.stringify({
-    ...context,
+  const pending = pendingApplicationBatch(s);
+  return formatPromptText({
+    timeZone: "Asia/Seoul",
+    role: s.roleName, roleRef: s.roleRef, status: s.status, endReason: s.endReason,
+    analysisStatus: s.analysisStatus, applicationInspection: s.applicationInspection?.status,
+    applicationUrl: s.applicationUrl, applicationForm: applicationFormText(s.applicationForm),
+    preparation: context.preparation,
+    selectedResume: { documentId: s.documentId, source: s.documentOriginType ?? "uploaded_or_unknown" },
+    workingResume: s.preparation?.workingResume ? {
+      documentId: s.preparation.workingResume.documentId,
+      revision: document?.revision ?? s.preparation.workingResume.revision,
+      fileName: document?.file_name ?? s.preparation.workingResume.fileName,
+    } : null,
+    facts: s.facts.map(f => `${f.id} (source message ${f.messageId}): ${f.text}`),
+    pendingNewRequest: context.pendingNewRequest,
+    // Current actions own wording and decisions. The batch below carries only
+    // execution refs/review, so source passages are not repeated as UI snapshots.
+    actions: context.actions.map(a => ({ id: a.id, kind: a.inputKind, status: a.status,
+      title: a.title, target: a.target, reason: a.reason, edits: a.edits, draftText: a.draftText,
+      ...(!a.edits?.length ? { originalText: a.originalText, suggestedText: a.suggestedText, proposal: a.proposal } : {}),
+      applicationField: a.applicationField, options: a.options,
+      resolution: a.resolution, evidenceMessageId: a.evidenceMessageId })),
+    answers: context.questionBatches.flatMap(batch => {
+      const questions = batch.questions.filter(q => q.response);
+      return questions.length || batch.answers ? [{ batchId: batch.batchId, questions, answers: batch.answers }] : [];
+    }),
     currentReply: { sourceMessageId: ctx.sourceMessage.id, startedAt: job.created_at,
       applicationBrowserRunId: asObject(job.metadata).applicationBrowserRunId ?? null },
     application: s.browser ? {
+      ...applicationExecutionFacts(s),
       runId: s.browser.id, sourceMessageId: s.browser.sourceMessageId,
       status: s.browser.status, result: s.browser.result,
       documentId: s.browser.documentId, documentFingerprint: s.browser.documentHash,
@@ -114,6 +152,8 @@ export async function emailApplicationContext(ctx: EmailJobContext, record: Sess
     } : undefined,
     closingSummary: s.closingSummary,
     sourceDocument: document ? { documentId: document.id, revision: document.revision,
+      source: document.origin_type ?? "uploaded_or_unknown",
+      usage: s.preparation?.workingResume ? "saved working copy; update this document" : "original selected source; preserve it when tailoring",
       fullText: document.extracted_text, structuredContent: document.structured_content,
       fileName: document.file_name, mimeType: document.content_type,
       updatedAt: document.updated_at,
@@ -121,14 +161,25 @@ export async function emailApplicationContext(ctx: EmailJobContext, record: Sess
       hasUploadFile: Boolean(document.storage_path),
       canExportPdf: document.origin_type === GENERATED_RESUME_ORIGIN,
       documentUrl: new URL(getCareerDocumentHref(document.id), getConfiguredPublicSiteUrl()).href } : null,
-    pendingBatch: pendingApplicationBatch(s),
-    // These facts resume work on the actual source message; not fresh consent.
-    continuation: { analysisStatus: s.analysisStatus, browser: s.browser ? {
-      status: s.browser.status, result: s.browser.result,
-      documentId: s.browser.documentId, purpose: s.browser.purpose,
-      startedAt: s.browser.startedAt, updatedAt: s.browser.updatedAt,
-    } : undefined },
+    pendingBatch: pending ? { id: pending.id, itemIds: pending.itemIds,
+      review: pending.review } : undefined,
   });
+}
+
+// Shared web tools may already have modelOutput. Replace that projection too;
+// changing assistantInstruction alone leaves the provider reading web guidance.
+export function emailApplicationToolResult(result: Record<string, unknown>, applicationContext: string) {
+  const assistantInstruction = "Use the current applicationContext and email channel contract. Continue authorized edits with ready_for_role now; await a natural reply only for a genuinely new review or essential missing information. No composer or cards exist in email.";
+  return { ...result, applicationContext, assistantInstruction,
+    modelOutput: formatPromptText({
+      ok: result.ok, reason: result.reason, error: result.error,
+      awaitingUserInput: result.awaitingUserInput,
+      documentId: result.documentId, revision: result.revision, documentLink: result.documentLink,
+      resumeChanged: result.resumeChanged,
+      preparationComplete: result.preparationComplete, pendingItemIds: result.pendingItemIds,
+      canRetry: result.canRetry, requiresExplicitRestart: result.requiresExplicitRestart,
+      applicationContext, assistantInstruction,
+    }) };
 }
 
 export async function executeEmailApplicationTool(ctx: EmailJobContext, name: string, input: Record<string, unknown>) {
@@ -141,6 +192,10 @@ export async function executeEmailApplicationTool(ctx: EmailJobContext, name: st
         textChatModel: EMAIL_ASSISTANT_MODEL,
         responseLocale: setting?.preferred_locale ?? setting?.setting_locale ?? null,
         suppressCommonAssistantInstruction: true } });
+    // A conflict belongs to the requested target. Do not link or wait for a
+    // different active preparation merely because it still has background work.
+    if (result && typeof result === "object" && "ok" in result && result.ok === false)
+      return result;
     const record = await sessionOperation({ ...store, operation: "read" });
     if (record) await linkApplication(ctx, record.messageId);
     if (!record?.state.activity?.preparationRequest) return result;
@@ -158,11 +213,12 @@ export async function executeEmailApplicationTool(ctx: EmailJobContext, name: st
     if (input.action !== "resume" || !result.ok) return result;
     const restored = await sessionOperation({ ...store, operation: "read" });
     if (restored) await linkApplication(ctx, restored.messageId);
-    return { ...result, applicationContext: restored ? await emailApplicationContext(ctx, restored) : undefined,
-      assistantInstruction: "Continue the restored preparation from its saved answers in this email. Explain any pending review using the email channel contract; there is no composer. Resuming does not submit or restart a website browser." };
+    return emailApplicationToolResult(result, await emailApplicationContext(ctx, restored));
   }
   let record: SessionRecord | null = await loadEmailApplication(ctx);
   if (!record || record.state.status !== "active") return { ok: false, reason: "No active application" };
+  if (isOpsEmailTest(ctx.job) && record.state.browser)
+    return { ok: false, reason: "Ops email tests cannot change or resume an application browser." };
   await linkApplication(ctx, record.messageId);
   if (record.state.activity?.channel !== "email") {
     record = await saveSession(store, record, { ...record.state, activity: { ...record.state.activity!, channel: "email" } }, `email-channel:${ctx.sourceMessage.id}`);
@@ -174,9 +230,10 @@ export async function executeEmailApplicationTool(ctx: EmailJobContext, name: st
     result = { ...execution.result };
     if (typeof result.documentId === "string") result.documentLink = new URL(getCareerDocumentHref(result.documentId), getConfiguredPublicSiteUrl()).href;
   } else if (name === "apply_for_role") {
-    record = await startApplicationBrowser(store, record, input, Number(ctx.sourceMessage.id));
-    await linkApplicationBrowser(ctx, record.state.browser!.id);
-    result = { ok: true, awaitingUserInput: true, applicationInProgress: true };
+    const started = await startApplicationBrowser(store, record, input, Number(ctx.sourceMessage.id));
+    record = started;
+    if (started.execution.applicationInProgress) await linkApplicationBrowser(ctx, record.state.browser!.id);
+    result = started.execution;
   } else if (input.action === "respond") {
     record = await respondToApplicationQuestion(store, record, input, Number(ctx.sourceMessage.id));
     const batch = record.state.activity?.batches.find(b => b.browser && b.status === "submitted" && b.continuation === "pending");
@@ -191,8 +248,7 @@ export async function executeEmailApplicationTool(ctx: EmailJobContext, name: st
       `email-session:${ctx.sourceMessage.id}:${createHash("sha256").update(JSON.stringify(input)).digest("hex")}`);
     result = { ok: true, sessionStatus: record.state.status };
   }
-  return { ...result, applicationContext: await emailApplicationContext(ctx, record),
-    assistantInstruction: "Use the current applicationContext and email channel contract. Continue authorized work; if a review is pending, explain it in the email and wait for a natural reply. No composer or cards exist in email." };
+  return emailApplicationToolResult(result, await emailApplicationContext(ctx, record));
 }
 
 export async function assertEmailApplicationReadyToReply(ctx: EmailJobContext) {
@@ -203,7 +259,7 @@ export async function assertEmailApplicationReadyToReply(ctx: EmailJobContext) {
   // Otherwise an informational reply could strand the superseded job.
   if (record?.state.status === "active" && asObject(job.metadata).applicationMessageId !== record.messageId)
     await linkApplication(ctx, record.messageId);
-  if (record?.state.status === "active" && (record.state.activity?.preparationRequest ||
+  if (record?.state.status === "active" && (record.state.activity?.preparationRequest || isApplicationInspectionPending(record.state) ||
       (record.state.browser && ["queued", "running"].includes(record.state.browser.status))))
     throw new EmailContinuationPending("Application is continuing before its email reply");
   return record;

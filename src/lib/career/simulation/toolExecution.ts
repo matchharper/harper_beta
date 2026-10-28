@@ -6,6 +6,9 @@ import { saveSession, type SessionRecord, type SessionStoreArgs } from "./sessio
 import { pendingApplicationBatch } from "./applicationInput";
 import { respondPreparationFromChat } from "./preparationService";
 import { preparationResponseSchema } from "./preparation";
+import { refreshApplicationInspection } from "./applicationInspection";
+import { applicationFormText } from "./applicationFormText";
+import { formatPromptText } from "@/lib/llm/promptText";
 
 // Both transports execute the same commands and preserve the same decisions.
 export async function executeApplicationPreparationTool(args: {
@@ -17,6 +20,17 @@ export async function executeApplicationPreparationTool(args: {
   submittedBatchId?: string;
 }) {
   const { store, record, name, input, messageId, submittedBatchId } = args;
+  if (name === "manage_simulation_session" && input.action === "inspect") {
+    const saved = await refreshApplicationInspection(store, record.messageId, messageId);
+    const result = {
+      ok: true,
+      inspectionStatus: saved.state.applicationInspection?.status,
+      applicationForm: applicationFormText(saved.state.applicationForm),
+      applicationUrl: saved.state.applicationUrl,
+      assistantInstruction: "These are the current observed application requirements and access limits. Reconcile them with existing answers and materials, then save any authorized resume edits. Call ready_for_role again before an authorized application to pin the current file. Unknown access is inconclusive; unsupported access describes an observed barrier. This inspection did not submit anything. Do not repeat an unchanged inspection in this turn.",
+    };
+    return { record: saved, result: { ...result, modelOutput: formatPromptText(result) } };
+  }
   if (name === MANAGE_APPLICATION_SUGGESTIONS) {
     const key = `suggestions:${submittedBatchId ?? messageId}:${JSON.stringify(input)}`;
     const state = manageApplicationSuggestions(record.state, input, key, messageId, submittedBatchId);

@@ -35,7 +35,7 @@ test("an unpurchased company-first profile renders its real identity and origina
   }
 });
 
-test("the Free plan displays one active Role and ten monthly Intros in both languages", () => {
+test("the Free plan displays one active Role and three monthly Intros in both languages", () => {
   for (const locale of ["ko", "en"] as const) {
     const dom = new JSDOM(renderToStaticMarkup(
       <OrgLocaleScope locale={locale}>
@@ -44,8 +44,8 @@ test("the Free plan displays one active Role and ten monthly Intros in both lang
     ));
     try {
       const text = dom.window.document.body.textContent ?? "";
-      assert.ok(text.includes(locale === "ko" ? "활성 Role 1개" : "1 active Role"));
-      assert.ok(text.includes(locale === "ko" ? "월 10 Intro" : "10 shared Intros every month"));
+      assert.ok(text.includes(locale === "ko" ? "활성 Role 1개" : "1 active role"));
+      assert.ok(text.includes(locale === "ko" ? "월 3개의 Intro" : "3 Intros every month"));
     } finally { dom.window.close(); }
   }
 });

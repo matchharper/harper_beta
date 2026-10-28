@@ -1,0 +1,16 @@
+{
+  "datasetVersion": "v39",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v39.json": "13ee6c8acab91ffdd42ba1d65b1581fd924d4c53e0387a9e3aaa0d098308c22c",
+    "gold-v39.md": "75eac8e77aa3fa363bb3bc8e03d280805a9cb0b36e265e713407d712bdc71c24",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "3 synthetic conversations / 3 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v39 --run=<fresh>",
+  "model": "Production Gemini 3.8 Flash / medium; runner captures exact prompt hash and configuration",
+  "provenance": "Synthetic scenarios authored before execution for the 2026-10-27 Free access and 3 shared Intro policy. No production data.",
+  "privacy": "Synthetic only; production DB and external delivery blocked. Raw output in ignored owner-only runs/.",
+  "releaseGate": "3/3 manual semantic review; zero critical errors or unauthorized effects",
+  "knownLimitations": "Small synthetic test with real production loop and model, synthetic tool adapter; not live DB, browser or transport E2E."
+}

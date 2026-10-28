@@ -8,6 +8,8 @@ import { exportResume, ResumeExportError } from "@/lib/resumes/export";
 import { resumeFileName } from "@/lib/resumes/schema";
 import { AUTHORED_DOCUMENT_ORIGIN } from "@/lib/documents/authoring";
 import { exportDocument } from "@/lib/documents/export";
+import { recordPdfExport } from "@/lib/documents/pdfDiagnostics";
+import { formatToolError } from "@/lib/llm/toolError";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,6 +20,7 @@ export async function POST(
   context: { params: Promise<{ documentId: string }> }
 ) {
   const started = Date.now();
+  let diagnostic: Omit<Parameters<typeof recordPdfExport>[0], "outcome"> | undefined;
   try {
     const user = await getRequestUser(req);
     if (!user)
@@ -34,6 +37,7 @@ export async function POST(
       );
     const { documentId } = await context.params;
     const admin = getTalentSupabaseAdmin();
+    diagnostic = { admin, userId: user.id, documentId, revision: body.expected_revision };
     const read = () =>
       fetchTalentDocument({ admin, userId: user.id, documentId });
     const document = await read();
@@ -46,6 +50,7 @@ export async function POST(
       renderVersion: body.render_version,
       read,
     });
+    await recordPdfExport({ ...diagnostic, outcome: "succeeded", pageCount: artifact.pageCount });
     console.info("[ResumeDocument]", {
       event: "download",
       outcome: "success",
@@ -64,6 +69,7 @@ export async function POST(
       },
     });
   } catch (error) {
+    if (diagnostic) await recordPdfExport({ ...diagnostic, outcome: "failed", error });
     const status = error instanceof ResumeExportError ? error.status : 500;
     if (status === 500 && process.env.NODE_ENV === "development") {
       console.error("[ResumeDocument] PDF rendering error", error);
@@ -72,6 +78,7 @@ export async function POST(
       event: "download",
       outcome: "failure",
       status,
+      error: formatToolError(error),
       durationMs: Date.now() - started,
     });
     return Response.json(

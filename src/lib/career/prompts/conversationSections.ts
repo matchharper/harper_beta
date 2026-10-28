@@ -322,10 +322,10 @@ export function buildOpportunityStatusSection(
       "- Initial opportunity search is currently queued/running after onboarding completion."
     );
     lines.push(
-      "- Harper is currently searching in the background for opportunities that fit this talent. The search continues independently of the current conversation, so the user can keep chatting while it runs."
+      "- Queued means waiting to start; running describes the recorded execution status, not proof of completed search or delivery. The work is independent of the current conversation, so the user can keep chatting."
     );
     lines.push(
-      "- If the user asks what to do now or whether anything is happening, answer that Harper has just finished the onboarding conversation and is now looking for fitting opportunities. Say Harper should follow up within up to 1 hour, and the user can wait. Also mention that sharing more details about preferences, constraints, or target roles can improve the recommendations."
+      "- When discussing progress, use the recorded start time, current time, and actual results. The original one-hour expectation is measured from onboarding completion, not from this reply. If it has passed, acknowledge the missed expectation; a pending status does not establish a new delivery time."
     );
     lines.push(
       "- Do not ask them to restart onboarding or repeat the initial questions."
@@ -460,12 +460,12 @@ summary: ${hiddenHoldSummary}
 
   const initialSearchWaitingGuidance =
     args.isConversationCompletedOpportunityRunActive === true
-      ? `### While Harper's initial post-onboarding opportunity search is running
-- Onboarding is complete, and Harper is still finishing the initial opportunity search started from that completed conversation. Treat this as optional enrichment while the candidate waits, not a second onboarding flow. This phase ends when that search run ends, even if it produces no opportunity or sends no recommendation email.
+      ? `### While Harper's initial post-onboarding opportunity search is pending
+- Onboarding is complete. Initial work is either queued or has a recent Worker heartbeat; this alone does not prove search progress or delivery. Treat this as optional enrichment, not a second onboarding flow. This phase ends when that search run ends or its heartbeat expires, even if it produces no opportunity or sends no recommendation email. Ground progress answers in current execution and delivery facts, and acknowledge a missed one-hour expectation rather than renewing it.
 - The numbered optional priorities in this section still take precedence. Use this guidance only within the one optional follow-up allowed for the response.
 - Address the latest message and every higher-priority instruction first. Do not append this guidance automatically to every reply.
 - When there is a natural opening, inspect the full profile and conversation and choose at most one candidate-specific detail whose answer would materially improve future opportunity selection or how Harper represents the candidate to a company. Ask from something already known rather than saying only "tell me more." The model decides what is useful; examples such as ownership, impact, products, collaboration, constraints, or ambitions are illustrative, not a checklist or trigger list.
-- Briefly explain why the detail could help. Make it clear the candidate may simply wait for the recommendation instead. Do not promise that newly shared information will affect an initial search that is already running; it can improve future recommendations and company introductions.
+- Briefly explain why the detail could help and that answering is optional. Do not promise that newly shared information will affect an initial search that is already running; it can improve future recommendations and company introductions.
 - If a higher-priority instruction already requires a question, do not add another question. A short, non-question invitation to share more later is enough. If no genuinely useful detail is apparent, ask nothing.
 - Optional referral-program mention: only when it fits the conversation naturally, has not already been mentioned in the conversation, and does not compete with a more useful candidate-focused follow-up, you may briefly explain that the Settings tab lets the user invite an acquaintance. If the invited person signs up through the invitation and later changes jobs through Harper, the inviter may receive approximately KRW 5,000,000–15,000,000 from Harper's fee, depending on the actual hiring, contract, and program terms. Present this as an optional program, never as guaranteed compensation or as something that improves the user's own matching. Do not combine the referral mention with another optional question.`
       : "";

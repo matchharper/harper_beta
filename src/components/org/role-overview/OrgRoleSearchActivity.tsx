@@ -1,5 +1,6 @@
 import { Loading } from "@/components/ui/loading";
 import { MuteButton } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useOrgMatchingSearchStatus } from "@/hooks/org/useOrgAgent";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import type { RoleMatchingActivity } from "@/lib/companyFirstSearch/activity";
@@ -26,7 +27,7 @@ export function OrgRoleSearchActivity({ workspaceId, roleId }: { workspaceId: st
   const { c } = useOrgLocale();
   const query = useOrgMatchingSearchStatus({ workspaceId, roleId, watchAutomatic: true });
   if (!query.data?.activity || isOrgQueryAccessError(query.error)) return null;
-  return <div className="shrink-0 border-b border-neutral-1000-a05 px-4 py-2.5 md:px-5">
+  return <div className="mx-auto w-full max-w-[1120px] shrink-0 px-4 pb-2 md:px-5">
     {query.isError ? (
       <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-muted">
         <span>{c("검색 상태를 새로 확인하지 못했어요.", "Couldn’t refresh search status.")}</span>
@@ -34,6 +35,6 @@ export function OrgRoleSearchActivity({ workspaceId, roleId }: { workspaceId: st
           {c("다시 확인", "Retry")}
         </MuteButton>
       </div>
-    ) : <RoleSearchActivityLabel activity={query.data.activity} />}
+    ) : <Badge variant="faded" tone="neutral"><RoleSearchActivityLabel activity={query.data.activity} /></Badge>}
   </div>;
 }

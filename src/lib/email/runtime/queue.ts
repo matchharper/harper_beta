@@ -2,10 +2,10 @@ import { randomUUID } from "crypto";
 import { send } from "@vercel/queue";
 import { after } from "next/server";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
-import { updateRow } from "./store";
+import { readRow, updateRow } from "./store";
+import { OPS_EMAIL_TEST_KIND } from "./opsTest";
 import {
   EmailPermanentError,
-  emailRuntimeEnabled,
   emailRuntimeTable,
   nowIso,
   parseEmailRuntimeMessage,
@@ -14,22 +14,10 @@ import {
 } from "./types";
 
 export const EMAIL_RUNTIME_TOPIC = "harper-email-runtime-v1";
-export async function dispatchEmailInboundEvent(inboundEventId: string) {
-  if (!emailRuntimeEnabled()) return;
-  const admin = getTalentSupabaseAdmin();
-  const { data, error } = await (admin as any)
-    .from("email_reply_jobs")
-    .select("id")
-    .eq("inbound_event_id", inboundEventId)
-    .maybeSingle();
-  if (error) throw error;
-  if (data) await dispatchInboundEmailReply(data.id, admin);
-}
 export async function publishEmailRuntimeJob(
   message: EmailRuntimeMessage,
   dispatchId = "inbound"
 ) {
-  if (!emailRuntimeEnabled()) return null;
   const parsed = parseEmailRuntimeMessage(message);
   if (!parsed) throw new EmailPermanentError("Invalid email Queue message");
   if (
@@ -57,7 +45,7 @@ export async function dispatchInboundEmailReply(
   admin: EmailAdmin = getTalentSupabaseAdmin(),
   publish: typeof publishEmailRuntimeJob = publishEmailRuntimeJob
 ) {
-  if (!emailRuntimeEnabled() || !jobId) return;
+  if (!jobId) return;
   const { data, error } = await (admin as any)
     .from("email_reply_jobs")
     .update({ worker_target: "vercel_queue" })
@@ -89,7 +77,6 @@ export async function dispatchEmailRuntimeJobs(
   admin: EmailAdmin = getTalentSupabaseAdmin(),
   publish: typeof publishEmailRuntimeJob = publishEmailRuntimeJob
 ) {
-  if (!emailRuntimeEnabled()) return { dispatched: 0, deferred: 0 };
   const { data, error } = await (admin.rpc as any)(
     "dispatch_email_runtime_jobs_v1",
     { p_limit: 20 }
@@ -101,6 +88,14 @@ export async function dispatchEmailRuntimeJobs(
     const message = parseEmailRuntimeMessage(raw);
     if (!message)
       throw new Error("Database returned an invalid email dispatch");
+    // Ops owns test execution on the server the operator is using. A scheduled
+    // sweep must not move a local test onto a different deployed revision.
+    if (
+      message.kind === "reply" &&
+      (await readRow(admin, "email_reply_jobs", message.jobId, "id", "kind"))
+        ?.kind === OPS_EMAIL_TEST_KIND
+    )
+      continue;
     const generation = randomUUID();
     try {
       await publish(message, generation);

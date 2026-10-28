@@ -1,3 +1,4 @@
+import { useBillingCheckoutReturnLog } from "@/hooks/org/useBillingPurchaseTracking";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -35,6 +36,11 @@ export function OrgSignupPlan({
   const [confirming, setConfirming] = useState(false);
   const session =
     typeof router.query.session_id === "string" ? router.query.session_id : "";
+  useBillingCheckoutReturnLog(
+    { workspaceId, source: "onboarding", preview },
+    router.query.checkout,
+    router.query.session_id
+  );
   useEffect(() => {
     onBusyChange(busy || confirming);
     return () => onBusyChange(false);
@@ -90,7 +96,8 @@ export function OrgSignupPlan({
   async function act(
     plan: "free" | "slot",
     interval?: BillingInterval,
-    quantity = 1
+    quantity = 1,
+    expectedUnitAmount?: number
   ) {
     if (busy || confirming) return;
     if (preview) {
@@ -105,7 +112,7 @@ export function OrgSignupPlan({
         const result = await billingRequest<{ url: string }>(
           workspaceId,
           "checkout",
-          { locale, interval: interval ?? "year", quantity }
+          { locale, interval: interval ?? "year", quantity, expectedUnitAmount }
         );
         window.location.assign(result.url);
       } else await select(plan);
@@ -159,6 +166,7 @@ export function OrgSignupPlan({
         />
       )}
       <SlotPurchaseDialog
+        tracking={{ workspaceId, source: "onboarding", preview }}
         open={purchaseInterval !== null}
         onOpenChange={(open) => {
           if (!open) setPurchaseInterval(null);
@@ -168,8 +176,8 @@ export function OrgSignupPlan({
         initialQuantity={Number(router.query.quantity ?? 1)}
         busy={busy || confirming}
         error={error}
-        onCheckout={(interval, quantity) =>
-          void act("slot", interval, quantity)
+        onCheckout={(interval, quantity, expectedUnitAmount) =>
+          void act("slot", interval, quantity, expectedUnitAmount)
         }
       />
     </div>

@@ -27,7 +27,7 @@ export const readyForRoleTool = {
   function: {
     name: READY_FOR_ROLE,
     description:
-      "Finish or update preparation for this role. Read the full source resume first. Supply resume commands to apply ONLY accepted suggestions and the user's direct instructions, preserving unrelated content and original language. First tailoring: use action=copy with document_id, expected_revision and scoped changes for a Harper-generated source; create from the full uploaded source into Harper format (preserve the original file). New filenames are assigned automatically from the company and role title, with a numeric suffix for duplicates; omit document_name. Later edits: update the saved working resume using its current revision and scoped changes, preserving its filename. Supply action and its command fields directly as JSON values, not a string or wrapper. Use action=reuse when no resume edits are needed. This tool validates ownership/revision, saves a private document and returns a preview link. It does not grant submission consent. Explain actual changes and include the returned link. Follow the returned submission support: offer assisted application only when supported; otherwise give the direct application URL and the observed limitation. If the user already explicitly requested application after these edits, continue to apply_for_role without redundant confirmation. Free answers/skips must be interpreted and resolved using manage_application_suggestions first. Never fabricate facts or add unreviewed material.",
+      "Save authorized resume edits for this role, including a partial working draft while other questions remain. Unanswered items are preserved; preparationComplete reports whether a submission version was pinned. Read the full source resume first. Supply resume commands to apply ONLY accepted suggestions and the user's direct instructions, preserving unrelated content and original language. First tailoring: use action=copy with document_id, expected_revision and scoped changes for a Harper-generated source; create from the full uploaded source into Harper format (preserve the original file). New filenames are assigned automatically from the company and role title, with a numeric suffix for duplicates; omit document_name. Later edits: update the saved working resume using its current revision and scoped changes, preserving its filename. Supply action and its command fields directly as JSON values, not a string or wrapper. Use action=reuse when no resume edits are needed. This tool validates ownership/revision, saves a private document and returns a preview link. It does not grant submission consent. Explain actual changes and include the returned link. Follow the returned submission support: supported allows assisted application after preparation is complete; unsupported requires a direct handoff; unknown allows rechecking with manage_simulation_session action=inspect. If the user already explicitly requested application after these edits, continue to apply_for_role without redundant confirmation. Free answers/skips must be interpreted and resolved using manage_application_suggestions first. Never fabricate facts or add unreviewed material.",
     // Reuse the native resume command shape. An extra wrapper caused models to
     // serialize the whole command into a string instead of supplying JSON fields.
     parameters: {
@@ -102,14 +102,7 @@ export async function readyForRole(
     s = record.state;
   if (s.status !== "active" || !s.preparation)
     throw new Error("No active application");
-  if (isApplicationInspectionPending(s)) throw new Error("Application requirements are still being checked. Wait for the saved inspection before completing preparation.");
   assertApplicationResumeWrite(s);
-  if (pendingApplicationBatch(s))
-    throw new Error("Finish the current suggestion batch first");
-  if (s.actions.some((a) => !["completed", "skipped"].includes(a.status)))
-    throw new Error(
-      "Resolve outstanding suggestions from the user's answers before preparing the final resume"
-    );
   const approvedChanges = s.actions
     .filter((a) => a.inputKind === "change" && a.status === "completed")
     .map((a) => ({
@@ -184,9 +177,16 @@ export async function readyForRole(
     !document.extracted_text?.trim()
   )
     throw new Error("The prepared resume is unavailable");
-  state.preparation!.finalDocumentId = document.id;
-  state.preparation!.finalDocumentFingerprint = documentFingerprint(document);
-  state.preparation!.showInputs = false;
+  // Private edits can be saved independently of unanswered questions. Only pin
+  // a submission version after the current preparation has been resolved.
+  const pendingItemIds = state.actions
+    .filter((a) => !["completed", "skipped"].includes(a.status))
+    .map((a) => a.id);
+  const preparationComplete = !pendingApplicationBatch(state) &&
+    pendingItemIds.length === 0 && !isApplicationInspectionPending(state);
+  state.preparation!.finalDocumentId = preparationComplete ? document.id : null;
+  state.preparation!.finalDocumentFingerprint = preparationComplete ? documentFingerprint(document) : null;
+  state.preparation!.showInputs = Boolean(pendingApplicationBatch(state));
   state.preparation!.preparedInputRevision = state.preparation!.inputRevision;
   state.preparation!.preparedResumeChangesFingerprint = changesFingerprint;
   const saved = await saveSession(
@@ -211,6 +211,8 @@ export async function readyForRole(
         title: document.file_name,
       }),
       resumeChanged: resume !== undefined,
+      preparationComplete,
+      pendingItemIds,
       // Return the persisted document, not the proposed command. The conversation
       // model must compare this evidence with the user's approved edits.
       savedResumeText: document.extracted_text,
@@ -225,7 +227,7 @@ export async function readyForRole(
       },
       applicationStarted: Boolean(state.browser),
       assistantInstruction:
-        "The resume file was saved. Compare savedResumeText with all accepted edits and the latest direct instructions before declaring preparation complete. If an approved edit is missing, read the current structured document and repair it with ready_for_role in this turn; the earlier approval remains valid. Report only changes actually present in the saved file, then use the returned submission status and applicationInspection limitations. Supported means the public form was reachable, not that uploads, conditional fields or submission have succeeded. Offer to help with the next step proportionately to the observed access and unresolved limitations; only supported access permits continuing to apply_for_role with existing authorization. For unsupported or unknown access, explain the observed limitation briefly and give the application URL so the user can submit the prepared documents directly. Do not offer to sign in or imply an unreadable form has no additional requirements. Base application progress on the verified result and the user's explicit account of events; composer approvals only approve resume edits. For a user who will apply themselves, distinguish the finished resume from the remaining application: briefly identify consequential observed eligibility restrictions or required written materials in applicationInspection.text that the user still needs to complete. Prioritize those over a checklist of basic or sensitive personal fields. Respect a request to limit this turn to the resume; do not fabricate or silently complete the remaining answers. Describe the available next step; do not describe a failed submission attempt when none occurred. Explain access limitations in plain language without HTTP codes or infrastructure details. Write a concise, natural handoff centered on the useful change and next action, without report headings or lists of unchanged or omitted items. Include the actual documentLink value as the preview link; it renders as a file card. Never print the field name or describe where a placeholder will appear. Describe only positive content actually added to the document; a user’s statement that they did not do something is a limit on your claims, not automatically resume prose. If discussing qualifications, preserve the JD’s common requirements and alternative specialty tracks instead of combining all tracks into mandatory experience. Use a descriptive Markdown link for the exact application URL, keeping surrounding prose outside the link destination. Basic contact information is usable; sensitive demographic and health fields stay empty. Only verified submission is completion.",
+        "The resume file was saved. If preparationComplete is false, this is a working draft: keep pending questions open and do not claim readiness or submit. Compare savedResumeText with all accepted edits and the latest direct instructions before declaring preparation complete. If an approved edit is missing, read the current structured document and repair it with ready_for_role in this turn; the earlier approval remains valid. Report only changes actually present in the saved file, then use the returned submission status and applicationInspection limitations. Supported means the public form was reachable, not that uploads, conditional fields or submission have succeeded. Offer to help with the next step proportionately to the observed access and unresolved limitations; only supported access permits continuing to apply_for_role with existing authorization. For unsupported access, explain the observed limitation and give the direct application URL. Unknown access is inconclusive, not a permanent refusal: use manage_simulation_session action=inspect to check again when needed for the authorized next step. Do not repeatedly inspect an unchanged result in the same turn. Do not offer to sign in or imply an unreadable form has no additional requirements. Base application progress on the verified result and the user's explicit account of events; composer approvals only approve resume edits. For a user who will apply themselves, distinguish the finished resume from the remaining application: briefly identify consequential observed eligibility restrictions or required written materials in applicationInspection.text that the user still needs to complete. Prioritize those over a checklist of basic or sensitive personal fields. Respect a request to limit this turn to the resume; do not fabricate or silently complete the remaining answers. Describe the available next step; do not describe a failed submission attempt when none occurred. Explain access limitations in plain language without HTTP codes or infrastructure details. Write a concise, natural handoff centered on the useful change and next action, without report headings or lists of unchanged or omitted items. Include the actual documentLink value as the preview link; it renders as a file card. Never print the field name or describe where a placeholder will appear. Describe only positive content actually added to the document; a user’s statement that they did not do something is a limit on your claims, not automatically resume prose. If discussing qualifications, preserve the JD’s common requirements and alternative specialty tracks instead of combining all tracks into mandatory experience. Use a descriptive Markdown link for the exact application URL, keeping surrounding prose outside the link destination. Basic contact information is usable; sensitive demographic and health fields stay empty. Only verified submission is completion.",
     },
   };
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { enqueueOrgAgenticMatchingSearch, enqueueOrgMatchingSearch, enqueueOrgRecommendationPublication } from "@/lib/org/agent/matchingSearch";
+import { enqueueOrgAgenticMatchingSearch, enqueueOrgMatchingSearch } from "@/lib/org/agent/matchingSearch";
 
 test("membership rejection is a confirmed non-enqueue and never retried", async () => {
   let calls = 0;
@@ -134,35 +134,4 @@ test("invalid structural search commands are rejected before any effect", async 
     await assert.rejects(enqueueOrgAgenticMatchingSearch({admin,roleId:"role",userId:"actor",workspaceId:"workspace",requestId:"call",input}));
   }
   assert.equal(calls,0);
-});
-
-test("publication preserves exact selections and an explicit empty list without any contact direction", async () => {
-  const calls:any[]=[];
-  const admin={rpc:async(name:string,params:any)=>{calls.push({name,params});return {data:{status:'queued'},error:null};}} as any;
-  for(const talentIds of [[],['11111111-1111-4111-8111-111111111111']]) {
-    await enqueueOrgRecommendationPublication({admin,roleId:'role',userId:'actor',workspaceId:'workspace',requestId:'call',sourceMessageId:12,
-      input:{briefVersion:'current',poolVersion:'pool',talentIds}});
-    const options=calls.at(-1).params.p_options;
-    assert.deepEqual(options.talentIds,talentIds);
-    assert.equal(options.recommendCount,talentIds.length);
-    assert.equal(options.scope,'evaluated');
-    assert.deepEqual(options.publication,{expectedBriefVersion:'current',expectedPoolVersion:'pool'});
-    assert.equal(options.recommendCounts,undefined);
-  }
-  const count=calls.length;
-  await assert.rejects(enqueueOrgRecommendationPublication({admin,roleId:'role',userId:'actor',workspaceId:'workspace',requestId:'call',sourceMessageId:12,input:{talentIds:[]}}));
-  assert.equal(calls.length,count);
-});
-
-
-test("publication keeps an exact historical source without a search or contact command",async()=>{
-  const calls:any[]=[];
-  const admin={rpc:async(name:string,params:any)=>{calls.push({name,params});return {data:{status:'queued'},error:null};}} as any;
-  const sourceRunId='11111111-1111-4111-8111-111111111111';
-  const args={admin,roleId:'role',userId:'actor',workspaceId:'workspace',requestId:'call',sourceMessageId:12};
-  await enqueueOrgRecommendationPublication({...args,input:{briefVersion:'current',poolVersion:'pool',talentIds:[],sourceRunId}});
-  assert.equal(calls[0].params.p_options.publication.sourceRunId,sourceRunId);
-  assert.equal(calls[0].params.p_options.scope,'evaluated');
-  await assert.rejects(enqueueOrgRecommendationPublication({...args,input:{briefVersion:'current',poolVersion:'pool',talentIds:[],sourceRunId:'invalid'}}));
-  assert.equal(calls.length,1);
 });

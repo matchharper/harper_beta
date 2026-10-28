@@ -1673,7 +1673,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       sendEvent({
         type: "conversation.item.create",
         item: callId
-          ? { type: "function_call_output", call_id: callId, output: JSON.stringify({ completed: false, callEnded: false, instructions }) }
+          ? { type: "function_call_output", call_id: callId, output: serializeToolResultForModel({ completed: false, callEnded: false, instructions }) }
           : { type: "message", role: "system", content: [{ type: "input_text", text: instructions }] },
       });
     }

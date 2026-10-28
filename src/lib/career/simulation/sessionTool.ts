@@ -196,6 +196,7 @@ export const simulationSessionTool = {
 export const APPLICATION_PREPARATION_SESSION_ACTIONS: readonly string[] = [
   "list",
   "resume",
+  "inspect",
   "save_fact",
   "remove_fact",
   "request_switch",
@@ -207,7 +208,7 @@ export const applicationPreparationSessionTool = {
   function: {
     name: SIMULATION_SESSION_TOOL,
     description:
-      "Manage application preparations. list returns a compact index of saved preparations; resume restores an exact sessionMessageId after ending any other active application. end saves the current preparation and leaves the mode WITHOUT submitting; saved answers, suggestions and documents can be resumed later. It stops an active website browser; resuming preparation does not restart that browser or repeat a submission. A clear request to stop or start another application authorizes end directly, without request_switch or another confirmation. request_switch is only for a proposed change the user has not chosen; cancel_switch keeps this application active. Continue a requested switch in the same turn. save_fact records a confirmed session fact; factId identifies a correction/removal. Use shared Profile/Brief/Memory tools for durable user information, manage_application_suggestions for suggestions and ready_for_role for resume edits.",
+      "Manage application preparations. list returns a compact index of saved preparations; resume restores an exact sessionMessageId after ending any other active application. inspect checks the current application's live form and access again, including after a failed or stale inspection; it waits for the result, preserves answers and documents, and never fills or submits. Review its requirements and call ready_for_role again before applying. end saves the current preparation and leaves the mode WITHOUT submitting; saved answers, suggestions and documents can be resumed later. It stops an active website browser; resuming preparation does not restart that browser or repeat a submission. A clear request to stop or start another application authorizes end directly, without request_switch or another confirmation. request_switch is only for a proposed change the user has not chosen; cancel_switch keeps this application active. Continue a requested switch in the same turn. save_fact records a confirmed session fact; factId identifies a correction/removal. Use shared Profile/Brief/Memory tools for durable user information, manage_application_suggestions for suggestions and ready_for_role for resume edits.",
     parameters: {
       type: "object",
       additionalProperties: false,

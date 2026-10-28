@@ -96,8 +96,7 @@ export async function inspectAshbyForm(
       fields,
       text: fields
         .map((f) => f.label + "\n" + f.instructions)
-        .join("\n")
-        .slice(0, 40000),
+        .join("\n"),
       limitations: [
         "Public application form inventory includes basic fields, documents, links and custom questions. The application analysis decides which items need advance preparation. Hidden or answer-dependent fields and browser-only format/length constraints have not been verified.",
       ],

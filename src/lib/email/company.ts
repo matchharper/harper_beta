@@ -7,7 +7,7 @@ import { normalizeEmailAddress } from "./parse";
 import { sendResendEmail } from "./send";
 import { renderCompanyReplyEmail } from "./runtime/format";
 import { readRow } from "./runtime/store";
-import { EmailPermanentError, emailRuntimeEnabled, type EmailAdmin } from "./runtime/types";
+import { EmailPermanentError, type EmailAdmin } from "./runtime/types";
 
 /** Sender must still be the verified account and a current workspace team member. */
 export async function authorizeCompanyEmail(admin: EmailAdmin, userId: string, workspaceId: string, sender?: string) {
@@ -76,7 +76,6 @@ export async function createCompanyEmailReplyAlias(args: {
 export async function sendCompanyEmail(args: {
   userId: string; workspaceId: string; subject: string; body: string; idempotencyKey: string;
 }) {
-  if (!emailRuntimeEnabled()) throw new Error("Company email replies require EMAIL_RUNTIME_TARGET=vercel_queue");
   const route = await createCompanyEmailReplyAlias(args);
   return sendResendEmail({ ...route, subject: args.subject,
     ...renderCompanyReplyEmail(args.body, args.workspaceId), idempotencyKey: args.idempotencyKey });

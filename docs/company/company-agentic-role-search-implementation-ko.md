@@ -2,6 +2,12 @@
 
 문서 기준: 2026-10-24. 이번 작업의 설계와 검증 정본이다. 운영 배포를 의미하지 않는다. 실제 실행 결과는 [평가 레지스트리](../evaluation/company-agentic-role-search/README.md)에 별도로 기록한다.
 
+## 선정 조회의 모델 입력 형식
+
+`get_more_data(kinds=["matching_runs"], matching.view="selection")`는 DB 평가 객체 전체를 모델에 보내지 않는다. 응답 앞에서 Brief·조회 범위·criteria 번호와 정의를 설명하고, 후보별 `talentId`, `info`(이름·headline·location), `joinedAt`, 문자열 목록인 `recentExperience`·`recentEducation`, fit 수치와 기준별 라벨을 담은 `assessment`를 제공한다. 평가 ID·실행 ID·기준 원문을 후보마다 반복하지 않는다. 기준별 세부 수치와 원문은 `view="evaluations"`로 조회한다.
+
+신규 목록은 이미 신규 추천 자격을 적용했으므로 `currentCompanyRelationship` 내부 객체를 반복하지 않는다. 현재 미결정 추천은 별도 목록으로 표시하고 유지·설명 갱신 가능 여부, 이전 소개 기준을 보존한다. 과거 실행 조회에는 당시/현재 평가와 현재 추천 자격을 별도로 설명해 과거 점수를 현재 가능 여부로 오인하지 않게 한다. 원본 reader와 발행 권한·동시성 경계는 바꾸지 않는다. 공통 계약은 [도구 정보 설계 가이드](../company-side-tool-information-guide-ko.md)의 텍스트화 절을 따른다.
+
 ## 1. 목표와 범위
 
 회사와 대화하는 원본 LLM이 현재 채용 기준, 저장된 평가, 후보 목록, 실제 피드백을 읽고 다음 작업을 선택한다. 새 검색만 반복하는 구조에서 벗어나 이미 평가한 후보를 더 소개하거나, 미평가 인원을 탐색하거나, 변경된 기준으로 다시 평가하거나, 충분한 표본의 병목을 설명할 수 있어야 한다.
@@ -9,6 +15,22 @@
 이번 변경은 `/org`와 회사 대화에서 명시적으로 요청한 검색에 적용한다. 예약된 정기 검색, Career 온보딩과 Opportunity Worker의 기존 fit 계약은 유지한다. 회사측 추천은 회사의 검토 목록에 후보를 추가하거나 전체 재평가의 결과로 미응답 목록을 교체하는 효과다. 후보자에게 연락하거나 Intro를 요청하는 동의와 구별한다.
 
 도구의 정보 배치는 [도구 정보 설계 가이드](../company-side-tool-information-guide-ko.md), Hiring Brief는 [작성 가이드](company-role-hiring-brief-authoring-guide-ko.md), 문체는 [UX writing 가이드](../company-side-ux-writing-guide-ko.md)를 따른다. 예시 대화를 production 분기·상태·키워드 규칙으로 옮기지 않는다.
+
+### 2026-10-27 로컬 변경: 추가 발굴의 목적과 도구 입력
+
+Run Search의 한국어·영어 발화는 현재 추천 목록 밖에서 적절한 사람을 찾아 목록에 추가하도록 요청한다. 로딩 전 `candidate_search` 기능 소개도 신규 발굴·추가 능력을 먼저 알린다. 상세 검색 정책은 저장된 미추천 평가를 재사용하고 필요하면 미평가 인원을 탐색한 뒤 `kind=add`로 발행하도록 한다. 기존 후보를 처음 설명하는 것은 신규 추천이 아니다. 실제 추가 결과, 조사한 범위의 적합 후보 없음, 또는 구체적 미완료 원인을 구분하며 별도 키워드 라우터·완료 심사기·강제 검색 호출은 추가하지 않는다. 후보자 Intro 발송은 별도 동의 계약이다. 운영 미배포다.
+
+### 2026-10-27 로컬 변경: 선택한 후보의 동기 작성·저장
+
+`publish_role_recommendations`는 이제 Worker 큐 대신 웹의 `src/lib/companyFirstSearch/publication/server.ts`를 직접 await한다. 인증된 `POST /api/org/role/recommendations/publish`도 같은 함수를 사용하며 `Idempotency-Key`를 요구한다. 채팅 API와 endpoint의 실행 시간 설정은 1800초다. 후보마다 하나의 작성 요청을 동시에 시작하고 모두 끝난 뒤 한 transaction으로 목록과 설명 이력을 저장한다. 완료 결과의 실제 추가·갱신·유지·제외 ID를 원본 회사 LLM에 텍스트로 제공한다. 채팅 완료 시 기존 query invalidation으로 목록을 다시 읽는다. 새 발행에는 queued/running 검색 행이나 별도 후속 알림을 만들지 않는다.
+
+Worker의 **수동** writer를 기준으로 `gpt-6-luna`, reasoning `high`, temperature `0.3`, 출력 예산 기본 `128000`과 기존 환경변수 override를 유지한다. `scripts/syncCompanyPublicationPrompt.py`가 Worker의 실제 interactive 분기에서 시스템 프롬프트를 추출하며 `--check`로 일치를 확인한다. 전체 공개 Profile·경력·학력·허용 extras, 전체 Search Brief, 현재 Role 원문·criteria, 기존 criterion score/label을 전달한다. 후보 Memory·Behavior·비공개 fit 수치는 넣지 않는다. 회사 Behavior는 기존 writer의 참고 맥락이다. 날짜는 웹 공통 formatter와 Asia/Seoul 기준을 사용하고 회사 Behavior의 기존 임의 글자 제한은 새 경로에 복제하지 않는다.
+
+출력은 `tldr`, `harper_note`, `recommendationReason`, `criteriaEvaluations[{criterionRef,content}]`다. 코드가 기존 score/label/distribution을 되붙이며 새 종합 적합성을 생성하지 않는다(`finalFit=null`, 기존 interactive Worker와 동일). 별도 심사·재선정·부족 인원 채우기를 하지 않는다. 구조화 출력 schema를 사용하며 Worker의 저장된 presentation cache나 구조 오류 재작성 루프는 이 동기 경로에 추가하지 않는다.
+
+기존 SQL 연결과 테이블을 재사용하므로 새 DB migration은 없다. Free/paid, 실제 권한·팀 범위, test-only 격리, 공개 자격·회사 차단·기존 결정, 현재 Brief·공개 원문·선택한 평가 및 replace 목록 revision을 저장 직전에 다시 확인한다. Worker와 동일한 source/route advisory lock을 사용한다. 동일 요청 ID는 완료 결과를 재사용한다. 작성 하나라도 실패하면 모두 기다린 뒤 실패를 반환하고, 저장 중 실패는 전부 rollback한다. `add`의 기존 카드는 그대로 보존하며 `replace=[]`는 미결정 목록만 제외한다. 설명 완료와 목록 저장까지 기다리는 것이며 후보자 연락·Intro 발송은 포함하지 않는다.
+
+검증: `publication/writer.test.ts`(Worker 프롬프트 일치·실제 provider 입력 projection·점수 보존), `publication/postgres.test.ts`(localhost 기존 snapshot의 폐기용 복제 DB, 모델 호출 없음), `org/agent/publicationContract.test.ts`(완료 결과 projection). DB 검증은 네 요청의 동시 시작·마지막 작성 대기·저장 직후 조회·멱등성·기존 카드 보존·replace·실패 rollback·공개 권한 변경·동시 목록 변경을 확인한다. 운영 배포·현재 운영 queued 요청의 취소/재실행·실제 모델 품질 평가는 이 변경에 포함하지 않았다.
 
 ## 2. 현재 구현에서 확인한 차이
 
@@ -96,15 +118,19 @@ Decisions API는 predicate/choice/score를 반환하며 자유 서술 이유를 
 
 2026-10-24 사용자 요청으로 자동 Top N 발행을 대체했다. `request_matching_search`는 1·2차 평가를 저장하고 완료 사건을 회사 대화에 전달한다. 기본 수량이나 전체 재평가가 추천 목록 변경을 자동으로 허가하지 않는다.
 
-`get_more_data(kinds=["matching_runs"], matching={roleId,view:"selection"})`은 현재 기준 전체 통계와 신규 추천 가능 후보 Top 50을 `mutualFit` 내림차순으로 제공한다. 모든 미결정 기존 추천은 별도 목록으로 전원 포함한다. 각각 후보 ID, companyFit/candidateFit/mutualFit와 기준별 점수·라벨, 가입 날짜, 최근 경력 최대 5개·학력 최대 3개, 현재 관계를 제공한다. 오래된 카드 점수와 현재 평가를 구별한다. 다음 페이지와 상세 원문은 일반 도구로 선택적으로 조회한다. Top 50이나 상세 조회 여부가 최종 선택을 제한하지 않는다.
+`get_more_data(kinds=["matching_runs"], matching={roleId,view:"selection"})`은 현재 기준 전체 통계와 신규 추천 가능 후보 Top 20을 `mutualFit` 내림차순으로 제공한다. 모든 미결정 기존 추천은 별도 목록으로 전원 포함한다. 각각 후보 ID, companyFit/candidateFit/mutualFit와 기준별 점수·라벨, 가입 날짜, 최근 경력 최대 5개·학력 최대 3개, 현재 관계를 제공한다. 오래된 카드 점수와 현재 평가를 구별한다. 다음 페이지와 상세 원문은 일반 도구로 선택적으로 조회한다. Top 20이나 상세 조회 여부가 최종 선택을 제한하지 않는다. `matching.from`·`matching.to`로 상위 후보 목록의 조회 범위를 지정한다. 1부터 시작하고 양끝을 포함한다. 생략하면 1~20, `from:21,to:40`은 21~40위, `from:1,to:100`은 상위 100명이다. `from`만 지정하면 그 위치부터 20명, `to`만 지정하면 1위부터 해당 위치까지 읽는다. 결과에는 요청 범위·반환 수·전체 수·다음 범위를 함께 표시하며 현재 미결정 추천은 범위와 무관하게 전원 포함한다. 기존 `offset`·`limit`도 호환되지만 `from`·`to`와 함께 지정하지 않는다.
 
 원본 company-side LLM은 같은 대화에서 분포·현재 요구·후보별 근거를 보고 신규 추천, 기존 후보 유지, 적은 인원 또는 목록 변경 보류를 판단한다. 약 10명은 권장 규모이며 채워야 할 수가 아니다. 특정 조건 때문에 후보가 부족하면 근거와 대안을 논의할 수 있지만, 사용자의 조건을 임의로 완화하거나 알려진 충돌을 인원수로 덮지 않는다. 정성 판단은 prompt/context와 공통 도구에 두며 근속연수 같은 사례별 분기는 만들지 않는다.
 
-`publish_role_recommendations(roleId, briefVersion, poolVersion, talentIds, reason?)`는 남길 기존 후보와 추가할 후보를 합친 전체 미결정 목록을 발행한다. 빈 배열은 명시적으로 미결정 목록을 비운다. 선택하지 않은 미결정 카드는 재평가로 목록에서 제외하되 거절로 기록하지 않는다. Save/Pass/Accept/Intro 및 진행 이력은 보존한다. 현재 2차 평가가 있는 선택 후보만 기존 3차 writer로 설명을 작성하며 Worker 재선정·인원 보충은 없다. 현재 평가가 없거나 새 공유 자격이 없는 기존 카드는 설명을 새로 만들지 않고 그대로 유지할 수 있다.
+`publish_role_recommendations(roleId, kind, talentIds, sourceRunId?, reason?)`는 추가와 교체를 구분한다. `kind=add`는 추가할 ID만 받아 기존 카드와 설명을 모두 보존한다. 이미 미결정 목록에 있는 ID는 새로 쓰지 않으며 빈 배열은 아무것도 추가하지 않는다. `kind=replace`는 남길 기존 후보와 추가할 후보를 합친 전체 미결정 목록을 발행하며 빈 배열은 명시적으로 미결정 목록을 비운다. 선택하지 않은 미결정 카드는 재평가로 목록에서 제외하되 거절로 기록하지 않는다. Save/Pass/Accept/Intro 및 진행 이력은 보존한다. 현재 2차 평가가 있는 선택 후보만 기존 3차 writer로 설명을 작성하며 Worker 재선정·인원 보충은 없다. 현재 평가가 없거나 새 공유 자격이 없는 기존 카드는 설명을 새로 만들지 않고 그대로 유지할 수 있다.
 
-권한·새 후보의 현재 평가/공유 자격·후보/Role 동시 수정·목록 revision을 실행과 발행 경계에서 확인한다. Brief 또는 미결정 목록이 바뀌면 부분 교체 없이 실패하고 다시 읽어야 한다. 별도 판단 테이블은 만들지 않으며 기존 run의 request_options에 정확한 선택 명령을 저장한다. company-first 카드만 바꾸며 talent-first 연락이나 연결 대기 전환은 하지 않는다. 정기 검색의 별도 위임·선정 도구는 해당 정기 계약을 따른다.
+2026-10-27 후속 로컬 정책(미배포): 슬롯 없는 활성 Free Role도 후보자 선추천·연결 대기·연결 수락을 지원하며 공용 Intro는 월 3개다. 기존 동의·공유·활성 상태·test-only·Intro 잔액 경계는 유지한다. 정본은 `20261027074848_free_role_matching_and_three_intros.sql`과 [결제 구현 문서](workspace-billing-stripe-setup-ko.md)이며 새 migration은 운영 미적용이다. 아래 DB 선반영 기록의 “유료 조건은 변경하지 않는다”는 당시 작업 범위다.
 
-완료 run의 기존 `result.roleSearch.evidence`에 실제 조회한 1·2차 평가 행 ID, 당시 추천 가능 신규 후보 전체 순위의 평가 ID, 실행 전 미결정 카드 ID·revision, 실행 후 미결정 후보 ID를 저장한다. Top 50은 첫 페이지일 뿐 보존 상한이 아니다. 평가·criteria 원문은 기존 불변 평가 행과 `source_snapshot.roleSearchBrief`에 있으며 새 테이블이나 프로필 복제는 추가하지 않는다. 이후 평가·추천 변경으로 과거 순위와 점수가 바뀌지 않는다.
+2026-10-27 DB 선반영(Worker 미배포): Free Role도 Run Search의 평가와 먼저 제안 가능한 후보 추가·교체를 사용할 수 있도록 `enqueue_company_agentic_search_v1`과 Worker의 시작/저장 직전 Role 조회를 `free`, `paid` 공통 범위로 맞췄다. 정본 migration은 `20261027072006_free_role_company_agentic_search.sql`이다. Owner/Admin·Role 접근·활성/만료·Hiring Brief·test-only·공유/중복 경계는 유지한다. 후보자 선추천, 연결 대기, Intro 차감의 유료/동의 조건은 변경하지 않는다. 운영 DB에는 `20261027074326`(`free_role_company_agentic_search`)으로 적용했고 함수 본문 정본 일치·서버 전용 실행 권한 유지·신규 security advisory 없음을 확인했다. 해당 AI Research Engineer Role의 현재 Free 분류가 새 접수 조건을 통과하는 것을 읽기 전용으로 확인했다. 실제 검색·추가 완료까지 사용하려면 남은 Worker 코드 반영이 필요하다. 운영에서 검색 재접수·후보 등록·연락은 실행하지 않았다. 후속 배포 때 같은 migration을 재적용하지 않는다. 독립 로컬 DB snapshot clone에서 실제 함수 접수·재접수·Worker 조회·권한/상태 차단 8개와 기존 검색/추가/교체 테스트 65개를 확인했으며 모델 호출·운영 후보 등록·연락은 하지 않았다. DB 검증 정본은 Worker의 `tests/test_company_requested_free_role_postgres.py`이며 `COMPANY_FREE_ROLE_TEST_DSN`으로 지정한 localhost 전용 `harper_agentic_free_role_test_*` clone에서만 실행한다. snapshot 원본은 수정하지 않는다.
+
+권한·새 후보의 현재 평가/공유 자격·후보/Role 동시 수정·목록 revision을 실행과 발행 경계에서 확인한다. LLM은 briefVersion·poolVersion을 전달하지 않는다. 기존 enqueue가 Brief snapshot을 고정하고 Worker는 실행 시작과 발행 직전에 현재 Brief를 확인한다. 교체는 설명 준비 전에 현재 미결정 목록의 revision을 캡처하고 저장 시 같은 목록인지 확인한다. 그 사이 Brief 또는 교체 대상 목록이 바뀌면 부분 교체 없이 실패한다. 추가는 기존 목록을 교체하지 않으므로 전체 pool revision 일치를 요구하지 않지만 새 후보의 공유·중복 경계는 저장 직전에 재검사한다. 기존 버전 인자를 담고 이미 접수된 작업은 원래 교체 의미와 검사를 유지한다. 별도 판단 테이블은 만들지 않으며 기존 run의 request_options에 정확한 선택 명령을 저장한다. company-first 카드만 바꾸며 talent-first 연락이나 연결 대기 전환은 하지 않는다. 정기 검색의 별도 위임·선정 도구는 해당 정기 계약을 따른다.
+
+완료 run의 기존 `result.roleSearch.evidence`에 실제 조회한 1·2차 평가 행 ID, 당시 추천 가능 신규 후보 전체 순위의 평가 ID, 실행 전 미결정 카드 ID·revision, 실행 후 미결정 후보 ID를 저장한다. Top 20은 첫 페이지일 뿐 보존 상한이 아니다. 평가·criteria 원문은 기존 불변 평가 행과 `source_snapshot.roleSearchBrief`에 있으며 새 테이블이나 프로필 복제는 추가하지 않는다. 이후 평가·추천 변경으로 과거 순위와 점수가 바뀌지 않는다.
 
 `matching={roleId,runId,view:"selection"}`은 이 고정 목록과 당시 기준을 읽고 현재 미결정 풀·최신 평가·현재 관계를 비교한다. 당시 풀도 조회하며 추가 후보는 같은 runId로 페이지를 읽는다. 현재 열람 권한은 다시 확인하고 현재 프로필을 과거 프로필로 표현하지 않는다. 과거 참조가 없는 legacy 실행은 자체 평가만 조회하며 당시 재사용 평가·전체 추천 가능 목록·풀을 복원했다고 주장하지 않는다. 참조가 유실되면 불완전한 목록을 완전한 이력처럼 반환하지 않는다.
 
@@ -160,7 +186,7 @@ Memory와 Brief에 기록된 상대 시점은 원본 작성·갱신 시각을 �
 
 ## 9. 기존 추천과 재평가
 
-2026-10-24 기준: 전체 재평가는 아직 Save/Pass/Accept/Intro 등 실제 피드백을 주지 않은 ready 후보를 모두 평가에 포함하며, 2차부터 시작하거나 새 조회 조건/예산 밖이어도 누락하지 않는다. 평가 완료만으로 목록을 교체하지 않는다. 회사 원본 LLM이 새 평가의 Top 50과 기존 미결정 풀 전원을 비교하고, 필요한 조건 논의를 거쳐 `publish_role_recommendations`에 최종 전체 ID를 넘긴다. 기존 후보도 명시적으로 선택하면 유지하며, 새 후보나 목표 인원을 자동으로 보충하지 않는다. 이 계약은 2026-10-23의 자동 Top N 교체 방식을 대체한다.
+2026-10-24 기준: 전체 재평가는 아직 Save/Pass/Accept/Intro 등 실제 피드백을 주지 않은 ready 후보를 모두 평가에 포함하며, 2차부터 시작하거나 새 조회 조건/예산 밖이어도 누락하지 않는다. 평가 완료만으로 목록을 교체하지 않는다. 회사 원본 LLM이 새 평가의 Top 20 및 필요하면 추가 범위와 기존 미결정 풀 전원을 비교하고, 필요한 조건 논의를 거쳐 `publish_role_recommendations`에 최종 전체 ID를 넘긴다. 기존 후보도 명시적으로 선택하면 유지하며, 새 후보나 목표 인원을 자동으로 보충하지 않는다. 이 계약은 2026-10-23의 자동 Top N 교체 방식을 대체한다.
 
 명시적 발행의 설명 작성이 끝난 뒤 하나의 transaction으로 현재 미결정 목록을 교체한다. 회사 결정·Brief·원문·동시 목록 변경은 저장 직전에 확인하며 실패하면 기존 목록을 유지한다. 선택되지 않은 후보는 `closed/reassessed`로 기록을 남기고 회사 거절로 취급하지 않는다. 이 사유로만 제외됐고 실제 결정/연락이 없으면 이후 다시 선택될 수 있다. 일반 평가 reader도 같은 재추천 가능 사실을 제공한다. 실제 추가·제외·갱신·그대로 유지 ID를 실행 결과에 기록한다. 2차의 임의 합격선이나 3차의 숨은 재선발은 추가하지 않는다. 현재 검증은 [journey-v3](../evaluation/company-agentic-role-search/JOURNEY-V3.md), 이전 자동 Top N 동작의 증거는 [2026-10-23 감사](../evaluation/company-agentic-role-search/AUDIT-2026-10-23.md)에 구분해 보존한다.
 

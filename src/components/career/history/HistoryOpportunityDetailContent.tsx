@@ -1,5 +1,5 @@
-// import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
-// import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
+import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
+import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
 import React, { ReactNode, useState } from "react";
 import {
   CareerOpportunityType,
@@ -134,7 +134,7 @@ export const OpportunityHeader = ({
       value: formatCareerLocation(item.location, locale),
     },
     ...metaItems,
-    /* ...(size === "sm" && item.estimatedAnnualSalary
+    ...(process.env.NODE_ENV === "development" && size === "sm" && item.estimatedAnnualSalary
       ? [{
           label: "estimatedSalary",
           value: t("career.history.estimated_salary.range", "{range} (추정)", {
@@ -143,7 +143,7 @@ export const OpportunityHeader = ({
             },
           }),
         }]
-      : []), */
+      : []),
   ].filter(
     (meta): meta is { label: string; value: string } =>
       typeof meta.value === "string" && meta.value.trim().length > 0
@@ -385,7 +385,9 @@ export const HistoryOpportunityOverview = ({
         </BareButton>
       )}
 
-      {/* <EstimatedSalaryNotice item={item} className="mt-4" /> */}
+      {process.env.NODE_ENV === "development" ? (
+        <EstimatedSalaryNotice item={item} className="mt-4" />
+      ) : null}
       <OpportunityPreferenceFit
         className="mt-4"
         items={item.preferenceFit}

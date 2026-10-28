@@ -188,7 +188,10 @@ export type OrgTalentProfileContentProps = {
     | "criteriaEvaluations"
     | "companyPresentation"
   > & {
-    recommendation?: Pick<OrgTalentDetailResponse["recommendation"], "fitReason">;
+    recommendation?: Pick<
+      OrgTalentDetailResponse["recommendation"],
+      "fitReason"
+    >;
   };
   review?: boolean;
   footer?: ReactNode;
@@ -338,7 +341,7 @@ export function OrgTalentProfileContent({
   );
 
   return (
-    <div className="min-w-0 space-y-7 px-2">
+    <div className="min-w-0 max-w-full space-y-7 px-4 md:px-2 [overflow-wrap:anywhere]">
       {header}
 
       {detail.companyPresentation ? (
@@ -351,11 +354,50 @@ export function OrgTalentProfileContent({
               )}
             </p>
           ) : null}
+
+          <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 gap-y-6 my-8 mb-12">
+            {[
+              {
+                label: c("위치", "Location"),
+                icon: MapPin,
+                value: detail.profile.location?.trim() || "—",
+              },
+              {
+                label: c("경력", "Experience"),
+                icon: CalendarDays,
+                value: formatProfileExperience(careerSummary, locale),
+              },
+              {
+                label: c("마지막 이직", "Last job change"),
+                icon: BriefcaseBusiness,
+                value: formatProfileDuration(
+                  careerSummary.lastMoveMonths,
+                  locale,
+                  true
+                ),
+              },
+            ].map(({ label, icon: Icon, value }) => (
+              <div key={label} className="min-w-0">
+                <dt className="text-[14px] font-normal text-neutral-primary">
+                  {label}
+                </dt>
+                <dd className="mt-2 flex items-start gap-2 text-[14px] text-neutral-800">
+                  <Icon aria-hidden className="mt-1 size-3.5 shrink-0" />
+                  <span className="min-w-0 break-words">{value}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
           <ProfileSection title="TL;DR">
             {detail.companyPresentation.tldr}
           </ProfileSection>
           {detail.companyPresentation.recommendationReason ? (
-            <ProfileSection title={c("추천 이유와 고려할 점", "Why this candidate and what to consider")}>
+            <ProfileSection
+              title={c(
+                "추천 이유와 고려할 점",
+                "Why this candidate and what to consider"
+              )}
+            >
               {detail.companyPresentation.recommendationReason}
             </ProfileSection>
           ) : null}
@@ -367,7 +409,10 @@ export function OrgTalentProfileContent({
         </>
       ) : detail.recommendation?.fitReason ? (
         <ProfileSection
-          title={c("Harper의 추천 이유", "Why Harper recommends this candidate")}
+          title={c(
+            "Harper의 추천 이유",
+            "Why Harper recommends this candidate"
+          )}
         >
           <div className="mt-4 mb-10 border-l-2 border-primary px-3">
             <MarkdownProfile
@@ -379,56 +424,17 @@ export function OrgTalentProfileContent({
         </ProfileSection>
       ) : null}
 
-      <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 gap-y-6 my-8 mb-12">
-        {[
-          {
-            label: c("위치", "Location"),
-            icon: MapPin,
-            value: detail.profile.location?.trim() || "—",
-          },
-          {
-            label: c("경력", "Experience"),
-            icon: CalendarDays,
-            value: formatProfileExperience(careerSummary, locale),
-          },
-          {
-            label: c("마지막 이직", "Last job change"),
-            icon: BriefcaseBusiness,
-            value: formatProfileDuration(
-              careerSummary.lastMoveMonths,
-              locale,
-              true
-            ),
-          },
-        ].map(({ label, icon: Icon, value }) => (
-          <div key={label} className="min-w-0">
-            <dt className="text-[14px] font-normal text-neutral-primary">
-              {label}
-            </dt>
-            <dd className="mt-2 flex items-start gap-2 text-[15px] leading-6 text-neutral-primary">
-              <Icon aria-hidden className="mt-1 size-4 shrink-0" />
-              <span className="min-w-0 break-words">{value}</span>
-            </dd>
-          </div>
-        ))}
-      </dl>
-
       {criteriaEvaluations.length > 0 ? (
         <ProfileSection title={c("기준", "Criteria")}>
-          <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
             {criteriaEvaluations.map((evaluation) => (
               <OrgCriteriaEvaluation
                 evaluation={evaluation}
                 key={evaluation.name}
+                showContent
               />
             ))}
           </div>
-        </ProfileSection>
-      ) : null}
-
-      {detail.profile.bio ? (
-        <ProfileSection title={c("소개", "Intro")}>
-          {detail.profile.bio.trim()}
         </ProfileSection>
       ) : null}
 

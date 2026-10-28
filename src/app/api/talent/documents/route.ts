@@ -15,6 +15,7 @@ import {
 } from "@/lib/integrations/gmailCareerHistoryCore";
 
 export const runtime = "nodejs";
+const readHeaders = { "Cache-Control": "private, no-store" };
 
 async function listDocuments(userId: string) {
   const admin = getTalentSupabaseAdmin();
@@ -26,20 +27,32 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getRequestUser(req);
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: readHeaders });
     }
 
+    const documentId = req.nextUrl.searchParams.get("documentId");
+    let documents;
+    if (documentId) {
+      const admin = getTalentSupabaseAdmin();
+      const document = await fetchTalentDocument({ admin, userId: user.id, documentId });
+      if (!document) {
+        return NextResponse.json({ error: "Document not found" }, { status: 404, headers: readHeaders });
+      }
+      documents = await serializeTalentDocuments({ admin, documents: [document] });
+    } else {
+      documents = await listDocuments(user.id);
+    }
     return NextResponse.json({
       ok: true,
-      documents: await listDocuments(user.id),
-    });
+      documents,
+    }, { headers: readHeaders });
   } catch (error) {
     return NextResponse.json(
       {
         error:
           error instanceof Error ? error.message : "Failed to fetch documents",
       },
-      { status: 500 }
+      { status: 500, headers: readHeaders }
     );
   }
 }

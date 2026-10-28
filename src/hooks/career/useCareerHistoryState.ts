@@ -159,22 +159,6 @@ const incrementCountsForItem = (
   }
 };
 
-const mergePagesWithFirstPage = (
-  current: InfiniteData<CareerHistoryPage, number> | undefined,
-  firstPage: CareerHistoryPage
-): InfiniteData<CareerHistoryPage, number> => {
-  if (!current || current.pages.length === 0) {
-    return {
-      pages: [firstPage],
-      pageParams: [0],
-    };
-  }
-
-  return {
-    pages: [firstPage, ...current.pages.slice(1)],
-    pageParams: current.pageParams.length > 0 ? current.pageParams : [0],
-  };
-};
 
 export function useCareerHistoryState(args: {
   autoLoad?: boolean;
@@ -1402,7 +1386,7 @@ export function useCareerHistoryState(args: {
 
       queryClient.setQueryData<InfiniteData<CareerHistoryPage, number>>(
         queryKey,
-        (current) => mergePagesWithFirstPage(current, firstPage)
+        (current) => mergeRefreshedHistoryFirstPage(current, firstPage)
       );
       setHistoryOpportunityCounts(firstPage.counts);
       setHistoryLoaded(true);
@@ -1541,7 +1525,15 @@ export function useCareerHistoryState(args: {
 
           return {
             ...current,
-            pages: [...current.pages, page],
+            pages: [
+              ...current.pages.map((cachedPage) => ({
+                ...cachedPage,
+                items: cachedPage.items.map((item) =>
+                  page.items.find((fresh) => fresh.id === item.id) ?? item
+                ),
+              })),
+              page,
+            ],
             pageParams: [...current.pageParams, offset],
           };
         }
@@ -1703,9 +1695,10 @@ export function useCareerHistoryState(args: {
         } satisfies CareerHistoryOpportunityPageFilter;
         const filterKey = getHistoryFilterKey(filter);
         const currentState = filteredPageStateRef.current[filterKey];
-        if (currentState?.loading || currentState?.nextOffset === null) {
-          continue;
-        }
+        if (currentState?.loading) continue;
+        const currentData = queryClient.getQueryData<InfiniteData<CareerHistoryPage, number>>(queryKey);
+        const loadedCount = getLoadedHistoryFilterCount(currentData, filter);
+        if (currentState?.nextOffset === null && currentState.recoveryLoadedCount === loadedCount) continue;
 
         const offset = currentState?.nextOffset ?? 0;
         const stages = stagesByOffset.get(offset) ?? [];
@@ -1774,6 +1767,12 @@ export function useCareerHistoryState(args: {
               [getHistoryFilterKey({ historyTab: "saved", savedStage })]: {
                 loading: false,
                 nextOffset: page.nextOffset,
+                recoveryLoadedCount: page.nextOffset === null
+                  ? getLoadedHistoryFilterCount(
+                      queryClient.getQueryData<InfiniteData<CareerHistoryPage, number>>(queryKey),
+                      { historyTab: "saved", savedStage }
+                    )
+                  : undefined,
               },
             }));
           }
@@ -1804,6 +1803,8 @@ export function useCareerHistoryState(args: {
       enabled,
       fetchWithAuth,
       locale,
+      queryClient,
+      queryKey,
       tCareer,
       updateFilteredPageState,
       userId,

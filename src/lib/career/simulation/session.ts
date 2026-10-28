@@ -3,6 +3,7 @@ import { applicationAnswerContext, unbatchedApplicationResponses } from "./appli
 import { applicationFormSchema, applicationInspectionSchema } from "./applicationForm";
 import { applicationEditsSchema } from "./applicationEditsSchema";
 import { browserStateSchema, browserQuestionRefSchema } from "./applicationBrowser";
+import { applicationExecutionFacts } from "./applicationExecution";
 import {
   preparationSchema,
   preparationResponseSchema,
@@ -37,7 +38,7 @@ export const actionSchema = z.object({
   originalText: z.string().optional(),
   suggestedText: z.string().optional(),
   edits: applicationEditsSchema,
-  draftText: z.string().max(30000).optional(),
+  draftText: z.string().optional(),
   applicationField: z.string().optional(),
   reason: z.string(),
   requirementIds: z.array(z.string()),
@@ -310,11 +311,11 @@ export const sessionMutationSchema = z
     response: preparationResponseSchema.optional(),
     reconsiderResponse: z.boolean().optional(),
     status: actionStatusSchema.optional(),
-    reason: z.string().max(3000).optional(),
+    reason: z.string().optional(),
     factId: z.string().optional(),
-    text: z.string().max(6000).optional(),
-    title: z.string().max(300).optional(),
-    request: z.string().max(1500).optional(),
+    text: z.string().optional(),
+    title: z.string().optional(),
+    request: z.string().optional(),
     newAction: actionSchema.optional(),
     endReason: z.enum(["user", "switched"]).optional(),
   })
@@ -500,7 +501,7 @@ export function mutateSimulationSession(
 export function simulationSessionContext(s: SimulationSession, toolNames?: readonly string[]) {
   return {
     preparation: s.preparation ? { responses: unbatchedApplicationResponses(s), applicationMethod: s.preparation.applicationMethod, finalDocumentId: s.preparation.finalDocumentId } : undefined,
-    application: s.browser ? { status: s.browser.status, result: s.browser.result } : undefined,
+    application: applicationExecutionFacts(s),
     // Settled buttons already appear as authoritative current actions. Keep the user's
     // exact response, but avoid duplicating the earlier, now superseded proposal.
     // Free answers retain the immutable question they answer; UI history is unchanged.

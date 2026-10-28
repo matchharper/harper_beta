@@ -7,8 +7,10 @@ import { cn } from "@/lib/cn";
 
 export type IntegrationConversationExample = {
   id: string;
-  text: string;
-  response: string;
+  messages: readonly {
+    role: "user" | "assistant";
+    text: string;
+  }[];
 };
 
 export default function IntegrationConversationCarousel({
@@ -76,20 +78,33 @@ export default function IntegrationConversationCarousel({
             <div
               key={example.id}
               aria-hidden={index !== active}
-              className="w-full shrink-0 snap-center px-4 pb-7 pt-4"
+              className="w-full shrink-0 snap-center space-y-4 px-4 pb-7 pt-4"
             >
-              <p className="ml-auto w-fit max-w-[92%] rounded-2xl rounded-br-sm bg-bg-floating/95 px-3.5 py-2.5 text-[13px] font-normal leading-5 text-neutral-primary shadow-xs">
-                {example.text}
-              </p>
-              <div className="mt-4 max-w-[94%]">
-                <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-neutral-muted">
-                  <Image src="/svgs/face.svg" alt="" width={16} height={16} />
-                  Harper
-                </div>
-                <p className="whitespace-pre-line rounded-2xl rounded-tl-sm bg-bg-floating/95 px-3.5 py-3 text-[13px] font-normal leading-5 text-neutral-primary shadow-xs">
-                  {example.response}
-                </p>
-              </div>
+              {example.messages.map((message, messageIndex) =>
+                message.role === "user" ? (
+                  <p
+                    key={messageIndex}
+                    className="ml-auto w-fit max-w-[92%] rounded-2xl rounded-br-sm bg-bg-floating/95 px-3.5 py-2.5 text-[13px] font-normal leading-5 text-neutral-primary shadow-xs"
+                  >
+                    {message.text}
+                  </p>
+                ) : (
+                  <div key={messageIndex} className="max-w-[94%]">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-neutral-muted">
+                      <Image
+                        src="/svgs/face.svg"
+                        alt=""
+                        width={16}
+                        height={16}
+                      />
+                      Harper
+                    </div>
+                    <p className="whitespace-pre-line rounded-2xl rounded-tl-sm bg-bg-floating/95 px-3.5 py-3 text-[13px] font-normal leading-5 text-neutral-primary shadow-xs">
+                      {message.text}
+                    </p>
+                  </div>
+                )
+              )}
             </div>
           ))}
         </div>

@@ -10,6 +10,7 @@ import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChang
 import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { roleMatchingBriefQueryOptions } from "@/hooks/org/roleMatchingBriefQuery";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { criterionLevel } from "@/lib/org/roleCriteria";
@@ -17,26 +18,6 @@ import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import type { RoleStartBriefView } from "@/lib/org/roleStart/view";
 import { useOrgAgentLiveChatStore } from "@/store/useOrgAgentLiveChatStore";
 import { useToastStore } from "@/store/useToastStore";
-
-/**
- * Whether a registered Role has a role start Brief. The 매칭 기준 tab shows
- * that Brief (RoleBriefSection) instead of the saved text and the criteria
- * list; a chat-written Role keeps the tab as it is. Undefined while loading;
- * after an error the old editor shows (a role start Role's text and list are
- * refused there by /api/org/role), and asked again each time the tab opens
- * (a draft becomes registered).
- */
-export function useRoleStartBriefFlag(roleId: string, workspaceId: string) {
-  const query = useQuery({
-    queryKey: ["org-role-start-structured", workspaceId, roleId],
-    queryFn: () =>
-      fetchWithInternalAuth<{ structured: boolean }>(
-        `/api/org/role-start?roleId=${encodeURIComponent(roleId)}&workspaceId=${encodeURIComponent(workspaceId)}&include=structured`
-      ),
-    staleTime: 0,
-  });
-  return query.isError ? false : query.data?.structured;
-}
 
 /**
  * The Role's Brief as one view: 요약, 필수 조건 (profile facts and criteria
@@ -67,21 +48,13 @@ export function RoleBriefSection({
     Object.entries(state.chats).some(([key, chat]) => key.endsWith(`:${workspaceId}:${roleId}`) && chat.isStreaming)
   );
   const query = useQuery({
-    queryKey,
+    ...roleMatchingBriefQueryOptions(workspaceId, roleId),
     refetchInterval: (current) =>
       chatRunning || current.state.data?.session?.briefEdit === "running"
         ? 2_000
-        : awaiting && Date.now() < awaiting.until && (current.state.data?.rubric.references.length ?? 0) <= awaiting.count
+        : awaiting && Date.now() < awaiting.until && (current.state.data?.rubric?.references.length ?? 0) <= awaiting.count
           ? 3_000
           : false,
-    queryFn: () =>
-      fetchWithInternalAuth<{
-        rubric: RoleStartBriefView;
-        briefHash: string;
-        session: { briefEdit: "running" | "error" | null } | null;
-      }>(
-        `/api/org/role-start?roleId=${encodeURIComponent(roleId)}&workspaceId=${encodeURIComponent(workspaceId)}&include=rubric`
-      ),
   });
   // A chat edit of this Brief: locked while it runs, one line if it failed.
   const briefEdit = query.data?.session?.briefEdit ?? null;
@@ -144,7 +117,7 @@ export function RoleBriefSection({
       void queryClient.invalidateQueries({ queryKey });
       if (body.action === "add_references") {
         setReferenceDrafts([]);
-        setAwaiting({ count: query.data?.rubric.references.length ?? 0, until: Date.now() + 30_000 });
+        setAwaiting({ count: query.data?.rubric?.references.length ?? 0, until: Date.now() + 30_000 });
         addToast({ message: c("참고 인물을 받았어요. 읽은 뒤 여기에 보여요.", "Got the reference people. They show here once read."), variant: "success" });
       }
     },
@@ -266,7 +239,7 @@ export function RoleBriefSection({
               onSave={() =>
                 save.mutate({
                   brief: draft,
-                  briefHash: editedHash ?? query.data?.briefHash,
+                  briefHash: editedHash ?? query.data?.briefHash ?? undefined,
                   summaryEdited: draft.summary !== (editStartSummary ?? server?.summary),
                 })
               }

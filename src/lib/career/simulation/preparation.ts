@@ -2,9 +2,9 @@ import { z } from "zod";
 
 export const preparationResponseSchema = z.object({
   decision: z.enum(["accept", "ignore", "answer", "document", "help", "skip"]),
-  text: z.string().max(20000).optional(),
-  edits: z.array(z.object({target:z.string(),originalText:z.string(),suggestedText:z.string().max(20000)})).max(12).optional(),
-  draftText: z.string().max(30000).optional(),
+  text: z.string().optional(),
+  edits: z.array(z.object({target:z.string(),originalText:z.string(),suggestedText:z.string()})).optional(),
+  draftText: z.string().optional(),
   documentId: z.string().optional(),
   documentName: z.string().optional(),
   applicationMethod: z.enum(["harper", "manual"]).optional(),

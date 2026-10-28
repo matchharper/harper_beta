@@ -1,4 +1,4 @@
-import type { Query, QueryClient } from "@tanstack/react-query";
+import type { InfiniteData, Query, QueryClient } from "@tanstack/react-query";
 import { getOrgCompanyIntroBoardStage } from "./pipelineStage";
 import type {
   OrgBoardItem,
@@ -8,6 +8,21 @@ import type {
   OrgRole,
   OrgTalentDetailResponse,
 } from "./server";
+
+export type OrgBoardCache =
+  | OrgBoardResponse
+  | InfiniteData<OrgBoardResponse, number>;
+
+/** The same confirmed mutation updates ordinary boards and every loaded inbox page. */
+export function mapOrgBoardCache(
+  current: OrgBoardCache | undefined,
+  update: (board: OrgBoardResponse) => OrgBoardResponse
+): OrgBoardCache | undefined {
+  if (!current) return current;
+  return "pages" in current
+    ? { ...current, pages: current.pages.map(update) }
+    : update(current);
+}
 
 // Profile-label queries have a different shape and do not change with a decision.
 export function orgBoardMatches(
@@ -69,18 +84,20 @@ export async function reconcileOrgCandidateSave(
       orgBoardMatches(query, input.workspaceId, input.roleId),
   };
   await client.cancelQueries(board);
-  client.setQueriesData<OrgBoardResponse>(board, (current) =>
-    current
-      ? {
-          ...current,
-          items: current.items.map((item) =>
-            item.roleId === input.roleId &&
-            item.recommendationId === input.recommendationId
-              ? { ...item, savedAt }
-              : item
-          ),
-        }
-      : current
+  client.setQueriesData<OrgBoardCache>(board, (cached) =>
+    mapOrgBoardCache(cached, (current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((item) =>
+              item.roleId === input.roleId &&
+              item.recommendationId === input.recommendationId
+                ? { ...item, savedAt }
+                : item
+            ),
+          }
+        : current
+    )
   );
   void client.invalidateQueries(board);
 }
@@ -132,22 +149,25 @@ export async function reconcileOrgRole(
         }
       : current
   );
-  client.setQueriesData<OrgBoardResponse>(board, (current) =>
-    current
-      ? {
-          ...current,
-          items: removed
-            ? current.items.filter((item) => item.roleId !== role.roleId)
-            : current.items.map((item) =>
-                item.roleId === role.roleId
-                  ? { ...item, roleName: role.name }
-                  : item
-              ),
-          totalCount: removed
-            ? current.items.filter((item) => item.roleId !== role.roleId).length
-            : current.totalCount,
-        }
-      : current
+  client.setQueriesData<OrgBoardCache>(board, (cached) =>
+    mapOrgBoardCache(cached, (current) =>
+      current
+        ? {
+            ...current,
+            items: removed
+              ? current.items.filter((item) => item.roleId !== role.roleId)
+              : current.items.map((item) =>
+                  item.roleId === role.roleId
+                    ? { ...item, roleName: role.name }
+                    : item
+                ),
+            totalCount: removed
+              ? current.items.filter((item) => item.roleId !== role.roleId)
+                  .length
+              : current.totalCount,
+          }
+        : current
+    )
   );
   client.setQueriesData<OrgTalentDetailResponse>(detail, (current) =>
     current ? { ...current, role: merge(current.role) } : current
@@ -204,25 +224,27 @@ export async function reconcileOrgCompanyIntro(
     pass: old.pass && update.status === "ready",
     requestIntro: old.requestIntro && update.status === "ready",
   });
-  client.setQueriesData<OrgBoardResponse>(board, (current) =>
-    current
-      ? {
-          ...current,
-          items: current.items.map((item) =>
-            item.companyIntro?.id === result.introCandidateId
-              ? {
-                  ...item,
-                  companyIntro: mergeIntro(item.companyIntro),
-                  savedAt: item.stage === stage ? item.savedAt : null,
-                  stage,
-                  stageTag: null,
-                  capabilities: capabilities(item.capabilities),
-                  updatedAt: update.updatedAt,
-                }
-              : item
-          ),
-        }
-      : current
+  client.setQueriesData<OrgBoardCache>(board, (cached) =>
+    mapOrgBoardCache(cached, (current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((item) =>
+              item.companyIntro?.id === result.introCandidateId
+                ? {
+                    ...item,
+                    companyIntro: mergeIntro(item.companyIntro),
+                    savedAt: item.stage === stage ? item.savedAt : null,
+                    stage,
+                    stageTag: null,
+                    capabilities: capabilities(item.capabilities),
+                    updatedAt: update.updatedAt,
+                  }
+                : item
+            ),
+          }
+        : current
+    )
   );
   client.setQueriesData<OrgTalentDetailResponse>(detail, (current) =>
     current?.companyIntro?.id === result.introCandidateId

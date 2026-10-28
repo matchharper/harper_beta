@@ -27,7 +27,6 @@ import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
 import { OrgRoleDetailsContent } from "@/components/org/role-overview/OrgRoleDetailsContent";
 import { OrgRoleMatchingHistory } from "@/components/org/role-overview/OrgRoleMatchingHistory";
 import { OrgRoleMatchingContent } from "@/components/org/role-overview/OrgRoleMatchingContent";
-import { OrgRoleSearchActivity } from "@/components/org/role-overview/OrgRoleSearchActivity";
 import { OrgRoleSettingsContent } from "@/components/org/role-overview/OrgRoleSettingsContent";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { OrgRoleStartPanel } from "@/components/org/role-start/OrgRoleStartPanel";
@@ -52,14 +51,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
-import { useOrgBoard } from "@/hooks/org/useOrg";
+import { useOrgInboxCounts } from "@/hooks/org/useOrgRoleInbox";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useResizableSplitPanel } from "@/hooks/useResizableSplitPanel";
 import {
   getOrgRoleStatusPresentation,
   normalizeOrgRoleStatus,
 } from "@/lib/org/roleStatus";
-import { isOrgInboxStage } from "@/lib/org/pipelineStage";
 import {
   buildOrgHref,
   resolveOrgRoleTab,
@@ -218,7 +216,7 @@ function OrgRoleCandidatesTab({
   tab: "inbox" | "pipeline";
 }) {
   return (
-    <OrgJobsProvider routePage="role">
+    <OrgJobsProvider routePage="role" inbox={tab === "inbox"}>
       {tab === "inbox" ? (
         <OrgRoleInbox />
       ) : (
@@ -324,14 +322,14 @@ function OrgRoleCreationDetails({
   const { workspace } = useOrgWorkspace();
   const roleCreation =
     role !== null && normalizeOrgRoleStatus(role.status) === "draft";
-  const inboxBoardQuery = useOrgBoard({
+  const inboxBoardQuery = useOrgInboxCounts({
     enabled: Boolean(role) && !roleCreation,
     roleId: role?.roleId,
     workspaceId: workspace.workspaceId,
   });
-  const inboxCount = inboxBoardQuery.data?.items.filter(
-    (item) => isOrgInboxStage(item.stage) && !item.savedAt
-  ).length;
+  const inboxCount = inboxBoardQuery.data
+    ? inboxBoardQuery.data.counts.pending_connection + inboxBoardQuery.data.counts.company_intro
+    : undefined;
   const requestedTab = router.isReady ? getQueryText(router.query.tab) : "";
   const requestedView = router.isReady ? getQueryText(router.query.view) : "";
   const activeTab = resolveOrgRoleTab({
@@ -908,9 +906,6 @@ export function OrgRoleCreationPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {role && normalizeOrgRoleStatus(role.status) !== "draft" ? (
-        <OrgRoleSearchActivity key={role.roleId} roleId={role.roleId} workspaceId={workspace.workspaceId} />
-      ) : null}
     <div
       ref={containerRef}
       className={cn(

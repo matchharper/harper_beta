@@ -8,7 +8,8 @@ export function resumeFontCss(weight: 400 | 700) {
     result = (async () => {
       const cssPath = path.join(
         process.cwd(),
-        "node_modules/@fontsource/noto-sans-kr",
+        process.env.HARPER_RESUME_FONT_DIRECTORY ??
+          "node_modules/@fontsource/noto-sans-kr",
         `${weight}.css`
       );
       let css = (await readFile(cssPath, "utf8")).replace(
@@ -37,7 +38,11 @@ export function resumeFontCss(weight: 400 | 700) {
 
 export function resumeScript() {
   return readFile(
-    path.join(process.cwd(), "node_modules/pagedjs/dist/paged.min.js"),
+    path.join(
+      process.cwd(),
+      process.env.HARPER_RESUME_SCRIPT_PATH ??
+        "node_modules/pagedjs/dist/paged.min.js"
+    ),
     "utf8"
   );
 }

@@ -117,9 +117,21 @@ const mergeMessages = (
     const id = String(message.id);
     const existingIndex = persistedIndexById.get(id);
     if (typeof existingIndex === "number") {
-      if (message.typing || (message.thinkingLogs?.length ?? 0) > 0) {
+      const persisted = merged[existingIndex];
+      // History refreshes can contain only an application activity reference.
+      // Keep the streamed card mounted until a newer hydrated result arrives.
+      const hasNewerSimulation =
+        message.simulation &&
+        (!persisted.simulation ||
+          Date.parse(message.simulation.updatedAt) >
+            Date.parse(persisted.simulation.updatedAt));
+      if (
+        hasNewerSimulation ||
+        message.typing ||
+        (message.thinkingLogs?.length ?? 0) > 0
+      ) {
         merged[existingIndex] = {
-          ...merged[existingIndex],
+          ...persisted,
           ...message,
         };
       }

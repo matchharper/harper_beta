@@ -24,7 +24,7 @@ export { readOnlyFormGuard } from "./applicationBrowserDriver";
 const reportSchema = z
   .object({
     status: z.enum(["read", "partial", "unavailable"]),
-    fieldRefs: z.array(z.string().regex(/^\d+$/)).max(150),
+    fieldRefs: z.array(z.string().regex(/^\d+$/)),
     limitations: z.array(z.string()),
     submission: applicationSubmissionSchema.optional(),
   })

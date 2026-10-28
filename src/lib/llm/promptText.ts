@@ -33,9 +33,16 @@ export function formatPromptText(value: unknown): string {
       ? item.map((entry, index) => `${indent}- 항목 ${index} (0부터): ${render(entry, depth + 1)}`).join("\n")
       : "없음";
     if (typeof item === "object") return Object.entries(item)
-      .map(([key, entry]) => `${indent}${labels[key] ?? key.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ")}: ${typeof entry === "object" && entry !== null && Object.keys(entry).length > 0 ? "\n" : ""}${render(entry, depth + 1)}`)
+      .map(([key, entry]) => `${indent}${labels[key] ?? key}: ${typeof entry === "object" && entry !== null && Object.keys(entry).length > 0 ? "\n" : ""}${render(entry, depth + 1)}`)
       .join("\n") || "없음";
     return String(item);
   }
   return render(projectLlmDateTimes(value), 0);
+}
+
+/** Prefer the tool's purpose-built model projection; never serialize the transport object as JSON. */
+export function formatToolResultText(value: unknown): string {
+  if (value && typeof value === "object" && "modelOutput" in value
+    && typeof value.modelOutput === "string" && value.modelOutput.trim()) return value.modelOutput;
+  return formatPromptText(value);
 }

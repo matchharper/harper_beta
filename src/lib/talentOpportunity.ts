@@ -540,13 +540,6 @@ export type TalentOpportunityHistoryCounts = {
 
 type TalentOpportunitySourceType = "internal" | "external";
 
-type RawSavedStageFallbackRow = {
-  opportunity_type: string | null;
-  company_role: {
-    source_type: string;
-  } | null;
-};
-
 function coerceJsonArray<T>(value: unknown) {
   return Array.isArray(value) ? (value as T[]) : [];
 }
@@ -1548,33 +1541,45 @@ async function countTalentOpportunityRecommendations(args: {
   return Math.max(0, count ?? 0);
 }
 
-async function fetchSavedRowsMissingStage(args: {
-  admin: AdminClient;
-  userId: string;
-}) {
-  const { data, error } = await ((
-    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
-  )
-    .select(
-      `
-        opportunity_type,
-        company_role:company_roles!inner (
-          source_type,
-          company_workspace:company_workspace!inner (
-            company_name
-          )
-        )
-      `
-    )
-    .eq("talent_id", args.userId)
-    .eq("feedback", "like")
-    .is("saved_stage", null) as any);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to count saved opportunities");
+// Count the same display stages used by the detail and filtered lists. Legacy
+// saved_stage values alone cannot establish the current internal process state.
+async function fetchSavedHistoryStageCounts(args: { admin: AdminClient; userId: string }) {
+  const rows: RawRecommendationRow[] = [];
+  // Supabase returns at most one API page; counts must cover every saved row.
+  while (true) {
+    const { data, error, count } = await (args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any)
+      .select(`role_id, feedback, saved_stage, opportunity_type,
+        company_role:company_roles!inner(source_type,status,
+          company_workspace:company_workspace!inner(company_name))`, { count: "exact" })
+      .eq("talent_id", args.userId)
+      .or("feedback.eq.like,feedback.eq.keep,and(feedback.is.null,saved_stage.eq.hidden)")
+      .order("id", { ascending: true })
+      .range(rows.length, rows.length + 999);
+    if (error) throw new Error(error.message ?? "Failed to count saved opportunities");
+    const page = coerceJsonArray<RawRecommendationRow>(data);
+    rows.push(...page);
+    if (page.length === 0 || (count !== null && rows.length >= count)) break;
   }
-
-  return coerceJsonArray<RawSavedStageFallbackRow>(data);
+  const items = rows.map((row) => {
+    const sourceType = normalizeSourceType(row.company_role?.source_type);
+    return {
+      roleId: row.role_id,
+      feedback: normalizeFeedback(row.feedback),
+      savedStage: normalizeSavedStage(row.saved_stage),
+      opportunityType: normalizeOpportunityType({ sourceType, value: row.opportunity_type }),
+      sourceType,
+      isInternal: sourceType === "internal",
+      status: row.company_role?.status ?? "",
+    };
+  });
+  const tags = await fetchInternalProgressTagsForHistoryItems({ ...args, items });
+  const counts = createEmptyHistoryCounts().savedStages;
+  for (const item of items) {
+    const stage = resolveHistorySavedStage(item, tags.get(item.roleId) ?? []) ??
+      getDefaultSavedStageForOpportunity(item);
+    counts[stage] += 1;
+  }
+  return counts;
 }
 
 export async function fetchTalentOpportunityHistoryCounts(args: {
@@ -1587,12 +1592,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
     newExternalUnreadCount,
     savedCount,
     archivedCount,
-    savedStageCount,
-    appliedStageCount,
-    connectedStageCount,
-    closedStageCount,
-    hiddenStageCount,
-    savedRowsMissingStage,
+    savedStageCounts,
   ] = await Promise.all([
     countTalentOpportunityRecommendations({
       admin: args.admin,
@@ -1622,40 +1622,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
       historyTab: "archived",
       userId: args.userId,
     }),
-    countTalentOpportunityRecommendations({
-      admin: args.admin,
-      historyTab: "saved",
-      savedStage: "saved",
-      userId: args.userId,
-    }),
-    countTalentOpportunityRecommendations({
-      admin: args.admin,
-      historyTab: "saved",
-      savedStage: "applied",
-      userId: args.userId,
-    }),
-    countTalentOpportunityRecommendations({
-      admin: args.admin,
-      historyTab: "saved",
-      savedStage: "connected",
-      userId: args.userId,
-    }),
-    countTalentOpportunityRecommendations({
-      admin: args.admin,
-      historyTab: "saved",
-      savedStage: "closed",
-      userId: args.userId,
-    }),
-    countTalentOpportunityRecommendations({
-      admin: args.admin,
-      historyTab: "saved",
-      savedStage: "hidden",
-      userId: args.userId,
-    }),
-    fetchSavedRowsMissingStage({
-      admin: args.admin,
-      userId: args.userId,
-    }),
+    fetchSavedHistoryStageCounts(args),
   ]);
 
   const counts = createEmptyHistoryCounts();
@@ -1665,24 +1632,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
   counts.saved = savedCount;
   counts.archived = archivedCount;
   counts.total = newCount + savedCount + archivedCount;
-  counts.savedStages.saved = savedStageCount;
-  counts.savedStages.applied = appliedStageCount;
-  counts.savedStages.connected = connectedStageCount;
-  counts.savedStages.closed = closedStageCount;
-  counts.savedStages.hidden = hiddenStageCount;
-
-  for (const row of savedRowsMissingStage) {
-    const sourceType = normalizeSourceType(row.company_role?.source_type);
-    const opportunityType = normalizeOpportunityType({
-      sourceType,
-      value: row.opportunity_type,
-    });
-    const defaultStage = getDefaultSavedStageForOpportunity({
-      opportunityType,
-      sourceType,
-    });
-    counts.savedStages[defaultStage] += 1;
-  }
+  counts.savedStages = savedStageCounts;
 
   return counts;
 }
@@ -1997,7 +1947,7 @@ function mapPostingRoleRow(
 
 async function fetchInternalProgressTagsForHistoryItems(args: {
   admin: AdminClient;
-  items: TalentOpportunityHistoryItem[];
+  items: Pick<TalentOpportunityHistoryItem, "isInternal" | "feedback" | "roleId">[];
   userId: string;
 }) {
   const roleIds = Array.from(
@@ -2503,6 +2453,21 @@ async function fetchCompanyRequestIntroProgressForHistoryItems(args: {
   return progressByRecommendationId;
 }
 
+export function resolveHistorySavedStage(
+  item: Pick<TalentOpportunityHistoryItem, "savedStage" | "isInternal" | "feedback" | "status">,
+  tags: RawTalentOpportunityTagRow[]
+): TalentOpportunitySavedStage | null {
+  if (!item.isInternal || item.feedback !== "positive" || item.savedStage === "hidden") {
+    return item.savedStage;
+  }
+  const { stage } = resolveInternalProgressStageFromTags(tags);
+  if (stage === "process_stopped" || stage === "archived" || stage === "rejected" ||
+      (["ended", "deleted"].includes(item.status.toLowerCase()) && stage !== "final_offer")) {
+    return "closed";
+  }
+  return item.savedStage;
+}
+
 async function enrichTalentOpportunityHistoryItems(args: {
   admin: AdminClient;
   includeActivityTimeline?: boolean;
@@ -2532,29 +2497,10 @@ async function enrichTalentOpportunityHistoryItems(args: {
     fetchLatestTalentRoleMemos(args),
     fetchCompanyRequestIntroProgressForHistoryItems(args),
   ]);
-  if (tagsByRoleId.size === 0) {
-    return args.items.map((item) => ({
-      ...item,
-      activityTimelineLoaded: Boolean(args.includeActivityTimeline),
-      confirmedMeetings: confirmedMeetingsByRecommendationId.get(item.id) ?? [],
-      companyRequestIntroProgress:
-        companyRequestIntroProgressByRecommendationId.get(item.id) ?? null,
-      internalProgress:
-        item.opportunityType === OpportunityType.IntroRequest
-          ? null
-          : buildInternalRecommendationProgress({
-              events: eventsByRoleId.get(item.roleId) ?? [],
-              item,
-              tags: [],
-            }),
-      talentRoleActivities: activitiesByRoleId.get(item.roleId) ?? [],
-      talentMemo: latestMemoByRoleId.get(item.roleId) ?? null,
-      upcomingMeeting: meetingsByRecommendationId.get(item.id) ?? null,
-    }));
-  }
 
   return args.items.map((item) => ({
     ...item,
+    savedStage: resolveHistorySavedStage(item, tagsByRoleId.get(item.roleId) ?? []),
     activityTimelineLoaded: Boolean(args.includeActivityTimeline),
     confirmedMeetings: confirmedMeetingsByRecommendationId.get(item.id) ?? [],
     companyRequestIntroProgress:

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { isOrgLocale, type OrgLocale } from "@/i18n/org/locale";
-import { localeFromHeadquarters } from "./workspaceLocale";
+import { resolveOrgWorkspaceLocale } from "./workspaceLocale";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
@@ -58,12 +58,12 @@ export async function getOrgWorkspaceLocale(
 ) {
   const workspace = await fetchWorkspaceLocaleSource(workspaceId, admin);
   if (isOrgLocale(workspace.locale)) return workspace.locale;
-  if (!workspace.company_db_id) return localeFromHeadquarters(null);
+  if (!workspace.company_db_id) return resolveOrgWorkspaceLocale(workspace.locale, null);
   const { data: company, error: companyError } = await admin
     .from("company_db")
     .select("location")
     .eq("id", workspace.company_db_id)
     .maybeSingle();
   if (companyError) throw companyError;
-  return localeFromHeadquarters(company?.location);
+  return resolveOrgWorkspaceLocale(workspace.locale, company?.location);
 }

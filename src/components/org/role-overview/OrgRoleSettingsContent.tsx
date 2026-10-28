@@ -368,10 +368,12 @@ export function OrgRoleSettingsContent({
         status: statusToConfirm,
         workspaceId,
       });
-      addToast({
-        message: c("채용 상태를 변경했습니다.", "Hiring status updated."),
-        variant: "success",
-      });
+      if (statusToConfirm !== "active") {
+        addToast({
+          message: c("채용 상태를 변경했습니다.", "Hiring status updated."),
+          variant: "success",
+        });
+      }
       setStatusToConfirm(null);
     } catch (error) {
       addToast({
@@ -958,11 +960,11 @@ export function OrgRoleSettingsContent({
           <div className="flex items-start justify-between gap-6 py-5">
             <RoleSectionHeading
               description={c(
-                "Harper가 정기적으로 잠재 후보자를 찾아 ‘먼저 제안 가능한 후보’에 표시해요. 연락하고 싶은 후보자가 있다면 ‘Intro 요청’을 눌러 주세요. 이 설정을 꺼도 Harper는 후보자에게 역할을 추천할 수 있으며, 회사에는 수락한 후보자만 보여드려요.",
-                "Harper searches on your schedule and adds potential matches to Suggested candidates. Choose Send intro when you'd like Harper to reach out. Turning this off doesn't stop Harper from recommending eligible roles to candidates and introducing those who want to talk."
+                "Harper가 정기적으로 연락해보실만한 후보자를 찾아 알려드려요. 연락하고 싶은 후보자가 있다면 ‘Intro 요청’을 눌러 주세요.",
+                "Harper searches for candidates your team can reach out to on your schedule. Choose Send intro when you'd like Harper to reach out. Turning this off doesn't stop Harper from recommending eligible roles to candidates and introducing those who want to talk."
               )}
               info={c(
-                "켜짐: Harper가 정기적으로 잠재 후보자를 찾아 ‘먼저 제안 가능한 후보’에 표시해요. ‘Intro 요청’을 누르면 Harper가 후보자에게 연락해요. 꺼짐: Harper는 후보자에게 역할을 먼저 추천할 수 있고, 회사에는 수락한 후보자만 보여드려요.",
+                "켜짐: Harper가 정기적으로 연락해보실만한 후보자를 찾아 알려드려요. ‘Intro 요청’을 누르면 Harper가 후보자에게 연락해요. 꺼짐: Harper는 후보자에게 역할을 먼저 추천할 수 있고, 회사에는 수락한 후보자만 보여드려요.",
                 "When this is on, Harper searches for candidates your team can approach. Turning it off stops scheduled searches, but eligible roles can still receive introductions from candidates who have expressed interest."
               )}
               title={c("추천 후보 검색", "Scheduled candidate search")}
@@ -1058,15 +1060,7 @@ export function OrgRoleSettingsContent({
                 {c("검색 시간", "Search at")}
               </div>
               <p className="mt-1 text-[13px] text-neutral-muted">
-                {companyFirstSearchEnabled
-                  ? c(
-                      "설정한 요일의 이 시간에 검색을 시작합니다.",
-                      "When each scheduled search starts."
-                    )
-                  : c(
-                      "검색을 켜면 이 시간에 다시 검색합니다.",
-                      "Turn on scheduled candidate search to use this time."
-                    )}
+                <></>
               </p>
             </div>
             <div className="w-40 sm:text-right">
@@ -1092,16 +1086,6 @@ export function OrgRoleSettingsContent({
                   ))}
                 </SelectContent>
               </Select>
-              <p
-                className={cn(
-                  "mt-1 text-[12px]",
-                  companyFirstSearchEnabled
-                    ? "text-neutral-muted"
-                    : "text-neutral-disabled"
-                )}
-              >
-                GMT+9 (Asia/Seoul)
-              </p>
             </div>
           </div>
         </div>
@@ -1165,7 +1149,7 @@ export function OrgRoleSettingsContent({
             </div>
           </div>
           <div className="mt-4">
-            <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-t border-neutral-1000-a10 pt-5">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-4 border-t border-neutral-1000-a10 pt-5">
               <div className="max-w-xl">
                 <p className="text-[14px] font-medium text-neutral-primary">
                   {c("회사명 공개 여부", "Company name visibility")}
@@ -1178,11 +1162,6 @@ export function OrgRoleSettingsContent({
                     className="size-3.5 animate-spin text-neutral-muted"
                   />
                 ) : null}
-                <span className="text-[12px] font-medium text-neutral-primary">
-                  {anonymousEnabled
-                    ? c("회사명 비공개", "Company name hidden")
-                    : c("회사명 공개", "Company name visible")}
-                </span>
                 <AppleSwitch
                   aria-label={c("회사명 공개 여부", "Company name visibility")}
                   checked={anonymousEnabled}

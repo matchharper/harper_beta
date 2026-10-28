@@ -18,6 +18,7 @@ export type DebugTabId =
   | "companyAnswerRetrieval"
   | "cost"
   | "emails"
+  | "emailTest"
   | "matching"
   | "opportunityRuns"
   | "orgAgentTools";
@@ -26,6 +27,7 @@ export function debugTabTitle(tab: DebugTabId) {
   if (tab === "abTests") return "A/B Test";
   if (tab === "actionLogs") return "액션 로그";
   if (tab === "emails") return "메일 로그";
+  if (tab === "emailTest") return "이메일 테스트";
   if (tab === "calls") return "콜 로그";
   if (tab === "companyAnswerRetrieval") return "Company Answer Retrieval";
   if (tab === "cost") return "비용";
@@ -37,6 +39,7 @@ export function debugTabTitle(tab: DebugTabId) {
 export function debugTabDescription(tab: DebugTabId) {
   if (tab === "abTests") return "";
   if (tab === "actionLogs") return "";
+  if (tab === "emailTest") return "";
   if (tab === "emails") {
     return "career 유저에게 저장된 메일 본문과 internal role 제안 메일을 확인합니다.";
   }

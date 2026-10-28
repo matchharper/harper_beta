@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -29,8 +29,10 @@ export function RoleRubricEditor({
 }) {
   const { c } = useOrgLocale();
   const addToast = useToastStore((state) => state.add);
+  const queryClient = useQueryClient();
+  const queryKey = ["org", "role-rubric", workspaceId, roleId];
   const query = useQuery({
-    queryKey: ["org", "role-rubric", workspaceId, roleId],
+    queryKey,
     queryFn: () =>
       fetchWithInternalAuth<{ rubric: RoleStartBriefView; briefHash: string }>(
         `/api/org/role-start?roleId=${encodeURIComponent(roleId)}&workspaceId=${encodeURIComponent(workspaceId)}&include=rubric`
@@ -57,11 +59,11 @@ export function RoleRubricEditor({
           : cause instanceof Error ? cause.message : c("기준을 바꾸지 못했어요.", "Could not update the criteria."),
         variant: "error",
       });
-      if (conflict) void query.refetch();
+      if (conflict) void queryClient.invalidateQueries({ queryKey });
     },
     onSuccess: (result) => {
       setDraft(result.rubric);
-      void query.refetch();
+      void queryClient.invalidateQueries({ queryKey });
       onSaved();
       addToast({
         message: result.judging

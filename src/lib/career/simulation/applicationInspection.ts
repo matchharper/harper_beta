@@ -64,6 +64,37 @@ async function mutateInspection(
   throw new Error("Application inspection update conflicted");
 }
 
+// An explicit read of the live form can refresh failed or stale observations.
+// Reuse the existing lease for concurrent reads; never launch a submission.
+export async function refreshApplicationInspection(
+  store: SessionStoreArgs,
+  messageId: number,
+  sourceMessageId: number,
+  inspect = inspectApplicationForm
+) {
+  const runId = crypto.randomUUID();
+  const key = `inspection:refresh:${sourceMessageId}:${runId}`;
+  const queued = await mutateInspection(store, messageId, key, (record) => {
+    const s = record.state;
+    if (s.browser && ["queued", "running", "waiting"].includes(s.browser.status))
+      throw new Error("Finish or stop the application browser before rechecking requirements");
+    if (isApplicationInspectionPending(s)) return false;
+    s.applicationInspection = { status: "queued", runId };
+    if (s.preparation) {
+      s.preparation.inputRevision++;
+      s.preparation.finalDocumentId = null;
+      s.preparation.finalDocumentFingerprint = null;
+    }
+    return true;
+  });
+  if (!queued || queued.state.status !== "active")
+    throw new Error("Active application preparation required");
+  const latest = await awaitApplicationInspection(store, queued, inspect);
+  if (!latest || latest.state.status !== "active")
+    throw new Error("Application preparation ended during inspection");
+  return latest;
+}
+
 export async function runApplicationInspection(
   store: SessionStoreArgs,
   messageId: number,
@@ -77,6 +108,7 @@ export async function runApplicationInspection(
     (record) => {
       if (!needsApplicationInspection(record)) return false;
       record.state.applicationInspection = {
+        ...record.state.applicationInspection,
         status: "running",
         runId: token,
         startedAt: new Date().toISOString(),
@@ -151,18 +183,19 @@ export async function runApplicationInspection(
 
 // A submitted batch is durably saved before this wait. The caller refreshes its
 // context with the returned record, so a faster user never outruns the inventory.
-export async function awaitApplicationInspection(
+export async function awaitApplicationInspection<T extends SessionRecord>(
   store: SessionStoreArgs,
-  record: SessionRecord
+  record: T,
+  inspect = inspectApplicationForm
 ) {
   const deadline = Date.now() + LEASE_MS + 10_000;
-  let latest: SessionRecord | null = record;
+  let latest: T | Awaited<ReturnType<typeof sessionOperation>> = record;
   while (
     latest?.state.status === "active" &&
     isApplicationInspectionPending(latest.state)
   ) {
     if (needsApplicationInspection(latest))
-      await runApplicationInspection(store, latest.messageId);
+      await runApplicationInspection(store, latest.messageId, inspect);
     else await new Promise<void>((resolve) => setTimeout(resolve, 750));
     latest = await sessionOperation({
       ...store,

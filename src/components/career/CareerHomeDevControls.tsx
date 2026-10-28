@@ -47,6 +47,7 @@ import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerPriorityReviewDevControls from "./CareerPriorityReviewDevControls";
+import CareerGlassDevControls from "./CareerGlassDevControls";
 import { canUsePriorityReviewTests } from "@/lib/career/priorityReviewTestContract";
 import type {
   DevExternalVariant,
@@ -551,6 +552,7 @@ export default function CareerHomeDevControls({
       <div className="mt-4">
         <DevColorPaletteControls />
       </div>
+      <CareerGlassDevControls />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Text as="span" type="subtle">추천 검색 로딩</Text>
         <MuteButton onClick={() => setSearchPreviewOpen(true)}>

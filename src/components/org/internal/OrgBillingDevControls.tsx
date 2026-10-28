@@ -227,8 +227,8 @@ export function OrgBillingDevControls({
       >
         {preview
           ? c(
-              `${preview.slotCount === 0 ? "Free · 공용 10 Intro" : `유료 슬롯 ${preview.slotCount}개`} 미리보기 중이에요.`,
-              `Previewing ${preview.slotCount === 0 ? "Free · 10 shared Intros" : `${preview.slotCount} paid ${preview.slotCount === 1 ? "slot" : "slots"}`}.`
+              `${preview.slotCount === 0 ? "Free · 공용 3 Intro" : `유료 슬롯 ${preview.slotCount}개`} 미리보기 중이에요.`,
+              `Previewing ${preview.slotCount === 0 ? "Free · 3 shared Intros" : `${preview.slotCount} paid ${preview.slotCount === 1 ? "slot" : "slots"}`}.`
             )
           : c("실제 플랜을 표시하고 있어요.", "Showing the actual plan.")}{" "}
         {c(

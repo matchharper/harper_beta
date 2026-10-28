@@ -31,7 +31,7 @@ export const ChatComposerTokenOverlay = forwardRef<
       ref={ref}
       aria-hidden={hasClickableToken ? undefined : true}
       className={cn(
-        "pointer-events-none absolute left-0 top-0 z-0 min-h-[72px] select-none overflow-hidden whitespace-pre-wrap break-words border-none px-3.5 py-4 text-base leading-5 text-neutral-primary max-md:group-data-[expanded=false]/chat-composer:h-12 max-md:group-data-[expanded=false]/chat-composer:min-h-12 max-md:group-data-[expanded=false]/chat-composer:whitespace-nowrap max-md:group-data-[expanded=false]/chat-composer:text-ellipsis md:text-sm lg:text-[14px]",
+        "pointer-events-none absolute left-0 top-0 z-0 min-h-[72px] select-none overflow-hidden whitespace-pre-wrap break-words border-none px-3.5 py-4 text-[16px] leading-5 text-neutral-primary max-md:group-data-[expanded=false]/chat-composer:h-12 max-md:group-data-[expanded=false]/chat-composer:min-h-12 max-md:group-data-[expanded=false]/chat-composer:whitespace-nowrap max-md:group-data-[expanded=false]/chat-composer:text-ellipsis md:text-sm lg:text-[14px]",
         className
       )}
     >

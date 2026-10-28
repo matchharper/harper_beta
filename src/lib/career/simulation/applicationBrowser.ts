@@ -4,7 +4,7 @@ import { browserRequestSchema } from "./applicationBrowserActions";
 import { applicationBrowserRuntimeRefSchema } from "./applicationBrowserRuntimeRef";
 
 export const APPLY_TO_ROLE = "apply_for_role";
-export const browserStateSchema = z.object({
+const browserAttemptSchema = z.object({
   id: z.string(),
   status: z.enum([
     "queued",
@@ -43,6 +43,10 @@ export const browserStateSchema = z.object({
   usageLoggedCount: z.number().int().nonnegative().optional(),
   leaseUntil: z.string().optional(),
   taskSent: z.boolean().optional(),
+  stage: z.string().optional(),
+  // Written before releasing any approved website request; never cleared by a later question.
+  transmissionAttemptedAt: z.string().optional(),
+  failure: z.object({ stage: z.string(), error: z.string() }).optional(),
   recoveryTurnId: z.string().optional(),
   diagnostic: z.object({
     turnId: z.string().optional(),
@@ -70,6 +74,9 @@ export const browserStateSchema = z.object({
     .optional(),
   resultMessageId: z.number().optional(),
 });
+export const browserStateSchema = browserAttemptSchema.extend({
+  previousAttempts: browserAttemptSchema.omit({ driver: true, files: true, progress: true, pendingRequest: true }).array().optional(),
+});
 export const browserQuestionRefSchema = z.object({
   runId: z.string(),
   sessionId: z.string(),
@@ -82,19 +89,22 @@ export const browserQuestionRefSchema = z.object({
 });
 export type ApplicationBrowserState = z.infer<typeof browserStateSchema>;
 export const applyToRoleSchema = z
-  .object({ purpose: z.string().min(1).max(4000) })
+  .object({ purpose: z.string().min(1), restart: z.boolean().optional() })
   .strict();
 export const applyToRoleTool = {
   type: "function" as const,
   function: {
     name: APPLY_TO_ROLE,
     description:
-      "Fill the current role's public application form using the user's selected final resume and confirmed answers. Available only in Apply with Harper after ready_for_role and the user authorizes applying with the prepared resume, plus review of all known required supporting documents and substantive written answers. Prepare missing materials before invoking this tool. Saves a resumable browser run, can ask for missing information, and requires user confirmation before final submission. Login and CAPTCHA are unsupported. Ends this turn; the application delivers questions or a verified outcome later.",
+      "Fill the current role's public application form using the user's selected final resume and confirmed answers after ready_for_role and authorization to apply. Prepare known required materials first. Reuses an in-progress run; retries a failed attempt when no submission was sent. Returns the recorded outcome when submission succeeded or may have happened. Set restart=true only when the user explicitly requests a NEW attempt knowing that prior outcome; a retry request after a known pre-submission failure needs no extra confirmation. Resuming saved preparation preserves the prior outcome. A saved-stage applied label alone is not a website receipt. New attempts preserve previous outcomes and require fresh final submission approval. Login/CAPTCHA are unsupported. Yields only while a run or question is pending; otherwise use the returned facts to answer the user.",
     parameters: {
       type: "object",
       additionalProperties: false,
       required: ["purpose"],
-      properties: { purpose: { type: "string" } },
+      properties: {
+        purpose: { type: "string" },
+        restart: { type: "boolean", description: "Explicit user authorization for a new attempt despite a confirmed or uncertain prior submission. Does not override running work or grant final submission approval." },
+      },
     },
   },
 };

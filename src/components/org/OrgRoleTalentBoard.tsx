@@ -2,10 +2,7 @@ import { OrgSavedCandidates } from "./OrgSavedCandidates";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
 import { OrgAcceptIntroButton } from "./OrgAcceptIntroButton";
-import { canUsePendingConnections } from "@/lib/org/billing/types";
-import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
-import { OrgPendingConnectionGate } from "@/components/org/billing/OrgPendingConnectionGate";
-import { GraduationCap, LockKeyhole } from "lucide-react";
+import { GraduationCap } from "lucide-react";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { localizeOrgProfilePeriod } from "@/i18n/org/profilePeriod";
 import {
@@ -588,12 +585,6 @@ export function OrgRoleTalentBoard({
     requestCandidateReengagementBeforeStageChange,
   } = useOrgJobsCandidateActions();
   const { activeRole, selectTalent, workspaceId } = useOrgJobsNavigation();
-  const entitlements = useOrgEntitlements(workspaceId);
-  const pendingHidden = !canUsePendingConnections(
-    entitlements.data,
-    activeRole?.roleId
-  );
-  const pendingLocked = Boolean(entitlements.data) && pendingHidden;
   const {
     bootstrap,
     currentUser,
@@ -858,16 +849,7 @@ export function OrgRoleTalentBoard({
                         "flex items-center justify-center text-neutral-700 ml-0.5 text-xs"
                       )}
                     >
-                      {stage.id === "pending_connection" && pendingLocked ? (
-                        <LockKeyhole
-                          aria-label={
-                            locale === "ko" ? "유료 슬롯" : "Paid slot"
-                          }
-                          className="size-3"
-                        />
-                      ) : (
-                        (stageCounts.get(stage.id) ?? 0)
-                      )}
+                      {stageCounts.get(stage.id) ?? 0}
                     </span>
                   </span>
                 ),
@@ -1000,29 +982,7 @@ export function OrgRoleTalentBoard({
         )}
       >
         {selectedStage?.id === "accepted" ? <InternalOnlyHatch /> : null}
-        {selectedStageId === "pending_connection" && !entitlements.data && (
-          <div
-            className="col-span-full py-8 text-sm text-neutral-muted"
-            role="status"
-          >
-            {entitlements.isError ? (
-              <MuteButton onClick={() => void entitlements.refetch()}>
-                {locale === "ko" ? "이용 권한 다시 확인" : "Retry access check"}
-              </MuteButton>
-            ) : locale === "ko" ? (
-              "불러오는 중이에요."
-            ) : (
-              "Loading…"
-            )}
-          </div>
-        )}
-        {pendingLocked && selectedStageId === "pending_connection" ? (
-          <OrgPendingConnectionGate workspaceId={workspaceId} />
-        ) : null}
-        {(pendingHidden && selectedStageId === "pending_connection"
-          ? []
-          : items
-        ).map((item) => (
+        {items.map((item) => (
           <OrgRoleTalentBoardCard
             canManageCandidates={permissions.canManageCandidates}
             internalOpsAccess={internalOpsAccess}

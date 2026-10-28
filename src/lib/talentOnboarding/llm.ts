@@ -1,3 +1,4 @@
+import { formatToolResultText } from "@/lib/llm/promptText";
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { runToolCall, unwrapToolCall, prepareToolDelivery, observeToolCall } from "@/lib/llm/toolExecution";
 import { toolErrorResult, serializeToolResultForModel } from "@/lib/llm/toolError";
@@ -516,7 +517,7 @@ export async function runTalentAssistantToolLoop(args: {
         role: "tool",
         tool_call_id: String(skippedToolCall.id ?? crypto.randomUUID()),
         name: String(skippedToolCall.function?.name ?? "unknown_tool"),
-        content: JSON.stringify({
+        content: formatToolResultText({
           error: "Tool call limit reached. Continue without more tool usage.",
         }),
       });
@@ -543,7 +544,7 @@ export async function runTalentAssistantToolLoop(args: {
       if (callError || args.toolRuntime?.isInternalTool(toolName)) {
         const loadCapture = await runToolCall(async () => callError ? { ok: false, error: callError } : args.toolRuntime!.load(parsedArguments, capabilityStep!), { callId: toolCallId, name: toolName });
         if (!loadCapture.returned) throwIfToolControlError(loadCapture.error);
-        workingMessages.push({ role: "tool", tool_call_id: toolCallId, name: toolName, content: prepareToolDelivery(loadCapture, value => JSON.stringify(value)) });
+        workingMessages.push({ role: "tool", tool_call_id: toolCallId, name: toolName, content: prepareToolDelivery(loadCapture, formatToolResultText) });
         continue;
       }
       attemptedToolNames.push(toolName);
@@ -593,12 +594,12 @@ export async function runTalentAssistantToolLoop(args: {
           role: "tool",
           tool_call_id: toolCallId,
           name: toolName,
-          content: prepareToolDelivery(toolCapture, value => JSON.stringify(value)),
+          content: prepareToolDelivery(toolCapture, formatToolResultText),
         });
         if (stopAfterToolNameSet.has(toolName) || (result !== null && typeof result === "object" && "awaitingUserInput" in result && result.awaitingUserInput === true)) {
           for (const pending of executableToolCalls.slice(executableToolCalls.indexOf(toolCall) + 1)) {
             workingMessages.push({ role: "tool", tool_call_id: pending.id, name: pending.function?.name,
-              content: JSON.stringify({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });
+              content: formatToolResultText({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });
           }
           return "";
         }
@@ -616,7 +617,7 @@ export async function runTalentAssistantToolLoop(args: {
           role: "tool",
           tool_call_id: toolCallId,
           name: toolName,
-          content: serializeToolResultForModel(toolErrorResult(error), value => JSON.stringify(value), capturedDiagnostics),
+          content: serializeToolResultForModel(toolErrorResult(error), formatToolResultText, capturedDiagnostics),
         });
       }
     }

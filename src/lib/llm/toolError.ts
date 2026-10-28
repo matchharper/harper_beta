@@ -1,3 +1,5 @@
+import { formatToolResultText } from "./promptText";
+
 /** Diagnostic transport only: business outcomes and recovery remain source-owned. */
 export const TOOL_MODEL_DIAGNOSTIC = Symbol.for("harper.toolModelDiagnostic");
 
@@ -164,7 +166,7 @@ export function projectToolDiagnosticFieldsForTransport(value: unknown): unknown
   return projection;
 }
 
-export function prepareToolResultForModel(value: unknown, render: (value: unknown) => string = value => JSON.stringify(value), diagnostics = toolResultDiagnostics(value)): { content: string; diagnosticText?: string } {
+export function prepareToolResultForModel(value: unknown, render: (value: unknown) => string = formatToolResultText, diagnostics = toolResultDiagnostics(value)): { content: string; diagnosticText?: string } {
   let base: string;
   try {
     const projection = projectToolDiagnosticFieldsForTransport(value);
@@ -177,7 +179,7 @@ export function prepareToolResultForModel(value: unknown, render: (value: unknow
     return { content: `Tool result rendering failed.\n${formatToolError(error)}`, diagnosticText: formatToolError(diagnostics) };
   }
   if (!diagnostics.length) return { content: base };
-  // Valid JSON consumers (including assistantInstruction readers) keep valid JSON.
+  // Keep diagnostics separate from the tool's model projection.
   const additional = formatToolError(diagnostics.length === 1 ? diagnostics[0] : diagnostics);
   return { content: base, diagnosticText: additional };
 }
@@ -196,7 +198,7 @@ export function appendToolDiagnosticText(base: string, additional?: string): str
 }
 
 
-export function serializeToolResultForModel(value: unknown, render: (value: unknown) => string = value => JSON.stringify(value), diagnostics = toolResultDiagnostics(value)): string {
+export function serializeToolResultForModel(value: unknown, render: (value: unknown) => string = formatToolResultText, diagnostics = toolResultDiagnostics(value)): string {
   const prepared = prepareToolResultForModel(value, render, diagnostics);
   return appendToolDiagnosticText(prepared.content, prepared.diagnosticText);
 }

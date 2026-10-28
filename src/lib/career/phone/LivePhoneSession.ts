@@ -5,26 +5,28 @@ import { buildLiveSessionUpdateEvents, type LiveSessionInstructionUpdate } from 
 import { parseCareerEndCallArguments } from "../realtimeEndCall";
 
 type Json = Record<string, any>;
+export type LiveAudioTransport = Pick<CallSession, "sendAudio" | "clearAudio" | "hangup" | "recordEndReason" | "recordToolCall">;
 export type PhoneTranscript = { role: "user" | "assistant"; text: string; timestamp: string };
 export type PhoneToolCall = { callId: string; name: string; arguments: string };
 export type PhoneSessionCallbacks = {
   config: Json;
   apiKey: string;
   userId: string;
+  audioFormat?: { type: "audio/pcm"; rate: 16000 | 24000 } | { type: "audio/pcmu"; rate: 8000 };
   onTurn: (turn: { userMessage: string; assistantMessage: string }) => Promise<{ liveSessionUpdate?: LiveSessionInstructionUpdate | null; shouldEndCall?: boolean }>;
   onTool: (call: PhoneToolCall) => Promise<string>;
   onUsage: (kind: "audio" | "delegation", event: Json) => Promise<void>;
   onEvent: (event: Json) => void;
 };
 
-/** Adapts the existing GPT-Live event contract to ClawOps' G.711 audio transport. */
+/** Shared server-side Live loop. Phone defaults to G.711; Meet supplies PCM. */
 export class LivePhoneSession implements Session {
   readonly transcript: PhoneTranscript[] = [];
   readonly errors: string[] = [];
   completeOnboarding = false;
   startedAt: string | null = null;
   private socket?: WebSocket;
-  private call?: CallSession;
+  private call?: LiveAudioTransport;
   private ready = false;
   private closing = false;
   private stopped?: Promise<void>;
@@ -47,7 +49,7 @@ export class LivePhoneSession implements Session {
   async prewarm(): Promise<void> { throw new Error("This phone session starts only after the intended recipient answers."); }
   async attach(call: CallSession): Promise<void> { await this.start(call); }
 
-  async start(call: CallSession): Promise<void> {
+  async start(call: LiveAudioTransport): Promise<void> {
     if (this.call) throw new Error("A LivePhoneSession can only serve one call.");
     this.call = call;
     this.startedAt = new Date().toISOString();
@@ -62,7 +64,7 @@ export class LivePhoneSession implements Session {
       const fail = (error: Error) => { clearTimeout(timeout); reject(error); this.fail(error); };
       socket.once("open", () => this.send({
         type: "session.start", event_id: randomUUID(),
-        session: { ...this.callbacks.config, audio: { ...this.callbacks.config.audio, format: { type: "audio/pcmu", rate: 8000 } } },
+        session: { ...this.callbacks.config, audio: { ...this.callbacks.config.audio, format: this.callbacks.audioFormat ?? { type: "audio/pcmu", rate: 8000 } } },
       }));
       socket.on("message", bytes => {
         try {

@@ -26,7 +26,7 @@ export const applicationFormSchema = z.object({
   limitations: z.array(z.string()),
   submission: applicationSubmissionSchema.optional(),
   // Public source text preserves form-wide instructions outside any single input.
-  text: z.string().max(40000).optional(),
+  text: z.string().optional(),
   fields: z
     .array(
       z.object({
@@ -38,7 +38,6 @@ export const applicationFormSchema = z.object({
         fileTypes: z.array(z.string()),
         maxLength: z.number().nullable(),
       })
-    )
-    .max(150),
+    ),
 });
 export type ApplicationForm = z.infer<typeof applicationFormSchema>;

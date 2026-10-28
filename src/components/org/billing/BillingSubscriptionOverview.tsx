@@ -137,7 +137,7 @@ export function BillingSubscriptionOverview({
                 : c("월 공용 Intro", "Monthly shared Intros")}
             </dt>
             <dd className="mt-2 text-[22px] font-medium tabular-nums">
-              {unlimited ? "∞" : legacy ? "—" : paid.length ? 50 : 10}
+              {unlimited ? "∞" : legacy ? "—" : paid.length ? 50 : 3}
             </dd>
             <MuteButton
               size="sm"
