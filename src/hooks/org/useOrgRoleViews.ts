@@ -46,7 +46,29 @@ export function useOrgRoleListColumns(args: {
       ),
     onSuccess: (data) => client.setQueryData(queryKey, data),
   });
-  return { columns: query.data?.columns ?? [], query, remove };
+  // Candidates who joined the list after a column was made get their cells
+  // written by Harper when the list shows them.
+  const fillKey = ["org-role-list-column-fill", args.workspaceId, roleId];
+  const fill = useMutation({
+    mutationKey: fillKey,
+    mutationFn: (input: { columnId: string; talentIds: string[] }) =>
+      fetchWithInternalAuth<{ columns: OrgRoleListColumn[] }>(
+        "/api/org/role-views",
+        {
+          body: JSON.stringify({
+            action: "fill_column",
+            columnId: input.columnId,
+            roleId,
+            talentIds: input.talentIds,
+            workspaceId: args.workspaceId,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      ),
+    onSuccess: (data) => client.setQueryData(queryKey, data),
+  });
+  return { columns: query.data?.columns ?? [], fill, fillKey, query, remove };
 }
 
 export const orgBoardLayoutKey = (workspaceId: string, roleId: string) => [

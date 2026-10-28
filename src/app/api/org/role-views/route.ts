@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { OrgHttpError } from "@/lib/org/server";
 import {
+  fillOrgRoleListColumn,
   getOrgBoardLayout,
   listOrgRoleListColumns,
   removeOrgRoleListColumn,
@@ -63,7 +64,15 @@ const input = z.discriminatedUnion("action", [
     action: z.literal("remove_column"),
     columnId: z.string().uuid(),
   }),
+  scope.extend({
+    action: z.literal("fill_column"),
+    columnId: z.string().uuid(),
+    talentIds: z.array(z.string().uuid()),
+  }),
 ]);
+
+// Filling cells calls a model once per batch of candidates.
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -71,6 +80,10 @@ export async function POST(req: NextRequest) {
     const parsed = input.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new OrgHttpError(400, "Invalid request");
     const body = parsed.data;
+    if (body.action === "fill_column") {
+      const { columns } = await fillOrgRoleListColumn({ ...body, user });
+      return NextResponse.json({ columns, ok: true });
+    }
     if (body.action === "remove_column") {
       const { columns } = await removeOrgRoleListColumn({ ...body, user });
       return NextResponse.json({ columns, ok: true });

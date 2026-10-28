@@ -4,7 +4,14 @@ import {
   LoaderCircle,
   X,
 } from "lucide-react";
-import { type DragEvent, type ReactNode, useState } from "react";
+import {
+  type DragEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useMutationState } from "@tanstack/react-query";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -169,7 +176,44 @@ export function OrgInboxListTable({
 }) {
   const { c, locale } = useOrgLocale();
   const sourceT = useOrgSourceT();
-  const { columns, remove } = useOrgRoleListColumns({ roleId, workspaceId });
+  const { columns, fill, fillKey, remove } = useOrgRoleListColumns({
+    roleId,
+    workspaceId,
+  });
+  // Cells for candidates who arrived after a column was made are written
+  // once per column and candidate; meanwhile those cells show a skeleton.
+  const requested = useRef(new Set<string>());
+  const fillMutate = fill.mutate;
+  useEffect(() => {
+    for (const column of columns) {
+      const missing = items
+        .map((item) => item.talent.userId)
+        .filter(
+          (talentId) =>
+            talentId &&
+            !(talentId in column.values) &&
+            !requested.current.has(`${column.id}:${talentId}`)
+        );
+      if (!missing.length) continue;
+      for (const talentId of missing) {
+        requested.current.add(`${column.id}:${talentId}`);
+      }
+      fillMutate({ columnId: column.id, talentIds: missing });
+    }
+  }, [columns, fillMutate, items]);
+  const filling = new Set(
+    useMutationState({
+      filters: { mutationKey: fillKey, status: "pending" },
+      select: (mutation) =>
+        mutation.state.variables as
+          | { columnId: string; talentIds: string[] }
+          | undefined,
+    }).flatMap((input) =>
+      input
+        ? input.talentIds.map((talentId) => `${input.columnId}:${talentId}`)
+        : []
+    )
+  );
   const { user } = useOrgWorkspace();
   // Columns are added by Harper in this Role's chat, which reads the
   // candidates' profiles and fills the cells.
@@ -250,6 +294,9 @@ export function OrgInboxListTable({
     ...columns.map((column) => ({
       cell: (item: OrgBoardItem) => {
         const value = column.values[item.talent.userId];
+        if (!value && filling.has(`${column.id}:${item.talent.userId}`)) {
+          return <Skeleton className="h-3 w-24" />;
+        }
         return value ? (
           <span
             className="line-clamp-2 whitespace-pre-wrap text-neutral-primary"
