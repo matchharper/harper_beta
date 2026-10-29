@@ -12,6 +12,9 @@ const packageAsset = (packageName, asset) =>
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    webpackMemoryOptimizations: true,
+  },
   // Inline the same real package paths used by tracing. Serverless bundles do
   // not necessarily preserve pnpm's top-level node_modules symlinks.
   env: {
