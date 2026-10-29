@@ -26,6 +26,7 @@ before(async () => {
   const mod = Module as any,
     original = mod._load;
   const mocks: Record<string, unknown> = {
+    "server-only": {},
     "@/lib/org/billing/http": { billingErrorResponse: () => null },
     "@/lib/server/candidateAccess": {
       requireAuthenticatedUser: async () => ({ id: "member" }),

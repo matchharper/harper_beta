@@ -22,7 +22,9 @@ test("Align preserves profile facts and verdicts in the shared information body"
   try {
     const body = dom.window.document.body;
     const text = body.textContent ?? "";
-    for (const value of [candidate.name, candidate.headline, candidate.location,
+    // The header names the job the person holds now; the headline is the fallback.
+    const currentRole = `${profile.experiences[0].role} at ${profile.experiences[0].company}`;
+    for (const value of [candidate.name, currentRole, candidate.location,
       candidate.verdict!.tldr, profile.experiences[0].company,
       profile.experiences[0].description, "예시대학교", "시각디자인", "2015 – 2019"]) {
       assert.ok(value && text.includes(value));

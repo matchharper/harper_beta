@@ -17,6 +17,7 @@ before(async () => {
   };
   const original = mod._load;
   const mocks: Record<string, unknown> = {
+    "server-only": {},
     "@/lib/meetings/scheduleDraftServer": {
       prepareMeetingScheduleDraftForStage: async () => {
         calls.push("prepare");
