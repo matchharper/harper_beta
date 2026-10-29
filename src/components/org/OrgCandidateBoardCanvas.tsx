@@ -202,7 +202,9 @@ export function OrgCandidateBoardCanvas(props: BoardProps) {
     roleId: props.roleId,
     workspaceId: props.workspaceId,
   });
-  if (cards.isPending || viewportQuery.isPending) {
+  const viewportReading =
+    viewportQuery.isPending && viewportQuery.failureCount === 0;
+  if (cards.reading || viewportReading) {
     return <div aria-busy="true" className={BOARD_CLASS} />;
   }
   // A failed read starts from an empty arrangement; moving cards saves anew.

@@ -406,9 +406,8 @@ function OrgRoleCreationDetails({
     >
       {role && !roleCreation ? (
         <OrgCriteriaRecheckWatcher
-          items={inboxBoardQuery.data?.items}
-          refetch={inboxBoardQuery.refetch}
           roleId={role.roleId}
+          workspaceId={workspace.workspaceId}
         />
       ) : null}
       <DocumentEditorPanelProvider key={role?.roleId ?? "loading"}>

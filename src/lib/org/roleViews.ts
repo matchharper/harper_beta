@@ -1,5 +1,10 @@
 // Shapes shared by the inbox list columns, the board view and their API.
 
+/** Candidates whose cells one fill request writes; the list sends the rest after. */
+export const ORG_LIST_COLUMN_FILL_BATCH = 20;
+/** The cell for a candidate whose profile does not show the fact. */
+export const ORG_LIST_COLUMN_NOT_SHOWN = "—";
+
 /** A comparison column the company asked Harper to add to the inbox list. */
 export type OrgRoleListColumn = {
   description: string | null;

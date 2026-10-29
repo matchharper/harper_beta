@@ -33,6 +33,7 @@ import {
   companyCriterionScoreLabel,
   type OrgCompanyCriteriaEvaluation,
 } from "@/lib/org/companyCriteriaEvaluations";
+import { ORG_LIST_COLUMN_FILL_BATCH } from "@/lib/org/roleViews";
 import type { OrgBoardItem, OrgBoardProfileLabel } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 
@@ -186,8 +187,10 @@ export function OrgInboxListTable({
   });
   // Cells for candidates who arrived after a column was made are written
   // once per column and candidate; meanwhile those cells show a skeleton.
+  // The server writes one batch per request, so batches go one after
+  // another and never overwrite each other's cells.
   const requested = useRef(new Set<string>());
-  const fillMutate = fill.mutate;
+  const fillAsync = fill.mutateAsync;
   useEffect(() => {
     for (const column of columns) {
       const missing = items
@@ -202,9 +205,28 @@ export function OrgInboxListTable({
       for (const talentId of missing) {
         requested.current.add(`${column.id}:${talentId}`);
       }
-      fillMutate({ columnId: column.id, talentIds: missing });
+      void (async () => {
+        for (
+          let start = 0;
+          start < missing.length;
+          start += ORG_LIST_COLUMN_FILL_BATCH
+        ) {
+          try {
+            await fillAsync({
+              columnId: column.id,
+              talentIds: missing.slice(
+                start,
+                start + ORG_LIST_COLUMN_FILL_BATCH
+              ),
+            });
+          } catch {
+            // Asked again the next time the list opens.
+            return;
+          }
+        }
+      })();
     }
-  }, [columns, fillMutate, items]);
+  }, [columns, fillAsync, items]);
   const filling = new Set(
     useMutationState({
       filters: { mutationKey: fillKey, status: "pending" },

@@ -155,7 +155,10 @@ export function useOrgBoardCards(args: {
     () => ({ ...(data?.positions ?? {}), ...locals }),
     [data, locals]
   );
-  return { isPending: query.isPending, positions, sync };
+  // Only the first read is waited for: once it fails, the board shows with
+  // cards in free spots while it keeps trying.
+  const reading = query.isPending && query.failureCount === 0;
+  return { positions, reading, sync };
 }
 
 /** This person's last zoom and pan on a Role's board. */

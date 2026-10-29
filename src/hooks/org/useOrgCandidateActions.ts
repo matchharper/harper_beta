@@ -368,6 +368,9 @@ export function useOrgCandidateActions(args: {
       introEmails: null,
       recommendationId,
       roleId,
+      // The stage the person saw: a teammate's move in the meantime (for
+      // example a connection from Slack during the undo window) wins.
+      sourceStage: args.detail?.recommendation.stage,
       stage: "process_stopped",
       notifyCandidateOnClosure: options.notifyCandidateOnClosure,
       stopNote: options.stopNote ?? null,

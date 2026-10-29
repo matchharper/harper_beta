@@ -5,7 +5,12 @@ import { create } from "zustand";
 // treat the candidates as already handled.
 export const ORG_UNDO_WINDOW_MS = 5_000;
 
-type PendingAction = { recommendationIds: string[]; timer: number };
+type PendingAction = {
+  recommendationIds: string[];
+  /** Sent to the server; too late to undo, but closing the tab would cut it. */
+  running: boolean;
+  timer: number;
+};
 
 const pendingActions = new Map<string, PendingAction>();
 
@@ -62,18 +67,22 @@ export const useOrgDeferredActionStore = create<OrgDeferredActionStore>()((
       const id = crypto.randomUUID();
       update(recommendationIds, stage);
       const timer = window.setTimeout(() => {
-        trackPending(id, null);
+        // The leave-page warning stays until every decision has gone out.
+        trackPending(id, { recommendationIds, running: true, timer: 0 });
         void Promise.resolve()
           .then(run)
           .catch(() => undefined)
-          .finally(() => update(recommendationIds, undefined));
+          .finally(() => {
+            trackPending(id, null);
+            update(recommendationIds, undefined);
+          });
       }, delayMs);
-      trackPending(id, { recommendationIds, timer });
+      trackPending(id, { recommendationIds, running: false, timer });
       return id;
     },
     cancel: (id) => {
       const action = pendingActions.get(id);
-      if (!action) return false;
+      if (!action || action.running) return false;
       window.clearTimeout(action.timer);
       trackPending(id, null);
       update(action.recommendationIds, undefined);

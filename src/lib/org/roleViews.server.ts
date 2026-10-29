@@ -1,8 +1,14 @@
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
-import { assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
 import {
+  assertOrgRoleAccess,
+  fetchOrgBoard,
+  OrgHttpError,
+} from "@/lib/org/server";
+import {
+  ORG_LIST_COLUMN_FILL_BATCH,
+  ORG_LIST_COLUMN_NOT_SHOWN,
   normalizeOrgBoardPositions,
   normalizeOrgBoardText,
   normalizeOrgBoardViewport,
@@ -461,8 +467,6 @@ export async function deleteOrgBoardText(args: {
 
 // ---------------------------------------------------------------- auto fill
 
-/** Candidates filled per request; the list asks again for the rest. */
-const FILL_BATCH = 20;
 /** Long job descriptions are cut to keep one request small. */
 const DESCRIPTION_CHARS = 600;
 
@@ -489,33 +493,24 @@ type EducationRow = {
   talent_id: string;
 };
 
-/** Talents that are candidates of this Role, out of the given ones. */
-async function roleCandidateIds(args: {
+/**
+ * Of the given talents, those this person sees among the Role's candidates,
+ * by the same rules as the inbox (hidden, removed and closed-off candidates
+ * are left out), so no other profile is sent to the model.
+ */
+async function visibleRoleCandidateIds(args: {
   roleId: string;
   talentIds: string[];
+  user: User;
   workspaceId: string;
 }) {
-  const admin = getSupabaseAdmin();
-  const [recommended, suggested] = await Promise.all([
-    admin
-      .from("talent_opportunity_recommendation")
-      .select("talent_id")
-      .eq("role_id", args.roleId)
-      .in("talent_id", args.talentIds),
-    admin
-      .from("company_intro_candidates")
-      .select("talent_id")
-      .eq("role_id", args.roleId)
-      .eq("company_workspace_id", args.workspaceId)
-      .in("talent_id", args.talentIds),
-  ]);
-  if (recommended.error) throw recommended.error;
-  if (suggested.error) throw suggested.error;
-  return new Set<string>(
-    [...(recommended.data ?? []), ...(suggested.data ?? [])].map(
-      (row: { talent_id: string }) => row.talent_id
-    )
-  );
+  const board = await fetchOrgBoard({
+    roleId: args.roleId,
+    talentIds: args.talentIds,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  return new Set(board.items.map((item) => item.talentId));
 }
 
 const month = (value: string | null) => (value ? value.slice(0, 7) : "");
@@ -678,20 +673,28 @@ export async function fillOrgRoleListColumn(args: {
   if (!column) throw new OrgHttpError(404, "비교 열을 찾을 수 없어요.");
   const wanted = [...new Set(args.talentIds)]
     .filter((talentId) => talentId && !(talentId in column.values))
-    .slice(0, FILL_BATCH);
+    .slice(0, ORG_LIST_COLUMN_FILL_BATCH);
   if (!wanted.length) return { columns };
-  const allowed = await roleCandidateIds({
+  const allowed = await visibleRoleCandidateIds({
     roleId: args.roleId,
     talentIds: wanted,
+    user: args.user,
     workspaceId: args.workspaceId,
   });
   const talentIds = wanted.filter((talentId) => allowed.has(talentId));
   if (!talentIds.length) return { columns };
-  const values = await writeColumnCells({
+  const written = await writeColumnCells({
     column,
     profiles: await readProfiles(talentIds),
   });
-  if (!Object.keys(values).length) return { columns };
+  // A candidate the model left out still gets a cell, so the list does not
+  // ask about them again every time it opens.
+  const values = Object.fromEntries(
+    talentIds.map((talentId) => [
+      talentId,
+      written[talentId] ?? ORG_LIST_COLUMN_NOT_SHOWN,
+    ])
+  );
   const result = await changeOrgRoleListColumns({
     change: { action: "update", columnId: column.id, values },
     roleId: args.roleId,

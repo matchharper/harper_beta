@@ -17,6 +17,11 @@ import {
 } from "@/store/useOrgDeferredActionStore";
 import { useToastStore } from "@/store/useToastStore";
 import { useRouter } from "next/router";
+import {
+  namesForToast,
+  runEach,
+  type OrgDecisionOutcome,
+} from "@/lib/org/decisionRun";
 import { buildOrgHref } from "@/lib/org/routes";
 
 // "연결됨으로", "1차 인터뷰로": picks the particle from the label's last syllable.
@@ -25,29 +30,6 @@ function withDirectionParticle(label: string) {
   if (code < 0 || code > 11171) return `${label}(으)로`;
   const finalConsonant = code % 28;
   return `${label}${finalConsonant === 0 || finalConsonant === 8 ? "로" : "으로"}`;
-}
-
-async function runEach<T>(
-  items: T[],
-  run: (item: T) => Promise<unknown>,
-  concurrency = 3
-) {
-  const failures: unknown[] = [];
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const item = items[next++];
-      try {
-        await run(item);
-      } catch (error) {
-        failures.push(error);
-      }
-    }
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, worker)
-  );
-  return failures;
 }
 
 /**
@@ -91,19 +73,54 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
         })
       : c("{p0}명", "{p0} candidates", { p0: items.length });
 
-  const reportFailures = (failures: unknown[], fallback: string) => {
-    if (!failures.length) return;
-    addToast({
-      message:
-        failures.length === 1
-          ? localizedOrgErrorMessage(failures[0], locale, fallback)
-          : c(
-              "{p0}명은 처리하지 못했어요. 후보자 상태를 확인한 뒤 다시 시도해 주세요.",
-              "{p0} candidates couldn't be updated. Check their status and try again.",
-              { p0: failures.length }
-            ),
-      variant: "error",
-    });
+  const nameOf = (item: OrgBoardItem) =>
+    sourceT(item.talent.name || item.talent.email || "이름 없음");
+  const names = (items: OrgBoardItem[]) =>
+    namesForToast(items.map(nameOf), (n) =>
+      c("외 {p0}명", "and {p0} more", { p0: n })
+    );
+
+  /**
+   * One summary after the decisions ran. A single candidate that did not
+   * change already shows why (a dialog or its own message); with several,
+   * the ones that did not change are named so none looks done by mistake.
+   */
+  const report = <T>(
+    { failures, unchanged }: OrgDecisionOutcome<T>,
+    fallback: string,
+    itemOf: (target: T) => OrgBoardItem | null
+  ) => {
+    const total = failures.length + unchanged.length;
+    if (!total) return;
+    if (failures.length === 1 && !unchanged.length) {
+      addToast({
+        message: localizedOrgErrorMessage(failures[0].error, locale, fallback),
+        variant: "error",
+      });
+      return;
+    }
+    const failed = failures.flatMap(({ item }) => itemOf(item) ?? []);
+    const skipped = unchanged.flatMap((target) => itemOf(target) ?? []);
+    if (failed.length) {
+      addToast({
+        message: c(
+          "{p0}명은 처리하지 못했어요: {p1}. 후보자 상태를 확인한 뒤 다시 시도해 주세요.",
+          "Couldn't update {p0}: {p1}. Check their status and try again.",
+          { p0: failed.length, p1: names(failed) }
+        ),
+        variant: "error",
+      });
+    }
+    if (skipped.length > 0 && failed.length + skipped.length > 1) {
+      addToast({
+        message: c(
+          "{p0}명은 그대로예요: {p1}. 이미 다른 단계에 있거나 확인이 필요해요.",
+          "{p0} unchanged: {p1}. They may already be elsewhere or need a check.",
+          { p0: skipped.length, p1: names(skipped) }
+        ),
+        variant: "error",
+      });
+    }
   };
 
   const defer = ({
@@ -191,7 +208,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
       recommendationIds: items.map((item) => item.recommendationId),
       roleId: items[0]?.roleId,
       run: async () =>
-        reportFailures(
+        report(
           await runEach(targets, (target) =>
             changeStage(
               target.item,
@@ -200,7 +217,8 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
               "silent"
             )
           ),
-          rejectFailure()
+          rejectFailure(),
+          (target) => target.item
         ),
       stage: "process_stopped",
     });
@@ -228,7 +246,11 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
       ),
       recommendationIds: [recommendationId],
       run: async () =>
-        reportFailures(await runEach([run], (task) => task()), rejectFailure()),
+        report(
+          await runEach([run], (task) => task()),
+          rejectFailure(),
+          () => null
+        ),
       stage: "process_stopped",
     });
 
@@ -252,18 +274,21 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
       recommendationIds: intros.map((item) => item.recommendationId),
       roleId: intros[0]?.roleId,
       run: async () =>
-        reportFailures(
+        report(
           await runEach(targets, (target) =>
-            passCompanyIntro.mutateAsync({
-              introCandidateId: target.introCandidateId,
-              reason: target.reason,
-              workspaceId,
-            })
+            passCompanyIntro
+              .mutateAsync({
+                introCandidateId: target.introCandidateId,
+                reason: target.reason,
+                workspaceId,
+              })
+              .then(() => true)
           ),
           c(
             "Pass하지 못했어요. 다시 시도해 주세요.",
             "Couldn't pass. Try again."
-          )
+          ),
+          (target) => target.item
         ),
       stage: "process_stopped",
     });
@@ -295,19 +320,22 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
       recommendationIds: targets.map((target) => target.item.recommendationId),
       roleId: targets[0]?.item.roleId,
       run: async () =>
-        reportFailures(
+        report(
           await runEach(targets, (target) =>
-            requestCompanyIntro.mutateAsync({
-              companyAppeal: target.appeal,
-              introCandidateId: target.introCandidateId,
-              introRecipientEmails,
-              workspaceId,
-            })
+            requestCompanyIntro
+              .mutateAsync({
+                companyAppeal: target.appeal,
+                introCandidateId: target.introCandidateId,
+                introRecipientEmails,
+                workspaceId,
+              })
+              .then(() => true)
           ),
           c(
             "Intro를 보내지 못했어요. 다시 시도해 주세요.",
             "Couldn't send the intro. Try again."
-          )
+          ),
+          (target) => target.item
         ),
       stage: "intro_requested",
     });
@@ -322,20 +350,23 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
       recommendationIds: items.map((item) => item.recommendationId),
       roleId: items[0]?.roleId,
       run: async () =>
-        reportFailures(
+        report(
           await runEach(items, (item) =>
-            saveCandidate.mutateAsync({
-              recommendationId: item.recommendationId,
-              roleId: item.roleId,
-              saved: true,
-              talentId: item.talentId,
-              workspaceId,
-            })
+            saveCandidate
+              .mutateAsync({
+                recommendationId: item.recommendationId,
+                roleId: item.roleId,
+                saved: true,
+                talentId: item.talentId,
+                workspaceId,
+              })
+              .then(() => true)
           ),
           c(
             "저장하지 못했어요. 다시 시도해 주세요.",
             "Couldn't save. Try again."
-          )
+          ),
+          (item) => item
         ),
     });
   };
@@ -375,21 +406,17 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
       recommendationIds: items.map((item) => item.recommendationId),
       roleId: items[0]?.roleId,
       run: async () =>
-        reportFailures(
+        report(
           await runEach(items, (item) =>
             changeStage(
               item,
               submit.stage,
-              submit.options(
-                toOrgStageMoveCandidate(
-                  item,
-                  sourceT(item.talent.name || item.talent.email || "이름 없음")
-                )
-              ),
+              submit.options(toOrgStageMoveCandidate(item, nameOf(item))),
               "silent"
             )
           ),
-          moveFailure()
+          moveFailure(),
+          (item) => item
         ),
       stage: submit.stage,
     });
@@ -411,7 +438,11 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
       message: moveMessage(c("{p0}님", "{p0}", { p0: name }), submit),
       recommendationIds: [recommendationId],
       run: async () =>
-        reportFailures(await runEach([run], (task) => task()), moveFailure()),
+        report(
+          await runEach([run], (task) => task()),
+          moveFailure(),
+          () => null
+        ),
       stage: submit.stage,
     });
 

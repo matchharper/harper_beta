@@ -38,6 +38,8 @@ const ALL_LIMIT = 200;
 const PEOPLE_SHOWN = 3;
 /** A connection with no interview arranged through Harper after this long. */
 const INTERVIEW_NUDGE_DAYS = 3;
+/** A draft or failed request untouched this long is no longer a to-do. */
+const STALE_REQUEST_DAYS = 30;
 /**
  * Company requests from creation to the company seeing the answer. Sent and
  * not yet answered, answered and being passed on: all still under way.
@@ -529,6 +531,13 @@ export async function loadOrgRoleTodo(args: {
       source: messageSource.get(String(row.source_company_message_id)) ?? null,
       talent,
     };
+    const stale =
+      now.getTime() - Date.parse(base.at) > STALE_REQUEST_DAYS * DAY_MS;
+    if (
+      stale &&
+      (row.workflow_status === "draft" || row.workflow_status === "failed")
+    )
+      continue;
     if (row.workflow_status === "draft") {
       items.push({
         ...base,

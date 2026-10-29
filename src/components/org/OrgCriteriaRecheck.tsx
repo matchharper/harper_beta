@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import { useQuery } from "@tanstack/react-query";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
+import { orgBoardQueryOptions } from "@/hooks/org/useOrg";
 import { useOrgCandidateDecisionRunner } from "@/hooks/org/useOrgCandidateDecisionRunner";
 import { companyCriterionFitnessLabel } from "@/lib/org/companyCriteriaEvaluations";
 import { suggestOrgStopReasons } from "@/lib/org/evaluationSuggestions";
@@ -24,30 +26,42 @@ function inboxItemsOf(items: OrgBoardItem[] | undefined, roleId: string) {
   );
 }
 
+const hasKeys = (value: Record<string, unknown> | undefined) =>
+  Boolean(value && Object.keys(value).length);
+
 /**
  * Follows the background re-judging that a criteria change starts. When it
  * ends and some candidates no longer fit a changed criterion, asks the team
  * whether to review them now. Nothing is removed without the team's choice.
+ * Reads the Role's candidates only while there is something to follow.
  */
 export function OrgCriteriaRecheckWatcher({
-  items,
-  refetch,
   roleId,
+  workspaceId,
 }: {
-  items: OrgBoardItem[] | undefined;
-  refetch: () => unknown;
   roleId: string;
+  workspaceId: string;
 }) {
   const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const router = useRouter();
   const recheck = useOrgCriteriaRecheckStore((state) => state.roles[roleId]);
   const update = useOrgCriteriaRecheckStore((state) => state.update);
+  const expectedAt = recheck?.expectedAt;
+  const following =
+    Boolean(expectedAt) ||
+    hasKeys(recheck?.watching) ||
+    hasKeys(recheck?.found);
+  const boardQuery = useQuery({
+    ...orgBoardQueryOptions({ roleId, workspaceId }),
+    enabled: following && Boolean(roleId && workspaceId),
+  });
+  const items = following ? boardQuery.data?.items : undefined;
+  const refetch = boardQuery.refetch;
   const inbox = inboxItemsOf(items, roleId);
   const judging = inbox.some((item) =>
     item.criteriaEvaluations.some((evaluation) => evaluation.pending)
   );
-  const expectedAt = recheck?.expectedAt;
 
   // A save that reported re-judging is followed for a minute even if the
   // board has not shown it yet.
@@ -65,7 +79,8 @@ export function OrgCriteriaRecheckWatcher({
   const polling = judging || Boolean(expectedAt);
   useEffect(() => {
     if (!polling) return;
-    const timer = window.setInterval(() => void refetch(), 2_000);
+    // Re-judging takes a model call per candidate; every few seconds is enough.
+    const timer = window.setInterval(() => void refetch(), 5_000);
     return () => window.clearInterval(timer);
   }, [polling, refetch]);
 
