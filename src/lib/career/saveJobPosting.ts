@@ -1,6 +1,10 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { parseCareerJobUrl } from "./jobLinkImport";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
+import {
+  JobPostingDetailsRequiredError,
+  formatJobPostingReadFailures,
+} from "./jobPostingReadResult";
 
 export async function saveJobPosting(args: {
   admin: TalentAdminClient;
@@ -54,21 +58,43 @@ export async function saveJobPosting(args: {
       "This posting belongs to a Harper-connected or test-only role and cannot be imported here."
     );
   const { importCareerJobLink } = await import("./jobLinkImportServer");
-  const saved = await importCareerJobLink({
-    admin: args.admin,
-    talentId: args.talentId,
-    url: args.url,
-    savedStage: "saved",
-    preserveExistingProgress: true,
-    manual: { title: args.title, companyName: args.companyName },
-  });
+  let saved;
+  try {
+    saved = await importCareerJobLink({
+      admin: args.admin,
+      talentId: args.talentId,
+      url: args.url,
+      savedStage: "saved",
+      preserveExistingProgress: true,
+      manual: { title: args.title, companyName: args.companyName },
+    });
+  } catch (error) {
+    if (error instanceof JobPostingDetailsRequiredError)
+      return error.toToolResult();
+    throw error;
+  }
   return {
-    ok: true,
+    ok: true as const,
     roleId: saved.roleId,
     postingRoleIds: [saved.roleId],
     recommendationId: saved.recommendationId,
     created: saved.createdRecommendation,
     savedStage: saved.savedStage,
     postingLink: `[posting](${saved.roleId})`,
+    ...(saved.retrievalFailures?.length
+      ? {
+          retrievalFailures: saved.retrievalFailures,
+          modelOutput: [
+            "External posting saved.",
+            `Role ID: ${saved.roleId}`,
+            `Recommendation ID: ${saved.recommendationId}`,
+            `Created recommendation: ${saved.createdRecommendation}`,
+            `Saved stage: ${saved.savedStage}`,
+            `Posting link: [posting](${saved.roleId})`,
+            "Retrieval attempts that did not complete:",
+            formatJobPostingReadFailures(saved.retrievalFailures),
+          ].join("\n"),
+        }
+      : {}),
   };
 }

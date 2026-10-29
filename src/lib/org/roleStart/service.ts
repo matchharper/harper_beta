@@ -1,5 +1,7 @@
 import { formatPromptText } from "@/lib/llm/promptText";
 import "server-only";
+import { completeBriefPreparation } from "./briefPreparation";
+import { readRoleStartAccess } from "./access";
 
 import type { User } from "@supabase/supabase-js";
 import { billingErrorCode, type BillingErrorCode } from "@/lib/org/billing/types";
@@ -132,6 +134,7 @@ import {
   loadRoleStartSession,
   saveRoleStartBrief,
   saveRoleStartSession,
+  saveRoleStartCompensation,
   isRoleStartStalled,
   isRoleStartEnded,
   roleStartOwnsRole,
@@ -173,7 +176,6 @@ import {
   postRoleStartBriefReadyCard,
   postRoleStartQuestionCard,
   postRoleStartRegisteredMessage,
-  recordRoleStartAnswerInChat,
 } from "./chatCards";
 
 /** Mirror the open question (or the end of questions) into the role chat. */
@@ -288,12 +290,13 @@ export async function beginRoleStartDraft(args: Access): Promise<{
   session: RoleStartSession | null;
   completion: Promise<RoleStartSession | null>;
 }> {
-  const state = await access(args);
-  const existing = await loadRoleStartSession(args.roleId);
+  const existing = await loadRoleStartSession(args.roleId, { forView: true });
   // A draft that stopped writing (the request or its background work died) can start again.
   if (existing && !isRoleStartEnded(existing.phase) && !(existing.phase === "drafting" && isRoleStartStalled(existing))) {
+    await readRoleStartAccess(args);
     return { session: existing, completion: Promise.resolve(existing) };
   }
+  const state = await access(args);
   // Only a draft Role starts (or restarts) the flow: a Role already on keeps its own Brief.
   if (String(state.role.status ?? "").toLowerCase() !== "draft") {
     throw new OrgHttpError(409, "이미 시작된 역할은 역할 시작을 다시 켤 수 없어요.");
@@ -302,6 +305,7 @@ export async function beginRoleStartDraft(args: Access): Promise<{
   if (!String(source.description ?? "").trim() && !String(source.hiringBrief ?? "").trim()) {
     throw new OrgHttpError(409, "역할 설명이 저장된 뒤에 시작할 수 있어요.");
   }
+  let session: RoleStartSession;
   if (!existing) {
     // One draft per Role: when two starts race (the chat and the button), the
     // one that did not create the session returns the running one.
@@ -310,6 +314,7 @@ export async function beginRoleStartDraft(args: Access): Promise<{
       const session = await loadRoleStartSession(args.roleId, { forView: true });
       return { session, completion: Promise.resolve(session) };
     }
+    session = created;
   } else {
     const restarted = await saveRoleStartSession({
       roleId: args.roleId,
@@ -319,8 +324,8 @@ export async function beginRoleStartDraft(args: Access): Promise<{
       patch: { phase: "drafting", firstCandidates: [], evaluations: {}, batch: null },
     });
     if (!restarted) throw new OrgHttpError(409, "이미 다시 시작했어요.");
+    session = restarted;
   }
-  const session = await loadRoleStartSession(args.roleId, { forView: true });
   return { session, completion: buildRoleStartDraft(args, state) };
 }
 
@@ -351,7 +356,6 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
     const draftCall = callRoleStartJson<{
       hardConditions: RawBrief["hardConditions"];
       criteria: RawBrief["criteria"];
-      otherNotes: string[];
       questions: RawQuestion[];
     }>({
       label: "rubric_draft",
@@ -683,23 +687,10 @@ async function completeDraftPool(args: { roleId: string; roleName: string }) {
  * Brief or the question count.
  */
 export async function answerRoleStartCompensation(args: Access & { text?: string | null; skip?: boolean }) {
-  await access(args);
+  await readRoleStartAccess(args);
   const salary = args.skip ? "" : String(args.text ?? "").trim().slice(0, 200);
   if (!args.skip && !salary) throw new OrgHttpError(400, "연봉을 적거나 골라 주세요.");
-  const sql = roleStartSql();
-  await sql.begin(async (tx) => {
-    if (salary) {
-      await tx`update public.company_roles set salary_range = ${salary}, updated_at = now() where role_id = ${args.roleId}`;
-    }
-    await tx`
-      update public.company_role_start_sessions
-      -- A new revision: a save prepared before this one retries on the latest state instead of dropping it.
-      set questions = jsonb_set(questions, '{compensation}', ${sql.json(salary ? "answered" : "skipped")}),
-        revision = revision + 1, updated_at = now()
-      where role_id = ${args.roleId}
-    `;
-  });
-  return loadRoleStartSession(args.roleId, { forView: true });
+  return saveRoleStartCompensation(args.roleId, salary);
 }
 
 // ---------------------------------------------------------------- step 1
@@ -771,6 +762,15 @@ export async function refreshRoleStartSignals(roleId: string, options: { wait?: 
     const latest = await loadRoleStartSession(roleId, { forView: true });
     if (!latest?.brief.criteria.some(needsSignals)) return;
   }
+}
+
+/** Search snapshots must include completed automatic Brief writes. */
+export async function prepareRoleStartBriefForSearch(roleId: string) {
+  await completeBriefPreparation({
+    isWriting: (writer) => roleStartLeaseHeld(roleId, writer),
+    refreshSignals: () => refreshRoleStartSignals(roleId),
+    refreshSummary: () => refreshRoleStartSummary(roleId),
+  });
 }
 
 /** One write of the stale criteria's signals; true when this call held the lease and saved some. */
@@ -880,16 +880,17 @@ async function saveSignals(roleId: string, stale: RoleStartCriterion[], written:
 // Every Brief version saved by any path: fresh signals in the background when a criterion's text changed,
 // and a fresh summary when the conditions or criteria it recaps changed. The draft's own save is left to
 // the draft, which writes both itself (writeDraftSignals, writeDraftSummary).
-onBriefSaved((roleId, brief, changeSource) => {
+function scheduleBriefPreparation(roleId: string, brief: RoleStartBrief, changeSource: string) {
   if (changeSource === "jd_draft") return;
   if (brief.criteria.some(needsSignals)) runAfterResponse(() => refreshRoleStartSignals(roleId));
   if (needsSummary(brief)) runAfterResponse(() => refreshRoleStartSummary(roleId).catch((error) => console.warn("[role-start] summary", error)));
-});
+}
+onBriefSaved(scheduleBriefPreparation);
 
 /**
- * The summary recaps the conditions and criteria: when they change by any
- * path (and the team did not write the summary themselves), one small call
- * rewrites only the summary, in the background, like the grade signals.
+ * The summary keeps the role's context and recaps the conditions and criteria.
+ * When the criteria change, one small background call updates the recap while
+ * preserving context that is not repeated in the criteria.
  */
 export async function refreshRoleStartSummary(roleId: string, roleText?: ReturnType<typeof roleSource>) {
   const session = await loadRoleStartSession(roleId);
@@ -926,7 +927,7 @@ export async function refreshRoleStartSummary(roleId: string, roleText?: ReturnT
       }`,
     });
     await persistUsage(roleId, [usage]);
-    const summary = String(data.summary ?? "").trim().slice(0, 4_000);
+    const summary = String(data.summary ?? "").trim();
     if (!summary) return;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const latest = await loadRoleStartSession(roleId);
@@ -1134,8 +1135,10 @@ export async function answerRoleStartQuestion(
   }
 ): Promise<RoleStartSession> {
   const started = Date.now();
-  const state = await access(args);
-  const session = await loadRoleStartSession(args.roleId);
+  const [, session] = await Promise.all([
+    readRoleStartAccess(args),
+    loadRoleStartSession(args.roleId, { forView: true }),
+  ]);
   // A flow that failed or ended (the Role registered another way) takes no answers from old cards.
   if (session && isRoleStartEnded(session.phase)) throw new OrgHttpError(409, "이미 끝난 질문이에요.");
   const question = session?.pendingQuestion;
@@ -1187,6 +1190,9 @@ export async function answerRoleStartQuestion(
   const finished =
     !next && (Boolean(prepared) || history.length >= QUESTION_MINIMUM || !room);
   if (prepared) answered.answer = { ...answered.answer!, prepared: true };
+  // Preset chips and skips are already applied here. With no earlier words
+  // outstanding, the Brief need not lock while background context is loaded.
+  const refinedHere = !freeText && session.phase !== "drafting" && session.refinedAnswers === session.questions.history.length;
   const saved = await saveRoleStartSession({
     roleId: args.roleId,
     expectedPhase: ["drafting", "questions", "review"],
@@ -1196,6 +1202,7 @@ export async function answerRoleStartQuestion(
       // questions on top of this answer, so the phase stays as it is.
       phase: session.phase === "drafting" ? "drafting" : finished ? "review" : "questions",
       brief,
+      ...(refinedHere ? { refinedAnswers: history.length } : {}),
       pendingQuestion: next,
       questions: {
         ...session.questions,
@@ -1205,8 +1212,17 @@ export async function answerRoleStartQuestion(
         speculative: null,
       },
     },
+    chat: {
+      workspaceId: args.workspaceId,
+      questionId: question.id,
+      status: args.skip ? "skipped" : "answered",
+      chipId: chip?.id ?? null,
+      answer: args.fromChat ? null : { userId: args.user.id, content: chip?.label ?? freeText ?? "건너뛰기" },
+      nextQuestion: next,
+      briefReady: finished && session.phase !== "drafting",
+    },
     timings: {
-      [`answer${history.length}ToNextMs`]: Date.now() - started,
+      [`answer${history.length}BeforeSaveMs`]: Date.now() - started,
       [`answer${history.length}Prepared`]: prepared ? "yes" : "no",
     },
   });
@@ -1218,44 +1234,32 @@ export async function answerRoleStartQuestion(
     if (retries > 0 && latest?.pendingQuestion?.id === args.questionId) return answerRoleStartQuestion({ ...args, retries: retries - 1 });
     throw new OrgHttpError(409, "이미 답한 질문이에요.");
   }
-  if (applied) {
-    await saveRoleStartBrief({
-      roleId: args.roleId,
-      brief,
-      changeSource: args.surface === "slack" ? "slack_answer" : "answer",
-      changeSummary: applied,
-      userId: args.user.id,
-      writeRole: false,
-    });
-  }
-  if (next) void notifyRoleStartSlack({ kind: "question", session: saved, state }).catch(() => undefined);
-  // With words still to apply, the notice goes once they are in (refineAfterAnswer).
-  else if (finished && !freeText && session.phase !== "drafting" && !wordsPending(session)) void notifyRoleStartSlack({ kind: "brief_ready", session: saved, state }).catch(() => undefined);
-  try {
-    await recordRoleStartAnswerInChat({
-      roleId: args.roleId,
-      workspaceId: args.workspaceId,
-      question,
-      chip: chip ?? null,
-      skipped: Boolean(args.skip),
-      text: freeText,
-      fromChat: Boolean(args.fromChat),
-      userId: args.user.id,
-    });
-  } catch (error) {
-    console.warn("[role-start] chat answer", error);
-  }
-  await syncChatCards(saved);
-  if (question.slack && args.surface !== "slack") {
-    // The same question's Slack buttons close with the answer given here.
-    const answerText = chip?.label ?? (args.skip ? "건너뛰기" : freeText ?? "");
-    runAfterResponse(() => closeRoleStartSlackQuestion({ state, question, answer: answerText }));
-  }
-  // In answer order across servers; a prepared answer only advances the order.
-  runAfterResponse(() => refineInOrder({ roleId: args.roleId, state, userId: args.user.id, seq: history.length }));
-  // Follow-ups for the question now on screen start right away, beside this
-  // answer's refinement, so the next answer finds them ready.
-  if (next) runAfterResponse(() => prefetchFollowUps({ roleId: args.roleId, state }));
+  // The session and its chat projection are durable now. No published Brief
+  // version is written for a draft answer; only derived preparation is due.
+  const savedMs = Date.now() - started;
+  runAfterResponse(() => mergeRoleStartTimings(args.roleId, { [`answer${history.length}ToNextMs`]: savedMs }));
+  if (applied) scheduleBriefPreparation(args.roleId, brief, args.surface === "slack" ? "slack_answer" : "answer");
+  if (refinedHere) prepareWhenBriefReady(args.roleId, saved);
+  runAfterResponse(async () => {
+    const state = await access(args);
+    await Promise.all([
+      (async () => {
+        if (next) await notifyRoleStartSlack({ kind: "question", session: saved, state });
+        else if (finished && !freeText && session.phase !== "drafting" && !wordsPending(session)) {
+          await notifyRoleStartSlack({ kind: "brief_ready", session: saved, state });
+        }
+        if (question.slack && args.surface !== "slack") {
+          await closeRoleStartSlackQuestion({ state, question, answer: chip?.label ?? (args.skip ? "건너뛰기" : freeText ?? "") });
+        }
+      })().catch((error) => console.warn("[role-start] answer Slack", error)),
+      refinedHere
+        ? saved.phase !== "review" && !answered.answer?.prepared
+          ? refineAfterAnswer({ ...refineArgs({ roleId: args.roleId, userId: args.user.id, state }, answered), part: "questions" })
+          : Promise.resolve()
+        : refineInOrder({ roleId: args.roleId, state, userId: args.user.id, seq: history.length }),
+      next ? prefetchFollowUps({ roleId: args.roleId, state }) : Promise.resolve(),
+    ]);
+  });
   return saved;
 }
 
@@ -1733,28 +1737,24 @@ async function prefetchFollowUps(args: { roleId: string; state: RoleCreationStat
 
 /** Ends questions early; the company can always go straight to the Brief. */
 export async function finishRoleStartQuestions(args: Access) {
-  await access(args);
-  const session = await loadRoleStartSession(args.roleId);
+  const [, session] = await Promise.all([readRoleStartAccess(args), loadRoleStartSession(args.roleId, { forView: true })]);
   if (!session) throw new OrgHttpError(404, "시작 정보를 찾을 수 없어요.");
   // Only from the questions: a stale tab must not move a confirmed Role back.
   if (session.phase !== "questions") return session;
   const saved = await saveRoleStartSession({
     roleId: args.roleId,
     expectedRevision: session.revision,
+    chat: {
+      workspaceId: args.workspaceId, questionId: session.pendingQuestion?.id ?? "",
+      status: "closed", answer: null, nextQuestion: null, briefReady: true,
+    },
     patch: {
       phase: "review",
       pendingQuestion: null,
       questions: { ...session.questions, stopped: true },
     },
   });
-  if (session.pendingQuestion) {
-    await closeRoleStartQuestionCard({
-      roleId: args.roleId,
-      workspaceId: args.workspaceId,
-      questionId: session.pendingQuestion.id,
-    }).catch((error) => console.warn("[role-start] close card", error));
-  }
-  if (saved) await syncChatCards(saved);
+  if (!saved) throw new OrgHttpError(409, "질문이 변경됐어요. 다시 확인해 주세요.");
   // Words still being applied start it from their refinement instead.
   prepareWhenBriefReady(args.roleId, saved);
   return saved;
@@ -1874,7 +1874,7 @@ export async function saveRoleStartBriefEdit(
     summaryEdited?: boolean;
   }
 ) {
-  const state = await access(args);
+  const role = await readRoleStartAccess(args);
   // An answer still being applied would otherwise rebuild the Brief over this edit.
   await waitForRoleStartRefinements(args.roleId);
   const session = await loadRoleStartSession(args.roleId);
@@ -1894,6 +1894,7 @@ export async function saveRoleStartBriefEdit(
   }
   const request = String(args.request ?? "").trim().slice(0, 4_000);
   if (request) {
+    const state = await access(args);
     const { data, usage } = await callRoleStartJson<{
       brief: RawBrief;
       appliedSummary: string;
@@ -1916,7 +1917,7 @@ export async function saveRoleStartBriefEdit(
     if (nextProbes.length) probes = nextProbes;
     summary = data.appliedSummary || "요청에 맞춰 수정";
   }
-  if (!summary) return { session, issues: checkBriefConsistency(session.brief, state.role as never) };
+  if (!summary) return { session, issues: checkBriefConsistency(session.brief, role) };
   // A change made meanwhile that the screen would show (an answer, another tab) is
   // not overwritten; a background grade-signals write during the request is not one.
   const latest = await loadRoleStartSession(args.roleId);
@@ -1933,15 +1934,9 @@ export async function saveRoleStartBriefEdit(
         })
       : null;
   if (!saved) throw new OrgHttpError(409, "그사이 Brief가 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
-  await saveRoleStartBrief({
-    roleId: args.roleId,
-    brief,
-    changeSource: request ? "review_request" : "review_edit",
-    changeSummary: summary,
-    userId: args.user.id,
-    writeRole: false,
-  });
-  return { session: saved, applied: summary, issues: checkBriefConsistency(brief, state.role as never) };
+  scheduleBriefPreparation(args.roleId, brief, request ? "review_request" : "review_edit");
+  prepareWhenBriefReady(args.roleId, saved);
+  return { session: saved, applied: summary, issues: checkBriefConsistency(brief, role) };
 }
 
 /**
@@ -2259,7 +2254,7 @@ export async function answerRoleStartReference(args: Access & { referenceId?: st
  * one is only recorded (a conflict stays unanswered, the Brief as it is).
  */
 export async function submitRoleStartReferences(args: Access & { rows: RoleStartReferenceRow[] }) {
-  await access(args);
+  await readRoleStartAccess(args);
   const rows = args.rows.slice(0, MAX_REFERENCE_ROWS);
   if (!rows.length) throw new OrgHttpError(400, "링크나 프로필을 넣어 주세요.");
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -2304,7 +2299,7 @@ async function processReferenceRows(args: Access & { rows: RoleStartReferenceRow
  * stay (the team deletes those in the Brief).
  */
 export async function removeRoleStartReference(args: Access & { referenceId: string }) {
-  await access(args);
+  await readRoleStartAccess(args);
   const session = await loadRoleStartSession(args.roleId, { forView: true });
   const reference = session?.brief.references?.find((item) => item.id === args.referenceId);
   if (!session || isRoleStartEnded(session.phase) || !reference) throw new OrgHttpError(404, "뺄 참고 인물을 찾을 수 없어요.");
@@ -2607,18 +2602,20 @@ async function waitForPreparedVerdict(
 /** Kept for the review screen call; preparation includes the pool refresh. */
 export async function prewarmRoleStartPool(roleId: string) {
   // The first three are judged against the Brief that will be confirmed:
-  // answers still being applied finish first, then the grade signals that
-  // confirming would write, so the verdicts' Brief matches at confirm.
+  // answers still being applied finish first, then the grade signals and any
+  // summary already being written, so the verdicts' Brief matches at confirm.
   await waitForRoleStartRefinements(roleId);
-  await refreshRoleStartSignals(roleId, { wait: true }).catch((error) => console.warn("[role-start] signals before prepare", error));
+  await Promise.all([
+    refreshRoleStartSignals(roleId, { wait: true }).catch((error) => console.warn("[role-start] signals before prepare", error)),
+    waitForRoleStartSummary(roleId).catch((error) => console.warn("[role-start] summary before prepare", error)),
+  ]);
   return prepareRoleStartFirstThree(roleId);
 }
 
 /**
  * The first three are prepared once the Brief screen is due and every answer
  * is in, without waiting for the screen to ask (it may open late). The
- * screen's own prewarm stays as a fallback; a second start finds the lease
- * for this Brief held, or the verdicts already written, and does nothing more.
+ * server owns preparation; mounting the Brief screen does not start another mutation.
  */
 function prepareWhenBriefReady(roleId: string, session: RoleStartSession | null | undefined) {
   if (session?.phase !== "review" || session.refinedAnswers < session.questions.history.length) return;
@@ -2626,7 +2623,7 @@ function prepareWhenBriefReady(roleId: string, session: RoleStartSession | null 
 }
 
 export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings?: boolean }) {
-  const state = await access(args);
+  const role = await readRoleStartAccess(args);
   await waitForRoleStartRefinements(args.roleId);
   // Grade signals for criteria edited just before confirming (usually already written),
   // and the summary rewrite an answer or edit started, so neither saves over confirming.
@@ -2641,7 +2638,7 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
   }
   // The draft's summary when its background call failed (or it had no criteria then): written behind the confirmation.
   if (session.brief.summaryOf === SUMMARY_PENDING) {
-    runAfterResponse(() => refreshRoleStartSummary(args.roleId, roleSource(state)).catch((error) => console.warn("[role-start] summary", error)));
+    runAfterResponse(() => refreshRoleStartSummary(args.roleId).catch((error) => console.warn("[role-start] summary", error)));
   }
   // A new confirmation starts a new registration: an earlier stopped one no longer applies.
   if (session.progress.some((item) => item.key === "batch:choose" && item.status === "error")) {
@@ -2651,7 +2648,7 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
   if (wordsPending(session)) {
     throw new OrgHttpError(409, "마지막 답을 아직 Brief에 반영하고 있어요. 잠시 뒤 다시 눌러 주세요.");
   }
-  const issues = checkBriefConsistency(session.brief, state.role as never);
+  const issues = checkBriefConsistency(session.brief, role);
   if (issues.some((issue) => issue.level === "conflict")) {
     return { session, issues, started: false };
   }
@@ -2698,11 +2695,11 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
 
 /** Before registration the team can go back, change the Brief and get a new first three. */
 export async function reopenRoleStartReview(args: Access) {
-  await access(args);
-  const session = await loadRoleStartSession(args.roleId);
+  const [, session] = await Promise.all([readRoleStartAccess(args), loadRoleStartSession(args.roleId, { forView: true })]);
   if (!session || !["evaluating", "review"].includes(session.phase)) {
     throw new OrgHttpError(409, "등록한 뒤에는 Brief로 돌아갈 수 없어요.");
   }
+  if (session.phase === "review") return session;
   // The first three and their ratings stay: confirming the same Brief again
   // brings them back, and a changed Brief starts a new search (confirm).
   const saved = await saveRoleStartSession({
@@ -3071,7 +3068,7 @@ export async function evaluateRoleStartCandidate(
     reasonsSkipped?: boolean;
   }
 ) {
-  await access(args);
+  await readRoleStartAccess(args);
   const session = await loadRoleStartSession(args.roleId);
   if (!session || session.phase !== "evaluating") {
     throw new OrgHttpError(409, "지금은 평가할 수 없어요.");
@@ -3841,7 +3838,7 @@ async function commitAfterRatings(args: { roleId: string; userId: string | null;
  * Returns which step to run after the response.
  */
 export async function retryStalledRoleStart(args: Access) {
-  await access(args);
+  await readRoleStartAccess(args);
   const session = await loadRoleStartSession(args.roleId);
   if (!session) throw new OrgHttpError(404, "시작 정보를 찾을 수 없어요.");
   if (!isRoleStartStalled(session)) throw new OrgHttpError(409, "아직 진행하고 있어요. 조금만 기다려 주세요.");
@@ -3931,7 +3928,7 @@ export async function applyChatCriteriaToRoleStart(args: {
  * three again with the wider Brief (only before any rating is given).
  */
 export async function widenRoleStartCondition(args: Access & { conditionId: string }) {
-  await access(args);
+  await readRoleStartAccess(args);
   const session = await loadRoleStartSession(args.roleId, { forView: true });
   if (!session || session.phase !== "evaluating") throw new OrgHttpError(409, "지금은 조건을 바꿀 수 없어요.");
   if (Object.keys(session.evaluations).length) {

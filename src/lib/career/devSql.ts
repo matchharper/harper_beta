@@ -111,7 +111,7 @@ function readCareerDevSqlDatabaseUrl() {
   return null;
 }
 
-function getCareerDevSqlClient() {
+export function getCareerDevSqlClient() {
   if (careerDevSqlClient) return careerDevSqlClient;
 
   const databaseUrl = readCareerDevSqlDatabaseUrl();

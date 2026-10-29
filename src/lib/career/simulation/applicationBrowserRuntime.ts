@@ -24,6 +24,7 @@ import {
 } from "./applicationBrowserResultStore";
 import { type ApplicationBrowserRuntimeRef } from "./applicationBrowserRuntimeRef";
 import { withBrowserAbort } from "./browserAbort";
+import { inspectionEvent, type ApplicationInspectionObserver } from "./applicationInspectionTrace";
 export type { ApplicationBrowserRuntimeRef } from "./applicationBrowserRuntimeRef";
 
 type BrowserFile = { documentId: string; path: string };
@@ -32,7 +33,7 @@ export interface ApplicationBrowserRuntime {
   create(
     files: InputFile[],
     initialUrl: string,
-    options?: { readOnly?: boolean; signal?: AbortSignal }
+    options?: { readOnly?: boolean; signal?: AbortSignal; onEvent?: ApplicationInspectionObserver }
   ): Promise<ApplicationBrowserRuntimeRef>;
   execute(
     ref: ApplicationBrowserRuntimeRef,
@@ -244,6 +245,7 @@ export function createApplicationBrowserRuntime(
     command,
     async create(files, initialUrl, configuration = {}) {
       const signal = configuration.signal;
+      const emit = (message: string, data?: unknown) => inspectionEvent(configuration.onEvent, "setup", message, data);
       signal?.throwIfAborted();
       if (configuration.readOnly && files.length)
         throw new Error("Read-only browser cannot receive attachments");
@@ -257,6 +259,7 @@ export function createApplicationBrowserRuntime(
       )
         throw new Error("Attachments exceed the 10 MiB browser transfer limit");
       await withBrowserAbort(() => results.check(), signal);
+      emit("암호화 임시 결과 저장소 확인 완료");
       let ref: ApplicationBrowserRuntimeRef = {
         name: randomUUID(),
         expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
@@ -321,7 +324,9 @@ export function createApplicationBrowserRuntime(
           sessionId: created.id,
           environmentId: created.environment.id,
         };
+        emit("실행 환경 생성 접수", { sessionId: ref.sessionId, environmentId: ref.environmentId });
         const deadline = Date.now() + 150_000;
+        let previousStatus: string | undefined;
         while (Date.now() < deadline) {
           const env = await withBrowserAbort(
             () =>
@@ -333,6 +338,10 @@ export function createApplicationBrowserRuntime(
               ),
             signal
           );
+          if (env.status !== previousStatus) {
+            emit("실행 환경 상태", { status: env.status });
+            previousStatus = env.status;
+          }
           if (env.status === "connected") break;
           if (
             ["failed", "expired", "disconnected", "suspended"].includes(
@@ -346,9 +355,11 @@ export function createApplicationBrowserRuntime(
         const startup = await wait(ready, 15_000, signal) as {ready?: boolean; error?: string};
         if (startup.ready !== true)
           throw new Error(startup.error || "Application browser did not start");
+        emit("브라우저 Worker 준비 완료");
         if (files.length) await upload(ref, files);
         return ref;
       } catch (error) {
+        emit("실행 환경 준비 실패·정리 시작", { reason: error instanceof Error ? error.message : String(error) });
         const cleanup = AbortSignal.timeout(10_000);
         if (ref.sessionId)
           await removeSession(ref.sessionId, cleanup).catch(() => {});

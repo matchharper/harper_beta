@@ -344,8 +344,14 @@ export default function RichText({
   variant?: RichTextVariant;
   typography?: RichTextTypography;
   trailingInlineNode?: ReactNode;
-  additionalRemarkPlugins?: React.ComponentProps<typeof ReactMarkdown>["remarkPlugins"];
-  renderLink?: (args: { href: string; children: ReactNode; text: string }) => ReactNode | undefined;
+  additionalRemarkPlugins?: React.ComponentProps<
+    typeof ReactMarkdown
+  >["remarkPlugins"];
+  renderLink?: (args: {
+    href: string;
+    children: ReactNode;
+    text: string;
+  }) => ReactNode | undefined;
 } & (
   | { content: string; children?: never }
   | { children: string; content?: never }
@@ -360,7 +366,11 @@ export default function RichText({
   if (!normalizedContent) {
     return trailingInlineNode ? (
       <div
-        className={cn("max-w-none text-sm leading-6", typography && [typographyVariants[typography], proseTypographyClass], className)}
+        className={cn(
+          "max-w-none text-sm leading-6",
+          typography && [typographyVariants[typography], proseTypographyClass],
+          className
+        )}
         data-career-i18n-skip="true"
       >
         {trailingInlineNode}
@@ -378,7 +388,11 @@ export default function RichText({
       data-career-i18n-skip="true"
     >
       <ReactMarkdown
-        remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkUnderline, ...(additionalRemarkPlugins ?? [])]}
+        remarkPlugins={[
+          [remarkGfm, { singleTilde: false }],
+          remarkUnderline,
+          ...(additionalRemarkPlugins ?? []),
+        ]}
         components={{
           h1: ({ children }) => (
             <h1
@@ -476,7 +490,11 @@ export default function RichText({
                 </span>
               );
             }
-            const customLink = renderLink?.({ href, children, text: getPlainText(children) });
+            const customLink = renderLink?.({
+              href,
+              children,
+              text: getPlainText(children),
+            });
             if (customLink !== undefined) return customLink;
             const childText = getPlainText(children);
             if (

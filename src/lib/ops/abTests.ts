@@ -1,4 +1,5 @@
 export const OPS_AB_TESTS = [
+  { key: "history-feedback", title: "외부 공고 피드백 버튼" },
   { key: "external", title: "외부 공고 추천" },
   { key: "voice", title: "Career Voice 모델" },
   { key: "jobs", title: "Jobs 목록·상세 UI" },

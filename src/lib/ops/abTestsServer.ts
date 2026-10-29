@@ -1,5 +1,13 @@
 import "server-only";
 import {
+  buildHistoryFeedbackExperiment,
+  type HistoryFeedbackLog,
+} from "./historyFeedbackExperiment";
+import {
+  HISTORY_FEEDBACK_VIEW_EVENT,
+  HISTORY_FEEDBACK_SAVED_EVENT,
+} from "@/lib/career/historyFeedbackExperiment";
+import {
   buildExternalRecommendationExperiment,
   selectExternalExperimentRuns,
   type ExternalSurface,
@@ -474,6 +482,43 @@ export async function fetchOpsAbTests(args: {
   const startIso = new Date(Date.now() - days * DAY_MS).toISOString();
   let experiment: OpsAbTestSummary;
   switch (args.experiment) {
+    case "history-feedback": {
+      const admin = getTalentSupabaseAdmin();
+      const rows: HistoryFeedbackLog[] = [];
+      let afterId: number | undefined;
+      for (;;) {
+        let query = admin
+          .from("logs")
+          .select("id,user_id,type,created_at,meta_data")
+          .in("type", [
+            HISTORY_FEEDBACK_VIEW_EVENT,
+            HISTORY_FEEDBACK_SAVED_EVENT,
+          ])
+          .gte("created_at", startIso)
+          .lte("created_at", new Date(now).toISOString())
+          .order("id", { ascending: true })
+          .limit(BATCH_SIZE);
+        if (afterId !== undefined) query = query.gt("id", afterId);
+        const { data, error } = await query;
+        if (error)
+          throw new Error(error.message || "피드백 버튼 실험 조회 실패");
+        rows.push(...(data ?? []));
+        if (!data || data.length < BATCH_SIZE) break;
+        afterId = data[data.length - 1].id;
+      }
+      experiment = buildHistoryFeedbackExperiment(
+        rows,
+        await fetchExcludedUserIds(
+          [
+            ...new Set(
+              rows.flatMap((row) => (row.user_id ? [row.user_id] : []))
+            ),
+          ],
+          exclusionTerms
+        )
+      );
+      break;
+    }
     case "external": {
       const admin = getTalentSupabaseAdmin();
       const endIso = new Date(now).toISOString();

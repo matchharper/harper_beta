@@ -2,6 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildCompanyMatchingResultContext } from "@/lib/companyFirstSearch/resultContext";
 
+test("a completed historical evaluation is distinguished from evaluation against the latest Brief", () => {
+  const result = buildCompanyMatchingResultContext({
+    candidates: [], roles: [{ id: "role", name: "AI Research Engineer", automaticSearchEnabled: false }],
+    runStatus: "succeeded", interactiveSearch: {
+      briefVersion: "original", briefVersionAtCompletion: "enriched", scope: "all", startStage: 2,
+      stage2Evaluated: 312, counts: { stage1Evaluated: 0 },
+      addedTalentIds: [], removedTalentIds: [], retainedTalentIds: [],
+      criteriaStats: [{ name: "Audio", criterionDefinition: "All audio domains", count: 312,
+        labelCounts: { excellent: 12, good: 30, uncertain: 200, bad: 70 } }],
+    },
+  });
+  assert.match(result, /시작 당시 Brief original 기준으로 완료·저장/);
+  assert.match(result, /완료 시점 Brief는 enriched/);
+  assert.match(result, /2차 평가 312명/);
+  assert.match(result, /excellent 12명, good 30명/);
+  assert.ok(!result.includes("끝까지 마치지 못했다"));
+  assert.ok(!result.includes('"labelCounts"'));
+});
+
 test("zero-result context gives semantic facts without prescribing final copy", () => {
   const result = buildCompanyMatchingResultContext({
     candidates: [],

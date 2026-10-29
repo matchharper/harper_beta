@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TalentAdminClient } from "./admin";
 import { profileExtraEntries } from "./profileStore";
+import { normalizeProfileDate } from "./profileDate";
 
 const FIELDS = {
   experience: [
@@ -34,7 +35,7 @@ export const PROFILE_ROWS_PARAMETERS = {
   type: "array",
   maxItems: 10,
   description:
-    "Add, update or delete actual profile rows from explicit user facts/requests. Update/delete use exact RowID; omitted fields stay unchanged, null clears a field. Read a row before replacing its description; supply the complete replacement. Dates retain the user's precision; null clears a date. Deletes require an explicit removal request.",
+    "Add, update or delete actual profile rows from explicit user facts/requests. Update/delete use exact RowID; omitted fields stay unchanged, null clears a field. Read a row before replacing its description; supply the complete replacement. Experience/education dates accept calendar dates, years, or year-months. Partial start dates use the first day, partial end dates the last day of that period; these are storage boundaries, not evidence of an exact day. Null clears a date. Deletes require an explicit removal request.",
   items: {
     type: "object",
     additionalProperties: false,
@@ -141,6 +142,13 @@ export async function executeProfileRows(args: {
     const { type, operation, patch } = change;
     let rowId = change.rowId;
     try {
+      if (type !== "extra") {
+        for (const key of ["start_date", "end_date"] as const) {
+          if (key in patch) {
+            patch[key] = normalizeProfileDate(patch[key], key === "start_date" ? "start" : "end");
+          }
+        }
+      }
       if (operation === "add") {
         if (!args.requestId)
           throw new Error("A stable request is required to add a profile row.");
@@ -193,7 +201,8 @@ export async function executeProfileRows(args: {
               .from("talent_extras")
               .insert({ talent_id: args.userId, content });
         const saved = await query.select("talent_id").maybeSingle();
-        if (saved.error || !saved.data)
+        if (saved.error) throw saved.error;
+        if (!saved.data)
           throw new Error(
             "Profile changed while saving. Read it again before retrying."
           );
@@ -253,7 +262,8 @@ export async function executeProfileRows(args: {
             );
         }
         const saved = await query.select("id").maybeSingle();
-        if (saved.error || !saved.data)
+        if (saved.error) throw saved.error;
+        if (!saved.data)
           throw new Error(
             "Profile changed while saving. Read it again before retrying."
           );
@@ -265,6 +275,9 @@ export async function executeProfileRows(args: {
         ok: true,
         changed: true,
         fields: Object.keys(patch),
+        ...(type !== "extra" && ("start_date" in patch || "end_date" in patch)
+          ? { storedDates: Object.fromEntries(Object.entries(patch).filter(([key]) => key === "start_date" || key === "end_date")) }
+          : {}),
       });
     } catch (error) {
       results.push({
@@ -273,7 +286,7 @@ export async function executeProfileRows(args: {
         operation,
         ok: false,
         error:
-          error instanceof Error
+          error && typeof error === "object" && "message" in error && typeof error.message === "string"
             ? error.message
             : "Profile row could not be saved.",
       });

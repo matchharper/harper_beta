@@ -294,7 +294,7 @@ export async function processEmailReply(
       ]
         .filter(Boolean)
         .join("\n\n");
-      const model = emailAssistantModel();
+      const model = emailAssistantModel(job);
       await runCareerChatTurn({
         admin,
         conversationId,

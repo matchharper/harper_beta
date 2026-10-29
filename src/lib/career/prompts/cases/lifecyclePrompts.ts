@@ -1,3 +1,4 @@
+import { formatInternalCallQuestionContext } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import type { CareerReengagementPendingAction } from "@/lib/career/pendingActions";
 import {
@@ -174,7 +175,6 @@ export function buildCareerCallWrapupTurnInstruction(args: {
   callNoteUpdated?: boolean;
   conversationStarterId?: CareerConversationStarterId | null;
   durationLabel: string | null;
-  isBrief: boolean;
   isOnboardingDone?: boolean;
   preferredLocale?: string | null;
   transcript: CareerTranscriptEntry[];
@@ -193,7 +193,6 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     "## Call wrap-up turn",
     "The user just ended a voice call. This is an assistant-initiated follow-up in the existing career chat, using the normal chat logic and tool policy.",
     `- callDuration: ${args.durationLabel ?? "(unknown)"}`,
-    `- callLengthAssessment: ${args.isBrief ? "brief" : "substantial"}`,
     "",
     "Important tool instruction:",
     "- Persistent tools may already have been used during the live call. Compare the user's statements below with current state and never repeat a write that is already reflected.",
@@ -295,7 +294,6 @@ export function buildCareerCallWrapupFallbackFollowUp(args: {
   callNoteCreated?: boolean;
   callNoteUpdated?: boolean;
   conversationStarterId?: CareerConversationStarterId | null;
-  isBrief: boolean;
   isOnboardingDone?: boolean;
   preferredLocale?: string | null;
 }) {
@@ -311,12 +309,6 @@ export function buildCareerCallWrapupFallbackFollowUp(args: {
       args.preferredLocale,
       "career.call.wrapup_fallback.career_coaching",
       "오늘 이야기에서 선명해진 고민과 다음 방향은 이어서 참고할게요. 확인하지 않은 결론이나 할 일을 임의로 덧붙이지 않을게요."
-    );
-  } else if (args.isBrief) {
-    content = careerT(
-      args.preferredLocale,
-      "career.call.wrapup_fallback.brief",
-      "오늘은 짧게 이야기 나눴네요. 다음에 편하실 때 조금만 더 들려주시면 그에 맞춰 더 잘 도와드릴게요."
     );
   } else {
     content = careerT(
@@ -419,87 +411,21 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(
  * Internal 수락시 추가적인 정보 질문을 위해 voice call을 진행할 때 사용되는 프롬프트
  */
 export function buildInternalOpportunityRealtimeInstruction(
-  callRequest: InternalOpportunityCallRequest & {
-    preferredLocale?: string | null;
-  }
+  callRequest: InternalOpportunityCallRequest & { preferredLocale?: string | null }
 ) {
-  const outputLanguage = getCareerPromptLanguageName(
-    callRequest.preferredLocale
-  );
-  const questionCount = callRequest.questions.length;
-  const nextQuestionIndex = Math.min(
-    Math.max(callRequest.questionProgress.nextQuestionIndex, 0),
-    questionCount
-  );
-  const currentQuestion = callRequest.questions[nextQuestionIndex] ?? null;
-  const followingQuestion =
-    callRequest.questions[nextQuestionIndex + 1] ?? null;
-  const candidateQuestionsAsked =
-    callRequest.questionProgress.candidateQuestionsAsked;
-
   return [
-    "## Highest-priority focused call objective",
-    "This live voice call is specifically for an accepted internal opportunity connection.",
-    `- companyName: ${callRequest.companyName}`,
-    `- roleTitle: ${callRequest.roleTitle}`,
-    `- roleId: ${callRequest.roleId}`,
-    `- Speak in ${outputLanguage}.`,
+    "## Accepted internal opportunity call",
+    "This optional, non-evaluative call helps Harper introduce the caller to the company below. The connection continues independently of this call.",
+    `Speak in ${getCareerPromptLanguageName(callRequest.preferredLocale)} unless the caller switches languages.`,
+    "Use this company and role as the call's subject. Start naturally with this purpose and one useful unanswered question, rather than a generic career conversation.",
+    "Use the question plan and the actual conversation to choose the next move. Ask one question at a time, clarify when useful, and accept a caller's uncertainty, lack of experience, refusal, or choice to skip without pressing for a different answer.",
+    "Call record_call_answers when the caller responds, before moving on. Record their meaning faithfully, including 'I don't know' or declining. A response may cover several questions; record each relevant number. Corrections update the same question number. Do not invent a response for an untouched question.",
+    "Recorded questions do not need to be asked again. Saving can lag behind speech: use the latest conversation and tool results, and never repeat a question just because an older snapshot is missing its response. If the tool failed, the response is not yet saved.",
+    "When the planned questions have been addressed, allow room for any company/process questions the caller has, then close naturally with end_call(complete_onboarding=false). Use the conversation to avoid repeating a closing invitation. An explicit request to stop takes priority over further questions; end_call is always available even with unanswered questions.",
+    "Answer company/process questions from verified facts only. The connection is already proceeding, so no new permission to introduce the caller is needed. Do not equate recorded refusals with substantive answers or claim the company has read or accepted anything.",
     "",
-    "Call purpose:",
-    "- This is not an interview or evaluation.",
-    "- The company-side connection is already proceeding by Harper.",
-    "- Ask short questions to collect better context for Harper to present the candidate to the company.",
-    "- The user may also ask questions about the company or process.",
-    "- Ignore generic topic suggestions from recent chat, recommendations, onboarding, or ordinary career check-ins. They are background only and must never replace this call objective or its stored questions.",
-    "- Do not directly say 'I will pass this to the company exactly like this.' Say something more natural, such as that the details are helpful, and if needed say Harper will reflect them.",
-    "- For language questions, do not simply ask 'Is your English good?' Ask about a concrete situation where fluent communication may matter, or ask about specific language use or international experience.",
-    "- Ask exactly one stored question at a time. Do not improvise a generic substitute or an optional follow-up. If the user did not understand, rephrase the same current question instead of advancing.",
-    "",
-    "Required opening:",
-    "- Start by referencing the company and role.",
-    "- Say the connection is already progressing.",
-    "- Say the call is optional/non-evaluative and only helps Harper present them better.",
-    currentQuestion
-      ? "- Then ask the current required question immediately."
-      : candidateQuestionsAsked
-        ? "- The planned questions and candidate-question check are already complete; do not restart the opening."
-        : "- The planned questions are complete; ask whether the user has questions about the company or next process.",
-    "",
-    "Persisted question progress:",
-    `- nextQuestionIndex: ${nextQuestionIndex}`,
-    `- questionCount: ${questionCount}`,
-    `- candidateQuestionsAsked: ${candidateQuestionsAsked ? "yes" : "no"}`,
-    `- currentRequiredQuestion: ${currentQuestion ?? "(all planned questions complete)"}`,
-    `- followingRequiredQuestion: ${followingQuestion ?? "(none)"}`,
-    "",
-    "Strict turn progression:",
-    ...(currentQuestion
-      ? [
-          `- If the current required question has not yet been asked or answered in the live conversation, ask it now: ${currentQuestion}`,
-          followingQuestion
-            ? `- If the latest user turn answers the current required question, acknowledge briefly and ask the following required question: ${followingQuestion}`
-            : `- If the latest user turn answers the current required question, acknowledge briefly and ask whether they have questions about ${callRequest.companyName} or the next process.`,
-          "- A user answer advances at most one planned question. Never skip ahead, reorder the plan, repeat an answered question, or switch to a generic career topic.",
-        ]
-      : candidateQuestionsAsked
-        ? [
-            "- The planned questions are complete and the candidate has already been invited to ask questions.",
-            "- Answer any company/process question only from known context; do not invent facts. If they have no more questions, close naturally and call end_call.",
-          ]
-        : [
-            `- Ask once whether the user has questions about ${callRequest.companyName} or the next process.`,
-          ]),
-    "",
-    "Full question plan for reference. The persisted progress above decides which item is active:",
-    ...callRequest.questions.map(
-      (question, index) => `${index + 1}. ${question}`
-    ),
-    "",
-    "Before ending:",
-    `- You must ask exactly once, in ${outputLanguage}, whether the user has questions about ${callRequest.companyName} or the next process.`,
-    "- End when you think the call is over or the user accepts or require to stop.",
-    `- End with a natural short closing in ${outputLanguage}, then call the end_call tool. Do not hesitate to end the call with end_call.`,
-  ].join("\n");
+    formatInternalCallQuestionContext(callRequest),
+  ].join("\n\n");
 }
 
 /**
@@ -509,7 +435,7 @@ export function buildInternalOpportunityCallWrapupInstruction(args: {
   callNoteCreated?: boolean;
   callNoteUpdated?: boolean;
   callRequest: InternalOpportunityCallRequest;
-  completionDisposition: "full" | "partial_answered" | "unanswered";
+  questionsComplete: boolean;
   durationLabel: string | null;
   preferredLocale?: string | null;
   transcript: Array<{ role: "user" | "assistant"; text: string }>;
@@ -522,19 +448,9 @@ export function buildInternalOpportunityCallWrapupInstruction(args: {
     })
     .filter((line) => line.trim().length > 0)
     .join("\n");
-  const completionGuidance =
-    args.completionDisposition === "full"
-      ? [
-          "- Say Harper will reflect the shared details when presenting them to the company.",
-        ]
-      : args.completionDisposition === "partial_answered"
-        ? [
-            "- Say the user ended the call partway through, but Harper will treat the necessary questions as sufficiently answered and close this call request.",
-            "- Thank them for participating. Do not invite them to resume later or explain how to restart the call.",
-          ]
-        : [
-            "- Say the call request remains open and they can resume by selecting Call from the + button in the chat when convenient.",
-          ];
+  const completionGuidance = args.questionsComplete
+    ? "All planned questions have a recorded response (including any uncertainty or refusal); the optional request is complete."
+    : "Some questions have no recorded response. The optional request stays open; preserve recorded responses for any later continuation. Do not describe unfinished questions as answered or infer that the user chose to stop rather than losing the connection.";
 
   return [
     "## Internal opportunity call wrap-up",
@@ -542,7 +458,8 @@ export function buildInternalOpportunityCallWrapupInstruction(args: {
     `- companyName: ${args.callRequest.companyName}`,
     `- roleTitle: ${args.callRequest.roleTitle}`,
     `- callDuration: ${args.durationLabel ?? "(unknown)"}`,
-    `- completionDisposition: ${args.completionDisposition}`,
+    completionGuidance,
+    formatInternalCallQuestionContext(args.callRequest),
     "",
     "Tool instruction:",
     "- If the user disclosed clear durable context, call write_talent_context before writing the wrap-up. Use update_talent_profile only for structured profile fields or row memos.",
@@ -551,7 +468,6 @@ export function buildInternalOpportunityCallWrapupInstruction(args: {
     "Response instruction:",
     `- Write one short natural ${outputLanguage} follow-up message for the chat after the call ends.`,
     "- Say the connection is continuing.",
-    ...completionGuidance,
     "- Mention a call note only when the verified call-note fact below is present.",
     ...(args.callNoteCreated || args.callNoteUpdated
       ? [

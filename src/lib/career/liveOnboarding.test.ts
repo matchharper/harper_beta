@@ -127,10 +127,12 @@ test("other call purposes do not acquire onboarding frontend guidance", () => {
     talentContextSection: "",
     structuredProfileText: "",
   });
-  assert.equal(
-    buildLiveBackendInstructions(nonOnboardingPlan),
-    renderCareerPromptBlocks(nonOnboardingPlan.promptBlocks)
+  const backend = buildLiveBackendInstructions(nonOnboardingPlan);
+  assert.ok(
+    backend.startsWith(renderCareerPromptBlocks(nonOnboardingPlan.promptBlocks))
   );
+  assert.ok(backend.includes("reasoning and tool backend"));
+  assert.ok(!backend.includes("For onboarding, reconcile the checklist"));
   const context = buildLiveOnboardingContext({});
   for (const args of [
     { initialResponseInstruction: "", responseLocale: "ko" },

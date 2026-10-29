@@ -259,7 +259,7 @@ test("internal email acceptance requires a different later message in the same c
   );
   assert.equal(payloads.length, 1);
   assert.equal(payloads[0].recommendationId, rec.id);
-  assert.equal(payloads[0].expectedUpdatedAt, rec.updated_at);
+  assert.equal("expectedUpdatedAt" in payloads[0], false);
   assert.equal(payloads[0].feedbackReason, "Note to company");
   assert.equal(payloads[0].emailAcceptanceConfirmation.status, "confirmed");
   assert.equal(

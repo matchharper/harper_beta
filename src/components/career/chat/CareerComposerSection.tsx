@@ -1,3 +1,4 @@
+import { InternalCallAnswersSlot } from "./InternalCallAnswers";
 import { CareerDailyExternalStatus } from "../CareerDailyExternalRecommendations";
 import {
   ApplicationPreparationComposerSlot,
@@ -1251,6 +1252,7 @@ const CareerComposerSection = ({
     >
       <div className="mx-auto w-full max-w-[1120px]">
         <CareerDailyExternalStatus />
+        <InternalCallAnswersSlot>
         <ApplicationPreparationComposerSlot>
           {initialOpportunitySearchStatus ? (
             <CareerInitialOpportunitySearchStatus
@@ -1619,6 +1621,7 @@ const CareerComposerSection = ({
             ) : null}
           </div>
         </ApplicationPreparationComposerSlot>
+        </InternalCallAnswersSlot>
       </div>
     </div>
   );

@@ -32,8 +32,19 @@ export function isOrgInboxStage(stageId: string) {
 }
 
 export function getOrgCompanyIntroBoardStage(
-  status: "ready" | "awaiting_talent" | "connecting" | "closed" | "passed"
+  status: "ready" | "awaiting_talent" | "connecting" | "closed" | "passed",
+  intro?: {
+    closeReason: string | null;
+    requestedAt: string | null;
+    candidateSentAt: string | null;
+    talentDecisionAt: string | null;
+  }
 ) {
+  // Role closure prevents delivery, but does not erase the company's shortlist.
+  // Keep the durable closed state; only the company-facing placement changes.
+  if (status === "closed" && intro?.closeReason === "role_closed" &&
+      intro.requestedAt === null && intro.candidateSentAt === null &&
+      intro.talentDecisionAt === null) return "company_intro";
   if (status === "closed" || status === "passed") return "process_stopped";
   return status === "ready" ? "company_intro" : "intro_requested";
 }
@@ -41,7 +52,13 @@ export function getOrgCompanyIntroBoardStage(
 export function humanizeOrgCompanyIntroStatus(intro: {
   status: string;
   candidateSentAt?: string | null;
+  closeReason?: string | null;
+  requestedAt?: string | null;
+  talentDecisionAt?: string | null;
 }) {
+  if (intro.status === "closed" && intro.closeReason === "role_closed" &&
+      intro.requestedAt === null && intro.candidateSentAt === null &&
+      intro.talentDecisionAt === null) return "채용 종료";
   if (intro.status === "closed" || intro.status === "passed")
     return "제안 종료";
   if (intro.status === "ready") return "";

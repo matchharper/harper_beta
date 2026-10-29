@@ -208,7 +208,7 @@ export async function reconcileOrgCompanyIntro(
     client.cancelQueries(board),
     client.cancelQueries(detail),
   ]);
-  const stage = getOrgCompanyIntroBoardStage(update.status);
+  const stage = getOrgCompanyIntroBoardStage(update.status, update);
   const mergeIntro = (intro: NonNullable<OrgBoardItem["companyIntro"]>) => ({
     ...intro,
     status: update.status,

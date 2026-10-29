@@ -30,6 +30,7 @@ export function roleStartView(session: RoleStartSession | null) {
   if (!session) return null;
   return {
     roleId: session.roleId,
+    revision: session.revision,
     phase: session.phase,
     /** Sent back with a Brief edit, so a Brief changed meanwhile is not overwritten. */
     briefHash: visibleBriefHash(session.brief),
@@ -93,8 +94,8 @@ export function roleStartBriefView(brief: RoleStartBrief) {
 /** What a screen's whole-Brief save overwrites: no grade signals, no reference people (kept as stored). */
 export function visibleBriefHash(brief: RoleStartBrief) {
   // The summary follows the rest (rewritten in the background), so it does not count here.
-  const { hardConditions, criteria, otherNotes } = briefView(brief);
-  return stableHash({ hardConditions, criteria, ...(otherNotes.length ? { otherNotes } : {}) });
+  const { hardConditions, criteria } = briefView(brief);
+  return stableHash({ hardConditions, criteria });
 }
 
 /**
@@ -153,7 +154,6 @@ function briefView(brief: RoleStartBrief) {
       changedAt: criterion.changedAt,
       reference: criterion.reference ?? null,
     })),
-    otherNotes: brief.otherNotes ?? [],
     // Shown on the Brief only; never part of the saved Brief text or matching.
     references: (brief.references ?? []).map((reference) => ({
       id: reference.id,

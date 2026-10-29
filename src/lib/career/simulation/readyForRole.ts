@@ -1,4 +1,10 @@
+import { applicationReviewText } from "./applicationReview";
 import { isApplicationInspectionPending } from "./applicationForm";
+import { formatPromptText } from "@/lib/llm/promptText";
+import {
+  applicationFieldAnswerSchema,
+  prepareApplicationReview,
+} from "./applicationReview";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import {
@@ -27,7 +33,7 @@ export const readyForRoleTool = {
   function: {
     name: READY_FOR_ROLE,
     description:
-      "Save authorized resume edits for this role, including a partial working draft while other questions remain. Unanswered items are preserved; preparationComplete reports whether a submission version was pinned. Read the full source resume first. Supply resume commands to apply ONLY accepted suggestions and the user's direct instructions, preserving unrelated content and original language. First tailoring: use action=copy with document_id, expected_revision and scoped changes for a Harper-generated source; create from the full uploaded source into Harper format (preserve the original file). New filenames are assigned automatically from the company and role title, with a numeric suffix for duplicates; omit document_name. Later edits: update the saved working resume using its current revision and scoped changes, preserving its filename. Supply action and its command fields directly as JSON values, not a string or wrapper. Use action=reuse when no resume edits are needed. This tool validates ownership/revision, saves a private document and returns a preview link. It does not grant submission consent. Explain actual changes and include the returned link. Follow the returned submission support: supported allows assisted application after preparation is complete; unsupported requires a direct handoff; unknown allows rechecking with manage_simulation_session action=inspect. If the user already explicitly requested application after these edits, continue to apply_for_role without redundant confirmation. Free answers/skips must be interpreted and resolved using manage_application_suggestions first. Never fabricate facts or add unreviewed material.",
+      "Save the selected/working resume and the private application draft. Use native action=reuse/create/copy/update and command fields. First tailoring preserves the original: create from the full uploaded source or copy a generated source with its current revision. Later edits update workingResume. Supports partial drafts; unresolved questions are preserved. preparationComplete only reports whether the resume version was pinned, not whether every application requirement is fulfilled. application_fields saves observed answers/attachments; application_documents retains owned supporting files. Returns actual saved content, links and review state. Does not submit or grant transmission consent.",
     // Reuse the native resume command shape. An extra wrapper caused models to
     // serialize the whole command into a string instead of supplying JSON fields.
     parameters: {
@@ -36,9 +42,49 @@ export const readyForRoleTool = {
       properties: {
         ...GENERATE_RESUME_PARAMETERS.properties,
         document_name: {
-          type: "string",
+          ...(GENERATE_RESUME_PARAMETERS.properties.document_name as Record<
+            string,
+            unknown
+          >),
           description:
-            "Omit. The server assigns company + role title for new files and preserves the name for updates. Legacy values are ignored.",
+            "Required for create/copy: provide company + role title without .pdf. Omit for update/reuse to preserve the existing filename. The server resolves the final filename and duplicate suffix.",
+        },
+        application_documents: {
+          type: "array",
+          description: "Owned supporting document IDs prepared for this role, including ordinary documents requested by the public JD when the form is inaccessible. Save them first with write_document. The documents appear with the resume in the inline review and role details. This replaces the supporting-document list; omit to preserve it. Field-specific attachments must also be assigned in application_fields.",
+          items: { type: "string" },
+        },
+        application_fields: {
+          type: "array",
+          description:
+            "Prepare the editable application form from observed field IDs (field-1, field-2, ...). Populate every usable observed field from confirmed profile/contact facts, preparation answers and finished written materials. Write actual responses and select the matching owned file for each attachment. Do this before claiming the application is ready, also with action=reuse. Preserve approved wording. Leave unknown facts and unapproved consents blank. File fields use an owned documentId. Use documentId=final_resume to attach the resume saved by this call. Optional alongside any resume action, including reuse. Existing user edits are preserved.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["fieldId"],
+            properties: {
+              fieldId: { type: "string" },
+              value: { type: "string" },
+              values: { type: "array", items: { type: "string" } },
+              documentId: { type: "string" },
+            },
+          },
+        },
+        document_id: {
+          ...(GENERATE_RESUME_PARAMETERS.properties.document_id as Record<
+            string,
+            unknown
+          >),
+          description:
+            "Required for copy/update: the generated document to copy or update. Omit for create/reuse; the selected uploaded source is already known to the application.",
+        },
+        expected_revision: {
+          ...(GENERATE_RESUME_PARAMETERS.properties.expected_revision as Record<
+            string,
+            unknown
+          >),
+          description:
+            "Required for copy/update: current revision from read_document. Omit for create/reuse.",
         },
         source_document_ids: {
           ...(GENERATE_RESUME_PARAMETERS.properties
@@ -58,35 +104,54 @@ export const readyForRoleTool = {
           type: "string",
           enum: ["reuse", "create", "copy", "update"],
           description:
-            "reuse: keep the current file unchanged, no other fields. copy: first tailoring of a generated source. create: first tailoring of an uploaded source. update: later edits to the saved workingResume only.",
+            "reuse: keep the current resume unchanged; application_fields may still be supplied. create: first tailoring of an uploaded source; provide document_name and full content, omit document_id, expected_revision and changes. copy: first tailoring of a generated source; provide document_name, document_id and expected_revision, optionally scoped changes, omit content. update: edit the saved workingResume; provide document_id, expected_revision and scoped changes, omit content. Filenames are assigned by the server for every action.",
         },
       },
     },
   },
 };
 export const readyForRoleSchema = z.record(z.unknown()).transform((input) => {
+  const applicationFields = z
+    .array(applicationFieldAnswerSchema)
+    .optional()
+    .parse(input.application_fields);
+  const applicationDocuments = z.array(z.string()).optional().parse(input.application_documents);
+  const application = {
+    ...(applicationFields ? { applicationFields } : {}),
+    ...(applicationDocuments ? { applicationDocuments } : {}),
+  };
+  input = { ...input };
+  delete input.application_fields;
+  delete input.application_documents;
   const keys = Object.keys(input);
-  if (!keys.length) return {};
+  if (!keys.length) return application;
   if (input.action === "reuse") {
-    if (keys.length !== 1)
+    // Reuse always selects the session's current resume. Descriptive metadata
+    // is unused; reject only a conflicting write that would otherwise be lost.
+    if (input.content !== undefined || input.changes !== undefined)
       throw new Error(
-        "reuse keeps the current resume unchanged and accepts no other fields"
+        "reuse keeps the current resume unchanged; use create, copy or update to apply content or changes"
       );
-    return {};
+    return application;
   }
   // Earlier in-flight calls used a wrapper. New calls use the native command.
   const command =
     keys.length === 1 && keys[0] === "resume"
       ? z.record(z.unknown()).parse(input.resume)
       : input;
+  const fields = { ...command };
+  // Retain compatibility with older calls without letting a model-supplied
+  // empty filename override the application's executor-owned name.
+  delete fields.document_name;
   // Reuse the native validator so errors identify the invalid command field,
   // rather than an unrelated empty/wrapped branch of a union.
   return {
+    ...application,
     resume: parseResumeInput({
+      ...fields,
       ...(command.action === "create" || command.action === "copy"
         ? { document_name: "Application resume" }
         : {}),
-      ...command,
     }),
   };
 });
@@ -98,11 +163,25 @@ export async function readyForRole(
   messageId: number,
   key: string
 ) {
-  const { resume } = readyForRoleSchema.parse(raw),
+  const parsed = readyForRoleSchema.parse(raw);
+  const resume = "resume" in parsed ? parsed.resume : undefined;
+  const { applicationFields, applicationDocuments } = parsed,
     s = record.state;
   if (s.status !== "active" || !s.preparation)
     throw new Error("No active application");
   assertApplicationResumeWrite(s);
+  const documentIds = applicationDocuments ?? s.applicationReview?.documents?.map(document => document.documentId);
+  const attachments = new Map<string, NonNullable<Awaited<ReturnType<typeof fetchTalentDocument>>>>();
+  // Resolve ownership before creating a resume, so an invalid attachment cannot
+  // leave an extra tailored copy behind when the caller corrects the reference.
+  for (const id of new Set([
+    ...(applicationFields ?? []).flatMap(answer => answer.documentId && answer.documentId !== "final_resume" ? [answer.documentId] : []),
+    ...(documentIds ?? []),
+  ])) {
+    const owned = await fetchTalentDocument({ ...store, documentId: id });
+    if (!owned) throw new Error("Application attachment or supporting document unavailable");
+    attachments.set(id, owned);
+  }
   const approvedChanges = s.actions
     .filter((a) => a.inputKind === "change" && a.status === "completed")
     .map((a) => ({
@@ -182,13 +261,33 @@ export async function readyForRole(
   const pendingItemIds = state.actions
     .filter((a) => !["completed", "skipped"].includes(a.status))
     .map((a) => a.id);
-  const preparationComplete = !pendingApplicationBatch(state) &&
-    pendingItemIds.length === 0 && !isApplicationInspectionPending(state);
+  const preparationComplete =
+    !pendingApplicationBatch(state) &&
+    pendingItemIds.length === 0 &&
+    !isApplicationInspectionPending(state);
   state.preparation!.finalDocumentId = preparationComplete ? document.id : null;
-  state.preparation!.finalDocumentFingerprint = preparationComplete ? documentFingerprint(document) : null;
+  state.preparation!.finalDocumentFingerprint = preparationComplete
+    ? documentFingerprint(document)
+    : null;
   state.preparation!.showInputs = Boolean(pendingApplicationBatch(state));
   state.preparation!.preparedInputRevision = state.preparation!.inputRevision;
   state.preparation!.preparedResumeChangesFingerprint = changesFingerprint;
+  if (preparationComplete && state.activity?.channel !== "email") {
+    for (const answer of applicationFields ?? []) {
+      if (answer.documentId === "final_resume") answer.documentId = document.id;
+    }
+    const documents = documentIds ?
+      [...new Set(documentIds)].map(documentId => {
+        const supporting = attachments.get(documentId)!;
+        return { documentId: supporting.id, title: supporting.file_name };
+      }) : undefined;
+    state.applicationReview = prepareApplicationReview(
+      state,
+      document.id,
+      applicationFields,
+      documents
+    );
+  }
   const saved = await saveSession(
     store,
     record,
@@ -199,35 +298,73 @@ export async function readyForRole(
     status: "unknown" as const,
     reason: "Assisted application access has not been verified.",
   };
+  const result = {
+    ok: true,
+    documentId: document.id,
+    revision: document.revision,
+    fileName: document.file_name,
+    documentLink: formatCareerDocumentLink({
+      id: document.id,
+      title: document.file_name,
+    }),
+    resumeChanged: resume !== undefined,
+    preparationComplete,
+    pendingItemIds,
+    // Preserve the saved body for execution/trace readers. The model receives a
+    // compact save receipt and can inspect the document through read_document.
+    savedResumeText: document.extracted_text,
+    applicationUrl: state.applicationUrl,
+    submission,
+    applicationInspection: {
+      status: state.applicationForm?.status ?? "unavailable",
+      text: state.applicationForm?.text,
+      limitations: state.applicationForm?.limitations ?? [
+        "Application requirements have not been verified.",
+      ],
+    },
+    applicationStarted: Boolean(state.browser),
+    ...(state.applicationReview
+      ? {
+          applicationReview: {
+            available: true,
+            revision: state.applicationReview.revision,
+            presentation: state.applicationReview.fields.length
+              ? "Editable form and files below this reply; also available on the role detail page."
+              : "Prepared files below this reply; also available on the role detail page.",
+          },
+        }
+      : {}),
+
+  };
+  // Preserve the machine result while giving the conversation model the same
+  // observed access facts it receives in the current preparation context.
   return {
     record: saved,
     result: {
-      ok: true,
-      documentId: document.id,
-      revision: document.revision,
-      fileName: document.file_name,
-      documentLink: formatCareerDocumentLink({
-        id: document.id,
-        title: document.file_name,
+      ...result,
+      modelOutput: formatPromptText({
+        ok: result.ok,
+        documentId: result.documentId,
+        revision: result.revision,
+        documentLink: result.documentLink,
+        resumeChanged: result.resumeChanged,
+        resumeVersionPinned: result.preparationComplete,
+        pendingItemIds: result.pendingItemIds,
+        applicationUrl: result.applicationUrl,
+        submissionAccess: submission.status,
+        // Detailed navigation evidence remains in the stored inspection/context.
+        // A save receipt only needs the available action and prepared artifacts.
+        supportingDocuments: state.applicationReview?.documents?.map(document =>
+          formatCareerDocumentLink({ id: document.documentId, title: document.title })
+        ),
+        applicationStarted: result.applicationStarted,
+        savedApplication: state.applicationReview
+          ? applicationReviewText(state.applicationReview)
+          : "Not prepared yet.",
+        applicationReview: result.applicationReview
+          ? `Revision ${result.applicationReview.revision}. ${result.applicationReview.presentation}`
+          : "No application review has been saved.",
       }),
-      resumeChanged: resume !== undefined,
-      preparationComplete,
-      pendingItemIds,
-      // Return the persisted document, not the proposed command. The conversation
-      // model must compare this evidence with the user's approved edits.
-      savedResumeText: document.extracted_text,
-      applicationUrl: state.applicationUrl,
-      submission,
-      applicationInspection: {
-        status: state.applicationForm?.status ?? "unavailable",
-        text: state.applicationForm?.text,
-        limitations: state.applicationForm?.limitations ?? [
-          "Application requirements have not been verified.",
-        ],
-      },
-      applicationStarted: Boolean(state.browser),
-      assistantInstruction:
-        "The resume file was saved. If preparationComplete is false, this is a working draft: keep pending questions open and do not claim readiness or submit. Compare savedResumeText with all accepted edits and the latest direct instructions before declaring preparation complete. If an approved edit is missing, read the current structured document and repair it with ready_for_role in this turn; the earlier approval remains valid. Report only changes actually present in the saved file, then use the returned submission status and applicationInspection limitations. Supported means the public form was reachable, not that uploads, conditional fields or submission have succeeded. Offer to help with the next step proportionately to the observed access and unresolved limitations; only supported access permits continuing to apply_for_role with existing authorization. For unsupported access, explain the observed limitation and give the direct application URL. Unknown access is inconclusive, not a permanent refusal: use manage_simulation_session action=inspect to check again when needed for the authorized next step. Do not repeatedly inspect an unchanged result in the same turn. Do not offer to sign in or imply an unreadable form has no additional requirements. Base application progress on the verified result and the user's explicit account of events; composer approvals only approve resume edits. For a user who will apply themselves, distinguish the finished resume from the remaining application: briefly identify consequential observed eligibility restrictions or required written materials in applicationInspection.text that the user still needs to complete. Prioritize those over a checklist of basic or sensitive personal fields. Respect a request to limit this turn to the resume; do not fabricate or silently complete the remaining answers. Describe the available next step; do not describe a failed submission attempt when none occurred. Explain access limitations in plain language without HTTP codes or infrastructure details. Write a concise, natural handoff centered on the useful change and next action, without report headings or lists of unchanged or omitted items. Include the actual documentLink value as the preview link; it renders as a file card. Never print the field name or describe where a placeholder will appear. Describe only positive content actually added to the document; a user’s statement that they did not do something is a limit on your claims, not automatically resume prose. If discussing qualifications, preserve the JD’s common requirements and alternative specialty tracks instead of combining all tracks into mandatory experience. Use a descriptive Markdown link for the exact application URL, keeping surrounding prose outside the link destination. Basic contact information is usable; sensitive demographic and health fields stay empty. Only verified submission is completion.",
     },
   };
 }

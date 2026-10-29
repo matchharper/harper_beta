@@ -121,3 +121,338 @@ The frozen `inventory-v2` iframe case passed through the actual hosted executor 
 Real-page diagnostics also exposed an independent output-contract problem: a planner could return document-mode buttons as input refs, receive an unhelpful schema error, repeat the same invalid refs and finish without a usable report. The report tool now explicitly restricts `fieldRefs` to current input/textarea/select elements and instructs the model to preserve visible requirements without input refs in `limitations`; the original page text is retained for preparation. Structural validation identifies every invalid ref and the available valid refs so the original planner can correct its report. This does not infer required-state from wording, silently discard model-selected refs, or fabricate file controls. Hidden file inputs, custom non-native controls and conditional questions remain inspection limitations.
 
 After the report-contract change, the same frozen iframe case passed again in 110.093 seconds with all expected fields, zero fixture writes/executor model turns and verified 404 cleanup (`runs/2026-10-13T08-28-06-136Z-iframe/`). The reported public-JD diagnostic then returned a validated `partial` result with public access marked supported: seven exposed native inputs plus the visible resume/additional-document requirements and verification limits preserved in source text/limitations. It issued no `frameRef` command, entered no candidate data, and did not upload, verify email, accept consent or submit. The observed result took 137.383 seconds including setup and cleanup. Two earlier attempts reached the form but ended without a usable report; the second trace proved repeated invalid button refs. These failures remain recorded rather than counted as successes. Manifest, commands, result, manual review and independent planner-session/environment 404 checks are under ignored `runs/selective-read-nuua-20261013/`, with links to the original private diagnostic traces. This diagnostic has no independent frozen completeness gold; a fresh local UI comparison was unavailable because the computer-use service did not respond. Native required attributes disagree with some visible required marks on this page; both observations remain available rather than being heuristically reconciled.
+
+## Ops current-path inspection diagnostics (2026-10-28, local)
+
+`/ops/debugging/application-form` accepts one public job/application URL and calls
+`POST /api/internal/debug/application-form` behind the existing internal-user
+boundary. Its canonical orchestration is `src/lib/ops/applicationFormInspection.server.ts`
+→ `inspectApplicationForm`, without test runtime/provider injection. The current
+normal path is Stagehand 3.7.3 + Browserbase with `gpt-6-luna`, medium reasoning,
+180-second work budget and separate cleanup. The earlier Sol/OpenAI and Ashby
+fast-read descriptions above refer to historical/injected paths and frozen runs.
+The Ops tab adds observation callbacks; it does not select a different prompt,
+model, timeout or form reader, and does not create application activities.
+
+This is a diagnostic playground, not an accuracy benchmark. A unit is one fresh
+URL inspection. There is no frozen gold or completeness score for arbitrary live
+URLs; existing cases/gold remain unchanged. Logs stream setup state, navigation,
+page console/errors, blocked requests, observed snapshots, completed tool calls
+and results, model request/receipt timing, inventory and cleanup. Provider-internal
+reasoning and raw authorization headers are not captured. Tool events become
+available at step completion; setup dependency installation is observed as phases,
+not a continuous shell transcript. Observations are not model input or execution
+policy. The browser retains the production read-only boundaries, with no applicant
+facts, files, sign-in or submission. Temporary encrypted result transport uses the
+existing random Storage prefix and cleanup. With official-link resolution OFF, no production business rows are written; the opt-in DB write is described below.
+
+Result UI shows all returned field attributes, source text, access conclusion and
+limitations. Run times include setup and cleanup. Per-request token receipts are
+counted once and priced with the shared repository pricing helper; missing prices,
+missing usage and started-but-unreturned requests remain unknown/partial. Browserbase
+and hosted-compute charges are excluded, not represented as zero. Results/logs live
+in the open browser tab and can be downloaded; refresh/navigation does not create a
+persisted run history. Raw diagnostic artifacts belong only in ignored owner-only
+`runs/`, with source/prompt fingerprints and configuration captured before execution.
+
+Verification: focused tests cover incremental UTF-8 stream decoding, interrupted
+streams, cached-token accounting, receipt deduplication, incomplete costs, production
+read-only runtime selection, observation failure isolation and cleanup. Local UI
+uses synthetic auth/stream fixtures with external requests intercepted; this does
+not bypass the actual API, whose unauthenticated request separately returns 401.
+2026-10-28 live smoke observations: Fieldguide's supplied URL returned a missing-job
+page (0 fields, 105.356s, observed token estimate $0.00436874); Onehouse returned 15
+fields (110.090s, observed token estimate $0.00638780). These estimates cover received
+usage only; model work in flight at termination and infrastructure are not included.
+Manifests/results are in `runs/ops-debug-20261028/` and
+`runs/ops-debug-onehouse-20261028/`. No completeness/accuracy claim or deployment.
+
+
+### Optional official-JD resolution (2026-10-28, local, default OFF)
+
+The same Ops tab accepts a pasted URL with **Exa로 공식 JD 링크 찾기** either
+OFF or ON. OFF reads that URL directly; ON resolves its official job link first.
+An existing external `company_roles` row can also be selected. Canonical runner:
+`src/lib/ops/applicationLinkResolution.server.ts` (`runResolvedInspectionDebug`).
+This is an Ops-only experiment; normal Apply With Harper is unchanged.
+
+For a pasted URL with resolution ON, one exact external-role URL match supplies
+the company/role context and enables the conditional URL write. No match or
+multiple matches run without DB writes or new rows. Exa Contents reads the source
+page into a factual plain-text summary, which joins the page title and URL in
+the query/selection context. Unreadable content is recorded as missing evidence,
+not a fabricated company/title. Source retrieval events, duration and returned
+cost are included in the same live run; Contents costs are shown separately from
+search costs. Editing a selected role's URL clears its association so another
+job's URL cannot be written to the previously selected role.
+
+Each round uses `gpt-6-luna`/medium Responses structured output to generate one
+broad company + role query, Exa auto search requesting 10 results with highlights,
+then structured selection of a returned candidate ID and a short reason. Company,
+role, prior failures and search results enter the model as dedicated text
+projections. Raw rows/JSON, timestamps, applicant data and hidden reasoning are
+not supplied. ATS names in the prompt are examples, not a domain allowlist.
+The model selects a matching direct company/ATS job URL; generic careers lists
+are insufficient because the unchanged browser reader receives only a URL.
+An originally stored URL is eligible until it has actually been tried.
+
+Before each browser inspection, the chosen URL is saved to
+`company_roles.external_jd_url` for the exact selected external role, conditional
+on the previously read URL so concurrent changes are not overwritten. The
+inspector's `unavailable` conclusion permits one further Exa search and one new
+browser inspection. A `read` or `partial` result ends the loop without judging
+its prose or field count. No eligible candidate permits the same one remaining
+search without starting a browser or writing a URL. Already tried entry/final
+URLs cannot be selected again. Provider/DB errors stop and remain visible in
+logs; no hidden search retries. After both attempts fail, the last saved URL
+remains. No migration or new persistence table.
+The selected JD URL is retained; the browser's final application URL is shown
+separately in each full result.
+
+Logs include provider-visible query/selection inputs, structured outputs, Exa
+candidates, selection reason, DB write receipt and all existing browser events.
+Each attempt's complete form result and timing are retained in the downloadable
+run. Costs aggregate model receipts across both rounds and browsers, counting
+pending requests independently, plus Exa's returned `costDollars.total`.
+Missing receipts stay unknown; Browserbase/hosted compute remain excluded.
+The streaming route has an 800s platform allowance and a 750s request deadline;
+each browser keeps its existing 180s work deadline and cleanup. There is no
+production activity/session creation, resume rewrite, applicant input or submit.
+
+Focused synthetic tests cover first success, partial result, retry success,
+double failure, no candidate, DB conflict, cancellation, cost aggregation,
+provider-visible text/schema and the exact external-role conditional write.
+Pasted-URL fixtures cover zero, one and multiple exact DB matches, no writes for
+unlinked/ambiguous sources, and incremental Contents billing. Local browser
+fixtures verified URL entry with both toggle states, retained input on toggling,
+saved-role selection and clearing that association on URL edits. The shared dev
+server's unrelated missing `PreviewHistoryPanel` module caused a global error
+overlay; only that overlay was hidden in the isolated fixture browser, without
+changing the other page. The real unauthenticated POST still returns 401.
+Live smoke manifests and outputs are in ignored owner-only
+`runs/ops-exa-20261028*/`; these are ad-hoc diagnostics with no frozen gold or
+accuracy claim. Initial search surfaced a confusion between a stored URL and
+an already tried URL; that run is preserved and the prompt now names the
+actual browser-attempt boundary explicitly. Real DB access during verification
+is read-only; any full-pipeline smoke uses an explicitly recorded in-memory
+save fixture. Deployment and production DB writes are not part of verification.
+
+Completed live smoke (`runs/ops-exa-20261028-v3/`): fixed Onehouse external role
+`75f3ce38-b6d4-5d81-aa03-62cc260e61d7` → 25 Exa candidates → the exact Lever
+application URL → `read`, 22 returned controls in 93.389s including cleanup.
+Five observed LLM requests cost an estimated $0.00574126; Exa reported $0.022.
+Infrastructure is excluded. Returned controls include hidden CAPTCHA controls;
+22 is the inspector's inventory count, not a reviewed count of applicant
+questions or proof of completeness. DB writes in this run were in-memory
+fixtures. Provider-visible text inputs were retained and reviewed. Synthetic
+browser testing also verified the real Next page's default-OFF toggle, role
+selection/request payload, running logs, candidate/results display and download
+availability with API responses intercepted. GET/POST without auth both return
+401. Targeted tests pass; repository-wide typecheck remains blocked by unrelated
+existing errors including the empty generated database types file.
+
+### Questions-only Ops tab (2026-10-28, local)
+
+The default `질문만 가져오기` tab accepts only a URL. Its internal-authenticated
+`POST /api/internal/debug/application-form/questions` calls
+`src/lib/ops/applicationQuestions.server.ts`, reusing the read-only Browserbase
+runtime with `inspectionMode=questions`. Browserbase SDK 2.22.0 creates/releases
+Sessions; Stagehand 3.7.3 runs its hybrid agent locally in the existing hosted
+executor (`disableAPI: true`), using `gpt-6-luna`/medium. It does not use
+`stagehand.extract()`. Work is limited to 180 seconds plus cleanup.
+
+The original model reads a dedicated text projection of observed inputs/page
+text and reports original-language question labels, grouping choice controls
+under their question instead of returning answer options. The shared contract
+and projection live in `applicationStagehand/inspectionText.mjs`. Status concerns
+question retrieval, independently of whether submission would be possible.
+Unseen answer-dependent/authenticated steps remain partial/unavailable; a passive
+CAPTCHA alone does not invalidate readable questions. No semantic output filter,
+rewriter, applicant data, sign-in, consent, submission, business-row write or
+new persistence is added. Raw snapshots remain available to the executor.
+
+Both tabs lead with retrieved/partial/unavailable (and distinguish an empty
+inventory). The original inspector retains field details and downloadable logs;
+logs/costs are collapsed below the result. Tab switching preserves both results.
+Focused tests cover the new report boundary, failure cleanup, unknown/empty
+outcomes and model-facing text, alongside the existing six stream/runtime tests.
+The real questions endpoint rejects unauthenticated requests with HTTP 401.
+UI checks use intercepted synthetic sessions/responses, with external writes
+blocked; those checks do not establish authenticated API end-to-end coverage.
+
+Ad-hoc live diagnostics are preserved in owner-only ignored
+`runs/questions-20261028/` and `runs/questions-20261028-r2/`, each with source/prompt
+hashes, raw result and observed text. They reuse the previously captured Onehouse
+public URL with no frozen completeness gold. The first run returned 14 questions
+but incorrectly treated a passive CAPTCHA as incomplete and wrote its limitation
+in Russian. After clarifying the output language and retrieval-status contract,
+the second run returned the same 14 questions, `read`, no limitations, in 84.821s
+including cleanup. The visible source supports those question labels, and the
+Yes/No options are not separate output entries. This is one live-page smoke,
+not a general completeness/accuracy score. Neither run entered applicant data
+or submitted an application. This change has not been deployed.
+
+### Managed Agents comparison selector (2026-10-28, local)
+
+`/ops/debugging/application-form` now retains the existing flow as option 1 and
+adds Browserbase Agents (option 2) and Browser Use Agents (option 3) for questions
+only. Switching providers keeps the latest result per provider in page memory.
+The original full inspector, role lookup/save and stream route remain option 1.
+
+Canonical adapter: `src/lib/ops/applicationQuestionsAgents.server.ts`; UI endpoint:
+`POST /api/internal/debug/application-form/questions`. The internal-authenticated
+endpoint accepts `provider` (default `current`) and a Browser Use model (default
+`gpt-6-luna`). Provider credentials remain server-side in `BROWSERBASE_API_KEY`
+and `BROWSER_USE_API_KEY`. No candidate facts, files, sign-in or application
+submission are requested; the only source input is the public HTTPS URL.
+The managed task and output schema are exported from the canonical adapter.
+Managed providers own their internal tool loop: their tool-result projection
+cannot be verified or changed by this integration. The existing local executor's
+text-projection contract remains unchanged.
+
+API contracts checked against official docs:
+- Browserbase: POST `/v1/agents/runs` with `task`/`resultSchema`, poll uppercase
+  run status, read structured `result.output`. No model override or per-run cost is
+  exposed. A stop request is asynchronous and must be followed to a terminal state.
+  https://docs.browserbase.com/reference/api/stop-a-run
+- Browser Use: V4 POST `/api/v4/runs` with `task`/`model`/`outputSchema`, poll
+  `/runs/{id}/status`, then read `output` from `/runs/{id}` (not narrative `result`).
+  No thinking override is sent; `gpt-6-luna` currently defaults to high, unlike
+  the existing option 1's medium. Run cost includes model/search only; session
+  `/cost` additionally includes browser/proxy and may lag by 90 seconds. This
+  is metered spend before credits, not a final bill. The fresh session's distinct
+  browser IDs are listed and stopped after the run to avoid idle browser cost.
+  https://docs.browser-use.com/cloud/agent/quickstart
+  https://docs.browser-use.com/cloud/openapi/v4.json
+
+No automatic paid creation retry or semantic output gate is added. Requests have
+180 seconds plus bounded independent cancellation/cleanup; errors preserve known
+run IDs and cleanup warnings. Unknown model/cost values are not shown as zero.
+Focused tests cover each API's actual payload/result boundary, partial output,
+abort after dispatch, asynchronous remote stop, browser cleanup, costs and key
+redaction. These are integration contract tests, not model-quality scores.
+
+Live smoke protocol: the user-provided CMES public job URL
+`https://cmesairobotics.career.greetinghr.com/ko/o/233105`, one new run per managed
+provider via the authenticated local Ops UI. No frozen gold or completeness score
+is asserted; this is ad-hoc API/UI verification, not a reusable benchmark.
+Diagnostic evidence belongs in owner-only ignored `runs/managed-agents-20261028/`.
+No deployment is included.
+
+Observed smoke result: both managed runs completed with nine question labels.
+The first Browserbase response revealed the structured payload is nested at
+`result.output`; the adapter and fixture were corrected, then verified against
+the same completed run through real GET requests without creating another run.
+Browser Use completed via the authenticated Ops UI in 39.1 seconds, with
+`gpt-6-luna`/high, 77,881 input and 2,665 output tokens. Its browser was confirmed
+`stopped`. The UI retained the result across provider switches. Existing option 1
+still exposes both questions-only and full inspection tabs.
+
+Browser Use initially reported $0.001241 for the session; a later authenticated
+cost-only refresh reported $0.033451 ($0.000908 model, $0 search, $0.000333 browser,
+$0.032210 proxy). The difference is delayed metering, not another run. The UI
+provides a cost-refresh button through an internal-authenticated GET on the same
+route, validating the session ID and returning only cost fields. This snapshot
+is not a final invoice or a price/quality benchmark. Browserbase per-run cost
+remains unavailable rather than inferred from workspace totals.
+
+Validation: 13 focused tests pass, changed-file ESLint passes, unauthenticated
+POST is HTTP 401. TypeScript reports no errors in the changed paths; whole-project
+checking remains blocked by existing errors including the empty
+`src/types/database.types.ts`. No broader test suite or deployment was performed.
+
+### Typed-question preview (2026-10-28, local follow-up)
+
+The questions-only output now uses question objects instead of label strings:
+`label`, free-text `type`, nullable `required`, observed `options` and `fileTypes`,
+nullable `multiple`, and source `instructions`. All three options share this
+contract and `questionFieldInstructions`. Types are not constrained to a closed
+schema enum; unsupported or unknown types remain readable with a disabled
+preview control. Required state and choices are never inferred by a code heuristic.
+The local executor adds observed multi-value/file support to its text projection;
+its existing read-only interaction guards remain unchanged.
+
+`ApplicationQuestionFields` uses shared Input, Textarea, Radio, Checkbox and Select
+components, including multi-select and file-or-URL alternatives. The preview is
+local and has no submit/upload/save handler; no applicant input is included in
+subsequent agent calls. This is inspection, not an application workflow.
+The original full-inspection tab remains unchanged.
+
+Verification scope: structural provider/runtime tests, render coverage for input
+families and unknown types, then one public CMES job smoke per managed API using
+the revised prompt/schema. This is not a new quality benchmark or frozen gold.
+Evidence goes in ignored owner-only `runs/typed-questions-20261028/`; no existing
+captures or gold labels are overwritten. No deployment is included.
+
+Typed-field smoke outcome: Browserbase returned ten typed questions in 44.4s;
+Browser Use returned ten in 133.3s. Both exposed file-or-URL controls and standalone
+checkboxes with required/optional states. Browser Use returned native `text` for
+email/phone while Browserbase returned `email`/`tel`; the renderer preserves each
+provider's reported type and does not infer or rewrite it from labels. This smoke
+does not establish that all type/required metadata is ground truth. Empty file
+restrictions remain empty. Browser Use's original policy/help text is retained
+behind an expandable input-instructions control.
+
+The authenticated local UI rendered the Browser Use response; switching a resume
+control from file to URL created a URL input, and a synthetic name could be typed
+and cleared locally. No file was chosen or uploaded and no application submitted.
+Focused API/runtime/render tests (14) and existing form tests (3) passed; changed
+TS/TSX lint and worker JS syntax checks passed. Whole-project TypeScript still has
+existing unrelated errors and no errors in the changed paths. Screenshots, raw
+provider results and source hashes are saved only in the ignored run directory.
+
+### Shared Exa toggle restored (2026-10-28, local)
+
+The official-link toggle and optional stored-role picker now sit above all three
+execution options. The URL and selected role are shared across providers and the
+original full-inspection tab. Off means direct inspection with no source lookup,
+Exa request or URL save. On routes questions-only runs through the existing
+`runResolvedInspectionDebug` workflow using `applicationQuestionsDebug.server.ts`
+as an adapter: exact source association/content lookup, Exa search/selection,
+existing conditional URL save, then the selected questions provider. The existing
+one-retry policy is reused rather than copied. The full inspector is unchanged.
+
+Question results show the input URL, selected official URL/search reasoning,
+linked role's stored URL, separate resolver/Exa usage, and run IDs/cost scope for
+multiple attempts. The route keeps internal authentication and extends its
+execution deadline to the existing resolver route's 800-second envelope; each
+managed agent retains its own 180-second limit and cleanup. There is no new model
+prompt, write path, database migration or deployment.
+
+Verification used synthetic source/role/provider dependencies: the seven adapter
+tests cover all three providers with the toggle on/off, selected-URL forwarding,
+save-before-inspection, unavailable retries, cost provenance and no-candidate
+behavior. The thirteen existing resolver tests also pass. Tests use fixture-only
+OpenAI/Supabase environment values to initialize clients, with network/provider
+calls mocked; they do not update a live role or incur new agent runs. Local UI
+checks confirmed one common toggle, visibility for all options/tabs, and URL/toggle
+state preservation. Changed-file lint passes; whole-project TypeScript continues
+to report pre-existing errors, with none in changed paths.
+
+### Single Exa search (2026-10-29, local)
+
+Supersedes the retry policy above: the shared resolver performs one Exa search
+per run, for all three question providers and the full inspector. No candidate
+or an unavailable inspection ends the run without a second search or agent run.
+Query instructions require the exact company name and full role title from the
+supplied facts/source evidence, retaining specialization and seniority instead
+of broadening to a role family. Source-page contents lookup, when needed to
+identify a pasted URL, remains separate from the single search.
+
+Nineteen focused mocked tests pass, covering success, partial/unavailable results,
+no candidate, all three providers and toggle-off bypass. The provider-request
+test checks the full title in model context and exact query forwarding to Exa.
+Changed-file lint passes. No paid provider run, live role write or deployment.
+
+### Career managed-agent adoption (2026-10-29, local)
+
+Career preparation now defaults to the same Browser Use V4 managed transport as
+Ops option 3, extended with the actual form URL, maxLength, source text and
+separate submission-access evidence. It preserves typed field inventory for the
+existing saved application UI. The initial official-link resolver still performs
+one Exa search; an explicit refresh reads the saved URL directly. New submission
+attempts use Browser Use Agents too, with no Exa discovery in that execution.
+See the approval, file transfer, continuation and verification limits in
+[application-browser-server](../application-browser-server/README.md#career-browser-use-agents-migration--2026-10-29-local-not-deployed).
+The managed HTTP fixture verifies original types/limits and actual form URL
+survive the adapter. No paid run or real application was submitted in this change.

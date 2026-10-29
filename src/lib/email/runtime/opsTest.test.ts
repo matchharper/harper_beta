@@ -3,9 +3,11 @@ import Module from "node:module";
 import { before, test } from "node:test";
 import { opsEmailTestInput } from "./opsTest";
 import { serializeToolResultForModel } from "@/lib/llm/toolError";
+import { EMAIL_ASSISTANT_MODEL, emailAssistantModel } from "./model";
 
 let processEmailReply: typeof import("./reply").processEmailReply;
 let turns = 0;
+let lastTurn: any;
 const response = "역할에 맞게 이력서를 준비했습니다. [이력서](https://example.com/resume)";
 
 before(async () => {
@@ -20,6 +22,7 @@ before(async () => {
     if (name === "@/lib/career/chatTurn") return {
       runCareerChatTurn: async (args: any) => {
         turns++;
+        lastTurn = args;
         assert.equal(args.userId, "talent");
         assert.equal(args.assistantMessageType, "mail");
         const blocks = args.adapter.adaptPromptBlocks([]);
@@ -118,6 +121,7 @@ test("Ops uses the email adapter, persists both sides, renders links and never c
     assert.equal(f.tables.talent_messages[1].content, response);
     assert.match(f.job.metadata.delivery.html, /href="https:\/\/example.com\/resume"/);
     assert.equal(turns, 1);
+    assert.equal(lastTurn.assistantModel, EMAIL_ASSISTANT_MODEL);
     Object.assign(f.job, { status: "processing", locked_by: "owner" });
     await processEmailReply(f.admin, f.job, "owner");
     assert.equal(turns, 1);
@@ -128,6 +132,23 @@ test("Ops uses the email adapter, persists both sides, renders links and never c
     if (dryRun === undefined) delete process.env.EMAIL_REPLY_DRY_RUN;
     else process.env.EMAIL_REPLY_DRY_RUN = dryRun;
   }
+});
+
+test("Ops forwards a custom model to the shared reply turn and preserves tool and delivery isolation", async () => {
+  const f = fixture();
+  f.job.metadata.opsEmailTest.model = "vendor/custom-reply-model";
+  await processEmailReply(f.admin, f.job, "owner");
+  assert.equal(lastTurn.assistantModel, "vendor/custom-reply-model");
+  assert.equal(f.job.skip_reason, "ops_email_test");
+  assert.equal(f.job.resend_email_id, undefined);
+});
+
+test("model overrides apply only to Ops tests, with existing reasoning defaults for known models", () => {
+  const metadata = { opsEmailTest: { model: "gpt-6-luna" } };
+  assert.equal(emailAssistantModel({ kind: "ops_email_test", metadata }).openAIResponsesReasoningEffort, "xhigh");
+  assert.equal(emailAssistantModel({ kind: "reply", metadata }).primaryModel, EMAIL_ASSISTANT_MODEL);
+  assert.equal(emailAssistantModel({ kind: "ops_email_test", metadata: {} }).primaryModel, EMAIL_ASSISTANT_MODEL);
+  assert.equal(emailAssistantModel().primaryModel, EMAIL_ASSISTANT_MODEL);
 });
 
 test("only the server-owned test kind enables test transport; malformed test jobs fail closed", () => {

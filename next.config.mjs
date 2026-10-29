@@ -12,6 +12,15 @@ const packageAsset = (packageName, asset) =>
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    webpackBuildWorker: true,
+    webpackMemoryOptimizations: true,
+  },
+  webpack(config, { dev }) {
+    // The restored compiler cache exceeds the Vercel build container's memory.
+    if (!dev) config.cache = false;
+    return config;
+  },
   // Inline the same real package paths used by tracing. Serverless bundles do
   // not necessarily preserve pnpm's top-level node_modules symlinks.
   env: {
@@ -24,6 +33,8 @@ const nextConfig = {
     "pdf-parse",
     "@fontsource/noto-sans-kr",
   ],
+  // Private local checkpoints must never be packaged into deployed functions.
+  outputFileTracingExcludes: { "/*": ["./.local/career-reset/**"] },
   outputFileTracingIncludes: {
     "/*": ["./src/lib/career/simulation/applicationStagehand/*.mjs", "./src/lib/career/simulation/applicationStagehand/*.cjs", "./src/lib/career/simulation/applicationStagehand/package*.json"],
     "/api/resume-assets/*": [

@@ -273,7 +273,7 @@ export const getOpportunityStatusLabel = (
 ) => {
   const t = tArg ?? fallbackCareerT;
   if (item.feedback === "negative")
-    return t("career.common.career_history_panel.1vrs10j", "제외한 포지션");
+    return t("career.common.career_history_panel.1vrs10j", "숨긴 포지션");
   if (getHistoryOpportunityBucket(item) === "saved") {
     return getSavedStageLabel(getResolvedSavedStage(item), item, t);
   }
@@ -1654,10 +1654,11 @@ const CareerHistoryPanel = ({
       }
       return null;
     }, [activeSavedStatus, activeTab]);
-  const listInitialLoading = listItems.length === 0 && (
-    historyLoading || historyLoadingMore ||
-    (!historyUpdateError && listTotal > 0)
-  );
+  const listInitialLoading =
+    listItems.length === 0 &&
+    (historyLoading ||
+      historyLoadingMore ||
+      (!historyUpdateError && listTotal > 0));
   const loadMoreListItems = useCallback(() => {
     if (!activeListFilter || !hasMoreListItems || historyLoadingMore) return;
     void onLoadMoreHistoryOpportunities(activeListFilter);
@@ -1815,12 +1816,12 @@ const CareerHistoryPanel = ({
             <Tooltips
               text={t(
                 "career.common.career_history_panel.archived_tooltip",
-                "제외한 포지션"
+                "숨긴 포지션"
               )}
             >
               <BareButton
                 type="button"
-                aria-label={"제외한 포지션"}
+                aria-label={"숨긴 포지션"}
                 onClick={() => handleDisplayTabChange("archived")}
                 className={cn(
                   "inline-flex h-7 min-w-7 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a05 px-2 text-[12px] font-medium transition-colors",
@@ -1890,7 +1891,10 @@ const CareerHistoryPanel = ({
               }
               onOpenCompanyInfo={openHistoryCompanyInfo}
               onOpenLink={(url) => openHistoryLink(modalOpportunity, url)}
-              onOpenOpportunityInfo={openOpportunityInfo}
+              onApply={() => {
+                logCareerEvent("click_history_external_apply");
+                setExternalApplyOpportunity(modalOpportunity);
+              }}
               onInternalDecisionAction={(action) =>
                 setInternalDecisionChangeRequest({
                   action,
@@ -1997,12 +2001,14 @@ const CareerHistoryPanel = ({
                 ) : null}
               </div>
 
-              {(savedDisplayMode === "list" || activeSavedStatus === "hidden") && listInitialLoading && (
-                <div className="space-y-3" aria-busy="true">
-                  <Skeleton className="h-24 w-full rounded-lg" />
-                  <Skeleton className="h-24 w-full rounded-lg" />
-                </div>
-              )}
+              {(savedDisplayMode === "list" ||
+                activeSavedStatus === "hidden") &&
+                listInitialLoading && (
+                  <div className="space-y-3" aria-busy="true">
+                    <Skeleton className="h-24 w-full rounded-lg" />
+                    <Skeleton className="h-24 w-full rounded-lg" />
+                  </div>
+                )}
 
               {(savedDisplayMode === "list" ||
                 activeSavedStatus === "hidden") &&
@@ -2034,7 +2040,9 @@ const CareerHistoryPanel = ({
 
               {(savedDisplayMode === "list" ||
                 activeSavedStatus === "hidden") &&
-                listItems.length === 0 && !listInitialLoading && !historyUpdateError && (
+                listItems.length === 0 &&
+                !listInitialLoading &&
+                !historyUpdateError && (
                   <InlinePanel className="px-5 py-5">
                     <div className="text-[14px] leading-6 text-neutral-muted">
                       {t(
@@ -2083,12 +2091,14 @@ const CareerHistoryPanel = ({
             </div>
           )}
 
-          {activeTab === "archived" && !showInlineOpportunityPage && listInitialLoading && (
-            <div className="space-y-3" aria-busy="true">
-              <Skeleton className="h-24 w-full rounded-lg" />
-              <Skeleton className="h-24 w-full rounded-lg" />
-            </div>
-          )}
+          {activeTab === "archived" &&
+            !showInlineOpportunityPage &&
+            listInitialLoading && (
+              <div className="space-y-3" aria-busy="true">
+                <Skeleton className="h-24 w-full rounded-lg" />
+                <Skeleton className="h-24 w-full rounded-lg" />
+              </div>
+            )}
 
           {activeTab === "archived" &&
             !showInlineOpportunityPage &&
@@ -2116,7 +2126,9 @@ const CareerHistoryPanel = ({
 
           {activeTab === "archived" &&
             !showInlineOpportunityPage &&
-            listItems.length === 0 && !listInitialLoading && !historyUpdateError && (
+            listItems.length === 0 &&
+            !listInitialLoading &&
+            !historyUpdateError && (
               <div className="space-y-3">
                 <InlinePanel className="px-5 py-5">
                   <div className="text-[14px] leading-6 text-neutral-soft">

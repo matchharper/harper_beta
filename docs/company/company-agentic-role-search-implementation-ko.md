@@ -2,6 +2,16 @@
 
 문서 기준: 2026-10-24. 이번 작업의 설계와 검증 정본이다. 운영 배포를 의미하지 않는다. 실제 실행 결과는 [평가 레지스트리](../evaluation/company-agentic-role-search/README.md)에 별도로 기록한다.
 
+## 2026-10-28 Brief 자동 보완과 검색 완료 (로컬 수정·미배포)
+
+대화의 `request_matching_search`와 정기 검색의 평가 접수는 기존 등급 설명(`signals`)·요약 자동 보완을 마친 뒤 검색 snapshot을 저장한다. 다른 요청이 이미 보완 중이면 기존 lease를 기다리며, session 값이 갱신된 시점이 아니라 평가용 Brief의 최종 저장까지 기다린다. 확인 화면의 20초 대기 제한을 검색 준비에 재사용하지 않는다.
+
+회사 요청 검색 Worker는 완료 직전 Brief 버전이 달라졌다는 이유로 실패하지 않는다. 평가·카드 설명의 기준은 실행 당시 snapshot과 버전으로 보존하고, 완료 시점 버전은 `result.roleSearch.briefVersionAtCompletion`에 따로 남긴다. 결과 안내와 실행 상세는 두 버전을 구분하며 최신 기준으로 다시 평가했다고 설명하지 않는다. 평가만 요청했다면 기존 카드는 그대로 둔다.
+
+기존 Worker 발행 경로도 Brief 변경 자체를 중복 검사로 거절하지 않는다. 후보자의 현재 공개 권한·원문, Role 실행 자격, lease와 교체할 미결정 목록의 동시 변경 검사는 유지한다. 검색 접수 후 시작 전에 기준이 바뀐 경우와 별도 웹 발행 명령의 현재 평가 확인은 이번 변경 범위가 아니다. 아래 과거 Worker 완료 시 Brief 불일치를 실패로 처리한다는 설명은 이 절로 대체한다.
+
+검증: 웹의 준비 순서·검색 접수·결과 projection 48개, Worker 검색/발행 68개, 격리 로컬 PostgreSQL의 완료·발행 10개를 확인했다. 실제 모델 호출, 운영 데이터 변경, 기존 검색 재실행과 배포는 하지 않았다.
+
 ## 선정 조회의 모델 입력 형식
 
 `get_more_data(kinds=["matching_runs"], matching.view="selection")`는 DB 평가 객체 전체를 모델에 보내지 않는다. 응답 앞에서 Brief·조회 범위·criteria 번호와 정의를 설명하고, 후보별 `talentId`, `info`(이름·headline·location), `joinedAt`, 문자열 목록인 `recentExperience`·`recentEducation`, fit 수치와 기준별 라벨을 담은 `assessment`를 제공한다. 평가 ID·실행 ID·기준 원문을 후보마다 반복하지 않는다. 기준별 세부 수치와 원문은 `view="evaluations"`로 조회한다.

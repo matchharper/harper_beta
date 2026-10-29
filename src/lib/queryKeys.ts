@@ -138,6 +138,7 @@ export const queryKeys = {
   },
   org: {
     all: ["org"] as const,
+    roleStart: (workspaceId: string, roleId: string) => ["org-role-start", workspaceId, roleId] as const,
     acceptedAll: ["org", "acceptedTalents"] as const,
     bootstrapAll: ["org", "bootstrap"] as const,
     boardAll: ["org", "board"] as const,

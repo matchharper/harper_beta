@@ -1,3 +1,4 @@
+import { buildInternalOpportunityRealtimeInstruction } from "./prompts/cases/lifecyclePrompts";
 import { buildMockInterviewCandidateContext } from "./mockInterviewCandidateContext";
 import { fetchMockInterviewContext } from "./mockInterview";
 import {
@@ -100,6 +101,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       instructions: renderCareerPromptBlocks(plan.promptBlocks),
       liveInstructions: buildLiveBackendInstructions(plan),
       liveOnboardingContext: null,
+      internalCallContext: null,
     };
   }
 
@@ -250,10 +252,17 @@ export async function buildCareerRealtimeSessionInstructions(args: {
         userId: args.userId,
       })
     : null;
-  const promptToolNames =
-    openInternalCallRequest || isOnboardingActiveForSession
+  const promptToolNames = openInternalCallRequest
+    ? args.toolNames.filter(
+        (name) =>
+          name === TALENT_TOOL_NAMES.END_CALL ||
+          name === TALENT_TOOL_NAMES.RECORD_CALL_ANSWERS,
+      )
+    : isOnboardingActiveForSession
       ? args.toolNames.filter((name) => name === TALENT_TOOL_NAMES.END_CALL)
-      : args.toolNames;
+      : args.toolNames.filter(
+          (name) => name !== TALENT_TOOL_NAMES.RECORD_CALL_ANSWERS,
+        );
 
   const recentConversationSection =
     buildCareerRealtimeRecentConversationSection(
@@ -309,6 +318,16 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     ...promptPlan,
     instructions: renderCareerPromptBlocks(promptPlan.promptBlocks),
     liveInstructions: buildLiveBackendInstructions(promptPlan),
+    internalCallContext: openInternalCallRequest
+      ? {
+          callId: openInternalCallRequest.id,
+          revision: openInternalCallRequest.updatedAt,
+          text: buildInternalOpportunityRealtimeInstruction({
+            ...openInternalCallRequest,
+            preferredLocale: currentPreferences.preferredLocale,
+          }),
+        }
+      : null,
     liveOnboardingContext: promptPlan.isOnboardingActive
       ? buildLiveOnboardingContext({
           checklistContext: profile,

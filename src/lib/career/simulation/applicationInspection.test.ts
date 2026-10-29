@@ -118,6 +118,7 @@ test("explicit reinspection recovers a failed read and retains answers without a
   assert.equal(refreshed.state.preparation?.finalDocumentId, null);
   assert.equal(refreshed.state.browser, undefined);
   assert.equal(calls, 1);
+  assert.equal(refreshed.state.applicationInspection?.resolveOfficialLink, false);
   await refreshApplicationInspection(f.store, 10, 9, inspect);
   assert.equal(calls, 2);
 });
@@ -239,6 +240,16 @@ test("a stale read-only inspection can be recovered after a process restart", as
   await runApplicationInspection(f.store, 10, async () => form);
   assert.equal(f.record().state.applicationInspection?.status, "completed");
   assert.notEqual(f.record().state.applicationInspection?.runId, "old");
+});
+
+test("a lost official-link inspection does not restart its single-search budget", async () => {
+  const f = fixture();
+  f.update(s => { s.applicationInspection = { status: "running", runId: "lost", resolveOfficialLink: true, startedAt: new Date(Date.now() - 360_000).toISOString() }; });
+  let calls = 0;
+  await runApplicationInspection(f.store, 10, async () => { calls++; return form; });
+  assert.equal(calls, 0);
+  assert.equal(f.record().state.applicationInspection?.status, "failed");
+  assert.equal(f.record().state.applicationForm?.submission?.status, "unknown");
 });
 
 test("ending remains valid across a background revision and a concurrent inspection result", async () => {

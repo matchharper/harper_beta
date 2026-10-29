@@ -4,6 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 import type { TalentAdminClient } from "./admin";
 import { executeProfileRows } from "./profileRows";
 import { profileExtraEntries } from "./profileStore";
+import { formatToolResultText } from "@/lib/llm/promptText";
 import {
   writeDocument,
   AUTHORED_DOCUMENT_ORIGIN,
@@ -14,8 +15,8 @@ async function database() {
   const db = new PGlite();
   await db.exec(`
     create table talent_documents (id text primary key, talent_id text, kind text, file_name text, storage_path text, content_type text, size_bytes bigint, content_sha256 text, extracted_text text, is_public boolean default false, is_primary boolean default false, is_deleted boolean default false, created_at timestamptz default now(), updated_at timestamptz default now(), origin_type text, origin_id text, structured_content jsonb, revision integer default 1);
-    create table talent_experiences (id bigint primary key, talent_id text, role text, company_name text, company_link text, company_location text, employment_type text, start_date text, end_date text, description text, memo text, months integer);
-    create table talent_educations (id bigint primary key, talent_id text, school text, degree text, field text, start_date text, end_date text, url text, description text, memo text);
+    create table talent_experiences (id bigint primary key, talent_id text, role text, company_name text, company_link text, company_location text, employment_type text, start_date date, end_date date, description text, memo text, months integer);
+    create table talent_educations (id bigint primary key, talent_id text, school text, degree text, field text, start_date date, end_date date, url text, description text, memo text);
     create table talent_extras (talent_id text primary key, content jsonb);
   `);
   let beforeWrite: (() => Promise<void>) | undefined;
@@ -102,12 +103,31 @@ async function database() {
   };
 }
 
+test("profile dates reach Postgres DATE columns and the model receives the stored date or real failure", async () => {
+  const { db, admin } = await database();
+  try {
+    await db.exec("insert into talent_experiences (id,talent_id,role) values (41393,'me','Engineer')");
+    const rows = [{ type: "experience", operation: "update", rowId: "41393", fields: { end_date: "2026-10" } }];
+    const results = await executeProfileRows({ admin, userId: "me", rows });
+    assert.equal(results[0].ok, true);
+    assert.equal((await db.query<{ end_date: string }>("select end_date::text from talent_experiences where id=41393")).rows[0].end_date, "2026-10-31");
+    const modelText = formatToolResultText({ profileRows: results });
+    assert.match(modelText, /2026-10-31/);
+    assert.match(modelText, /41393/);
+    await db.exec("create function fail_profile_save() returns trigger language plpgsql as $$ begin raise exception 'profile storage unavailable'; end $$; create trigger fail_save before update on talent_experiences for each row execute function fail_profile_save();");
+    const failed = await executeProfileRows({ admin, userId: "me", rows });
+    assert.equal(failed[0].ok, false);
+    assert.match(formatToolResultText({ profileRows: failed }), /profile storage unavailable/);
+    assert.doesNotMatch(String(failed[0].error), /changed while saving/);
+  } finally { await db.close(); }
+});
+
 test("profile row edits preserve other facts, enforce ownership, detect conflicts and retry additions", async () => {
   const fixture = await database();
   const { db, admin } = fixture;
   try {
     await db.exec(
-      "insert into talent_experiences (id,talent_id,role,description,memo,start_date,months) values (1,'me','Engineer','Keep the full history','Keep memo','2020',60),(2,'other','Private',null,null,null,null)"
+      "insert into talent_experiences (id,talent_id,role,description,memo,start_date,months) values (1,'me','Engineer','Keep the full history','Keep memo','2020-01-01',60),(2,'other','Private',null,null,null,null)"
     );
     const run = (rows: unknown) =>
       executeProfileRows({ admin, userId: "me", requestId: 10, rows });

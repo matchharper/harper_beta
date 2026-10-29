@@ -1,6 +1,11 @@
 import { JSDOM } from "jsdom";
 import TurndownService from "turndown";
 import type { ExaContentsClient } from "@/lib/tools/exaClient";
+import {
+  JobPostingDetailsRequiredError,
+  jobPostingReadErrorReason,
+  type JobPostingReadFailure,
+} from "./jobPostingReadResult";
 
 const MAX_URL_LENGTH = 2_048;
 const MAX_REMOTE_BODY_CHARS = 2_000_000;
@@ -133,6 +138,7 @@ export type CareerJobUrlIdentity = {
 };
 
 export type CareerJobPostingDraft = CareerJobUrlIdentity & {
+  retrievalFailures?: JobPostingReadFailure[];
   companyLogoUrl: string | null;
   companyName: string;
   description: string | null;
@@ -141,6 +147,7 @@ export type CareerJobPostingDraft = CareerJobUrlIdentity & {
   extractedBy:
     | "ashby_jsonld"
     | "exa_summary"
+    | "exa_text"
     | "greenhouse_api"
     | "jumpit_html"
     | "lever_jsonld"
@@ -746,17 +753,22 @@ function mergeManualFields(
   };
 }
 
-function validateDraft(draft: CareerJobPostingDraft) {
-  if (!draft.title || !draft.companyName)
-    throw new Error("job_details_required");
-  return draft;
-}
-
 async function fetchUnstructuredPosting(
   identity: CareerJobUrlIdentity,
-  args: FetchCareerJobPostingArgs
-): Promise<CareerJobPostingDraft | null> {
-  if (!args.exa) return null;
+  args: FetchCareerJobPostingArgs,
+  failures: JobPostingReadFailure[]
+): Promise<CareerJobPostingDraft> {
+  const manualDraft = manualOnlyDraft(identity, args.manual);
+  if (!args.exa) {
+    failures.push({
+      stage: "retrieval",
+      url: identity.canonicalUrl,
+      reason:
+        "Exa client is not configured; public retrieval was not attempted.",
+    });
+    if (manualDraft) return { ...manualDraft, retrievalFailures: failures };
+    throw new JobPostingDetailsRequiredError(identity.canonicalUrl, failures);
+  }
   const submittedUrl = identity.roleUrlVariants.find((value) =>
     value.startsWith("https://")
   );
@@ -765,56 +777,159 @@ async function fetchUnstructuredPosting(
     identity.canonicalUrl,
     identity.roleUrlVariants.at(-1),
   ]).slice(0, 2);
+  let pageTitle: string | null = null;
 
-  for (const retrievalUrl of retrievalUrls) {
-    const response = await args.exa.getContents([retrievalUrl], {
-      maxAgeHours: EXA_CONTENT_MAX_AGE_HOURS,
-      summary: {
-        query: EXA_JOB_POSTING_SUMMARY_QUERY,
-        schema: EXA_JOB_POSTING_SUMMARY_SCHEMA,
-      },
-    });
-    const result = response.results[0];
-    if (!result?.summary) continue;
-
-    let extracted: JsonRecord | null = null;
+  // Once the caller has read the body and supplied both identifiers, do not
+  // repeat the failed summary extraction. Retrieve the source body for storage.
+  if (!manualDraft) {
+    const retrievalUrl = retrievalUrls[0];
     try {
-      extracted = record(JSON.parse(result.summary));
-    } catch {
-      continue;
+      const response = await args.exa.getContents([retrievalUrl], {
+        maxAgeHours: EXA_CONTENT_MAX_AGE_HOURS,
+        summary: {
+          query: EXA_JOB_POSTING_SUMMARY_QUERY,
+          schema: EXA_JOB_POSTING_SUMMARY_SCHEMA,
+        },
+      });
+      const result = response.results[0];
+      pageTitle = optionalText(result?.title);
+      const status = response.statuses?.[0];
+      const failureContext = {
+        stage: "Exa structured summary",
+        url: retrievalUrl,
+        requestId: response.requestId,
+        status: status?.status,
+      };
+      if (!result?.summary?.trim()) {
+        failures.push({
+          ...failureContext,
+          reason: record(status)?.error
+            ? jobPostingReadErrorReason(record(status)?.error)
+            : "Exa returned no structured summary (empty summary). This does not establish that the page is unreadable.",
+        });
+      } else {
+        let extracted: JsonRecord | null = null;
+        try {
+          extracted = record(JSON.parse(result.summary));
+        } catch (error) {
+          failures.push({
+            ...failureContext,
+            reason: `Exa summary was not valid JSON: ${jobPostingReadErrorReason(error)}`,
+          });
+        }
+        if (extracted?.isJobPosting === true) {
+          const workMode = extracted.workArrangement;
+          const draft = mergeManualFields(
+            {
+              ...identity,
+              companyLogoUrl: null,
+              companyName: cleanText(extracted.hiringCompany, 240),
+              description: optionalText(
+                extracted.jobDescription,
+                MAX_DESCRIPTION_CHARS
+              ),
+              descriptionSummary: optionalText(
+                extracted.roleSummary,
+                MAX_DESCRIPTION_SUMMARY_CHARS
+              ),
+              employmentTypes: validateExaEmploymentTypes(
+                extracted.employmentTypes
+              ),
+              extractedBy: "exa_summary",
+              location: optionalText(extracted.jobLocation, 500),
+              salaryRange: optionalText(extracted.salaryRange, 240),
+              title: cleanText(extracted.roleTitle, 500),
+              workMode:
+                workMode === "remote" ||
+                workMode === "hybrid" ||
+                workMode === "onsite"
+                  ? workMode
+                  : null,
+            },
+            args.manual
+          );
+          if (draft.title && draft.companyName) return draft;
+          failures.push({
+            ...failureContext,
+            reason:
+              "Exa summary did not provide both the job title and hiring company.",
+          });
+        } else if (extracted) {
+          failures.push({
+            ...failureContext,
+            reason:
+              "Exa summary did not identify a single job posting; the original assistant can inspect the source body.",
+          });
+        } else if (failures.at(-1)?.stage !== failureContext.stage) {
+          failures.push({
+            ...failureContext,
+            reason: "Exa summary did not contain an object with job fields.",
+          });
+        }
+      }
+    } catch (error) {
+      failures.push({
+        stage: "Exa structured summary",
+        url: retrievalUrl,
+        reason: jobPostingReadErrorReason(error),
+      });
     }
-    if (!extracted || extracted.isJobPosting !== true) return null;
-
-    const extractedWorkMode = extracted.workArrangement;
-    const workMode =
-      extractedWorkMode === "remote" ||
-      extractedWorkMode === "hybrid" ||
-      extractedWorkMode === "onsite"
-        ? extractedWorkMode
-        : null;
-
-    return {
-      ...identity,
-      companyLogoUrl: null,
-      companyName: cleanText(extracted.hiringCompany, 240),
-      description: optionalText(
-        extracted.jobDescription,
-        MAX_DESCRIPTION_CHARS
-      ),
-      descriptionSummary: optionalText(
-        extracted.roleSummary,
-        MAX_DESCRIPTION_SUMMARY_CHARS
-      ),
-      employmentTypes: validateExaEmploymentTypes(extracted.employmentTypes),
-      extractedBy: "exa_summary",
-      location: optionalText(extracted.jobLocation, 500),
-      salaryRange: optionalText(extracted.salaryRange, 240),
-      title: cleanText(extracted.roleTitle, 500),
-      workMode,
-    };
   }
 
-  return null;
+  // Text retrieval is independent of Exa's summary model. Return readable
+  // evidence to the original conversation model instead of adding a hidden LLM.
+  for (const retrievalUrl of retrievalUrls) {
+    let pageText: string | null = null;
+    try {
+      const response = await args.exa.getContents([retrievalUrl], {
+        maxAgeHours: EXA_CONTENT_MAX_AGE_HOURS,
+        text: true,
+      });
+      const result = response.results[0];
+      pageTitle = optionalText(result?.title) ?? pageTitle;
+      pageText =
+        typeof result?.text === "string" ? result.text.trim() || null : null;
+      if (!pageText) {
+        const status = response.statuses?.[0];
+        failures.push({
+          stage: "Exa page text",
+          url: retrievalUrl,
+          requestId: response.requestId,
+          status: status?.status,
+          reason: record(status)?.error
+            ? jobPostingReadErrorReason(record(status)?.error)
+            : "Exa returned no page text.",
+        });
+      }
+    } catch (error) {
+      failures.push({
+        stage: "Exa page text",
+        url: retrievalUrl,
+        reason: jobPostingReadErrorReason(error),
+      });
+    }
+    if (pageText) {
+      if (manualDraft)
+        return {
+          ...manualDraft,
+          extractedBy: "exa_text",
+          description: pageText,
+          retrievalFailures: failures,
+        };
+      throw new JobPostingDetailsRequiredError(
+        identity.canonicalUrl,
+        failures,
+        pageTitle,
+        pageText
+      );
+    }
+  }
+  if (manualDraft) return { ...manualDraft, retrievalFailures: failures };
+  throw new JobPostingDetailsRequiredError(
+    identity.canonicalUrl,
+    failures,
+    pageTitle
+  );
 }
 
 function manualOnlyDraft(
@@ -845,6 +960,7 @@ export async function fetchCareerJobPosting(
   const identity = parseCareerJobUrl(args.url);
   const fetcher = args.fetcher ?? fetch;
   let draft: CareerJobPostingDraft | null = null;
+  const failures: JobPostingReadFailure[] = [];
 
   try {
     if (identity.provider === "greenhouse") {
@@ -858,21 +974,23 @@ export async function fetchCareerJobPosting(
     } else if (identity.provider === "jumpit") {
       draft = await fetchJumpitPosting(identity, fetcher);
     }
-  } catch {
-    // Known ATS pages can change or briefly fail; use the general retrieval path.
+  } catch (error) {
+    failures.push({
+      stage: `${identity.provider} direct retrieval`,
+      url: identity.canonicalUrl,
+      reason: jobPostingReadErrorReason(error),
+    });
   }
 
-  if (!draft) {
-    try {
-      draft = await fetchUnstructuredPosting(identity, args);
-    } catch {
-      // Manual title/company input remains available when public retrieval fails.
-    }
+  if (draft) {
+    draft = mergeManualFields(draft, args.manual);
+    if (draft.title && draft.companyName) return draft;
+    failures.push({
+      stage: `${identity.provider} direct extraction`,
+      url: identity.canonicalUrl,
+      reason:
+        "The structured posting did not provide both the job title and hiring company.",
+    });
   }
-
-  draft = draft
-    ? mergeManualFields(draft, args.manual)
-    : manualOnlyDraft(identity, args.manual);
-  if (!draft) throw new Error("job_details_required");
-  return validateDraft(draft);
+  return fetchUnstructuredPosting(identity, args, failures);
 }

@@ -277,7 +277,7 @@ const buildCareerOpportunityTypeMeta = (
     positiveActionIcon: Handshake,
     positiveActionLabel: t(
       "career.common.opportunity_type_meta.1n5sz4w",
-      "연결 수락"
+      "소개해주세요"
     ),
     savedStageLabels: {
       applied: t(
@@ -378,7 +378,7 @@ const buildCareerOpportunityTypeMeta = (
     positiveActionIcon: Handshake,
     positiveActionLabel: t(
       "career.common.internal_connection_acceptance_modal.intro_submit",
-      "만나볼게요."
+      "만나볼게요"
     ),
     savedStageLabels: {
       applied: t(

@@ -260,9 +260,7 @@ export default function CareerMobileJobsView({
                 onOpenCompanyInfo={onOpenCompanyInfo}
                 onOpenChat={onOpenChat}
                 onOpenLink={(url) => onOpenLink?.(detailOpportunity, url)}
-                onOpenOpportunityInfo={
-                  onOpenOpportunityInfo ?? (() => undefined)
-                }
+                onApply={() => onApply(detailOpportunity)}
                 onInternalDecisionAction={(action) =>
                   onInternalDecisionAction?.(detailOpportunity, action)
                 }

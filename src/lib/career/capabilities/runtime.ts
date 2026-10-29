@@ -118,8 +118,8 @@ export class CareerCapabilityRuntime {
     if (promptArgs.careerCoachingActivity?.status === "active")
       this.loaded.add("career_coaching");
     const eligibleTools = this.options.getEligibleTools?.() ?? this.options.eligibleTools;
-    // Keep only application-specific tools immediately available. Shared tools
-    // use the same loader and leases as ordinary chat; eligibility still scopes both.
+    // Resume preparation needs its source reader immediately. Other shared tools
+    // use the normal loader and leases; eligibility still scopes every tool.
     if (promptArgs.simulationSession?.status === "active")
       this.loaded.add("application_support");
     const resolved = resolveCareerCapabilities({
@@ -128,6 +128,8 @@ export class CareerCapabilityRuntime {
       ),
       mode: this.options.mode,
       loaded: this.loaded,
+      coreToolNames: promptArgs.simulationSession?.status === "active"
+        ? ["read_document"] : [],
     });
     const systemBlocks = buildCareerConversationPromptPlan({
       ...promptArgs,

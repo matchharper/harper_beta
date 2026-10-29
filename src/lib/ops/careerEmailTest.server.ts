@@ -12,6 +12,7 @@ import {
   OPS_EMAIL_TEST_KIND,
 } from "@/lib/email/runtime/opsTest";
 import { processEmailRuntimeMessage } from "@/lib/email/runtime/consumer";
+import { EMAIL_ASSISTANT_MODEL } from "@/lib/email/runtime/model";
 import type { Database } from "@/types/database.types";
 
 type EmailTestHistoryRow = Pick<
@@ -31,12 +32,14 @@ export type OpsEmailTestCommand = {
   previousJobId?: string;
   subject: string;
   content: string;
+  model?: string;
 };
 export type OpsEmailTestItem = {
   id: string;
   createdAt: string;
   subject: string;
   content: string;
+  model: string | null;
   reply: string | null;
   replyHtml: string | null;
   status: "queued" | "processing" | "completed" | "failed";
@@ -61,6 +64,7 @@ export async function createOpsEmailTest(
   actorId: string,
   admin: EmailAdmin = getTalentSupabaseAdmin()
 ) {
+  const model = command.model?.trim() || EMAIL_ASSISTANT_MODEL;
   const existing = await readRow(admin, "email_reply_jobs", command.requestId);
   if (existing) {
     const job = ownedTest(existing, command.userId);
@@ -68,7 +72,8 @@ export async function createOpsEmailTest(
     if (
       test.actorId !== actorId ||
       test.email?.text !== command.content ||
-      test.email?.subject !== command.subject
+      test.email?.subject !== command.subject ||
+      (test.model ?? EMAIL_ASSISTANT_MODEL) !== model
     )
       throw new InternalApiError(409, "이미 다른 입력에 사용된 요청입니다.");
     return { jobId: String(job.id) };
@@ -157,7 +162,7 @@ export async function createOpsEmailTest(
         status: "queued",
         talent_id: command.userId,
         conversation_id: conversationId,
-        metadata: { opsEmailTest: { actorId, email } },
+        metadata: { opsEmailTest: { actorId, email, model } },
       },
       { onConflict: "id", ignoreDuplicates: true }
     );
@@ -170,7 +175,8 @@ export async function createOpsEmailTest(
   if (
     savedTest.actorId !== actorId ||
     savedTest.email?.text !== command.content ||
-    savedTest.email?.subject !== command.subject
+    savedTest.email?.subject !== command.subject ||
+    (savedTest.model ?? EMAIL_ASSISTANT_MODEL) !== model
   )
     throw new InternalApiError(409, "이미 다른 입력에 사용된 요청입니다.");
   return { jobId: command.requestId };
@@ -235,7 +241,8 @@ export async function fetchOpsEmailTests(
   return {
     items: jobs.map((job) => {
       const metadata = asObject(job.metadata);
-      const email = asObject(asObject(metadata.opsEmailTest).email);
+      const test = asObject(metadata.opsEmailTest);
+      const email = asObject(test.email);
       const completed =
         job.status === "skipped" && job.skip_reason === "ops_email_test";
       const pending = job.status === "queued" || job.status === "processing";
@@ -244,6 +251,7 @@ export async function fetchOpsEmailTests(
         createdAt: job.created_at,
         subject: String(email.subject ?? ""),
         content: String(email.text ?? ""),
+        model: typeof test.model === "string" ? test.model : null,
         reply: contents.get(job.assistant_message_id!) ?? null,
         replyHtml:
           typeof metadata.delivery?.html === "string"

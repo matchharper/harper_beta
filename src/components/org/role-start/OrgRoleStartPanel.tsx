@@ -1,8 +1,9 @@
+import { useRoleStartQuery, roleStartMutationOptions } from "@/hooks/org/useRoleStart";
+import { queryKeys } from "@/lib/queryKeys";
 import { OrgRoleMatchingHistory } from "@/components/org/role-overview/OrgRoleMatchingHistory";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { isProtectedNote } from "@/lib/org/roleStart/brief";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { BadgeCheck, LoaderCircle, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CandidateHeader,
   CandidateRating,
@@ -18,7 +19,6 @@ import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
 import {
@@ -44,25 +44,6 @@ type RoleStartCandidate = RoleStartCandidateView;
 type RoleStartQuestion = SessionView["questions"]["history"][number];
 type RoleStartProgress = SessionView["progress"][number];
 type RoleStartPhase = SessionView["phase"];
-
-type StartResponse = {
-  session: SessionView | null;
-  role: { status: string; hasDescription: boolean };
-  issues: Issue[];
-};
-
-type MutationResult = {
-  session?: SessionView | null;
-  issues?: Issue[];
-  applied?: string;
-  missingFields?: string[];
-};
-
-const ACTIVE_PHASES = new Set<RoleStartPhase>([
-  "drafting",
-  "searching",
-  "batch",
-]);
 
 type LocaleC = ReturnType<typeof useOrgLocale>["c"];
 
@@ -118,39 +99,12 @@ export function OrgRoleStartPanel({
   const addToast = useToastStore((state) => state.add);
   const queryClient = useQueryClient();
   const queryKey = useMemo(
-    () => ["org-role-start", workspaceId, roleId],
+    () => queryKeys.org.roleStart(workspaceId, roleId),
     [roleId, workspaceId]
   );
-  const query = useQuery({
-    queryKey,
-    queryFn: () =>
-      fetchWithInternalAuth<StartResponse>(
-        `/api/org/role-start?roleId=${encodeURIComponent(roleId)}&workspaceId=${encodeURIComponent(workspaceId)}`
-      ),
-    refetchInterval: (current) => {
-      const session = current.state.data?.session;
-      if (!session) return false;
-      const verdictsPending =
-        session.phase === "evaluating" &&
-        session.firstCandidates.some(
-          (candidate) => !candidate.verdict && !candidate.failed
-        );
-      const waitingForQuestion =
-        session.phase === "questions" && !session.pendingQuestion;
-      return ACTIVE_PHASES.has(session.phase) ||
-        verdictsPending ||
-        waitingForQuestion
-        ? 1_000
-        : false;
-    },
-  });
+  const query = useRoleStartQuery(roleId, workspaceId);
   const mutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      fetchWithInternalAuth<MutationResult>("/api/org/role-start", {
-        body: JSON.stringify({ ...body, roleId, workspaceId }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      }),
+    ...roleStartMutationOptions(queryClient, workspaceId, roleId),
     onError: (cause) => {
       addToast({
         message:
@@ -163,7 +117,6 @@ export function OrgRoleStartPanel({
       if ((cause as { status?: number }).status === 409)
         void queryClient.invalidateQueries({ queryKey });
     },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey }),
   });
   const run = (body: Record<string, unknown>) =>
     mutation.mutateAsync(body).catch(() => null);
@@ -312,7 +265,6 @@ export function OrgRoleStartPanel({
           busy={mutation.isPending || !canManage}
           issues={data?.issues ?? []}
           onConfirm={() => run({ action: "confirm" })}
-          onPrewarm={() => run({ action: "prewarm" })}
           onRequest={async (request) => {
             const result = await run({ action: "edit", request });
             if (result?.applied)
@@ -588,25 +540,15 @@ function BriefReview(props: {
   onSave: (brief: RoleStartBrief) => void;
   onRequest: (request: string) => void;
   onConfirm: () => void;
-  onPrewarm: () => void;
 }) {
   const { c } = useOrgLocale();
   const serverBrief = JSON.stringify(props.session.brief);
   const [draft, setDraft] = useState<RoleStartBrief>(props.session.brief);
   useEffect(() => setDraft(JSON.parse(serverBrief)), [serverBrief]);
-  const prewarmed = useRef(false);
-  const { onPrewarm, readOnly } = props;
-  useEffect(() => {
-    if (!readOnly && !prewarmed.current) {
-      prewarmed.current = true;
-      onPrewarm();
-    }
-  }, [readOnly, onPrewarm]);
+  const { readOnly } = props;
   const dirty = JSON.stringify(draft) !== serverBrief;
   const conflicts = props.issues.filter((issue) => issue.level === "conflict");
-  const invalid =
-    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) ||
-    Boolean(draft.otherNotes?.some(isProtectedNote));
+  const invalid = draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim());
 
   if (readOnly) {
     return (

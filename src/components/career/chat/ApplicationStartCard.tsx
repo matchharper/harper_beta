@@ -149,33 +149,26 @@ export function ApplicationStartCard({
           />
         </div>
       )}
-      <section className="w-full max-w-[540px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating text-neutral-primary shadow-sm">
-        <header className="p-4 pb-0">
-          <h3 className="font-medium">
-            {t("career.apply.title", "하퍼로 지원하기")}
-          </h3>
+      <section className="w-full max-w-[480px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating text-neutral-primary">
+        <header className="font-medium p-4 pb-0">
+          {t("career.apply.title", "Harper와 준비하기")}
         </header>
         <div className="space-y-2 p-4">
-          <div className="space-y-2">
-            <p className="text-sm font-medium">
-              {t("career.apply.role", "지원할 포지션")}
-            </p>
-            <div className="flex items-center gap-3 rounded-xl border border-neutral-1000-a10 px-3 py-2">
-              <CompanyLogo
-                logoUrl={offer.companyLogoUrl ?? null}
-                name={offer.companyName ?? offer.roleName}
-                size="md"
-              />
-              <div className="min-w-0 space-y-0.5">
-                <p className="break-words text-sm font-medium">
-                  {offer.roleTitle ?? offer.roleName}
+          <div className="flex items-center gap-3 rounded-lg border border-neutral-1000-a10 px-3 py-2">
+            <CompanyLogo
+              logoUrl={offer.companyLogoUrl ?? null}
+              name={offer.companyName ?? offer.roleName}
+              size="md"
+            />
+            <div className="min-w-0 space-y-0.5">
+              <p className="break-words text-sm font-medium">
+                {offer.roleTitle ?? offer.roleName}
+              </p>
+              {offer.companyName && (
+                <p className="break-words text-sm text-neutral-muted">
+                  {offer.companyName}
                 </p>
-                {offer.companyName && (
-                  <p className="break-words text-sm text-neutral-muted">
-                    {offer.companyName}
-                  </p>
-                )}
-              </div>
+              )}
             </div>
           </div>
           <div className="space-y-2">
@@ -207,7 +200,7 @@ export function ApplicationStartCard({
             >
               <SelectTrigger
                 aria-labelledby={`resume-label-${messageId}`}
-                className="data-[size=default]:h-auto min-h-12 gap-3 rounded-xl px-3 py-2"
+                className="data-[size=default]:h-auto min-h-12 gap-3 rounded-lg px-3 py-2"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg-weak text-neutral-muted">
                   <FileText className="h-5 w-5" aria-hidden />
@@ -269,8 +262,8 @@ export function ApplicationStartCard({
             onClick={() => void start()}
           >
             {started
-              ? t("career.apply.started", "지원 준비를 시작했어요")
-              : t("career.apply.start", "함께 지원 시작하기")}
+              ? t("career.apply.started", "이력서 점검을 시작했어요")
+              : t("career.apply.start", "이력서 점검하기")}
           </MuteButton>
         </div>
       </section>

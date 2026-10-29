@@ -1,6 +1,6 @@
 import React from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import RichText from "@/components/ui/rich-text";
 import { cn } from "@/lib/utils";
@@ -8,9 +8,6 @@ import { useCareerT } from "@/i18n/useCareerT";
 
 type TimelineKind = "work" | "education" | "extra";
 type SubtitleTone = "primary" | "muted";
-
-const getTimelineBadgeLabel = (kind: TimelineKind) =>
-  kind === "education" ? "Education" : kind === "extra" ? "Extra" : "Work";
 
 export const TimelineBlock = ({
   title,
@@ -21,13 +18,11 @@ export const TimelineBlock = ({
   memo,
   meta,
   icon,
-  kind = "work",
   logoUrl,
   logoAlt,
   logoText,
   isLast,
-  onAdd,
-  addLabel,
+  onEdit,
 }: {
   title: string;
   subtitle?: string;
@@ -37,16 +32,13 @@ export const TimelineBlock = ({
   memo?: string;
   meta?: string;
   icon: React.ReactNode;
-  kind?: TimelineKind;
   logoUrl?: string | null;
   logoAlt?: string;
   logoText?: string;
   isLast?: boolean;
-  onAdd?: () => void;
-  addLabel?: string;
+  onEdit?: () => void;
 }) => {
   const t = useCareerT();
-  const badgeLabel = getTimelineBadgeLabel(kind);
   const fallbackLogoText = (logoText ?? logoAlt ?? title)
     .trim()
     .slice(0, 1)
@@ -56,18 +48,17 @@ export const TimelineBlock = ({
     <div
       className={cn(
         "relative grid grid-cols-[40px_minmax(0,1fr)] gap-4 py-3 first:pt-0 last:pb-0",
+        onEdit && "rounded-xs hover:bg-neutral-50",
         !isLast && "pb-5"
       )}
     >
-      {onAdd ? (
+      {onEdit ? (
         <BareButton
           type="button"
-          onClick={onAdd}
-          aria-label={addLabel}
-          className="absolute right-0 top-0 z-2 inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-neutral-muted shadow-xs transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
-        >
-          <Plus className="h-4 w-4" />
-        </BareButton>
+          onClick={onEdit}
+          aria-label={`${title} ${t("career.profile.career_talent_profile_panel.1iq5xym", "수정하기")}`}
+          className="absolute inset-0 z-2 cursor-pointer rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+        />
       ) : null}
       {!isLast && (
         <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-linear-to-b from-neutral-1000-a10 via-neutral-1000-a05 to-transparent" />
@@ -88,22 +79,12 @@ export const TimelineBlock = ({
           />
         ) : null}
       </div>
-      <div className={cn("min-w-0", onAdd && "pr-10")}>
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="rounded-[4px] bg-bg-weak px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-neutral-muted">
-            {badgeLabel}
-          </span>
-          {meta && (
-            <span className="text-[11.5px] leading-5 text-neutral-muted">
-              {meta}
-            </span>
-          )}
-        </div>
-        <div className="text-[14px] font-medium leading-[1.35] text-neutral-primary">
+      <div className="min-w-0">
+        <div className="text-base font-medium leading-[1.35] text-neutral-primary">
           {title}
         </div>
-        {(subtitle || secondarySubtitle) && (
-          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[12.5px] leading-5">
+        {subtitle && (
+          <div className="mt-1 flex flex-wrap items-center text-[14px] leading-5">
             {subtitle ? (
               <span
                 className={
@@ -115,19 +96,25 @@ export const TimelineBlock = ({
                 {subtitle}
               </span>
             ) : null}
-            {subtitle && secondarySubtitle ? (
-              <span className="text-neutral-muted">·</span>
-            ) : null}
-            {secondarySubtitle ? (
-              <span className="text-neutral-muted">{secondarySubtitle}</span>
-            ) : null}
           </div>
         )}
+        {secondarySubtitle ? (
+          <span className="mt-1 flex flex-wrap items-center text-sm font-normal leading-5 text-neutral-muted">
+            {secondarySubtitle}
+          </span>
+        ) : null}
+        <div className="my-1 flex flex-wrap items-center gap-2">
+          {meta && (
+            <span className="text-sm leading-5 text-neutral-muted font-normal">
+              {meta}
+            </span>
+          )}
+        </div>
         {description && (
           <RichText
             variant="career"
             content={description}
-            className="mt-2 text-neutral-muted [&_blockquote]:text-[13px] [&_code]:text-[12px] [&_em]:text-neutral-muted [&_li]:text-[13px] [&_ol]:text-[13px] [&_p]:text-[13px] [&_strong]:text-neutral-primary [&_ul]:text-[13px]"
+            className="mt-2 text-neutral-muted [&_a]:relative [&_a]:z-3 [&_blockquote]:text-[13px] [&_code]:text-[12px] [&_em]:text-neutral-muted [&_li]:text-[13px] [&_ol]:text-[13px] [&_p]:text-[13px] [&_strong]:text-neutral-primary [&_ul]:text-[13px]"
           />
         )}
         {memo && (
@@ -154,27 +141,20 @@ export const TimelineBlock = ({
 };
 
 export const ProfileSectionHeader = ({
-  count,
-  icon,
   label,
+  onAdd,
+  addLabel,
 }: {
-  count?: number;
-  icon: React.ReactNode;
   label: string;
+  onAdd: () => void;
+  addLabel: string;
 }) => (
-  <div className="flex items-center gap-2 px-1 pt-4">
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center text-neutral-muted">
-      {icon}
-    </span>
-    <span className="font-halant text-lg leading-none text-neutral-primary">
-      {label}
-    </span>
-    {typeof count === "number" ? (
-      <span className="text-[13px] leading-none text-neutral-soft">
-        {count}
-      </span>
-    ) : null}
-    <span className="h-px min-w-8 flex-1 bg-neutral-1000-a05" />
+  <div className="flex items-center gap-2 px-1 pt-12">
+    <span className="font-halant text-xl text-neutral-primary">{label}</span>
+    <span className="h-px min-w-8 flex-1" />
+    <MuteButton type="button" onClick={onAdd} aria-label={addLabel}>
+      <Plus className="h-4 w-4" />
+    </MuteButton>
   </div>
 );
 
@@ -229,8 +209,7 @@ export const TimelineEditBlock = ({
   onLogoFileChange?: (file: File) => void;
   logoUploadPending?: boolean;
 }) => {
-  const badgeLabel = getTimelineBadgeLabel(kind);
-  const fallbackLogoText = (logoText ?? logoAlt ?? badgeLabel)
+  const fallbackLogoText = (logoText ?? logoAlt ?? "")
     .trim()
     .slice(0, 1)
     .toUpperCase();
@@ -274,7 +253,7 @@ export const TimelineEditBlock = ({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={logoUrl}
-            alt={logoAlt ?? badgeLabel}
+            alt={logoAlt}
             className="relative h-full w-full object-cover"
             onError={(event) => {
               event.currentTarget.style.display = "none";
@@ -293,9 +272,6 @@ export const TimelineEditBlock = ({
       </label>
       <div className="min-w-0">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <span className="rounded-[4px] bg-bg-weak px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-neutral-muted">
-            {badgeLabel}
-          </span>
           <ItemRemoveButton onClick={onRemove} />
         </div>
         {children}

@@ -435,7 +435,6 @@ export async function PATCH(req: NextRequest) {
         | "memo"
         | "internal_decision_change";
       feedback?: TalentOpportunityFeedback | null;
-      expectedUpdatedAt?: string | null;
       feedbackReason?: string | null;
       conversationId?: string | null;
       internalDecisionAction?: CareerInternalOpportunityDecisionAction;
@@ -448,9 +447,6 @@ export async function PATCH(req: NextRequest) {
       suppressNonPriorityFeedbackFollowUp?: boolean;
       talentMemo?: string | null;
     };
-    if (body.expectedUpdatedAt != null && (typeof body.expectedUpdatedAt !== "string" || !Number.isFinite(Date.parse(body.expectedUpdatedAt)))) {
-      return NextResponse.json({ error: "invalid_recommendation_revision" }, { status: 400 });
-    }
     const isMobile = isMobileRequest(req);
 
     const action = body.action;
@@ -800,7 +796,6 @@ export async function PATCH(req: NextRequest) {
 
     const result = await updateTalentOpportunityHistoryItem({
       action,
-      expectedUpdatedAt: body.expectedUpdatedAt ?? previousOpportunity?.updatedAt,
       admin,
       clearEmailAcceptanceConfirmation:
         action === "feedback" && previousOpportunity?.sourceType === "internal",
@@ -1013,10 +1008,6 @@ export async function PATCH(req: NextRequest) {
         currentRecommendationId: error.currentRecommendationId,
         historyShouldRefresh: true,
       }, { status: 409 });
-    }
-    if (error && typeof error === "object" && "message" in error && error.message === "recommendation_changed_refresh_required") {
-      return NextResponse.json({error: careerT(responseLocale,"career.api.opportunities.changed_refresh",
-        "다른 곳에서 이 역할에 대한 선택이 변경되었어요. 최신 상태를 확인한 뒤 다시 선택해 주세요."),historyShouldRefresh:true}, {status:409});
     }
     if (
       error instanceof InternalRoleAcceptanceError &&

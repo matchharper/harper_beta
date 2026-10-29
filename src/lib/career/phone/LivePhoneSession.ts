@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import WebSocket from "ws";
 import type { CallSession, Session } from "@teamlearners/clawops/agent";
-import { buildLiveSessionUpdateEvents, type LiveSessionInstructionUpdate } from "../liveSessionUpdates";
+import { buildLiveSessionUpdateEvents, type LiveSessionInstructionUpdate, type InternalCallVoiceContext, isStaleInternalCallContext } from "../liveSessionUpdates";
 import { parseCareerEndCallArguments } from "../realtimeEndCall";
 
 type Json = Record<string, any>;
@@ -43,6 +43,7 @@ export class LivePhoneSession implements Session {
   private delegationResponses = new Map<string, string>();
   private executed = new Set<string>();
   private onboardingContext: string | null = null;
+  private internalCallContext: InternalCallVoiceContext | null = null;
 
   constructor(private readonly callbacks: PhoneSessionCallbacks) {}
 
@@ -125,9 +126,10 @@ export class LivePhoneSession implements Session {
     if (!userMessage && !assistantMessage) return;
     this.enqueue(async () => {
       const result = await this.callbacks.onTurn({ userMessage, assistantMessage });
-      if (result.liveSessionUpdate && !this.closing) {
-        for (const event of buildLiveSessionUpdateEvents(result.liveSessionUpdate, this.onboardingContext, randomUUID())) this.send(event);
+      if (result.liveSessionUpdate && !this.closing && !isStaleInternalCallContext(result.liveSessionUpdate.internalCallContext, this.internalCallContext)) {
+        for (const event of buildLiveSessionUpdateEvents(result.liveSessionUpdate, this.onboardingContext, randomUUID(), this.internalCallContext)) this.send(event);
         this.onboardingContext = result.liveSessionUpdate.onboardingContext;
+        if (result.liveSessionUpdate.internalCallContext) this.internalCallContext = result.liveSessionUpdate.internalCallContext;
       }
       if (result.shouldEndCall) { this.completeOnboarding = true; this.requestEnd(); }
     });

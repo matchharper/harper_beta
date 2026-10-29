@@ -106,17 +106,17 @@ export function ApplicationSimulationCard({
     return (
       <section
         className="w-full max-w-[420px] rounded-md p-3 border border-neutral-1000-a10"
-        aria-label={t("career.apply.title", "하퍼로 지원하기")}
+        aria-label={t("career.apply.title", "Harper와 준비하기")}
       >
         <RecommendationSearchProgress
           keepVisual
           showAnimation={simulation.status === "running" && !stale}
           progress={{
-            activeStep: [
-              "candidate",
-              "role",
-              "suggestions",
-            ].indexOf(simulation.progress === "application" ? "suggestions" : simulation.progress ?? "candidate"),
+            activeStep: ["candidate", "role", "suggestions"].indexOf(
+              simulation.progress === "application"
+                ? "suggestions"
+                : (simulation.progress ?? "candidate")
+            ),
             completed: simulation.status === "completed",
             running: simulation.status === "running" && !stale,
           }}
@@ -146,19 +146,32 @@ export function ApplicationSimulationCard({
         />
         {inspection && (
           <div className="mt-3 flex items-center gap-2 border-t border-neutral-1000-a05 px-2 pt-3 text-xs text-neutral-muted">
-            {session?.status === "active" && isApplicationInspectionPending(session) ? (
-              <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
+            {session?.status === "active" &&
+            isApplicationInspectionPending(session) ? (
+              <Loader2
+                aria-hidden
+                className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none"
+              />
             ) : inspection.status === "completed" ? (
               <CheckCircle2 aria-hidden className="size-3.5 shrink-0" />
             ) : (
               <AlertCircle aria-hidden className="size-3.5 shrink-0" />
             )}
-            <span>{t("career.application.progress.application", "지원에 필요한 항목 확인")}</span>
+            <span>
+              {t(
+                "career.application.progress.application",
+                "지원에 필요한 항목 확인"
+              )}
+            </span>
             <span className="ml-auto shrink-0 text-neutral-soft">
-              {session?.status !== "active" && isApplicationInspectionPending(session ?? {})
+              {session?.status !== "active" &&
+              isApplicationInspectionPending(session ?? {})
                 ? labels.cancelled
-                : inspection.status === "completed" ? labels.completed
-                  : inspection.status === "failed" ? labels.failed : labels.running}
+                : inspection.status === "completed"
+                  ? labels.completed
+                  : inspection.status === "failed"
+                    ? labels.failed
+                    : labels.running}
             </span>
           </div>
         )}
@@ -177,12 +190,12 @@ export function ApplicationSimulationCard({
   return (
     <section
       className="w-full max-w-[740px] overflow-hidden rounded-xl border border-neutral-1000-a10 bg-bg-floating"
-      aria-label={t("career.apply.title", "하퍼로 지원하기")}
+      aria-label={t("career.apply.title", "Harper와 준비하기")}
     >
       <div className="flex items-center justify-between gap-3 border-b border-neutral-1000-a05 p-4">
         <div>
           <div className="font-medium">
-            {t("career.apply.title", "하퍼로 지원하기")}
+            {t("career.apply.title", "Harper와 준비하기")}
           </div>
           <div className="text-sm text-neutral-muted">
             {simulation.roleName}

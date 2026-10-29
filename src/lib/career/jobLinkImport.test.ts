@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { JobPostingDetailsRequiredError } from "./jobPostingReadResult";
+import { serializeToolResultForModel } from "@/lib/llm/toolError";
 import {
   extractJobPostingJsonLd,
   fetchCareerJobPosting,
@@ -362,4 +364,72 @@ test("requests manual details when neither retrieval nor explicit fields work", 
     fetchCareerJobPosting({ url: "https://example.com/unreadable" }),
     /job_details_required/
   );
+});
+
+test("empty summary returns source text and diagnostics, then saves the body with caller-verified identifiers", async () => {
+  const requests: Record<string, unknown>[] = [];
+  const text = "# Distributed Systems Engineer\n\nHiring company: Northstar Labs\n\nBuild distributed services.";
+  const exa = { getContents: async (_urls: string[], options: Record<string, unknown>) => {
+    requests.push(options);
+    return { requestId: "read-1", statuses: [{ status: "success", source: "cached" }],
+      results: [{ title: "Distributed Systems Engineer", ...(options.text ? { text } : { summary: "" }) }] };
+  } } as never;
+  let recovery: JobPostingDetailsRequiredError | undefined;
+  try {
+    await fetchCareerJobPosting({ exa, url: "https://careers.example.com/opening" });
+  } catch (error) {
+    assert.ok(error instanceof JobPostingDetailsRequiredError);
+    recovery = error;
+  }
+  assert.ok(recovery);
+  assert.equal(recovery.pageText, text);
+  const delivered = serializeToolResultForModel(recovery.toToolResult());
+  assert.match(delivered, /empty summary/);
+  assert.match(delivered, /retrieval status: success/);
+  assert.match(delivered, /request ID: read-1/);
+  assert.ok(delivered.includes(text));
+  assert.ok(!delivered.includes('"retrievalFailures":'));
+  const saved = await fetchCareerJobPosting({ exa, url: recovery.url,
+    manual: { title: "Distributed Systems Engineer", companyName: "Northstar Labs" } });
+  assert.equal(saved.description, text);
+  assert.equal(saved.title, "Distributed Systems Engineer");
+  assert.equal(saved.companyName, "Northstar Labs");
+  assert.equal(requests.length, 3);
+  assert.equal(requests.filter((request) => request.summary).length, 1);
+});
+
+test("retrieval failures retain source stage, status and provider reason without secrets", async () => {
+  const key = process.env.EXA_API_KEY;
+  process.env.EXA_API_KEY = "synthetic-exa-secret";
+  try {
+    const exa = { getContents: async (_urls: string[], options: Record<string, unknown>) => {
+      if (options.summary) throw Object.assign(new Error("upstream failed Bearer synthetic-exa-secret"), { status: 502 });
+      return { requestId: "read-denied", statuses: [{ status: "error", error: { tag: "CRAWL_FORBIDDEN", httpStatusCode: 403 } }], results: [] };
+    } } as never;
+    await assert.rejects(fetchCareerJobPosting({ exa, url: "https://jobs.example.com/opening" }), (error) => {
+      assert.ok(error instanceof JobPostingDetailsRequiredError);
+      const delivered = serializeToolResultForModel(error.toToolResult());
+      assert.match(delivered, /Exa structured summary:.*upstream failed.*502/);
+      assert.match(delivered, /Exa page text:.*403.*CRAWL_FORBIDDEN/);
+      assert.match(delivered, /read-denied/);
+      assert.ok(!delivered.includes("synthetic-exa-secret"));
+      assert.equal(error.pageText, null);
+      return true;
+    });
+  } finally {
+    if (key === undefined) delete process.env.EXA_API_KEY;
+    else process.env.EXA_API_KEY = key;
+  }
+});
+
+test("malformed summary recovers readable text and reports the parse failure", async () => {
+  const exa = { getContents: async (_urls: string[], options: Record<string, unknown>) => ({
+    requestId: "malformed", results: [{ title: "Example opening", ...(options.text ? { text: "Role and company source" } : { summary: "not JSON" }) }],
+  }) } as never;
+  await assert.rejects(fetchCareerJobPosting({ exa, url: "https://jobs.example.com/opening" }), (error) => {
+    assert.ok(error instanceof JobPostingDetailsRequiredError);
+    assert.equal(error.pageText, "Role and company source");
+    assert.match(error.toToolResult().modelOutput, /not valid JSON/);
+    return true;
+  });
 });

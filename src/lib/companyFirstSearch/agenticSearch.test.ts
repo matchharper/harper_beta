@@ -324,6 +324,19 @@ test('one run exposes its recorded additions and removals rather than inferring 
   assert.match(text,/추가 1명, 제외 1명, 유지 1명/);
 });
 
+test('a successful run keeps its original evaluation version after automatic Brief enrichment', async()=>{
+  const {result}=await read([row('done')], {view:'summary',runId:'run'}, {storedRun:{
+    id:'run',role_id:role,status:'succeeded',contract_version:'company_agentic_role_search_v1',
+    request_options:{briefVersion:'v1'},result:{roleSearch:{briefVersion:'v1',briefVersionAtCompletion:'v2',
+      addedTalentIds:[],removedTalentIds:[],retainedTalentIds:[]}}}});
+  assert.equal(result.briefVersion,'v1');
+  assert.equal(result.counts.stage2,1);
+  const text=formatCompanyRoleSearch(result);
+  assert.match(text,/실행 run \(succeeded\)/);
+  assert.match(text,/시작 당시 Brief v1 기준으로 저장됨/);
+  assert.match(text,/완료 시점 Brief v2로 다시 평가한 결과는 아님/);
+});
+
 
 test('incomplete evaluation preserves successful history and exposes only readable retry targets', async()=>{
   const {result}=await read([row('done')], {view:'summary',runId:'run'}, {privateIds:['hidden'],talentIds:['retry','hidden'],storedRun:{

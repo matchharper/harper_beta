@@ -14,6 +14,8 @@ import {
   opsCareerProfileKey,
 } from "@/hooks/ops/useOpsCareer";
 import type { OpsEmailTestCommand } from "@/lib/ops/careerEmailTest.server";
+import { CAREER_TEXT_CHAT_MODEL_IDS } from "@/lib/career/textChatModelConfig";
+import { CLAUDE_HAIKU_MODEL as EMAIL_ASSISTANT_MODEL } from "@/lib/llm/modelConfig";
 import { formatAbsoluteKst } from "./shared";
 import { opsTheme } from "@/components/ops/theme";
 
@@ -31,6 +33,7 @@ export function EmailTestPanel({ userId }: { userId: string }) {
   const client = useQueryClient();
   const [subject, setSubject] = useState<string | null>(null);
   const [content, setContent] = useState("");
+  const [model, setModel] = useState<string | null>(null);
   const pendingCommand = useRef<OpsEmailTestCommand | null>(null);
   const items = history.data?.pages.flatMap((page) => page.items) ?? [];
   const latest = items[0];
@@ -41,6 +44,7 @@ export function EmailTestPanel({ userId }: { userId: string }) {
       (item) => item.status === "queued" || item.status === "processing"
     );
   const currentSubject = subject ?? latest?.subject ?? "";
+  const currentModel = model ?? latest?.model ?? "";
 
   useEffect(() => {
     if (latest?.status !== "completed") return;
@@ -56,7 +60,8 @@ export function EmailTestPanel({ userId }: { userId: string }) {
     const command =
       previous &&
       previous.content === content.trim() &&
-      previous.subject === currentSubject.trim()
+      previous.subject === currentSubject.trim() &&
+      previous.model === (currentModel.trim() || EMAIL_ASSISTANT_MODEL)
         ? previous
         : {
             userId,
@@ -64,6 +69,7 @@ export function EmailTestPanel({ userId }: { userId: string }) {
             previousJobId: latest?.id,
             subject: currentSubject.trim(),
             content: content.trim(),
+            model: currentModel.trim() || EMAIL_ASSISTANT_MODEL,
           };
     pendingCommand.current = command;
     try {
@@ -83,6 +89,24 @@ export function EmailTestPanel({ userId }: { userId: string }) {
         연락을 유발하는 변경은 차단됩니다.
       </p>
       <form onSubmit={submit} className="space-y-3">
+        <label className="block space-y-1.5">
+          <span className={opsTheme.label}>답장 모델</span>
+          <Input
+            value={currentModel}
+            onChange={(event) => setModel(event.target.value)}
+            placeholder={`기본: ${EMAIL_ASSISTANT_MODEL}`}
+            list={`email-test-models-${userId}`}
+            disabled={busy}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <datalist id={`email-test-models-${userId}`}>
+            {CAREER_TEXT_CHAT_MODEL_IDS.map((id) => (
+              <option key={id} value={id} />
+            ))}
+          </datalist>
+        </label>
         <label className="block space-y-1.5">
           <span className={opsTheme.label}>이메일 제목</span>
           <Input
@@ -136,6 +160,7 @@ export function EmailTestPanel({ userId }: { userId: string }) {
           >
             <summary className="cursor-pointer px-3 py-2 text-xs text-neutral-muted">
               {formatAbsoluteKst(item.createdAt)} · {statusLabels[item.status]}
+              {item.model ? ` · ${item.model}` : ""}
             </summary>
             <div className="space-y-3 border-t border-neutral-1000-a05 p-3">
               {item.subject ? (

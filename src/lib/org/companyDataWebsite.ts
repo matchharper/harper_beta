@@ -411,8 +411,7 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
     if (!role) throw new Error("Role not found");
     const internal = internalByRoleId.get(roleId);
     if (
-      (change.key === "role_request" ||
-        change.key === "role_is_company_first_search" ||
+      (change.key === "role_is_company_first_search" ||
         change.key === "role_is_promote" ||
         change.key === "role_is_anonymous" ||
         change.key === "role_intro_search_date" ||
@@ -420,11 +419,7 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
       singleLine(role.source_type) === "internal" &&
       !internal
     ) {
-      throw new Error(
-        change.key === "role_request"
-          ? "Canonical internal role request is unavailable"
-          : "Canonical internal role settings are unavailable"
-      );
+      throw new Error("Canonical internal role settings are unavailable");
     }
     const roleValues: Partial<Record<WebsiteCompanyDataKey, unknown>> = {
       role_description: role.description ?? null,

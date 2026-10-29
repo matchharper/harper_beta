@@ -1,5 +1,15 @@
 # Deployed Next server application experiment
 
+## Production inspection failure diagnostic — 2026-10-28
+
+Executed: [운영 실패 공고 3개 재실행 결과](report-2026-10-28-production-inspection.md). Numeric-ref failures no longer reproduced; two forms were read and one email/consent gate was reported. This does not verify submission. Two separate local error reproductions remain unresolved.
+
+`production-inspection-failures-20261028-v1` rechecks three public application URLs whose production records contained numeric-only `fieldRefs` conversion errors. The exact URL/source-record capture is owner-only under `private/production-inspection-failures-20261028-v1/cases.json`; the frozen local-source manifest is under the matching ignored `runs/` group. Earlier datasets and gold are unchanged. There is no independent completeness gold: this is an incident diagnostic, not a model comparison or release gate.
+
+Canonical runner: `node --env-file=.env.local --import tsx scripts/evalPublicApplicationInspection.ts production-inspection-failures-20261028-v1 <halter|spacex|goldman>`. It calls the current local `inspectApplicationForm`, Browserbase/Stagehand with GPT-6-luna medium and the product 180-second deadline, without injecting the legacy driver. Each case runs once with no automatic model retry. Inspect returned field labels, raw refs/report/snapshot, limitations, elapsed time and provider cleanup. A successful inspection is not evidence of application submission or complete coverage of conditional questions.
+
+Only public page URLs/content are sent. No candidate facts, files, answers, authentication, consent or real-company submissions; no production application rows are changed. The existing runtime uses encrypted temporary Storage transport and cleans up its resources. Raw outputs stay owner-only in ignored run directories. Public pages are mutable, so results describe the newly observed page rather than replaying frozen historical HTML.
+
 ## Objective and unit
 Determine whether a deployed Next.js server can inspect public application forms and use Browserbase + Stagehand hybrid to submit a synthetic application with exact attachment bytes. One execution is one public JD inspection or one owned synthetic submission. This is a challenge fixture, not a representative submission-rate benchmark.
 
@@ -144,3 +154,60 @@ Frozen input `cases-public-gausslabs-v1.json`, rubric `gold-public-gausslabs-v1.
 Separate read-only product-entry diagnostic for this frozen case: `scripts/evalPublicApplicationInspection.ts gausslabs-browserbase-20261026-v1 gausslabs`. Calls the unchanged `inspectApplicationForm` and observes runtime return values solely for private evidence/usage recording; uses the real product prompt, converter and 180-second inspection timeout. No files/applicant input, writes, or approval resolution. Record this separate session's cost/time rather than fold it into the guarded fill attempt. Success requires a nonempty inventory accepted by the actual product converter; it does not establish final submission support.
 
 Executed result: guarded browser run reached the final unclicked submit button with all required fields and visible resume Success; file-only parseResume returned HTTP 200. 164.542 s including 42.046 s setup, 16/100 steps, estimated model + marginal Browserbase cost $0.0738614. Separate unchanged product inspection read 12 inputs but rejected every UUID:index ref under the numeric-only converter and returned unavailable/zero fields: 91.911 s, $0.007971225. Combined diagnostic spend $0.081832625, excluding monthly subscription, hosted executor and Storage. Both Browserbase sessions confirmed COMPLETED and executors stopped. Screenshot/DOM/network evidence reviewed; no final submit attempted, no product runtime edits or deployment. This establishes guarded form-fill readiness on this JD, not working Harper product integration or actual submission success.
+
+## 저장된 지원서 UI · 2026-10-28 로컬 변경
+
+기존 입력/전송 승인 엔진을 재사용한 지원서 저장·편집·공고 상세 재열기 검증은 [application review 보고서](report-2026-10-28-application-review.md)를 따른다. 합성 fixture 검증이며 실제 제출이나 배포 결과가 아니다.
+
+## Career Browser Use Agents migration — 2026-10-29 (local, not deployed)
+
+New Career Apply with Harper attempts use Browser Use Cloud V4 Agents with
+`gpt-6-luna` (provider default reasoning, currently high). Already-persisted
+Stagehand/OpenAI attempts retain their existing runtime until ended. No new
+Browserbase session or Stagehand worker is created for a new Career attempt.
+
+The initial public-form inventory uses the shared managed inspection transport
+from Ops, with the full Career form contract: actual form URL, original labels,
+input types, choices, required state, multiple values, file restrictions,
+character limits, source instructions and independently reported access status.
+Official-link discovery performs one Exa search using the exact company/full role
+title. Explicit reinspection reads the saved URL without repeating discovery;
+submission and same-session follow-ups do not search with Exa.
+
+Approval changes deliberately: V4 does not expose Harper's old executor-held
+exact HTTP request gate. Harper now displays the frozen answers and filenames
+and requires explicit approval BEFORE provisioning applicant files or dispatching
+the managed agent. The application UI renders this review even without a held
+network request. Ownership, review revision and exact document fingerprints are
+checked in the existing store/executor. The approved packet is the agent's input;
+no hidden profile facts are added when a saved application review exists. Consent,
+additional questions and actual site operations follow the managed agent's task
+contract, not the old Stagehand network interceptor. This is not a claim of
+network-level enforcement by Browser Use.
+
+Files use fresh V4 workspaces, presigned PUTs with exact length/content type, and
+returned uploads/ paths. AgentMail is disabled. Provider run/session/workspace
+IDs and dispatch intent live in the existing activity; no new table is added.
+Creation is never automatically replayed, including an ambiguous response or
+lost provider-ID save. Polling resumes a known run. Missing information returns
+to the existing Harper composer, then the revised packet requires approval
+before a new run in the same provider session. An ambiguous submission never
+enters that continuation. Receipt evidence plus approved dispatch is required
+for a confirmed result. Stop cancels the run, waits for terminal status, stops
+its session's browsers, then deletes exact workspace file paths. Unknown
+dispatch or failed cancellation remains explicitly unconfirmed.
+
+75 focused synthetic mocked tests pass across the lifecycle, actual HTTP contracts,
+approval and file changes, cancellation, unknown creation, same-session
+continuation, provider selection, legacy compatibility and inspection. Canonical
+checks: `applicationManagedBrowser.test.ts`, `browserUseAgents.test.ts`,
+`applicationBrowser.test.ts`, `applicationInspection.test.ts`, `agentsApi.test.ts`
+and the three Ops resolver/managed-agent test files under `src/lib/ops/`.
+Changed backend files pass lint. The application panel retains three pre-existing
+React lint warnings; whole-project TypeScript retains pre-existing errors (including
+the empty generated database type file), with no new errors in this change.
+No live LLM benchmark, third-party ATS submission or paid provider call was
+performed for this migration. Previous frozen datasets/gold remain unchanged;
+the earlier Stagehand receiver verification does not establish managed-agent
+submission quality. A future live submission check must use an owned synthetic
+receiver, never a real employer application. No deployment or DB migration.

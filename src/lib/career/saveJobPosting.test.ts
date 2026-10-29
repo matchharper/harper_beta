@@ -3,6 +3,7 @@ import test from "node:test";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { saveJobPosting } from "./saveJobPosting";
 import { importCareerJobLink } from "./jobLinkImportServer";
+import { getExaClient } from "@/lib/tools/exaClient";
 
 test("saving a known external posting reuses the history importer and returns a compact card reference", async () => {
   const calls: Record<string, unknown>[] = [];
@@ -55,6 +56,9 @@ test("saving a known external posting reuses the history importer and returns a 
     talentId: "me",
     url: "https://example.com/jobs/engineer",
   });
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  if (!first.ok || !second.ok) throw new Error("Expected saved postings");
   assert.equal(first.created, true);
   assert.equal(second.created, false);
   assert.equal(calls[0].p_talent_id, "me");
@@ -137,4 +141,51 @@ test("provider-identity matches also reject test-only roles before import", asyn
     }),
     /Test-only roles/
   );
+});
+
+test("incomplete extraction performs no write and the continued save imports title, company and full source body once", async () => {
+  const previousKey = process.env.EXA_API_KEY;
+  process.env.EXA_API_KEY = "test-exa-key";
+  const exa = getExaClient();
+  const previousRead = exa.getContents;
+  const pageText = "# Platform Engineer\n\nExample Systems\n\nBuild and operate the platform.";
+  exa.getContents = (async (_urls: unknown, options: { text?: unknown }) => ({
+    requestId: "retrieval-1", statuses: [{ status: "success", source: "cached" }],
+    results: [{ title: "Platform Engineer", ...(options.text ? { text: pageText } : { summary: "" }) }],
+  })) as typeof exa.getContents;
+  const writes: Record<string, any>[] = [];
+  const admin = {
+    from: () => {
+      const q = {
+        select: () => q, eq: () => q, in: () => q, ilike: () => q,
+        order: () => q, limit: () => q,
+        maybeSingle: async () => ({ data: null, error: null }),
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
+      };
+      return q;
+    },
+    rpc: async (name: string, input: Record<string, unknown>) => {
+      assert.equal(name, "import_talent_job_link");
+      writes.push(input);
+      return { data: { role_id: "external-role", recommendation_id: "saved-recommendation", created_recommendation: true, saved_stage: "saved" }, error: null };
+    },
+  } as unknown as TalentAdminClient;
+  try {
+    const first = await saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform" });
+    assert.equal(first.ok, false);
+    assert.equal(writes.length, 0);
+    if (first.ok) throw new Error("Expected source evidence before saving");
+    assert.equal(first.pageText, pageText);
+    const second = await saveJobPosting({ admin, talentId: "fixture", url: first.url, title: "Platform Engineer", companyName: "Example Systems" });
+    assert.equal(second.ok, true);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].p_role.description, pageText);
+    assert.equal(writes[0].p_role.title, "Platform Engineer");
+    assert.equal(writes[0].p_role.companyName, "Example Systems");
+    assert.equal(writes[0].p_preserve_existing_progress, true);
+  } finally {
+    exa.getContents = previousRead;
+    if (previousKey === undefined) delete process.env.EXA_API_KEY;
+    else process.env.EXA_API_KEY = previousKey;
+  }
 });

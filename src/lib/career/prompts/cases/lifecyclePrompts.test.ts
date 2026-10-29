@@ -14,7 +14,6 @@ import { CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER } from "../types";
 test("call wrap-up mentions only a verified saved call note", () => {
   const baseArgs = {
     durationLabel: "1분 5초",
-    isBrief: false,
     isOnboardingDone: true,
     preferredLocale: "ko",
     transcript: [{ role: "user" as const, text: "기본급이 중요해요." }],
@@ -47,7 +46,6 @@ test("career coaching wrap-up preserves only an agreed useful ending", () => {
   const prompt = buildCareerCallWrapupTurnInstruction({
     conversationStarterId: "career_coaching",
     durationLabel: "8분 12초",
-    isBrief: false,
     isOnboardingDone: true,
     preferredLocale: "ko",
     transcript: [
@@ -70,24 +68,20 @@ test("career coaching wrap-up preserves only an agreed useful ending", () => {
 test("call wrap-up fallback appends a localized saved call-note notice", () => {
   const korean = buildCareerCallWrapupFallbackFollowUp({
     callNoteCreated: true,
-    isBrief: false,
     isOnboardingDone: true,
     preferredLocale: "ko",
   });
   const english = buildCareerCallWrapupFallbackFollowUp({
     callNoteCreated: true,
-    isBrief: false,
     isOnboardingDone: true,
     preferredLocale: "en",
   });
   const withoutCallNote = buildCareerCallWrapupFallbackFollowUp({
-    isBrief: false,
     isOnboardingDone: true,
     preferredLocale: "ko",
   });
   const updatedEnglish = buildCareerCallWrapupFallbackFollowUp({
     callNoteUpdated: true,
-    isBrief: false,
     isOnboardingDone: true,
     preferredLocale: "en",
   });

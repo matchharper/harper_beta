@@ -228,7 +228,7 @@ export async function persistPublication(query: Query, command: PublicationComma
     const presentation = {version:'company_first_presentation_v2', briefVersion:current.version,
       name:candidate.profile.profile.name,headline:candidate.profile.profile.headline,summary:written.tldr,tldr:written.tldr,
       harperNote:written.harperNote,harper_note:written.harperNote,finalFit:written.finalFit,
-      recommendationReason:written.recommendationReason,criteriaEvaluations:written.criteriaEvaluations,
+      criteriaEvaluations:written.criteriaEvaluations,
       roleName:current.role.name,alsoSuitableRoleIds:[],alsoSuitableRoles:[]};
     if (previous.has(candidate.talentId)) await query(`UPDATE public.company_intro_candidates SET presentation=$2::text::jsonb,selection_reason=$3,
       selection_run_id=$4::uuid,role_fingerprint=$5,talent_fingerprint=$6,revision=revision+1,updated_at=now() WHERE id=$1::uuid`,
@@ -240,11 +240,11 @@ export async function persistPublication(query: Query, command: PublicationComma
       VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,3,$6,$7::text::jsonb)`,
     [command.workspaceId,command.roleId,candidate.talentId,runId,current.version,written.fingerprint,JSON.stringify({tldr:written.tldr,
       harperNote:written.harperNote,finalFit:written.finalFit,criteria:written.criteriaEvaluations,
-      recommendationReason:written.recommendationReason,explanationRecordedAt:new Date().toISOString()})]);
+      explanationRecordedAt:new Date().toISOString()})]);
     await query(`INSERT INTO public.talent_opportunity_matching_review(id,run_id,talent_id,opportunity_id,decision,reason,
       criteria_evaluations,input_fingerprint,introduction,presentation_fingerprint,tldr,harper_note,final_fit)
       VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,'company_first',$5,$6::text::jsonb,$7,$8,$9,$8,$10,null)`,
-    [reviewId,runId,candidate.talentId,command.roleId,written.recommendationReason,JSON.stringify(written.criteriaEvaluations),
+    [reviewId,runId,candidate.talentId,command.roleId,command.reason ?? '',JSON.stringify(written.criteriaEvaluations),
       candidate.sourceFingerprint,written.tldr,written.fingerprint,written.harperNote]);
   }
   return receipt;

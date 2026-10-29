@@ -340,6 +340,7 @@ export async function POST(req: NextRequest) {
             responseLocale,
             isMockInterview: Boolean(mockInterviewOpportunityId),
             onboardingContext: promptPlan.liveOnboardingContext,
+            internalCallContext: promptPlan.internalCallContext,
             backendInstructions,
             tools: toolSelection.tools,
           }),

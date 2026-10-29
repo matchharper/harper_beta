@@ -20,6 +20,8 @@ export function readForm({ detailed = true, key }) {
         ref,
         tag: e.tagName.toLowerCase(),
         type: e.getAttribute("role") || e.type || "",
+        name: e.name || undefined,
+        optionValue: ["radio", "checkbox"].includes(e.type) ? e.value : undefined,
         label:
           [...(e.labels || [])].map((l) => l.innerText.trim()).join(" ") ||
           e.getAttribute("aria-label") ||
@@ -42,6 +44,7 @@ export function readForm({ detailed = true, key }) {
               ? false
               : null,
         maxLength: e.hasAttribute("maxlength") ? e.maxLength : null,
+        multiple: "multiple" in e ? Boolean(e.multiple) : null,
         fileTypes:
           e.type === "file" ? (e.accept || "").split(",").filter(Boolean) : [],
         instructions: (

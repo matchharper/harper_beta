@@ -14,7 +14,6 @@ import { roleMatchingBriefQueryOptions } from "@/hooks/org/roleMatchingBriefQuer
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { criterionLevel } from "@/lib/org/roleCriteria";
-import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import type { RoleStartBriefView } from "@/lib/org/roleStart/view";
 import { useOrgAgentLiveChatStore } from "@/store/useOrgAgentLiveChatStore";
 import { useToastStore } from "@/store/useToastStore";
@@ -158,9 +157,7 @@ export function RoleBriefSection({
       return typeof update === "function" ? update(base) : update;
     });
   };
-  // A note about age, gender or another protected trait is not saved: fixed first.
-  const invalid =
-    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) || Boolean(draft.otherNotes?.some(isProtectedNote));
+  const invalid = draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim());
   const shown = server ?? draft;
 
   return (

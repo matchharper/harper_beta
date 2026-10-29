@@ -88,30 +88,14 @@ export type RoleStartBrief = {
   criteria: RoleStartCriterion[];
   keywords: string[];
   /**
-   * Job titles that do this Role's work, and close titles that do not. Kept
-   * for a job-match score; not used for selection yet.
+   * Job titles that do this Role's work, and close titles that do not. Used
+   * for the job-match score in candidate pool selection and ranking.
    */
   titles?: { matching: string[]; nearMiss: string[] };
   references?: RoleStartReference[];
   /** The conditions and criteria the summary recaps (summaryKey); a different key means it is rewritten. */
   summaryOf?: string;
-  /** 기타 참고 사항: the team's other job-related preferences, soft context for matching (at most 5 lines). */
-  otherNotes?: string[];
 };
-
-/**
- * A 기타 참고 사항 line about age, gender or another protected trait is never
- * saved or used for matching (same words the reason chips and saved
- * preferences already refuse).
- */
-export const PROTECTED_NOTE_WORDS =
-  /나이|연령|[1-9]0\s*대|\d+\s*세|성별|여성|남성|여자|남자|결혼|기혼|미혼|임신|출산|육아|자녀|가족|국적|인종|민족|종교|정치|장애|질병|건강|병력|군\s?필|군\s?복무|성적\s*지향|\bage\b|gender|\bsex\b|female|\bmale\b|married|marital|pregnan|religio|nationality|\brace\b|ethnic|disabilit|sexual\s+orientation/i;
-export const PROTECTED_NOTE_MESSAGE = "나이·성별 같은 조건은 매칭에 쓰지 않아요. 경력 연차나 직무 요건으로 적어 주세요.";
-export const MAX_OTHER_NOTES = 5;
-
-export function isProtectedNote(line: string) {
-  return PROTECTED_NOTE_WORDS.test(line);
-}
 
 export type RoleStartProbe = {
   /** Which criterion or condition the company has not settled yet. */
@@ -271,20 +255,22 @@ export function normalizeRoleStartBrief(value: unknown): RoleStartBrief {
     })
     .filter((item) => item.name && item.criteria);
   return {
-    summary: text(source.summary, 4_000),
+    summary: summaryFromStoredBrief(source),
     hardConditions: normalizeHardConditions(source.hardConditions),
     criteria,
     keywords: textList(source.keywords, 16),
     ...titlesFrom(source),
     ...referencesFrom(source),
     ...(text(source.summaryOf, 80) ? { summaryOf: text(source.summaryOf, 80) } : {}),
-    ...otherNotesFrom(source),
   };
 }
 
-function otherNotesFrom(source: Record<string, unknown>) {
-  const notes = textList(source.otherNotes, MAX_OTHER_NOTES * 2).filter((line) => !isProtectedNote(line)).slice(0, MAX_OTHER_NOTES);
-  return notes.length ? { otherNotes: notes } : {};
+/** Old sessions keep their text in the visible summary; new Briefs never store a notes field. */
+function summaryFromStoredBrief(source: Record<string, unknown>) {
+  const legacyNotes = Array.isArray(source.otherNotes)
+    ? source.otherNotes.filter((line): line is string => typeof line === "string" && Boolean(line.trim()))
+    : [];
+  return [typeof source.summary === "string" ? source.summary : "", ...legacyNotes].filter(Boolean).join("\n\n");
 }
 
 function referencesFrom(source: Record<string, unknown>) {
@@ -480,11 +466,11 @@ export function needsSummary(brief: RoleStartBrief) {
 
 /**
  * Everything a verdict reads from the Brief; a changed hash makes a prepared
- * verdict stale. The summary only recaps the rest, so it is not part of it.
+ * verdict stale. The summary can also carry the team's job-related context.
  */
 export function verdictBriefHash(brief: RoleStartBrief) {
   return stableHash({
-    ...(brief.otherNotes?.length ? { notes: brief.otherNotes } : {}),
+    summary: brief.summary,
     hard: brief.hardConditions.map((condition) => condition.label),
     criteria: brief.criteria.map((criterion) => [
       criterion.id ?? criterion.name,
@@ -540,11 +526,6 @@ export function renderBriefMarkdown(brief: RoleStartBrief) {
   for (const criterion of ordering) {
     lines.push(`- **${criterion.name}** (${levelLabel(levelOf(criterion))}): ${criterion.criteria}`);
     pushSignals(criterion);
-  }
-  // Soft context for matching: never a reason to leave someone out.
-  if (brief.otherNotes?.length) {
-    lines.push("", "## Other notes", "- 아래는 팀의 기타 참고 사항이에요. 참고만 하고, 이것만으로 후보를 제외하지 않아요.");
-    for (const note of brief.otherNotes) lines.push(`- ${note}`);
   }
   return lines.join("\n").trim();
 }

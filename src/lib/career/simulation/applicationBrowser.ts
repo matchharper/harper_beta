@@ -1,4 +1,5 @@
 import { browserProgressEntrySchema } from "./browserProgress";
+import { applicationReviewSchema } from "./applicationReview";
 import { z } from "zod";
 import { browserRequestSchema } from "./applicationBrowserActions";
 import { applicationBrowserRuntimeRefSchema } from "./applicationBrowserRuntimeRef";
@@ -15,6 +16,17 @@ const browserAttemptSchema = z.object({
     "uncertain",
     "cancelled",
   ]),
+  engine: z.literal("browser-use-agents").optional(),
+  managed: z.object({
+    workspaceId: z.string().optional(),
+    runId: z.string().optional(),
+    sessionId: z.string().optional(),
+    dispatchStarted: z.boolean().optional(),
+    task: z.string().optional(),
+    reviewFingerprint: z.string().optional(),
+    filePaths: z.array(z.object({ documentId: z.string(), name: z.string(), path: z.string() })).optional(),
+    totalCostUsd: z.string().optional(),
+  }).optional(),
   sessionId: z.string().optional(),
   model: z.string().optional(),
   environmentId: z.string().optional(),
@@ -37,6 +49,7 @@ const browserAttemptSchema = z.object({
   documentHash: z.string(),
   url: z.string(),
   purpose: z.string(),
+  reviewedApplication: applicationReviewSchema.optional(),
   sourceMessageId: z.number().int().positive().optional(),
   progress: browserProgressEntrySchema.array().max(40).optional(),
   cursor: z.string().optional(),
@@ -96,7 +109,7 @@ export const applyToRoleTool = {
   function: {
     name: APPLY_TO_ROLE,
     description:
-      "Fill the current role's public application form using the user's selected final resume and confirmed answers after ready_for_role and authorization to apply. Prepare known required materials first. Reuses an in-progress run; retries a failed attempt when no submission was sent. Returns the recorded outcome when submission succeeded or may have happened. Set restart=true only when the user explicitly requests a NEW attempt knowing that prior outcome; a retry request after a known pre-submission failure needs no extra confirmation. Resuming saved preparation preserves the prior outcome. A saved-stage applied label alone is not a website receipt. New attempts preserve previous outcomes and require fresh final submission approval. Login/CAPTCHA are unsupported. Yields only while a run or question is pending; otherwise use the returned facts to answer the user.",
+      "Fill the current role's public application form using the user's selected final resume and confirmed answers after ready_for_role and authorization to apply. Prepare known required materials first. Reuses an in-progress run; retries a failed attempt when no submission was sent. Returns the recorded outcome when submission succeeded or may have happened. Set restart=true only when the user explicitly requests a NEW attempt knowing that prior outcome; a retry request after a known pre-submission failure needs no extra confirmation. Resuming saved preparation preserves the prior outcome. A saved-stage applied label alone is not a website receipt. New attempts preserve previous outcomes and require fresh approval of the answers and files before website entry and submission. Login/CAPTCHA are unsupported. Yields only while a run or question is pending; otherwise use the returned facts to answer the user.",
     parameters: {
       type: "object",
       additionalProperties: false,

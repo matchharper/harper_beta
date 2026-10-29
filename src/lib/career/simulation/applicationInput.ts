@@ -253,7 +253,7 @@ export function finishApplicationAnswer(
   p.currentItemId = remaining ?? batch.itemIds.at(-1) ?? null;
   for (const id of batch.itemIds) {
     const action = next.actions.find(a => a.id === id), response = p.responses[id];
-    if (action && response && ["accept", "ignore"].includes(response.decision)) {
+    if (action && response && ["accept", "ignore", "skip"].includes(response.decision)) {
       action.status = response.decision === "accept" ? "completed" : "skipped";
       if (response.edits) action.edits = response.edits;
       if (response.draftText !== undefined) {action.draftText=response.draftText;action.proposal=response.draftText;}

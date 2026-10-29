@@ -14,6 +14,8 @@ import {
   Terminal,
 } from "lucide-react";
 import React from "react";
+import CareerCheckpointDevControls from "./CareerCheckpointDevControls";
+import { CAREER_CHECKPOINT_USER_ID } from "@/lib/career/devCheckpointContract";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { DevColorPaletteControls } from "@/components/common/DevColorPaletteControls";
@@ -1099,6 +1101,10 @@ export default function CareerHomeDevControls({
           </div>
         ) : null}
       </div>
+      {process.env.NODE_ENV !== "production" &&
+      user?.id === CAREER_CHECKPOINT_USER_ID ? (
+        <CareerCheckpointDevControls />
+      ) : null}
     </div>
   );
 }

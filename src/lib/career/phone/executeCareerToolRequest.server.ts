@@ -1,8 +1,20 @@
+import { buildCareerRealtimeSessionInstructions } from "../realtimeInstructions";
+import { getCareerRealtimeToolCandidates } from "../llmTools";
+import type { LiveSessionInstructionUpdate } from "../liveSessionUpdates";
+import { RECORD_CALL_ANSWERS } from "../recordCallAnswersTool";
 import { formatToolResultText } from "@/lib/llm/promptText";
 import "server-only";
 import type { CareerRequestRuntime } from "./requestRuntime.server";
-import { runToolCall, unwrapToolCall, prepareToolDelivery } from "@/lib/llm/toolExecution";
-import { formatToolError, toolErrorResult, projectToolDiagnosticFieldsForTransport } from "@/lib/llm/toolError";
+import {
+  runToolCall,
+  unwrapToolCall,
+  prepareToolDelivery,
+} from "@/lib/llm/toolExecution";
+import {
+  formatToolError,
+  toolErrorResult,
+  projectToolDiagnosticFieldsForTransport,
+} from "@/lib/llm/toolError";
 import { NextRequest, NextResponse } from "next/server";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import {
@@ -17,6 +29,7 @@ import {
 } from "@/lib/career/mockInterview";
 
 type Body = {
+  internalCallRequestId?: string;
   mockInterviewOpportunityId?: string;
   arguments?: Record<string, unknown>;
   channel?: string;
@@ -26,7 +39,10 @@ type Body = {
   toolCallId?: string;
 };
 
-export async function executeCareerToolRequest(req: NextRequest, runtime: CareerRequestRuntime) {
+export async function executeCareerToolRequest(
+  req: NextRequest,
+  runtime: CareerRequestRuntime
+) {
   let capturedDiagnostics: readonly unknown[] = [];
   try {
     const user = await runtime.getUser();
@@ -60,7 +76,10 @@ export async function executeCareerToolRequest(req: NextRequest, runtime: Career
 
     if (conversationError) {
       return NextResponse.json(
-        { error: conversationError.message ?? "Failed to read conversation", diagnostic: formatToolError(conversationError) },
+        {
+          error: conversationError.message ?? "Failed to read conversation",
+          diagnostic: formatToolError(conversationError),
+        },
         { status: 500 }
       );
     }
@@ -87,31 +106,67 @@ export async function executeCareerToolRequest(req: NextRequest, runtime: Career
       searchPurpose = "mock_interview";
     }
 
-    const toolCapture = await runToolCall(() => executeTalentTool({
-      channel,
-      name,
-      context: {
-        admin,
-        channel,
-        searchPurpose,
-        conversationId,
-        responseLocale:
-          typeof body.responseLocale === "string"
-            ? body.responseLocale
-            : null,
-        scheduleAfter: (task) => runtime.scheduleAfter(task),
-        toolCallId: String(body.toolCallId ?? "").trim() || null,
-        userId: user.id,
-      },
-      input:
-        body.arguments && typeof body.arguments === "object"
-          ? body.arguments
-          : {},
-    }), { callId: String(body.toolCallId ?? ""), name });
-          capturedDiagnostics = toolCapture.diagnostics;
-          const output = unwrapToolCall(toolCapture);
+    const toolCapture = await runToolCall(
+      () =>
+        executeTalentTool({
+          channel,
+          name,
+          context: {
+            admin,
+            channel,
+            searchPurpose,
+            internalCallRequestId:
+              channel === "voice" ? body.internalCallRequestId : null,
+            conversationId,
+            responseLocale:
+              typeof body.responseLocale === "string"
+                ? body.responseLocale
+                : null,
+            scheduleAfter: (task) => runtime.scheduleAfter(task),
+            toolCallId: String(body.toolCallId ?? "").trim() || null,
+            userId: user.id,
+          },
+          input:
+            body.arguments && typeof body.arguments === "object"
+              ? body.arguments
+              : {},
+        }),
+      { callId: String(body.toolCallId ?? ""), name }
+    );
+    capturedDiagnostics = toolCapture.diagnostics;
+    const output = unwrapToolCall(toolCapture);
 
+    let liveSessionUpdate: LiveSessionInstructionUpdate | null = null;
+    let nextStepInstructions: string | null = null;
+    if (
+      name === RECORD_CALL_ANSWERS &&
+      channel === "voice" &&
+      body.internalCallRequestId
+    ) {
+      try {
+        const plan = await buildCareerRealtimeSessionInstructions({
+          conversationId,
+          internalCallRequestId: body.internalCallRequestId,
+          userId: user.id,
+          preferredLocale: body.responseLocale,
+          toolNames: getCareerRealtimeToolCandidates(body.responseLocale).map(
+            (tool) => tool.name
+          ),
+        });
+        nextStepInstructions = plan.instructions;
+        liveSessionUpdate = {
+          instructions: plan.liveInstructions,
+          onboardingContext: plan.liveOnboardingContext,
+          internalCallContext: plan.internalCallContext,
+        };
+      } catch (error) {
+        // The write already succeeded; the tool result still carries its saved facts.
+        console.error("[call-answer-context]", error);
+      }
+    }
     return NextResponse.json({
+      liveSessionUpdate,
+      nextStepInstructions,
       ok: true,
       name,
       output: projectToolDiagnosticFieldsForTransport(output),
@@ -122,15 +177,13 @@ export async function executeCareerToolRequest(req: NextRequest, runtime: Career
       error instanceof TalentToolError ||
       error instanceof MockInterviewRequestError
     ) {
-      return NextResponse.json(
-        toolErrorResult(error, capturedDiagnostics),
-        { status: error.status }
-      );
+      return NextResponse.json(toolErrorResult(error, capturedDiagnostics), {
+        status: error.status,
+      });
     }
 
-    return NextResponse.json(
-      toolErrorResult(error, capturedDiagnostics),
-      { status: 500 }
-    );
+    return NextResponse.json(toolErrorResult(error, capturedDiagnostics), {
+      status: 500,
+    });
   }
 }

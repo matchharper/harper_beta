@@ -572,3 +572,15 @@ test("external-to-internal request snapshots an absent child and timestamps use 
     ]
   );
 });
+
+test("an internal Role without an extension can save its first canonical brief", async () => {
+  const fixture=createWebsiteMutationAdminFixture({
+    internalRoles:{},
+    roles:{"role-1":{role_id:"role-1",name:"Backend",source_type:"internal",request:"obsolete"}},
+    workspace:{company_workspace_id:"workspace-1",company_db_id:null},
+  });
+  await applyWebsiteCompanyDataChanges({actorLabel:"팀원",admin:fixture.admin as never,
+    workspaceId:"workspace-1",changes:[{key:"role_request",roleId:"role-1",value:"First brief"}]});
+  assert.deepEqual(fixture.rpcCalls[0].args.p_changes,[{
+    key:"role_request",role_id:"role-1",expected:null,value:"First brief"}]);
+});

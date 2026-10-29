@@ -27,13 +27,32 @@ export async function POST(request:NextRequest) {
     // Resolve a current organization-scoped service actor; never invent a recipient.
     const actor=(actors??[]).find((row:any)=>row.authority==="owner")??
       (actors??[]).find((row:any)=>row.access_scope==="organization");
-    if(!actor) throw new Error("No authorized scheduled execution actor");
+    if(!actor) {
+      // An earlier response may have been lost before the actor was removed.
+      // Preserve an already-enqueued activation instead of recording it failed.
+      if(activationRunId) {
+        const prior=await admin.from("company_agent_web_action_jobs").select("id")
+          .eq("company_workspace_id",workspaceId).eq("role_id",roleId)
+          .eq("idempotency_key",`role-activation-matching:${activationRunId}`).maybeSingle();
+        if(prior.error) throw prior.error;
+        if(prior.data) return NextResponse.json({status:"already_queued",jobId:prior.data.id});
+      }
+      return NextResponse.json({error:"No authorized scheduled execution actor",
+        code:"scheduled_actor_missing",retryable:false},{status:409});
+    }
     const auth=await admin.auth.admin.getUserById(actor.company_user_id);
     if(auth.error||!auth.data.user) throw auth.error??new Error("Scheduled actor missing");
     const scoped=await ensureOrgRoleCreationConversation({allowCompletedRole:true,roleId,workspaceId,user:auth.data.user});
     const receipt=await admin.rpc("enqueue_company_scheduled_matching_v1",{p_workspace:workspaceId,p_role:roleId,
       p_slot:slot,p_actor:actor.company_user_id,p_conversation:scoped.conversation.id,p_activation_run:activationRunId});
-    if(receipt.error) throw receipt.error;
+    if(receipt.error) {
+      // These are executor rejections before enqueue, not uncertain delivery or
+      // database/network failures. The activation Worker can end this receipt.
+      const code=receipt.error.message;
+      if(["scheduled_role_unavailable","scheduled_actor_forbidden","invalid_role_activation"].includes(code))
+        return NextResponse.json({error:code,code,retryable:false},{status:409});
+      throw receipt.error;
+    }
     if(receipt.data?.jobId) await dispatchOrgAgentWebActionJob({admin,jobId:receipt.data.jobId});
     return NextResponse.json(receipt.data);
   } catch(error) {

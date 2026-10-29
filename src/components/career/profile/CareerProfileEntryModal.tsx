@@ -48,12 +48,6 @@ const EMPTY_FORM_VALUES: CareerProfileEntryFormValues = {
 };
 
 const FORM_ID = "career-profile-entry-form";
-const COMPLETE_MONTH_PATTERN = /^\d{4}-(?:0[1-9]|1[0-2])$/;
-const PARTIAL_MONTH_PATTERN = /^(?:\d{0,4}|\d{4}-(?:0[1-9]?|1[0-2]?)?)$/;
-
-const isCompleteOrEmptyMonth = (value: string) =>
-  value === "" || COMPLETE_MONTH_PATTERN.test(value);
-
 const ProfileEntryField = ({
   children,
   label,
@@ -69,11 +63,13 @@ const ProfileEntryField = ({
 
 const CareerProfileEntryModal = ({
   error,
+  initialValues,
   kind,
   onClose,
   onSubmit,
 }: {
   error?: string | null;
+  initialValues?: Partial<CareerProfileEntryFormValues>;
   kind: CareerProfileEntryKind | null;
   onClose: () => void;
   onSubmit: (
@@ -83,8 +79,11 @@ const CareerProfileEntryModal = ({
 }) => {
   const t = useCareerT();
   const { fetchWithAuth } = useCareerApi();
-  const [values, setValues] =
-    useState<CareerProfileEntryFormValues>(EMPTY_FORM_VALUES);
+  const [values, setValues] = useState<CareerProfileEntryFormValues>(() => ({
+    ...EMPTY_FORM_VALUES,
+    ...initialValues,
+  }));
+  const isEditing = initialValues !== undefined;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompanyLookupPending, setIsCompanyLookupPending] = useState(false);
   const [isCompanyLogoUploadPending, setIsCompanyLogoUploadPending] =
@@ -96,6 +95,12 @@ const CareerProfileEntryModal = ({
   const companyLogoInputRef = useRef<HTMLInputElement | null>(null);
 
   const title = useMemo(() => {
+    if (isEditing) {
+      return t(
+        "career.profile.career_talent_profile_panel.1iq5xym",
+        "수정하기"
+      );
+    }
     if (kind === "work") {
       return t(
         "career.profile.career_talent_profile_panel.0efzyx5",
@@ -109,13 +114,10 @@ const CareerProfileEntryModal = ({
       );
     }
     return t("career.profile.career_talent_profile_panel.0wjximy", "추가 정보");
-  }, [kind, t]);
+  }, [isEditing, kind, t]);
 
-  const hasValidMonthRange =
-    isCompleteOrEmptyMonth(values.startDate) &&
-    isCompleteOrEmptyMonth(values.endDate);
   const canSubmit =
-    !isCompanyLookupPending && !isCompanyLogoUploadPending && hasValidMonthRange
+    !isCompanyLookupPending && !isCompanyLogoUploadPending
       ? kind === "work"
         ? Boolean(values.role.trim() && values.companyName.trim())
         : kind === "education"
@@ -130,10 +132,6 @@ const CareerProfileEntryModal = ({
     value: string
   ) => {
     setValues((current) => ({ ...current, [field]: value }));
-  };
-
-  const updateMonthValue = (field: "startDate" | "endDate", value: string) => {
-    if (PARTIAL_MONTH_PATTERN.test(value)) updateValue(field, value);
   };
 
   const lookupCompanyByLinkedin = async (linkedinUrl: string) => {
@@ -320,10 +318,15 @@ const CareerProfileEntryModal = ({
             disabled={!canSubmit || isSubmitting}
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {t(
-              "career.profile.career_profile_settings_section.07836ex",
-              "추가"
-            )}
+            {isEditing
+              ? t(
+                  "career.profile.career_talent_profile_panel.0x4dx7a",
+                  "저장하기"
+                )
+              : t(
+                  "career.profile.career_profile_settings_section.07836ex",
+                  "추가"
+                )}
           </MuteButton>
         </div>
       }
@@ -360,10 +363,7 @@ const CareerProfileEntryModal = ({
                       "career.profile.entry.company_lookup_loading",
                       "회사 정보를 불러오는 중입니다."
                     )
-                  : t(
-                      "career.profile.entry.company_linkedin_help",
-                      "주소를 변경한 뒤 입력창을 벗어나면 비어 있는 회사 정보가 자동으로 채워집니다."
-                    )}
+                  : ""}
               </span>
             </ProfileEntryField>
             <ProfileEntryField
@@ -492,17 +492,10 @@ const CareerProfileEntryModal = ({
               >
                 <Input
                   inputMode="numeric"
-                  maxLength={7}
-                  pattern="\d{4}-(0[1-9]|1[0-2])"
                   placeholder="YYYY-MM"
-                  title="Use YYYY-MM format"
-                  aria-invalid={
-                    values.startDate !== "" &&
-                    !COMPLETE_MONTH_PATTERN.test(values.startDate)
-                  }
                   value={values.startDate}
                   onChange={(event) =>
-                    updateMonthValue("startDate", event.target.value)
+                    updateValue("startDate", event.target.value)
                   }
                 />
               </ProfileEntryField>
@@ -514,17 +507,10 @@ const CareerProfileEntryModal = ({
               >
                 <Input
                   inputMode="numeric"
-                  maxLength={7}
-                  pattern="\d{4}-(0[1-9]|1[0-2])"
                   placeholder="Present"
-                  title="Use YYYY-MM format or leave empty for Present"
-                  aria-invalid={
-                    values.endDate !== "" &&
-                    !COMPLETE_MONTH_PATTERN.test(values.endDate)
-                  }
                   value={values.endDate}
                   onChange={(event) =>
-                    updateMonthValue("endDate", event.target.value)
+                    updateValue("endDate", event.target.value)
                   }
                 />
               </ProfileEntryField>
@@ -598,17 +584,10 @@ const CareerProfileEntryModal = ({
               >
                 <Input
                   inputMode="numeric"
-                  maxLength={7}
-                  pattern="\d{4}-(0[1-9]|1[0-2])"
                   placeholder="YYYY-MM"
-                  title="Use YYYY-MM format"
-                  aria-invalid={
-                    values.startDate !== "" &&
-                    !COMPLETE_MONTH_PATTERN.test(values.startDate)
-                  }
                   value={values.startDate}
                   onChange={(event) =>
-                    updateMonthValue("startDate", event.target.value)
+                    updateValue("startDate", event.target.value)
                   }
                 />
               </ProfileEntryField>
@@ -620,17 +599,10 @@ const CareerProfileEntryModal = ({
               >
                 <Input
                   inputMode="numeric"
-                  maxLength={7}
-                  pattern="\d{4}-(0[1-9]|1[0-2])"
                   placeholder="Present"
-                  title="Use YYYY-MM format or leave empty for Present"
-                  aria-invalid={
-                    values.endDate !== "" &&
-                    !COMPLETE_MONTH_PATTERN.test(values.endDate)
-                  }
                   value={values.endDate}
                   onChange={(event) =>
-                    updateMonthValue("endDate", event.target.value)
+                    updateValue("endDate", event.target.value)
                   }
                 />
               </ProfileEntryField>

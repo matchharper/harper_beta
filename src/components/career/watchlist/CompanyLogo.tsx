@@ -7,7 +7,7 @@ export const CompanyLogo = ({
 }: {
   logoUrl: string | null;
   name: string;
-  size?: "xs" | "xm" | "sm" | "md" | "lg";
+  size?: "xs" | "xm" | "sm" | "md" | "lg" | "xl";
 }) => {
   const className =
     size === "xs"
@@ -16,9 +16,11 @@ export const CompanyLogo = ({
         ? "h-6 w-6 rounded-[6px]"
         : size === "lg"
           ? "h-14 w-14 rounded-[8px]"
-          : size === "sm"
-            ? "h-9 w-9 rounded-[11px]"
-            : "h-11 w-11 rounded-[8px]";
+          : size === "xl"
+            ? "h-20 w-20 rounded-[8px]"
+            : size === "sm"
+              ? "h-9 w-9 rounded-[11px]"
+              : "h-11 w-11 rounded-[8px]";
 
   if (logoUrl) {
     return (

@@ -1,3 +1,5 @@
+import { ApplicationReviewEntry } from "./ApplicationReviewPanel";
+import { InternalCallWriteButton, useInternalCallAnswers } from "./InternalCallAnswers";
 import { ApplicationSimulationCard } from "./elements/ApplicationSimulationCard";
 import CareerCallProposalCard from "./CareerCallProposalCard";
 import { DocumentPreviewCards } from "./elements/DocumentPreviewCards";
@@ -11,7 +13,6 @@ import {
   AudioLines,
   CalendarClock,
   CircleHelp,
-  FileText,
   Handshake,
   Mail,
   MessageCircleMore,
@@ -388,6 +389,7 @@ const CareerMessageBubble = ({
   );
 
   const router = useRouter();
+  const internalCallAnswers = useInternalCallAnswers();
   const { m } = useMessages();
   const handleHarperLinkClick = React.useCallback(
     (href: string) => {
@@ -430,7 +432,13 @@ const CareerMessageBubble = ({
         stripMockInterviewMarkers(documentLinks.content)
       )
     : displayContent;
-  if (!isUser && message.simulation) return <ApplicationSimulationCard messageId={message.id} simulation={message.simulation} />;
+  if (!isUser && message.simulation)
+    return (
+      <ApplicationSimulationCard
+        messageId={message.id}
+        simulation={message.simulation}
+      />
+    );
 
   return (
     <>
@@ -444,7 +452,9 @@ const CareerMessageBubble = ({
         animateEntrance={isUser && String(message.id).startsWith("temp-user-")}
         active={isAssistantSpeaking}
         className={cn(
-          isUser ? "max-w-[min(740px,92%)]" : "max-w-[min(740px,100%)]",
+          isUser
+            ? "max-w-[min(700px,92%)]"
+            : "max-w-[min(700px,100%)] md:max-w-[min(700px,94%)]",
           isOpportunityFeedbackNote
             ? cn(
                 "ml-auto px-1 py-0 text-right text-neutral-soft",
@@ -511,6 +521,9 @@ const CareerMessageBubble = ({
               />
             )}
           </>
+        )}
+        {!isUser && !message.typing && message.applicationReviewMessageId && (
+          <ApplicationReviewEntry messageId={message.applicationReviewMessageId} inline />
         )}
         {!isUser && (
           <DocumentPreviewCards documents={documentLinks.documents} />
@@ -645,16 +658,7 @@ const CareerMessageBubble = ({
               />
             }
           >
-            {marker.resumePromptNeeded && (
-              <BareButton
-                type="button"
-                onClick={() => void router.push("/career/documents")}
-                className="h-9 w-full text-center inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-bg-weak px-2.5 py-1.5 text-xs text-neutral-primary transition-colors hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                {t("career.chat.career_message_bubble.1tqt1ip", "이력서 보강")}
-              </BareButton>
-            )}
+            <InternalCallWriteButton callId={marker.callId} disabled={isCallStartPending} />
             <BareButton
               type="button"
               onClick={() =>
@@ -671,8 +675,8 @@ const CareerMessageBubble = ({
                   ),
                 })
               }
-              disabled={!onStartCallMode || isCallStartPending}
-              className="h-9 w-full text-center inline-flex items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-sm text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!onStartCallMode || isCallStartPending || internalCallAnswers.submitting || internalCallAnswers.completed.has(marker.callId)}
+              className="h-9 min-w-0 flex-1 text-center inline-flex items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-sm text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             >
               <PhoneOutgoing strokeWidth={1.9} size={14} />
               {isCallStartPending

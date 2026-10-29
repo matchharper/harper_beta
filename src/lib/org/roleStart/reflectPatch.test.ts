@@ -22,12 +22,11 @@ async function base() {
     ],
     keywords: ["Airflow", "dbt"],
     titles: { matching: ["Data Engineer"], nearMiss: ["Data Analyst"] },
-    otherNotes: ["1월 입사 가능"],
   });
   return { ...brief, summaryOf: summaryKey(brief) };
 }
 
-const none = { operations: [], hardConditions: null, otherNotes: null, appliedSummary: "" };
+const none = { operations: [], hardConditions: null, summary: null, appliedSummary: "" };
 
 test("an empty patch gives back the same Brief", async () => {
   const { rawBriefFromPatch } = await import("./reflectPatch");
@@ -62,7 +61,7 @@ test("a reworded criterion keeps its id, drops its signals and records the chang
   // A level change alone keeps the signals (same text) but counts as a change.
   assert.deepEqual([c2.requirement, c2.signals, c2.changeReason], ["must", signals, "답"]);
   assert.deepEqual(c3, brief.criteria[2]);
-  assert.deepEqual([next.summary, next.keywords, next.titles, next.otherNotes], [brief.summary, brief.keywords, brief.titles, brief.otherNotes]);
+  assert.deepEqual([next.summary, next.keywords, next.titles], [brief.summary, brief.keywords, brief.titles]);
   assert.deepEqual(next.hardConditions, brief.hardConditions);
   assert.equal(needsSummary(next), true, "the summary is rewritten by its own call");
 });
@@ -78,7 +77,7 @@ test("add, remove and new lists apply like a full rewrite", async () => {
       { type: "update_criterion", id: "c3", name: null, criteria: null, importance: null, kind: "rule", years: { minYears: 3, maxYears: 8 }, evidenceTerms: null },
     ],
     hardConditions: [{ kind: "min_years", label: "경력 5년 이상", years: 5, countries: [], cities: [], allowRelocation: null }],
-    otherNotes: ["원격 주 1회"],
+    summary: "데이터 엔지니어를 찾아요. 신규 데이터 팀의 첫 채용이에요.",
     appliedSummary: "Kafka를 더했어요.",
   });
   assert.ok(result.ok);
@@ -90,7 +89,7 @@ test("add, remove and new lists apply like a full rewrite", async () => {
   assert.deepEqual(next.criteria[1].rule, { minYears: 3, maxYears: 8 });
   // The team's own "other" condition is kept, as briefFromRaw keeps it for a rewrite.
   assert.deepEqual(next.hardConditions.map((item) => item.label), ["경력 5년 이상", "팀이 직접 적은 조건"]);
-  assert.deepEqual(next.otherNotes, ["원격 주 1회"]);
+  assert.equal(next.summary, "데이터 엔지니어를 찾아요. 신규 데이터 팀의 첫 채용이에요.");
 });
 
 test("unknown ids, repeated ids and malformed operations are refused, not guessed", async () => {

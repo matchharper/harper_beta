@@ -12,10 +12,10 @@ export function applicationSubmissionState(state: SimulationSession) {
     batch.browser?.runId === b.id && batch.browser.kind === "submission" &&
     Object.values(batch.responses).some(response => response.decision === "answer" && response.optionId === "submit")
   );
-  if (b.status === "succeeded" || b.status === "uncertain" || b.transmissionAttemptedAt || b.approval?.approved || b.approval?.executed || approvedEarlierRequest)
+  if (b.status === "succeeded" || b.status === "uncertain" || b.transmissionAttemptedAt || (b.engine !== "browser-use-agents" && (b.approval?.approved || b.approval?.executed || approvedEarlierRequest)))
     return "unknown" as const;
   // Legacy planner-only sessions did not enforce the website request approval gate.
-  return b.sessionId && !b.driver ? "unknown" as const : "not_submitted" as const;
+  return b.sessionId && !b.driver && b.engine !== "browser-use-agents" ? "unknown" as const : "not_submitted" as const;
 }
 
 export function applicationExecutionFacts(state: SimulationSession) {

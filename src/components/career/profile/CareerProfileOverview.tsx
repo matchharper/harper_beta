@@ -65,30 +65,8 @@ const profileEditTextareaClassName = cn(
   "min-h-[72px] py-1.5 md:min-h-[92px] md:px-3 md:py-2 md:leading-6"
 );
 
-const profileNoticeClassName =
-  "flex w-full items-start gap-2.5 rounded-[14px] border border-neutral-1000-a05 bg-linear-to-br from-bg-basement to-bg-default px-3.5 py-2.5 text-[12.5px] leading-5 text-neutral-muted";
-
 const overviewEyebrowClassName = "text-[13px] font-medium text-neutral-muted";
 const insightTermClassName = "text-[13px] font-medium text-neutral-muted";
-
-export const RecruiterProfileNotice = ({ copy }: { copy: string }) => {
-  const t = useCareerT();
-
-  return (
-    <div className={profileNoticeClassName}>
-      <Eye className="mt-1 h-3.5 w-3.5 shrink-0 text-neutral-muted" />
-      <div className="flex flex-col md:flex-row">
-        <strong className="font-medium text-neutral-primary">{copy}</strong>
-        <span>
-          {t(
-            "career.profile.career_talent_profile_panel.0rfzx4s",
-            " · 연결이 성사된 회사에만 공유돼요"
-          )}
-        </span>
-      </div>
-    </div>
-  );
-};
 
 const ProfileAvatar = ({
   imageUrl,

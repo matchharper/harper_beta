@@ -164,6 +164,107 @@ test("accepts importance on a Brief update without writing Brief importance", as
   assert.equal(changes[1]?.importance, 3);
 });
 
+test("saves Memory updates with incidental labels alongside Brief changes", async () => {
+  const memoryContent =
+    "영업 앱을 개선해 한 번의 방문으로 계약할 수 있게 했다.";
+  const briefContent = "디지털 전환을 이끄는 역할을 희망한다.";
+  const captured: { rpcArgs?: Record<string, unknown> } = {};
+  const admin = {
+    rpc: async (_name: string, args: Record<string, unknown>) => {
+      captured.rpcArgs = args;
+      return {
+        data: {
+          applied: [
+            row(20, "memory", memoryContent),
+            row(10, "brief", briefContent),
+          ],
+        },
+        error: null,
+      };
+    },
+  } as unknown as Parameters<typeof mutateTalentContextsFromAgent>[0]["admin"];
+
+  const result = await mutateTalentContextsFromAgent({
+    admin,
+    changes: [
+      {
+        op: "update",
+        ref: 2,
+        content: memoryContent,
+        importance: 3,
+        label: "사용하지 않는 제목".repeat(30),
+      },
+      {
+        op: "update",
+        ref: 1,
+        content: briefContent,
+        label: "희망 역할",
+        importance: 3,
+      },
+    ],
+    referencedRows: [
+      row(20, "memory", "이전 경력 설명", { revision: 4 }),
+      row(10, "brief", "이전 조건"),
+    ],
+    requestId: "incidental-context-label",
+    userId: "00000000-0000-0000-0000-000000000001",
+  });
+
+  assert.deepEqual(captured.rpcArgs?.p_changes, [
+    {
+      op: "update",
+      id: 20,
+      expected_revision: 4,
+      content: memoryContent,
+      importance: 3,
+    },
+    {
+      op: "update",
+      id: 10,
+      expected_revision: 1,
+      content: briefContent,
+      label: "희망 역할",
+    },
+  ]);
+  assert.deepEqual(result.applied, [{ ref: 2 }, { ref: 1 }]);
+});
+
+test("does not validate unused Brief metadata when adding a Memory", async () => {
+  const captured: { rpcArgs?: Record<string, unknown> } = {};
+  const admin = {
+    rpc: async (_name: string, args: Record<string, unknown>) => {
+      captured.rpcArgs = args;
+      return { data: { applied: [] }, error: null };
+    },
+  } as unknown as Parameters<typeof mutateTalentContexts>[0]["admin"];
+
+  await mutateTalentContexts({
+    admin,
+    changes: [
+      {
+        op: "add",
+        collection: "memory",
+        content: "학습용 AI를 실제 사용 피드백으로 개선했다.",
+        importance: 2,
+        label: "미사용 제목".repeat(40),
+        key: "unused_key".repeat(40),
+      },
+    ],
+    requestId: "incidental-memory-add-metadata",
+    userId: "00000000-0000-0000-0000-000000000001",
+  });
+
+  assert.deepEqual(captured.rpcArgs?.p_changes, [
+    {
+      op: "add",
+      collection: "memory",
+      content: "학습용 AI를 실제 사용 피드백으로 개선했다.",
+      importance: 2,
+      source_refs: [],
+    },
+  ]);
+});
+
 test("normalizes Memory importance without exposing it in prompt text", () => {
   const memory = row(9, "memory", "면접 일정은 평일 저녁을 선호한다.");
   const normalized = normalizeTalentContextRow({ ...memory, importance: 3 });

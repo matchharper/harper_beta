@@ -96,7 +96,7 @@ export function SimulationNextActionCard({
   return (
     <section className="max-w-[740px] rounded-xl border border-neutral-1000-a10 bg-bg-floating p-4 text-neutral-primary">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <strong>{t("career.apply.title", "하퍼로 지원하기")}</strong>
+        <strong>{t("career.apply.title", "Harper와 준비하기")}</strong>
         <ResponsiveLightTooltip
           className="w-auto"
           mobileAriaLabel={t(
@@ -178,8 +178,7 @@ export function SimulationNextActionCard({
         {suggestions.map((suggestion, index) => (
           <li key={suggestion.id} className="py-3">
             <p className="break-words font-medium">
-              {index + 1}.{" "}
-              {proposal?.title ?? suggestion.title}
+              {index + 1}. {proposal?.title ?? suggestion.title}
             </p>
             <p className="mt-1 whitespace-pre-wrap break-words text-sm text-neutral-muted">
               {proposal?.reason ?? suggestion.proposal}
@@ -189,11 +188,7 @@ export function SimulationNextActionCard({
                 <MuteButton
                   disabled={disabled || pending}
                   onClick={() =>
-                    void act(
-                      "select",
-                      proposal!.request,
-                      suggestion.id
-                    )
+                    void act("select", proposal!.request, suggestion.id)
                   }
                 >
                   {t("career.sim_session.start", "이 액션 진행하기")}

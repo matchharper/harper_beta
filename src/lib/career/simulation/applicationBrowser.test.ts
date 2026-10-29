@@ -29,7 +29,8 @@ import {
 import { expirePreparation } from "./preparationStore";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 
-function fixture() {
+// Existing executor tests below exercise already-persisted legacy attempts.
+function fixture(legacy = true) {
   let state = createSimulationSession({
     roleRef: "job:public-engineer",
     roleName: "Public Engineer",
@@ -58,6 +59,7 @@ function fixture() {
           ...(args.p_payload as SimulationSession),
           revision: state.revision + 1,
         };
+        if (legacy && state.browser) state.browser.engine = undefined;
       }
       return {
         data: {
@@ -359,10 +361,8 @@ test("browser submission confirmation needs an explicit option; free text and sk
         batch.id,
         fixtureRuntime
       );
-      assert.equal(
-        JSON.parse(String(events[0].output)).approved,
-        response.decision === "answer" && "optionId" in response && response.optionId === "submit"
-      );
+      const approved = response.decision === "answer" && "optionId" in response && response.optionId === "submit";
+      assert.match(String(events[0].output), new RegExp(`approved: ${approved ? "예" : "아니요"}`));
       assert.equal(saved.state.activity!.batches.at(-1)!.continuation, "done");
       assert.equal(saved.state.browser!.status, "queued");
       assert.equal(saved.state.browser!.approval!.executed, response.decision === "answer" && "optionId" in response && response.optionId === "submit");
@@ -644,11 +644,12 @@ test("new conversation-only application planner starts with its task and never d
       assert.equal(body.agent.model, "gpt-6.1-sol");
       assert.deepEqual(body.agent.reasoning, { effort: "low" });
       assert.equal(body.input[0].role, "user");
-      const input = JSON.parse(body.input[0].content[0].text);
-      assert.equal(input.url, "https://example.org/jobs/engineer");
-      assert.equal(input.finalResumeDocumentId, "final-file");
-      assert.deepEqual(input.attachments, [{ documentId: "final-file", name: "Resume.pdf" }]);
-      assert.deepEqual(input.snapshot, snapshot);
+      const input = body.input[0].content[0].text;
+      assert.ok(input.includes("https://example.org/jobs/engineer"));
+      assert.ok(input.includes("final-file"));
+      assert.ok(input.includes("Resume.pdf"));
+      assert.match(input, /snapshot:/);
+      assert.match(input, new RegExp(snapshot.title));
       return Response.json({ id: "new-planner", agent: { model: "gpt-6.1-sol" } });
     }
     assert.notEqual(init?.method, "DELETE", "An application awaiting input remains active");
@@ -756,7 +757,7 @@ test(`${provider} run uses the existing question UI and resumes an exact approve
   const held=s.browser!.pendingRequest!;
   remote.status=async()=>({status:"waiting",sessionId:"browserbase-session",steps:4,maxSteps:100,pendingRequest:held,required_actions:[{type:"function_call",name:"confirm_application_submission",call_id:held.id,turn_id:"stagehand"}]});
   remote.resolve=async(_ref,request,approved)=>{assert.deepEqual(request,held);assert(approved);sends++;return {executed:true};};
-  remote.respond=async(_ref,id,output)=>{assert.equal(id,held.id);assert.equal((output as any).approved,true);answers++;};
+  remote.respond=async(_ref,id,output)=>{assert.equal(id,held.id);assert.match(String(output), /approved: 예/);answers++;};
   globalThis.fetch=async()=>{throw Error("Browserbase activity must not call the legacy planner");};
   try {
     await runApplicationBrowser(f.store,10);
@@ -783,4 +784,15 @@ test("new applications start the Luna Browserbase worker with confirmed attachme
   globalThis.fetch=async()=>{throw Error("No legacy planner");};
   try {await runApplicationBrowser(f.store,10);const state=f.record().state;assert.equal(starts,1);assert.equal(state.browser!.model,"gpt-6-luna");assert.equal(state.browser!.status,"waiting");assert.equal(state.activity!.batches.at(-1)!.browser!.kind,"information");await runApplicationBrowser(f.store,10);assert.equal(starts,1);}
   finally {Object.assign(remote,originals);globalThis.fetch=originalFetch;}
+});
+
+test("new Career applications select Browser Use Agents while legacy runs remain resumable", async () => {
+  const f = fixture(false);
+  const state = f.record().state;
+  state.preparation!.finalDocumentId = "final-file";
+  f.set(state);
+  const started = await startApplicationBrowser(f.store, f.record(), { purpose: "Apply" });
+  assert.equal(started.state.browser!.engine, "browser-use-agents");
+  assert.equal(started.state.browser!.driver, undefined);
+  assert.equal(started.execution.application?.submission, "not_submitted");
 });

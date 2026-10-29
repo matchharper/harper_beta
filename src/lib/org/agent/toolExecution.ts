@@ -6,7 +6,7 @@ import { slackCandidateProfileUrl } from "@/lib/org/slackCandidateWorkObject.ser
 import { assertReviewOnboardingTool } from "@/lib/org/workspaceReview.server";
 import { updateCompanyEmailPreferences } from "@/lib/email/companyPreferences";
 import { updateCompanyLanguageSetting } from "@/lib/org/agent/languageSetting";
-import { registerRoleStartFromChat } from "@/lib/org/roleStart/service";
+import { prepareRoleStartBriefForSearch, registerRoleStartFromChat } from "@/lib/org/roleStart/service";
 import { readRoleNotificationContext } from "./roleNotificationContext";
 import {
   changeCompanyFollowup,
@@ -1019,6 +1019,7 @@ async function executeRequestMatchingSearch(args: {
       summary:`${role.name} 추천 목록 저장 완료: 추가 ${result.addedTalentIds.length}명, 갱신 ${result.refreshedTalentIds.length}명, 제외 ${result.removedTalentIds.length}명`});
     return {...result,requestedRoleName:role.name};
   }
+  await prepareRoleStartBriefForSearch(role.roleId);
   const queued = await enqueueOrgAgenticMatchingSearch({
     input: args.input, requestId: args.callId, sourceMessageId:args.currentUserMessageId,
     admin: args.admin,

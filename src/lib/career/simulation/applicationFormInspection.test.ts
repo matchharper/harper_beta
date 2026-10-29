@@ -141,75 +141,65 @@ test("form inspection uses Sol low with a separate read-only browser and keeps c
   assert.ok(f.stopped);
   assert.equal(FORM_INSPECTION_TIMEOUT_MS, 180000);
 });
-test("reported fields are bound to current DOM identifiers and absent constraints remain unknown", () => {
-  assert.throws(() =>
-    observedApplicationForm(
-      snapshot,
-      { status: "read", fieldRefs: ["99"], limitations: [] },
-      "now"
-    )
-  );
-  assert.throws(
-    () =>
-      observedApplicationForm(
-        snapshot,
-        { status: "read", fieldRefs: ["2", "2"], limitations: [] },
-        "now"
-      ),
-    /Duplicate/
-  );
-  assert.throws(() =>
-    observedApplicationForm(
-      snapshot,
-      {
-        status: "read",
-        fieldRefs: ["2"],
-        limitations: [],
-        fields: [{ label: "invented" }],
-      },
-      "now"
-    )
-  );
+test("inspection preserves observed facts with opaque, repeated and unresolved refs", () => {
+  const ref = "c26bc21a-b660-479a-a584-2b81937cb287:1";
   const result = observedApplicationForm(
-    snapshot,
-    { status: "partial", fieldRefs: ["1"], limitations: [] },
+    { ...snapshot, elements: [{ ...snapshot.elements[0], ref }, snapshot.elements[1]] },
+    {
+      status: "partial", fieldRefs: [ref, "missing", ref, "2"],
+      limitations: ["Conditional questions were not opened."],
+      submission: { status: "supported", reason: "Public form observed." },
+      fields: [{ label: "invented" }],
+    },
     "now"
   );
+  assert.deepEqual(result.fields.map(field => field.label), ["Name", "Why this company?"]);
   assert.equal(result.fields[0].maxLength, null);
+  assert.equal(result.fields[1].instructions, "In English");
+  assert.equal(result.status, "partial");
+  assert.equal(result.submission?.status, "supported");
+  assert.equal(result.text, snapshot.text);
+  assert.equal(result.limitations[0], "Conditional questions were not opened.");
+  assert.match(result.limitations[1], /missing/);
 });
-test("invalid field refs are returned for model correction without changing its qualitative judgment", async () => {
+
+test("inspection preserves model status without rejecting a qualitative combination", () => {
+  const result = observedApplicationForm(snapshot, {
+    status: "unavailable", fieldRefs: ["1"], limitations: [],
+    submission: { status: "supported", reason: "The visible form is accessible; later steps are unknown." },
+  }, "now");
+  assert.equal(result.status, "unavailable");
+  assert.equal(result.submission?.status, "supported");
+  assert.equal(result.fields[0].label, "Name");
+});
+
+test("unresolved refs preserve usable fields without a correction retry", async () => {
   const f = fixture();
-  let reads = 0,
-    corrected = false;
+  let failedToolResults = 0;
   const request = (async (path: string, body: any, method?: string) => {
-    if (method === "GET")
+    failedToolResults += body?.events?.filter((event: any) =>
+      event.type === "agent.session.input.tool_result" && event.success === false
+    ).length ?? 0;
+    if (method === "GET") {
       return {
-        required_actions: [
-          {
-            type: "function_call",
-            call_id: String(++reads),
-            name: "report_application_form",
-            arguments: {
-              status: "partial",
-              fieldRefs: [reads === 1 ? "99" : "2"],
-              limitations: [],
-            },
-          },
-        ],
+        required_actions: [{
+          type: "function_call", call_id: "report-1", name: "report_application_form",
+          arguments: { status: "partial", fieldRefs: ["99", "2"], limitations: [] },
+        }],
       };
-    if (body?.events?.[0]?.type === "agent.session.input.tool_result")
-      corrected = body.events[0].success === false;
+    }
     return path === "sessions" ? { id: "inspect-1" } : {};
   }) as typeof agentsRequest;
-  const result = await inspectApplicationForm(
-    "https://example.com/job",
-    undefined,
-    { request, runtime: f.runtime }
-  );
+  const result = await inspectApplicationForm("https://example.com/job", undefined, {
+    request, runtime: f.runtime,
+  });
   assert.equal(result.fields[0].label, "Why this company?");
-  assert.ok(corrected);
+  assert.equal(result.status, "partial");
+  assert.match(result.limitations[0], /99/);
+  assert.equal(failedToolResults, 0);
   assert.ok(f.stopped);
 });
+
 test("blocked access remains unavailable without failing JD analysis", async () => {
   const f = fixture();
   const request = (async (path: string) =>
@@ -262,14 +252,37 @@ test("deadline bounds even an uncancellable provider read and stops both session
 });
 
 
-test("report errors identify invalid button refs and all available input refs for model correction", () => {
-  assert.throws(() => observedApplicationForm({
+test("non-input and missing refs do not discard the observed form", () => {
+  const result = observedApplicationForm({
     ...snapshot,
     elements: [...snapshot.elements, { ref: "3", tag: "button", type: "button", label: "File" }],
-  }, { status: "partial", fieldRefs: ["1", "3", "99"], limitations: [] }, new Date().toISOString()), error => {
-    assert.match(String(error), /Invalid application input refs: 3, 99/);
-    assert.match(String(error), /Available input refs: 1, 2/);
-    assert.match(String(error), /requirements without an input ref in limitations/);
-    return true;
+  }, { status: "partial", fieldRefs: ["1", "3", "99"], limitations: [] }, "now");
+  assert.deepEqual(result.fields.map(field => field.label), ["Name"]);
+  assert.equal(result.text, snapshot.text);
+  assert.match(result.limitations[0], /3, 99/);
+});
+
+test("production Stagehand report retains UUID refs and partial observations", async () => {
+  const ref = "c26bc21a-b660-479a-a584-2b81937cb287:1";
+  let stopped = false;
+  const result = await inspectApplicationForm("https://example.com/application", undefined, {
+    stagehand: {
+      create: async () => ({ name: "fixture", provider: "browserbase", expiresAt: "2099-01-01", readOnly: true }),
+      start: async () => {},
+      status: async () => ({
+        status: "completed", sessionId: "fixture", steps: 1, maxSteps: 100, required_actions: [],
+        snapshot: { ...snapshot, elements: [{ ...snapshot.elements[0], ref }] },
+        report: {
+          status: "read", fieldRefs: [ref, "stale-ref"], limitations: [],
+          submission: { status: "supported", reason: "Public form observed." },
+        },
+      }),
+      stop: async () => { stopped = true; },
+    },
   });
+  assert.equal(result.fields[0].label, "Name");
+  assert.equal(result.status, "read");
+  assert.equal(result.submission?.status, "supported");
+  assert.match(result.limitations[0], /stale-ref/);
+  assert.ok(stopped);
 });

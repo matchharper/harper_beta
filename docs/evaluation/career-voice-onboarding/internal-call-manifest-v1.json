@@ -1,0 +1,87 @@
+{
+  "task": "career-voice-onboarding/internal-call",
+  "datasetVersion": "internal-call-v1",
+  "reviewedAt": "2026-10-28",
+  "provenance": "Synthetic fixture authored before execution; no production candidate or company records. Codex manual review, not independent human gold.",
+  "inputContract": "Shared internal-call/front/backend prompts; actual record_call_answers executor and SQL in isolated PGlite; output projected with formatToolResultText; latest context sent with buildLiveSessionUpdateEvents.",
+  "runs": [
+    {
+      "runId": "live-prompt-2026-10-28T09-32-20.766Z",
+      "sourceRevision": "3a3afaaf32a6381a0cfe0a8e3ad98b66600d872a",
+      "fixtureSha256": "8c2cc53c6e28dae892cd00a048ea980e09aafc99ef823636bdaf03028ca5e3ee",
+      "runnerSha256": "a7c43e669108bbc84eea6fc588ef91bf52a77e66fda52260b98b94e42ed1ccb5",
+      "diffSha256": "ad8b66b9897261563be74eebbd2641eb676e4452c47a28a23041c4e6e56cc143",
+      "config": {
+        "delegationModel": "gpt-6.1-sol",
+        "delegationReasoningEffort": "xhigh",
+        "model": "gpt-live-1",
+        "voice": "cedar"
+      },
+      "selectedCases": [
+        "opening-refusal-and-stop",
+        "resume-record-and-finish"
+      ],
+      "rawArtifacts": "runs/live-prompt-2026-10-28T09-32-20.766Z/"
+    },
+    {
+      "runId": "live-prompt-2026-10-28T09-34-11.599Z",
+      "sourceRevision": "3a3afaaf32a6381a0cfe0a8e3ad98b66600d872a",
+      "fixtureSha256": "8c2cc53c6e28dae892cd00a048ea980e09aafc99ef823636bdaf03028ca5e3ee",
+      "runnerSha256": "f9ed87d3d612ed8334d0001b54cbaaa93443b7a9399eecf692e5de87eb766d63",
+      "diffSha256": "ff1f92a2644045db88e07b30cea3d6b3fb328fa2b093ef57518ce803228ee61b",
+      "config": {
+        "delegationModel": "gpt-6.1-sol",
+        "delegationReasoningEffort": "xhigh",
+        "model": "gpt-live-1",
+        "voice": "cedar"
+      },
+      "selectedCases": [
+        "opening-refusal-and-stop"
+      ],
+      "rawArtifacts": "runs/live-prompt-2026-10-28T09-34-11.599Z/"
+    }
+  ],
+  "results": [
+    {
+      "caseId": "opening-refusal-and-stop",
+      "runId": "live-prompt-2026-10-28T09-32-20.766Z",
+      "outcome": "invalid",
+      "reason": "Harness closed immediately after audio transmission, before the final input transcript and response. Preserved; not counted as a pass."
+    },
+    {
+      "caseId": "resume-record-and-finish",
+      "runId": "live-prompt-2026-10-28T09-32-20.766Z",
+      "outcome": "pass",
+      "facts": [
+        "Question 1 preserved",
+        "Question 2 recorded by actual tool",
+        "No repeated question 1",
+        "end_call complete_onboarding=false",
+        "No API errors"
+      ]
+    },
+    {
+      "caseId": "opening-refusal-and-stop",
+      "runId": "live-prompt-2026-10-28T09-34-11.599Z",
+      "outcome": "pass",
+      "facts": [
+        "Correct company and role spoken, planned question asked",
+        "Uncertainty and refusal recorded for questions 1 and 2 by actual tool",
+        "end_call complete_onboarding=false after recording",
+        "No API errors"
+      ]
+    }
+  ],
+  "metrics": {
+    "latestValidCasesPassed": 2,
+    "cases": 2,
+    "invalidAttempts": 1,
+    "productDeployment": false
+  },
+  "privacy": "Only synthetic input sent to OpenAI. All audio, full prompts and raw outputs are ignored owner-only private/runs files. No production DB access or company contact.",
+  "limits": [
+    "Synthetic WebSocket and local PGlite; no production DB or browser microphone/WebRTC verification",
+    "Two cases do not establish production quality or statistical performance",
+    "Scoped TypeScript check substitutes the HEAD generated database types in compiler memory because the pre-existing working-tree file is empty; no full-project typecheck claim"
+  ]
+}

@@ -58,6 +58,9 @@ type RawRecommendationRow = {
       company_db: {
         id: number | null;
         logo: string | null;
+        founded_year?: number | null;
+        location?: string | null;
+        employee_count_range?: Json | null;
       } | null;
       company_name: string;
       homepage_url: string | null;
@@ -148,6 +151,9 @@ type RawPostingRoleRow = EstimatedSalaryFields & {
     company_db: {
       id: number | null;
       logo: string | null;
+      founded_year?: number | null;
+      location?: string | null;
+      employee_count_range?: Json | null;
     } | null;
     company_name: string;
     homepage_url: string | null;
@@ -221,7 +227,10 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
       logo_url,
       company_db:company_db (
         id,
-        logo
+        logo,
+        founded_year,
+        location,
+        employee_count_range
       ),
       company_data:company_data!company_data_company_workspace_id_fkey (
         total_funding_raised,
@@ -287,7 +296,10 @@ const TALENT_POSTING_ROLE_SELECT = `
     logo_url,
     company_db:company_db (
       id,
-      logo
+      logo,
+      founded_year,
+      location,
+      employee_count_range
     ),
     company_data:company_data!company_data_company_workspace_id_fkey (
       total_funding_raised,
@@ -438,6 +450,9 @@ export type TalentOpportunityHistoryItem = {
   companyData: TalentOpportunityCompanyData | null;
   companyDescription: string | null;
   companyDbId: number | null;
+  companyFoundedYear?: number | null;
+  companyHqLocation?: string | null;
+  companyEmployeeCountRange?: Json | null;
   companyHomepageUrl: string | null;
   companyLinkedinUrl: string | null;
   companyLogoUrl: string | null;
@@ -1743,6 +1758,9 @@ function mapRecommendationRow(
   return {
     clickedAt: row.clicked_at ?? null,
     companyData,
+    companyFoundedYear: workspace.company_db?.founded_year ?? null,
+    companyHqLocation: workspace.company_db?.location ?? null,
+    companyEmployeeCountRange: workspace.company_db?.employee_count_range ?? null,
     companyDescription: workspace.company_description ?? null,
     companyDbId:
       typeof workspace.company_db_id === "number"
@@ -1870,6 +1888,9 @@ function mapPostingRoleRow(
   return {
     clickedAt: existingRecommendation?.clicked_at ?? null,
     companyData,
+    companyFoundedYear: workspace.company_db?.founded_year ?? null,
+    companyHqLocation: workspace.company_db?.location ?? null,
+    companyEmployeeCountRange: workspace.company_db?.employee_count_range ?? null,
     companyDescription: workspace.company_description ?? null,
     companyDbId:
       typeof workspace.company_db_id === "number"
@@ -3081,7 +3102,6 @@ export async function assertCurrentTalentRecommendation(args: {
 async function acceptInternalRoleRecommendation(args: {
   admin: AdminClient;
   clearEmailAcceptanceConfirmation?: boolean;
-  expectedUpdatedAt?: string | null;
   emailAcceptanceConfirmation?: Json | null;
   feedbackReason?: string | null;
   recommendationId: string;
@@ -3122,7 +3142,6 @@ async function acceptInternalRoleRecommendation(args: {
     "accept_talent_internal_role_recommendation_v2",
     {
       p_context: {},
-      p_expected_updated_at: args.expectedUpdatedAt ?? null,
       p_email_acceptance_confirmation: emailAcceptanceConfirmation,
       p_feedback_reason:
         String(args.feedbackReason ?? "")
@@ -3158,7 +3177,6 @@ export async function updateTalentOpportunityHistoryItem(args: {
   action: "feedback" | "saved_stage" | "view" | "click" | "memo";
   admin: AdminClient;
   clearEmailAcceptanceConfirmation?: boolean;
-  expectedUpdatedAt?: string | null;
   emailAcceptanceConfirmation?: Json | null;
   feedback?: TalentOpportunityFeedback | null;
   feedbackReason?: string | null;
@@ -3231,21 +3249,25 @@ export async function updateTalentOpportunityHistoryItem(args: {
   }
 
   if (args.action === "feedback") {
+    let isInternalRecommendation = false;
     if (args.feedback === "positive" || args.feedback === "negative") {
       const { data: recommendationType, error: recommendationTypeError } =
         await (
           args.admin.from("talent_opportunity_recommendation" as any) as any
         )
-          .select("opportunity_type")
+          .select("opportunity_type, company_role:company_roles!inner(source_type)")
           .eq("id", opportunityId)
           .eq("talent_id", args.userId)
           .maybeSingle();
       if (recommendationTypeError) throw recommendationTypeError;
+      const companyRole = Array.isArray(recommendationType?.company_role)
+        ? recommendationType.company_role[0]
+        : recommendationType?.company_role;
+      isInternalRecommendation = companyRole?.source_type === "internal";
       if (
         recommendationType?.opportunity_type === OpportunityType.IntroRequest
       ) {
         const decision = await decideTalentCompanyIntro({
-          expectedUpdatedAt: args.expectedUpdatedAt,
           decision: args.feedback === "positive" ? "accept" : "decline",
           emailAcceptanceConfirmation:
             args.emailAcceptanceConfirmation ?? null,
@@ -3260,9 +3282,8 @@ export async function updateTalentOpportunityHistoryItem(args: {
         };
       }
     }
-    const acceptance = args.feedback === "positive"
+    const acceptance = args.feedback === "positive" && isInternalRecommendation
       ? await acceptInternalRoleRecommendation({
-        expectedUpdatedAt: args.expectedUpdatedAt,
         admin: args.admin,
         clearEmailAcceptanceConfirmation: args.clearEmailAcceptanceConfirmation,
         emailAcceptanceConfirmation: args.emailAcceptanceConfirmation,
@@ -3287,7 +3308,6 @@ export async function updateTalentOpportunityHistoryItem(args: {
       "update_talent_role_feedback_v2",
       {
         p_feedback: toDatabaseFeedback(args.feedback),
-        p_expected_updated_at: args.expectedUpdatedAt ?? null,
         p_source: "career",
         p_feedback_at: args.feedback ? now : null,
         p_feedback_reason: args.feedback

@@ -1,3 +1,5 @@
+import { useRoleStartQuery, applyRoleStartMutation, type RoleStartMutationResult } from "@/hooks/org/useRoleStart";
+import { queryKeys } from "@/lib/queryKeys";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { Info, LoaderCircle } from "lucide-react";
@@ -9,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
 import {
@@ -154,38 +156,8 @@ export function OrgAgentChatSurface({
   // Role start question cards live in this chat and in the 시작 tab with one
   // shared state; poll only while a card is being prepared.
   const queryClient = useQueryClient();
-  const roleStartKey = useMemo(
-    () => ["org-role-start", workspaceId, roleId ?? ""],
-    [roleId, workspaceId]
-  );
-  const roleStart = useQuery({
-    queryKey: roleStartKey,
-    queryFn: () =>
-      fetchWithInternalAuth<{
-        session: {
-          phase: string;
-          pendingQuestion: { id: string } | null;
-          questions: { history: unknown[] };
-        } | null;
-      }>(
-        `/api/org/role-start?roleId=${encodeURIComponent(roleId ?? "")}&workspaceId=${encodeURIComponent(workspaceId)}`
-      ),
-    enabled: purpose === "role-creation" && Boolean(roleId) && !readOnly,
-    refetchInterval: (query) => {
-      const session = query.state.data?.session;
-      // Same limit as the start screen: a Role that never starts the flow stops being asked after ~30s.
-      if (!session) return query.state.dataUpdateCount < 10 ? 3_000 : false;
-      // Registration also writes a chat line when it is done.
-      const working =
-        session.phase === "drafting" ||
-        session.phase === "registering" ||
-        session.phase === "batch";
-      return working ||
-        (session.phase === "questions" && !session.pendingQuestion)
-        ? 1_500
-        : false;
-    },
-  });
+  const roleStartKey = useMemo(() => queryKeys.org.roleStart(workspaceId, roleId ?? ""), [roleId, workspaceId]);
+  const roleStart = useRoleStartQuery(roleId ?? "", workspaceId, purpose === "role-creation" && !readOnly);
   const roleStartSignature = [
     roleStart.data?.session?.phase,
     roleStart.data?.session?.pendingQuestion?.id,
@@ -202,7 +174,7 @@ export function OrgAgentChatSurface({
   }, [roleStartSignature, refetchHistory]);
   const answerRoleStart = useMutation({
     mutationFn: (args: { questionId: string; chipId: string | null }) =>
-      fetchWithInternalAuth("/api/org/role-start", {
+      fetchWithInternalAuth<RoleStartMutationResult>("/api/org/role-start", {
         body: JSON.stringify({
           action: "answer",
           chipId: args.chipId,
@@ -214,16 +186,19 @@ export function OrgAgentChatSurface({
         headers: { "Content-Type": "application/json" },
         method: "POST",
       }),
-    onError: (cause) =>
+    onError: (cause) => {
+      void queryClient.invalidateQueries({ queryKey: roleStartKey });
       addToast({
         message:
           cause instanceof Error
             ? cause.message
             : c("답을 반영하지 못했어요.", "Could not apply the answer."),
         variant: "error",
-      }),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: roleStartKey });
+      });
+    },
+    onMutate: () => queryClient.cancelQueries({ queryKey: roleStartKey }),
+    onSuccess: async (result) => {
+      await applyRoleStartMutation(queryClient, workspaceId, roleId ?? "", result);
       void refetchHistory();
     },
   });

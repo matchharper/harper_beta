@@ -1,11 +1,12 @@
+import { useRoleStartQuery, roleStartMutationOptions, type RoleStartMutationResult as MutationResult, type RoleStartResponse } from "@/hooks/org/useRoleStart";
+import { queryKeys } from "@/lib/queryKeys";
 import {
   RoleStartCentered as Centered,
   RoleStartSplit as SplitStep,
   RoleStartPane as SplitPane,
   RoleStartStepHeader,
 } from "./RoleStartLayout";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { isProtectedNote } from "@/lib/org/roleStart/brief";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { roleSetupReply } from "@/lib/org/roleStart/setupReply";
 import { billingErrorCopy } from "@/lib/org/billing/types";
 import {
@@ -84,76 +85,8 @@ import { cn } from "@/lib/utils";
 import { useToastStore } from "@/store/useToastStore";
 
 type Issue = { level: "conflict"; text: string };
-
-export type RoleStartResponse = {
-  session: RoleStartView | null;
-  role: {
-    status: string;
-    hasDescription: boolean;
-    description: string | null;
-    name: string;
-    locationText: string | null;
-    workMode: string | null;
-    employmentTypes: string[];
-    salaryRange: string | null;
-  };
-  issues: Issue[];
-  /** Work history and education of the first three while they are rated. */
-  profiles?: Record<string, FirstThreeProfile>;
-  /** The fixed compensation question, asked first when the JD stated none. */
-  compensation?: { chips: Array<{ ko: string; en: string }> } | null;
-};
-
-type MutationResult = {
-  session?: RoleStartView | null;
-  issues?: Issue[];
-  applied?: string;
-  missingFields?: string[];
-};
-
-const ACTIVE_PHASES = new Set<RoleStartView["phase"]>([
-  "drafting",
-  "searching",
-  "registering",
-  "batch",
-]);
-
-/** The role start state, polled while a step runs; shared with the 시작 tab and the chat. */
-export function useRoleStartQuery(
-  roleId: string,
-  workspaceId: string,
-  enabled = true
-) {
-  return useQuery({
-    enabled: enabled && Boolean(roleId),
-    queryKey: ["org-role-start", workspaceId, roleId],
-    queryFn: () =>
-      fetchWithInternalAuth<RoleStartResponse>(
-        `/api/org/role-start?roleId=${encodeURIComponent(roleId)}&workspaceId=${encodeURIComponent(workspaceId)}`
-      ),
-    refetchInterval: (current) => {
-      const session = current.state.data?.session;
-      // A new Role gets its session within seconds; a Role that never started the flow stops asking
-      // after ~36s, past the new-role page's 30 s loading line.
-      if (!session) return current.state.dataUpdateCount < 12 ? 3_000 : false;
-      const verdictsPending =
-        session.phase === "evaluating" &&
-        session.firstCandidates.some(
-          (candidate) => !candidate.verdict && !candidate.failed
-        );
-      const waitingForQuestion =
-        session.phase === "questions" && !session.pendingQuestion;
-      // The Brief screen shows the answer once it is applied behind it.
-      const refining = session.phase === "review" && session.refining;
-      return ACTIVE_PHASES.has(session.phase) ||
-        verdictsPending ||
-        waitingForQuestion ||
-        refining
-        ? 1_000
-        : false;
-    },
-  });
-}
+export { useRoleStartQuery } from "@/hooks/org/useRoleStart";
+export type { RoleStartResponse } from "@/hooks/org/useRoleStart";
 
 /** Every draft opens Setup, including drafts whose Brief has not started or failed. */
 export function isRoleStartOnboarding(
@@ -210,16 +143,11 @@ export function RoleStartOnboarding({
   const roleId = role.roleId || createdRoleId;
   const query = useRoleStartQuery(roleId, workspaceId);
   const queryKey = useMemo(
-    () => ["org-role-start", workspaceId, roleId],
+    () => queryKeys.org.roleStart(workspaceId, roleId),
     [roleId, workspaceId]
   );
   const mutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      fetchWithInternalAuth<MutationResult>("/api/org/role-start", {
-        body: JSON.stringify({ roleId, workspaceId, ...body }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      }),
+    ...roleStartMutationOptions(queryClient, workspaceId, roleId),
     onError: (cause) => {
       addToast({
         message:
@@ -232,8 +160,6 @@ export function RoleStartOnboarding({
       if ((cause as { status?: number }).status === 409)
         void queryClient.invalidateQueries({ queryKey });
     },
-    // Keep controls locked until the refreshed question/phase is on screen.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
   const run = (body: Record<string, unknown>) =>
     mutation.mutateAsync(body).catch(() => null);
@@ -396,7 +322,6 @@ export function RoleStartOnboarding({
                 }
               }}
               onConfirm={() => run({ action: "confirm" })}
-              onPrewarm={() => run({ action: "prewarm" })}
               onRequest={async (request) => {
                 const result = await run({ action: "edit", request });
                 if (result?.applied)
@@ -1327,7 +1252,6 @@ function BriefStep(props: {
   onBack: () => void;
   onRequest: (request: string) => Promise<boolean>;
   onConfirm: () => void;
-  onPrewarm: () => void;
 }) {
   const { c } = useOrgLocale();
   const documentEditorCopy = useOrgDocumentEditorCopy();
@@ -1336,19 +1260,9 @@ function BriefStep(props: {
   const [request, setRequest] = useState("");
   const hasRequest = Boolean(request.trim());
   useEffect(() => setDraft(JSON.parse(serverBrief)), [serverBrief]);
-  const prewarmed = useRef(false);
-  const { onPrewarm } = props;
-  useEffect(() => {
-    if (!prewarmed.current) {
-      prewarmed.current = true;
-      onPrewarm();
-    }
-  }, [onPrewarm]);
   const dirty = JSON.stringify(draft) !== serverBrief;
   const conflicts = props.issues.filter((issue) => issue.level === "conflict");
-  const invalid =
-    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) ||
-    Boolean(draft.otherNotes?.some(isProtectedNote));
+  const invalid = draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim());
   const answered = props.session.questions.history.filter(
     (item) => item.status !== "skipped"
   ).length;

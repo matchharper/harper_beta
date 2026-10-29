@@ -470,7 +470,6 @@ export async function confirmEmailAcceptance(
   return accept({
     talentId: ctx.talentId,
     recommendationId: rec.id,
-    expectedUpdatedAt: rec.updated_at,
     feedbackReason: input.feedbackReason ?? pending.optionalNote ?? null,
     emailAcceptanceConfirmation: {
       ...pending,

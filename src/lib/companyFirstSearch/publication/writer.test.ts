@@ -24,11 +24,11 @@ test('provider input is per person, readable, dated and preserves recorded score
     '- content: 2026-10-26T01:02:03Z\n- updated_at: 2026-10-26 10:02');
 });
 test('executor preserves original scores and maps exact criterion refs without qualitative validation', () => {
-  const result = parsePresentation({tldr:'Evidence',harper_note:'',recommendationReason:'Tradeoff',criteriaEvaluations:[{criterionRef:'c1',content:'Detailed evidence'}]},role,candidate);
+  const result = parsePresentation({tldr:'Evidence',harper_note:'',criteriaEvaluations:[{criterionRef:'c1',content:'Detailed evidence'}]},role,candidate);
   assert.equal(result.finalFit,null);
   assert.deepEqual(result.criteriaEvaluations[0],{name:'Audio research',fitness:'good',content:'Detailed evidence',criterionDefinition:'Evidence of audio research',
     score:.65,label:'good',distribution:{good:.8,uncertain:.2}});
-  assert.throws(()=>parsePresentation({tldr:'Evidence',harper_note:'',recommendationReason:'Reason',criteriaEvaluations:[{criterionRef:'c2',content:'Wrong identifier'}]},role,candidate),/criteria/);
+  assert.throws(()=>parsePresentation({tldr:'Evidence',harper_note:'',criteriaEvaluations:[{criterionRef:'c2',content:'Wrong identifier'}]},role,candidate),/criteria/);
 });
 test('publication command has only exact IDs, kind and optional evidence reference', () => {
   const id='11111111-1111-4111-8111-111111111111';

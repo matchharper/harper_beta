@@ -45,8 +45,8 @@ test("active mode retains the chat-based stop contract", () => {
 test("ordinary application intent offers the feature without requiring its name or starting work", () => {
  const plan=buildCareerConversationPromptPlan({...base,simulationAvailability:"inactive"});
  const contract=plan.promptBlocks.find(b=>b.key==="application_start_payload")!.text;
- assert.ok(contract.includes("simulate_application"));
- assert.ok(contract.includes("document_id"));
+ assert.ok(contract.includes("application_support"));
+ assert.ok(contract.includes("opportunities"));
  assert.ok(!contract.includes("[[APPLICATION_START_OFFER]]"));
 
 });

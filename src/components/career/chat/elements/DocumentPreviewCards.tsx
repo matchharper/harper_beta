@@ -1,8 +1,8 @@
-import { ArrowUpRight, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useRouter } from "next/router";
 import { CardButton } from "@/components/ui/button";
 import { getCareerDocumentHref } from "@/lib/career/documentLinks";
-import { useCareerT } from "@/i18n/useCareerT";
+import { useCareerMobileChatClose } from "@/components/career/mobile/CareerMobileChatCloseContext";
 import type { CareerDocumentLink } from "@/lib/career/documentLinks";
 
 export function DocumentPreviewCards({
@@ -10,7 +10,7 @@ export function DocumentPreviewCards({
 }: {
   documents: CareerDocumentLink[];
 }) {
-  const t = useCareerT();
+  const closeMobileChat = useCareerMobileChatClose();
   const router = useRouter();
   if (!documents.length) return null;
   return (
@@ -18,7 +18,10 @@ export function DocumentPreviewCards({
       {documents.map((document) => (
         <CardButton
           key={document.id}
-          onClick={() => void router.push(getCareerDocumentHref(document.id))}
+          onClick={() => {
+            closeMobileChat?.();
+            void router.push(getCareerDocumentHref(document.id));
+          }}
           className="group w-full max-w-[360px] gap-3"
         >
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-bg-weak">

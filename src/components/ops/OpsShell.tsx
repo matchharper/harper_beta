@@ -211,6 +211,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/debugging/email-test",
       },
       {
+        description: "지원 폼 수집·실행 로그·비용 확인",
+        href: "/ops/debugging/application-form",
+        label: "지원 폼 조사",
+        matchPrefix: "/ops/debugging/application-form",
+      },
+      {
         description: "talent call transcript 확인",
         href: "/ops/debugging/calls",
         label: "콜 로그",

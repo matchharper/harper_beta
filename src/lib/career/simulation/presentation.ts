@@ -1,3 +1,4 @@
+import { extractCareerDocumentLinks } from "@/lib/career/documentLinks";
 /** Keep response attachments next to their parent regardless of event arrival order. */
 export function orderApplicationMessages<
   T extends {
@@ -31,4 +32,19 @@ export function orderApplicationMessages<
   return sorted
     .filter((m) => !childIds.has(String(m.id)))
     .flatMap((m) => [m, ...(children.get(String(m.id)) ?? [])]);
+}
+
+/** Older saved replies predate the explicit form reference. Their exact document
+ * link identifies the handoff without rewriting historical messages. */
+export function attachSavedApplicationReview<T extends {
+  id: string | number; role: string; content: string; createdAt: string;
+  applicationReviewMessageId?: number;
+}>(messages: T[], application: { messageId: number; resumeDocumentId: string; startedAt: string } | null): (T & { applicationReviewMessageId?: number })[] {
+  if (!application || messages.some(message => message.applicationReviewMessageId === application.messageId)) return messages;
+  const handoff = messages.find(message => message.role === "assistant"
+    && Date.parse(message.createdAt) >= Date.parse(application.startedAt)
+    && extractCareerDocumentLinks(message.content).documents.some(document => document.id === application.resumeDocumentId));
+  return handoff ? messages.map(message => message === handoff
+    ? { ...message, applicationReviewMessageId: application.messageId }
+    : message) : messages;
 }

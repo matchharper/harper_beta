@@ -46,12 +46,7 @@ import {
   stripPostgresUnsafeChars,
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
-import {
-  getInternalOpportunityCallCompletionDisposition,
-  hasAnsweredAtLeastOneInternalOpportunityCallQuestion,
-  isInternalOpportunityCallQuestionPlanComplete,
-  type InternalOpportunityCallCompletionDisposition,
-} from "@/lib/talentOnboarding/internalOpportunityCallProgress";
+import { getUnrecordedInternalCallQuestionNumbers } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
 import { isCallNoteId } from "@/lib/talentOnboarding/callNote";
 import {
   generateTalentCallNoteForWrapup,
@@ -95,8 +90,6 @@ type Body = {
 type TranscriptStats = {
   totalTurns: number;
   userTurns: number;
-  userChars: number;
-  assistantChars: number;
 };
 
 const CALL_TRANSCRIPT_MESSAGE_TYPE = "call_transcript";
@@ -151,17 +144,13 @@ function summarizeTranscript(transcript: TranscriptEntry[]): TranscriptStats {
       stats.totalTurns += 1;
       if (entry.role === "user") {
         stats.userTurns += 1;
-        stats.userChars += text.length;
-      } else {
-        stats.assistantChars += text.length;
+
       }
       return stats;
     },
     {
       totalTurns: 0,
       userTurns: 0,
-      userChars: 0,
-      assistantChars: 0,
     }
   );
 }
@@ -221,17 +210,6 @@ async function fetchSavedCallTranscript(args: {
   );
 }
 
-function isBriefConversation(
-  stats: TranscriptStats,
-  durationSeconds: number
-): boolean {
-  if (stats.userTurns <= 0) return true;
-  if (stats.userTurns === 1) return true;
-  if (stats.userChars < 80) return true;
-  if (durationSeconds > 0 && durationSeconds < 50) return true;
-  return false;
-}
-
 function normalizeFollowUpMessage(content: string): string {
   return stripPostgresUnsafeChars(content)
     .replace(/^["'“”]+|["'“”]+$/g, "")
@@ -277,40 +255,20 @@ async function recordCareerCheckInCompleted(args: {
   }
 }
 
-function buildInternalOpportunityInterruptedFollowUp(args: {
-  companyName: string;
-  preferredLocale?: string | null;
-  roleTitle: string;
-}) {
-  return careerT(
-    args.preferredLocale,
-    "career.call.internal_interrupted_followup",
-    "{companyName} {roleTitle} 관련 통화가 중간에 끊긴 것 같아요. 연결은 계속 진행 중이고, 이어서 이야기하고 싶으시면 채팅창의 + 버튼을 통해 통화를 선택해서 다시 진행해주세요.",
-    { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
-  );
-}
-
 function buildInternalOpportunityFallbackFollowUp(args: {
   callNoteCreated?: boolean;
   callNoteUpdated?: boolean;
   companyName: string;
-  completionDisposition: InternalOpportunityCallCompletionDisposition;
+  questionsComplete: boolean;
   preferredLocale?: string | null;
   roleTitle: string;
 }) {
   let content: string;
-  if (args.completionDisposition === "unanswered") {
+  if (!args.questionsComplete) {
     content = careerT(
       args.preferredLocale,
-      "career.call.internal_brief_followup",
-      "{companyName} {roleTitle} 관련 통화가 조금 짧게 끝난 것 같아요. 연결은 계속 진행 중이고, 더 이야기하고 싶으시면 채팅창의 + 버튼을 통해 통화를 선택해서 다시 진행해주세요.",
-      { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
-    );
-  } else if (args.completionDisposition === "partial_answered") {
-    content = careerT(
-      args.preferredLocale,
-      "career.call.internal_partial_completed_followup",
-      "{companyName} {roleTitle} 관련 통화는 중간에 종료하셨지만, 필요한 질문에는 응답해주신 것으로 보고 여기서 닫아둘게요. 참여해주셔서 감사합니다. 연결은 계속 진행됩니다.",
+      "career.call.internal_remaining_followup",
+      "{companyName} {roleTitle} 관련 통화가 끝났어요. 기록된 응답은 유지되고 남은 질문은 나중에 이어서 답할 수 있어요. 회사 연결은 계속 진행됩니다.",
       { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
     );
   } else {
@@ -628,6 +586,7 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
             liveSessionUpdate: {
               instructions: plan.liveInstructions,
               onboardingContext: plan.liveOnboardingContext,
+          internalCallContext: plan.internalCallContext,
             },
           });
         }
@@ -699,27 +658,13 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
       return NextResponse.json({ progress: { completed: true }, followUpMessages: [] });
     }
     const internalQuestionPlanComplete = internalCallRequest
-      ? isInternalOpportunityCallQuestionPlanComplete(
-          internalCallRequest.questionProgress,
-          internalCallRequest.questions.length
-        )
+      ? getUnrecordedInternalCallQuestionNumbers(
+          internalCallRequest.questions,
+          internalCallRequest.questionAnswers,
+        ).length === 0
       : false;
-    const internalCallHasAnsweredQuestion = internalCallRequest
-      ? hasAnsweredAtLeastOneInternalOpportunityCallQuestion({
-          progress: internalCallRequest.questionProgress,
-          questions: internalCallRequest.questions,
-          transcript: resolvedTranscript,
-        })
-      : false;
-    const internalCompletionDisposition = internalCallRequest
-      ? getInternalOpportunityCallCompletionDisposition({
-          answeredAtLeastOneQuestion: internalCallHasAnsweredQuestion,
-          questionPlanComplete: internalQuestionPlanComplete,
-        })
-      : null;
     const shouldCompleteInternalCall =
-      internalCompletionDisposition === "full" ||
-      internalCompletionDisposition === "partial_answered";
+      Boolean(internalCallRequest) && internalQuestionPlanComplete;
 
     if (
       transcriptStats.userTurns <= 0 &&
@@ -729,7 +674,8 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
       if (internalCallRequest) {
         const fallbackMessage = await insertFallbackFollowUp({
           scheduleAfter: runtime.scheduleAfter,
-          content: buildInternalOpportunityInterruptedFollowUp({
+          content: buildInternalOpportunityFallbackFollowUp({
+            questionsComplete: false,
             companyName: internalCallRequest.companyName,
             preferredLocale: responseLocale,
             roleTitle: internalCallRequest.roleTitle,
@@ -790,9 +736,6 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
       });
     }
 
-    const briefConversation = internalCallRequest
-      ? internalCompletionDisposition !== "full"
-      : isBriefConversation(transcriptStats, safeDurationSeconds);
     const currentInsightContent =
       projectBriefsToLegacyInsights(currentContexts);
     const coverageCompletion = onboardingCompletionReady || (
@@ -952,7 +895,7 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
           callNoteCreated,
           callNoteUpdated,
           companyName: internalCallRequest.companyName,
-          completionDisposition: internalCompletionDisposition ?? "unanswered",
+          questionsComplete: internalQuestionPlanComplete,
           preferredLocale: responseLocale,
           roleTitle: internalCallRequest.roleTitle,
         })
@@ -962,7 +905,6 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
           conversationStarterId:
             conversationStarter?.id ??
             (hasCareerCoachingActivity ? "career_coaching" : undefined),
-          isBrief: briefConversation,
           isOnboardingDone: inferredOnboardingDone,
           preferredLocale: responseLocale,
         });
@@ -1007,8 +949,7 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
                 callNoteCreated,
                 callNoteUpdated,
                 callRequest: internalCallRequest,
-                completionDisposition:
-                  internalCompletionDisposition ?? "unanswered",
+                questionsComplete: internalQuestionPlanComplete,
                 durationLabel,
                 preferredLocale: responseLocale,
                 transcript: resolvedTranscript,
@@ -1020,26 +961,18 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
                   conversationStarter?.id ??
                   (hasCareerCoachingActivity ? "career_coaching" : undefined),
                 durationLabel,
-                isBrief: briefConversation,
-                isOnboardingDone: inferredOnboardingDone,
+                      isOnboardingDone: inferredOnboardingDone,
                 preferredLocale: responseLocale,
                 transcript: resolvedTranscript,
               }),
         skipConversationWrites,
         suppressOnboarding: Boolean(
-          internalCallRequest || mockInterviewContext
+          internalCallRequest || mockInterviewContext,
         ),
         timeZone: promptTimeZone,
-        transformAssistantTextBeforeInsert:
-          internalCompletionDisposition === "partial_answered" ||
-          callNoteDocument
-            ? (content) =>
-                withCallNoteOpenAction(
-                  internalCompletionDisposition === "partial_answered"
-                    ? fallbackFollowUpText
-                    : content
-                )
-            : undefined,
+        transformAssistantTextBeforeInsert: callNoteDocument
+          ? withCallNoteOpenAction
+          : undefined,
         usageLabel: internalCallRequest
           ? "career/chat:internal_opportunity_call_wrapup"
           : "career/chat:call_wrapup",

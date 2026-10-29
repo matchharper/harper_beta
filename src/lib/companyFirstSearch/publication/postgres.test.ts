@@ -11,7 +11,7 @@ import { parsePresentation, type PublicationRole, type PublicationCandidate, typ
 
 const port = process.env.COMPANY_PUBLICATION_TEST_PORT;
 const makePresentation = async (role: PublicationRole, candidate: PublicationCandidate): Promise<Presentation> => ({
-  ...parsePresentation({tldr:'Synthetic writer output for SQL verification',harper_note:'',recommendationReason:'Synthetic evidence paragraph',
+  ...parsePresentation({tldr:'Synthetic writer output for SQL verification',harper_note:'',
     criteriaEvaluations:role.criteria.map((_,index)=>({criterionRef:`c${index+1}`,content:'Synthetic criterion evidence'}))},role,candidate),
   fingerprint:'synthetic-writer',usage:{model:'test-only-no-model-call'},
 });

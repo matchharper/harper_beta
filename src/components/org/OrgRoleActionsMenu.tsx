@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { OrgRole } from "@/lib/org/server";
 import { normalizeOrgRoleStatus } from "@/lib/org/roleStatus";
+import { useOrgRoleClosurePreview } from "@/hooks/org/useOrgRoleClosurePreview";
 
 type RoleLifecycleAction = "delete" | "pause" | "resume" | "end";
 
@@ -51,6 +52,11 @@ export function OrgRoleActionsMenu({
   const { c } = useOrgLocale();
   const [lifecycleAction, setLifecycleAction] =
     useState<RoleLifecycleAction | null>(null);
+  const closurePreview = useOrgRoleClosurePreview({
+    enabled: lifecycleAction === "end",
+    roleId: role?.roleId,
+    workspaceId: role?.workspaceId,
+  });
   const isDisabled = disabled || pending || !role;
   const buttonClassName = cn(
     "flex h-8 w-8 items-center justify-center rounded-sm border-0 bg-black/0 text-neutral-soft outline-none transition hover:bg-black/5 hover:text-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-black/0 disabled:hover:text-neutral-soft",
@@ -85,6 +91,7 @@ export function OrgRoleActionsMenu({
 
   const confirmLifecycleAction = () => {
     if (!lifecycleAction) return;
+    if (lifecycleAction === "end" && !closurePreview.ready) return;
     const action = lifecycleAction;
     setLifecycleAction(null);
     if (action === "delete") onDelete(role);
@@ -165,7 +172,9 @@ export function OrgRoleActionsMenu({
         open={Boolean(lifecycleAction)}
         onClose={() => setLifecycleAction(null)}
         mobileBottomSheet
-        title={c("역할 {action}", "{action} role", { action: actionLabel })}
+        title={lifecycleAction === "end"
+          ? c("“{name}” 채용을 종료할까요?", 'End hiring for “{name}”?', { name: role.name })
+          : c("역할 {action}", "{action} role", { action: actionLabel })}
         description={
           <>
             {lifecycleAction === "delete"
@@ -175,11 +184,7 @@ export function OrgRoleActionsMenu({
                   { p0: role.name }
                 )
               : lifecycleAction === "end"
-                ? c(
-                    "“{p0}” 역할의 후보자 추천을 종료하고, 현재 연결된 후보자들에게 채용 종료 알림을 보냅니다. 이미 전달된 알림은 다시 채용을 진행해도 되돌릴 수 없습니다.",
-                    'Stop recommendations for "{p0}" and send closing notifications to currently connected candidates. Notifications already sent cannot be undone if hiring resumes.',
-                    { p0: role.name }
-                  )
+                ? closurePreview.description
                 : lifecycleAction === "pause"
                   ? c(
                       "“{p0}” 역할의 새 후보자 연결을 일시 중지할까요?",
@@ -205,6 +210,7 @@ export function OrgRoleActionsMenu({
               {c("취소", "Cancel")}
             </MuteButton>
             <MuteButton
+              disabled={lifecycleAction === "end" && !closurePreview.ready}
               onClick={confirmLifecycleAction}
               size="md"
               type="button"
@@ -215,7 +221,11 @@ export function OrgRoleActionsMenu({
           </div>
         }
       >
-        <></>
+        {lifecycleAction === "end" && closurePreview.isError ? (
+          <MuteButton onClick={() => void closurePreview.refetch()} size="md">
+            {c("다시 시도", "Try again")}
+          </MuteButton>
+        ) : null}
       </TalentCareerModal>
     </>
   );

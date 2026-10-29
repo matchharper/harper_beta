@@ -1,4 +1,6 @@
-import { suggestionAction } from "./suggestionSchema";
+import { suggestionAction, applicationSuggestionContext } from "./suggestionSchema";
+import { applicationReviewSchema, applicationReviewText } from "./applicationReview";
+import { applicationFormText } from "./applicationFormText";
 import { applicationAnswerContext, unbatchedApplicationResponses } from "./applicationAnswerContext";
 import { applicationFormSchema, applicationInspectionSchema } from "./applicationForm";
 import { applicationEditsSchema } from "./applicationEditsSchema";
@@ -68,6 +70,7 @@ export const sessionSchema = z.object({
   browser: browserStateSchema.optional(),
   applicationUrl: z.string().optional(),
   applicationForm: applicationFormSchema.optional(),
+  applicationReview: applicationReviewSchema.optional(),
   applicationInspection: applicationInspectionSchema.optional(),
   activity: z
     .object({
@@ -75,6 +78,7 @@ export const sessionSchema = z.object({
       offerId: z.number().optional(),
       sourceMessageId: z.number().int().positive().optional(),
       channel: z.enum(["web", "email"]).optional(),
+      roleId: z.string().optional(),
       preparationRequest: z.object({ role: z.record(z.unknown()), requestKey: z.string() }).optional(),
       outputs: z.record(
         z.string(),
@@ -171,7 +175,14 @@ export const cardRequestSchema = z
 export type SimulationCardRequest = z.infer<typeof cardRequestSchema>;
 export function parseSimulationSession(value: unknown) {
   const r = sessionSchema.safeParse(value);
-  return r.success ? r.data : undefined;
+  if (!r.success) return undefined;
+  // Older saved batches recorded skip but left the action pending. The latest
+  // explicit response is authoritative; reopening an item clears that response.
+  for (const action of r.data.actions) {
+    if (action.status === "pending" && r.data.preparation?.responses[action.id]?.decision === "skip")
+      action.status = "skipped";
+  }
+  return r.data;
 }
 export function parseSimulationCard(
   value: unknown
@@ -520,18 +531,14 @@ export function simulationSessionContext(s: SimulationSession, toolNames?: reado
     endReason: s.endReason,
     analysisStatus: s.analysisStatus,
     requirements: s.requirements,
-    applicationForm: s.applicationForm ? {
-      status: s.applicationForm.status,
-      url: s.applicationForm.url,
-      submission: s.applicationForm.submission,
-      limitations: s.applicationForm.limitations,
-      text: s.applicationForm.text,
-      fields: s.applicationForm.fields.filter(field => field.required !== false),
-    } : undefined,
+    applicationForm: applicationFormText(s.applicationForm),
+    applicationReview: s.applicationReview ? applicationReviewText(s.applicationReview) : undefined,
     applicationInspection: s.applicationInspection?.status,
     applicationUrl: s.applicationUrl,
     suggestionRounds: s.activity?.batches.filter(b => b.purpose === "suggestions").length ?? 0,
-    actions: s.actions.map(({ executionPrompt, ...a }) => a),
+    actions: s.preparation
+      ? s.actions.map(applicationSuggestionContext)
+      : s.actions.map(({ executionPrompt, ...a }) => a),
     facts: s.facts,
     pendingNewRequest: s.switchRequest?.text ?? null,
     currentActionId: s.currentActionId,

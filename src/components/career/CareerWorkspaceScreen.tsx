@@ -217,12 +217,14 @@ const CareerCanvas = ({
 
 const CareerWorkspaceContent = ({
   activeTab,
+  historyContent,
   onChangeTab,
   onOpenRightPanelDetail,
   onRequestChatFocus,
   onOpenChatAction,
 }: {
   activeTab: CareerWorkspaceTab;
+  historyContent?: React.ReactNode;
   onChangeTab: (
     tab: CareerWorkspaceTab,
     options?: CareerWorkspaceNavigationOptions
@@ -234,7 +236,7 @@ const CareerWorkspaceContent = ({
   if (activeTab === "history") {
     return (
       <CareerCanvas className="min-h-full">
-        <CareerHistoryPanel navigationMode="sidebar" />
+        {historyContent ?? <CareerHistoryPanel navigationMode="sidebar" />}
       </CareerCanvas>
     );
   }
@@ -309,6 +311,7 @@ export const CareerLoadingState = () => {
 
 const CareerWorkspaceScreen = ({
   activeTab,
+  historyContent,
   onChangeTab,
   children,
   fillParent = false,
@@ -316,6 +319,7 @@ const CareerWorkspaceScreen = ({
   initialMobileChatOpen = false,
 }: {
   activeTab?: CareerWorkspaceTab;
+  historyContent?: React.ReactNode;
   children?: React.ReactNode;
   fillParent?: boolean;
   forcedViewport?: CareerWorkspaceViewportMode;
@@ -334,6 +338,7 @@ const CareerWorkspaceScreen = ({
     {children ?? (
       <CareerWorkspaceRoot
         activeTab={activeTab}
+        historyContent={historyContent}
         fillParent={fillParent}
         forcedViewport={forcedViewport}
         initialMobileChatOpen={initialMobileChatOpen}
@@ -347,12 +352,14 @@ export default React.memo(CareerWorkspaceScreen);
 
 const CareerWorkspaceRoot = ({
   activeTab: controlledActiveTab,
+  historyContent,
   fillParent = false,
   forcedViewport,
   initialMobileChatOpen = false,
   onChangeTab: controlledOnChangeTab,
 }: {
   activeTab?: CareerWorkspaceTab;
+  historyContent?: React.ReactNode;
   fillParent?: boolean;
   forcedViewport?: CareerWorkspaceViewportMode;
   initialMobileChatOpen?: boolean;
@@ -458,6 +465,7 @@ const CareerWorkspaceRoot = ({
       <CareerMobileNavigationFrame className="h-svh">
         <CareerWorkspaceMobileLayout
           activeTab={activeTab}
+          historyContent={historyContent}
           initialChatOpen={initialMobileChatOpen}
           onChangeTab={handleChangeTab}
           pendingInternalRoleFeedbackCount={pendingInternalRoleFeedbackCount}
@@ -609,6 +617,7 @@ const CareerWorkspaceRoot = ({
                     <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col">
                       <CareerWorkspaceContent
                         activeTab={desktopActiveTab}
+                        historyContent={historyContent}
                         onChangeTab={handleChangeTab}
                         onOpenRightPanelDetail={scrollRightPanelToTop}
                         onRequestChatFocus={handleRequestChatFocus}
@@ -1473,6 +1482,7 @@ const TAB_MOTION_PROPS = {
 
 const CareerWorkspaceMobileLayout = ({
   activeTab,
+  historyContent,
   initialChatOpen,
   onChangeTab,
   pendingInternalRoleFeedbackCount,
@@ -1480,6 +1490,7 @@ const CareerWorkspaceMobileLayout = ({
   decisionCount,
 }: {
   activeTab: CareerWorkspaceTab;
+  historyContent?: React.ReactNode;
   initialChatOpen?: boolean;
   onChangeTab: (
     tab: CareerWorkspaceTab,
@@ -1490,6 +1501,7 @@ const CareerWorkspaceMobileLayout = ({
   decisionCount: number;
 }) => {
   const t = useCareerT();
+  const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
   const { onOpenSettings, onLogout } = useCareerSidebarContext();
   const {
@@ -1584,9 +1596,16 @@ const CareerWorkspaceMobileLayout = ({
     ]
   );
 
+  const mobileNavigationTab =
+    activeTab === "history"
+      ? getSingleQueryValue(router.query.historyTab) === "saved" ||
+        getSingleQueryValue(router.query.historyTab) === "archived"
+        ? "jobs"
+        : "inbox"
+      : activeTab;
   const mobileHeader = (
     <CareerMobileTopBar
-      activeTab={activeTab}
+      activeTab={mobileNavigationTab}
       options={workspaceTabOptions}
       onChangeTab={handleTopBarOptionChange}
       profilePicture={profilePicture}
@@ -1604,7 +1623,7 @@ const CareerWorkspaceMobileLayout = ({
   return (
     <CareerMobileChatLauncherVisibilityProvider>
       <AnimatePresence mode="wait" initial={false}>
-        {activeTab === "history" ? (
+        {activeTab === "history" && historyContent == null ? (
           <motion.div key="history" {...TAB_MOTION_PROPS}>
             <CareerWorkspaceMobileHistoryView
               activeTab={activeTab}
@@ -1619,7 +1638,9 @@ const CareerWorkspaceMobileLayout = ({
             <CareerMobileShell header={mobileHeader}>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div key={activeTab} {...TAB_MOTION_PROPS}>
-                  {activeTab === "home" ? (
+                  {activeTab === "history" ? (
+                    <div className="px-4 pb-[140px]">{historyContent}</div>
+                  ) : activeTab === "home" ? (
                     <CareerMobileHomeView
                       onOpenChat={() => {
                         logCareerEvent("click_mobile_open_chat");
@@ -1674,7 +1695,7 @@ const CareerWorkspaceMobileLayout = ({
             </CareerMobileShell>
             <CareerMobileChatLauncher
               navigation={{
-                activeTab,
+                activeTab: mobileNavigationTab,
                 onChangeTab: handleTopBarOptionChange,
                 options: workspaceTabOptions,
               }}

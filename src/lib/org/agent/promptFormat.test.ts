@@ -1833,6 +1833,17 @@ test("matching search result gives facts without prescribing acknowledgement cop
   assert.doesNotMatch(compact, /candidate-first|company-first/);
 });
 
+test("skipped scheduled search tells the provider no new search started", () => {
+  const text=serializeOrgAgentToolResult("request_matching_search",{
+    status:"skipped",reason:"hiring_brief_missing",complete:false,deliveryConfirmed:false,
+    options:{roleId:"role-1",scope:"unassessed"},
+  });
+  assert.match(text,/status=skipped/);
+  assert.match(text,/unavailable_reason=hiring_brief_missing/);
+  assert.match(text,/No new search was started/);
+  assert.doesNotMatch(text,/is now queued or already running/);
+});
+
 test("role calibration returns only compact user-facing outcome fields", () => {
   const compact = serializeOrgAgentToolResult("calibrate_role_hiring_brief", {
     failedReferenceUrls: [],

@@ -107,12 +107,13 @@ export async function emailApplicationContext(ctx: EmailJobContext, record: Sess
   const document = documentId ? await fetchTalentDocument({ ...emailApplicationStore(ctx), documentId }) : null;
   const job = await assertEmailLease(ctx.admin, "reply", ctx.job.id, ctx.owner);
   const context = simulationSessionContext(s);
+  let actions: (typeof context.actions)[number][] = context.actions;
   // Once the file is saved, the current document and approved changes are the
   // useful default context. Past ignored proposals remain in ordinary history;
   // do not inject them again as a receipt for the final reply.
   if (s.preparation?.finalDocumentId && !pendingApplicationBatch(s)) {
     context.questionBatches = [];
-    context.actions = context.actions.filter(a => a.status === "completed");
+    actions = actions.filter(a => a.status === "completed");
     if (context.preparation) context.preparation.responses = {};
   }
   const pending = pendingApplicationBatch(s);
@@ -132,7 +133,7 @@ export async function emailApplicationContext(ctx: EmailJobContext, record: Sess
     pendingNewRequest: context.pendingNewRequest,
     // Current actions own wording and decisions. The batch below carries only
     // execution refs/review, so source passages are not repeated as UI snapshots.
-    actions: context.actions.map(a => ({ id: a.id, kind: a.inputKind, status: a.status,
+    actions: actions.map(a => "content" in a ? a : ({ id: a.id, kind: a.inputKind, status: a.status,
       title: a.title, target: a.target, reason: a.reason, edits: a.edits, draftText: a.draftText,
       ...(!a.edits?.length ? { originalText: a.originalText, suggestedText: a.suggestedText, proposal: a.proposal } : {}),
       applicationField: a.applicationField, options: a.options,

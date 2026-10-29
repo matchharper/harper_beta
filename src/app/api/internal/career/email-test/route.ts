@@ -8,6 +8,7 @@ const commandSchema = z.object({
   userId: z.string().uuid(), requestId: z.string().uuid(),
   previousJobId: z.string().uuid().optional(),
   subject: z.string().trim(), content: z.string().trim().min(1),
+  model: z.string().trim().min(1).optional(),
 }).strict();
 
 export async function POST(req: NextRequest) {

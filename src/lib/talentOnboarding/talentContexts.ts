@@ -814,10 +814,14 @@ function normalizeDirectChanges(
       const collection = normalizeCollection(change.collection);
       const content = normalizeWritableText(change.content, 8_000, "content");
       const label =
-        normalizeWritableText(change.label, 160, "label") ||
-        DEFAULT_TALENT_BRIEF_LABEL;
+        collection === "brief"
+          ? normalizeWritableText(change.label, 160, "label") ||
+            DEFAULT_TALENT_BRIEF_LABEL
+          : undefined;
       const key =
-        normalizeWritableText(change.key, 160, "compatibility key") || null;
+        collection === "brief"
+          ? normalizeWritableText(change.key, 160, "compatibility key") || null
+          : undefined;
       const requestedImportance = Number(change.importance);
       const importance =
         Number.isInteger(requestedImportance) &&
@@ -889,9 +893,7 @@ function normalizeDirectChanges(
         : {}),
       ...(hasLabel ? { label } : {}),
       op: "update",
-      ...(changeSourceRefs.length > 0
-        ? { source_refs: changeSourceRefs }
-        : {}),
+      ...(changeSourceRefs.length > 0 ? { source_refs: changeSourceRefs } : {}),
     };
   });
 }
@@ -945,12 +947,6 @@ export async function mutateTalentContextsFromAgent(args: {
           op: "delete",
         };
       }
-      if (
-        Object.prototype.hasOwnProperty.call(change, "label") &&
-        row.collection !== "brief"
-      ) {
-        throw new Error("A label can only be updated on a Brief");
-      }
       return {
         ...(Object.prototype.hasOwnProperty.call(change, "content")
           ? { content: change.content }
@@ -961,7 +957,8 @@ export async function mutateTalentContextsFromAgent(args: {
         Object.prototype.hasOwnProperty.call(change, "importance")
           ? { importance: change.importance }
           : {}),
-        ...(Object.prototype.hasOwnProperty.call(change, "label")
+        ...(row.collection === "brief" &&
+        Object.prototype.hasOwnProperty.call(change, "label")
           ? { label: change.label }
           : {}),
         op: "update",

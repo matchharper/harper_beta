@@ -1,4 +1,4 @@
-/** Synthetic audio smoke; never connects to Harper DB or executes product tools. */
+/** Synthetic audio smoke; never connects to Harper DB. Answer tools execute only against an isolated in-memory DB. */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { EventEmitter } from "node:events";
@@ -10,9 +10,22 @@ import {
   buildLiveBackendInstructions,
   buildLiveOnboardingContext,
 } from "../src/lib/career/liveOnboarding";
-import { buildLiveFrontendInstructions } from "../src/lib/career/voiceSessionInstructions";
+import { PGlite } from "@electric-sql/pglite";
+import { executeRecordCallAnswers } from "../src/lib/career/recordCallAnswersTool";
+import type { CallAnswersTransaction } from "../src/lib/career/internalCallAnswersStore";
+import { buildInternalOpportunityRealtimeInstruction } from "../src/lib/career/prompts/cases/lifecyclePrompts";
+import type { InternalOpportunityCallRequest } from "../src/lib/talentOnboarding/internalOpportunityCallRequest";
+import { formatToolResultText } from "../src/lib/llm/promptText";
+import {
+  buildLiveFrontendInstructions,
+  INTERNAL_OPPORTUNITY_CALL_OPENING_RESPONSE_INSTRUCTION,
+} from "../src/lib/career/voiceSessionInstructions";
 import { buildLiveSessionOpeningEvents } from "../src/lib/career/liveSessionOpening";
-import { buildMockInterviewPromptPlan, MOCK_INTERVIEW_OPENING_PROMPT, type MockInterviewContext } from "../src/lib/career/prompts/cases/mockInterviewPrompts";
+import {
+  buildMockInterviewPromptPlan,
+  MOCK_INTERVIEW_OPENING_PROMPT,
+  type MockInterviewContext,
+} from "../src/lib/career/prompts/cases/mockInterviewPrompts";
 import { renderCareerPromptBlocks } from "../src/lib/career/prompts/promptUtils";
 import { buildLiveSessionUpdateEvents } from "../src/lib/career/liveSessionUpdates";
 import { getCareerLiveSessionConfig } from "../src/lib/career/llm";
@@ -35,12 +48,14 @@ type Case = {
   utterance: string;
   gold: string;
   mockInterview?: MockInterviewContext;
+  internalCall?: InternalOpportunityCallRequest;
   utteranceDelayMs?: number;
   searchResult?: unknown;
 };
 const root = path.resolve("docs/evaluation/career-voice-onboarding");
 const version = process.env.CAREER_VOICE_EVAL_VERSION ?? "v1";
-if (!["v1", "v2", "mock-interview-v1"].includes(version)) throw new Error("Unknown fixture version");
+if (!["v1", "v2", "mock-interview-v1", "internal-call-v1"].includes(version))
+  throw new Error("Unknown fixture version");
 const fixturePath = path.join(root, `live-prompt-cases-${version}.json`);
 const fixtureBytes = readFileSync(fixturePath);
 const fixture = JSON.parse(fixtureBytes.toString()) as {
@@ -76,14 +91,44 @@ const save = (name: string, value: unknown) =>
   });
 
 function makeInstructions(item: Case, keys: string[]) {
+  if (item.internalCall) {
+    const plan = buildCareerConversationPromptPlan({
+      channel: "voice",
+      conversationMode: "internal_opportunity_call",
+      isOnboardingDone: true,
+      profile: null,
+      currentPreferences: { preferredLocale: "ko" },
+      structuredProfileText: fixture.profile,
+      talentContextSection: "No other saved facts.",
+      internalCallRequest: item.internalCall,
+      recentConversationSection: item.history
+        .map((message) => `${message.role}: ${message.text}`)
+        .join("\n"),
+      toolNames: ["record_call_answers", "end_call"],
+    });
+    return {
+      instructions: buildLiveBackendInstructions(plan),
+      onboardingContext: null,
+      internalCallContext: {
+        callId: item.internalCall.id,
+        revision: item.internalCall.updatedAt,
+        text: buildInternalOpportunityRealtimeInstruction({
+          ...item.internalCall,
+          preferredLocale: "ko",
+        }),
+      },
+    };
+  }
   if (item.mockInterview) {
     return {
-      instructions: renderCareerPromptBlocks(buildMockInterviewPromptPlan({
-        context: item.mockInterview,
-        candidateContext: fixture.profile,
-        preferredLocale: "ko",
-        toolNames: ["web_search", "end_call"],
-      }).promptBlocks),
+      instructions: renderCareerPromptBlocks(
+        buildMockInterviewPromptPlan({
+          context: item.mockInterview,
+          candidateContext: fixture.profile,
+          preferredLocale: "ko",
+          toolNames: ["web_search", "end_call"],
+        }).promptBlocks
+      ),
       onboardingContext: null,
     };
   }
@@ -110,6 +155,28 @@ function makeInstructions(item: Case, keys: string[]) {
 }
 
 async function runCase(item: Case) {
+  const callDb = item.internalCall ? new PGlite() : null;
+  const fixtureUser = "11111111-1111-4111-8111-111111111111";
+  const fixtureConversation = "33333333-3333-4333-8333-333333333333";
+  if (callDb && item.internalCall) {
+    await callDb.exec(`create table talent_conversations(id uuid primary key,user_id uuid);
+      create table talent_calls(id uuid primary key,user_id uuid,kind text,status text,state jsonb,last_active_at timestamptz,updated_at timestamptz);`);
+    await callDb.query("insert into talent_conversations values ($1,$2)", [
+      fixtureConversation,
+      fixtureUser,
+    ]);
+    await callDb.query(
+      "insert into talent_calls values ($1,$2,'internal_opportunity_request','active',$3::jsonb,null,null)",
+      [item.internalCall.id, fixtureUser, JSON.stringify(item.internalCall)]
+    );
+  }
+  const transaction: CallAnswersTransaction = (work) =>
+    callDb!.transaction((tx) =>
+      work(
+        async <T>(sql: string, params: unknown[]) =>
+          (await tx.query<T>(sql, params)).rows
+      )
+    );
   const audioDir = path.join(root, "private", fixture.version);
   mkdirSync(audioDir, { recursive: true, mode: 0o700 });
   const audioPath = path.join(audioDir, `${item.id}.pcm`);
@@ -144,11 +211,18 @@ async function runCase(item: Case) {
     ? makeInstructions(item, item.updatedCovered)
     : null;
   const frontend = buildLiveFrontendInstructions({
-    initialResponseInstruction:
-      item.mockInterview ? MOCK_INTERVIEW_OPENING_PROMPT : "Continue the conversation from the caller's next utterance.",
+    initialResponseInstruction: item.mockInterview
+      ? MOCK_INTERVIEW_OPENING_PROMPT
+      : item.internalCall
+        ? INTERNAL_OPPORTUNITY_CALL_OPENING_RESPONSE_INSTRUCTION.replace(
+            "{output_language}",
+            "Korean"
+          )
+        : "Continue the conversation from the caller's next utterance.",
     responseLocale: "ko",
     isMockInterview: Boolean(item.mockInterview),
     onboardingContext: initial.onboardingContext,
+    internalCallContext: initial.internalCallContext?.text,
   });
   const session = {
     model: config.model,
@@ -176,7 +250,10 @@ async function runCase(item: Case) {
         reasoning: { effort: config.delegationReasoningEffort },
         text: { verbosity: "low" },
         tools: getCareerRealtimeToolCandidates("ko").filter(
-          (tool) => tool.name === "end_call" || (Boolean(item.mockInterview) && tool.name === "web_search")
+          (tool) =>
+            tool.name === "end_call" ||
+            (Boolean(item.mockInterview) && tool.name === "web_search") ||
+            (Boolean(item.internalCall) && tool.name === "record_call_answers")
         ),
         tool_choice: "auto",
         parallel_tool_calls: false,
@@ -198,6 +275,8 @@ async function runCase(item: Case) {
   let closeInfo: { code: number; reason: string } | null = null;
   const errors: unknown[] = [];
   const pendingSearchCalls: string[] = [];
+  const pendingRecordCalls: Array<{ call_id: string; arguments: string }> = [];
+  let lastCallContext = initial.internalCallContext;
   await new Promise<void>((resolve, reject) => {
     const ws = new WebSocket("wss://api.openai.com/v1/live/sessions", {
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
@@ -207,6 +286,7 @@ async function runCase(item: Case) {
     let offset = 0,
       started = 0,
       lastOutput = 0,
+      audioFinishedAt = 0,
       closing = false,
       backendPending = false;
     const send = (event: unknown) => ws.send(JSON.stringify(event));
@@ -247,7 +327,7 @@ async function runCase(item: Case) {
         });
       }
     );
-    ws.on("message", (raw: Buffer) => {
+    ws.on("message", async (raw: Buffer) => {
       const event = JSON.parse(raw.toString());
       if (event.type === "session.output_audio.delta") {
         outputAudio.push(Buffer.from(event.delta, "base64"));
@@ -270,7 +350,17 @@ async function runCase(item: Case) {
           nested.item.name === "end_call"
         )
           endedByTool = true;
-        if (nested?.type === "response.output_item.done" && nested.item?.type === "function_call" && nested.item.name === "web_search") {
+        if (
+          nested?.type === "response.output_item.done" &&
+          nested.item?.type === "function_call" &&
+          nested.item.name === "record_call_answers"
+        )
+          pendingRecordCalls.push(nested.item);
+        if (
+          nested?.type === "response.output_item.done" &&
+          nested.item?.type === "function_call" &&
+          nested.item.name === "web_search"
+        ) {
           pendingSearchCalls.push(nested.item.call_id);
         }
         if (
@@ -278,11 +368,63 @@ async function runCase(item: Case) {
           nested?.type === "response.completed"
         ) {
           backendPending = false;
+          if (pendingRecordCalls.length && item.internalCall) {
+            backendPending = true;
+            for (const call of pendingRecordCalls.splice(0)) {
+              let output: string;
+              try {
+                const result = await executeRecordCallAnswers({
+                  input: JSON.parse(call.arguments),
+                  callId: item.internalCall.id,
+                  conversationId: fixtureConversation,
+                  userId: fixtureUser,
+                  transaction,
+                });
+                output = formatToolResultText(result);
+                item.internalCall = {
+                  ...item.internalCall,
+                  questionAnswers: result.call.questionAnswers,
+                  updatedAt: new Date().toISOString(),
+                };
+                const update = makeInstructions(item, item.covered);
+                for (const event of buildLiveSessionUpdateEvents(
+                  update,
+                  null,
+                  `eval_${call.call_id}`,
+                  lastCallContext
+                ))
+                  send(event);
+                lastCallContext = update.internalCallContext;
+              } catch (error) {
+                output = `Recording failed: ${error instanceof Error ? error.message : String(error)}`;
+                errors.push(output);
+              }
+              events.push({
+                type: "eval.tool_result",
+                callId: call.call_id,
+                output,
+              });
+              send({
+                type: "response.item.create",
+                item: {
+                  type: "function_call_output",
+                  call_id: call.call_id,
+                  output,
+                },
+              });
+            }
+            send({ type: "response.create" });
+          }
           if (pendingSearchCalls.length) {
-            for (const callId of pendingSearchCalls.splice(0)) send({
-              type: "response.item.create",
-              item: { type: "function_call_output", call_id: callId, output: JSON.stringify(item.searchResult) },
-            });
+            for (const callId of pendingSearchCalls.splice(0))
+              send({
+                type: "response.item.create",
+                item: {
+                  type: "function_call_output",
+                  call_id: callId,
+                  output: formatToolResultText(item.searchResult),
+                },
+              });
             send({ type: "response.create" });
             backendPending = true;
           }
@@ -297,7 +439,8 @@ async function runCase(item: Case) {
       }
       if (event.type === "session.started") {
         started = Date.now();
-        if (item.mockInterview) for (const opening of buildLiveSessionOpeningEvents()) send(opening);
+        if (item.mockInterview || (item.internalCall && !item.history.length))
+          for (const opening of buildLiveSessionOpeningEvents()) send(opening);
         if (updated)
           for (const update of buildLiveSessionUpdateEvents(
             updated,
@@ -313,6 +456,8 @@ async function runCase(item: Case) {
               ? Buffer.alloc(1920)
               : pcm.subarray(offset, offset + 1920);
           if (elapsed >= (item.utteranceDelayMs ?? 1200)) offset += 1920;
+          if (offset >= pcm.length && !audioFinishedAt)
+            audioFinishedAt = Date.now();
           send({
             type: "session.input_audio.append",
             audio: (chunk.length ? chunk : Buffer.alloc(1920)).toString(
@@ -322,6 +467,7 @@ async function runCase(item: Case) {
           if (
             elapsed > 70000 ||
             (offset > pcm.length &&
+              Date.now() - audioFinishedAt > 8000 &&
               outputText &&
               !backendPending &&
               Date.now() - lastOutput > (endedByTool ? 2500 : 5000))
@@ -350,6 +496,7 @@ async function runCase(item: Case) {
   );
   const result = {
     id: item.id,
+    savedQuestionAnswers: item.internalCall?.questionAnswers,
     inputText,
     outputText,
     endedByTool,
@@ -359,6 +506,7 @@ async function runCase(item: Case) {
     gold: item.gold,
   };
   save(`${item.id}-result.json`, result);
+  await callDb?.close();
   console.log(JSON.stringify(result));
   if (!finalized || errors.length || !inputText || !outputText) {
     process.exitCode = 1;
@@ -371,17 +519,35 @@ async function main() {
     fixtureVersion: fixture.version,
     fixtureSha256: hash(fixtureBytes),
     runnerSha256: hash(readFileSync(new URL(import.meta.url))),
-    openingSha256: hash(readFileSync(path.resolve("src/lib/career/liveSessionOpening.ts"))),
+    openingSha256: hash(
+      readFileSync(path.resolve("src/lib/career/liveSessionOpening.ts"))
+    ),
     commit: execFileSync("git", ["rev-parse", "HEAD"], {
       encoding: "utf8",
     }).trim(),
-    diffSha256: hash(execFileSync("git", ["diff", "--", "src/lib/career/prompts", "src/lib/career/liveOnboarding.ts", "src/lib/career/voiceSessionInstructions.ts", "src/lib/career/liveSessionConfig.server.ts", "src/lib/talentOnboarding/insightChecklist.ts", "src/lib/talentOnboarding/tools.ts", "scripts/evalCareerLiveOnboardingPrompt.ts"], { maxBuffer: 8 * 1024 * 1024 })),
+    diffSha256: hash(
+      execFileSync(
+        "git",
+        [
+          "diff",
+          "--",
+          "src/lib/career/prompts",
+          "src/lib/career/liveOnboarding.ts",
+          "src/lib/career/voiceSessionInstructions.ts",
+          "src/lib/career/liveSessionConfig.server.ts",
+          "src/lib/talentOnboarding/insightChecklist.ts",
+          "src/lib/talentOnboarding/tools.ts",
+          "scripts/evalCareerLiveOnboardingPrompt.ts",
+        ],
+        { maxBuffer: 8 * 1024 * 1024 }
+      )
+    ),
     config,
     selectedCases: cases.map((item) => item.id),
     transport: "websocket",
     inputAudio: "macOS Yuna 170 wpm; PCM16 mono 24kHz",
     limits:
-      "Synthetic history and coverage; no DB extraction/save or browser playback verification. Qualitative review is manual, never keyword scored.",
+      "Synthetic history and coverage; internal call saves use isolated PGlite only; no production DB or browser playback verification. Qualitative review is manual, never keyword scored.",
   });
   for (const item of cases) await runCase(item);
   console.log(`Artifacts: ${runDir}`);

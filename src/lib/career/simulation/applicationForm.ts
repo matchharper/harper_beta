@@ -10,6 +10,7 @@ export const applicationInspectionSchema = z.object({
   runId: z.string(),
   startedAt: z.string().optional(),
   finishedAt: z.string().optional(),
+  resolveOfficialLink: z.boolean().optional(),
 });
 
 export function isApplicationInspectionPending(state: {
@@ -32,6 +33,9 @@ export const applicationFormSchema = z.object({
       z.object({
         label: z.string(),
         type: z.string(),
+        multiple: z.boolean().nullable().optional(),
+        name: z.string().optional(),
+        optionValue: z.string().optional(),
         required: z.boolean().nullable(),
         options: z.array(z.string()),
         instructions: z.string(),

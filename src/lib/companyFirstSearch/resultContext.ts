@@ -88,12 +88,22 @@ export function buildCompanyMatchingResultContext(
 
   if (input.interactiveSearch) {
     const search = input.interactiveSearch;
+    if (search.briefVersionAtCompletion && search.briefVersionAtCompletion !== search.briefVersion) {
+      lines.push(`- 실행 중 Brief가 변경되었다. 이번 평가는 시작 당시 Brief ${search.briefVersion} 기준으로 완료·저장되었으며, 완료 시점 Brief는 ${search.briefVersionAtCompletion}이다. 최신 Brief로 다시 평가한 결과는 아니다.`);
+    }
     const measured = search.counts && typeof search.counts === "object" ? search.counts as Record<string, unknown> : {};
     const firstStage = measured.stage1Evaluated === 0 ? "1차는 재실행하지 않음" : `이번 1차 통과 ${search.stage1Passed ?? "미측정"}명`;
     const count = (value: unknown) => Array.isArray(value) ? value.length : "미측정";
     lines.push(`- 대화 검색의 Brief 버전: ${search.briefVersion ?? "미확인"}; 범위 ${search.scope ?? "미기록"}; 시작 단계 ${search.startStage ?? "미기록"}.`,
       `- ${firstStage}, 이번 2차 평가 ${search.stage2Evaluated ?? "미측정"}명. 새 카드 ${count(search.addedTalentIds)}명, 추천 제외 ${count(search.removedTalentIds)}명, 기존 유지 ${count(search.retainedTalentIds)}명. 제외는 회사의 거절이나 후보자의 거절을 뜻하지 않는다.`,
-      `- 기준별 관측: ${JSON.stringify(search.criteriaStats ?? "미측정")}. 후보별·같은 기준 전체 누적 근거는 일반 matching_runs 상세 조회로 확인할 수 있다.`);
+      "- 후보별·같은 기준 전체 누적 근거는 일반 matching_runs 상세 조회로 확인할 수 있다.");
+    if (Array.isArray(search.criteriaStats)) {
+      for (const criterion of search.criteriaStats) {
+        lines.push(`- 기준 ${criterion.name ?? "이름 미기록"}: ${criterion.criterionDefinition ?? "정의 미기록"}. 평가 ${criterion.count ?? "미측정"}명; ${Object.entries(criterion.labelCounts ?? {}).map(([label, count]) => `${label} ${count}명`).join(", ") || "라벨 분포 미기록"}.`);
+      }
+    } else {
+      lines.push("- 기준별 관측: 미측정.");
+    }
   }
 
   for (const pause of input.candidateOutreachPauses ?? []) {

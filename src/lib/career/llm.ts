@@ -174,6 +174,8 @@ export const CAREER_LLM_CONFIG = {
   // 선택형 통화 요청이 필요한지 판단한다.
   // 사용처: src/lib/talentOnboarding/internalOpportunityCallRequest.ts.
   internalOpportunityCallRequest: {
+    model: GPT_61_SOL_MODEL,
+    reasoningEffort: "high" as const,
     temperature: 0.15,
   },
   // 온보딩/프로필 입력 직후 첫 kickoff 메시지를 만들 때.
@@ -417,6 +419,7 @@ function buildScopedContinuationToolPolicy(args: {
   executedToolNames: readonly string[];
   isOnboardingActive?: boolean;
   responseLocale?: string | null;
+  applicationPreparation?: boolean;
 }) {
   const callableToolNames = normalizeUniqueToolNames(args.callableToolNames);
   const executedToolNames = normalizeUniqueToolNames(args.executedToolNames);
@@ -431,6 +434,7 @@ function buildScopedContinuationToolPolicy(args: {
     isOnboardingActive: args.isOnboardingActive,
     preferredLocale: args.responseLocale,
     toolNames: policyToolNames,
+    applicationPreparation: args.applicationPreparation,
   });
   if (!rawPolicy.trim()) return "";
 
@@ -468,6 +472,7 @@ function withScopedContinuationToolPolicy(args: {
     executedToolNames: args.executedToolNames,
     isOnboardingActive: args.isOnboardingActive,
     responseLocale: args.responseLocale,
+    applicationPreparation: args.systemBlocks.some(block => block.key === "application_preparation_contract"),
   });
   const replacementBlock: CareerChatSystemBlock | null = toolPolicy
     ? {
@@ -586,13 +591,19 @@ function buildAssistantInstructionsFromToolResults(
 }
 
 export function buildToolResultFollowupInstruction(
-  responseLocale?: string | null
+  responseLocale?: string | null,
+  responseContract?: string
 ) {
   const outputLanguage = getCareerPromptLanguageName(responseLocale);
 
+  if (responseContract) return [
+    `Continue any unfinished authorized work with the available tools. Once it is saved or needs user input, reply in ${outputLanguage} under the active task's response contract:`,
+    responseContract,
+  ].join("\n\n");
+
   return [
-    `Use the tool result(s) above to answer the user's latest message in ${outputLanguage}.`,
-    "Do not return empty text, expose raw JSON, or mention internal tool names.",
+    `Use the tool results to continue the user's request. If authorized work remains and a callable tool can carry it out, do that work before your final reply in ${outputLanguage}. Reading information is not completion of a request to edit, prepare or save.`,
+    "When the work is complete or genuinely needs user input, give a concise useful reply. Do not expose raw JSON or internal tool names, or substitute a plan to act later for work you can complete now.",
     "If the assistant already wrote a brief pre-tool preamble in the same turn, do not repeat that preamble; continue with the result or the next useful sentence.",
     "When a tool changed saved profile or preference state, answer as Harper in a normal product conversation: acknowledge the substantive change, explain the practical consequence when it matters, and continue naturally from the user's intent.",
     "If the result leaves the current question unresolved, say what remains unknown. A current snapshot cannot disprove a past state; do not retract earlier changes merely because their older traces are absent.",
@@ -615,7 +626,7 @@ function buildStreamingToolContinuationInstruction(args: {
   return [
     "For this continuation step, only these tools are callable:",
     callableToolNames.map((name) => `- ${name}`).join("\n"),
-    "Call one of them only if the previous tool result makes it necessary. Otherwise, answer the user now.",
+    "Use these tools as needed to finish the still-authorized request. A successful read or intermediate write does not finish a multi-step task. Answer when the requested work is complete or actually blocked on user input.",
   ].join("\n");
 }
 
@@ -638,6 +649,7 @@ function withToolResultFollowupInstruction(
   responseLocale?: string | null,
   options?: {
     toolResults?: unknown[];
+    responseContract?: string;
     callableToolNames?: readonly string[];
     forceFinalAnswer?: boolean;
   }
@@ -655,7 +667,7 @@ function withToolResultFollowupInstruction(
     {
       type: "text",
       text: [
-        buildToolResultFollowupInstruction(responseLocale),
+        buildToolResultFollowupInstruction(responseLocale, options?.responseContract),
         assistantInstructions,
         streamingContinuationInstruction,
       ]
@@ -1792,7 +1804,11 @@ async function runCareerChatAssistantImpl(args: {
           content: withToolResultFollowupInstruction(
             toolResultBlocks,
             args.responseLocale,
-            { toolResults: rawToolResults }
+            {
+              toolResults: rawToolResults,
+              responseContract: (args.toolRuntime?.resolveStep().systemBlocks ?? args.systemBlocks)
+                .find(block => block.key === "application_handoff_contract")?.text,
+            }
           ),
         });
       }
@@ -2267,6 +2283,8 @@ async function runCareerChatAssistantStreamImpl(args: {
             args.responseLocale,
             {
               toolResults: rawToolResults,
+              responseContract: (args.toolRuntime?.resolveStep().systemBlocks ?? args.systemBlocks)
+                .find(block => block.key === "application_handoff_contract")?.text,
               callableToolNames: continuationToolNames,
               forceFinalAnswer: continuationToolNames.length === 0,
             }

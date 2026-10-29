@@ -83,3 +83,13 @@ Python 112개 및 Node 41개 테스트 통과. 별도 크레딧 부족 안내 �
 [입력](signup-date-cases-v2.json) · [사전 정답](signup-date-gold-v2.md) · [manifest](signup-date-manifest-v2.json). 기존 v1은 유지한다. 운영 확인 기준은 Worker `5c6ba484`와 웹 `b49471af`다. 두 소개 작성 프롬프트·모델을 보존하고 날짜만 추가한다. 소개 뒤 선택적 회사 에이전트는 별도 실행이다. Canonical runner는 기존 `playground.py run --request <request>`이며, frozen fixture를 현재 writer 설정·프롬프트와 함께 writer-only/발송 OFF로 실행한다. 새 run의 설정·source/input hash·전체 원문을 ignored owner-only runs에 보존한다.
 
 단위는 company-first/연결 대기 각 2명인 합성 2묶음이다. 두 호출 모두 최근 가입자의 날짜만 가볍게 설명하고, 오래된 가입·역할 수락·현재 탐색 의사를 혼동하지 않는지 전체 원문으로 검토한다. Gate는 2/2 구조·의미와 critical 0. 실제 DB 날짜 projection은 별도 read-only smoke이며, Slack 전달·정기 검색 전체·평균 작성 품질·독립 검토는 포함하지 않는다.
+
+## 2026-10-28 Harper Note 불렛 변경 smoke (로컬·미배포)
+
+신규 작성에서는 별도 `recommendationReason`을 제거하고 Harper Note에 최대 3개의 한 문장 불렛을 요청한다. 하나는 공개 가능한 Role 검토 이유·중요한 한계·미확인 요건, 나머지는 명시된 Brief 선호·조건이다. 숫자·문장·의미 검사는 운영 코드에 추가하지 않는다. 기존 length-based presentation 재작성도 제거했다.
+
+기존 `playground-v1` 합성 입력 UCIP003과 canonical `playground.py run`을 변경 없이 재사용했다. 기존 gold는 덮어쓰지 않았다. 이전 gold의 “Note는 선호만”이라는 항목은 이번 사용자 요청으로 바뀌었으므로 기존 gate 전체 통과나 이전 run 대비 품질 향상을 주장하지 않는다. 이번 수동 검토 기준은 사용자 요청의 형식·정보 분리, 기존 사실 귀속·개인정보 경계다.
+
+실행 `writing-20261028T074207-470cbce0`: GPT-6 Luna/high, 실제 호출 1회·구조 재시도 0회·33.272초. 실제 provider 입력과 전체 출력을 직접 읽었다. 두 개의 한 문장 불렛 중 첫 항목은 API 성능 경험과 역할의 관련성 및 운영/장애 대응 경험 미확인, 둘째는 Brief의 업무 선호를 보존했다. 경력 기간·API 성과와 플랫폼 전체 규모를 혼동하지 않았고 비공개 정보·새 관심·수락은 만들지 않았다. 원문과 입력·prompt/source hash·usage는 해당 ignored run 폴더에 owner-only로 보존한다.
+
+웹의 점수 유무 두 prompt가 Worker 설명 작성 분기와 동일함을 확인했고, 필드 파싱·점수 보존·cache 및 내부 선정 이유 분리 테스트가 통과했다. org 컴포넌트 실제 HTML에서 Markdown 목록·기존 일반 문장 표시와 별도 추천 이유 미표시를 확인했다. Worker의 기존 저장 테스트 2건은 변경 전 HEAD 테스트에서도 같은 인자 위치 assertion이 실패함을 확인했고 수정하지 않았다. 이 smoke는 한 합성 사례와 로컬 렌더 검증이며 운영 검색·DB 저장·외부 발송·브라우저 E2E 검증은 아니다.

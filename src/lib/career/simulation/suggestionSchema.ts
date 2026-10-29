@@ -34,7 +34,10 @@ export const suggestionSchema = z.discriminatedUnion("kind", [
 ]);
 export type ApplicationSuggestion = z.infer<typeof suggestionSchema>;
 export const suggestionBatchSchema = suggestionSchema.array();
-const common = { title: { type: "string" }, reason: { type: "string" } };
+const common = {
+  title: { type: "string", description: "User-facing invitation to review a change, or the single actual question for a question item. Use natural language, not an editorial task label." },
+  reason: { type: "string", description: "The practical value of this decision for this role. The user already sees the proposed text alongside it: explain why it helps, without repeating the edits, listing source checks, or reassuring them about facts you did not invent." },
+};
 export const suggestionParameters = {
   anyOf: [
     {
@@ -53,8 +56,8 @@ export const suggestionParameters = {
             required: ["target", "originalText", "suggestedText"],
             properties: {
               target: { type: "string", description: "User-visible resume location, such as Harper 경력. Use a short human-readable label, never a JSON path or internal identifier." },
-              originalText: { type: "string" },
-              suggestedText: { type: "string" },
+              originalText: { type: "string", description: "Exact original span to replace once. Combine all changes to that span into one edit; do not repeat the same originalText across edits. Empty for an addition." },
+              suggestedText: { type: "string", description: "The complete resulting replacement, combining all authorized improvements to this span. Empty for deletion." },
             },
           },
         },
@@ -112,5 +115,26 @@ export function suggestionAction(
     status: "pending",
     resolution: "",
     evidenceMessageId: null,
+  };
+}
+
+/** Preparation consumes decisions and editable text, not legacy coaching flags. */
+export function applicationSuggestionContext(action: SessionAction) {
+  return {
+    id: action.id,
+    kind: action.inputKind ?? action.category,
+    status: action.status,
+    content: [
+      action.title,
+      ...(action.edits ?? []).map(edit =>
+        `Location: ${edit.target}\nOriginal: ${edit.originalText}\nProposed replacement: ${edit.suggestedText}`
+      ),
+      !action.edits?.length && action.originalText !== undefined
+        ? `Original: ${action.originalText}\nProposed replacement: ${action.suggestedText ?? ""}`
+        : undefined,
+      action.draftText ? `Draft: ${action.draftText}` : action.proposal || undefined,
+      action.applicationField ? `Application requirement: ${action.applicationField}` : undefined,
+      action.resolution ? `Recorded outcome: ${action.resolution}` : undefined,
+    ].filter(Boolean).join("\n"),
   };
 }

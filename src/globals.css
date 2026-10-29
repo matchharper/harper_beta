@@ -44,6 +44,7 @@
   --color-neutral-200: #f5f4f3;
   --color-neutral-300: #eae9e6;
   --color-neutral-400: #dedcd8;
+  --color-neutral-50: #fafafa;
   --color-neutral-500: #c5c2bd;
   --color-neutral-600: #999792;
   --color-neutral-700: #6b6966;
@@ -1274,7 +1275,7 @@
 }
 
 .chat-message-enter {
-  transform-origin: bottom right;
+  transform-origin: bottom;
   animation: chat-message-enter 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 

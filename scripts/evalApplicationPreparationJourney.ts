@@ -1,11 +1,12 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
 
 async function main() {
+  const { formatPromptText, formatToolResultText } = await import("../src/lib/llm/promptText");
   const { CLAUDE_HAIKU_MODEL } = await import("../src/lib/llm/modelConfig");
   const { runCareerChatAssistant } = await import("../src/lib/career/llm");
   const { resolveCareerChatTools } = await import("../src/lib/career/llmTools");
@@ -27,6 +28,9 @@ async function main() {
     await import("../src/lib/career/simulation/suggestionSchema");
   const { manageApplicationSuggestions, applicationSuggestionsResult } =
     await import("../src/lib/career/simulation/suggestions");
+  const { applicationDocumentResult } = await import("../src/lib/career/simulation/applicationWritingContract");
+  const { writeDocument } = await import("../src/lib/documents/authoring");
+  const { applicationBatchContinuation } = await import("../src/lib/career/simulation/applicationAnswerContext");
   const { readyForRole } =
     await import("../src/lib/career/simulation/readyForRole");
   const { startApplicationBrowser } =
@@ -40,7 +44,7 @@ async function main() {
     await import("./lib/applicationPreparationEvalStore");
   const model = CLAUDE_HAIKU_MODEL;
   const task = "docs/evaluation/application-suggestions";
-  const runId = "journey-" + new Date().toISOString().replace(/[:.]/g, "-");
+  const runId = "journey-" + new Date().toISOString().replace(/[:.]/g, "-") + "-" + randomUUID();
   const dir = task + "/runs/" + runId;
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const save = (name: string, v: unknown) =>
@@ -52,6 +56,7 @@ async function main() {
   const originalFetch = globalThis.fetch;
   const requestedModels = new Set<string>();
   let signal = AbortSignal.timeout(180000);
+  let providerRequestIndex = 0;
   globalThis.fetch = (async (input: any, init: any) => {
     const url = new URL(
       typeof input === "string" ? input : (input.url ?? input.href)
@@ -61,7 +66,9 @@ async function main() {
         "Synthetic evaluation blocks non-Anthropic network access"
       );
     if (typeof init?.body === "string") {
-      const requested = JSON.parse(init.body).model;
+      const outgoing = JSON.parse(init.body);
+      save(`provider-request-${++providerRequestIndex}`, outgoing);
+      const requested = outgoing.model;
       if (requested) {
         assert.equal(requested, model);
         requestedModels.add(requested);
@@ -75,14 +82,21 @@ async function main() {
   const sourcePaths = [
     "src/lib/career/simulation/preparationPrompt.ts",
     "src/lib/career/simulation/suggestionWriter.ts",
+    "src/lib/career/simulation/suggestionSchema.ts",
     "src/lib/talentOnboarding/tools.ts",
     "src/lib/career/simulation/session.ts",
     "src/lib/career/simulation/applicationAnswerContext.ts",
+    "src/lib/career/simulation/applicationInput.ts",
     "src/lib/career/simulation/readyForRole.ts",
+    "src/lib/career/simulation/applicationWritingContract.ts",
+    "src/lib/career/simulation/applicationReview.ts",
+    "src/lib/documents/authoring.ts",
     "src/lib/career/simulation/suggestions.ts",
     "src/lib/career/prompts/rawPrompts.ts",
     "src/lib/career/prompts/resumePolicy.ts",
     "src/lib/career/prompts/conversationPlan.ts",
+    "src/lib/career/prompts/conversationSections.ts",
+    "src/lib/career/prompts/toolPolicyPrompt.ts",
     "src/lib/career/llmTools.ts",
     "src/lib/career/llm.ts",
     "src/lib/resumes/schema.ts",
@@ -95,7 +109,7 @@ async function main() {
   );
   const versionArg = process.argv.indexOf("--dataset");
   const version = versionArg < 0 ? "v1" : process.argv[versionArg + 1];
-  if (!["v1", "v2", "memory-v1", "memory-v2"].includes(version)) throw new Error("Unknown dataset");
+  if (!["v1", "v2", "memory-v1", "memory-v2", "inline-v1", "delegated-v1", "delegated-v2", "delegated-v3"].includes(version)) throw new Error("Unknown dataset");
   const inputPath = task + `/journeys-${version}.json`;
   const fixtures = JSON.parse(readFileSync(inputPath, "utf8"));
   const selected = process.argv.indexOf("--case");
@@ -188,7 +202,7 @@ async function main() {
     // Test-only persistence adapter. No shared-context writes reach a database.
     const profileRows: any[] = structuredClone(f.profileRows ?? []);
     const memories: any[] = [];
-    const sharedContext = () => JSON.stringify({ profileRows, memories });
+    const sharedContext = () => formatPromptText({ profileRows, memories });
     const transcript: any[] = [];
     const turns: any[] = [];
     const started = Date.now();
@@ -226,18 +240,20 @@ async function main() {
         current = { ...current, state: finishApplicationAnswer(current.state) };
         db.setRecord(current);
       }
-      transcript.push({ role: "user", content: step.user });
+      const user = step.automaticContinuation ? applicationBatchContinuation(waiting!.id) : step.user;
+      transcript.push({ role: "user", content: user });
       const plan = () =>
         buildCareerConversationPromptPlan({
           channel: "chat",
           isOnboardingDone: true,
+          currentPreferences: { preferredLocale: "ko" },
           conversationMode: "simulation",
           simulationSession: db.record.state,
           profile: null,
           structuredProfileText:
             (f.profileContext ?? "Alex Example, alex@example.test. Confirmed: API design and on-call incident response at Example Studio. No known ML training. Motivation: enjoys building useful developer tools. ") +
             (f.context ?? "") + (f.profileRows ? "\n" + sharedContext() : ""),
-          talentContextSection: memories.length ? JSON.stringify(memories) : "",
+          talentContextSection: memories.length ? formatPromptText(memories) : "",
           toolNames: selection.toolNames,
         });
       const blocks = plan().promptBlocks;
@@ -249,6 +265,7 @@ async function main() {
             "Name, email and resume only. No cover letter or references.") +
           " Respond in Korean. This is preparation for Example Labs · API Engineer.",
       });
+      save(`${f.id}-provider-input-${index}`, { systemBlocks: blocks, messages: transcript });
       const calls: any[] = [];
       try {
         const reply = await runCareerChatAssistant({
@@ -271,6 +288,8 @@ async function main() {
                   ...db.store,
                   input: clean,
                 });
+              else if (name === "write_document")
+                result = applicationDocumentResult(await writeDocument({ ...db.store, input: clean, userMessageId: index + 1, requestId: `turn-${index}-${calls.length}` }));
               else if (name === "manage_application_suggestions") {
                 const next = manageApplicationSuggestions(
                   r.state,
@@ -280,7 +299,7 @@ async function main() {
                   step.responses ? waiting?.id : undefined
                 );
                 db.setRecord({ ...r, state: next });
-                result = applicationSuggestionsResult(next);
+                result = applicationSuggestionsResult(next, r.state);
               } else if (name === "ready_for_role") {
                 const saved = await readyForRole(
                   db.store,
@@ -349,7 +368,7 @@ async function main() {
                 if (update) block.text = update.text;
               }
               call.result = result;
-              return result;
+              return { ...result, modelOutput: result.modelOutput ?? formatToolResultText(result) };
             } catch (error) {
               call.error = String(error);
               throw error;
@@ -358,7 +377,7 @@ async function main() {
         });
         if (reply) transcript.push({ role: "assistant", content: reply });
         turns.push({
-          user: step.user,
+          user,
           reply,
           calls,
           state: structuredClone(db.record.state),
@@ -366,7 +385,7 @@ async function main() {
         });
         save(f.id, { turns });
       } catch (error) {
-        turns.push({ user: step.user, error: String(error), calls });
+        turns.push({ user, error: String(error), calls });
         break;
       }
     }

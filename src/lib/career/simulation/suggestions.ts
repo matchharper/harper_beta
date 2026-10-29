@@ -5,6 +5,7 @@ import {
   suggestionSchema,
   suggestionParameters,
   suggestionAction,
+  applicationSuggestionContext,
 } from "./suggestionSchema";
 import {
   askApplicationInput,
@@ -32,7 +33,7 @@ export const manageApplicationSuggestionsTool = {
   function: {
     name: MANAGE_APPLICATION_SUGGESTIONS,
     description:
-      "Resolve or revise application suggestions from the user's answers, or propose genuinely new ones. Existing id identifies an item; suggestion replaces its content or creates a new item without id. decision=accept settles a user-authorized change (including their requested rewrite) directly, ignore removes it from execution, ask presents it in the composer. Never reconfirm a rewrite the user just instructed. Questions can be settled with ignore after their facts are used; add a grounded change if its content is new. Saved button decisions and inline edits are authoritative. A request to finish preparation leaves them intact; revise a settled decision only for an explicit subsequent change request. Each question covers a distinct useful gap with a brief, specific reason. Batch consequential follow-ups together and avoid repeating settled questions. Save already authorized resume edits with ready_for_role before publishing new asks, even when other items remain unresolved. When any ask is published, stop and wait for the user. Otherwise continue to ready_for_role. This tool does not edit the actual resume.",
+      "Resolve or revise preparation suggestions. Existing id addresses an item; suggestion replaces it or creates one without id. accept settles an authorized change, ignore removes it from execution, ask publishes it in the question composer and ends the turn. For an answered question, use ignore and accept any resulting grounded change. Saved button choices remain settled unless the user subsequently changes them. This tool records decisions; ready_for_role writes the actual resume. Save useful partial work before publishing a new essential question.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -95,11 +96,12 @@ export function manageApplicationSuggestions(
     const button = change.id ? submittedBatch?.responses[change.id] : undefined;
     if (
       button &&
-      (button.decision === "accept" || button.decision === "ignore")
+      (button.decision === "accept" || button.decision === "ignore" || button.decision === "skip")
     ) {
-      if (!change.suggestion && change.decision === button.decision) continue;
+      const settledDecision = button.decision === "skip" ? "ignore" : button.decision;
+      if (!change.suggestion && change.decision === settledDecision) continue;
       throw new Error(
-        "This submitted button decision is already final. Preserve its exact approved text or rejection and handle only the free answers/skips. Continue to ready_for_role when resolved. A later user request can revise it in a new turn."
+        "This submitted button decision is already final, including skip. Preserve the user's choice and handle only the written answers. Continue preparation with existing facts. A later explicit user request can revise the choice in a new turn."
       );
     }
     changed = true;
@@ -170,14 +172,15 @@ export function applicationSuggestionsResult(
     ok: true,
     awaitingUserInput,
     suggestions: session.actions,
-    assistantInstruction: awaitingUserInput
-      ? "The composer shows the suggestions. Wait for the user's answers."
-      : "Continue in this turn to ready_for_role to save authorized edits, using action=reuse when no resume edit is needed. Existing unanswered questions remain open and do not prevent saving a working draft. Resolve remaining requirements before submitting.",
+    documentWritePerformed: false,
+    questionPresentation: awaitingUserInput
+      ? "New question batch displayed; waiting for the user."
+      : "No new question batch. Any existing unanswered items remain open.",
   };
   const previous = new Map(previousSession?.actions.map(action => [action.id, action]));
   const suggestions = session.actions.filter(action =>
     !["completed", "skipped"].includes(action.status) ||
     (previousSession && JSON.stringify(previous.get(action.id)) !== JSON.stringify(action))
   );
-  return { ...result, modelOutput: formatPromptText({ ...result, suggestions }) };
+  return { ...result, modelOutput: formatPromptText({ ...result, suggestions: suggestions.map(applicationSuggestionContext) }) };
 }
