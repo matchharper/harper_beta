@@ -2082,30 +2082,33 @@ export type Database = {
           },
         ]
       }
-      company_role_board_layouts: {
+      company_role_board_cards: {
         Row: {
-          company_user_id: string
           company_workspace_id: string
-          positions: Json
+          recommendation_id: string
           role_id: string
           updated_at: string
-          viewport: Json | null
+          updated_by: string | null
+          x: number
+          y: number
         }
         Insert: {
-          company_user_id: string
           company_workspace_id: string
-          positions?: Json
+          recommendation_id: string
           role_id: string
           updated_at?: string
-          viewport?: Json | null
+          updated_by?: string | null
+          x: number
+          y: number
         }
         Update: {
-          company_user_id?: string
           company_workspace_id?: string
-          positions?: Json
+          recommendation_id?: string
           role_id?: string
           updated_at?: string
-          viewport?: Json | null
+          updated_by?: string | null
+          x?: number
+          y?: number
         }
         Relationships: []
       }
@@ -2151,6 +2154,30 @@ export type Database = {
           updated_by?: string | null
           x?: number
           y?: number
+        }
+        Relationships: []
+      }
+      company_role_board_viewports: {
+        Row: {
+          company_user_id: string
+          company_workspace_id: string
+          role_id: string
+          updated_at: string
+          viewport: Json
+        }
+        Insert: {
+          company_user_id: string
+          company_workspace_id: string
+          role_id: string
+          updated_at?: string
+          viewport: Json
+        }
+        Update: {
+          company_user_id?: string
+          company_workspace_id?: string
+          role_id?: string
+          updated_at?: string
+          viewport?: Json
         }
         Relationships: []
       }

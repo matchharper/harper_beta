@@ -10,20 +10,28 @@ import {
   useState,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutGrid, Maximize, Minus, Plus, Trash2, Type } from "lucide-react";
+import {
+  LayoutGrid,
+  Maximize,
+  Minus,
+  Plus,
+  Trash2,
+  Type,
+  Undo2,
+} from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 import {
-  orgBoardLayoutQueryOptions,
-  saveOrgBoardLayout,
-  useOrgBoardLayout,
+  orgBoardViewportQueryOptions,
+  saveOrgBoardViewport,
+  useOrgBoardCards,
   useOrgBoardTexts,
+  useOrgBoardViewport,
 } from "@/hooks/org/useOrgRoleViews";
 import { useOptionalOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
   orgBoardTextSizeForZoom,
   ORG_BOARD_TEXT_SIZES,
-  type OrgBoardLayout,
   type OrgBoardPoint,
   type OrgBoardText,
   type OrgBoardViewport,
@@ -150,6 +158,20 @@ type Drag =
       start: { x: number; y: number };
     };
 
+/**
+ * The person's last change on the board, to take back once: the spots the
+ * moved cards had, or a text box as it was (null: the box was new).
+ */
+type BoardUndo =
+  | { cards: Positions; kind: "cards"; roleId: string }
+  | {
+      before: OrgBoardText | null;
+      board: string;
+      id: string;
+      kind: "text";
+      roleId: string;
+    };
+
 type BoardProps = {
   /** Which tab of the Role's board this is; each has its own text boxes. */
   board: string;
@@ -167,40 +189,53 @@ const BOARD_CLASS =
 
 /**
  * A white board where the team places candidate cards anywhere and writes
- * text boxes beside them. Each teammate's card arrangement and zoom are
- * saved for them; the text boxes are shared by the whole team, one set per
- * tab.
+ * text boxes beside them. The card arrangement is the team's, one per Role;
+ * the text boxes are the team's too, one set per tab. Zoom and pan are each
+ * person's own.
  */
 export function OrgCandidateBoardCanvas(props: BoardProps) {
-  const layoutQuery = useOrgBoardLayout({
+  const cards = useOrgBoardCards({
     roleId: props.roleId,
     workspaceId: props.workspaceId,
   });
-  if (layoutQuery.isPending) {
+  const viewportQuery = useOrgBoardViewport({
+    roleId: props.roleId,
+    workspaceId: props.workspaceId,
+  });
+  if (cards.isPending || viewportQuery.isPending) {
     return <div aria-busy="true" className={BOARD_CLASS} />;
   }
   // A failed read starts from an empty arrangement; moving cards saves anew.
-  return <BoardCanvas {...props} initial={layoutQuery.data?.layout ?? null} />;
+  return (
+    <BoardCanvas
+      {...props}
+      cardStore={cards}
+      initialViewport={viewportQuery.data?.viewport ?? null}
+    />
+  );
 }
 
 function BoardCanvas({
   board,
-  initial,
+  cardStore,
+  initialViewport,
   items,
   onSelectionChange,
   renderCard,
   roleId,
   selectedIds,
   workspaceId,
-}: BoardProps & { initial: OrgBoardLayout | null }) {
+}: BoardProps & {
+  cardStore: ReturnType<typeof useOrgBoardCards>;
+  initialViewport: OrgBoardViewport | null;
+}) {
   const { c } = useOrgLocale();
   const containerRef = useRef<HTMLDivElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
   const textRefs = useRef(new Map<string, HTMLDivElement>());
-  const [positions, setPositions] = useState<Positions>(
-    () => initial?.positions ?? {}
-  );
+  // The team's card spots, with this person's moves on top until saved.
+  const { positions, sync: cardSync } = cardStore;
   // Text boxes are the team's. This person's changes show at once and are
   // saved in the background, one box at a time.
   const {
@@ -211,9 +246,19 @@ function BoardCanvas({
   const canWrite =
     useOptionalOrgWorkspace()?.permissions.canManageCandidates ?? false;
   const [selectedText, setSelectedText] = useState<string | null>(null);
+  const [undo, setUndo] = useState<BoardUndo | null>(null);
+  const canUndo = Boolean(
+    undo &&
+    undo.roleId === roleId &&
+    (undo.kind === "cards" || undo.board === board)
+  );
+  // The box as it was when typing started (null: a new box).
+  const editStart = useRef<{ before: OrgBoardText | null; id: string } | null>(
+    null
+  );
   const [editingText, setEditingText] = useState<string | null>(null);
   const [viewport, setViewport] = useState<OrgBoardViewport>(
-    () => returnViewports.get(roleId) ?? initial?.viewport ?? DEFAULT_VIEWPORT
+    () => returnViewports.get(roleId) ?? initialViewport ?? DEFAULT_VIEWPORT
   );
   const [animate, setAnimate] = useState(false);
   const [panning, setPanning] = useState(false);
@@ -232,8 +277,8 @@ function BoardCanvas({
   const spaceHeld = useRef(false);
   const hovering = useRef(false);
 
-  // Cards without a saved spot take the next free ones. They are kept once
-  // the person moves anything, so they do not jump later.
+  // Cards nobody has placed take the next free spots. They are saved with
+  // the person's next move, unless a teammate placed them first.
   const [rowHeight, setRowHeight] = useState(CARD_HEIGHT);
   const placed = useMemo(() => {
     const missing = items
@@ -252,9 +297,9 @@ function BoardCanvas({
     [items, renderCard]
   );
 
-  const latest = useRef({ positions: placed, texts, viewport });
+  const latest = useRef({ texts, viewport });
   useEffect(() => {
-    latest.current = { positions: placed, texts, viewport };
+    latest.current = { texts, viewport };
   });
   const selectedTextRef = useRef(selectedText);
   useEffect(() => {
@@ -272,19 +317,26 @@ function BoardCanvas({
     },
     [textSync]
   );
+  /** The person deleting a box, which they can take back. */
+  const deleteText = useCallback(
+    (id: string) => {
+      const text = latest.current.texts.find((entry) => entry.id === id);
+      if (text) setUndo({ before: text, board, id, kind: "text", roleId });
+      removeText(id);
+    },
+    [board, removeText, roleId]
+  );
+  /** Saves this person's zoom and pan for their next visit. */
   const flushSave = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = null;
-    const { positions, viewport: view } = latest.current;
-    const layout: OrgBoardLayout = { positions, viewport: view };
+    const view = latest.current.viewport;
     // The cached copy is what the board opens with next time.
     queryClient.setQueryData(
-      orgBoardLayoutQueryOptions(workspaceId, roleId).queryKey,
-      {
-        layout,
-      }
+      orgBoardViewportQueryOptions(workspaceId, roleId).queryKey,
+      { viewport: view }
     );
-    void saveOrgBoardLayout({ layout, roleId, workspaceId }).catch(
+    void saveOrgBoardViewport({ roleId, viewport: view, workspaceId }).catch(
       () => undefined
     );
   }, [queryClient, roleId, workspaceId]);
@@ -487,7 +539,7 @@ function BoardCanvas({
         selectedTextRef.current
       ) {
         event.preventDefault();
-        removeText(selectedTextRef.current);
+        deleteText(selectedTextRef.current);
       } else if (event.key === "Escape" && onSelectionChange) {
         onSelectionChange(new Set());
       }
@@ -503,7 +555,7 @@ function BoardCanvas({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [animateTo, onSelectionChange, removeText]);
+  }, [animateTo, deleteText, onSelectionChange]);
 
   const local = (event: { clientX: number; clientY: number }) => {
     const bounds = containerRef.current?.getBoundingClientRect();
@@ -618,8 +670,6 @@ function BoardCanvas({
       // Capture only once it is a drag, so a plain click still opens the card.
       containerRef.current?.setPointerCapture(event.pointerId);
       current.moved = true;
-      // Keep the spots shown for new cards from here on, and lift the cards.
-      setPositions(placed);
       setDragging(new Set(current.ids));
       setOrder((existing) => [
         ...existing.filter((entry) => !current.ids.includes(entry)),
@@ -655,6 +705,13 @@ function BoardCanvas({
           (entry) => entry.id === current.id
         );
         if (text) {
+          setUndo({
+            before: { ...text, ...current.origin },
+            board,
+            id: text.id,
+            kind: "text",
+            roleId,
+          });
           textSync.update(text, {
             x: current.origin.x + dx,
             y: current.origin.y + dy,
@@ -677,16 +734,18 @@ function BoardCanvas({
     if (current.moved) {
       suppressClick.current = true;
       const { dx, dy } = current.last ?? { dx: 0, dy: 0 };
-      setPositions((existing) => {
-        const next = { ...existing };
-        for (const id of current.ids) {
-          const origin = current.origin[id];
-          if (origin) next[id] = { x: origin.x + dx, y: origin.y + dy };
-        }
-        return next;
-      });
+      const moved: Positions = {};
+      for (const id of current.ids) {
+        const origin = current.origin[id];
+        if (origin) moved[id] = { x: origin.x + dx, y: origin.y + dy };
+      }
+      // The spots shown for cards nobody placed stay where they are.
+      const shown = Object.fromEntries(
+        Object.entries(placed).filter(([id]) => !positions[id])
+      );
+      cardSync.move(moved, shown);
+      setUndo({ cards: current.origin, kind: "cards", roleId });
       setDragging(NO_IDS);
-      scheduleSave();
     }
   };
 
@@ -694,7 +753,8 @@ function BoardCanvas({
     item: OrgBoardItem,
     event: ReactPointerEvent<HTMLDivElement>
   ) => {
-    if (event.button !== 0 || spaceHeld.current) return;
+    // Only those who can manage candidates rearrange the team's board.
+    if (event.button !== 0 || spaceHeld.current || !canWrite) return;
     // Anything on the card drags it except fields, boxes and menus, which
     // keep working. A click without movement still reaches the card.
     const keep = (event.target as HTMLElement).closest(
@@ -783,15 +843,35 @@ function BoardCanvas({
       },
       { hold: true }
     );
+    editStart.current = { before: null, id };
     setSelectedText(id);
     setEditingText(id);
+  };
+  const startEditing = (text: OrgBoardText) => {
+    editStart.current = { before: text, id: text.id };
+    setSelectedText(text.id);
+    setEditingText(text.id);
   };
   /** Typing ended: an empty box goes away, otherwise it is saved. */
   const finishEditing = (id: string) => {
     setEditingText(null);
+    const start = editStart.current?.id === id ? editStart.current : null;
+    editStart.current = null;
     const text = latest.current.texts.find((entry) => entry.id === id);
-    if (!text?.text.trim()) removeText(id);
-    else textSync.release(id);
+    if (!text?.text.trim()) {
+      removeText(id);
+      // A box that had words and was emptied can come back.
+      if (start?.before) {
+        setUndo({ before: start.before, board, id, kind: "text", roleId });
+      }
+      return;
+    }
+    textSync.release(id);
+    if (!start) return;
+    const before = start.before;
+    if (!before || before.text !== text.text || before.size !== text.size) {
+      setUndo({ before, board, id, kind: "text", roleId });
+    }
   };
   const resize = (text: OrgBoardText, step: 1 | -1) => {
     const index = ORG_BOARD_TEXT_SIZES.indexOf(text.size);
@@ -803,7 +883,28 @@ function BoardCanvas({
         )
       ];
     // While typing, saved with the words when typing ends.
-    textSync.update(text, { size: next }, { hold: editingText === text.id });
+    const typing = editingText === text.id;
+    if (!typing) {
+      setUndo({ before: text, board, id: text.id, kind: "text", roleId });
+    }
+    textSync.update(text, { size: next }, { hold: typing });
+  };
+  /** Takes back the person's last change, once. */
+  const undoLast = () => {
+    if (!undo || !canUndo) return;
+    setUndo(null);
+    if (undo.kind === "cards") {
+      cardSync.move(undo.cards);
+      return;
+    }
+    const current = latest.current.texts.find((entry) => entry.id === undo.id);
+    if (!undo.before) {
+      if (current) removeText(undo.id);
+      return;
+    }
+    const { size, text, x, y } = undo.before;
+    // A deleted box comes back under its own ID.
+    textSync.update(current ?? undo.before, { size, text, x, y });
   };
 
   const fitAll = () => {
@@ -811,7 +912,13 @@ function BoardCanvas({
     if (next) animateTo(next);
   };
   const arrange = () => {
-    setPositions(
+    const before: Positions = {};
+    for (const item of items) {
+      const point = placed[item.recommendationId];
+      if (point) before[item.recommendationId] = point;
+    }
+    setUndo({ cards: before, kind: "cards", roleId });
+    cardSync.move(
       placeNewCards(
         {},
         items.map((item) => item.recommendationId),
@@ -819,7 +926,6 @@ function BoardCanvas({
       )
     );
     requestAnimationFrame(fitAll);
-    scheduleSave();
   };
 
   const dotSize = DOT_SPACING * viewport.zoom;
@@ -920,8 +1026,7 @@ function BoardCanvas({
               key={text.id}
               onDoubleClick={() => {
                 if (!canWrite) return;
-                setSelectedText(text.id);
-                setEditingText(text.id);
+                startEditing(text);
               }}
               onPointerDown={(event) => onTextPointerDown(text, event)}
               ref={(element) => {
@@ -961,7 +1066,7 @@ function BoardCanvas({
                   </MuteButton>
                   <MuteButton
                     aria-label={c("텍스트 삭제", "Delete text")}
-                    onClick={() => removeText(text.id)}
+                    onClick={() => deleteText(text.id)}
                     size="sm"
                     type="button"
                     variant="transparent"
@@ -1045,6 +1150,16 @@ function BoardCanvas({
         {canWrite ? (
           <>
             <MuteButton
+              aria-label={c("되돌리기", "Undo")}
+              disabled={!canUndo}
+              onClick={undoLast}
+              size="sm"
+              type="button"
+              variant="transparent"
+            >
+              <Undo2 className="size-3.5" />
+            </MuteButton>
+            <MuteButton
               aria-label={c("텍스트 추가", "Add text")}
               onClick={addText}
               size="sm"
@@ -1093,15 +1208,17 @@ function BoardCanvas({
         >
           <Maximize className="size-3.5" />
         </MuteButton>
-        <MuteButton
-          aria-label={c("자동 정렬", "Tidy up")}
-          onClick={arrange}
-          size="sm"
-          type="button"
-          variant="transparent"
-        >
-          <LayoutGrid className="size-3.5" />
-        </MuteButton>
+        {canWrite ? (
+          <MuteButton
+            aria-label={c("자동 정렬", "Tidy up")}
+            onClick={arrange}
+            size="sm"
+            type="button"
+            variant="transparent"
+          >
+            <LayoutGrid className="size-3.5" />
+          </MuteButton>
+        ) : null}
       </div>
     </div>
   );

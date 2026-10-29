@@ -3,10 +3,11 @@ import "server-only";
 import type { User } from "@supabase/supabase-js";
 import { assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
 import {
-  normalizeOrgBoardLayout,
+  normalizeOrgBoardPositions,
   normalizeOrgBoardText,
+  normalizeOrgBoardViewport,
   normalizeOrgListColumnValues,
-  type OrgBoardLayout,
+  type OrgBoardPositions,
   type OrgBoardText,
   type OrgRoleListColumn,
 } from "@/lib/org/roleViews";
@@ -21,8 +22,9 @@ type ColumnRow = {
 };
 
 const columnsTable = () => getSupabaseAdmin().from("company_role_list_columns");
-const layoutsTable = () =>
-  getSupabaseAdmin().from("company_role_board_layouts");
+const cardsTable = () => getSupabaseAdmin().from("company_role_board_cards");
+const viewportsTable = () =>
+  getSupabaseAdmin().from("company_role_board_viewports");
 const textsTable = () => getSupabaseAdmin().from("company_role_board_texts");
 
 function toColumn(row: ColumnRow): OrgRoleListColumn {
@@ -174,11 +176,14 @@ export async function removeOrgRoleListColumn(args: {
   });
 }
 
-export async function getOrgBoardLayout(args: {
+// ---------------------------------------------------------- board cards
+
+/** Where the team placed this Role's candidate cards on its board. */
+export async function listOrgBoardCards(args: {
   roleId: string;
   user: User;
   workspaceId: string;
-}): Promise<OrgBoardLayout> {
+}): Promise<OrgBoardPositions> {
   await assertOrgRoleAccess({
     admin: getSupabaseAdmin(),
     permission: "view",
@@ -186,17 +191,70 @@ export async function getOrgBoardLayout(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
-  const { data, error } = await layoutsTable()
-    .select("positions, viewport")
-    .eq("role_id", args.roleId)
-    .eq("company_user_id", args.user.id)
-    .maybeSingle();
+  const { data, error } = await cardsTable()
+    .select("recommendation_id, x, y")
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("role_id", args.roleId);
   if (error) throw error;
-  return normalizeOrgBoardLayout(data);
+  return Object.fromEntries(
+    (data ?? []).map((row) => [row.recommendation_id, { x: row.x, y: row.y }])
+  );
 }
 
-export async function saveOrgBoardLayout(args: {
-  layout: unknown;
+/**
+ * Saves card spots on a Role's board for the whole team, one row per card,
+ * so teammates moving different cards never overwrite each other. `moved`
+ * are cards the person moved; `placed` are spots the board gave cards nobody
+ * had placed, kept only where nobody has placed them since.
+ */
+export async function saveOrgBoardCards(args: {
+  moved: unknown;
+  placed: unknown;
+  roleId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  await assertOrgRoleAccess({
+    admin: getSupabaseAdmin(),
+    permission: "manage_candidates",
+    roleId: args.roleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const moved = normalizeOrgBoardPositions(args.moved);
+  const placed = normalizeOrgBoardPositions(args.placed);
+  const updatedAt = new Date().toISOString();
+  const rows = (points: OrgBoardPositions) =>
+    Object.entries(points).map(([recommendationId, point]) => ({
+      company_workspace_id: args.workspaceId,
+      recommendation_id: recommendationId,
+      role_id: args.roleId,
+      updated_at: updatedAt,
+      updated_by: args.user.id,
+      x: point.x,
+      y: point.y,
+    }));
+  const newRows = rows(placed).filter(
+    (row) => !(row.recommendation_id in moved)
+  );
+  if (newRows.length) {
+    const { error } = await cardsTable().upsert(newRows, {
+      ignoreDuplicates: true,
+      onConflict: "role_id,recommendation_id",
+    });
+    if (error) throw error;
+  }
+  const movedRows = rows(moved);
+  if (movedRows.length) {
+    const { error } = await cardsTable().upsert(movedRows, {
+      onConflict: "role_id,recommendation_id",
+    });
+    if (error) throw error;
+  }
+}
+
+/** This person's last zoom and pan on a Role's board. */
+export async function getOrgBoardViewport(args: {
   roleId: string;
   user: User;
   workspaceId: string;
@@ -208,20 +266,42 @@ export async function saveOrgBoardLayout(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
-  const layout = normalizeOrgBoardLayout(args.layout);
-  const { error } = await layoutsTable().upsert(
+  const { data, error } = await viewportsTable()
+    .select("viewport")
+    .eq("role_id", args.roleId)
+    .eq("company_user_id", args.user.id)
+    .maybeSingle();
+  if (error) throw error;
+  return normalizeOrgBoardViewport(data?.viewport);
+}
+
+export async function saveOrgBoardViewport(args: {
+  roleId: string;
+  user: User;
+  viewport: unknown;
+  workspaceId: string;
+}) {
+  await assertOrgRoleAccess({
+    admin: getSupabaseAdmin(),
+    permission: "view",
+    roleId: args.roleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const viewport = normalizeOrgBoardViewport(args.viewport);
+  if (!viewport) throw new OrgHttpError(400, "Invalid viewport");
+  const { error } = await viewportsTable().upsert(
     {
       company_user_id: args.user.id,
       company_workspace_id: args.workspaceId,
-      positions: layout.positions,
       role_id: args.roleId,
       updated_at: new Date().toISOString(),
-      viewport: layout.viewport,
+      viewport,
     },
     { onConflict: "role_id,company_user_id" }
   );
   if (error) throw error;
-  return layout;
+  return viewport;
 }
 
 // ---------------------------------------------------------- board texts

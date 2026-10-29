@@ -43,11 +43,11 @@ export function closestOrgBoardTextSize(size: number) {
   );
 }
 
-/** One teammate's arrangement of a Role's board. Keys are recommendation IDs. */
-export type OrgBoardLayout = {
-  positions: Record<string, OrgBoardPoint>;
-  viewport: OrgBoardViewport | null;
-};
+/**
+ * Where the team placed candidate cards on a Role's board, shared by
+ * everyone who can open the Role. Keys are recommendation IDs.
+ */
+export type OrgBoardPositions = Record<string, OrgBoardPoint>;
 
 function finite(value: unknown) {
   return typeof value === "number" && Number.isFinite(value);
@@ -75,34 +75,32 @@ export function normalizeOrgBoardText(value: unknown) {
   };
 }
 
-export function normalizeOrgBoardLayout(value: unknown): OrgBoardLayout {
-  const raw = (value ?? {}) as { positions?: unknown; viewport?: unknown };
-  const positions: Record<string, OrgBoardPoint> = {};
-  if (raw.positions && typeof raw.positions === "object") {
-    for (const [key, point] of Object.entries(
-      raw.positions as Record<string, unknown>
-    )) {
-      const { x, y } = (point ?? {}) as { x?: unknown; y?: unknown };
-      if (key && finite(x) && finite(y)) {
-        positions[key] = { x: x as number, y: y as number };
-      }
+export function normalizeOrgBoardPositions(value: unknown): OrgBoardPositions {
+  const positions: OrgBoardPositions = {};
+  if (!value || typeof value !== "object") return positions;
+  for (const [key, point] of Object.entries(value as Record<string, unknown>)) {
+    const { x, y } = (point ?? {}) as { x?: unknown; y?: unknown };
+    if (key && finite(x) && finite(y)) {
+      positions[key] = { x: x as number, y: y as number };
     }
   }
-  const viewport = raw.viewport as Partial<OrgBoardViewport> | null;
-  return {
-    positions,
-    viewport:
-      viewport &&
-      finite(viewport.x) &&
-      finite(viewport.y) &&
-      finite(viewport.zoom)
-        ? {
-            x: viewport.x as number,
-            y: viewport.y as number,
-            zoom: viewport.zoom as number,
-          }
-        : null,
-  };
+  return positions;
+}
+
+export function normalizeOrgBoardViewport(
+  value: unknown
+): OrgBoardViewport | null {
+  const viewport = (value ?? null) as Partial<OrgBoardViewport> | null;
+  return viewport &&
+    finite(viewport.x) &&
+    finite(viewport.y) &&
+    finite(viewport.zoom)
+    ? {
+        x: viewport.x as number,
+        y: viewport.y as number,
+        zoom: viewport.zoom as number,
+      }
+    : null;
 }
 
 export function normalizeOrgListColumnValues(value: unknown) {

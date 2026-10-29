@@ -4,12 +4,14 @@ import { OrgHttpError } from "@/lib/org/server";
 import {
   deleteOrgBoardText,
   fillOrgRoleListColumn,
-  getOrgBoardLayout,
+  getOrgBoardViewport,
+  listOrgBoardCards,
   listOrgBoardTexts,
   listOrgRoleListColumns,
   removeOrgRoleListColumn,
-  saveOrgBoardLayout,
+  saveOrgBoardCards,
   saveOrgBoardText,
+  saveOrgBoardViewport,
 } from "@/lib/org/roleViews.server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
@@ -47,9 +49,13 @@ export async function GET(req: NextRequest) {
       workspaceId: params.get("workspaceId"),
     });
     if (!parsed.success) throw new OrgHttpError(400, "roleId is required");
-    if (params.get("kind") === "board") {
-      const layout = await getOrgBoardLayout({ ...parsed.data, user });
-      return NextResponse.json({ layout, ok: true });
+    if (params.get("kind") === "board_cards") {
+      const positions = await listOrgBoardCards({ ...parsed.data, user });
+      return NextResponse.json({ ok: true, positions });
+    }
+    if (params.get("kind") === "board_viewport") {
+      const viewport = await getOrgBoardViewport({ ...parsed.data, user });
+      return NextResponse.json({ ok: true, viewport });
     }
     if (params.get("kind") === "board_texts") {
       const board = params.get("board");
@@ -66,8 +72,13 @@ export async function GET(req: NextRequest) {
 
 const input = z.discriminatedUnion("action", [
   scope.extend({
-    action: z.literal("save_board"),
-    layout: z.record(z.string(), z.unknown()),
+    action: z.literal("save_board_cards"),
+    moved: z.record(z.string(), z.unknown()),
+    placed: z.record(z.string(), z.unknown()),
+  }),
+  scope.extend({
+    action: z.literal("save_board_viewport"),
+    viewport: z.record(z.string(), z.unknown()),
   }),
   scope.extend({
     action: z.literal("remove_column"),
@@ -121,8 +132,12 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ ok: true, texts });
     }
-    const layout = await saveOrgBoardLayout({ ...body, user });
-    return NextResponse.json({ layout, ok: true });
+    if (body.action === "save_board_cards") {
+      await saveOrgBoardCards({ ...body, user });
+      return NextResponse.json({ ok: true });
+    }
+    const viewport = await saveOrgBoardViewport({ ...body, user });
+    return NextResponse.json({ ok: true, viewport });
   } catch (error) {
     return toErrorResponse(error);
   }

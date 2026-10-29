@@ -6,10 +6,12 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { BoardCardSync } from "@/lib/org/boardCardSync";
 import { BoardTextSync, mergeBoardTexts } from "@/lib/org/boardTextSync";
 import type {
-  OrgBoardLayout,
+  OrgBoardPositions,
   OrgBoardText,
+  OrgBoardViewport,
   OrgRoleListColumn,
 } from "@/lib/org/roleViews";
 import { queryKeys } from "@/lib/queryKeys";
@@ -89,44 +91,107 @@ export function useOrgRoleListColumns(args: {
 }
 
 /**
- * One teammate's arrangement of a Role's board. The board keeps its own
- * copy after the first load; later refreshes do not move cards under the
- * person's hand. Each save writes here too, so reopening the board shows the
- * last arrangement.
+ * Where the team placed a Role's candidate cards on its board. Re-read
+ * every 15 seconds so a teammate's arrangement shows without reopening it.
  */
-export function orgBoardLayoutQueryOptions(
+export function orgBoardCardsQueryOptions(workspaceId: string, roleId: string) {
+  return queryOptions({
+    enabled: Boolean(workspaceId && roleId),
+    queryFn: () =>
+      fetchWithInternalAuth<{ positions: OrgBoardPositions }>(
+        `/api/org/role-views?kind=board_cards&workspaceId=${encodeURIComponent(workspaceId)}&roleId=${encodeURIComponent(roleId)}`
+      ),
+    queryKey: queryKeys.org.roleBoardCards(workspaceId, roleId),
+    refetchInterval: 15_000,
+  });
+}
+
+/**
+ * The team's card spots on a Role's board, with this person's moves shown
+ * at once and saved in the background (see BoardCardSync).
+ */
+export function useOrgBoardCards(args: {
+  roleId: string;
+  workspaceId: string;
+}) {
+  const { roleId, workspaceId } = args;
+  const client = useQueryClient();
+  const query = useQuery(orgBoardCardsQueryOptions(workspaceId, roleId));
+  const sync = useMemo(
+    () =>
+      new BoardCardSync(
+        (change) =>
+          fetchWithInternalAuth("/api/org/role-views", {
+            body: JSON.stringify({
+              action: "save_board_cards",
+              ...change,
+              roleId,
+              workspaceId,
+            }),
+            headers: { "Content-Type": "application/json" },
+            // Lets a save started as the board closes finish.
+            keepalive: true,
+            method: "POST",
+          }).then(() => undefined),
+        {
+          onIdle: () =>
+            void client.invalidateQueries({
+              queryKey: queryKeys.org.roleBoardCards(workspaceId, roleId),
+            }),
+        }
+      ),
+    [client, roleId, workspaceId]
+  );
+  const locals = useSyncExternalStore(
+    sync.subscribe,
+    sync.getSnapshot,
+    sync.getSnapshot
+  );
+  const { data, dataUpdatedAt } = query;
+  useEffect(() => {
+    if (data) sync.reconcile(data.positions, dataUpdatedAt);
+  }, [data, dataUpdatedAt, sync]);
+  const positions = useMemo(
+    () => ({ ...(data?.positions ?? {}), ...locals }),
+    [data, locals]
+  );
+  return { isPending: query.isPending, positions, sync };
+}
+
+/** This person's last zoom and pan on a Role's board. */
+export function orgBoardViewportQueryOptions(
   workspaceId: string,
   roleId: string
 ) {
   return queryOptions({
     enabled: Boolean(workspaceId && roleId),
     queryFn: () =>
-      fetchWithInternalAuth<{ layout: OrgBoardLayout }>(
-        `/api/org/role-views?kind=board&workspaceId=${encodeURIComponent(workspaceId)}&roleId=${encodeURIComponent(roleId)}`
+      fetchWithInternalAuth<{ viewport: OrgBoardViewport | null }>(
+        `/api/org/role-views?kind=board_viewport&workspaceId=${encodeURIComponent(workspaceId)}&roleId=${encodeURIComponent(roleId)}`
       ),
-    queryKey: queryKeys.org.roleBoardLayout(workspaceId, roleId),
+    queryKey: queryKeys.org.roleBoardViewport(workspaceId, roleId),
     staleTime: Infinity,
   });
 }
 
-export function useOrgBoardLayout(args: {
+export function useOrgBoardViewport(args: {
   roleId: string | null | undefined;
   workspaceId: string;
 }) {
   return useQuery(
-    orgBoardLayoutQueryOptions(args.workspaceId, args.roleId ?? "")
+    orgBoardViewportQueryOptions(args.workspaceId, args.roleId ?? "")
   );
 }
 
-export function saveOrgBoardLayout(args: {
-  layout: OrgBoardLayout;
+export function saveOrgBoardViewport(args: {
   roleId: string;
+  viewport: OrgBoardViewport;
   workspaceId: string;
 }) {
-  return fetchWithInternalAuth<{ layout: OrgBoardLayout }>(
+  return fetchWithInternalAuth<{ viewport: OrgBoardViewport }>(
     "/api/org/role-views",
     {
-      body: JSON.stringify({ action: "save_board", ...args }),
+      body: JSON.stringify({ action: "save_board_viewport", ...args }),
       headers: { "Content-Type": "application/json" },
       keepalive: true,
       method: "POST",

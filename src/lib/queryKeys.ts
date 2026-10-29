@@ -242,8 +242,10 @@ export const queryKeys = {
     ) => ["org", "roleTodo", workspaceId ?? "", roleId ?? "", range] as const,
     roleListColumns: (workspaceId?: string | null, roleId?: string | null) =>
       ["org", "roleListColumns", workspaceId ?? "", roleId ?? ""] as const,
-    roleBoardLayout: (workspaceId?: string | null, roleId?: string | null) =>
-      ["org", "roleBoardLayout", workspaceId ?? "", roleId ?? ""] as const,
+    roleBoardCards: (workspaceId?: string | null, roleId?: string | null) =>
+      ["org", "roleBoardCards", workspaceId ?? "", roleId ?? ""] as const,
+    roleBoardViewport: (workspaceId?: string | null, roleId?: string | null) =>
+      ["org", "roleBoardViewport", workspaceId ?? "", roleId ?? ""] as const,
     roleBoardTexts: (
       workspaceId?: string | null,
       roleId?: string | null,

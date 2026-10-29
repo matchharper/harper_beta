@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  normalizeOrgBoardLayout,
+  normalizeOrgBoardPositions,
   normalizeOrgBoardText,
+  normalizeOrgBoardViewport,
   orgBoardTextSizeForZoom,
 } from "./roleViews";
 
@@ -26,17 +27,17 @@ test("a board text box keeps its place, words and an offered size", () => {
   assert.equal(normalizeOrgBoardText({ id: "t3", text: "메모" }), null);
 });
 
-test("a teammate's layout keeps only card spots and the view", () => {
+test("card spots and a view keep only usable numbers", () => {
   assert.deepEqual(
-    normalizeOrgBoardLayout({
-      positions: { rec1: { x: 10, y: 20 }, broken: { x: "a" } },
-      viewport: { x: 1, y: 2, zoom: 0.5 },
-    }),
-    {
-      positions: { rec1: { x: 10, y: 20 } },
-      viewport: { x: 1, y: 2, zoom: 0.5 },
-    }
+    normalizeOrgBoardPositions({ rec1: { x: 10, y: 20 }, broken: { x: "a" } }),
+    { rec1: { x: 10, y: 20 } }
   );
+  assert.deepEqual(normalizeOrgBoardViewport({ x: 1, y: 2, zoom: 0.5 }), {
+    x: 1,
+    y: 2,
+    zoom: 0.5,
+  });
+  assert.equal(normalizeOrgBoardViewport({ x: 1, y: 2 }), null);
 });
 
 test("a new text box reads the same on screen at any zoom", () => {
