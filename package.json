@@ -14,7 +14,7 @@
     "dev": "HARPER_E2E_DIST_DIR=.next-e2e next dev",
     "dev:slack-socket": "node --env-file=.env.local scripts/slackLocalSocketBridge.mjs",
     "dev:slack-review-post": "node --env-file=.env.local --import tsx scripts/postLocalSlackTalentReview.ts",
-    "build": "next build --webpack",
+    "build": "node --max-old-space-size=4096 node_modules/next/dist/bin/next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "growth:ga-slack-report": "pnpm growth:talent-gtm-report",
