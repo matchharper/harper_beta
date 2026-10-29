@@ -34,10 +34,6 @@ import {
   isOrgInternalStage,
 } from "@/lib/org/candidateDecision";
 import {
-  buildMeetingInvitationFallback,
-  MEETING_INVITATION_LINK_MARKER,
-} from "@/lib/meetings/invitation";
-import {
   buildDefaultInterviewTitle,
   DEFAULT_INTERVIEW_DURATION_MINUTES,
 } from "@/lib/meetings/scheduleDraft";
@@ -53,11 +49,11 @@ import { appendOrgIntroCaptureDisclosure } from "@/lib/org/introEmailDisclosure"
 import {
   fillOrgIntroTemplate,
   findUnknownOrgIntroFields,
+  ORG_INTRO_TEMPLATE_FIELDS,
+  ORG_MEETING_DURATIONS,
 } from "@/lib/org/messageTemplates";
 import { OrgTemplatePicker } from "./OrgTemplatePicker";
 import { insertAtCursor, OrgIntroFieldHelp } from "./OrgIntroFieldHelp";
-import { OrgProcessLine, type OrgProcessStep } from "./OrgProcessLine";
-import { orgStageIcon, orgStageName } from "./orgStageVisuals";
 
 export type OrgStageMoveCandidate = {
   email: string | null;
@@ -67,7 +63,7 @@ export type OrgStageMoveCandidate = {
   stage: OrgStageId;
 };
 
-export type OrgStageMoveAction = "interview" | "intro_email" | "direct_contact";
+export type OrgStageMoveAction = "intro_email" | "direct_contact";
 
 export function toOrgStageMoveCandidate(
   item: Pick<
@@ -87,12 +83,14 @@ export function toOrgStageMoveCandidate(
 
 export type OrgStageMoveSubmit = {
   action: OrgStageMoveAction;
+  /** The intro email carries an interview booking link. */
+  bookingLink: boolean;
   options: (candidate: OrgStageMoveCandidate) => OrgStageChangeOptions;
   stage: OrgStageId;
   stageLabel: string;
 };
 
-const DURATIONS = [15, 30, 45, 60, 90, 120];
+const BOOKING_FIELD = ORG_INTRO_TEMPLATE_FIELDS.bookingLink;
 
 function summarizeNames(
   names: string[],
@@ -107,9 +105,10 @@ function summarizeNames(
 }
 
 /**
- * One form for moving one or several candidates to a stage. The actions it
- * offers are the ones Harper already runs on a stage move: an interview
- * scheduling link (with its automatic reminder) or an intro email.
+ * One form for moving one or several candidates to a stage. Harper sends one
+ * intro email that connects the candidate with the team and, once Google
+ * Calendar is set up, carries a link to pick an interview time (with
+ * Harper's reminder if no time is picked).
  */
 export function OrgStageMoveDialog({
   allowContactDirectly = false,
@@ -148,11 +147,13 @@ export function OrgStageMoveDialog({
       !isOrgInternalStage(stage.id) &&
       stage.id !== "pending_connection"
   );
-  const [stageId, setStageId] = useState<OrgStageId>(() =>
-    targetStages.some((stage) => stage.id === initialStage)
-      ? initialStage
-      : (targetStages[0]?.id ?? initialStage)
-  );
+  // The column the candidates go to: 연결됨 from the accept buttons, or the
+  // column a card was dropped on. There is nothing to choose here.
+  const stageId: OrgStageId = targetStages.some(
+    (stage) => stage.id === initialStage
+  )
+    ? initialStage
+    : (targetStages[0]?.id ?? initialStage);
   const stage = targetStages.find((item) => item.id === stageId);
   const stageLabel = (() => {
     const label = stage?.label.trim() ?? "";
@@ -162,33 +163,29 @@ export function OrgStageMoveDialog({
       : label;
   })();
   const stageDefaults = stage?.meetingDefaults ?? null;
-  const interviewAllowed =
+  // A booking link goes only with a first connection.
+  const bookingAllowed =
     count > 0 &&
     candidates.every((candidate) => candidate.stage === "pending_connection") &&
     (stageId === "connected" || stageId.startsWith("custom:"));
 
-  // Edits are kept per stage; switching stages starts again from that stage's
-  // remembered interview settings.
-  const [action, setAction] = useState<OrgStageMoveAction | null>(null);
+  const [action, setAction] = useState<OrgStageMoveAction>("intro_email");
   const [purpose, setPurpose] = useState<string | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
-  const [candidateMessage, setCandidateMessage] = useState<string | null>(null);
-  const defaultAction: OrgStageMoveAction =
-    interviewAllowed && stageDefaults ? "interview" : "intro_email";
-  const selectedAction =
-    action === "interview" && !interviewAllowed
-      ? defaultAction
-      : (action ?? defaultAction);
-  const meetingPurpose = purpose ?? stageDefaults?.meetingPurpose ?? "";
+  const meetingPurpose =
+    purpose ??
+    stageDefaults?.meetingPurpose ??
+    c(
+      "서로를 알아 가는 첫 대화",
+      "A first conversation to get to know each other"
+    );
   const durationMinutes =
     duration ??
     stageDefaults?.durationMinutes ??
     DEFAULT_INTERVIEW_DURATION_MINUTES;
-  const meetingMessage =
-    candidateMessage ?? stageDefaults?.candidateMessage ?? "";
 
   const [expanded, setExpanded] = useState<
-    "interview" | "interview_preview" | "intro_cc" | "intro_preview" | null
+    "booking" | "intro_cc" | "intro_preview" | null
   >(null);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
   const [attendees, setAttendees] = useState<string[]>(() =>
@@ -211,32 +208,39 @@ export function OrgStageMoveDialog({
   const [introField, setIntroField] = useState<"body" | "subject">("body");
   const [introBody, setIntroBody] = useState(() =>
     c(
-      "{후보자 이름}님, 안녕하세요.\n\n{회사 이름}에서 {역할}을 함께할 분을 찾고 있는 {내 이름}님을 소개해 드려요. {후보자 이름}님이 이 역할에 관심을 보여 주셔서 두 분을 연결해 드리게 됐어요.\n\n이 메일에 답장하며 바로 이야기를 이어가 주세요.\n\nHarper 드림",
-      "Hi {후보자 이름},\n\nI'd like to introduce {내 이름} from {회사 이름}, who is hiring for {역할}. Since you showed interest in this role, I'm connecting you both here.\n\nPlease reply to this email to continue the conversation.\n\nBest,\nHarper"
+      "{후보자 이름}님, 안녕하세요.\n\n{회사 이름}에서 {역할}을 함께할 분을 찾고 있는 {내 이름}님을 소개해 드려요. {후보자 이름}님이 이 역할에 관심을 보여 주셔서 두 분을 연결해 드리게 됐어요.\n\n이 메일에 답장하며 바로 이야기를 이어가 주세요.\n\n{면접 예약 링크}\n\nHarper 드림",
+      "Hi {후보자 이름},\n\nI'd like to introduce {내 이름} from {회사 이름}, who is hiring for {역할}. Since you showed interest in this role, I'm connecting you both here.\n\nPlease reply to this email to continue the conversation.\n\n{면접 예약 링크}\n\nBest,\nHarper"
     )
   );
+
+  const { statusQuery: calendarQuery } = useOrgGoogleCalendar({
+    enabled: open && bookingAllowed,
+    userId: currentUser?.userId ?? "",
+    workspaceId: workspace.workspaceId,
+  });
+  const availabilityQuery = useOrgMeetingAvailability({
+    enabled: open && bookingAllowed,
+    workspaceId: workspace.workspaceId,
+  });
+  const calendarConnected = calendarQuery.data?.status === "active";
+  const availability = availabilityQuery.data?.availability ?? null;
+  const setupLoading =
+    bookingAllowed && (calendarQuery.isPending || availabilityQuery.isPending);
+  const bookingReady =
+    bookingAllowed &&
+    !setupLoading &&
+    calendarConnected &&
+    Boolean(availability);
+  const sendsEmail = action === "intro_email";
+  const bookingLink = sendsEmail && bookingReady;
   const introTemplateValues = (candidateName: string) => ({
+    // The server puts the real link here, or drops the field without one.
+    bookingLink: bookingLink ? BOOKING_FIELD : "",
     candidateName,
     companyName: workspace.companyName,
     roleName: roleTitle,
     senderName: myName,
   });
-
-  const schedulesInterview = selectedAction === "interview";
-  const { statusQuery: calendarQuery } = useOrgGoogleCalendar({
-    enabled: open && interviewAllowed,
-    userId: currentUser?.userId ?? "",
-    workspaceId: workspace.workspaceId,
-  });
-  const availabilityQuery = useOrgMeetingAvailability({
-    enabled: open && interviewAllowed,
-    workspaceId: workspace.workspaceId,
-  });
-  const calendarConnected = calendarQuery.data?.status === "active";
-  const availability = availabilityQuery.data?.availability ?? null;
-  const setupLoading = calendarQuery.isPending || availabilityQuery.isPending;
-  const interviewReady =
-    !setupLoading && calendarConnected && Boolean(availability);
 
   const roleNotifications = useOrgRoleNotificationSettings({
     enabled: open && Boolean(roleId),
@@ -280,7 +284,7 @@ export function OrgStageMoveDialog({
     (candidate) => candidate.processClosureNoticeUnresolved
   );
   const issues: { key: string; text: string; fix?: () => void }[] = [];
-  if (selectedAction !== "direct_contact" && missingEmail.length) {
+  if (sendsEmail && missingEmail.length) {
     issues.push({
       key: "email",
       text: c(
@@ -320,28 +324,8 @@ export function OrgStageMoveDialog({
       ),
     });
   }
-  if (schedulesInterview && !setupLoading && !interviewReady) {
-    issues.push({
-      fix: () => setExpanded("interview"),
-      key: "calendar",
-      text: c(
-        "면접 링크를 보내려면 Google Calendar 연결과 가능 시간 설정이 필요해요.",
-        "Connect Google Calendar and set your availability to send interview links."
-      ),
-    });
-  }
-  if (schedulesInterview && interviewReady && !meetingPurpose.trim()) {
-    issues.push({
-      fix: () => setExpanded("interview"),
-      key: "purpose",
-      text: c(
-        "후보자에게 전할 미팅 주제를 정해 주세요.",
-        "Add what the meeting will cover."
-      ),
-    });
-  }
   if (
-    selectedAction === "intro_email" &&
+    sendsEmail &&
     introWriter === "team" &&
     (!introSubject.trim() || !introBody.trim())
   ) {
@@ -354,7 +338,7 @@ export function OrgStageMoveDialog({
     });
   }
   const unknownIntroFields =
-    selectedAction === "intro_email" && introWriter === "team"
+    sendsEmail && introWriter === "team"
       ? findUnknownOrgIntroFields(introSubject, introBody)
       : [];
   if (unknownIntroFields.length) {
@@ -368,7 +352,7 @@ export function OrgStageMoveDialog({
       ),
     });
   }
-  if (selectedAction === "intro_email" && allCc.length === 0) {
+  if (sendsEmail && allCc.length === 0) {
     issues.push({
       fix: () => setExpanded("intro_cc"),
       key: "cc",
@@ -378,14 +362,27 @@ export function OrgStageMoveDialog({
       ),
     });
   }
-  const blocked =
-    !stage || issues.length > 0 || (schedulesInterview && setupLoading);
+  // Why the intro goes without a booking link. Shown with the issues below,
+  // but it does not stop the move.
+  const bookingNotice =
+    sendsEmail && bookingAllowed && !setupLoading && !bookingReady
+      ? calendarConnected
+        ? c(
+            "인터뷰 가능 시간이 설정되지 않아 링크 없이 소개 메일만 보내요",
+            "No interview availability is set, so only the intro email goes, without a link"
+          )
+        : c(
+            "Google Calendar가 연결되지 않아 링크 없이 소개 메일만 보내요",
+            "Google Calendar isn't connected, so only the intro email goes, without a link"
+          )
+      : null;
+  // While the Calendar check runs it is not yet known whether the link goes.
+  const blocked = !stage || issues.length > 0 || (sendsEmail && setupLoading);
 
   const resetEdits = () => {
-    setAction(null);
+    setAction("intro_email");
     setPurpose(null);
     setDuration(null);
-    setCandidateMessage(null);
     setExpanded(null);
   };
   const handleClose = () => {
@@ -396,7 +393,6 @@ export function OrgStageMoveDialog({
     event.preventDefault();
     if (blocked || !stage) return;
     const purposeText = meetingPurpose.trim();
-    const messageText = meetingMessage.trim() || null;
     const attendeeEmails = [...attendees];
     const introEmails = [...ccEmails];
     const companyName = workspace.companyName;
@@ -404,119 +400,50 @@ export function OrgStageMoveDialog({
       introWriter === "team"
         ? { body: introBody.trim(), subject: introSubject.trim() }
         : null;
+    const withLink = bookingLink;
     onSubmit({
-      action: selectedAction,
+      action,
+      bookingLink: withLink,
       options: (candidate) =>
-        selectedAction === "interview"
-          ? {
+        action === "direct_contact"
+          ? { acceptReason: null, contactDirectly: true, introEmails: [] }
+          : {
               acceptReason: null,
-              attendeeEmails,
               contactDirectly: false,
-              durationMinutes,
-              introEmails: [],
-              meetingCandidateMessage: messageText,
-              meetingPurpose: purposeText,
-              scheduleInterview: true,
-              title: buildDefaultInterviewTitle({
-                candidateName: candidate.name,
-                companyName,
-              }),
-            }
-          : selectedAction === "direct_contact"
-            ? { acceptReason: null, contactDirectly: true, introEmails: [] }
-            : {
-                acceptReason: null,
-                contactDirectly: false,
-                introEmailDraft: template
-                  ? {
-                      body: fillOrgIntroTemplate(
-                        template.body,
-                        introTemplateValues(candidate.name)
-                      ),
-                      subject: fillOrgIntroTemplate(
-                        template.subject,
-                        introTemplateValues(candidate.name)
-                      ),
-                    }
-                  : undefined,
-                introEmails,
-                scheduleInterview: false,
-              },
+              introEmailDraft: template
+                ? {
+                    body: fillOrgIntroTemplate(
+                      template.body,
+                      introTemplateValues(candidate.name)
+                    ),
+                    subject: fillOrgIntroTemplate(
+                      template.subject,
+                      introTemplateValues(candidate.name)
+                    ),
+                  }
+                : undefined,
+              introEmails,
+              scheduleInterview: false,
+              ...(withLink
+                ? {
+                    attendeeEmails,
+                    durationMinutes,
+                    introBookingLink: true,
+                    meetingPurpose: purposeText,
+                    title: buildDefaultInterviewTitle({
+                      candidateName: candidate.name,
+                      companyName,
+                    }),
+                  }
+                : {}),
+            },
       stage: stage.id,
       stageLabel,
     });
     resetEdits();
   };
 
-  // Where the candidates are, the column this move takes them to, and the
-  // columns that follow in this Role's pipeline.
-  const fromStage = candidates[0]?.stage ?? "pending_connection";
-  const stageIndex = targetStages.findIndex((item) => item.id === stageId);
-  const laterStages = stageIndex < 0 ? [] : targetStages.slice(stageIndex + 1);
-  const shownLater = laterStages.slice(0, 2);
-  const hiddenLater = laterStages.length - shownLater.length;
-  const processSteps: OrgProcessStep[] = [
-    {
-      icon: orgStageIcon(fromStage),
-      key: "from",
-      label: orgStageName(fromStage, c, stages, roleTitle),
-      state: "now",
-    },
-    {
-      detail:
-        selectedAction === "interview"
-          ? c(
-              "면접 예약 링크를 보내요. 후보자가 시간을 고르면 캘린더 초대가 가요",
-              "Sends a scheduling link; a calendar invite goes out once they pick"
-            )
-          : selectedAction === "intro_email"
-            ? c(
-                "소개 메일을 바로 보내요. 첫 답장이 오면 Harper가 알려 드려요",
-                "Sends the intro email now; Harper tells you when they first reply"
-              )
-            : c(
-                "Harper 메일 없이 옮겨요",
-                "Moves without an email from Harper"
-              ),
-      icon: orgStageIcon(stageId),
-      key: "to",
-      label: stageLabel,
-    },
-    ...shownLater.map((item) => ({
-      icon: orgStageIcon(item.id),
-      key: item.id,
-      label: orgStageName(item.id, c, stages, roleTitle),
-    })),
-    ...(hiddenLater > 0
-      ? [
-          {
-            detail: laterStages
-              .slice(shownLater.length)
-              .map((item) => orgStageName(item.id, c, stages, roleTitle))
-              .join(" → "),
-            icon: orgStageIcon(""),
-            key: "more",
-            label: c("이후 {p0}개", "{p0} more", { p0: hiddenLater }),
-          },
-        ]
-      : []),
-  ];
-
   const firstCandidate = candidates[0];
-  const invitationPreview = firstCandidate
-    ? buildMeetingInvitationFallback({
-        candidateMessage: meetingMessage.trim() || null,
-        candidateName: firstCandidate.name,
-        companyName: workspace.companyName,
-        durationMinutes,
-        invitationKind: "first_company_conversation",
-        locale,
-        meetingPurpose: meetingPurpose.trim() || undefined,
-        organizerName: myName,
-        processStageName: stageLabel,
-        roleName: roleTitle,
-      })
-    : null;
   const toggle = (
     list: string[],
     setList: (next: string[]) => void,
@@ -528,58 +455,6 @@ export function OrgStageMoveDialog({
         : [...list, email]
     );
   const teammateEmails = Array.from(memberByEmail.keys());
-
-  const actionRow = (
-    value: OrgStageMoveAction,
-    title: string,
-    detail: ReactNode,
-    extra?: ReactNode,
-    disabledReason?: string
-  ) => (
-    <div
-      className={cn(
-        "relative px-3 py-3",
-        value === "direct_contact" && "overflow-hidden"
-      )}
-    >
-      {value === "direct_contact" ? <InternalOnlyHatch /> : null}
-      <label
-        className={cn(
-          "relative flex items-start gap-2.5",
-          disabledReason ? "cursor-not-allowed" : "cursor-pointer"
-        )}
-      >
-        <Radio
-          checked={selectedAction === value}
-          className="mt-[2px]"
-          disabled={Boolean(disabledReason)}
-          name={`${formId}-action`}
-          onChange={() => {
-            setAction(value);
-            setExpanded(null);
-          }}
-          size="medium"
-          value={value}
-        />
-        <span className="min-w-0">
-          <span
-            className={cn(
-              "block text-[13px]",
-              disabledReason ? "text-neutral-soft" : "text-neutral-primary"
-            )}
-          >
-            {title}
-          </span>
-          <span className="mt-0.5 block text-[12px] leading-5 text-neutral-muted">
-            {disabledReason ?? detail}
-          </span>
-        </span>
-      </label>
-      {selectedAction === value && extra ? (
-        <div className="relative mt-2 pl-6">{extra}</div>
-      ) : null}
-    </div>
-  );
 
   const linkButton = (label: string, target: NonNullable<typeof expanded>) => (
     <button
@@ -643,7 +518,7 @@ export function OrgStageMoveDialog({
   );
 
   const mailRow = (label: string, value: ReactNode) => (
-    <div className="grid grid-cols-[64px_minmax(0,1fr)] items-start gap-2 px-3 py-2">
+    <div className="grid grid-cols-[76px_minmax(0,1fr)] items-start gap-2 px-3 py-2">
       <dt className="pt-px text-neutral-soft">{label}</dt>
       <dd className="min-w-0 text-[13px] leading-5 text-neutral-primary">
         {value}
@@ -651,7 +526,7 @@ export function OrgStageMoveDialog({
     </div>
   );
 
-  const interviewSummary = [
+  const bookingSummary = [
     c("{p0}분", "{p0} min", { p0: durationMinutes }),
     attendees.length
       ? c("참석 {p0}", "With {p0}", {
@@ -662,6 +537,363 @@ export function OrgStageMoveDialog({
   ]
     .filter(Boolean)
     .join(" · ");
+  const linkWords = c(
+    "인터뷰 가능 시간 선택하기",
+    "Select your interview availability"
+  );
+
+  // Calendar, open times and what the meeting is for: under the link, or
+  // under the notice when the link is left out.
+  const bookingSettings = (
+    <div className="space-y-3 rounded-md bg-bg-weak p-3 text-[12px] leading-5">
+      <div className="flex items-start gap-2 text-neutral-muted">
+        <CalendarClock className="mt-0.5 size-3.5 shrink-0" />
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <span>
+              {calendarConnected
+                ? c("Google Calendar 연결됨", "Google Calendar connected")
+                : c("Google Calendar 연결 필요", "Connect Google Calendar")}
+            </span>
+            {calendarConnected ? (
+              <Check className="size-3 text-positive" />
+            ) : (
+              <MuteButton asChild size="sm">
+                <a
+                  href={`/org/settings?tab=calendar&orgId=${encodeURIComponent(workspace.workspaceId)}`}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  {c("새 탭에서 연결", "Connect in new tab")}
+                </a>
+              </MuteButton>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span>
+              {availability
+                ? formatOrgMeetingAvailabilitySummary(availability, c)
+                : c(
+                    "인터뷰 가능 시간 설정 필요",
+                    "Set your interview availability"
+                  )}
+            </span>
+            <MuteButton
+              onClick={() => setAvailabilityOpen(true)}
+              size="sm"
+              type="button"
+            >
+              {availability
+                ? c("수정", "Edit")
+                : c("가능 시간 설정", "Set availability")}
+            </MuteButton>
+          </div>
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_96px]">
+        <label className="block">
+          <span className="text-neutral-muted">
+            {c("미팅 주제", "What you'll discuss")}
+          </span>
+          <Input
+            className="mt-1 text-[13px]"
+            maxLength={600}
+            onChange={(event) => setPurpose(event.target.value)}
+            value={meetingPurpose}
+          />
+        </label>
+        <label className="block">
+          <span className="text-neutral-muted">{c("길이", "Length")}</span>
+          <Select
+            onValueChange={(value) => setDuration(Number(value))}
+            value={String(durationMinutes)}
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue>
+                {c("{p0}분", "{p0} min", { p0: durationMinutes })}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="start">
+              {ORG_MEETING_DURATIONS.map((minutes) => (
+                <SelectItem key={minutes} value={String(minutes)}>
+                  {c("{p0}분", "{p0} min", { p0: minutes })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+      </div>
+      <div>
+        <span className="text-neutral-muted">{c("참석자", "Attendees")}</span>
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {teammateEmails.map((email) =>
+            memberChip({
+              email,
+              locked: email === myEmail,
+              lockedTitle: c(
+                "보내는 사람이라 항상 참석해요",
+                "You always attend as the sender"
+              ),
+              onToggle: () => toggle(attendees, setAttendees, email),
+              selected: attendees.includes(email),
+              selectedIcon: <Check className="size-3" />,
+              unselectedIcon: null,
+            })
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 text-neutral-muted">
+        <CornerDownRight className="size-3.5 shrink-0" />
+        {c(
+          "3일 안에 시간을 고르지 않으면 Harper가 한 번 다시 안내해요",
+          "If no time is picked in 3 days, Harper follows up once"
+        )}
+      </div>
+    </div>
+  );
+
+  // The team's body as the candidate will read it, with the link's words.
+  const previewBody = (text: string) => {
+    const filled = appendOrgIntroCaptureDisclosure(text);
+    const withField =
+      bookingLink && !filled.includes(BOOKING_FIELD)
+        ? `${filled.trimEnd()}\n\n${BOOKING_FIELD}`
+        : filled;
+    return withField.split(BOOKING_FIELD).map((part, index) => (
+      <span key={index}>
+        {index > 0 ? (
+          <span className="text-blue-500 underline">{linkWords}</span>
+        ) : null}
+        {part}
+      </span>
+    ));
+  };
+
+  // The email's last line: the link as the candidate sees it. In the team's
+  // preview the link already sits in the body.
+  const linkInBody = introWriter === "team" && expanded === "intro_preview";
+  const bookingLine =
+    bookingAllowed && (setupLoading || bookingReady) ? (
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-2">
+        {setupLoading ? (
+          <span className="text-neutral-muted">
+            {c("캘린더를 확인하고 있어요", "Checking your calendar")}
+          </span>
+        ) : (
+          <>
+            {linkInBody ? null : (
+              <span className="text-blue-500 underline underline-offset-2">
+                {linkWords}
+              </span>
+            )}
+            <span className="text-neutral-muted">{bookingSummary}</span>
+            {linkButton(c("설정", "Settings"), "booking")}
+          </>
+        )}
+      </div>
+    ) : null;
+
+  const introEmail = (
+    <div className="space-y-2 text-[12px] leading-5">
+      <div className="flex items-center gap-1.5">
+        {(
+          [
+            ["harper", c("Harper가 작성", "Written by Harper")],
+            ["team", c("직접 쓰기", "Write my own")],
+          ] as const
+        ).map(([writer, label]) => (
+          <MuteButton
+            aria-pressed={introWriter === writer}
+            className={cn(introWriter === writer && "border-neutral-800")}
+            key={writer}
+            onClick={() => {
+              setIntroWriter(writer);
+              if (expanded === "intro_preview") setExpanded(null);
+            }}
+            size="sm"
+            type="button"
+            variant={introWriter === writer ? "neutral" : "default"}
+          >
+            {label}
+          </MuteButton>
+        ))}
+        {introWriter === "team" ? (
+          <span className="ml-1.5">
+            {linkButton(
+              expanded === "intro_preview"
+                ? c("편집", "Edit")
+                : c("미리보기", "Preview"),
+              "intro_preview"
+            )}
+          </span>
+        ) : null}
+      </div>
+      {introWriter === "team" && expanded !== "intro_preview" ? (
+        <OrgTemplatePicker
+          kind="intro_email"
+          onApply={(template) => {
+            setIntroSubject(template.subject);
+            setIntroBody(template.body);
+            if (template.meetingPurpose) setPurpose(template.meetingPurpose);
+            setDuration(template.durationMinutes);
+          }}
+          value={{
+            body: introBody,
+            durationMinutes,
+            meetingPurpose,
+            subject: introSubject,
+          }}
+          workspaceId={workspace.workspaceId}
+        />
+      ) : null}
+      <dl className="divide-y divide-neutral-1000-a05 overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-floating">
+        {mailRow(c("보낸 사람", "From"), "Harper")}
+        {mailRow(
+          c("받는 사람", "To"),
+          firstCandidate ? (
+            <>
+              {firstCandidate.name}
+              {firstCandidate.email ? (
+                <span className="break-all text-neutral-muted">
+                  {` <${firstCandidate.email}>`}
+                </span>
+              ) : null}
+              {count > 1 ? (
+                <span className="text-neutral-muted">
+                  {c(" 외 {p0}명", " and {p0} more", {
+                    p0: count - 1,
+                  })}
+                </span>
+              ) : null}
+            </>
+          ) : (
+            "—"
+          )
+        )}
+        {mailRow(
+          c("참조", "Cc"),
+          <span className="flex flex-wrap items-baseline gap-x-2">
+            <span>{allCc.map(memberLabel).join(", ") || "—"}</span>
+            {linkButton(c("바꾸기", "Change"), "intro_cc")}
+          </span>
+        )}
+        {expanded === "intro_cc" ? (
+          <div className="flex flex-wrap gap-1.5 bg-bg-weak px-3 py-2.5">
+            {teammateEmails.map((email) =>
+              memberChip({
+                email,
+                locked: assigneeEmails.includes(email),
+                lockedTitle: c(
+                  "역할 담당이라 항상 참조돼요",
+                  "Role owners are always copied"
+                ),
+                onToggle: () => toggle(ccEmails, setCcEmails, email),
+                selected:
+                  assigneeEmails.includes(email) || ccEmails.includes(email),
+                selectedIcon: <X className="size-3" />,
+              })
+            )}
+          </div>
+        ) : null}
+        {mailRow(
+          c("제목", "Subject"),
+          introWriter === "harper" ? (
+            <span className="text-neutral-muted">
+              {c(
+                "Harper가 후보자마다 정해요",
+                "Harper writes it for each candidate"
+              )}
+            </span>
+          ) : expanded === "intro_preview" && firstCandidate ? (
+            <span className="font-medium">
+              {fillOrgIntroTemplate(
+                introSubject,
+                introTemplateValues(firstCandidate.name)
+              )}
+            </span>
+          ) : (
+            <Input
+              aria-label={c("소개 메일 제목", "Intro email subject")}
+              className="h-6 border-0 bg-transparent px-0 py-0 text-[13px] shadow-none focus-visible:ring-0"
+              maxLength={200}
+              onChange={(event) => setIntroSubject(event.target.value)}
+              onFocus={() => setIntroField("subject")}
+              placeholder={c("제목", "Subject")}
+              ref={introSubjectRef}
+              value={introSubject}
+            />
+          )
+        )}
+        {mailRow(
+          c("내용", "Body"),
+          <>
+            {introWriter === "harper" ? (
+              <span className="text-neutral-muted">
+                {c(
+                  "Harper가 두 분을 서로 소개해요. 회사와 역할, {p0}님의 관련 경험, 이 연결을 제안하는 이유를 짧게 담고 이 메일에서 바로 이야기를 이어가도록 안내해요.",
+                  "Harper introduces you to each other: your company and role, {p0}'s relevant experience, and why this connection makes sense, then invites you both to continue in the same thread.",
+                  { p0: firstCandidate?.name ?? "" }
+                )}
+                {/* The booking link goes in Harper's email too. */}
+                {bookingAllowed
+                  ? ` ${
+                      bookingLink
+                        ? c(
+                            "메일 끝에는 아래 면접 예약 링크를 함께 넣어요.",
+                            "The booking link below goes at the end."
+                          )
+                        : c(
+                            "면접 예약 링크를 설정해 두었다면 메일 끝에 함께 넣어요.",
+                            "If you've set up the booking link, it goes at the end."
+                          )
+                    }`
+                  : null}
+              </span>
+            ) : expanded === "intro_preview" && firstCandidate ? (
+              <span className="whitespace-pre-wrap">
+                {previewBody(
+                  fillOrgIntroTemplate(
+                    introBody,
+                    introTemplateValues(firstCandidate.name)
+                  )
+                )}
+              </span>
+            ) : (
+              <Textarea
+                aria-label={c("소개 메일 본문", "Intro email body")}
+                className="min-h-40 resize-y border-0 bg-transparent p-0 text-[13px] leading-5 shadow-none focus-visible:ring-0"
+                maxLength={8000}
+                onChange={(event) => setIntroBody(event.target.value)}
+                onFocus={() => setIntroField("body")}
+                ref={introBodyRef}
+                rows={8}
+                value={introBody}
+              />
+            )}
+            {bookingLine}
+            {bookingLink && expanded === "booking" ? (
+              <div className="mt-2">{bookingSettings}</div>
+            ) : null}
+          </>
+        )}
+      </dl>
+      {introWriter === "team" && expanded !== "intro_preview" ? (
+        <OrgIntroFieldHelp
+          body={introBody}
+          onFix={(from, to) => {
+            setIntroSubject((value) => value.split(from).join(to));
+            setIntroBody((value) => value.split(from).join(to));
+          }}
+          onInsert={(field) =>
+            introField === "subject"
+              ? insertAtCursor(introSubjectRef.current, field, setIntroSubject)
+              : insertAtCursor(introBodyRef.current, field, setIntroBody)
+          }
+          subject={introSubject}
+        />
+      ) : null}
+    </div>
+  );
 
   return (
     <>
@@ -680,7 +912,7 @@ export function OrgStageMoveDialog({
               type="submit"
               variant="dark"
             >
-              {selectedAction === "direct_contact"
+              {action === "direct_contact"
                 ? c("{p0}명 이동", "Move {p0}", { p0: count })
                 : c("{p0}명 이동하고 보내기", "Move {p0} and send", {
                     p0: count,
@@ -703,503 +935,50 @@ export function OrgStageMoveDialog({
         }
       >
         <form className="space-y-4" id={formId} onSubmit={handleSubmit}>
-          <OrgProcessLine steps={processSteps} />
-          <label className="block">
-            <span className="text-[12px] text-neutral-muted">
-              {c("이동할 단계", "Move to")}
-            </span>
-            <Select
-              onValueChange={(value) => {
-                setStageId(String(value) as OrgStageId);
-                resetEdits();
-              }}
-              value={stageId}
-            >
-              <SelectTrigger className="mt-1.5 w-full">
-                <SelectValue>
-                  <span className="flex w-full min-w-0 items-center justify-between gap-3">
-                    <span className="truncate">{stageLabel}</span>
-                    <span className="truncate text-[12px] text-neutral-soft">
-                      {roleTitle}
-                    </span>
-                  </span>
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start">
-                {targetStages.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-
-          <div>
-            <div className="text-[12px] text-neutral-muted">
-              {c("이 단계에서 할 일", "What happens")}
-              {stageDefaults ? (
-                <span className="text-neutral-soft">
-                  {" · "}
-                  {c("이 단계에 저장된 설정", "Saved for this stage")}
-                </span>
-              ) : null}
-            </div>
-            <div className="mt-1.5 divide-y divide-neutral-1000-a05 rounded-lg border border-neutral-1000-a05 bg-bg-default">
-              {actionRow(
-                "interview",
-                c("면접 예약 링크 보내기", "Send an interview scheduling link"),
-                <>
-                  {setupLoading && interviewAllowed
-                    ? c("캘린더를 확인하고 있어요", "Checking your calendar")
-                    : interviewReady
-                      ? interviewSummary
-                      : c(
-                          "Google Calendar 연결이 필요해요",
-                          "Needs Google Calendar"
-                        )}
-                </>,
-                <div className="space-y-2 text-[12px] leading-5">
-                  <div className="flex items-center gap-1.5 text-neutral-muted">
-                    <CornerDownRight className="size-3.5 shrink-0" />
-                    {c(
-                      "3일 안에 시간을 고르지 않으면 Harper가 한 번 다시 안내해요",
-                      "If no time is picked in 3 days, Harper follows up once"
-                    )}
-                  </div>
-                  <div className="flex gap-3">
-                    {linkButton(c("설정", "Settings"), "interview")}
-                    {interviewReady
-                      ? linkButton(
-                          c("미리보기", "Preview"),
-                          "interview_preview"
-                        )
-                      : null}
-                  </div>
-                  {expanded === "interview" ? (
-                    <div className="space-y-3 rounded-md bg-bg-weak p-3">
-                      <div className="flex items-start gap-2 text-neutral-muted">
-                        <CalendarClock className="mt-0.5 size-3.5 shrink-0" />
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span>
-                              {calendarConnected
-                                ? c(
-                                    "Google Calendar 연결됨",
-                                    "Google Calendar connected"
-                                  )
-                                : c(
-                                    "Google Calendar 연결 필요",
-                                    "Connect Google Calendar"
-                                  )}
-                            </span>
-                            {calendarConnected ? (
-                              <Check className="size-3 text-positive" />
-                            ) : (
-                              <MuteButton asChild size="sm">
-                                <a
-                                  href={`/org/settings?tab=calendar&orgId=${encodeURIComponent(workspace.workspaceId)}`}
-                                  rel="noopener noreferrer"
-                                  target="_blank"
-                                >
-                                  {c("새 탭에서 연결", "Connect in new tab")}
-                                </a>
-                              </MuteButton>
-                            )}
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span>
-                              {availability
-                                ? formatOrgMeetingAvailabilitySummary(
-                                    availability,
-                                    c
-                                  )
-                                : c(
-                                    "인터뷰 가능 시간 설정 필요",
-                                    "Set your interview availability"
-                                  )}
-                            </span>
-                            <MuteButton
-                              onClick={() => setAvailabilityOpen(true)}
-                              size="sm"
-                              type="button"
-                            >
-                              {availability
-                                ? c("수정", "Edit")
-                                : c("가능 시간 설정", "Set availability")}
-                            </MuteButton>
-                          </div>
-                        </div>
-                      </div>
-                      <OrgTemplatePicker
-                        kind="interview"
-                        onApply={(template) => {
-                          setPurpose(template.meetingPurpose);
-                          setDuration(template.durationMinutes);
-                          setCandidateMessage(template.candidateMessage);
-                        }}
-                        value={{
-                          candidateMessage: meetingMessage,
-                          durationMinutes,
-                          meetingPurpose,
-                        }}
-                        workspaceId={workspace.workspaceId}
-                      />
-                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_96px]">
-                        <label className="block">
-                          <span className="text-neutral-muted">
-                            {c("미팅 주제", "What you'll discuss")}
-                          </span>
-                          <Input
-                            className="mt-1 text-[13px]"
-                            maxLength={600}
-                            onChange={(event) => setPurpose(event.target.value)}
-                            placeholder={c(
-                              "예: 서로의 기대를 맞추는 첫 대화",
-                              "e.g. a first chat to align expectations"
-                            )}
-                            value={meetingPurpose}
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="text-neutral-muted">
-                            {c("길이", "Length")}
-                          </span>
-                          <Select
-                            onValueChange={(value) =>
-                              setDuration(Number(value))
-                            }
-                            value={String(durationMinutes)}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue>
-                                {c("{p0}분", "{p0} min", {
-                                  p0: durationMinutes,
-                                })}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent align="start">
-                              {DURATIONS.map((minutes) => (
-                                <SelectItem
-                                  key={minutes}
-                                  value={String(minutes)}
-                                >
-                                  {c("{p0}분", "{p0} min", { p0: minutes })}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </label>
-                      </div>
-                      <label className="block">
-                        <span className="text-neutral-muted">
-                          {c("함께 전할 내용", "Details to share")}
-                          <span className="text-neutral-soft">
-                            {c(" · 선택", " · optional")}
-                          </span>
-                        </span>
-                        <Textarea
-                          className="mt-1 min-h-16 text-[13px]"
-                          maxLength={2000}
-                          onChange={(event) =>
-                            setCandidateMessage(event.target.value)
-                          }
-                          rows={2}
-                          value={meetingMessage}
-                        />
-                      </label>
-                      <div>
-                        <span className="text-neutral-muted">
-                          {c("참석자", "Attendees")}
-                        </span>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
-                          {teammateEmails.map((email) =>
-                            memberChip({
-                              email,
-                              locked: email === myEmail,
-                              lockedTitle: c(
-                                "보내는 사람이라 항상 참석해요",
-                                "You always attend as the sender"
-                              ),
-                              onToggle: () =>
-                                toggle(attendees, setAttendees, email),
-                              selected: attendees.includes(email),
-                              selectedIcon: <Check className="size-3" />,
-                              unselectedIcon: null,
-                            })
-                          )}
-                        </div>
-                      </div>
-                      {stageId.startsWith("custom:") ? (
-                        <p className="text-neutral-soft">
-                          {c(
-                            "보내면 이 단계의 다음 기본값으로 저장돼요.",
-                            "These become this stage's defaults once sent."
-                          )}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {expanded === "interview_preview" && invitationPreview ? (
-                    <div className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-3">
-                      <div className="font-medium text-neutral-primary">
-                        {invitationPreview.subject}
-                      </div>
-                      <div className="mt-2 whitespace-pre-wrap text-neutral-700">
-                        {invitationPreview.body
-                          .split(MEETING_INVITATION_LINK_MARKER)
-                          .map((part, index) => (
-                            <span key={index}>
-                              {index > 0 ? (
-                                <span className="text-blue-500 underline">
-                                  {c("시간 고르기", "Pick a time")}
-                                </span>
-                              ) : null}
-                              {part}
-                            </span>
-                          ))}
-                      </div>
-                      <p className="mt-2 border-t border-neutral-1000-a05 pt-2 text-neutral-soft">
-                        {c(
-                          "{p0}님에게 가는 메일 예시예요. 실제 문장은 Harper가 후보자에 맞게 다듬어요.",
-                          "Example for {p0}. Harper adjusts the wording for each candidate.",
-                          { p0: firstCandidate?.name ?? "" }
-                        )}
-                      </p>
-                    </div>
-                  ) : null}
-                </div>,
-                interviewAllowed
-                  ? undefined
-                  : candidates.some(
-                        (candidate) => candidate.stage !== "pending_connection"
-                      )
-                    ? c(
-                        "연결 수락할 후보에게만 보낼 수 있어요",
-                        "Only for candidates in Ready to connect"
-                      )
-                    : c(
-                        "이 단계에서는 보낼 수 없어요",
-                        "Not available for this stage"
-                      )
-              )}
-              {actionRow(
-                "intro_email",
-                c("소개 메일 보내기", "Send an intro email"),
-                c(
-                  "나와 후보자를 한 메일로 이어요",
-                  "One email introduces you and the candidate"
-                ),
-                <div className="space-y-2 text-[12px] leading-5">
-                  <div className="flex items-center gap-1.5">
-                    {(
-                      [
-                        ["harper", c("Harper가 작성", "Written by Harper")],
-                        ["team", c("직접 쓰기", "Write my own")],
-                      ] as const
-                    ).map(([writer, label]) => (
-                      <MuteButton
-                        aria-pressed={introWriter === writer}
-                        className={cn(
-                          introWriter === writer && "border-neutral-800"
-                        )}
-                        key={writer}
-                        onClick={() => {
-                          setIntroWriter(writer);
-                          if (expanded === "intro_preview") setExpanded(null);
-                        }}
-                        size="sm"
-                        type="button"
-                        variant={introWriter === writer ? "neutral" : "default"}
-                      >
-                        {label}
-                      </MuteButton>
-                    ))}
-                    {introWriter === "team" ? (
-                      <span className="ml-1.5">
-                        {linkButton(
-                          expanded === "intro_preview"
-                            ? c("편집", "Edit")
-                            : c("미리보기", "Preview"),
-                          "intro_preview"
-                        )}
-                      </span>
-                    ) : null}
-                  </div>
-                  {introWriter === "team" && expanded !== "intro_preview" ? (
-                    <OrgTemplatePicker
-                      kind="intro_email"
-                      onApply={(template) => {
-                        setIntroSubject(template.subject);
-                        setIntroBody(template.body);
-                      }}
-                      value={{ body: introBody, subject: introSubject }}
-                      workspaceId={workspace.workspaceId}
-                    />
-                  ) : null}
-                  <dl className="divide-y divide-neutral-1000-a05 overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-floating">
-                    {mailRow(c("보낸 사람", "From"), "Harper")}
-                    {mailRow(
-                      c("받는 사람", "To"),
-                      firstCandidate ? (
-                        <>
-                          {firstCandidate.name}
-                          {firstCandidate.email ? (
-                            <span className="break-all text-neutral-muted">
-                              {` <${firstCandidate.email}>`}
-                            </span>
-                          ) : null}
-                          {count > 1 ? (
-                            <span className="text-neutral-muted">
-                              {c(" 외 {p0}명", " and {p0} more", {
-                                p0: count - 1,
-                              })}
-                            </span>
-                          ) : null}
-                        </>
-                      ) : (
-                        "—"
-                      )
-                    )}
-                    {mailRow(
-                      c("참조", "Cc"),
-                      <span className="flex flex-wrap items-baseline gap-x-2">
-                        <span>{allCc.map(memberLabel).join(", ") || "—"}</span>
-                        {linkButton(c("바꾸기", "Change"), "intro_cc")}
-                      </span>
-                    )}
-                    {expanded === "intro_cc" ? (
-                      <div className="flex flex-wrap gap-1.5 bg-bg-weak px-3 py-2.5">
-                        {teammateEmails.map((email) =>
-                          memberChip({
-                            email,
-                            locked: assigneeEmails.includes(email),
-                            lockedTitle: c(
-                              "역할 담당이라 항상 참조돼요",
-                              "Role owners are always copied"
-                            ),
-                            onToggle: () =>
-                              toggle(ccEmails, setCcEmails, email),
-                            selected:
-                              assigneeEmails.includes(email) ||
-                              ccEmails.includes(email),
-                            selectedIcon: <X className="size-3" />,
-                          })
-                        )}
-                      </div>
-                    ) : null}
-                    {mailRow(
-                      c("제목", "Subject"),
-                      introWriter === "harper" ? (
-                        <span className="text-neutral-muted">
-                          {c(
-                            "Harper가 후보자마다 정해요",
-                            "Harper writes it for each candidate"
-                          )}
-                        </span>
-                      ) : expanded === "intro_preview" && firstCandidate ? (
-                        <span className="font-medium">
-                          {fillOrgIntroTemplate(
-                            introSubject,
-                            introTemplateValues(firstCandidate.name)
-                          )}
-                        </span>
-                      ) : (
-                        <Input
-                          aria-label={c(
-                            "소개 메일 제목",
-                            "Intro email subject"
-                          )}
-                          className="h-6 border-0 bg-transparent px-0 py-0 text-[13px] shadow-none focus-visible:ring-0"
-                          maxLength={200}
-                          onChange={(event) =>
-                            setIntroSubject(event.target.value)
-                          }
-                          onFocus={() => setIntroField("subject")}
-                          placeholder={c("제목", "Subject")}
-                          ref={introSubjectRef}
-                          value={introSubject}
-                        />
-                      )
-                    )}
-                    {mailRow(
-                      c("내용", "Body"),
-                      introWriter === "harper" ? (
-                        <span className="text-neutral-muted">
-                          {c(
-                            "Harper가 두 분을 서로 소개해요. 회사와 역할, {p0}님의 관련 경험, 이 연결을 제안하는 이유를 짧게 담고 이 메일에서 바로 이야기를 이어가도록 안내해요.",
-                            "Harper introduces you to each other: your company and role, {p0}'s relevant experience, and why this connection makes sense, then invites you both to continue in the same thread.",
-                            { p0: firstCandidate?.name ?? "" }
-                          )}
-                        </span>
-                      ) : expanded === "intro_preview" && firstCandidate ? (
-                        <span className="whitespace-pre-wrap">
-                          {appendOrgIntroCaptureDisclosure(
-                            fillOrgIntroTemplate(
-                              introBody,
-                              introTemplateValues(firstCandidate.name)
-                            )
-                          )}
-                        </span>
-                      ) : (
-                        <Textarea
-                          aria-label={c("소개 메일 본문", "Intro email body")}
-                          className="min-h-40 resize-y border-0 bg-transparent p-0 text-[13px] leading-5 shadow-none focus-visible:ring-0"
-                          maxLength={8000}
-                          onChange={(event) => setIntroBody(event.target.value)}
-                          onFocus={() => setIntroField("body")}
-                          ref={introBodyRef}
-                          rows={8}
-                          value={introBody}
-                        />
-                      )
-                    )}
-                  </dl>
-                  {introWriter === "team" && expanded !== "intro_preview" ? (
-                    <OrgIntroFieldHelp
-                      body={introBody}
-                      onFix={(from, to) => {
-                        setIntroSubject((value) => value.split(from).join(to));
-                        setIntroBody((value) => value.split(from).join(to));
-                      }}
-                      onInsert={(field) =>
-                        introField === "subject"
-                          ? insertAtCursor(
-                              introSubjectRef.current,
-                              field,
-                              setIntroSubject
-                            )
-                          : insertAtCursor(
-                              introBodyRef.current,
-                              field,
-                              setIntroBody
-                            )
-                      }
-                      subject={introSubject}
-                    />
-                  ) : null}
-                </div>
-              )}
-              {allowContactDirectly
-                ? actionRow(
+          {allowContactDirectly ? (
+            // Harper staff can also move without any email.
+            <div className="divide-y divide-neutral-1000-a05 rounded-lg border border-neutral-1000-a05 bg-bg-default">
+              {(
+                [
+                  ["intro_email", c("소개 메일 보내기", "Send an intro email")],
+                  [
                     "direct_contact",
-                    c("직접 연락하기", "Direct contact"),
                     c(
-                      "Harper 메일 없이 단계만 옮겨요",
-                      "Move without an email from Harper"
-                    )
-                  )
-                : null}
+                      "직접 연락하기 · Harper 메일 없이 옮기기",
+                      "Direct contact · move without an email"
+                    ),
+                  ],
+                ] as const
+              ).map(([value, label]) => (
+                <label
+                  className="relative flex cursor-pointer items-center gap-2.5 overflow-hidden px-3 py-2.5 text-[13px]"
+                  key={value}
+                >
+                  {value === "direct_contact" ? <InternalOnlyHatch /> : null}
+                  <Radio
+                    checked={action === value}
+                    name={`${formId}-action`}
+                    onChange={() => {
+                      setAction(value);
+                      setExpanded(null);
+                    }}
+                    size="medium"
+                    value={value}
+                  />
+                  <span className="relative">{label}</span>
+                </label>
+              ))}
             </div>
-            {count > 1 && selectedAction !== "direct_contact" ? (
-              <p className="mt-1.5 text-[12px] text-neutral-soft">
-                {c(
-                  "각 후보자에게 따로 가요. 서로의 정보는 보이지 않아요.",
-                  "Each candidate gets their own email and can't see the others."
-                )}
-              </p>
-            ) : null}
-          </div>
+          ) : null}
+          {sendsEmail ? introEmail : null}
+          {sendsEmail && count > 1 ? (
+            <p className="text-[12px] text-neutral-soft">
+              {c(
+                "각 후보자에게 따로 가요. 서로의 정보는 보이지 않아요.",
+                "Each candidate gets their own email and can't see the others."
+              )}
+            </p>
+          ) : null}
 
           {introsNeeded > 0 ? (
             <p className="text-[12px] tabular-nums text-neutral-muted">
@@ -1220,9 +999,12 @@ export function OrgStageMoveDialog({
             </p>
           ) : null}
 
-          {issues.length ? (
+          {issues.length || bookingNotice ? (
             <ul
-              className="space-y-1 rounded-md bg-critical-faded px-3 py-2.5 text-[12px] leading-5 text-critical"
+              className={cn(
+                "space-y-1 rounded-md bg-critical-faded px-3 py-2.5 text-[12px] leading-5 text-critical",
+                issues.length + (bookingNotice ? 1 : 0) > 1 && "list-disc pl-7"
+              )}
               role="alert"
             >
               {issues.map((issue) => (
@@ -1242,8 +1024,24 @@ export function OrgStageMoveDialog({
                   ) : null}
                 </li>
               ))}
+              {bookingNotice ? (
+                <li>
+                  {bookingNotice}{" "}
+                  <button
+                    aria-expanded={expanded === "booking"}
+                    className="underline underline-offset-2"
+                    onClick={() =>
+                      setExpanded(expanded === "booking" ? null : "booking")
+                    }
+                    type="button"
+                  >
+                    {c("설정", "Settings")}
+                  </button>
+                </li>
+              ) : null}
             </ul>
           ) : null}
+          {bookingNotice && expanded === "booking" ? bookingSettings : null}
         </form>
       </TalentCareerModal>
       {availabilityOpen ? (

@@ -347,10 +347,10 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
       p2: submit.stageLabel,
     };
     const what =
-      submit.action === "interview"
+      submit.action === "intro_email" && submit.bookingLink
         ? c(
-            "{p0}을 {p1} 옮기고 면접 예약 링크를 보내요",
-            "Moving {p0} to {p2} and sending interview links",
+            "{p0}을 {p1} 옮기고 면접 예약 링크를 넣은 소개 메일을 보내요",
+            "Moving {p0} to {p2} and sending intro emails with a booking link",
             values
           )
         : submit.action === "intro_email"

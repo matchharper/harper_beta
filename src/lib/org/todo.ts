@@ -112,8 +112,8 @@ export function orgTodoMyTurn(items: OrgTodoItem[]) {
 }
 
 /**
- * The number beside To-do, on the chip and the tab: things to do plus
- * unread updates. Counted from the list itself, so 읽음 lowers it at once.
+ * The number on the To-do chip: things to do plus unread updates.
+ * Counted from the list itself, so 읽음 lowers it at once.
  */
 export function orgTodoBadge(items: OrgTodoItem[]) {
   return items.filter(

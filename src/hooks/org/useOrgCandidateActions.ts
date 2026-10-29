@@ -226,6 +226,7 @@ export function useOrgCandidateActions(args: {
         durationMinutes: options?.durationMinutes,
         emailMode: options?.emailMode,
         introEmailDraft: options?.introEmailDraft ?? null,
+        introBookingLink: options?.introBookingLink ?? false,
         introEmails: options?.introEmails ?? null,
         meetingCandidateMessage: options?.meetingCandidateMessage ?? null,
         meetingPurpose: options?.meetingPurpose ?? null,
@@ -244,12 +245,13 @@ export function useOrgCandidateActions(args: {
       if (!changed) return;
       if (errorPresentation === "silent") return changed;
       addToast({
-        message: options?.scheduleInterview
-          ? c(
-              "후보자를 연결하고 인터뷰 요청을 보냈어요.",
-              "Candidate connected and interview invitation requested."
-            )
-          : c("후보자 상태를 변경했습니다.", "Candidate status updated."),
+        message:
+          options?.scheduleInterview || options?.introBookingLink
+            ? c(
+                "후보자를 연결하고 인터뷰 요청을 보냈어요.",
+                "Candidate connected and interview invitation requested."
+              )
+            : c("후보자 상태를 변경했습니다.", "Candidate status updated."),
         variant: "success",
       });
       return changed;
@@ -280,6 +282,7 @@ export function useOrgCandidateActions(args: {
       contactDirectly,
       durationMinutes,
       introEmailDraft,
+      introBookingLink,
       introEmails,
       meetingCandidateMessage,
       meetingPurpose,
@@ -294,6 +297,7 @@ export function useOrgCandidateActions(args: {
       contactDirectly: boolean;
       durationMinutes?: number;
       introEmailDraft?: OrgStageChangeOptions["introEmailDraft"];
+      introBookingLink?: boolean;
       introEmails: string[];
       meetingCandidateMessage?: string | null;
       meetingPurpose?: string | null;
@@ -318,6 +322,7 @@ export function useOrgCandidateActions(args: {
       contactDirectly,
       durationMinutes,
       introEmailDraft: introEmailDraft ?? null,
+      introBookingLink: introBookingLink ?? false,
       introEmails,
       meetingCandidateMessage,
       meetingPurpose,
@@ -334,12 +339,13 @@ export function useOrgCandidateActions(args: {
     if (!changed) return;
     if (presentation === "silent") return changed;
     addToast({
-      message: scheduleInterview
-        ? c(
-            "후보자를 연결하고 인터뷰 요청을 보냈어요.",
-            "Candidate connected and interview invitation requested."
-          )
-        : c("후보자 연결을 시작했어요.", "Candidate connection started."),
+      message:
+        scheduleInterview || introBookingLink
+          ? c(
+              "후보자를 연결하고 인터뷰 요청을 보냈어요.",
+              "Candidate connected and interview invitation requested."
+            )
+          : c("후보자 연결을 시작했어요.", "Candidate connection started."),
       variant: "success",
     });
     return changed;

@@ -711,6 +711,14 @@ export function OrgRoleTalentBoard({
   )
     ? requestedStageId
     : defaultStageId;
+  // Which board tab this is, so each keeps its own text boxes. The inbox's
+  // saved tab keeps the stage it was opened from in the address.
+  const boardId =
+    section === "inbox" && router.query.review === "saved"
+      ? "inbox_saved"
+      : showingSaved
+        ? "saved"
+        : selectedStageId;
   const selectStage = (stageId: string) => {
     if (stageId === selectedStageId && !showingSaved) return;
     if (section !== "inbox") {
@@ -1087,8 +1095,9 @@ export function OrgRoleTalentBoard({
 
       {layout === "board" && activeRole ? (
         <OrgCandidateBoardCanvas
+          board={boardId}
           items={items}
-          key={`${activeRole.roleId}:${showingSaved ? "saved" : selectedStageId}`}
+          key={`${activeRole.roleId}:${boardId}`}
           onSelectionChange={onSelectionReplace}
           renderCard={renderCard}
           roleId={activeRole.roleId}

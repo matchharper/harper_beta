@@ -27,7 +27,6 @@ import {
   orgTodoBadge,
   type OrgTodoColumn,
   type OrgTodoItem,
-  type OrgTodoSource,
 } from "@/lib/org/todo";
 import { cn } from "@/lib/utils";
 import styles from "./OrgTodoChip.module.css";
@@ -203,16 +202,7 @@ function itemHref(item: OrgTodoItem, roleId: string, workspaceId: string) {
   return null;
 }
 
-function sourceLabel(source: OrgTodoSource, c: Copy) {
-  return {
-    email: c("메일", "Email"),
-    harper: "Harper",
-    slack: "Slack",
-    web: c("웹", "Web"),
-  }[source];
-}
-
-/** The sections kept above the Role chat; the To-do tab adds 한 일. */
+/** The sections shown above the Role chat. */
 export const ORG_TODO_CHIP_COLUMNS: OrgTodoColumn[] = [
   "my_turn",
   "notice",
@@ -233,7 +223,6 @@ export type OrgTodoShortcut = {
   actionLabel: string;
   busy?: boolean;
   busyLabel?: string;
-  detail: string;
   id: string;
   onRun: () => void;
   title: string;
@@ -249,10 +238,6 @@ export function useOrgTodoShortcuts(args: {
   return [
     {
       actionLabel: c("요약 받기", "Summarize"),
-      detail: c(
-        "단계마다 누가 있는지 채팅으로 정리해 드려요",
-        "Harper lists who is at each stage in the chat"
-      ),
       id: "pipeline_summary",
       onRun: () =>
         args.onSend(
@@ -267,10 +252,6 @@ export function useOrgTodoShortcuts(args: {
       actionLabel: c("찾아 주세요", "Search"),
       busy: args.searching,
       busyLabel: c("찾는 중", "Searching"),
-      detail: c(
-        "Intro를 보내 볼 만한 사람을 연결 제안할 후보에 더해요",
-        "Adds people worth an intro to Suggested candidates"
-      ),
       id: "run_search",
       onRun: args.onRunSearch,
       title: c(
@@ -317,9 +298,8 @@ function TodoRow({
 }
 
 /**
- * The To-do sections for one Role, one row per thing with the button that
- * does it. The chip shows what needs the team now; the To-do tab adds
- * finished work and updates, with no time limit.
+ * The To-do sections for one Role: one line per thing with the button that
+ * does it, and no second line of detail.
  */
 export function OrgTodoList({
   columns,
@@ -373,62 +353,6 @@ export function OrgTodoList({
         },
       }
     );
-  };
-  const dateFormat = (at: string, withTime: boolean) =>
-    new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
-      timeZone: "Asia/Seoul",
-      ...(withTime
-        ? {
-            day: "numeric",
-            hour: "numeric",
-            month: locale === "en" ? "short" : "numeric",
-          }
-        : { day: "numeric", month: locale === "en" ? "short" : "numeric" }),
-    }).format(new Date(at));
-  const daysSince = (at: string) =>
-    // Counted from when the list was loaded, so a render never shifts it.
-    Math.max(0, Math.floor((todo.dataUpdatedAt - Date.parse(at)) / 86_400_000));
-  const detail = (item: OrgTodoItem) => {
-    if (item.kind === "pending_connection" || item.kind === "company_intro") {
-      const names = (item.people ?? []).map((person) =>
-        item.kind === "pending_connection" && person.since
-          ? daysSince(person.since) === 0
-            ? c("{name} (오늘 수락)", "{name} (accepted today)", {
-                name: person.name,
-              })
-            : c("{name} ({d}일 전 수락)", "{name} (accepted {d}d ago)", {
-                d: daysSince(person.since),
-                name: person.name,
-              })
-          : person.name
-      );
-      const rest = (item.count ?? 0) - names.length;
-      return [
-        names.join(", ") +
-          (rest > 0 ? c(" 외 {n}명", " and {n} more", { n: rest }) : ""),
-      ]
-        .filter(Boolean)
-        .join(" · ");
-    }
-    if (item.kind === "interview_missing" && item.at) {
-      return c("연결한 지 {d}일", "Connected {d} days ago", {
-        d: daysSince(item.at),
-      });
-    }
-    if (item.kind === "memory_proposal") return item.detail ?? "";
-    const parts: string[] = [];
-    if (item.nextAt) {
-      const next = dateFormat(item.nextAt, true);
-      parts.push(
-        item.kind === "intro_waiting" || item.kind === "request_waiting"
-          ? c("다음 팔로업 {p0}", "Next follow-up {p0}", { p0: next })
-          : next
-      );
-    } else if (item.at) {
-      parts.push(dateFormat(item.at, false));
-    }
-    if (item.source) parts.push(sourceLabel(item.source, c));
-    return parts.join(" · ");
   };
   // The one button a row needs, worded as what it does.
   const action = (item: OrgTodoItem) => {
@@ -547,7 +471,9 @@ export function OrgTodoList({
       {columns.map((column) => {
         const group = items.filter((item) => item.column === column);
         const extra = column === "suggestion" ? shortcuts : [];
-        const count = column === "suggestion" ? suggestions : group.length;
+        // Harper's suggestions plus the requests it always offers.
+        const count =
+          column === "suggestion" ? suggestions + extra.length : group.length;
         // 할 일 and 알림 make up the To-do number: blue like it when above 0.
         const counted =
           (column === "my_turn" || column === "notice") && count > 0;
@@ -571,22 +497,17 @@ export function OrgTodoList({
                 <TodoRow
                   action={action(item)}
                   detail={
+                    // The one control a suggestion keeps under its title.
                     item.kind === "suggestion" ? (
-                      <>
-                        {detail(item)}
-                        {" · "}
-                        <button
-                          className="underline-offset-2 hover:underline"
-                          disabled={decide.isPending}
-                          onClick={() => answer(item, "mute")}
-                          type="button"
-                        >
-                          {c("이런 제안 그만", "Stop suggesting this")}
-                        </button>
-                      </>
-                    ) : (
-                      detail(item)
-                    )
+                      <button
+                        className="underline-offset-2 hover:underline"
+                        disabled={decide.isPending}
+                        onClick={() => answer(item, "mute")}
+                        type="button"
+                      >
+                        {c("이런 제안 그만", "Stop suggesting this")}
+                      </button>
+                    ) : undefined
                   }
                   icon={COLUMN_ICON[column]}
                   key={item.id}
@@ -612,7 +533,6 @@ export function OrgTodoList({
                         : shortcut.actionLabel}
                     </MuteButton>
                   }
-                  detail={shortcut.detail}
                   icon={COLUMN_ICON.suggestion}
                   key={shortcut.id}
                   title={shortcut.title}
@@ -672,7 +592,7 @@ export function OrgTodoArea({
                 <ListTodo aria-hidden className="h-3.5 w-3.5" />
                 To-do
                 {badge ? (
-                  // Same badge as the Role tabs (To-do, 인박스).
+                  // Same badge as the 인박스 tab.
                   <Badge
                     className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
                     size="sm"

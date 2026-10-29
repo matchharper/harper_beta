@@ -17,8 +17,10 @@ import {
   fetchMeetingScheduleDetail,
 } from "@/lib/meetings/scheduleDraftServer";
 import {
+  markMeetingInvitationSentInIntro,
   prepareMeetingInvitationPreview,
   queueMeetingInvitation,
+  reserveMeetingInvitationForIntro,
 } from "@/lib/meetings/invitationServer";
 import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 
@@ -79,6 +81,7 @@ async function handleStagePost(req: NextRequest) {
       reengagementActionId?: unknown;
       reengagementResolution?: unknown;
       introEmailDraft?: unknown;
+      introBookingLink?: boolean;
       introEmails?: string[] | null;
       roleId?: string;
       scheduleInterview?: boolean;
@@ -111,10 +114,13 @@ async function handleStagePost(req: NextRequest) {
       throw new OrgHttpError(400, "복구 진행 방식을 확인해 주세요.");
     }
     const schedulesInterview = body.scheduleInterview === true;
+    // The intro email carries the time-picking link: one email, not two.
+    const bookingInIntro = body.introBookingLink === true;
     if (
-      schedulesInterview &&
+      (schedulesInterview || bookingInIntro) &&
       ((stage !== "connected" && !stage.startsWith("custom:")) ||
         body.contactDirectly ||
+        (schedulesInterview && bookingInIntro) ||
         body.sourceStage !== "pending_connection")
     ) {
       throw new OrgHttpError(
@@ -125,7 +131,7 @@ async function handleStagePost(req: NextRequest) {
     // Validate setup and prepare the invitation before accepting the candidate.
     // The initial connection has one durable schedule per recommendation, even
     // if a client loses the response and submits again with a new action ID.
-    const prepared = schedulesInterview
+    const prepared = schedulesInterview || bookingInIntro
       ? await traceStageStep("POST:122", async () => (prepareMeetingScheduleDraftForStage({
           attendeeEmails: body.attendeeEmails,
           durationMinutes: body.durationMinutes,
@@ -148,7 +154,18 @@ async function handleStagePost(req: NextRequest) {
           webRequestKey: "initial-connection",
         })))
       : null;
-    const meetingDetail = meeting
+    // Reserved before the intro email so the email can carry the link. The
+    // link is only marked delivered once that email has gone out.
+    const booking =
+      meeting && bookingInIntro
+        ? await traceStageStep("POST:booking", async () => (reserveMeetingInvitationForIntro({
+            baseUrl: getPublicSiteUrlFromRequest(req),
+            scheduleId: meeting.scheduleId,
+            user,
+            workspaceId: body.workspaceId ?? "",
+          })))
+        : null;
+    const meetingDetail = meeting && !bookingInIntro
       ? await traceStageStep("POST:145", async () => (fetchMeetingScheduleDetail({
           scheduleId: meeting.scheduleId,
           user,
@@ -163,7 +180,7 @@ async function handleStagePost(req: NextRequest) {
             workspaceId: body.workspaceId ?? "",
           })))
         : null;
-    if (meeting && !invitation) {
+    if (meeting && !bookingInIntro && !invitation) {
       throw new OrgHttpError(
         409,
         "이미 인터뷰 요청이 시작되었어요. 후보자의 현재 진행 상황을 확인해 주세요."
@@ -176,6 +193,9 @@ async function handleStagePost(req: NextRequest) {
       emailMode: emailMode as InternalConnectionConfirmationEmailMode,
       expectedPreviousStage: body.sourceStage,
       introEmailDraft: body.introEmailDraft ?? null,
+      introBookingLink: booking
+        ? { label: booking.linkLabel, url: booking.invitationUrl }
+        : null,
       introEmails: body.introEmails ?? null,
       recommendationId: body.recommendationId ?? "",
       reengagementActionId:
@@ -213,6 +233,19 @@ async function handleStagePost(req: NextRequest) {
           502,
           "후보자 연결은 완료했지만 인터뷰 요청 메일의 발송 상태를 확인하지 못했어요. Harper 채팅에서 이 후보자의 인터뷰 요청 상태를 확인해 주세요."
         );
+      }
+    }
+    if (booking && "stage" in payload) {
+      try {
+        await traceStageStep("POST:booking-sent", async () => (markMeetingInvitationSentInIntro({
+          introMessageId: "introEmailMessageId" in payload ? String(payload.introEmailMessageId ?? "") : "",
+          queueId: booking.queueId,
+          roundId: booking.roundId,
+        })));
+      } catch (error) {
+        // The email and its link already went out; only the reminder clock
+        // is missing. Kept visible in the logs rather than failing the move.
+        console.error("[org/stage:booking-link-delivered]", error);
       }
     }
     let agentJobId: string | null = "companyUpdateJobId" in payload ? payload.companyUpdateJobId ?? null : null;

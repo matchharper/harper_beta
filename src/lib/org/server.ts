@@ -43,6 +43,10 @@ import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
 import { buildOrgIntroCandidateProfessionalSummary } from "@/lib/org/introEmailProfessionalSummary";
 import { parseCareerPromptLocale } from "@/lib/career/promptLocale";
 import { appendOrgIntroCaptureDisclosure } from "@/lib/org/introEmailDisclosure";
+import {
+  orgIntroBookingLinkAsText,
+  withOrgIntroBookingLink,
+} from "@/lib/org/messageTemplates";
 import { getOrCreateOrgIntroCaptureThread } from "@/lib/org/introEmailCapture";
 import {
   canInitiateOrgCandidateContact,
@@ -818,6 +822,19 @@ export type OrgResumeAccessResponse = {
 
 export type OrgIntroEmailDraftInput = { body: string; subject: string };
 
+/** A time-picking link the intro email carries, with its words. */
+export type OrgIntroBookingLink = { label: string; url: string };
+
+function normalizeOrgIntroBookingLink(
+  value: unknown
+): OrgIntroBookingLink | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const url = normalizeText(record.url);
+  const label = normalizeText(record.label).slice(0, 80);
+  return /^https?:\/\//.test(url) && label ? { label, url } : null;
+}
+
 function normalizeOrgIntroEmailDraftInput(
   value: unknown
 ): OrgIntroEmailDraftInput | null {
@@ -841,6 +858,11 @@ export type OrgStageChangeOptions = {
   emailMode?: InternalConnectionConfirmationEmailMode;
   /** The team's own intro email (from a template) instead of Harper's draft. */
   introEmailDraft?: OrgIntroEmailDraftInput | null;
+  /**
+   * Put a time-picking link for a first meeting inside the intro email,
+   * instead of sending it separately. Needs Google Calendar.
+   */
+  introBookingLink?: boolean;
   introEmails?: string[] | null;
   meetingCandidateMessage?: string | null;
   meetingPurpose?: string | null;
@@ -4485,6 +4507,8 @@ async function sendOrgIntroEmail(args: {
   introEmails: string[];
   /** Written by the team; skips Harper's generated draft. */
   draft?: OrgIntroEmailDraftInput | null;
+  /** A time-picking link the email carries. */
+  bookingLink?: OrgIntroBookingLink | null;
   recommendation: RecommendationRow;
   role: CompanyRoleRow;
   workspace: CompanyWorkspaceRow;
@@ -4607,7 +4631,11 @@ async function sendOrgIntroEmail(args: {
         });
   const subject = storedSubject || generatedDraft?.subject || "";
   const body = appendOrgIntroCaptureDisclosure(
-    storedBody || generatedDraft?.body || ""
+    // A stored body already has the link from the first attempt.
+    withOrgIntroBookingLink(
+      storedBody || generatedDraft?.body || "",
+      args.bookingLink ?? null
+    )
   );
   const model = generatedDraft?.model ?? CLAUDE_MODEL;
   const now = new Date().toISOString();
@@ -4702,7 +4730,7 @@ async function sendOrgIntroEmail(args: {
       idempotencyKey: identity.idempotencyKey,
       replyTo,
       subject,
-      text: body,
+      text: orgIntroBookingLinkAsText(body, args.bookingLink ?? null),
       to: candidateEmail,
     });
   } catch (error) {
@@ -4952,6 +4980,8 @@ export async function setOrgCandidateStage(args: {
   emailMode?: InternalConnectionConfirmationEmailMode;
   expectedPreviousStage?: OrgStageId;
   introEmailDraft?: unknown;
+  /** Reserved by the caller; the intro email carries it. */
+  introBookingLink?: OrgIntroBookingLink | null;
   introEmails?: string[] | null;
   recommendationId: string;
   reengagementActionId?: string | null;
@@ -5394,6 +5424,11 @@ export async function setOrgCandidateStage(args: {
               ? existingApproval.action_payload.input?.introEmailDraft
               : args.introEmailDraft
           ),
+          bookingLink: normalizeOrgIntroBookingLink(
+            resumingApproval
+              ? existingApproval.action_payload.input?.introBookingLink
+              : args.introBookingLink
+          ),
           introEmails,
           recommendation,
           role,
@@ -5460,7 +5495,9 @@ export async function setOrgCandidateStage(args: {
     const baseText =
       stage === "process_stopped"
         ? `프로세스 중단으로 옮겼습니다.`
-        : isIntroRequested
+        : isIntroRequested && introDelivery && args.introBookingLink
+          ? `${nextDestinationLabel} 옮기고 면접 예약 링크를 넣은 소개 메일을 보냈습니다.`
+          : isIntroRequested
           ? previousStage === stage
             ? `warm intro를 요청했습니다.`
             : `${nextDestinationLabel} 옮기고 warm intro를 요청했습니다.`
@@ -5486,6 +5523,7 @@ export async function setOrgCandidateStage(args: {
       introEmailMessageId: introDelivery?.messageId ?? null,
       introEmailRecipients: introDelivery?.recipients ?? [],
       introEmailResendId: introDelivery?.resendEmailId ?? null,
+      introBookingLink: Boolean(introDelivery && args.introBookingLink),
       introEmails: isIntroRequested ? introEmails : [],
       introRequested: isIntroRequested,
       org: true,
@@ -5576,6 +5614,7 @@ export async function setOrgCandidateStage(args: {
           stopNote: stage === "process_stopped" ? stopNote : null,
           notifyCandidateOnClosure: stage === "process_stopped" ? args.notifyCandidateOnClosure !== false : null,
           contactDirectly, introEmailDelivered: Boolean(introDelivery),
+          introEmailHasBookingLink: Boolean(introDelivery && args.introBookingLink),
         },
       }));
       companyUpdateJobId = queued.jobId;
@@ -5586,6 +5625,7 @@ export async function setOrgCandidateStage(args: {
     return {
       ok: true as const,
       companyUpdateJobId,
+      introEmailMessageId: introDelivery?.messageId ?? null,
       closureNotificationDelivered:
         processClosureNotification?.status === "sent",
       closureNotificationDeliveredAt:

@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { OrgHttpError } from "@/lib/org/server";
 import {
+  deleteOrgBoardText,
   fillOrgRoleListColumn,
   getOrgBoardLayout,
+  listOrgBoardTexts,
   listOrgRoleListColumns,
   removeOrgRoleListColumn,
   saveOrgBoardLayout,
+  saveOrgBoardText,
 } from "@/lib/org/roleViews.server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
@@ -48,6 +51,12 @@ export async function GET(req: NextRequest) {
       const layout = await getOrgBoardLayout({ ...parsed.data, user });
       return NextResponse.json({ layout, ok: true });
     }
+    if (params.get("kind") === "board_texts") {
+      const board = params.get("board");
+      if (!board) throw new OrgHttpError(400, "board is required");
+      const texts = await listOrgBoardTexts({ ...parsed.data, board, user });
+      return NextResponse.json({ ok: true, texts });
+    }
     const columns = await listOrgRoleListColumns({ ...parsed.data, user });
     return NextResponse.json({ columns, ok: true });
   } catch (error) {
@@ -63,6 +72,16 @@ const input = z.discriminatedUnion("action", [
   scope.extend({
     action: z.literal("remove_column"),
     columnId: z.string().uuid(),
+  }),
+  scope.extend({
+    action: z.literal("save_board_text"),
+    board: z.string().min(1),
+    text: z.object({ id: z.string().uuid() }).passthrough(),
+  }),
+  scope.extend({
+    action: z.literal("delete_board_text"),
+    board: z.string().min(1),
+    textId: z.string().uuid(),
   }),
   scope.extend({
     action: z.literal("fill_column"),
@@ -87,6 +106,20 @@ export async function POST(req: NextRequest) {
     if (body.action === "remove_column") {
       const { columns } = await removeOrgRoleListColumn({ ...body, user });
       return NextResponse.json({ columns, ok: true });
+    }
+    if (body.action === "save_board_text") {
+      const texts = await saveOrgBoardText({ ...body, user });
+      return NextResponse.json({ ok: true, texts });
+    }
+    if (body.action === "delete_board_text") {
+      const texts = await deleteOrgBoardText({
+        board: body.board,
+        id: body.textId,
+        roleId: body.roleId,
+        user,
+        workspaceId: body.workspaceId,
+      });
+      return NextResponse.json({ ok: true, texts });
     }
     const layout = await saveOrgBoardLayout({ ...body, user });
     return NextResponse.json({ layout, ok: true });

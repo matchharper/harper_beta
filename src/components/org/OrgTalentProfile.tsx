@@ -25,7 +25,6 @@ import {
   getProfileCareerSummary,
 } from "@/lib/org/profileCareerSummary";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
-import { OrgCandidateProgressLine } from "./OrgCandidateProgressLine";
 import { OrgCareerLineage } from "./OrgCareerLineage";
 import { OrgCriteriaEvaluation } from "./OrgCriteriaEvaluation";
 
@@ -197,8 +196,6 @@ export type OrgTalentProfileContentProps = {
   };
   review?: boolean;
   footer?: ReactNode;
-  /** Where the candidate is in this Role's pipeline, under the header. */
-  progress?: ReactNode;
   onResumeClick: (
     kind: "storage" | "link" | "document",
     link?: string | null,
@@ -218,7 +215,6 @@ export function OrgTalentProfile({
     <OrgTalentProfileContent
       detail={detail}
       onResumeClick={onResumeClick}
-      progress={<OrgCandidateProgressLine detail={detail} />}
       review={review}
       footer={footer}
     />
@@ -244,7 +240,6 @@ function currentRoleLine(
 export function OrgTalentProfileContent({
   detail,
   onResumeClick,
-  progress,
   review = false,
   footer,
 }: OrgTalentProfileContentProps) {
@@ -365,8 +360,6 @@ export function OrgTalentProfileContent({
   return (
     <div className="min-w-0 max-w-full space-y-7 px-4 md:px-2 [overflow-wrap:anywhere]">
       {header}
-
-      {progress}
 
       <OrgCareerLineage
         educations={detail.profile.educations}

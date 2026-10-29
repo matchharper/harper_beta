@@ -32,6 +32,7 @@ import {
   type ProgressFeedLabels,
 } from "@/components/progress-feed/ProgressFeed";
 import { ConnectionConfirmationEmailFeedCard } from "@/components/progress-feed/ConnectionConfirmationEmailFeedCard";
+import { useOrgCandidateProgressStages } from "@/components/org/OrgCandidateProgressLine";
 import { CompanyTalentRequestFeedCard } from "@/components/progress-feed/CompanyTalentRequestFeedCard";
 import { OrgIntroEmailFeedCard } from "@/components/progress-feed/OrgIntroEmailFeedCard";
 import { MuteButton } from "@/components/ui/button";
@@ -537,6 +538,8 @@ function FeedPanel({
       ? new Error(localizedOrgErrorMessage(error, locale, feedLabels.failure))
       : null;
   const { detailQuery } = useOrgJobsDetail();
+  // The hiring progress, with the records hung between its stages.
+  const stages = useOrgCandidateProgressStages(detail);
   const [draft, setDraft] = useState("");
   const [pollingQueueId, setPollingQueueId] = useState<string | null>(null);
   const [otherRolesOpen, setOtherRolesOpen] = useState(false);
@@ -874,6 +877,7 @@ function FeedPanel({
         pendingEditId={updateFeed.variables?.progressId ?? null}
         pendingSubmit={createFeed.isPending}
         placeholder={c("메모.", "Note")}
+        stages={stages}
         submitError={feedError(createFeed.error)}
         submitLabel={c("메모 추가", "Add note")}
       />
@@ -1869,6 +1873,7 @@ export function TalentDetailSimpleView({
                   contactDirectly: options.contactDirectly ?? false,
                   durationMinutes: options.durationMinutes,
                   introEmailDraft: options.introEmailDraft,
+                  introBookingLink: options.introBookingLink,
                   introEmails: options.introEmails ?? [],
                   meetingCandidateMessage: options.meetingCandidateMessage,
                   meetingPurpose: options.meetingPurpose,

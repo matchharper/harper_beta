@@ -1,7 +1,12 @@
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
-import type { ProfileEntityRef } from "@/lib/org/profileNotes";
-import type { OrgBoardLayout, OrgRoleListColumn } from "@/lib/org/roleViews";
+import { BoardTextSync, mergeBoardTexts } from "@/lib/org/boardTextSync";
+import type {
+  OrgBoardLayout,
+  OrgBoardText,
+  OrgRoleListColumn,
+} from "@/lib/org/roleViews";
 
 // Under the "org" prefix so a finished Harper turn (which may have added a
 // column) refreshes the list.
@@ -112,31 +117,72 @@ export function saveOrgBoardLayout(args: {
   );
 }
 
-export function useOrgProfileNotes(args: {
-  entities: ProfileEntityRef[];
-  locale: "ko" | "en";
+export const orgBoardTextsKey = (
+  workspaceId: string,
+  roleId: string,
+  board: string
+) => ["org-board-texts", workspaceId, roleId, board];
+
+/**
+ * The team's text boxes on one tab of a Role's board, with this person's
+ * changes shown at once and saved in the background (see BoardTextSync).
+ * Re-read every 15 seconds so a teammate's notes appear without reopening
+ * the board.
+ */
+export function useOrgBoardTexts(args: {
+  board: string;
+  roleId: string;
   workspaceId: string;
 }) {
-  const names = args.entities
-    .map((entity) => `${entity.kind}:${entity.name.trim()}`)
-    .filter((key) => !key.endsWith(":"));
-  return useQuery({
-    enabled: Boolean(args.workspaceId) && names.length > 0,
+  const { board, roleId, workspaceId } = args;
+  const client = useQueryClient();
+  const query = useQuery({
+    enabled: Boolean(workspaceId && roleId && board),
     queryFn: () =>
-      fetchWithInternalAuth<{ notes: Record<string, string> }>(
-        "/api/org/profile-notes",
-        {
-          body: JSON.stringify({
-            entities: args.entities,
-            locale: args.locale,
-            workspaceId: args.workspaceId,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        }
+      fetchWithInternalAuth<{ texts: OrgBoardText[] }>(
+        `/api/org/role-views?kind=board_texts&workspaceId=${encodeURIComponent(workspaceId)}&roleId=${encodeURIComponent(roleId)}&board=${encodeURIComponent(board)}`
       ),
-    queryKey: ["org-profile-notes", args.locale, ...[...names].sort()],
-    retry: false,
-    staleTime: Infinity,
+    queryKey: orgBoardTextsKey(workspaceId, roleId, board),
+    refetchInterval: 15_000,
   });
+  // One store per board tab, so one tab's boxes never show on another.
+  const sync = useMemo(() => {
+    const post = (body: Record<string, unknown>) =>
+      fetchWithInternalAuth("/api/org/role-views", {
+        body: JSON.stringify({ ...body, board, roleId, workspaceId }),
+        headers: { "Content-Type": "application/json" },
+        // Lets a save started as the board closes finish.
+        keepalive: true,
+        method: "POST",
+      }).then(() => undefined);
+    return new BoardTextSync(
+      {
+        remove: (textId) => post({ action: "delete_board_text", textId }),
+        save: ({ id, size, text, x, y }) =>
+          post({ action: "save_board_text", text: { id, size, text, x, y } }),
+      },
+      {
+        onIdle: () =>
+          void client.invalidateQueries({
+            queryKey: orgBoardTextsKey(workspaceId, roleId, board),
+          }),
+      }
+    );
+  }, [board, client, roleId, workspaceId]);
+  const locals = useSyncExternalStore(
+    sync.subscribe,
+    sync.getSnapshot,
+    sync.getSnapshot
+  );
+  const { data, dataUpdatedAt } = query;
+  useEffect(() => {
+    if (data) sync.reconcile(data.texts, dataUpdatedAt);
+  }, [data, dataUpdatedAt, sync]);
+  // Leaving the board keeps what was being typed.
+  useEffect(() => () => sync.releaseAll(), [sync]);
+  const texts = useMemo(
+    () => mergeBoardTexts(data?.texts ?? [], locals),
+    [data, locals]
+  );
+  return { locals, sync, texts };
 }

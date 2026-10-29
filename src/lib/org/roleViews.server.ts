@@ -4,8 +4,10 @@ import type { User } from "@supabase/supabase-js";
 import { assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
 import {
   normalizeOrgBoardLayout,
+  normalizeOrgBoardText,
   normalizeOrgListColumnValues,
   type OrgBoardLayout,
+  type OrgBoardText,
   type OrgRoleListColumn,
 } from "@/lib/org/roleViews";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
@@ -22,6 +24,8 @@ const columnsTable = () =>
   getSupabaseAdmin().from("company_role_list_columns" as any) as any;
 const layoutsTable = () =>
   getSupabaseAdmin().from("company_role_board_layouts" as any) as any;
+const textsTable = () =>
+  getSupabaseAdmin().from("company_role_board_texts" as any) as any;
 
 function toColumn(row: ColumnRow): OrgRoleListColumn {
   return {
@@ -220,6 +224,162 @@ export async function saveOrgBoardLayout(args: {
   );
   if (error) throw error;
   return layout;
+}
+
+// ---------------------------------------------------------- board texts
+
+type BoardTextRow = {
+  id: string;
+  size: number;
+  text: string;
+  updated_at: string;
+  updated_by: string | null;
+  x: number;
+  y: number;
+};
+
+/**
+ * The team's text boxes on one tab of a Role's board, with who last changed
+ * each.
+ */
+export async function listOrgBoardTexts(args: {
+  board: string;
+  roleId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgBoardText[]> {
+  await assertOrgRoleAccess({
+    admin: getSupabaseAdmin(),
+    permission: "view",
+    roleId: args.roleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const { data, error } = await textsTable()
+    .select("id, size, text, updated_at, updated_by, x, y")
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("role_id", args.roleId)
+    .eq("board", args.board)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  const rows = (data ?? []) as BoardTextRow[];
+  const userIds = [
+    ...new Set(rows.flatMap((row) => (row.updated_by ? [row.updated_by] : []))),
+  ];
+  const names = new Map<string, string>();
+  if (userIds.length) {
+    const { data: users, error: usersError } = await (
+      getSupabaseAdmin().from("company_users" as any) as any
+    )
+      .select("user_id, name, email")
+      .in("user_id", userIds);
+    if (usersError) throw usersError;
+    for (const user of (users ?? []) as Array<{
+      email: string | null;
+      name: string | null;
+      user_id: string;
+    }>) {
+      const name = user.name?.trim() || user.email?.split("@")[0] || "";
+      if (name) names.set(user.user_id, name);
+    }
+  }
+  return rows.map((row) => ({
+    id: row.id,
+    size: row.size,
+    text: row.text,
+    updatedAt: row.updated_at,
+    updatedByName: row.updated_by ? (names.get(row.updated_by) ?? null) : null,
+    x: row.x,
+    y: row.y,
+  }));
+}
+
+/**
+ * Writes one text box. Each box is its own row, so two people working on
+ * different boxes never overwrite each other. Empty text removes the box.
+ */
+export async function saveOrgBoardText(args: {
+  board: string;
+  roleId: string;
+  text: unknown;
+  user: User;
+  workspaceId: string;
+}) {
+  await assertOrgRoleAccess({
+    admin: getSupabaseAdmin(),
+    permission: "manage_candidates",
+    roleId: args.roleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const text = normalizeOrgBoardText(args.text);
+  const id = String((args.text as { id?: unknown } | null)?.id ?? "");
+  if (!text) {
+    if (id) await deleteBoardTextRow({ ...args, id });
+    return listOrgBoardTexts(args);
+  }
+  // An existing box must belong to this tab of this Role's board.
+  const { data: existing, error: lookupError } = await textsTable()
+    .select("board, role_id, company_workspace_id")
+    .eq("id", text.id)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (
+    existing &&
+    (existing.board !== args.board ||
+      existing.role_id !== args.roleId ||
+      existing.company_workspace_id !== args.workspaceId)
+  ) {
+    throw new OrgHttpError(404, "Board text not found");
+  }
+  const now = new Date().toISOString();
+  const { error } = await textsTable().upsert(
+    {
+      ...text,
+      board: args.board,
+      company_workspace_id: args.workspaceId,
+      role_id: args.roleId,
+      updated_at: now,
+      updated_by: args.user.id,
+      ...(existing ? {} : { created_by: args.user.id }),
+    },
+    { onConflict: "id" }
+  );
+  if (error) throw error;
+  return listOrgBoardTexts(args);
+}
+
+async function deleteBoardTextRow(args: {
+  board: string;
+  id: string;
+  roleId: string;
+  workspaceId: string;
+}) {
+  const { error } = await textsTable()
+    .delete()
+    .eq("id", args.id)
+    .eq("board", args.board)
+    .eq("role_id", args.roleId)
+    .eq("company_workspace_id", args.workspaceId);
+  if (error) throw error;
+}
+
+export async function deleteOrgBoardText(args: {
+  board: string;
+  id: string;
+  roleId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  await assertOrgRoleAccess({
+    admin: getSupabaseAdmin(),
+    permission: "manage_candidates",
+    roleId: args.roleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  await deleteBoardTextRow(args);
+  return listOrgBoardTexts(args);
 }
 
 // ---------------------------------------------------------------- auto fill

@@ -2,8 +2,6 @@ import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { FormEvent, useId, useState } from "react";
 import { Check, LoaderCircle } from "lucide-react";
-import { OrgProcessLine } from "@/components/org/OrgProcessLine";
-import { orgStageIcon, orgStageName } from "@/components/org/orgStageVisuals";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,7 +74,6 @@ export function StopCandidateDialog({
   const [rowCustom, setRowCustom] = useState<boolean[]>(() =>
     Array.from({ length: count }, () => false)
   );
-  const [showMissing, setShowMissing] = useState(false);
   const [notifyCandidateOnClosure, setNotifyCandidateOnClosure] =
     useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -152,27 +149,15 @@ export function StopCandidateDialog({
       Array.from({ length: count }, (_, index) => defaultNoteAt(index))
     );
     setRowCustom(Array.from({ length: count }, () => false));
-    setShowMissing(false);
     setNotifyCandidateOnClosure(true);
     setPreviewOpen(false);
     setConfirmed(false);
   };
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // A reason is optional; an empty one is sent as none.
     const notes =
       count > 1 ? rowNotes.map((note) => note.trim()) : [stopNote.trim()];
-    if (notes.some((note) => !note)) {
-      setShowMissing(true);
-      setError(
-        count > 1
-          ? c(
-              "사유를 고르지 않은 후보가 있어요.",
-              "Choose a reason for everyone."
-            )
-          : c("사유를 골라 주세요.", "Choose a reason.")
-      );
-      return;
-    }
     if (needsConfirmation && !confirmed) return;
     const customReasons = extractCustomOrgStopReasons(notes.join("\n"), [
       ...stopReasonOptions,
@@ -181,7 +166,7 @@ export function StopCandidateDialog({
     setError("");
     try {
       await onSubmit({
-        note: count > 1 ? null : notes[0],
+        note: count > 1 ? null : notes[0] || null,
         notes,
         notifyCandidateOnClosure: !pass && notifyCandidateOnClosure,
       });
@@ -268,47 +253,6 @@ export function StopCandidateDialog({
       title={title}
     >
       <form className="space-y-4" id={stopFormId} onSubmit={handleSubmit}>
-        <OrgProcessLine
-          steps={[
-            {
-              icon: orgStageIcon(
-                pass
-                  ? "company_intro"
-                  : connectionStarted
-                    ? ""
-                    : "pending_connection"
-              ),
-              key: "from",
-              label: pass
-                ? orgStageName("company_intro", c)
-                : connectionStarted
-                  ? c("진행 중인 단계", "Current stage")
-                  : orgStageName("pending_connection", c),
-              state: "now",
-            },
-            {
-              detail: `${
-                pass
-                  ? c(
-                      "후보자에게는 아무것도 가지 않아요",
-                      "Nothing is sent to the candidate"
-                    )
-                  : notifyCandidateOnClosure
-                    ? c(
-                        "Harper가 후보자에게 종료를 안내해요. 사유는 전하지 않아요",
-                        "Harper tells the candidate it ended, without your reason"
-                      )
-                    : c(
-                        "후보자 화면에 종료 상태만 보여요",
-                        "The candidate only sees the closed status"
-                      )
-              } · ${c("파이프라인 맨 오른쪽 칸이에요", "The last Pipeline column")}`,
-              icon: orgStageIcon("process_stopped"),
-              key: "process_stopped",
-              label: orgStageName("process_stopped", c),
-            },
-          ]}
-        />
         <div className="space-y-2">
           <div
             className="text-[12px] text-neutral-muted"
@@ -318,8 +262,8 @@ export function StopCandidateDialog({
             <span className="text-neutral-soft">
               {" · "}
               {c(
-                "다음 추천에만 쓰고 후보자에게는 공유하지 않아요",
-                "Used for future recommendations, never shared with the candidate"
+                "선택 · 다음 추천에만 쓰고 후보자에게는 공유하지 않아요",
+                "Optional · used for future recommendations, never shared with the candidate"
               )}
             </span>
           </div>
@@ -330,7 +274,6 @@ export function StopCandidateDialog({
                 const custom =
                   rowCustom[index] ||
                   (note !== "" && !optionsAt(index).includes(note));
-                const missing = showMissing && !note.trim();
                 return (
                   <li key={`${name}:${index}`}>
                     <div className="grid grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)] items-start gap-3">
@@ -363,10 +306,7 @@ export function StopCandidateDialog({
                           aria-label={c("{p0} 사유", "Reason for {p0}", {
                             p0: name,
                           })}
-                          className={cn(
-                            "h-auto min-h-8 w-full py-1.5 text-left text-[13px] leading-5 data-[size=default]:h-auto",
-                            missing && "border-critical"
-                          )}
+                          className="h-auto min-h-8 w-full py-1.5 text-left text-[13px] leading-5 data-[size=default]:h-auto"
                         >
                           <SelectValue className="!whitespace-normal [overflow-wrap:anywhere]">
                             {custom ? (
@@ -421,10 +361,7 @@ export function StopCandidateDialog({
                             p0: name,
                           }
                         )}
-                        className={cn(
-                          "mt-1.5 h-8 text-[13px]",
-                          missing && "border-critical"
-                        )}
+                        className="mt-1.5 h-8 text-[13px]"
                         disabled={pending}
                         maxLength={500}
                         onChange={(event) => {

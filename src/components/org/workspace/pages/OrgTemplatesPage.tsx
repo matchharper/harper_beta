@@ -17,6 +17,8 @@ import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import {
   findUnknownOrgIntroFields,
   normalizeOrgMessageTemplateContent,
+  ORG_DEFAULT_MEETING_DURATION,
+  ORG_MEETING_DURATIONS,
   ORG_MESSAGE_TEMPLATE_LIMIT,
   type OrgMessageTemplate,
   type OrgMessageTemplateContent,
@@ -29,20 +31,11 @@ import {
 import { OrgPageHeader } from "../OrgPageHeader";
 import { OrgSection, OrgSectionHeader } from "../OrgSection";
 
-const DURATIONS = [15, 30, 45, 60, 90, 120];
-
-type Draft = {
-  body: string;
-  candidateMessage: string;
-  durationMinutes: number;
-  meetingPurpose: string;
-  subject: string;
-};
+type Draft = OrgMessageTemplateContent["intro_email"];
 
 const EMPTY_DRAFT: Draft = {
   body: "",
-  candidateMessage: "",
-  durationMinutes: 30,
+  durationMinutes: ORG_DEFAULT_MEETING_DURATION,
   meetingPurpose: "",
   subject: "",
 };
@@ -55,16 +48,7 @@ function contentFrom<K extends OrgMessageTemplateKind>(
   kind: K,
   draft: Draft
 ): OrgMessageTemplateContent[K] | null {
-  return normalizeOrgMessageTemplateContent(
-    kind,
-    kind === "interview"
-      ? {
-          candidateMessage: draft.candidateMessage,
-          durationMinutes: draft.durationMinutes,
-          meetingPurpose: draft.meetingPurpose,
-        }
-      : { body: draft.body, subject: draft.subject }
-  );
+  return normalizeOrgMessageTemplateContent(kind, draft);
 }
 
 /** The team's saved templates, managed in one place outside the dialogs. */
@@ -77,26 +61,16 @@ export function OrgTemplatesPage() {
       <OrgPageHeader
         title="Templates"
         description={c(
-          "팀이 함께 쓰는 템플릿이에요. 연결 창에서 불러와 쓰고, 종류마다 {p0}개까지 저장할 수 있어요.",
-          "Templates your team shares. Load them in the connect dialog; you can keep up to {p0} of each kind.",
+          "팀이 함께 쓰는 템플릿이에요. 연결 창에서 불러와 쓰고, {p0}개까지 저장할 수 있어요.",
+          "Templates your team shares. Load them in the connect dialog; you can keep up to {p0}.",
           { p0: ORG_MESSAGE_TEMPLATE_LIMIT }
         )}
       />
       <TemplateSection
         canManage={canManage}
         description={c(
-          "면접 예약 링크를 보낼 때 불러와요.",
-          "Load these when you send an interview scheduling link."
-        )}
-        kind="interview"
-        title={c("면접 설정", "Interview settings")}
-        workspaceId={workspace.workspaceId}
-      />
-      <TemplateSection
-        canManage={canManage}
-        description={c(
-          "소개 메일을 직접 쓸 때 불러와요.",
-          "Load these when you write your own intro email."
+          "소개 메일을 직접 쓸 때 불러와요. 면접 예약 링크의 주제와 길이도 함께 불러와요.",
+          "Load these when you write your own intro email, with the booking link's topic and length."
         )}
         kind="intro_email"
         title={c("소개 메일", "Intro email")}
@@ -135,7 +109,6 @@ function TemplateSection<K extends OrgMessageTemplateKind>({
   const busy = save.isPending || remove.isPending;
   // A mistyped value such as {내이름} would reach candidates as written.
   const hasUnknownFields =
-    kind === "intro_email" &&
     findUnknownOrgIntroFields(draft.subject, draft.body).length > 0;
   const canAdd =
     canManage &&
@@ -174,9 +147,7 @@ function TemplateSection<K extends OrgMessageTemplateKind>({
     const content = contentFrom(kind, draft);
     if (!content) {
       setMessage(
-        kind === "interview"
-          ? c("미팅 주제를 입력해 주세요.", "Add what you'll discuss.")
-          : c("제목과 내용을 입력해 주세요.", "Add a subject and a body.")
+        c("제목과 내용을 입력해 주세요.", "Add a subject and a body.")
       );
       return;
     }
@@ -194,111 +165,92 @@ function TemplateSection<K extends OrgMessageTemplateKind>({
   const editor = (template: OrgMessageTemplate<K> | null) => (
     <div className="space-y-3 rounded-lg border border-neutral-800 bg-bg-floating p-4 text-[13px]">
       <div className="text-neutral-primary">{template?.name ?? nextName()}</div>
-      {kind === "interview" ? (
-        <>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
-            <label className="block space-y-1.5">
-              <span className="text-[12px] text-neutral-muted">
-                {c("미팅 주제", "What you'll discuss")}
-              </span>
-              <Input
-                maxLength={600}
-                onChange={(event) =>
-                  setDraft({ ...draft, meetingPurpose: event.target.value })
-                }
-                value={draft.meetingPurpose}
-              />
-            </label>
-            <div className="space-y-1.5">
-              <span className="text-[12px] text-neutral-muted">
-                {c("길이", "Length")}
-              </span>
-              <Select
-                onValueChange={(value) =>
-                  setDraft({ ...draft, durationMinutes: Number(value) })
-                }
-                value={String(draft.durationMinutes)}
-              >
-                <SelectTrigger aria-label={c("길이", "Length")}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DURATIONS.map((minutes) => (
-                    <SelectItem key={minutes} value={String(minutes)}>
-                      {c("{p0}분", "{p0} min", { p0: minutes })}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <label className="block space-y-1.5">
-            <span className="text-[12px] text-neutral-muted">
-              {c("후보자에게 전할 말", "Note to the candidate")}
-            </span>
-            <Textarea
-              maxLength={2000}
-              onChange={(event) =>
-                setDraft({ ...draft, candidateMessage: event.target.value })
-              }
-              rows={3}
-              value={draft.candidateMessage}
-            />
-          </label>
-        </>
-      ) : (
-        <>
-          <label className="block space-y-1.5">
-            <span className="text-[12px] text-neutral-muted">
-              {c("제목", "Subject")}
-            </span>
-            <Input
-              maxLength={200}
-              onChange={(event) =>
-                setDraft({ ...draft, subject: event.target.value })
-              }
-              onFocus={() => setField("subject")}
-              ref={subjectRef}
-              value={draft.subject}
-            />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-[12px] text-neutral-muted">
-              {c("내용", "Body")}
-            </span>
-            <Textarea
-              className="min-h-40"
-              maxLength={8000}
-              onChange={(event) =>
-                setDraft({ ...draft, body: event.target.value })
-              }
-              onFocus={() => setField("body")}
-              ref={bodyRef}
-              rows={8}
-              value={draft.body}
-            />
-          </label>
-          <OrgIntroFieldHelp
-            body={draft.body}
-            disabled={busy}
-            onFix={(from, to) =>
-              setDraft((current) => ({
-                ...current,
-                body: current.body.split(from).join(to),
-                subject: current.subject.split(from).join(to),
-              }))
+      <label className="block space-y-1.5">
+        <span className="text-[12px] text-neutral-muted">
+          {c("제목", "Subject")}
+        </span>
+        <Input
+          maxLength={200}
+          onChange={(event) =>
+            setDraft({ ...draft, subject: event.target.value })
+          }
+          onFocus={() => setField("subject")}
+          ref={subjectRef}
+          value={draft.subject}
+        />
+      </label>
+      <label className="block space-y-1.5">
+        <span className="text-[12px] text-neutral-muted">
+          {c("내용", "Body")}
+        </span>
+        <Textarea
+          className="min-h-40"
+          maxLength={8000}
+          onChange={(event) => setDraft({ ...draft, body: event.target.value })}
+          onFocus={() => setField("body")}
+          ref={bodyRef}
+          rows={8}
+          value={draft.body}
+        />
+      </label>
+      <OrgIntroFieldHelp
+        body={draft.body}
+        disabled={busy}
+        onFix={(from, to) =>
+          setDraft((current) => ({
+            ...current,
+            body: current.body.split(from).join(to),
+            subject: current.subject.split(from).join(to),
+          }))
+        }
+        onInsert={(value) =>
+          insertAtCursor(
+            field === "subject" ? subjectRef.current : bodyRef.current,
+            value,
+            (next) => setDraft((current) => ({ ...current, [field]: next }))
+          )
+        }
+        subject={draft.subject}
+      />
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
+        <label className="block space-y-1.5">
+          <span className="text-[12px] text-neutral-muted">
+            {c(
+              "면접 예약 링크 · 미팅 주제",
+              "Booking link · what you'll discuss"
+            )}
+          </span>
+          <Input
+            maxLength={600}
+            onChange={(event) =>
+              setDraft({ ...draft, meetingPurpose: event.target.value })
             }
-            onInsert={(value) =>
-              insertAtCursor(
-                field === "subject" ? subjectRef.current : bodyRef.current,
-                value,
-                (next) => setDraft((current) => ({ ...current, [field]: next }))
-              )
-            }
-            subject={draft.subject}
+            value={draft.meetingPurpose}
           />
-        </>
-      )}
+        </label>
+        <div className="space-y-1.5">
+          <span className="text-[12px] text-neutral-muted">
+            {c("길이", "Length")}
+          </span>
+          <Select
+            onValueChange={(value) =>
+              setDraft({ ...draft, durationMinutes: Number(value) })
+            }
+            value={String(draft.durationMinutes)}
+          >
+            <SelectTrigger aria-label={c("길이", "Length")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ORG_MEETING_DURATIONS.map((minutes) => (
+                <SelectItem key={minutes} value={String(minutes)}>
+                  {c("{p0}분", "{p0} min", { p0: minutes })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
       {message ? (
         <p className="text-[12px] text-critical" role="alert">
           {message}
@@ -429,27 +381,17 @@ function TemplateSection<K extends OrgMessageTemplateKind>({
 
 function TemplateSummary({ template }: { template: OrgMessageTemplate }) {
   const { c } = useOrgLocale();
-  if (template.kind === "interview") {
-    const content = template.content as OrgMessageTemplateContent["interview"];
-    return (
-      <div className="space-y-0.5 text-neutral-muted">
-        <div>
-          {c("{p0}분", "{p0} min", { p0: content.durationMinutes })} ·{" "}
-          {content.meetingPurpose}
-        </div>
-        {content.candidateMessage ? (
-          <div className="line-clamp-2 whitespace-pre-wrap">
-            {content.candidateMessage}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-  const content = template.content as OrgMessageTemplateContent["intro_email"];
+  const content = template.content;
   return (
     <div className="space-y-0.5 text-neutral-muted">
       <div className="text-neutral-primary">{content.subject}</div>
       <div className="line-clamp-3 whitespace-pre-wrap">{content.body}</div>
+      <div>
+        {c("면접 예약 링크 {p0}분", "Booking link {p0} min", {
+          p0: content.durationMinutes,
+        })}
+        {content.meetingPurpose ? ` · ${content.meetingPurpose}` : null}
+      </div>
     </div>
   );
 }

@@ -12,8 +12,6 @@ import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Ticket } from "@/components/ui/ticket";
-import { OrgProcessLine } from "@/components/org/OrgProcessLine";
-import { orgStageIcon, orgStageName } from "@/components/org/orgStageVisuals";
 import { cn } from "@/lib/utils";
 import type { OrgMember } from "@/lib/org/server";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
@@ -226,34 +224,6 @@ export function CompanyIntroRequestDialog({
       }
     >
       <form className="space-y-4" id={modalFormId1} onSubmit={submit}>
-        <OrgProcessLine
-          steps={[
-            {
-              icon: orgStageIcon("company_intro"),
-              key: "company_intro",
-              label: orgStageName("company_intro", c),
-              state: "now",
-            },
-            {
-              detail: c(
-                "Harper가 메일과 Harper 앱으로 관심 이유를 전하고 답을 기다려요. 거절하면 프로세스 중단으로 가요",
-                "Harper shares your reason by email and in the app, then waits. If they decline, it ends"
-              ),
-              icon: orgStageIcon("intro_requested"),
-              key: "intro_requested",
-              label: orgStageName("intro_requested", c),
-            },
-            {
-              detail: c(
-                "후보자가 수락하면 따로 승인하지 않아도 소개 메일로 이어져요",
-                "If they accept, you're introduced by email with no extra approval"
-              ),
-              icon: orgStageIcon("connected"),
-              key: "connected",
-              label: orgStageName("connected", c),
-            },
-          ]}
-        />
         <div>
           <label
             className="text-[12px] text-neutral-muted"

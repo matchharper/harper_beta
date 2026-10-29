@@ -4,6 +4,7 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { User } from "@supabase/supabase-js";
 import { getIntegrationErrorDiagnostics } from "@/lib/integrations/composio";
 import {
+  buildMeetingInvitationFallback,
   MAX_CANDIDATE_MEETING_OPTIONS,
   MEETING_INVITATION_LINK_MARKER,
   type MeetingInvitationPreviewResponse,
@@ -42,6 +43,11 @@ import type { Json } from "@/types/database.types";
 
 const INVITATION_QUEUE_TYPE = "meeting_schedule_candidate_invitation";
 export const MEETING_INVITATION_DELIVERY_DELAY_MINUTES = 20;
+/**
+ * A link reserved for an intro email is never sent on its own: its queue row
+ * waits here until the intro email that carries it is sent.
+ */
+const HELD_FOR_INTRO_UNTIL = "9999-12-31T00:00:00.000Z";
 
 type InvitationSnapshot = {
   availabilityVersion: number;
@@ -337,6 +343,27 @@ export async function queueMeetingInvitation(args: {
   user: User;
   workspaceId: string;
 }) {
+  const queued = await insertMeetingInvitation(args);
+  return fetchMeetingScheduleDetail({
+    scheduleId: queued.scheduleId,
+    user: args.user,
+    workspaceId: queued.workspaceId,
+  });
+}
+
+async function insertMeetingInvitation(args: {
+  baseUrl: string;
+  /** Keep it unsent: an intro email carries the link instead. */
+  holdForIntro?: boolean;
+  sendImmediately?: boolean;
+  body: unknown;
+  candidateMessage: unknown;
+  expectedVersion: unknown;
+  scheduleId: string;
+  subject: unknown;
+  user: User;
+  workspaceId: string;
+}) {
   const expectedVersion = Number(args.expectedVersion);
   if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
     throw new OrgHttpError(400, "일정 요청의 최신 버전을 확인해 주세요.");
@@ -418,6 +445,7 @@ export async function queueMeetingInvitation(args: {
   };
   const queuePayload = {
     body,
+    ...(args.holdForIntro ? { heldForIntroEmail: true } : {}),
     locale,
     meetingScheduleRoundId: schedule.round.id,
     meetingScheduleId: schedule.scheduleId,
@@ -455,11 +483,15 @@ export async function queueMeetingInvitation(args: {
       "일정 선택 안내의 예약 정보를 확인하지 못했어요."
     );
   }
-  const scheduledAt = new Date(
-    windowStart.getTime() +
-      (args.sendImmediately ? 0 : MEETING_INVITATION_DELIVERY_DELAY_MINUTES) *
-        60_000
-  ).toISOString();
+  const scheduledAt = args.holdForIntro
+    ? HELD_FOR_INTRO_UNTIL
+    : new Date(
+        windowStart.getTime() +
+          (args.sendImmediately
+            ? 0
+            : MEETING_INVITATION_DELIVERY_DELAY_MINUTES) *
+            60_000
+      ).toISOString();
   const { data: delayed, error: delayError } = await (
     admin.from("contact_queue" as any) as any
   )
@@ -477,11 +509,155 @@ export async function queueMeetingInvitation(args: {
       "일정 선택 안내의 예약 상태가 바뀌었어요. 중복 연락을 피하기 위해 현재 상태를 먼저 확인해 주세요."
     );
   }
-  return fetchMeetingScheduleDetail({
+  return {
+    invitationUrl,
+    locale,
+    queueId,
+    roundId: schedule.round.id,
     scheduleId: schedule.scheduleId,
-    user: args.user,
     workspaceId: schedule.workspaceId,
-  });
+  };
+}
+
+/** The link's words in an email, in the candidate's language. */
+function meetingLinkLabel(locale: "en" | "ko") {
+  return locale === "ko"
+    ? "인터뷰 가능 시간 선택하기"
+    : "Select your interview availability";
+}
+
+/**
+ * The time-picking link for a candidate's first meeting, reserved to go
+ * inside the intro email instead of a separate scheduling email. Checks the
+ * organizer's Calendar and open times like a normal invitation. A retry
+ * after the intro email failed gets the same link back.
+ */
+export async function reserveMeetingInvitationForIntro(args: {
+  baseUrl: string;
+  scheduleId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  const { schedule } = await fetchMeetingScheduleDetail(args);
+  const locale = await candidateLocale(schedule.candidate.talentId);
+  if (schedule.status === "preparing" && schedule.round.status === "draft") {
+    // Kept for the time-picking page and the record; never sent by itself.
+    const email = buildMeetingInvitationFallback({
+      candidateMessage: null,
+      candidateName: schedule.candidate.name,
+      companyName: schedule.companyName,
+      durationMinutes: schedule.config.durationMinutes,
+      invitationKind: schedule.config.invitationKind,
+      locale,
+      meetingPurpose: schedule.config.meetingPurpose || undefined,
+      organizerName: schedule.config.organizer.name,
+      processStageName: schedule.config.processStageName,
+      roleName: schedule.role.name,
+    });
+    const queued = await insertMeetingInvitation({
+      baseUrl: args.baseUrl,
+      body: email.body,
+      candidateMessage: null,
+      expectedVersion: schedule.version,
+      holdForIntro: true,
+      scheduleId: schedule.scheduleId,
+      subject: email.subject,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    return { ...queued, linkLabel: meetingLinkLabel(locale) };
+  }
+  // The intro email did not go out last time: reuse the link it would carry.
+  const admin = getSupabaseAdmin();
+  const { data: round, error: roundError } = await (
+    admin.from("meeting_schedule_rounds" as any) as any
+  )
+    .select("id, delivery_queue_id, status")
+    .eq("id", schedule.round.id)
+    .maybeSingle();
+  if (roundError) throw roundError;
+  const queueId = clean(round?.delivery_queue_id, 100);
+  const { data: queue, error: queueError } = queueId
+    ? await (admin.from("contact_queue" as any) as any)
+        .select("id, payload, sent_at, status")
+        .eq("id", queueId)
+        .eq("type", INVITATION_QUEUE_TYPE)
+        .maybeSingle()
+    : { data: null, error: null };
+  if (queueError) throw queueError;
+  const payload = isRecord(queue?.payload) ? queue.payload : {};
+  const invitationUrl = invitationUrlFromQueuedBody(payload.body);
+  if (
+    round?.status !== "queued" ||
+    queue?.status !== "queued" ||
+    queue?.sent_at ||
+    payload.heldForIntroEmail !== true ||
+    !invitationUrl
+  ) {
+    throw new OrgHttpError(
+      409,
+      "이미 인터뷰 요청이 시작되었어요. 후보자의 현재 진행 상황을 확인해 주세요."
+    );
+  }
+  return {
+    invitationUrl,
+    linkLabel: meetingLinkLabel(locale),
+    locale,
+    queueId,
+    roundId: clean(round.id, 100),
+    scheduleId: schedule.scheduleId,
+    workspaceId: schedule.workspaceId,
+  };
+}
+
+/**
+ * Records the reserved link as delivered once the intro email carrying it
+ * was sent, so Harper's usual reminder for an unpicked time starts from now.
+ */
+export async function markMeetingInvitationSentInIntro(args: {
+  introMessageId: string;
+  queueId: string;
+  roundId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const { data: queue, error: readError } = await (
+    admin.from("contact_queue" as any) as any
+  )
+    .select("payload")
+    .eq("id", args.queueId)
+    .eq("type", INVITATION_QUEUE_TYPE)
+    .eq("status", "queued")
+    .is("sent_at", null)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (!queue) return;
+  const { error: roundError } = await (
+    admin.from("meeting_schedule_rounds" as any) as any
+  )
+    .update({ status: "sent", updated_at: new Date().toISOString() })
+    .eq("id", args.roundId)
+    .eq("delivery_queue_id", args.queueId)
+    .eq("status", "queued");
+  if (roundError) throw roundError;
+  const now = new Date().toISOString();
+  const { error: queueError } = await (
+    admin.from("contact_queue" as any) as any
+  )
+    .update({
+      // The link stays in the body: the candidate's app reads it from here.
+      payload: {
+        ...(isRecord(queue.payload) ? queue.payload : {}),
+        sentInIntroEmailMessageId: args.introMessageId,
+      },
+      scheduled_at: now,
+      sent_at: now,
+      status: "sent",
+      updated_at: now,
+    })
+    .eq("id", args.queueId)
+    .eq("status", "queued")
+    .is("sent_at", null);
+  if (queueError) throw queueError;
 }
 
 /**

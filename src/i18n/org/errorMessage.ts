@@ -13,7 +13,7 @@ const ENGLISH_SLACK_ERRORS = new Map([
 
 const ENGLISH_CONNECTION_ERRORS = new Map([
   ["이 후보자의 연결을 이미 처리하고 있어요. 잠시 뒤 새로고침해 확인해 주세요.", "This connection is already being processed. Refresh in a moment to check."],
-  [ORG_INTRO_UNKNOWN_FIELD_ERROR, "Some values won't be filled in. Use only {후보자 이름}, {회사 이름}, {역할} and {내 이름}."],
+  [ORG_INTRO_UNKNOWN_FIELD_ERROR, "Some values won't be filled in. Use only {후보자 이름}, {회사 이름}, {역할}, {내 이름} and {면접 예약 링크}."],
 ]);
 
 const ENGLISH_MEETING_ERRORS = new Map([

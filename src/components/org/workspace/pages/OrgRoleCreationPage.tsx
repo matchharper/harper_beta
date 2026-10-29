@@ -7,7 +7,6 @@ import {
   Columns3,
   Flag,
   Inbox,
-  ListTodo,
   LoaderCircle,
   Menu,
   MessageSquare,
@@ -43,9 +42,6 @@ import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavi
 import { OrgTeamPage } from "@/components/org/workspace/pages/OrgTeamPage";
 import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { OrgRoleTodoTab } from "@/components/org/OrgRoleTodoTab";
-import { useOrgRoleTodo } from "@/hooks/org/useOrgRoleTodo";
-import { orgTodoBadge } from "@/lib/org/todo";
 import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
 import {
   DropdownMenu,
@@ -133,12 +129,6 @@ const INBOX_TAB = {
   icon: <Inbox className="size-3.5" strokeWidth={1.65} />,
   label: "인박스",
   value: "inbox",
-} as const;
-
-const TODO_TAB = {
-  icon: <ListTodo className="size-3.5" strokeWidth={1.65} />,
-  label: "To-do",
-  value: "todo",
 } as const;
 
 const CHAT_TAB = {
@@ -338,10 +328,6 @@ function OrgRoleCreationDetails({
     roleId: role?.roleId,
     workspaceId: workspace.workspaceId,
   });
-  const todo = useOrgRoleTodo({
-    roleId: role && !roleCreation ? role.roleId : null,
-    workspaceId: workspace.workspaceId,
-  });
   const inboxCount = inboxBoardQuery.data
     ? inboxBoardQuery.data.counts.pending_connection + inboxBoardQuery.data.counts.company_intro
     : undefined;
@@ -357,7 +343,7 @@ function OrgRoleCreationDetails({
     ...(expanded ? [CHAT_TAB] : []),
     ...(roleCreation
       ? [START_TAB, ...DETAIL_TABS]
-      : [TODO_TAB, INBOX_TAB, PIPELINE_TAB, ...DETAIL_TABS]),
+      : [INBOX_TAB, PIPELINE_TAB, ...DETAIL_TABS]),
   ];
   const roleStatus = role ? getOrgRoleStatusPresentation(role.status) : null;
   const setActiveTab = (tab: RoleCreationTab) => {
@@ -499,14 +485,6 @@ function OrgRoleCreationDetails({
                 >
                   {tab.icon}
                   <span className="truncate">{sourceT(tab.label)}</span>
-                  {tab.value === "todo" && todo.data ? (
-                    <Badge
-                      className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
-                      size="sm"
-                    >
-                      {String(orgTodoBadge(todo.data.items))}
-                    </Badge>
-                  ) : null}
                   {tab.value === "inbox" && inboxCount !== undefined ? (
                     <Badge
                       className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
@@ -612,20 +590,6 @@ function OrgRoleCreationDetails({
                   tab="inbox"
                 />
               </>
-            ) : null}
-          </div>
-          <div
-            aria-label={c("To-do 탭 내용", "To-do tab content")}
-            aria-labelledby="role-creation-todo-tab"
-            hidden={companyInfoOpen || activeTab !== "todo"}
-            id="role-creation-todo-panel"
-            role="tabpanel"
-          >
-            {!companyInfoOpen && activeTab === "todo" && role && !roleCreation ? (
-              <OrgRoleTodoTab
-                roleId={role.roleId}
-                workspaceId={workspace.workspaceId}
-              />
             ) : null}
           </div>
           <div

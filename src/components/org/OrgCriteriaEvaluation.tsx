@@ -1,4 +1,4 @@
-import { Check, CheckCheck, CircleHelp, LoaderCircle, X } from "lucide-react";
+import { Circle, LoaderCircle, X, type LucideProps } from "lucide-react";
 import { BareButton } from "@/components/ui/button";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
@@ -8,11 +8,48 @@ import {
   type OrgCompanyCriteriaEvaluation,
 } from "@/lib/org/companyCriteriaEvaluations";
 
+/** ◎: a circle inside a circle, drawn on the same 24px grid as lucide. */
+function DoubleCircle(props: LucideProps) {
+  const { strokeWidth = 2, ...rest } = props;
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={strokeWidth}
+      viewBox="0 0 24 24"
+      {...rest}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="4.5" />
+    </svg>
+  );
+}
+
+/** △ */
+function Triangle(props: LucideProps) {
+  const { strokeWidth = 2, ...rest } = props;
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={strokeWidth}
+      viewBox="0 0 24 24"
+      {...rest}
+    >
+      <path d="M12 4 21 19.5H3Z" />
+    </svg>
+  );
+}
+
 const FIT_ICON = {
-  excellent: { Icon: CheckCheck, tone: "text-positive-strong" },
-  good: { Icon: Check, tone: "text-positive" },
-  uncertain: { Icon: CircleHelp, tone: "text-info" },
-  limited: { Icon: CircleHelp, tone: "text-info" },
+  excellent: { Icon: DoubleCircle, tone: "text-positive-strong" },
+  good: { Icon: Circle, tone: "text-positive" },
+  uncertain: { Icon: Triangle, tone: "text-info-strong" },
+  limited: { Icon: Triangle, tone: "text-info-strong" },
   bad: { Icon: X, tone: "text-critical" },
   conflict: { Icon: X, tone: "text-critical" },
 } as const;

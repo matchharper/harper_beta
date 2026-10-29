@@ -1,24 +1,21 @@
 import { useOptionalOrgJobsBoard } from "@/hooks/org/useOrgJobs";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
+import type { ProgressFeedStage } from "@/components/progress-feed/ProgressFeed";
 import { OrgIntroProgress } from "./OrgIntroProgress";
-import { OrgProcessLine, type OrgProcessStep } from "./OrgProcessLine";
 import { orgStageIcon, orgStageName } from "./orgStageVisuals";
 
-const MAX_STEPS = 6;
-
 /**
- * One candidate's way through this Role's pipeline: the columns already
- * passed with their dates, where they are now, and the columns still ahead.
+ * One candidate's way through this Role's pipeline, oldest first: the
+ * columns already passed with the day they got there, where they are now,
+ * and the columns still ahead. The feed hangs its records between them.
  */
-export function OrgCandidateProgressLine({
-  detail,
-}: {
+export function useOrgCandidateProgressStages(
   detail: Pick<
     OrgTalentDetailResponse,
     "companyIntro" | "recommendation" | "role" | "stageHistory"
-  >;
-}) {
+  >
+): ProgressFeedStage[] {
   const { c, locale } = useOrgLocale();
   const boardStages = useOptionalOrgJobsBoard()?.board?.stages ?? [];
   const roleId = detail.role.roleId;
@@ -82,35 +79,26 @@ export function OrgCandidateProgressLine({
         }).format(new Date(at))
       : undefined;
 
-  const steps: OrgProcessStep[] = [
+  return [
     ...passed.map((entry, index) => ({
+      at: entry.at,
       detail: date(entry.at),
-      icon: orgStageIcon(entry.stage),
-      key: `${entry.stage}:${index}`,
-      label: orgStageName(entry.stage, c, stages, roleTitle),
-      state: index === here ? ("now" as const) : ("done" as const),
-      // The card's bar, under the column it belongs to.
+      // Where an Intro request stands, under the column it belongs to.
       extra:
         index === here && entry.stage === "intro_requested" ? (
           <OrgIntroProgress intro={intro} />
         ) : undefined,
+      icon: orgStageIcon(entry.stage),
+      key: `${entry.stage}:${index}`,
+      label: orgStageName(entry.stage, c, stages, roleTitle),
+      state: index === here ? ("now" as const) : ("done" as const),
     })),
     ...ahead.map((stage) => ({
+      at: null,
       icon: orgStageIcon(stage),
       key: stage,
       label: orgStageName(stage, c, stages, roleTitle),
+      state: "next" as const,
     })),
   ];
-  // A long way shows the part around where the candidate is now.
-  const start = Math.max(0, Math.min(here - 2, steps.length - MAX_STEPS));
-  const shown = steps.slice(start, start + MAX_STEPS);
-
-  return (
-    <div>
-      <div className="mb-2.5 text-[12px] text-neutral-muted">
-        {c("채용 진행", "Hiring progress")}
-      </div>
-      <OrgProcessLine label={c("채용 진행", "Hiring progress")} steps={shown} />
-    </div>
-  );
 }

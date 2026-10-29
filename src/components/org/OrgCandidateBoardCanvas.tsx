@@ -10,18 +10,23 @@ import {
   useState,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutGrid, Maximize, Minus, Plus } from "lucide-react";
+import { LayoutGrid, Maximize, Minus, Plus, Trash2, Type } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 import {
   orgBoardLayoutKey,
   saveOrgBoardLayout,
   useOrgBoardLayout,
+  useOrgBoardTexts,
 } from "@/hooks/org/useOrgRoleViews";
+import { useOptionalOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
-import type {
-  OrgBoardLayout,
-  OrgBoardPoint,
-  OrgBoardViewport,
+import {
+  orgBoardTextSizeForZoom,
+  ORG_BOARD_TEXT_SIZES,
+  type OrgBoardLayout,
+  type OrgBoardPoint,
+  type OrgBoardText,
+  type OrgBoardViewport,
 } from "@/lib/org/roleViews";
 import type { OrgBoardItem } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
@@ -46,6 +51,13 @@ const clampZoom = (zoom: number) =>
   Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 
 type Rect = { height: number; width: number; x: number; y: number };
+
+/** Roughly how wide a line is, in em: wide for Hangul and CJK. */
+function lineEms(line: string) {
+  let width = 0;
+  for (const char of line) width += char.charCodeAt(0) > 0x2e80 ? 1 : 0.6;
+  return width;
+}
 type Positions = Record<string, OrgBoardPoint>;
 
 function overlaps(a: Rect, b: Rect) {
@@ -127,9 +139,20 @@ type Drag =
       base: Set<string>;
       kind: "select";
       start: { x: number; y: number };
+    }
+  | {
+      id: string;
+      kind: "text";
+      /** The latest offset painted on screen, committed on release. */
+      last?: { dx: number; dy: number };
+      moved: boolean;
+      origin: OrgBoardPoint;
+      start: { x: number; y: number };
     };
 
 type BoardProps = {
+  /** Which tab of the Role's board this is; each has its own text boxes. */
+  board: string;
   items: OrgBoardItem[];
   /** Omitted where the board has no bulk actions. */
   onSelectionChange?: (ids: Set<string>) => void;
@@ -143,8 +166,10 @@ const BOARD_CLASS =
   "relative h-[calc(100dvh-220px)] min-h-[440px] overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-floating";
 
 /**
- * A white board where the team places candidate cards anywhere. Each
- * teammate's arrangement and zoom are saved for the Role and restored later.
+ * A white board where the team places candidate cards anywhere and writes
+ * text boxes beside them. Each teammate's card arrangement and zoom are
+ * saved for them; the text boxes are shared by the whole team, one set per
+ * tab.
  */
 export function OrgCandidateBoardCanvas(props: BoardProps) {
   const layoutQuery = useOrgBoardLayout({
@@ -159,6 +184,7 @@ export function OrgCandidateBoardCanvas(props: BoardProps) {
 }
 
 function BoardCanvas({
+  board,
   initial,
   items,
   onSelectionChange,
@@ -171,9 +197,21 @@ function BoardCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
+  const textRefs = useRef(new Map<string, HTMLDivElement>());
   const [positions, setPositions] = useState<Positions>(
     () => initial?.positions ?? {}
   );
+  // Text boxes are the team's. This person's changes show at once and are
+  // saved in the background, one box at a time.
+  const {
+    locals: textLocals,
+    sync: textSync,
+    texts,
+  } = useOrgBoardTexts({ board, roleId, workspaceId });
+  const canWrite =
+    useOptionalOrgWorkspace()?.permissions.canManageCandidates ?? false;
+  const [selectedText, setSelectedText] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState<string | null>(null);
   const [viewport, setViewport] = useState<OrgBoardViewport>(
     () => returnViewports.get(roleId) ?? initial?.viewport ?? DEFAULT_VIEWPORT
   );
@@ -214,16 +252,31 @@ function BoardCanvas({
     [items, renderCard]
   );
 
-  const latest = useRef({ positions: placed, viewport });
+  const latest = useRef({ positions: placed, texts, viewport });
   useEffect(() => {
-    latest.current = { positions: placed, viewport };
+    latest.current = { positions: placed, texts, viewport };
+  });
+  const selectedTextRef = useRef(selectedText);
+  useEffect(() => {
+    selectedTextRef.current = editingText ? null : selectedText;
   });
 
   const queryClient = useQueryClient();
+  /** Takes a box off the board for everyone. */
+  const removeText = useCallback(
+    (id: string) => {
+      setSelectedText((current) => (current === id ? null : current));
+      setEditingText((current) => (current === id ? null : current));
+      const text = latest.current.texts.find((entry) => entry.id === id);
+      if (text) textSync.remove(text);
+    },
+    [textSync]
+  );
   const flushSave = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = null;
-    const layout = latest.current;
+    const { positions, viewport: view } = latest.current;
+    const layout: OrgBoardLayout = { positions, viewport: view };
     // The cached copy is what the board opens with next time.
     queryClient.setQueryData(orgBoardLayoutKey(workspaceId, roleId), {
       layout,
@@ -426,6 +479,12 @@ function BoardCanvas({
       } else if (event.key === "0") {
         const current = latest.current.viewport;
         animateTo(zoomViewport(current, 1 / current.zoom, center()));
+      } else if (
+        (event.key === "Backspace" || event.key === "Delete") &&
+        selectedTextRef.current
+      ) {
+        event.preventDefault();
+        removeText(selectedTextRef.current);
       } else if (event.key === "Escape" && onSelectionChange) {
         onSelectionChange(new Set());
       }
@@ -441,7 +500,7 @@ function BoardCanvas({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [animateTo, onSelectionChange]);
+  }, [animateTo, onSelectionChange, removeText]);
 
   const local = (event: { clientX: number; clientY: number }) => {
     const bounds = containerRef.current?.getBoundingClientRect();
@@ -466,6 +525,8 @@ function BoardCanvas({
     if (event.button !== 0 && event.button !== 1) return;
     const target = event.target as HTMLElement;
     if (target.closest("[data-board-controls]")) return;
+    // A text box handles its own press (select, move, edit).
+    if (target.closest("[data-board-text]") && !spaceHeld.current) return;
     if (event.button === 1 || spaceHeld.current) {
       event.preventDefault();
       startPan(event);
@@ -499,6 +560,24 @@ function BoardCanvas({
       nextFrame(() => {
         paintViewport(next);
         current.last = next;
+      });
+      return;
+    }
+    if (current.kind === "text") {
+      const dx = (event.clientX - current.start.x) / viewport.zoom;
+      const dy = (event.clientY - current.start.y) / viewport.zoom;
+      if (!current.moved) {
+        if (Math.hypot(dx, dy) * viewport.zoom < DRAG_THRESHOLD) return;
+        containerRef.current?.setPointerCapture(event.pointerId);
+        current.moved = true;
+      }
+      nextFrame(() => {
+        const element = textRefs.current.get(current.id);
+        if (element) {
+          element.style.left = `${current.origin.x + dx}px`;
+          element.style.top = `${current.origin.y + dy}px`;
+        }
+        current.last = { dx, dy };
       });
       return;
     }
@@ -566,13 +645,29 @@ function BoardCanvas({
       setMarquee(null);
       return;
     }
+    if (current.kind === "text") {
+      if (current.moved) {
+        const { dx, dy } = current.last ?? { dx: 0, dy: 0 };
+        const text = latest.current.texts.find(
+          (entry) => entry.id === current.id
+        );
+        if (text) {
+          textSync.update(text, {
+            x: current.origin.x + dx,
+            y: current.origin.y + dy,
+          });
+        }
+      }
+      return;
+    }
     if (current.kind === "pan") {
       if (current.moved) {
         if (current.last) setViewport(current.last);
         scheduleSave();
-      } else if (onSelectionChange && selectedIds.size) {
+      } else {
         // A plain click on the empty board clears the selection.
-        onSelectionChange(new Set());
+        setSelectedText(null);
+        if (onSelectionChange && selectedIds.size) onSelectionChange(new Set());
       }
       return;
     }
@@ -651,6 +746,61 @@ function BoardCanvas({
       at: event.timeStamp,
       viewport: latest.current.viewport,
     };
+  };
+
+  const onTextPointerDown = (
+    text: OrgBoardText,
+    event: ReactPointerEvent<HTMLDivElement>
+  ) => {
+    if (event.button !== 0 || spaceHeld.current || !canWrite) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("textarea, button")) return;
+    setSelectedText(text.id);
+    drag.current = {
+      id: text.id,
+      kind: "text",
+      moved: false,
+      origin: { x: text.x, y: text.y },
+      start: { x: event.clientX, y: event.clientY },
+    };
+  };
+
+  /** A new box in the middle of the view, ready to type in. */
+  const addText = () => {
+    const container = containerRef.current;
+    const id = crypto.randomUUID();
+    textSync.create(
+      {
+        id,
+        // Readable at the current zoom, even when the whole board is in view.
+        size: orgBoardTextSizeForZoom(viewport.zoom),
+        text: "",
+        x: ((container?.clientWidth ?? 0) / 2 - viewport.x) / viewport.zoom,
+        y: ((container?.clientHeight ?? 0) / 2 - viewport.y) / viewport.zoom,
+      },
+      { hold: true }
+    );
+    setSelectedText(id);
+    setEditingText(id);
+  };
+  /** Typing ended: an empty box goes away, otherwise it is saved. */
+  const finishEditing = (id: string) => {
+    setEditingText(null);
+    const text = latest.current.texts.find((entry) => entry.id === id);
+    if (!text?.text.trim()) removeText(id);
+    else textSync.release(id);
+  };
+  const resize = (text: OrgBoardText, step: 1 | -1) => {
+    const index = ORG_BOARD_TEXT_SIZES.indexOf(text.size);
+    const next =
+      ORG_BOARD_TEXT_SIZES[
+        Math.min(
+          ORG_BOARD_TEXT_SIZES.length - 1,
+          Math.max(0, (index < 0 ? 2 : index) + step)
+        )
+      ];
+    // While typing, saved with the words when typing ends.
+    textSync.update(text, { size: next }, { hold: editingText === text.id });
   };
 
   const fitAll = () => {
@@ -738,10 +888,137 @@ function BoardCanvas({
                 left: point.x,
                 top: point.y,
                 width: CARD_WIDTH,
-                zIndex: lifted ? order.length + 1 : layer >= 0 ? layer + 1 : 0,
+                // Above the text boxes only while being moved.
+                zIndex: lifted ? order.length + 2 : layer >= 0 ? layer + 1 : 0,
               }}
             >
               {cards.get(id)}
+            </div>
+          );
+        })}
+        {texts.map((text) => {
+          const editing = editingText === text.id;
+          const selected = selectedText === text.id;
+          const lines = text.text.split("\n");
+          const ems = Math.max(4, ...lines.map(lineEms)) + 1;
+          return (
+            <div
+              className={cn(
+                "absolute rounded-sm",
+                editing
+                  ? "ring-2 ring-action/60"
+                  : !canWrite
+                    ? "cursor-default"
+                    : selected
+                      ? "cursor-move ring-2 ring-action/60"
+                      : "cursor-move hover:ring-1 hover:ring-neutral-1000-a10"
+              )}
+              data-board-text
+              key={text.id}
+              onDoubleClick={() => {
+                if (!canWrite) return;
+                setSelectedText(text.id);
+                setEditingText(text.id);
+              }}
+              onPointerDown={(event) => onTextPointerDown(text, event)}
+              ref={(element) => {
+                if (element) textRefs.current.set(text.id, element);
+                else textRefs.current.delete(text.id);
+              }}
+              style={{ left: text.x, top: text.y, zIndex: order.length + 1 }}
+            >
+              {selected ? (
+                // Kept at its real size whatever the zoom.
+                <div
+                  className="absolute bottom-full left-0 mb-1.5 flex origin-bottom-left items-center gap-0.5 rounded-md border border-neutral-1000-a05 bg-bg-floating p-0.5 shadow-sm"
+                  style={{ transform: `scale(${1 / viewport.zoom})` }}
+                >
+                  <MuteButton
+                    aria-label={c("글자 작게", "Smaller text")}
+                    disabled={text.size === ORG_BOARD_TEXT_SIZES[0]}
+                    onClick={() => resize(text, -1)}
+                    size="sm"
+                    type="button"
+                    variant="transparent"
+                  >
+                    <Minus className="size-3" />
+                  </MuteButton>
+                  <span className="w-7 text-center text-[12px] tabular-nums text-neutral-muted">
+                    {text.size}
+                  </span>
+                  <MuteButton
+                    aria-label={c("글자 크게", "Larger text")}
+                    disabled={text.size === ORG_BOARD_TEXT_SIZES.at(-1)}
+                    onClick={() => resize(text, 1)}
+                    size="sm"
+                    type="button"
+                    variant="transparent"
+                  >
+                    <Plus className="size-3" />
+                  </MuteButton>
+                  <MuteButton
+                    aria-label={c("텍스트 삭제", "Delete text")}
+                    onClick={() => removeText(text.id)}
+                    size="sm"
+                    type="button"
+                    variant="transparent"
+                  >
+                    <Trash2 className="size-3" />
+                  </MuteButton>
+                  {text.updatedByName ? (
+                    // Who wrote or last changed it, for a board the team shares.
+                    <span className="whitespace-nowrap px-1.5 text-[11px] text-neutral-muted">
+                      {text.updatedByName}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              {editing ? (
+                <textarea
+                  aria-label={c("보드 텍스트", "Board text")}
+                  autoFocus
+                  className="block resize-none overflow-hidden bg-transparent px-1 font-medium leading-tight text-neutral-primary outline-none select-text"
+                  onBlur={() => finishEditing(text.id)}
+                  onChange={(event) =>
+                    textSync.update(
+                      text,
+                      { text: event.target.value },
+                      { hold: true }
+                    )
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") event.currentTarget.blur();
+                  }}
+                  placeholder={c("텍스트", "Text")}
+                  rows={lines.length}
+                  style={{ fontSize: text.size, width: `${ems}em` }}
+                  value={text.text}
+                />
+              ) : (
+                <div
+                  className="whitespace-pre px-1 font-medium leading-tight text-neutral-primary"
+                  style={{ fontSize: text.size }}
+                >
+                  {text.text}
+                </div>
+              )}
+              {textLocals.get(text.id)?.failed ? (
+                // Kept at its real size whatever the zoom.
+                <div
+                  className="absolute left-0 top-full mt-1 flex origin-top-left items-center gap-1.5 whitespace-nowrap rounded-md bg-critical-faded px-2 py-1 text-[12px] text-critical"
+                  role="alert"
+                  style={{ transform: `scale(${1 / viewport.zoom})` }}
+                >
+                  {c("저장하지 못했어요", "Couldn't save")}
+                  <button
+                    className="underline underline-offset-2"
+                    onClick={() => textSync.retry(text.id)}
+                    type="button"
+                  >
+                    {c("다시 시도", "Retry")}
+                  </button>
+                </div>
+              ) : null}
             </div>
           );
         })}
@@ -762,6 +1039,20 @@ function BoardCanvas({
         className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg border border-neutral-1000-a05 bg-bg-floating p-1 shadow-sm"
         data-board-controls
       >
+        {canWrite ? (
+          <>
+            <MuteButton
+              aria-label={c("텍스트 추가", "Add text")}
+              onClick={addText}
+              size="sm"
+              type="button"
+              variant="transparent"
+            >
+              <Type className="size-3.5" />
+            </MuteButton>
+            <span aria-hidden className="mx-0.5 h-4 w-px bg-neutral-1000-a10" />
+          </>
+        ) : null}
         <MuteButton
           aria-label={c("축소", "Zoom out")}
           onClick={() => animateTo(zoomViewport(viewport, 1 / 1.25, center()))}
