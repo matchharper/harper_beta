@@ -657,6 +657,88 @@ export async function markMeetingInvitationSentInIntro(args: {
   if (queueError) throw queueError;
 }
 
+
+/**
+ * Undoes a link reserved for an intro email that will not go out now (the
+ * candidate first has to say they want to continue). The unsent invitation
+ * is cancelled and the schedule goes back to its draft, so nothing shows as
+ * waiting and the next connection reserves a fresh link. A link that has
+ * gone out, or was changed meanwhile, is left as it is.
+ */
+export async function releaseMeetingInvitationHeldForIntro(args: {
+  queueId: string;
+  roundId: string;
+  scheduleId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const now = new Date().toISOString();
+  const { data: queue, error: readError } = await admin
+    .from("contact_queue")
+    .select("payload")
+    .eq("id", args.queueId)
+    .eq("type", INVITATION_QUEUE_TYPE)
+    .eq("status", "queued")
+    .is("sent_at", null)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (!isRecord(queue?.payload) || queue.payload.heldForIntroEmail !== true) {
+    return false;
+  }
+  const { data: cancelled, error: cancelError } = await admin
+    .from("contact_queue")
+    .update({ status: "cancelled", updated_at: now })
+    .eq("id", args.queueId)
+    .eq("status", "queued")
+    .is("sent_at", null)
+    .select("id")
+    .maybeSingle();
+  if (cancelError) throw cancelError;
+  if (!cancelled) return false;
+  const { data: round, error: roundReadError } = await admin
+    .from("meeting_schedule_rounds")
+    .select("version")
+    .eq("id", args.roundId)
+    .eq("delivery_queue_id", args.queueId)
+    .eq("status", "queued")
+    .maybeSingle();
+  if (roundReadError) throw roundReadError;
+  if (round) {
+    const { error: roundError } = await admin
+      .from("meeting_schedule_rounds")
+      .update({
+        delivery_queue_id: null,
+        invitation_expires_at: null,
+        invitation_snapshot: null,
+        public_token_hash: null,
+        status: "draft",
+        updated_at: now,
+        version: round.version + 1,
+      })
+      .eq("id", args.roundId)
+      .eq("version", round.version);
+    if (roundError) throw roundError;
+  }
+  const { data: schedule, error: scheduleReadError } = await admin
+    .from("meeting_schedules")
+    .select("version")
+    .eq("id", args.scheduleId)
+    .eq("status", "awaiting_talent")
+    .maybeSingle();
+  if (scheduleReadError) throw scheduleReadError;
+  if (schedule) {
+    const { error: scheduleError } = await admin
+      .from("meeting_schedules")
+      .update({
+        status: "preparing",
+        updated_at: now,
+        version: schedule.version + 1,
+      })
+      .eq("id", args.scheduleId)
+      .eq("version", schedule.version);
+    if (scheduleError) throw scheduleError;
+  }
+  return true;
+}
 /**
  * Company chat is the scheduling surface. Generate the invitation from the
  * authoritative stage configuration and queue it in the same mutation that
@@ -755,6 +837,12 @@ export async function reviseQueuedMeetingInvitation(args: {
     .maybeSingle();
   if (queueError) throw queueError;
   const queuePayload = isRecord(queue?.payload) ? queue.payload : null;
+  if (queuePayload?.heldForIntroEmail === true) {
+    throw new OrgHttpError(
+      409,
+      "이 면접 예약 링크는 소개 메일에 담겨 나가요. 따로 보내거나 내용을 고칠 수 없어요."
+    );
+  }
   const invitationUrl = invitationUrlFromQueuedBody(queuePayload?.body);
   if (!queue || queue.status !== "queued" || queue.sent_at || !invitationUrl) {
     throw new OrgHttpError(
@@ -891,6 +979,20 @@ export async function expediteQueuedMeetingInvitation(args: {
     throw new OrgHttpError(
       409,
       "예약된 일정 안내의 전달 정보를 확인하지 못해 발송 시각을 바꾸지 않았어요."
+    );
+  }
+  // A link kept for the intro email goes out only inside that email.
+  const { data: held, error: heldError } = await admin
+    .from("contact_queue")
+    .select("payload")
+    .eq("id", queueId)
+    .eq("type", INVITATION_QUEUE_TYPE)
+    .maybeSingle();
+  if (heldError) throw heldError;
+  if (isRecord(held?.payload) && held.payload.heldForIntroEmail === true) {
+    throw new OrgHttpError(
+      409,
+      "이 면접 예약 링크는 소개 메일에 담겨 나가요. 따로 보내거나 내용을 고칠 수 없어요."
     );
   }
   const scheduledAt = new Date().toISOString();

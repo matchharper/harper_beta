@@ -1,12 +1,13 @@
 import "server-only";
 import type { OrgLocale } from "@/i18n/org/locale";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { setOrgCandidateStageWithIntroBooking } from "@/lib/org/introBooking.server";
 import {
   passOrgCompanyIntro,
   requestOrgCompanyIntro,
-  setOrgCandidateStage,
   type OrgCompanyIntroMutationResponse,
 } from "@/lib/org/server";
+import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import { enqueueOrgAgentWebActionTurn } from "@/lib/org/agent/webActionTurn";
 import { loadSlackCandidateCards } from "@/lib/org/slackCandidateWorkObject.server";
 import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
@@ -147,6 +148,8 @@ async function execute(args: {
   link: ActionLink;
   intro: IntroRow;
   appeal: string;
+  locale: OrgLocale;
+  notifyCandidate: boolean;
   user: Parameters<typeof requestOrgCompanyIntro>[0]["user"];
   email: string;
 }): Promise<string> {
@@ -179,20 +182,28 @@ async function execute(args: {
     return result.status;
   }
   if (!intro.recommendation_id) throw new Error("Accepted connection has no recommendation");
-  // Same inputs as the Slack connection decision, with the reason fields left empty.
+  // Same path as the web and Slack decision: Accept Intro sends the intro
+  // email, with the interview booking link when Calendar and open times are set.
   const stage = link.action === "accept_connection" ? "connected" : "process_stopped";
-  await setOrgCandidateStage({
-    acceptReason: null,
-    contactDirectly: false,
-    expectedPreviousStage: "pending_connection",
-    introEmails: link.action === "accept_connection" ? [args.email] : null,
-    recommendationId: intro.recommendation_id,
-    roleId: intro.role_id,
-    stage,
-    stopNote: null,
-    talentId: intro.talent_id,
-    user,
-    workspaceId,
+  await setOrgCandidateStageWithIntroBooking({
+    baseUrl: getConfiguredPublicSiteUrl(),
+    booking: "if_ready",
+    locale: args.locale,
+    stage: {
+      acceptReason: null,
+      contactDirectly: false,
+      expectedPreviousStage: "pending_connection",
+      introEmails: link.action === "accept_connection" ? [args.email] : null,
+      notifyCandidateOnClosure:
+        link.action === "reject_connection" ? args.notifyCandidate : undefined,
+      recommendationId: intro.recommendation_id,
+      roleId: intro.role_id,
+      stage,
+      stopNote: null,
+      talentId: intro.talent_id,
+      user,
+      workspaceId,
+    },
   });
   return stage;
 }
@@ -213,7 +224,15 @@ export async function submitCompanyEmailAction(token: string, body: unknown, acc
     // The recipient is re-authorized exactly like a company mail reply.
     const actor = await authorizeCompanyEmail(admin, link.company_user_id, link.company_workspace_id, base.recipient.email);
     if (!context.intro) throw new Error("Company intro candidate is missing");
-    const status = await execute({ link, intro: context.intro, appeal: input.appeal, user: actor.user, email: actor.email });
+    const status = await execute({
+      link,
+      intro: context.intro,
+      appeal: input.appeal,
+      locale,
+      notifyCandidate: input.notifyCandidate,
+      user: actor.user,
+      email: actor.email,
+    });
     result = {
       outcome: "done",
       action: link.action,

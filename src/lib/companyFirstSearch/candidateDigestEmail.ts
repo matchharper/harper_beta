@@ -37,15 +37,15 @@ export const CANDIDATE_DIGEST_ACTIONS: Record<
   company_first: ["request_intro", "pass"],
 };
 
-// Labels for candidate email actions.
+// Labels for candidate email actions: the same button names as the web and Slack.
 export const CANDIDATE_DIGEST_ACTION_LABELS: Record<
   CandidateDigestAction,
   [string, string]
 > = {
   request_intro: ["Send Intro", "Send Intro"],
   pass: ["Pass", "Pass"],
-  accept_connection: ["연결 수락", "Connect"],
-  reject_connection: ["연결 거절", "Reject"],
+  accept_connection: ["Accept Intro", "Accept Intro"],
+  reject_connection: ["Reject", "Reject"],
 };
 
 const pick = (locale: OrgLocale, pair: readonly [string, string]) =>

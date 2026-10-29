@@ -116,6 +116,8 @@ import {
   updateOrgRoleRequestOnly,
   type OrgStageId,
 } from "@/lib/org/server";
+import { setOrgCandidateStageWithIntroBooking } from "@/lib/org/introBooking.server";
+import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import {
   getCareerPromptLanguageName,
   parseCareerPromptLocale,
@@ -6295,27 +6297,37 @@ async function executeCandidateConnectionDecision(args: {
   const confirmedProcessStageId = customPipelineStageDbId(
     confirmed.processStageId
   );
-  const result = await setOrgCandidateStage({
-    acceptReason: finalReason,
-    contactDirectly: connectionMethod === "direct_contact",
-    expectedPreviousStage: position.stage,
-    introEmails,
-    recommendationId: position.recommendationId,
-    candidateConsentRelayId,
-    reengagementActionId: `company-message:${args.currentUserMessageId}`,
-    reengagementResolution:
-      closedState.closed && reengagementResolution === "company_confirmed"
-        ? "company_confirmed"
-        : null,
-    roleId: current.roleId,
-    stage:
-      position.stage === "pending_connection" && confirmedProcessStageId
-        ? (`custom:${confirmedProcessStageId}` as OrgStageId)
-        : "connected",
-    talentId,
-    user: args.user,
-    workspaceId: args.workspaceId,
+  // The same intro email as the web and Slack: it carries the interview
+  // booking link when this person's Calendar and open times are set.
+  const decided = await setOrgCandidateStageWithIntroBooking({
+    baseUrl: getConfiguredPublicSiteUrl(),
+    booking: "if_ready",
+    stage: {
+      acceptReason: finalReason,
+      contactDirectly: connectionMethod === "direct_contact",
+      expectedPreviousStage: position.stage,
+      introEmails,
+      recommendationId: position.recommendationId,
+      candidateConsentRelayId,
+      reengagementActionId: `company-message:${args.currentUserMessageId}`,
+      reengagementResolution:
+        closedState.closed && reengagementResolution === "company_confirmed"
+          ? "company_confirmed"
+          : null,
+      roleId: current.roleId,
+      stage:
+        position.stage === "pending_connection" && confirmedProcessStageId
+          ? (`custom:${confirmedProcessStageId}` as OrgStageId)
+          : "connected",
+      talentId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    },
   });
+  const result = decided.payload;
+  const bookingNote = decided.bookingLinkIncluded
+    ? " 메일 끝에 면접 예약 링크를 넣어서 후보자가 바로 인터뷰 시간을 고를 수 있어요."
+    : "";
   if (!("stage" in result)) {
     args.state.fallbackReply =
       "후보자의 다시 진행할 의사를 먼저 확인해야 해서 아직 연결 상태를 변경하지 않았어요.";
@@ -6337,7 +6349,7 @@ async function executeCandidateConnectionDecision(args: {
           ? "종료 안내가 이미 전달된 후보자를 다시 연결됨으로 표시했어요. Harper는 소개 이메일을 보내지 않았어요. 회사에서 직접 연락하며 이미 안내된 종료 결정과 상황이 바뀐 점을 솔직하게 설명해 주세요."
           : "Harper의 별도 종료 안내를 중단하고 후보자를 다시 연결됨으로 표시했어요. Harper는 소개 이메일을 보내지 않았어요. 이전 종료 결정이 후보자 화면에 이미 표시됐을 수 있으므로 회사에서 직접 연락해 상황이 바뀐 점을 설명해 주세요."
         : connectionMethod === "intro_email"
-          ? `${candidateName}님과 연결해드렸어요. Harper가 ${candidateName}님과 선택한 회사 담당자에게 소개 이메일을 보냈어요.`
+          ? `${candidateName}님과 연결해드렸어요. Harper가 ${candidateName}님과 선택한 회사 담당자에게 소개 이메일을 보냈어요.${bookingNote}`
           : `${candidateName}님과 연결해드렸어요. Harper는 소개 이메일을 보내지 않았으니 회사에서 직접 연락해 주세요.`;
   args.state.updateSummaries.push(changeSummary);
   recordResult(args.state, {
@@ -6359,7 +6371,9 @@ async function executeCandidateConnectionDecision(args: {
     decision,
     nextProcess:
       connectionMethod === "intro_email"
-        ? "후보자와 선택한 회사 담당자가 같은 소개 이메일에서 인사하고 다음 일정을 직접 조율해요."
+        ? decided.bookingLinkIncluded
+          ? "후보자가 소개 이메일의 면접 예약 링크로 인터뷰 시간을 고르거나, 같은 메일에서 회사 담당자와 일정을 조율해요."
+          : "후보자와 선택한 회사 담당자가 같은 소개 이메일에서 인사하고 다음 일정을 직접 조율해요."
         : "Harper가 소개 이메일을 보내지 않았으므로 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주세요.",
     roleId: result.roleId,
     roleName: current.name,

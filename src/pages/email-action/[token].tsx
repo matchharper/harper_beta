@@ -9,6 +9,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { MuteButton } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -135,11 +136,12 @@ export default function CompanyEmailActionPage() {
   const options = emailActionQueryOptions(router.isReady ? token : "");
   const { data: view, isError, isPending } = useQuery(options);
   const [appeal, setAppeal] = useState("");
+  const [notifyCandidate, setNotifyCandidate] = useState(true);
   const [canceled, setCanceled] = useState(false);
   const submit = useMutation({
     mutationFn: () =>
       requestView(token, {
-        body: JSON.stringify({ appeal }),
+        body: JSON.stringify({ appeal, notifyCandidate }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       }),
@@ -263,6 +265,14 @@ export default function CompanyEmailActionPage() {
                 </p>
               ) : null}
             </div>
+          ) : null}
+          {"closingNoteLabel" in text ? (
+            <Checkbox
+              checked={notifyCandidate}
+              disabled={submit.isPending}
+              label={text.closingNoteLabel}
+              onChange={(event) => setNotifyCandidate(event.target.checked)}
+            />
           ) : null}
           {!request && view.fieldError ? (
             <p className="text-[12px] leading-5 text-critical" role="alert">

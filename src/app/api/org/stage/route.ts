@@ -17,11 +17,10 @@ import {
   fetchMeetingScheduleDetail,
 } from "@/lib/meetings/scheduleDraftServer";
 import {
-  markMeetingInvitationSentInIntro,
   prepareMeetingInvitationPreview,
   queueMeetingInvitation,
-  reserveMeetingInvitationForIntro,
 } from "@/lib/meetings/invitationServer";
+import { setOrgCandidateStageWithIntroBooking } from "@/lib/org/introBooking.server";
 import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 
 export const maxDuration = 120;
@@ -128,74 +127,12 @@ async function handleStagePost(req: NextRequest) {
         "연결 수락할 후보를 선택해 인터뷰를 요청해 주세요."
       );
     }
-    // Validate setup and prepare the invitation before accepting the candidate.
-    // The initial connection has one durable schedule per recommendation, even
-    // if a client loses the response and submits again with a new action ID.
-    const prepared = schedulesInterview || bookingInIntro
-      ? await traceStageStep("POST:122", async () => (prepareMeetingScheduleDraftForStage({
-          attendeeEmails: body.attendeeEmails,
-          durationMinutes: body.durationMinutes,
-          meetingCandidateMessage: body.meetingCandidateMessage,
-          meetingPurpose: body.meetingPurpose,
-          recommendationId: body.recommendationId ?? "",
-          roleId: body.roleId ?? "",
-          sourceStage: body.sourceStage,
-          stageId: stage.startsWith("custom:") ? stage.slice(7) : null,
-          talentId: body.talentId ?? "",
-          title: body.title,
-          user,
-          workspaceId: body.workspaceId ?? "",
-        })))
-      : null;
-    const meeting = prepared
-      ? await traceStageStep("POST:138", async () => (createMeetingScheduleDraft({
-          ...prepared,
-          sourceCompanyMessageId: null,
-          webRequestKey: "initial-connection",
-        })))
-      : null;
-    // Reserved before the intro email so the email can carry the link. The
-    // link is only marked delivered once that email has gone out.
-    const booking =
-      meeting && bookingInIntro
-        ? await traceStageStep("POST:booking", async () => (reserveMeetingInvitationForIntro({
-            baseUrl: getPublicSiteUrlFromRequest(req),
-            scheduleId: meeting.scheduleId,
-            user,
-            workspaceId: body.workspaceId ?? "",
-          })))
-        : null;
-    const meetingDetail = meeting && !bookingInIntro
-      ? await traceStageStep("POST:145", async () => (fetchMeetingScheduleDetail({
-          scheduleId: meeting.scheduleId,
-          user,
-          workspaceId: body.workspaceId ?? "",
-        })))
-      : null;
-    const invitation =
-      meeting && meetingDetail?.schedule.status === "preparing"
-        ? await traceStageStep("POST:153", async () => (prepareMeetingInvitationPreview({
-            scheduleId: meeting.scheduleId,
-            user,
-            workspaceId: body.workspaceId ?? "",
-          })))
-        : null;
-    if (meeting && !bookingInIntro && !invitation) {
-      throw new OrgHttpError(
-        409,
-        "이미 인터뷰 요청이 시작되었어요. 후보자의 현재 진행 상황을 확인해 주세요."
-      );
-    }
-
-    const payload = await traceStageStep("POST:166", async () => (setOrgCandidateStage({
+    const stageInput = {
       acceptReason: body.acceptReason ?? null,
       contactDirectly: body.contactDirectly === true,
       emailMode: emailMode as InternalConnectionConfirmationEmailMode,
       expectedPreviousStage: body.sourceStage,
       introEmailDraft: body.introEmailDraft ?? null,
-      introBookingLink: booking
-        ? { label: booking.linkLabel, url: booking.invitationUrl }
-        : null,
       introEmails: body.introEmails ?? null,
       recommendationId: body.recommendationId ?? "",
       reengagementActionId:
@@ -213,39 +150,98 @@ async function handleStagePost(req: NextRequest) {
       talentId: body.talentId ?? "",
       user,
       workspaceId: body.workspaceId ?? "",
-    })));
-    if (meeting && invitation && meetingDetail && "stage" in payload) {
-      try {
-        await traceStageStep("POST:191", async () => (queueMeetingInvitation({
-          baseUrl: getPublicSiteUrlFromRequest(req),
-          body: invitation.email.body,
-          candidateMessage: invitation.email.candidateMessage,
-          expectedVersion: meetingDetail.schedule.version,
-          scheduleId: meeting.scheduleId,
-          sendImmediately: true,
-          subject: invitation.email.subject,
-          user,
-          workspaceId: body.workspaceId ?? "",
-        })));
-      } catch (error) {
-        console.error("[org/stage:interview-invitation]", error);
+    };
+    let meeting: { scheduleId: string } | null = null;
+    let payload: Awaited<ReturnType<typeof setOrgCandidateStage>>;
+    if (bookingInIntro) {
+      // One intro email carrying the time-picking link; the same path as
+      // Slack, email buttons and Harper chat.
+      const result = await setOrgCandidateStageWithIntroBooking({
+        baseUrl: getPublicSiteUrlFromRequest(req),
+        booking: "required",
+        meeting: {
+          attendeeEmails: body.attendeeEmails,
+          durationMinutes: body.durationMinutes,
+          meetingCandidateMessage: body.meetingCandidateMessage,
+          meetingPurpose: body.meetingPurpose,
+          title: body.title,
+        },
+        stage: stageInput,
+      });
+      meeting = result.meeting;
+      payload = result.payload;
+    } else {
+      // Validate setup and prepare the invitation before accepting the
+      // candidate. The initial connection has one durable schedule per
+      // recommendation, even if a client loses the response and submits
+      // again with a new action ID.
+      const prepared = schedulesInterview
+        ? await traceStageStep("POST:122", async () => (prepareMeetingScheduleDraftForStage({
+            attendeeEmails: body.attendeeEmails,
+            durationMinutes: body.durationMinutes,
+            meetingCandidateMessage: body.meetingCandidateMessage,
+            meetingPurpose: body.meetingPurpose,
+            recommendationId: body.recommendationId ?? "",
+            roleId: body.roleId ?? "",
+            sourceStage: body.sourceStage,
+            stageId: stage.startsWith("custom:") ? stage.slice(7) : null,
+            talentId: body.talentId ?? "",
+            title: body.title,
+            user,
+            workspaceId: body.workspaceId ?? "",
+          })))
+        : null;
+      const interview = prepared
+        ? await traceStageStep("POST:138", async () => (createMeetingScheduleDraft({
+            ...prepared,
+            sourceCompanyMessageId: null,
+            webRequestKey: "initial-connection",
+          })))
+        : null;
+      const meetingDetail = interview
+        ? await traceStageStep("POST:145", async () => (fetchMeetingScheduleDetail({
+            scheduleId: interview.scheduleId,
+            user,
+            workspaceId: body.workspaceId ?? "",
+          })))
+        : null;
+      const invitation =
+        interview && meetingDetail?.schedule.status === "preparing"
+          ? await traceStageStep("POST:153", async () => (prepareMeetingInvitationPreview({
+              scheduleId: interview.scheduleId,
+              user,
+              workspaceId: body.workspaceId ?? "",
+            })))
+          : null;
+      if (interview && !invitation) {
         throw new OrgHttpError(
-          502,
-          "후보자 연결은 완료했지만 인터뷰 요청 메일의 발송 상태를 확인하지 못했어요. Harper 채팅에서 이 후보자의 인터뷰 요청 상태를 확인해 주세요."
+          409,
+          "이미 인터뷰 요청이 시작되었어요. 후보자의 현재 진행 상황을 확인해 주세요."
         );
       }
-    }
-    if (booking && "stage" in payload) {
-      try {
-        await traceStageStep("POST:booking-sent", async () => (markMeetingInvitationSentInIntro({
-          introMessageId: "introEmailMessageId" in payload ? String(payload.introEmailMessageId ?? "") : "",
-          queueId: booking.queueId,
-          roundId: booking.roundId,
-        })));
-      } catch (error) {
-        // The email and its link already went out; only the reminder clock
-        // is missing. Kept visible in the logs rather than failing the move.
-        console.error("[org/stage:booking-link-delivered]", error);
+
+      payload = await traceStageStep("POST:166", async () => (setOrgCandidateStage(stageInput)));
+      meeting = interview;
+      if (interview && invitation && meetingDetail && "stage" in payload) {
+        try {
+          await traceStageStep("POST:191", async () => (queueMeetingInvitation({
+            baseUrl: getPublicSiteUrlFromRequest(req),
+            body: invitation.email.body,
+            candidateMessage: invitation.email.candidateMessage,
+            expectedVersion: meetingDetail.schedule.version,
+            scheduleId: interview.scheduleId,
+            sendImmediately: true,
+            subject: invitation.email.subject,
+            user,
+            workspaceId: body.workspaceId ?? "",
+          })));
+        } catch (error) {
+          console.error("[org/stage:interview-invitation]", error);
+          throw new OrgHttpError(
+            502,
+            "후보자 연결은 완료했지만 인터뷰 요청 메일의 발송 상태를 확인하지 못했어요. Harper 채팅에서 이 후보자의 인터뷰 요청 상태를 확인해 주세요."
+          );
+        }
       }
     }
     let agentJobId: string | null = "companyUpdateJobId" in payload ? payload.companyUpdateJobId ?? null : null;

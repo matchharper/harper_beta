@@ -514,8 +514,38 @@ test("reject submission combines selected and written reasons", () => {
   assert.deepEqual(parsed, {
     submission: {
       decision: "reject",
+      notifyCandidateOnClosure: true,
       stopNote:
         "경력이 부족함\n위치 조건이 맞지 않음\n도메인 경험을 조금 더 보고 싶습니다.",
+    },
+  });
+});
+
+test("reject submission keeps the closing-note choice", () => {
+  const submit = (selected: Array<{ value: string }>) =>
+    parseSlackTalentReviewDecisionSubmission({
+      callbackId: HARPER_TALENT_REVIEW_REJECT_CALLBACK_ID,
+      state: {
+        values: {
+          review_reject_notify: {
+            reject_notify: { selected_options: selected },
+          },
+        },
+      },
+    });
+
+  assert.deepEqual(submit([]), {
+    submission: {
+      decision: "reject",
+      notifyCandidateOnClosure: false,
+      stopNote: null,
+    },
+  });
+  assert.deepEqual(submit([{ value: "notify" }]), {
+    submission: {
+      decision: "reject",
+      notifyCandidateOnClosure: true,
+      stopNote: null,
     },
   });
 });

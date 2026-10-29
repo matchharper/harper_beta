@@ -34,9 +34,12 @@ export function parseCompanyEmailActionInput(
   action: CompanyEmailActionKind,
   body: unknown,
   locale: OrgLocale
-): { appeal: string } | { fieldError: string } {
-  if (action !== "request_intro") return { appeal: "" };
-  const raw = body && typeof body === "object" ? (body as Record<string, unknown>).appeal : "";
+): { appeal: string; notifyCandidate: boolean } | { fieldError: string } {
+  const input = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  // Rejecting tells the candidate unless the team turned the closing note off.
+  const notifyCandidate = input.notifyCandidate !== false;
+  if (action !== "request_intro") return { appeal: "", notifyCandidate };
+  const raw = input.appeal;
   const appeal = typeof raw === "string" ? raw.trim() : "";
   if (!appeal) return { fieldError: companyEmailActionCopy(locale).appealRequired };
   if (appeal.length > COMPANY_EMAIL_APPEAL_MAX_LENGTH)
@@ -45,7 +48,7 @@ export function parseCompanyEmailActionInput(
         ? "관심 이유는 2,000자 이내로 적어 주세요."
         : "Keep the reason within 2,000 characters.",
     };
-  return { appeal };
+  return { appeal, notifyCandidate };
 }
 
 /** The server functions are the same as web and Slack; only their result is mapped.

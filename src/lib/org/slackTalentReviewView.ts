@@ -107,6 +107,8 @@ export type SlackTalentReviewDecisionSubmission =
     }
   | {
       decision: "reject";
+      /** Harper sends the candidate a closing note (on unless unticked). */
+      notifyCandidateOnClosure: boolean;
       stopNote: string | null;
     };
 
@@ -649,8 +651,23 @@ export function parseSlackTalentReviewDecisionSubmission(args: {
         },
       };
     }
+    // A modal opened before this choice existed keeps the default: notify.
+    const notifyAction = stateAction(
+      args.state,
+      "review_reject_notify",
+      "reject_notify"
+    );
+    const notifyCandidateOnClosure = notifyAction
+      ? (notifyAction.selected_options ?? []).some(
+          (option) => clean(option.value) === "notify"
+        )
+      : true;
     return {
-      submission: { decision: "reject", stopNote: stopNote || null },
+      submission: {
+        decision: "reject",
+        notifyCandidateOnClosure,
+        stopNote: stopNote || null,
+      },
     };
   }
 
@@ -798,7 +815,7 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
     blocks: [
       {
         text: textObject(
-          `*${escapeMrkdwn(args.candidate.name)}님과의 연결을 이번에는 진행하지 않을까요?*\n연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시되고, Harper가 후보자에게 배려 있게 안내해요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.\n\n선택하신 이유는 후보자에게 그대로 전하지 않고 다음 추천을 더 정확하게 하는 데 참고할게요.`
+          `*${escapeMrkdwn(args.candidate.name)}님과의 연결을 이번에는 진행하지 않을까요?*\n연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시돼요. 아래를 선택해 두면 Harper가 후보자에게 배려 있게 종료 안내도 보내요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.\n\n선택하신 이유는 후보자에게 그대로 전하지 않고 다음 추천을 더 정확하게 하는 데 참고할게요.`
         ),
         type: "section",
       },
@@ -830,6 +847,29 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
           "plain_text"
         ),
         label: textObject("추가 이유", "plain_text"),
+        optional: true,
+        type: "input",
+      },
+      // Same choice as the web Reject dialog, on by default.
+      {
+        block_id: "review_reject_notify",
+        element: {
+          action_id: "reject_notify",
+          initial_options: [
+            decisionOption({
+              label: "Harper가 종료 안내 보내기",
+              value: "notify",
+            }),
+          ],
+          options: [
+            decisionOption({
+              label: "Harper가 종료 안내 보내기",
+              value: "notify",
+            }),
+          ],
+          type: "checkboxes",
+        },
+        label: textObject("후보자 안내", "plain_text"),
         optional: true,
         type: "input",
       },
@@ -868,18 +908,27 @@ export function buildSlackTalentReviewDecisionProcessingView(
 }
 
 export function buildSlackTalentReviewDecisionResultView(args: {
+  /** The intro email carried the interview booking link. */
+  bookingLinkIncluded?: boolean;
   candidateName: string;
   connectionMode?: SlackTalentReviewConnectionMode;
   decision: "accept" | "reject";
+  notifyCandidateOnClosure?: boolean;
 }): SlackModalView {
   const candidateName = args.candidateName.endsWith("님")
     ? args.candidateName
     : `${args.candidateName}님`;
   const detail =
     args.decision === "reject"
-      ? "Harper가 후보자에게 회사가 이번 연결을 더 진행하지 않기로 했다고 배려 있게 안내해요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 회사가 남긴 이유는 후보자에게 그대로 전달하지 않고 다음 추천 기준에 참고할게요."
+      ? `${
+          args.notifyCandidateOnClosure === false
+            ? "종료 결정은 후보자에게 표시되고, Harper가 따로 종료 안내를 보내지는 않아요."
+            : "Harper가 후보자에게 회사가 이번 연결을 더 진행하지 않기로 했다고 배려 있게 안내해요."
+        } 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 회사가 남긴 이유는 후보자에게 그대로 전달하지 않고 다음 추천 기준에 참고할게요.`
       : args.connectionMode === "cc_intro"
-        ? "선택한 회사 담당자와 후보자에게 소개 이메일을 보냈어요. 이제 양측이 같은 이메일에서 인사하고 다음 일정을 직접 조율할 수 있어요. 보낸 이메일은 회수할 수 없어요.\n\n서로에게 좋은 기회가 되길 바랄게요 :)"
+        ? args.bookingLinkIncluded
+          ? "선택한 회사 담당자와 후보자에게 소개 이메일을 보냈어요. 메일 끝에 면접 예약 링크를 넣어서 후보자가 바로 시간을 고를 수 있어요. 보낸 이메일은 회수할 수 없어요.\n\n서로에게 좋은 기회가 되길 바랄게요 :)"
+          : "선택한 회사 담당자와 후보자에게 소개 이메일을 보냈어요. 이제 양측이 같은 이메일에서 인사하고 다음 일정을 직접 조율할 수 있어요. 보낸 이메일은 회수할 수 없어요.\n\n서로에게 좋은 기회가 되길 바랄게요 :)"
         : "후보자를 연결됨으로 표시했어요. Harper는 소개 이메일을 보내지 않았으니 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주세요.\n\n서로에게 좋은 기회가 되길 바랄게요 :)";
   return {
     blocks: [

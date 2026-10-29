@@ -124,8 +124,8 @@ test("each candidate gets the local action labels right under its description", 
     acceptRow > email.html.indexOf("이서연") &&
       acceptRow < email.html.indexOf("김민준")
   );
-  assert.match(email.html, /background:#111827[^>]*>연결 수락<\/a>/);
-  assert.match(email.html, /background:#ffffff[^>]*>연결 거절<\/a>/);
+  assert.match(email.html, /background:#111827[^>]*>Accept Intro<\/a>/);
+  assert.match(email.html, /background:#ffffff[^>]*>Reject<\/a>/);
   assert.match(email.html, /background:#111827[^>]*>Send Intro<\/a>/);
   assert.match(email.html, /background:#ffffff[^>]*>Pass<\/a>/);
   assert.doesNotMatch(email.html, />웹에서 자세히 보기<\/a>/);
@@ -136,7 +136,7 @@ test("text part keeps the local two-action layout and profile links in the candi
   const email = build();
   assert.match(
     email.text,
-    /연결 수락: https:\/\/matchharper.com\/email-action\/c1-accept\n연결 거절: https:\/\/matchharper.com\/email-action\/c1-reject/
+    /Accept Intro: https:\/\/matchharper.com\/email-action\/c1-accept\nReject: https:\/\/matchharper.com\/email-action\/c1-reject/
   );
   assert.match(
     email.text,
@@ -156,7 +156,7 @@ test("reply context keeps the prose but never the one-time button links", () => 
 test("a mail with one kind only has one heading and the matching buttons", () => {
   const email = build({ sections: [companyFirst] });
   assert.equal(email.subject, "ML Engineer: 연결 제안할 후보 2명");
-  assert.doesNotMatch(email.text, /연결 수락할 후보|연결 수락/);
+  assert.doesNotMatch(email.text, /연결 수락할 후보|Accept Intro/);
   assert.equal(
     (email.html.match(/href="https:\/\/matchharper.com\/email-action\//g) ?? [])
       .length,
@@ -177,7 +177,7 @@ test("English workspaces get the same structure with English copy", () => {
   );
   assert.match(
     email.text,
-    /Connect: https:\/\/matchharper.com\/email-action\/c1-accept\nReject: /
+    /Accept Intro: https:\/\/matchharper.com\/email-action\/c1-accept\nReject: /
   );
   assert.match(email.text, /Send Intro: .*\nPass: .*/);
   assert.doesNotMatch(email.text, /The buttons work for 7 days/);
