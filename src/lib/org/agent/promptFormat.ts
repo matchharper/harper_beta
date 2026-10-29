@@ -1741,6 +1741,9 @@ function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
       `current_stage=${formatPromptCell(result.currentStage, 100)}`,
       `requested_stage=${formatPromptCell(result.requestedStage, 100)}`,
       `closure_notice_enabled=${result.notifyCandidateOnClosure !== false}`,
+      ...(result.introBookingLink
+        ? [`intro_booking_link=${formatPromptCell(result.introBookingLink, 60)}`]
+        : []),
       "candidate_changed=false",
       "candidate_contacted=false",
       formatPromptSection(

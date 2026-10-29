@@ -272,6 +272,9 @@ export function OrgRoleInbox() {
     }
   };
   useEffect(() => {
+    // The board is a fixed-height canvas, so its "Load more" is always in
+    // view: there it stays a button instead of loading every page in turn.
+    if (view === "board") return;
     if (reviewing || !hasNextPage || fetching || pageError || mutationCount || !fetchNextPage) return;
     const target = loadMoreRef.current;
     const root = scrollRef.current;

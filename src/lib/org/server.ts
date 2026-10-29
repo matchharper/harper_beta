@@ -45,6 +45,7 @@ import { parseCareerPromptLocale } from "@/lib/career/promptLocale";
 import { appendOrgIntroCaptureDisclosure } from "@/lib/org/introEmailDisclosure";
 import {
   orgIntroBookingLinkAsText,
+  ORG_INTRO_TEMPLATE_FIELDS,
   withOrgIntroBookingLink,
 } from "@/lib/org/messageTemplates";
 import { getOrCreateOrgIntroCaptureThread } from "@/lib/org/introEmailCapture";
@@ -3883,7 +3884,7 @@ async function assertNoPendingCompanyIntroCompanyAction(args: {
   if (data) {
     throw new OrgHttpError(
       409,
-      "연결 제안할 후보나 연결 제안한 후보에게 추가로 연락하려면 연결이 완료되어야 합니다. 제안 전에는 먼저 제안하기 또는 제안하지 않기를 선택하고, 제안을 요청했다면 연결 제안한 후보에서 진행 상태를 확인해 주세요."
+      "연결 제안할 후보나 연결 제안한 후보에게 추가로 연락하려면 연결이 완료되어야 합니다. 제안 전에는 Send Intro 또는 Pass를 선택하고, 제안을 요청했다면 연결 제안한 후보에서 진행 상태를 확인해 주세요."
     );
   }
 }
@@ -4630,7 +4631,12 @@ async function sendOrgIntroEmail(args: {
           roleTitle: args.role.name,
           senderName: "Harper",
         });
-  const subject = storedSubject || generatedDraft?.subject || "";
+  // The link goes in the body only; a link field put in the subject is dropped.
+  const subject = (storedSubject || generatedDraft?.subject || "")
+    .split(ORG_INTRO_TEMPLATE_FIELDS.bookingLink)
+    .join("")
+    .replace(/\s{2,}/g, " ")
+    .trim();
   const body = appendOrgIntroCaptureDisclosure(
     // A stored body already has the link from the first attempt.
     withOrgIntroBookingLink(

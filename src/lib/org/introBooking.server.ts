@@ -9,6 +9,7 @@ import {
   createMeetingScheduleDraft,
   prepareMeetingScheduleDraftForStage,
 } from "@/lib/meetings/scheduleDraftServer";
+import { findConnectionApproval } from "@/lib/org/billing/connections";
 import { OrgHttpError, setOrgCandidateStage } from "@/lib/org/server";
 import { traceStageStep } from "@/lib/org/stageTiming.server";
 
@@ -54,9 +55,10 @@ export function canCarryIntroBookingLink(input: StageInput) {
  *   otherwise the intro email goes without it, as before.
  *
  * The link is reserved before the email so the email can carry it, and
- * marked delivered once the email went out; a failed attempt keeps it for
- * the retry. When the candidate first has to confirm they want to continue,
- * nothing is sent and the link is released.
+ * marked delivered once the email went out. A failed attempt whose approval
+ * was saved keeps it for the retry. Any other attempt that sent no email
+ * (the candidate first has to confirm they want to continue, a teammate
+ * decided first, an old screen re-submitted) releases it.
  */
 export async function setOrgCandidateStageWithIntroBooking(args: {
   baseUrl: string;
@@ -95,9 +97,13 @@ export async function setOrgCandidateStageWithIntroBooking(args: {
           (input.user.email ? [input.user.email] : []),
         durationMinutes: args.meeting?.durationMinutes,
         meetingCandidateMessage: args.meeting?.meetingCandidateMessage,
+        // A custom stage keeps the topic saved for it: a topic passed here
+        // would be saved over it.
         meetingPurpose:
           args.meeting?.meetingPurpose ??
-          defaultFirstMeetingPurpose(args.locale),
+          (stage === "connected"
+            ? defaultFirstMeetingPurpose(args.locale)
+            : undefined),
         recommendationId: input.recommendationId,
         roleId: input.roleId,
         sourceStage: input.expectedPreviousStage,
@@ -135,11 +141,28 @@ export async function setOrgCandidateStageWithIntroBooking(args: {
   }
 
   const { booking, meeting } = reserved;
-  const payload = await setOrgCandidateStage({
-    ...input,
-    introBookingLink: { label: booking.linkLabel, url: booking.invitationUrl },
-  });
-  if (!("stage" in payload)) {
+  // The connection approval keeps the link for a retry once it is saved,
+  // and a parallel attempt (a second click or tab) sends this same link.
+  // Either way the link must stay; null when that could not be checked.
+  const approvalKeepsLink = async () => {
+    try {
+      const approval = await findConnectionApproval(
+        input.workspaceId,
+        input.recommendationId
+      );
+      const kept = approval?.action_payload?.input?.introBookingLink;
+      return Boolean(
+        kept &&
+          typeof kept === "object" &&
+          (kept as { url?: unknown }).url === booking.invitationUrl
+      );
+    } catch (error) {
+      console.error("[intro-booking:approval]", error);
+      return null;
+    }
+  };
+  // Takes back a link no email carried, so the candidate never sees it.
+  const release = async () => {
     try {
       await releaseMeetingInvitationHeldForIntro({
         queueId: booking.queueId,
@@ -149,15 +172,51 @@ export async function setOrgCandidateStageWithIntroBooking(args: {
     } catch (error) {
       console.error("[intro-booking:release]", error);
     }
+  };
+  const releaseUnlessKept = async () => {
+    if ((await approvalKeepsLink()) === false) await release();
+  };
+
+  let payload: Awaited<ReturnType<typeof setOrgCandidateStage>>;
+  try {
+    payload = await setOrgCandidateStage({
+      ...input,
+      introBookingLink: {
+        label: booking.linkLabel,
+        url: booking.invitationUrl,
+      },
+    });
+  } catch (error) {
+    // A teammate decided first, the Role closed, Intros ran out or the
+    // email failed.
+    await releaseUnlessKept();
+    throw error;
+  }
+  if (!("stage" in payload)) {
+    await releaseUnlessKept();
     return { bookingLinkIncluded: false, meeting: null, payload };
+  }
+  const introMessageId =
+    "introEmailMessageId" in payload
+      ? String(payload.introEmailMessageId ?? "")
+      : "";
+  if (!introMessageId) {
+    // Already connected before (a repeated click, an old Slack or email
+    // screen): this attempt sent no email. Only when the earlier email
+    // carried this same link was it delivered, and that attempt records it.
+    const kept = await approvalKeepsLink();
+    if (kept === false) await release();
+    const carried = kept === true;
+    return {
+      bookingLinkIncluded: carried,
+      meeting: carried ? meeting : null,
+      payload,
+    };
   }
   try {
     await traceStageStep("booking:delivered", async () =>
       markMeetingInvitationSentInIntro({
-        introMessageId:
-          "introEmailMessageId" in payload
-            ? String(payload.introEmailMessageId ?? "")
-            : "",
+        introMessageId,
         queueId: booking.queueId,
         roundId: booking.roundId,
       })

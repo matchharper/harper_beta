@@ -727,7 +727,7 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
     blocks: [
       {
         text: textObject(
-          `*${escapeMrkdwn(args.candidate.name)}님과의 연결을 시작할게요.*\n${escapeMrkdwn(args.candidate.roleName)} · ${candidateEmailMessage}\n\n소개 이메일 방식은 선택한 담당자와 후보자에게 소개 이메일을 바로 보내고, 양측이 같은 이메일에서 인사와 다음 일정을 이어갈 수 있게 연결해요. 보낸 이메일은 회수할 수 없어요.\n\n직접 연락 방식은 Harper가 이메일을 보내지 않으며, 연결 후 회사가 후보자에게 직접 연락해 인사하고 다음 일정을 조율해야 해요. 원하시는 방식을 선택해 주세요.`
+          `*${escapeMrkdwn(args.candidate.name)}님과의 연결을 시작할게요.*\n${escapeMrkdwn(args.candidate.roleName)} · ${candidateEmailMessage}\n\n소개 이메일 방식은 선택한 담당자와 후보자에게 소개 이메일을 바로 보내고, 양측이 같은 이메일에서 인사와 다음 일정을 이어갈 수 있게 연결해요. 내 Google Calendar와 가능한 시간을 Harper에 설정해 두었다면 메일 끝에 면접 예약 링크도 넣어서, 후보자가 내 캘린더의 빈 시간 중에서 인터뷰 시간을 바로 고를 수 있어요. 보낸 이메일은 회수할 수 없어요.\n\n직접 연락 방식은 Harper가 이메일을 보내지 않으며, 연결 후 회사가 후보자에게 직접 연락해 인사하고 다음 일정을 조율해야 해요. 원하시는 방식을 선택해 주세요.`
         ),
         type: "section",
       },

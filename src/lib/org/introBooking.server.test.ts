@@ -7,6 +7,10 @@ const calls: string[] = [];
 let blocker: string | null = null;
 let stagePayload: Record<string, unknown> = {};
 let stageInput: Record<string, unknown> | null = null;
+let stageError: Error | null = null;
+let prepareInput: Record<string, unknown> | null = null;
+let approvalLink: { url: string } | null = null;
+const LINK = "https://example.invalid/meeting/token";
 
 type Helper = typeof import("./introBooking.server");
 let helper: Helper;
@@ -19,8 +23,11 @@ before(async () => {
   const mocks: Record<string, unknown> = {
     "server-only": {},
     "@/lib/meetings/scheduleDraftServer": {
-      prepareMeetingScheduleDraftForStage: async () => {
+      prepareMeetingScheduleDraftForStage: async (
+        input: Record<string, unknown>
+      ) => {
         calls.push("prepare");
+        prepareInput = input;
         return { draft: { draftBlocker: blocker } };
       },
       createMeetingScheduleDraft: async () => {
@@ -32,7 +39,7 @@ before(async () => {
       reserveMeetingInvitationForIntro: async () => {
         calls.push("reserve");
         return {
-          invitationUrl: "https://example.invalid/meeting/token",
+          invitationUrl: LINK,
           linkLabel: "인터뷰 가능 시간 선택하기",
           queueId: "queue",
           roundId: "round",
@@ -45,11 +52,18 @@ before(async () => {
         calls.push("released");
       },
     },
+    "@/lib/org/billing/connections": {
+      findConnectionApproval: async () =>
+        approvalLink
+          ? { action_payload: { input: { introBookingLink: approvalLink } } }
+          : null,
+    },
     "@/lib/org/server": {
       OrgHttpError: class extends Error {},
       setOrgCandidateStage: async (input: Record<string, unknown>) => {
         calls.push("stage");
         stageInput = input;
+        if (stageError) throw stageError;
         return stagePayload;
       },
     },
@@ -73,6 +87,9 @@ beforeEach(() => {
   calls.length = 0;
   blocker = null;
   stageInput = null;
+  stageError = null;
+  prepareInput = null;
+  approvalLink = null;
   stagePayload = { introEmailMessageId: "message", stage: "connected" };
 });
 
@@ -103,8 +120,9 @@ test("a ready Calendar puts the booking link in the intro email", async () => {
   assert.equal(result.bookingLinkIncluded, true);
   assert.deepEqual(stageInput?.introBookingLink, {
     label: "인터뷰 가능 시간 선택하기",
-    url: "https://example.invalid/meeting/token",
+    url: LINK,
   });
+  assert.equal(prepareInput?.meetingPurpose, "서로를 알아 가는 첫 대화");
 });
 
 test("without Calendar or open times the intro goes without a link", async () => {
@@ -142,4 +160,62 @@ test("rejecting or contacting directly never reserves a link", async () => {
     stage: { ...accept, contactDirectly: true },
   });
   assert.deepEqual(calls, ["stage", "stage"]);
+});
+
+test("a failed move takes the link back so the candidate never sees it", async () => {
+  stageError = new Error("Candidate is no longer awaiting a connection decision");
+  await assert.rejects(
+    helper.setOrgCandidateStageWithIntroBooking({
+      baseUrl: "https://example.invalid",
+      booking: "if_ready",
+      stage: accept,
+    })
+  );
+  assert.deepEqual(calls, ["prepare", "draft", "reserve", "stage", "released"]);
+});
+
+test("a failed email keeps the link its saved approval retries with", async () => {
+  stageError = new Error("Resend failed");
+  approvalLink = { url: LINK };
+  await assert.rejects(
+    helper.setOrgCandidateStageWithIntroBooking({
+      baseUrl: "https://example.invalid",
+      booking: "if_ready",
+      stage: accept,
+    })
+  );
+  assert.deepEqual(calls, ["prepare", "draft", "reserve", "stage"]);
+});
+
+test("an old screen re-sent after the connection sends nothing and releases the link", async () => {
+  stagePayload = { introEmailMessageId: null, stage: "connected" };
+  const result = await helper.setOrgCandidateStageWithIntroBooking({
+    baseUrl: "https://example.invalid",
+    booking: "if_ready",
+    stage: accept,
+  });
+  assert.deepEqual(calls, ["prepare", "draft", "reserve", "stage", "released"]);
+  assert.equal(result.bookingLinkIncluded, false);
+});
+
+test("a repeated click after an email that carried this link changes nothing", async () => {
+  stagePayload = { stage: "connected" };
+  approvalLink = { url: LINK };
+  const result = await helper.setOrgCandidateStageWithIntroBooking({
+    baseUrl: "https://example.invalid",
+    booking: "if_ready",
+    stage: accept,
+  });
+  assert.deepEqual(calls, ["prepare", "draft", "reserve", "stage"]);
+  assert.equal(result.bookingLinkIncluded, true);
+});
+
+test("a custom stage keeps its own saved meeting topic", async () => {
+  await helper.setOrgCandidateStageWithIntroBooking({
+    baseUrl: "https://example.invalid",
+    booking: "if_ready",
+    stage: { ...accept, stage: "custom:stage-1" as never },
+  });
+  assert.equal(prepareInput?.meetingPurpose, undefined);
+  assert.equal(prepareInput?.stageId, "stage-1");
 });

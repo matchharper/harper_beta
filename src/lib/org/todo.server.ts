@@ -605,14 +605,18 @@ export async function loadOrgRoleTodo(args: {
     ...rows<IdRow>(threads).map((row) => `slack:${row.id}`),
   ];
   if (scopes.length) {
+    // Pending proposals are few per workspace, while a Role can have
+    // hundreds of Slack threads: match here rather than in the query URL.
+    const roleScopes = new Set(scopes);
     const proposals = rows<ProposalRow>(
       await untypedTable(admin, "company_agent_update_proposals")
         .select("id,scope_key,summary,created_at")
         .eq("workspace_id", workspaceId)
         .eq("status", "pending")
         .gt("expires_at", now.toISOString())
-        .in("scope_key", scopes)
-    );
+        .order("created_at", { ascending: false })
+        .limit(200)
+    ).filter((proposal) => roleScopes.has(String(proposal.scope_key)));
     for (const proposal of proposals) {
       items.push({
         id: `memory:${proposal.id}`,

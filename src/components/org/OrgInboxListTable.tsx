@@ -192,6 +192,9 @@ export function OrgInboxListTable({
   const requested = useRef(new Set<string>());
   const fillAsync = fill.mutateAsync;
   useEffect(() => {
+    // Filling writes to the team's column, so only members who manage
+    // candidates do it; others see the cells once filled.
+    if (!canManageCandidates) return;
     for (const column of columns) {
       const missing = items
         .map((item) => item.talent.userId)
@@ -226,7 +229,7 @@ export function OrgInboxListTable({
         }
       })();
     }
-  }, [columns, fillAsync, items]);
+  }, [canManageCandidates, columns, fillAsync, items]);
   const filling = new Set(
     useMutationState({
       filters: { mutationKey: fillKey, status: "pending" },

@@ -67,6 +67,18 @@ function isCurrentPendingRound(round: PendingMeetingRoundRow, now: string) {
   );
 }
 
+/**
+ * A link reserved for an intro email that has not gone out yet. The
+ * candidate sees it only once the intro email carrying it is sent.
+ */
+function isHeldForUnsentIntro(queue: { payload?: unknown; status?: unknown }) {
+  return (
+    isRecord(queue.payload) &&
+    queue.payload.heldForIntroEmail === true &&
+    queue.status === "queued"
+  );
+}
+
 function invitationPathFromStoredBodies(args: {
   emailBody?: unknown;
   expectedHash: unknown;
@@ -122,7 +134,7 @@ export async function fetchPendingTalentMeetingSchedules(args: {
 
   const [queueResult, emailResult] = await Promise.all([
     (args.admin.from("contact_queue" as any) as any)
-      .select("id, payload")
+      .select("id, payload, status")
       .in("id", queueIds)
       .eq("type", INVITATION_QUEUE_TYPE)
       .eq("user_id", args.talentId),
@@ -140,11 +152,16 @@ export async function fetchPendingTalentMeetingSchedules(args: {
   if (queueError) throw queueError;
   if (emailError) throw emailError;
 
+  const queueRows = (queueData ?? []) as {
+    id: string;
+    payload: unknown;
+    status: unknown;
+  }[];
   const queuePayloadById = new Map<string, unknown>(
-    (queueData ?? []).map((queue: { id: string; payload: unknown }) => [
-      queue.id,
-      queue.payload,
-    ])
+    queueRows.map((queue) => [queue.id, queue.payload])
+  );
+  const heldQueueIds = new Set(
+    queueRows.filter(isHeldForUnsentIntro).map((queue) => queue.id)
   );
   const emailBodyByQueueId = new Map<string, unknown>();
   for (const email of emailData ?? []) {
@@ -163,7 +180,8 @@ export async function fetchPendingTalentMeetingSchedules(args: {
     if (
       !round ||
       round.schedule_id !== schedule.id ||
-      !round.delivery_queue_id
+      !round.delivery_queue_id ||
+      heldQueueIds.has(round.delivery_queue_id)
     ) {
       return [];
     }
@@ -231,12 +249,13 @@ export async function resolveTalentPendingMeetingPath(args: {
   const { data: queue, error: queueError } = await (
     args.admin.from("contact_queue" as any) as any
   )
-    .select("payload")
+    .select("payload, status")
     .eq("id", normalizedRound.delivery_queue_id)
     .eq("type", INVITATION_QUEUE_TYPE)
     .eq("user_id", args.talentId)
     .maybeSingle();
   if (queueError) throw queueError;
+  if (queue && isHeldForUnsentIntro(queue)) return null;
   let emailBody: unknown;
   if (!extractMeetingInvitationPathFromQueuePayload(queue?.payload)) {
     const { data: email, error: emailError } = await (

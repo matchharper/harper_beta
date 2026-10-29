@@ -224,8 +224,10 @@ export function OrgStageMoveDialog({
   });
   const calendarConnected = calendarQuery.data?.status === "active";
   const availability = availabilityQuery.data?.availability ?? null;
+  // Loading, not pending: a check that cannot run (no signed-in member)
+  // never finishes and would keep Accept disabled.
   const setupLoading =
-    bookingAllowed && (calendarQuery.isPending || availabilityQuery.isPending);
+    bookingAllowed && (calendarQuery.isLoading || availabilityQuery.isLoading);
   const bookingReady =
     bookingAllowed &&
     !setupLoading &&

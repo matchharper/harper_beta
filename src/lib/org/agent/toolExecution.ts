@@ -2727,6 +2727,13 @@ async function immediatelyPresentedCandidateDecision(args: {
   };
 }
 
+/**
+ * Accept Intro adds the interview booking link on the accepting person's
+ * own calendar when it is set up, so the confirmation says so first.
+ */
+const INTRO_BOOKING_LINK_NOTICE =
+  "요청하신 분의 Google Calendar와 가능한 시간이 설정되어 있으면 메일 끝에 면접 예약 링크도 넣어서, 후보자가 그 캘린더의 빈 시간 중에서 인터뷰 시간을 바로 고를 수 있어요.";
+
 function candidateDecisionConfirmationText(args: {
   notifyCandidateOnClosure?: boolean;
   candidateEmail: string;
@@ -2763,7 +2770,7 @@ function candidateDecisionConfirmationText(args: {
   if (recipients.length === 0) {
     return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작하면 Harper가 후보자와 회사 담당자에게 소개 이메일을 보내고, 양측이 같은 이메일에서 인사와 다음 일정을 이어갈 수 있게 도와드려요.\n\n현재 함께 연결할 회사 담당자가 없어 아직 진행할 수 없어요. 소개 이메일을 받을 회사 담당자 이메일을 알려 주세요.`;
   }
-  return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 ${args.processStageName || "연결됨"} 단계로 이어갈게요.\n\n소개 이메일 방식을 선택하면 Harper가 후보자와 ${recipients.join(", ")}에게 소개 이메일을 바로 보내고, 서로 인사한 뒤 같은 이메일에서 다음 일정을 조율할 수 있게 연결해요. 보낸 이메일은 회수할 수 없어요.\n\n소개 이메일을 보내고 진행할까요?`;
+  return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 ${args.processStageName || "연결됨"} 단계로 이어갈게요.\n\n소개 이메일 방식을 선택하면 Harper가 후보자와 ${recipients.join(", ")}에게 소개 이메일을 바로 보내고, 서로 인사한 뒤 같은 이메일에서 다음 일정을 조율할 수 있게 연결해요. ${INTRO_BOOKING_LINK_NOTICE} 보낸 이메일은 회수할 수 없어요.\n\n소개 이메일을 보내고 진행할까요?`;
 }
 
 async function executeCandidateContactLifecycleItem(args: {
@@ -4259,7 +4266,7 @@ async function executeMoveCandidateStage(args: {
   );
   if (currentStage === "company_intro" || currentStage === "intro_requested") {
     throw new OrgAgentToolInputError(
-      "연결 제안할 후보와 연결 제안한 후보는 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 먼저 제안하기에서 만나고 싶은 이유와 수락 시 소개 이메일을 받을 담당자를 정해 주세요. 이미 제안을 요청했다면 연결 제안한 후보에서 진행 상태를 확인해 주세요."
+      "연결 제안할 후보와 연결 제안한 후보는 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 Send Intro에서 만나고 싶은 이유와 수락 시 소개 이메일을 받을 담당자를 정해 주세요. 이미 제안을 요청했다면 연결 제안한 후보에서 진행 상태를 확인해 주세요."
     );
   }
   const candidateName = text(talent.candidate.name) || "후보자";
@@ -5972,13 +5979,19 @@ async function executeCandidateConnectionDecision(args: {
           ? "후보자 연결 수락 재확인 필요"
           : "후보자 연결 거절 재확인 필요",
     });
+    const mayCarryBookingLink =
+      decision === "accept" && proposedConnectionMethod === "intro_email";
     return {
       candidateName: talent.candidate.name,
       connectionMethod: proposedConnectionMethod,
       decision,
+      introBookingLink: mayCarryBookingLink
+        ? "added_when_requester_calendar_ready"
+        : null,
       introEmails: proposedIntroEmails,
-      responseGuidance:
-        "Summarize the proposed candidate decision and ask for confirmation once.",
+      responseGuidance: mayCarryBookingLink
+        ? "Summarize the proposed candidate decision and ask for confirmation once. Say that when the requester's Google Calendar and open times are set, the intro email also ends with an interview booking link on the requester's own calendar."
+        : "Summarize the proposed candidate decision and ask for confirmation once.",
       notifyCandidateOnClosure: args.input.notifyCandidateOnClosure !== false,
       status: "confirmation_required",
     };

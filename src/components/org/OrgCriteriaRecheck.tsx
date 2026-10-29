@@ -79,8 +79,12 @@ export function OrgCriteriaRecheckWatcher({
   const polling = judging || Boolean(expectedAt);
   useEffect(() => {
     if (!polling) return;
-    // Re-judging takes a model call per candidate; every few seconds is enough.
-    const timer = window.setInterval(() => void refetch(), 5_000);
+    // Re-judging takes a model call per candidate; every few seconds is
+    // enough. A slow read is waited for rather than restarted.
+    const timer = window.setInterval(
+      () => void refetch({ cancelRefetch: false }),
+      5_000
+    );
     return () => window.clearInterval(timer);
   }, [polling, refetch]);
 
@@ -107,8 +111,24 @@ export function OrgCriteriaRecheckWatcher({
       });
       return;
     }
-    const watching =
-      useOrgCriteriaRecheckStore.getState().roles[roleId]?.watching;
+    const saved = useOrgCriteriaRecheckStore.getState().roles[roleId];
+    // Found candidates who have since left the inbox are no longer shown,
+    // so they stop keeping this board read on.
+    const inInbox = new Set(current.map((item) => item.recommendationId));
+    const gone = Object.keys(saved?.found ?? {}).filter(
+      (id) => !inInbox.has(id)
+    );
+    if (gone.length) {
+      update(roleId, (state) => {
+        const found = { ...(state.found ?? {}) };
+        for (const id of gone) delete found[id];
+        return {
+          ...state,
+          found: Object.keys(found).length ? found : undefined,
+        };
+      });
+    }
+    const watching = saved?.watching;
     if (!watching || !Object.keys(watching).length) return;
     const found: Record<string, string[]> = {};
     for (const item of current) {

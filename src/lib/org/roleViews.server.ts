@@ -150,8 +150,10 @@ export async function changeOrgRoleListColumns(args: {
         .eq("id", change.columnId)
         .eq("role_id", args.roleId)
         .select("id, label, description, values, updated_at")
-        .single();
+        .maybeSingle();
       if (error) throw error;
+      // Removed by a teammate since it was read.
+      if (!data) throw new OrgHttpError(404, "비교 열을 찾을 수 없어요.");
       changed = toColumn(data as ColumnRow);
     }
   }
@@ -661,9 +663,10 @@ export async function fillOrgRoleListColumn(args: {
   user: User;
   workspaceId: string;
 }) {
+  // Writes to the team's column with a model call, like adding one.
   await assertOrgRoleAccess({
     admin: getSupabaseAdmin(),
-    permission: "view",
+    permission: "manage_candidates",
     roleId: args.roleId,
     user: args.user,
     workspaceId: args.workspaceId,
