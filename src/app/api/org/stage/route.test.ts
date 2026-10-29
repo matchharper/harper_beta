@@ -9,7 +9,7 @@ let setupFails = false,
   previewFails = false,
   queueFails = false,
   reserveFails = false;
-let delivered: any;
+let delivered: Record<string, unknown> | null = null;
 let scheduleStatus = "preparing";
 let companyUpdateJobId: string | null = null;
 let queued: any, stageArgs: any;
@@ -100,7 +100,9 @@ before(async () => {
           workspaceId: "workspace",
         };
       },
-      markMeetingInvitationSentInIntro: async (args: any) => {
+      markMeetingInvitationSentInIntro: async (
+        args: Record<string, unknown>
+      ) => {
         calls.push("delivered");
         delivered = args;
       },

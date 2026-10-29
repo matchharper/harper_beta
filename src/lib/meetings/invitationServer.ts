@@ -569,16 +569,16 @@ export async function reserveMeetingInvitationForIntro(args: {
   }
   // The intro email did not go out last time: reuse the link it would carry.
   const admin = getSupabaseAdmin();
-  const { data: round, error: roundError } = await (
-    admin.from("meeting_schedule_rounds" as any) as any
-  )
+  const { data: round, error: roundError } = await admin
+    .from("meeting_schedule_rounds")
     .select("id, delivery_queue_id, status")
     .eq("id", schedule.round.id)
     .maybeSingle();
   if (roundError) throw roundError;
   const queueId = clean(round?.delivery_queue_id, 100);
   const { data: queue, error: queueError } = queueId
-    ? await (admin.from("contact_queue" as any) as any)
+    ? await admin
+        .from("contact_queue")
         .select("id, payload, sent_at, status")
         .eq("id", queueId)
         .eq("type", INVITATION_QUEUE_TYPE)
@@ -620,9 +620,8 @@ export async function markMeetingInvitationSentInIntro(args: {
   roundId: string;
 }) {
   const admin = getSupabaseAdmin();
-  const { data: queue, error: readError } = await (
-    admin.from("contact_queue" as any) as any
-  )
+  const { data: queue, error: readError } = await admin
+    .from("contact_queue")
     .select("payload")
     .eq("id", args.queueId)
     .eq("type", INVITATION_QUEUE_TYPE)
@@ -631,18 +630,16 @@ export async function markMeetingInvitationSentInIntro(args: {
     .maybeSingle();
   if (readError) throw readError;
   if (!queue) return;
-  const { error: roundError } = await (
-    admin.from("meeting_schedule_rounds" as any) as any
-  )
+  const { error: roundError } = await admin
+    .from("meeting_schedule_rounds")
     .update({ status: "sent", updated_at: new Date().toISOString() })
     .eq("id", args.roundId)
     .eq("delivery_queue_id", args.queueId)
     .eq("status", "queued");
   if (roundError) throw roundError;
   const now = new Date().toISOString();
-  const { error: queueError } = await (
-    admin.from("contact_queue" as any) as any
-  )
+  const { error: queueError } = await admin
+    .from("contact_queue")
     .update({
       // The link stays in the body: the candidate's app reads it from here.
       payload: {

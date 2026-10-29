@@ -76,8 +76,19 @@ const muteButtonVariants = cva(
         transparent:
           "border-transparent bg-transparent text-neutral-muted shadow-none hover:border-transparent hover:bg-black/3 hover:text-neutral-primary active:bg-black/5",
         warn: "border-critical/25 bg-critical-faded text-critical hover:border-critical/40 hover:bg-critical-faded/70 active:border-critical/50 active:bg-critical-faded",
+        // A chip that is on but can't be changed (aria-disabled) shows no hover.
         neutral:
-          "border-neutral-1000-a05 bg-bg-weak text-neutral-primary hover:border-neutral-1000-a10 hover:bg-neutral-1000-a10 active:border-neutral-1000-a10 active:bg-neutral-1000-a10",
+          "border-neutral-1000-a05 bg-bg-weak text-neutral-primary hover:border-neutral-1000-a10 hover:bg-neutral-1000-a10 active:border-neutral-1000-a10 active:bg-neutral-1000-a10 aria-disabled:cursor-default aria-disabled:hover:border-neutral-1000-a05 aria-disabled:hover:bg-bg-weak aria-disabled:active:border-neutral-1000-a05 aria-disabled:active:bg-bg-weak",
+        // The chosen one among toggle chips (a reason, a template, a writer).
+        selected:
+          "border-neutral-800 bg-bg-weak text-neutral-primary hover:border-neutral-800 hover:bg-neutral-1000-a10 active:border-neutral-800 active:bg-neutral-1000-a10",
+        // A chip for something being made that is not saved yet.
+        draft:
+          "border-dashed border-neutral-800 bg-bg-weak text-neutral-primary hover:bg-neutral-1000-a10 active:bg-neutral-1000-a10",
+        link: "border-transparent bg-transparent text-link shadow-none hover:border-transparent hover:text-blue-700 active:text-blue-700",
+        // White on a tinted surface, e.g. a chip floating above the chat.
+        raised:
+          "border-white bg-white text-black shadow-sm hover:border-white hover:bg-white/90 active:border-white active:bg-white/80",
       },
       size: {
         sm: "px-[5px] py-[5px] text-xs gap-1",

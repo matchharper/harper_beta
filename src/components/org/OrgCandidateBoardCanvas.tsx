@@ -13,7 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LayoutGrid, Maximize, Minus, Plus, Trash2, Type } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 import {
-  orgBoardLayoutKey,
+  orgBoardLayoutQueryOptions,
   saveOrgBoardLayout,
   useOrgBoardLayout,
   useOrgBoardTexts,
@@ -278,9 +278,12 @@ function BoardCanvas({
     const { positions, viewport: view } = latest.current;
     const layout: OrgBoardLayout = { positions, viewport: view };
     // The cached copy is what the board opens with next time.
-    queryClient.setQueryData(orgBoardLayoutKey(workspaceId, roleId), {
-      layout,
-    });
+    queryClient.setQueryData(
+      orgBoardLayoutQueryOptions(workspaceId, roleId).queryKey,
+      {
+        layout,
+      }
+    );
     void saveOrgBoardLayout({ layout, roleId, workspaceId }).catch(
       () => undefined
     );

@@ -19,6 +19,8 @@ const badgeVariants = cva(
         subtle:
           "border border-transparent bg-bg-floating text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary",
         inverse: "bg-black text-neutral-00",
+        // A count of new or waiting things beside a tab or a heading.
+        count: "bg-action font-normal tabular-nums text-white",
       },
       tone: {
         neutral: "",
@@ -28,6 +30,7 @@ const badgeVariants = cva(
         warning: "",
       },
       size: {
+        xs: "h-4 gap-1 px-[5px] text-[11px] leading-none [&_svg]:size-3",
         sm: "h-5 gap-1 px-1.5 text-[11px] leading-4 [&_svg]:size-3",
         md: "h-6 gap-1.5 px-2 text-[12px] leading-4 [&_svg]:size-3.5",
         lg: "h-7 gap-1.5 px-2.5 text-[13px] leading-[18px] [&_svg]:size-4",
@@ -108,7 +111,7 @@ const badgeVariants = cva(
   }
 );
 
-type BadgeSize = "sm" | "md" | "lg" | "small" | "medium" | "large";
+type BadgeSize = "xs" | "sm" | "md" | "lg" | "small" | "medium" | "large";
 type BadgeTone = NonNullable<VariantProps<typeof badgeVariants>["tone"]>;
 
 export interface BadgeProps
@@ -128,6 +131,7 @@ export interface BadgeProps
 }
 
 const emptySizeClassNames = {
+  xs: "size-2 p-0",
   sm: "size-2 p-0",
   md: "size-3 p-0",
   lg: "size-3.5 p-0",

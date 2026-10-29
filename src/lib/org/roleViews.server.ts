@@ -20,12 +20,10 @@ type ColumnRow = {
   values: unknown;
 };
 
-const columnsTable = () =>
-  getSupabaseAdmin().from("company_role_list_columns" as any) as any;
+const columnsTable = () => getSupabaseAdmin().from("company_role_list_columns");
 const layoutsTable = () =>
-  getSupabaseAdmin().from("company_role_board_layouts" as any) as any;
-const textsTable = () =>
-  getSupabaseAdmin().from("company_role_board_texts" as any) as any;
+  getSupabaseAdmin().from("company_role_board_layouts");
+const textsTable = () => getSupabaseAdmin().from("company_role_board_texts");
 
 function toColumn(row: ColumnRow): OrgRoleListColumn {
   return {
@@ -268,9 +266,8 @@ export async function listOrgBoardTexts(args: {
   ];
   const names = new Map<string, string>();
   if (userIds.length) {
-    const { data: users, error: usersError } = await (
-      getSupabaseAdmin().from("company_users" as any) as any
-    )
+    const { data: users, error: usersError } = await getSupabaseAdmin()
+      .from("company_users")
       .select("user_id, name, email")
       .in("user_id", userIds);
     if (usersError) throw usersError;
@@ -420,11 +417,13 @@ async function roleCandidateIds(args: {
 }) {
   const admin = getSupabaseAdmin();
   const [recommended, suggested] = await Promise.all([
-    (admin.from("talent_opportunity_recommendation" as any) as any)
+    admin
+      .from("talent_opportunity_recommendation")
       .select("talent_id")
       .eq("role_id", args.roleId)
       .in("talent_id", args.talentIds),
-    (admin.from("company_intro_candidates" as any) as any)
+    admin
+      .from("company_intro_candidates")
       .select("talent_id")
       .eq("role_id", args.roleId)
       .eq("company_workspace_id", args.workspaceId)
@@ -445,16 +444,19 @@ const month = (value: string | null) => (value ? value.slice(0, 7) : "");
 async function readProfiles(talentIds: string[]) {
   const admin = getSupabaseAdmin();
   const [talents, experiences, educations] = await Promise.all([
-    (admin.from("talent_users" as any) as any)
+    admin
+      .from("talent_users")
       .select("user_id, headline, bio, location")
       .in("user_id", talentIds),
-    (admin.from("talent_experiences" as any) as any)
+    admin
+      .from("talent_experiences")
       .select(
         "talent_id, role, company_name, description, start_date, end_date"
       )
       .in("talent_id", talentIds)
       .order("start_date", { ascending: false }),
-    (admin.from("talent_educations" as any) as any)
+    admin
+      .from("talent_educations")
       .select("talent_id, school, degree, field, start_date, end_date")
       .in("talent_id", talentIds),
   ]);

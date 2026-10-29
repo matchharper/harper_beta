@@ -9,6 +9,7 @@ import { projectCandidateEmailPrivacy } from "./candidateEmailPrivacy";
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
 import type { OrgAgentMoreDataToolResult } from "@/lib/org/agent/data";
 import type { MatchingRunHistory } from "@/lib/companyFirstSearch/history";
+import type { OrgRoleListColumn } from "@/lib/org/roleViews";
 import {
   humanizeOrgEmploymentType,
   humanizeOrgFeedback,
@@ -2249,7 +2250,10 @@ export function formatOrgAgentToolResult(
     ].join("\n");
   }
   if (name === "manage_comparison_columns") {
-    const columns = Array.isArray(result.columns) ? result.columns : [];
+    // The tool's own result: columns as listColumns returns them.
+    const columns: Partial<OrgRoleListColumn>[] = Array.isArray(result.columns)
+      ? result.columns
+      : [];
     return [
       `status=${formatPromptCell(result.status, 30)}`,
       `role_name=${formatPromptCell(result.roleName, 200)}`,
@@ -2259,7 +2263,7 @@ export function formatOrgAgentToolResult(
       columns.length
         ? "inbox_list_columns (shared by everyone on this Role):"
         : "inbox_list_columns=none",
-      ...columns.flatMap((column: any) => {
+      ...columns.flatMap((column) => {
         const cells = Object.entries(column.values ?? {});
         return [
           `- column_id=${formatPromptCell(column.id, 100)} label=${formatPromptCell(column.label, 200)}${column.description ? ` description=${formatPromptCell(column.description, 500)}` : ""} filled_cells=${cells.length}`,

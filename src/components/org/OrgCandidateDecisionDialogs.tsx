@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import {
   DEFAULT_ORG_STOP_REASONS,
   extractCustomOrgStopReasons,
@@ -392,15 +391,11 @@ export function StopCandidateDialog({
                   return (
                     <MuteButton
                       aria-pressed={selected}
-                      className={cn(
-                        "text-[12px]",
-                        selected && "border-neutral-800"
-                      )}
                       disabled={pending}
                       key={reason}
                       onClick={() => toggleStopReason(reason)}
                       size="sm"
-                      variant={selected ? "neutral" : "default"}
+                      variant={selected ? "selected" : "default"}
                     >
                       {reason}
                     </MuteButton>
@@ -440,10 +435,9 @@ export function StopCandidateDialog({
               <MuteButton
                 aria-controls={previewId}
                 aria-expanded={previewOpen}
-                className="text-[12px] text-blue-500 hover:text-blue-700"
                 onClick={() => setPreviewOpen((value) => !value)}
                 size="sm"
-                variant="transparent"
+                variant="link"
               >
                 {c("미리보기", "Preview")}
               </MuteButton>

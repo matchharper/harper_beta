@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { BoardTextSync, mergeBoardTexts } from "@/lib/org/boardTextSync";
 import type {
@@ -7,15 +12,26 @@ import type {
   OrgBoardText,
   OrgRoleListColumn,
 } from "@/lib/org/roleViews";
+import { queryKeys } from "@/lib/queryKeys";
 
-// Under the "org" prefix so a finished Harper turn (which may have added a
-// column) refreshes the list.
-const columnsKey = (workspaceId: string, roleId: string) => [
-  "org",
-  "role-list-columns",
-  workspaceId,
-  roleId,
-];
+/**
+ * The comparison columns of a Role's inbox list. Under the "org" prefix, so
+ * a finished Harper turn (which may have added a column) refreshes them.
+ */
+export function orgRoleListColumnsQueryOptions(
+  workspaceId: string,
+  roleId: string
+) {
+  return queryOptions({
+    enabled: Boolean(workspaceId && roleId),
+    queryFn: () =>
+      fetchWithInternalAuth<{ columns: OrgRoleListColumn[] }>(
+        `/api/org/role-views?kind=columns&workspaceId=${encodeURIComponent(workspaceId)}&roleId=${encodeURIComponent(roleId)}`
+      ),
+    queryKey: queryKeys.org.roleListColumns(workspaceId, roleId),
+    staleTime: 30_000,
+  });
+}
 
 export function useOrgRoleListColumns(args: {
   enabled?: boolean;
@@ -24,15 +40,11 @@ export function useOrgRoleListColumns(args: {
 }) {
   const client = useQueryClient();
   const roleId = args.roleId ?? "";
-  const queryKey = columnsKey(args.workspaceId, roleId);
+  const options = orgRoleListColumnsQueryOptions(args.workspaceId, roleId);
+  const queryKey = options.queryKey;
   const query = useQuery({
+    ...options,
     enabled: (args.enabled ?? true) && Boolean(args.workspaceId && roleId),
-    queryFn: () =>
-      fetchWithInternalAuth<{ columns: OrgRoleListColumn[] }>(
-        `/api/org/role-views?kind=columns&workspaceId=${encodeURIComponent(args.workspaceId)}&roleId=${encodeURIComponent(roleId)}`
-      ),
-    queryKey,
-    staleTime: 30_000,
   });
   const remove = useMutation({
     mutationFn: (columnId: string) =>
@@ -76,29 +88,34 @@ export function useOrgRoleListColumns(args: {
   return { columns: query.data?.columns ?? [], fill, fillKey, query, remove };
 }
 
-export const orgBoardLayoutKey = (workspaceId: string, roleId: string) => [
-  "org-board-layout",
-  workspaceId,
-  roleId,
-];
+/**
+ * One teammate's arrangement of a Role's board. The board keeps its own
+ * copy after the first load; later refreshes do not move cards under the
+ * person's hand. Each save writes here too, so reopening the board shows the
+ * last arrangement.
+ */
+export function orgBoardLayoutQueryOptions(
+  workspaceId: string,
+  roleId: string
+) {
+  return queryOptions({
+    enabled: Boolean(workspaceId && roleId),
+    queryFn: () =>
+      fetchWithInternalAuth<{ layout: OrgBoardLayout }>(
+        `/api/org/role-views?kind=board&workspaceId=${encodeURIComponent(workspaceId)}&roleId=${encodeURIComponent(roleId)}`
+      ),
+    queryKey: queryKeys.org.roleBoardLayout(workspaceId, roleId),
+    staleTime: Infinity,
+  });
+}
 
 export function useOrgBoardLayout(args: {
   roleId: string | null | undefined;
   workspaceId: string;
 }) {
-  const roleId = args.roleId ?? "";
-  return useQuery({
-    enabled: Boolean(args.workspaceId && roleId),
-    queryFn: () =>
-      fetchWithInternalAuth<{ layout: OrgBoardLayout }>(
-        `/api/org/role-views?kind=board&workspaceId=${encodeURIComponent(args.workspaceId)}&roleId=${encodeURIComponent(roleId)}`
-      ),
-    // The board keeps its own copy after the first load; later refreshes do
-    // not move cards under the person's hand. Each save writes here too, so
-    // reopening the board shows the last arrangement.
-    queryKey: orgBoardLayoutKey(args.workspaceId, roleId),
-    staleTime: Infinity,
-  });
+  return useQuery(
+    orgBoardLayoutQueryOptions(args.workspaceId, args.roleId ?? "")
+  );
 }
 
 export function saveOrgBoardLayout(args: {
@@ -117,17 +134,29 @@ export function saveOrgBoardLayout(args: {
   );
 }
 
-export const orgBoardTextsKey = (
+/**
+ * The team's text boxes on one tab of a Role's board. Re-read every 15
+ * seconds so a teammate's notes appear without reopening the board.
+ */
+export function orgBoardTextsQueryOptions(
   workspaceId: string,
   roleId: string,
   board: string
-) => ["org-board-texts", workspaceId, roleId, board];
+) {
+  return queryOptions({
+    enabled: Boolean(workspaceId && roleId && board),
+    queryFn: () =>
+      fetchWithInternalAuth<{ texts: OrgBoardText[] }>(
+        `/api/org/role-views?kind=board_texts&workspaceId=${encodeURIComponent(workspaceId)}&roleId=${encodeURIComponent(roleId)}&board=${encodeURIComponent(board)}`
+      ),
+    queryKey: queryKeys.org.roleBoardTexts(workspaceId, roleId, board),
+    refetchInterval: 15_000,
+  });
+}
 
 /**
  * The team's text boxes on one tab of a Role's board, with this person's
  * changes shown at once and saved in the background (see BoardTextSync).
- * Re-read every 15 seconds so a teammate's notes appear without reopening
- * the board.
  */
 export function useOrgBoardTexts(args: {
   board: string;
@@ -136,15 +165,7 @@ export function useOrgBoardTexts(args: {
 }) {
   const { board, roleId, workspaceId } = args;
   const client = useQueryClient();
-  const query = useQuery({
-    enabled: Boolean(workspaceId && roleId && board),
-    queryFn: () =>
-      fetchWithInternalAuth<{ texts: OrgBoardText[] }>(
-        `/api/org/role-views?kind=board_texts&workspaceId=${encodeURIComponent(workspaceId)}&roleId=${encodeURIComponent(roleId)}&board=${encodeURIComponent(board)}`
-      ),
-    queryKey: orgBoardTextsKey(workspaceId, roleId, board),
-    refetchInterval: 15_000,
-  });
+  const query = useQuery(orgBoardTextsQueryOptions(workspaceId, roleId, board));
   // One store per board tab, so one tab's boxes never show on another.
   const sync = useMemo(() => {
     const post = (body: Record<string, unknown>) =>
@@ -164,7 +185,7 @@ export function useOrgBoardTexts(args: {
       {
         onIdle: () =>
           void client.invalidateQueries({
-            queryKey: orgBoardTextsKey(workspaceId, roleId, board),
+            queryKey: queryKeys.org.roleBoardTexts(workspaceId, roleId, board),
           }),
       }
     );

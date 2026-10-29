@@ -29,8 +29,7 @@ function templateKind(value: unknown): OrgMessageTemplateKind {
   return kind as OrgMessageTemplateKind;
 }
 
-const table = () =>
-  getSupabaseAdmin().from("company_message_templates" as any) as any;
+const table = () => getSupabaseAdmin().from("company_message_templates");
 
 function toTemplate(row: TemplateRow): OrgMessageTemplate | null {
   const kind = templateKind(row.kind);

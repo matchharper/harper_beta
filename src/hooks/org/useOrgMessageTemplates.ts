@@ -1,17 +1,32 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
   OrgMessageTemplate,
   OrgMessageTemplateContent,
   OrgMessageTemplateKind,
 } from "@/lib/org/messageTemplates";
+import { queryKeys } from "@/lib/queryKeys";
 
-const templatesKey = (workspaceId: string, kind: OrgMessageTemplateKind) => [
-  "org",
-  "message-templates",
-  workspaceId,
-  kind,
-];
+/** The workspace's saved templates of one kind. */
+export function orgMessageTemplatesQueryOptions<
+  K extends OrgMessageTemplateKind,
+>(workspaceId: string, kind: K) {
+  return queryOptions({
+    enabled: Boolean(workspaceId),
+    queryFn: () =>
+      fetchWithInternalAuth<{ templates: OrgMessageTemplate<K>[] }>(
+        `/api/org/message-templates?workspaceId=${encodeURIComponent(workspaceId)}&kind=${kind}`
+      ),
+    queryKey: queryKeys.org.messageTemplates(workspaceId, kind),
+    retry: 1,
+    staleTime: 60_000,
+  });
+}
 
 export function useOrgMessageTemplates<K extends OrgMessageTemplateKind>(args: {
   enabled?: boolean;
@@ -19,16 +34,11 @@ export function useOrgMessageTemplates<K extends OrgMessageTemplateKind>(args: {
   workspaceId: string;
 }) {
   const client = useQueryClient();
-  const queryKey = templatesKey(args.workspaceId, args.kind);
+  const options = orgMessageTemplatesQueryOptions(args.workspaceId, args.kind);
+  const queryKey = options.queryKey;
   const query = useQuery({
+    ...options,
     enabled: (args.enabled ?? true) && Boolean(args.workspaceId),
-    queryFn: () =>
-      fetchWithInternalAuth<{ templates: OrgMessageTemplate<K>[] }>(
-        `/api/org/message-templates?workspaceId=${encodeURIComponent(args.workspaceId)}&kind=${args.kind}`
-      ),
-    queryKey,
-    retry: 1,
-    staleTime: 60_000,
   });
   const save = useMutation({
     mutationFn: (input: {

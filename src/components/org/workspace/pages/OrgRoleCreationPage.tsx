@@ -487,8 +487,8 @@ function OrgRoleCreationDetails({
                   <span className="truncate">{sourceT(tab.label)}</span>
                   {tab.value === "inbox" && inboxCount !== undefined ? (
                     <Badge
-                      className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
-                      size="sm"
+                      size="xs"
+                      variant="count"
                     >
                       {String(inboxCount)}
                     </Badge>

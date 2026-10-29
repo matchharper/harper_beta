@@ -25,7 +25,7 @@ function isMissingTable(error: unknown) {
 }
 
 function suggestions(admin: Admin) {
-  return admin.from("company_todo_suggestions" as any) as any;
+  return admin.from("company_todo_suggestions");
 }
 
 /**
@@ -54,7 +54,8 @@ export async function readRoleTodoSuggestions(args: {
       )
       .order("created_at", { ascending: false })
       .limit(50),
-    (admin.from("company_todo_suggestion_mutes" as any) as any)
+    admin
+      .from("company_todo_suggestion_mutes")
       .select("kind")
       .eq("role_id", roleId),
   ]);
@@ -80,7 +81,8 @@ export async function readRoleTodoSuggestions(args: {
   );
   if (approved.length) {
     const oldest = approved.map((row) => row.decided_at!).sort()[0]!;
-    const replies = await (admin.from("company_messages" as any) as any)
+    const replies = await admin
+      .from("company_messages")
       .select("created_at")
       .eq("company_workspace_id", workspaceId)
       .eq("role_id", roleId)
@@ -141,17 +143,17 @@ export async function decideRoleTodoSuggestion(args: {
   if (updateError) throw updateError;
   if (!updated) throw new OrgHttpError(409, "이미 답한 제안이에요.");
   if (args.decision === "mute") {
-    const { error: muteError } = await (
-      admin.from("company_todo_suggestion_mutes" as any) as any
-    ).upsert(
-      {
-        company_workspace_id: workspaceId,
-        role_id: roleId,
-        kind: row.kind,
-        created_by: args.userId,
-      },
-      { onConflict: "role_id,kind" }
-    );
+    const { error: muteError } = await admin
+      .from("company_todo_suggestion_mutes")
+      .upsert(
+        {
+          company_workspace_id: workspaceId,
+          role_id: roleId,
+          kind: row.kind,
+          created_by: args.userId,
+        },
+        { onConflict: "role_id,kind" }
+      );
     if (muteError) throw muteError;
   }
   return { plan: String(row.plan ?? ""), title: String(row.title ?? "") };
@@ -163,9 +165,8 @@ export async function readTodoReads(args: {
   roleId: string;
   userId: string;
 }) {
-  const { data, error } = await (
-    args.admin.from("company_todo_reads" as any) as any
-  )
+  const { data, error } = await args.admin
+    .from("company_todo_reads")
     .select("item_id")
     .eq("user_id", args.userId)
     .eq("role_id", args.roleId);
@@ -183,11 +184,11 @@ export async function markTodoRead(args: {
   roleId: string;
   userId: string;
 }) {
-  const { error } = await (
-    args.admin.from("company_todo_reads" as any) as any
-  ).upsert(
-    { item_id: args.itemId, role_id: args.roleId, user_id: args.userId },
-    { onConflict: "user_id,role_id,item_id" }
-  );
+  const { error } = await args.admin
+    .from("company_todo_reads")
+    .upsert(
+      { item_id: args.itemId, role_id: args.roleId, user_id: args.userId },
+      { onConflict: "user_id,role_id,item_id" }
+    );
   if (error) throw error;
 }

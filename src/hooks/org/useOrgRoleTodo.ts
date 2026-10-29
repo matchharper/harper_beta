@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { isOrgQueryAccessError } from "@/lib/org/queryError";
@@ -6,18 +11,16 @@ import type { OrgTodoResponse } from "@/lib/org/todo";
 import { queryKeys } from "@/lib/queryKeys";
 
 /** One Role's To-do. Refreshed on focus and every minute while open. */
-export function useOrgRoleTodo(args: {
-  /** "all" for the To-do tab: finished work and notices without a time limit. */
-  range?: "all" | "recent";
-  roleId?: string | null;
-  workspaceId?: string | null;
+export function orgRoleTodoQueryOptions(args: {
+  locale: string;
+  /** "all": finished work and notices without a time limit. */
+  range: "all" | "recent";
+  roleId: string;
+  workspaceId: string;
 }) {
-  const { locale } = useOrgLocale();
-  const roleId = args.roleId?.trim() ?? "";
-  const workspaceId = args.workspaceId?.trim() ?? "";
-  const range = args.range ?? "recent";
-  return useQuery({
-    queryKey: [...queryKeys.org.roleTodo(workspaceId, roleId), range],
+  const { locale, range, roleId, workspaceId } = args;
+  return queryOptions({
+    queryKey: queryKeys.org.roleTodoRange(workspaceId, roleId, range),
     queryFn: () =>
       fetchWithInternalAuth<OrgTodoResponse>(
         `/api/org/todo?${new URLSearchParams({ locale, range, roleId, workspaceId })}`
@@ -28,6 +31,22 @@ export function useOrgRoleTodo(args: {
     refetchOnWindowFocus: true,
     staleTime: 15_000,
   });
+}
+
+export function useOrgRoleTodo(args: {
+  range?: "all" | "recent";
+  roleId?: string | null;
+  workspaceId?: string | null;
+}) {
+  const { locale } = useOrgLocale();
+  return useQuery(
+    orgRoleTodoQueryOptions({
+      locale,
+      range: args.range ?? "recent",
+      roleId: args.roleId?.trim() ?? "",
+      workspaceId: args.workspaceId?.trim() ?? "",
+    })
+  );
 }
 
 /** The team's answer to a Harper suggestion on the To-do. */

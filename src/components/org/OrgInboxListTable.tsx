@@ -534,7 +534,7 @@ export function OrgInboxListTable({
                     style={
                       dropAt?.id === column.id
                         ? {
-                            boxShadow: `inset ${dropAt.side === "before" ? 2 : -2}px 0 0 0 var(--color-neutral-900, #171717)`,
+                            boxShadow: `inset ${dropAt.side === "before" ? 2 : -2}px 0 0 0 var(--color-neutral-900)`,
                           }
                         : undefined
                     }

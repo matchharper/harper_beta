@@ -1,4 +1,3 @@
-import * as Popover from "@radix-ui/react-popover";
 import {
   Bell,
   Check,
@@ -12,6 +11,12 @@ import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
   useDecideOrgTodoSuggestion,
@@ -29,7 +34,6 @@ import {
   type OrgTodoItem,
 } from "@/lib/org/todo";
 import { cn } from "@/lib/utils";
-import styles from "./OrgTodoChip.module.css";
 
 type Copy = (
   ko: string,
@@ -482,10 +486,7 @@ export function OrgTodoList({
             <h3 className="sticky top-0 z-10 flex items-center gap-1 bg-bg-floating px-4 pb-1 pt-3 text-[12px] text-neutral-muted">
               {headings[column]}
               {counted ? (
-                <Badge
-                  className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
-                  size="sm"
-                >
+                <Badge size="xs" variant="count">
                   {String(count)}
                 </Badge>
               ) : (
@@ -569,64 +570,56 @@ export function OrgTodoArea({
   const todo = useOrgRoleTodo({ range: "recent", roleId, workspaceId });
   const badge = orgTodoBadge(todo.data?.items ?? []);
   return (
-    <Popover.Root onOpenChange={setOpen} open={open}>
-      <Popover.Anchor asChild>
+    <Popover onOpenChange={setOpen} open={open}>
+      <PopoverAnchor asChild>
         <div>
           <div className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0">
-            <Popover.Trigger asChild>
+            <PopoverTrigger asChild>
               <MuteButton
                 aria-label={c(
                   "To-do, 할 일과 알림 {n}개",
                   "To-do, {n} to do or new",
                   { n: badge }
                 )}
-                className={cn(
-                  "border-white bg-white text-black shadow-sm hover:border-white hover:bg-white/90 active:border-white active:bg-white/80",
-                  // Something to do or an unread update: glow until opened.
-                  badge > 0 && !open && styles.glow
-                )}
+                // Something to do or an unread update: glow until opened.
+                className={cn(badge > 0 && !open && "org-todo-glow")}
                 size="sm"
                 type="button"
-                variant="default"
+                variant="raised"
               >
                 <ListTodo aria-hidden className="h-3.5 w-3.5" />
                 To-do
                 {badge ? (
                   // Same badge as the 인박스 tab.
-                  <Badge
-                    className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
-                    size="sm"
-                  >
+                  <Badge size="xs" variant="count">
                     {String(badge)}
                   </Badge>
                 ) : null}
               </MuteButton>
-            </Popover.Trigger>
+            </PopoverTrigger>
           </div>
           {children}
         </div>
-      </Popover.Anchor>
-      <Popover.Portal>
-        <Popover.Content
-          align="center"
-          aria-label="To-do"
-          className="z-[100] w-[var(--radix-popover-trigger-width)] px-4 outline-none md:px-5"
-          side="top"
-          sideOffset={6}
-        >
-          <div className="mx-auto max-h-[min(60svh,560px)] max-w-[1120px] overflow-y-auto rounded-xl border border-neutral-1000-a10 bg-bg-floating pb-1 shadow-lg">
-            <OrgTodoList
-              columns={ORG_TODO_CHIP_COLUMNS}
-              onApprove={onApprove}
-              onNavigate={() => setOpen(false)}
-              range="recent"
-              roleId={roleId}
-              shortcuts={shortcuts}
-              workspaceId={workspaceId}
-            />
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+      </PopoverAnchor>
+      <PopoverContent
+        align="center"
+        aria-label="To-do"
+        className="w-[var(--radix-popover-trigger-width)] px-4 md:px-5"
+        side="top"
+        surface={false}
+      >
+        <div className="mx-auto max-h-[min(60svh,560px)] max-w-[1120px] overflow-y-auto rounded-xl border border-neutral-1000-a10 bg-bg-floating pb-1 shadow-lg">
+          <OrgTodoList
+            columns={ORG_TODO_CHIP_COLUMNS}
+            onApprove={onApprove}
+            onNavigate={() => setOpen(false)}
+            range="recent"
+            roleId={roleId}
+            shortcuts={shortcuts}
+            workspaceId={workspaceId}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

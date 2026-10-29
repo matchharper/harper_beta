@@ -320,8 +320,9 @@ export function OrgRoleInbox() {
                       {c("연결 수락할 후보", "Ready to connect")}
                       {stageCounts.pending_connection > 0 && (
                         <Badge
-                          className="h-4 min-w-6 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
-                          size="sm"
+                          className="min-w-6"
+                          size="xs"
+                          variant="count"
                         >
                           {stageCounts.pending_connection}
                         </Badge>

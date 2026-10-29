@@ -109,7 +109,7 @@ export function OrgTemplatePicker<K extends OrgMessageTemplateKind>({
           return (
             <MuteButton
               aria-pressed={active}
-              className={cn("max-w-48", active && "border-neutral-800")}
+              className="max-w-48"
               disabled={busy}
               key={template.id}
               onClick={() => {
@@ -121,26 +121,19 @@ export function OrgTemplatePicker<K extends OrgMessageTemplateKind>({
               size="sm"
               title={template.name}
               type="button"
-              variant={active ? "neutral" : "default"}
+              variant={active ? "selected" : "default"}
             >
               <span className="truncate">{template.name}</span>
             </MuteButton>
           );
         })}
         {draftName ? (
-          <MuteButton
-            aria-pressed
-            className="border-dashed border-neutral-800"
-            size="sm"
-            type="button"
-            variant="neutral"
-          >
+          <MuteButton aria-pressed size="sm" type="button" variant="draft">
             {draftName}
           </MuteButton>
         ) : templates.length < ORG_MESSAGE_TEMPLATE_LIMIT &&
           !templatesQuery.isError ? (
           <MuteButton
-            className="text-neutral-muted"
             disabled={busy || templatesQuery.isPending}
             onClick={() => {
               setDraftName(nextTemplateName());

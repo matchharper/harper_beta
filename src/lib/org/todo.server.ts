@@ -25,6 +25,7 @@ import {
   type OrgTodoResponse,
   type OrgTodoSource,
 } from "./todo";
+import { untypedTable } from "./untypedTable";
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 type Talent = NonNullable<OrgTodoItem["talent"]>;
@@ -115,13 +116,87 @@ const ACTIVITY_COLUMN: Partial<
   company_resume_request: { column: "done", kind: "message_delivered" },
 };
 
-function rows<T>(response: { data: unknown; error: unknown }) {
+// What each read below selects; see untypedTable for why it is stated here.
+type IntroRow = {
+  candidate_sent_at: string | null;
+  id: string;
+  recommendation_id: string | null;
+  requested_at: string | null;
+  selected_at: string | null;
+  status: string;
+  talent_id: string;
+};
+type RequestRow = {
+  contact_kind: string | null;
+  created_at: string;
+  expects_document: boolean | null;
+  id: string;
+  ops_only: boolean | null;
+  recommendation_id: string | null;
+  source_company_message_id: number | string | null;
+  talent_id: string;
+  updated_at: string | null;
+  workflow_status: string;
+};
+type FollowupRow = {
+  due_at: string | null;
+  id: string;
+  recommendation_id: string | null;
+  source_id: string | null;
+  source_kind: string | null;
+  status: string;
+  talent_id: string;
+  updated_at: string;
+};
+type MeetingRow = {
+  confirmed_start_at: string | null;
+  id: string;
+  recommendation_id: string | null;
+  round: { id: string; status: string; updated_at: string | null } | null;
+  status: string;
+  talent_id: string;
+};
+type RunRow = {
+  finished_at: string | null;
+  id: string;
+  status: string;
+  trigger_reason: string | null;
+};
+type DeclinedRow = {
+  id: string;
+  talent_decision_at: string | null;
+  talent_id: string;
+};
+type ConnectedTagRow = { talent_id: string; updated_at: string };
+type MessageRow = { id: number | string; slack_thread_id: string | null };
+type IdRow = { id: string };
+type ProposalRow = {
+  created_at: string;
+  id: string;
+  scope_key: string;
+  summary: string | null;
+};
+type BriefChangeRow = {
+  created_at: string;
+  id: string;
+  source: string | null;
+  summary: string | null;
+  summary_status: string | null;
+};
+type SelectedRow = { selection_run_id: string };
+type InternalRoleRow = {
+  intro_search_date: unknown;
+  intro_search_time: unknown;
+  is_company_first_search: boolean | null;
+};
+type RoleRow = {
+  company_internal_roles: InternalRoleRow | InternalRoleRow[] | null;
+  status: string | null;
+};
+
+function rows<T>(response: { data: unknown; error: unknown }): T[] {
   if (response.error) throw response.error;
   return (response.data ?? []) as T[];
-}
-
-function table(admin: Admin, name: string) {
-  return admin.from(name as any) as any;
 }
 
 /** The next scheduled search for a Role, in KST, from its saved days and hour. */
@@ -203,7 +278,7 @@ export async function loadOrgRoleTodo(args: {
     declined,
   ] = await Promise.all([
     readPendingConnections(admin, [roleId]),
-    table(admin, "company_intro_candidates")
+    untypedTable(admin, "company_intro_candidates")
       .select(
         "id,talent_id,recommendation_id,status,requested_at,candidate_sent_at,selected_at"
       )
@@ -212,43 +287,45 @@ export async function loadOrgRoleTodo(args: {
       // Once the candidate accepts (connecting), 알림 says so; the short
       // step of sending the intro email is not a second line.
       .in("status", ["ready", "awaiting_talent"]),
-    table(admin, "company_talent_requests")
+    untypedTable(admin, "company_talent_requests")
       .select(
         "id,talent_id,recommendation_id,workflow_status,contact_kind,expects_document,source_company_message_id,created_at,updated_at,ops_only"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("role_id", roleId)
       .in("workflow_status", ["draft", "failed", ...REQUEST_IN_PROGRESS]),
-    table(admin, "company_talent_followups")
+    untypedTable(admin, "company_talent_followups")
       .select(
         "id,talent_id,recommendation_id,source_kind,source_id,status,due_at,updated_at"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("role_id", roleId)
       .or(`status.eq.pending,and(status.eq.delivered,updated_at.gte.${since})`),
-    table(admin, "meeting_schedules")
+    untypedTable(admin, "meeting_schedules")
       .select(
         "id,talent_id,recommendation_id,status,confirmed_start_at,round:meeting_schedule_rounds!meeting_schedules_active_round_id_fkey(id,status,updated_at)"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("role_id", roleId),
-    table(admin, "company_role_start_sessions")
+    untypedTable(admin, "company_role_start_sessions")
       .select("phase,updated_at")
       .eq("role_id", roleId)
       .maybeSingle(),
-    table(admin, "company_conversations")
+    untypedTable(admin, "company_conversations")
       .select("id")
       .eq("company_workspace_id", workspaceId)
       .eq("role_id", roleId),
-    table(admin, "company_slack_threads").select("id").eq("role_id", roleId),
-    table(admin, "company_roles")
+    untypedTable(admin, "company_slack_threads")
+      .select("id")
+      .eq("role_id", roleId),
+    untypedTable(admin, "company_roles")
       .select(
         "status,company_internal_roles(is_company_first_search,intro_search_date,intro_search_time)"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("role_id", roleId)
       .maybeSingle(),
-    readRoleMatchingActivity({ admin: admin as any, workspaceId, roleId }),
+    readRoleMatchingActivity({ admin, workspaceId, roleId }),
     readActivity({
       admin,
       user,
@@ -258,14 +335,14 @@ export async function loadOrgRoleTodo(args: {
       since,
       all,
     }),
-    table(admin, "company_role_hiring_brief_history")
+    untypedTable(admin, "company_role_hiring_brief_history")
       .select("id,created_at,source,summary,summary_status")
       .eq("company_workspace_id", workspaceId)
       .eq("role_id", roleId)
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(limit),
-    table(admin, "company_first_search_runs")
+    untypedTable(admin, "company_first_search_runs")
       .select("id,status,trigger_reason,finished_at")
       .eq("company_workspace_id", workspaceId)
       .or(
@@ -276,7 +353,7 @@ export async function loadOrgRoleTodo(args: {
       .order("finished_at", { ascending: false })
       .limit(limit),
     readRoleTodoSuggestions({ admin, workspaceId, roleId, since, now }),
-    table(admin, "talent_opportunity_tag")
+    untypedTable(admin, "talent_opportunity_tag")
       .select("talent_id,updated_at")
       .eq("opportunity_id", roleId)
       .eq("tag", "내부:연결됨")
@@ -284,7 +361,7 @@ export async function loadOrgRoleTodo(args: {
       .limit(200),
     readTodoReads({ admin, roleId, userId: user.id }),
     // A candidate who said no to the company's intro: the end of that wait.
-    table(admin, "company_intro_candidates")
+    untypedTable(admin, "company_intro_candidates")
       .select("id,talent_id,talent_decision_at")
       .eq("company_workspace_id", workspaceId)
       .eq("role_id", roleId)
@@ -294,14 +371,14 @@ export async function loadOrgRoleTodo(args: {
       .limit(limit),
   ]);
 
-  const introRows = rows<any>(intros);
-  const requestRows = rows<any>(requests).filter(
+  const introRows = rows<IntroRow>(intros);
+  const requestRows = rows<RequestRow>(requests).filter(
     (row) => row.ops_only !== true
   );
-  const followupRows = rows<any>(followups);
-  const meetingRows = rows<any>(meetings);
-  const runRows = rows<any>(runs);
-  const declinedRows = rows<any>(declined);
+  const followupRows = rows<FollowupRow>(followups);
+  const meetingRows = rows<MeetingRow>(meetings);
+  const runRows = rows<RunRow>(runs);
+  const declinedRows = rows<DeclinedRow>(declined);
 
   // The few names shown under a grouped item: who has waited longest for
   // the company's decision, and the newest suggested candidates.
@@ -317,7 +394,7 @@ export async function loadOrgRoleTodo(args: {
     .sort((left, right) => right.at.localeCompare(left.at));
   // Connected candidates with no interview arranged through Harper yet.
   const connectedSince = new Map<string, string>();
-  for (const tag of rows<any>(connectedTags)) {
+  for (const tag of rows<ConnectedTagRow>(connectedTags)) {
     if (!connectedSince.has(tag.talent_id))
       connectedSince.set(tag.talent_id, tag.updated_at);
   }
@@ -327,15 +404,14 @@ export async function loadOrgRoleTodo(args: {
   const talentIds = Array.from(
     new Set(
       [
+        // Suggested (ready) intros are named through readyPeople below.
         ...[
-          ...introRows,
+          ...introRows.filter((row) => row.status !== "ready"),
           ...requestRows,
           ...followupRows,
           ...meetingRows,
           ...declinedRows,
-        ]
-          .filter((row) => row.status !== "ready")
-          .map((row) => String(row.talent_id ?? "")),
+        ].map((row) => String(row.talent_id ?? "")),
         ...suggestionRows.flatMap((row) => row.talent_ids ?? []),
         ...pendingPeople.slice(0, PEOPLE_SHOWN).map((row) => row.talentId),
         ...readyPeople.slice(0, PEOPLE_SHOWN).map((row) => row.talentId),
@@ -422,8 +498,8 @@ export async function loadOrgRoleTodo(args: {
     .filter((id): id is number | string => id !== null && id !== undefined);
   const messageSource = new Map<string, OrgTodoSource>();
   if (messageIds.length) {
-    const messages = rows<any>(
-      await table(admin, "company_messages")
+    const messages = rows<MessageRow>(
+      await untypedTable(admin, "company_messages")
         .select("id,slack_thread_id")
         .in("id", messageIds)
     );
@@ -516,12 +592,12 @@ export async function loadOrgRoleTodo(args: {
   }
 
   const scopes = [
-    ...rows<any>(conversations).map((row) => `chat:${row.id}`),
-    ...rows<any>(threads).map((row) => `slack:${row.id}`),
+    ...rows<IdRow>(conversations).map((row) => `chat:${row.id}`),
+    ...rows<IdRow>(threads).map((row) => `slack:${row.id}`),
   ];
   if (scopes.length) {
-    const proposals = rows<any>(
-      await table(admin, "company_agent_update_proposals")
+    const proposals = rows<ProposalRow>(
+      await untypedTable(admin, "company_agent_update_proposals")
         .select("id,scope_key,summary,created_at")
         .eq("workspace_id", workspaceId)
         .eq("status", "pending")
@@ -603,10 +679,9 @@ export async function loadOrgRoleTodo(args: {
     });
   }
   if (role.error) throw role.error;
-  const roleRow = role.data as any;
-  const internal = Array.isArray(roleRow?.company_internal_roles)
-    ? roleRow.company_internal_roles[0]
-    : roleRow?.company_internal_roles;
+  const roleRow = role.data as RoleRow | null;
+  const internalRows = roleRow?.company_internal_roles;
+  const internal = Array.isArray(internalRows) ? internalRows[0] : internalRows;
   const roleStatus = String(roleRow?.status ?? "").toLowerCase();
   if (
     internal?.is_company_first_search &&
@@ -755,7 +830,7 @@ export async function loadOrgRoleTodo(args: {
       source: "harper",
     });
   }
-  for (const row of rows<any>(briefChanges)) {
+  for (const row of rows<BriefChangeRow>(briefChanges)) {
     items.push({
       id: `brief:${row.id}`,
       column: "done",
@@ -769,8 +844,8 @@ export async function loadOrgRoleTodo(args: {
     });
   }
   if (runRows.length) {
-    const selected = rows<any>(
-      await table(admin, "company_intro_candidates")
+    const selected = rows<SelectedRow>(
+      await untypedTable(admin, "company_intro_candidates")
         .select("selection_run_id")
         .eq("company_workspace_id", workspaceId)
         .eq("role_id", roleId)

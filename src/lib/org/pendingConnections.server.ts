@@ -42,9 +42,9 @@ async function readAll<T>(
 }
 
 function tagQuery(admin: Admin) {
-  return (admin.from("talent_opportunity_tag" as any) as any).select(
-    "id, opportunity_id, tag, talent_id, created_at, updated_at"
-  );
+  return admin
+    .from("talent_opportunity_tag")
+    .select("id, opportunity_id, tag, talent_id, created_at, updated_at");
 }
 
 /**
@@ -82,7 +82,8 @@ export async function readPendingConnections(admin: Admin, roleIds: string[]) {
   const tags: TagRow[] = [];
   const liveTalentIds = new Set<string>();
   for (const talentChunk of chunks(talentIds)) {
-    const { data, error } = await (admin.from("talent_users" as any) as any)
+    const { data, error } = await admin
+      .from("talent_users")
       .select("user_id")
       .in("user_id", talentChunk)
       .is("deleted_at", null);

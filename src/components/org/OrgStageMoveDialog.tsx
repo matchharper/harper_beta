@@ -492,10 +492,6 @@ export function OrgStageMoveDialog({
     <MuteButton
       aria-disabled={locked || undefined}
       aria-pressed={selected}
-      className={cn(
-        locked &&
-          "cursor-default hover:border-neutral-1000-a05 hover:bg-bg-weak active:border-neutral-1000-a05 active:bg-bg-weak"
-      )}
       key={email}
       onClick={locked ? undefined : onToggle}
       size="sm"
@@ -704,7 +700,6 @@ export function OrgStageMoveDialog({
         ).map(([writer, label]) => (
           <MuteButton
             aria-pressed={introWriter === writer}
-            className={cn(introWriter === writer && "border-neutral-800")}
             key={writer}
             onClick={() => {
               setIntroWriter(writer);
@@ -712,7 +707,7 @@ export function OrgStageMoveDialog({
             }}
             size="sm"
             type="button"
-            variant={introWriter === writer ? "neutral" : "default"}
+            variant={introWriter === writer ? "selected" : "default"}
           >
             {label}
           </MuteButton>

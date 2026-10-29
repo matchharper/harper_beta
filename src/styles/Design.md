@@ -370,6 +370,11 @@ the center column; unequal action widths must not shift the title off-center.
 | Quiet compact action | `MuteButton` |
 | Tab explanations | `Tabs` items support `tooltipVariant="light"`, sharing the existing light tooltip appearance through `Tooltips`. Org Inbox's pending and suggested tabs show plain labels without info icons and reveal their existing descriptions on hover/focus. |
 | Icon-only action | `MuteButton` |
+| Panel anchored to a trigger (column settings, To-do list) | `Popover`, `PopoverTrigger`, `PopoverAnchor`, `PopoverContent` from `src/components/ui/popover.tsx`. `PopoverContent` renders in a portal with the shared floating surface; pass `surface={false}` when the content draws its own box. Feature code does not import `@radix-ui/react-popover` directly. |
+| Toggle chips (reasons, templates, who writes) | `MuteButton` with `variant="selected"` for the chosen chip and `variant="default"` for the rest; `variant="draft"` (dashed) for a new item not saved yet; `variant="neutral"` with `aria-disabled` for a chip that always stays on. Do not pass color or border classes from the call site. |
+| Inline text action inside a form (미리보기) | `MuteButton variant="link"` |
+| White chip on a tinted surface (To-do above the chat) | `MuteButton variant="raised"` |
+| Count beside a tab or heading | `Badge size="xs" variant="count"` |
 | Animated acceptance icon | `AnimatedHandshake` from `src/components/ui/animated-handshake.tsx`: shared by Org Accept Intro and Career connection acceptance buttons. Plays on entrance, button hover, and keyboard focus; respects disabled buttons and reduced motion. |
 | Intro ticket icon | `Ticket` from `src/components/ui/ticket.tsx`: filled `currentColor`, `text-positive`, rotated 45 degrees; only accepts a numeric `size` (default 16px). Use after the shared-Intro heading and send-intro modal button label, and instead of the visible Intro unit in remaining balances. Preserve the full localized balance in screen-reader text. |
 | GitHub, LinkedIn, Slack logos | `GithubLogo`, `LinkedinLogo`, `SlackLogo` from `src/components/common/BrandLogos.tsx`: existing public SVG assets; GitHub follows the surrounding text color for light and dark surfaces. |
