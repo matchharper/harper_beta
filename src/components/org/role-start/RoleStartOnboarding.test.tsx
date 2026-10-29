@@ -133,7 +133,7 @@ test("Brief back opens the last answer, traverses history and returns without re
   dom.window.sessionStorage.setItem(`role-start-setup:${roleId}`, "1");
   savedSession = {
     phase: "review", stalled: false, refining: false, progress: [],
-    brief: { summary: "합성 인재상", criteria: [], hardConditions: [], otherNotes: [] },
+    brief: { summary: "합성 인재상", criteria: [], hardConditions: [] },
     questions: { history: ["첫 질문", "마지막 질문"].map((question, index) => ({
       id: `q${index}`, question, why: null, chips: [], status: "answered",
       answer: { text: `답변 ${index + 1}` },
@@ -180,7 +180,7 @@ test("answer controls stay disabled between save completion and the next questio
   const question = (id: string) => ({ id, question: id, why: null, chips: [{ id: "choice", label: "중요" }], status: "pending" });
   const initial = {
     phase: "questions", stalled: false, refining: false, progress: [],
-    brief: { summary: "합성 인재상", criteria: [], hardConditions: [], otherNotes: [] },
+    brief: { summary: "합성 인재상", criteria: [], hardConditions: [] },
     questions: { history: [] }, pendingQuestion: question("첫 질문"),
   };
   savedSession = initial;

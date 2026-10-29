@@ -43,7 +43,7 @@ export function buildCareerChannelContextRules(channel: CareerPromptChannel, all
     "The candidate is currently communicating through Text Chat.",
     "- Use Markdown for better readability.",
     "- Do not begin a reply with a timestamp or relative-time label.",
-    "- Use short headings, bullets, bold text for important terms such as role or company names, lists, links, or code blocks.",
+    ...(allowChoiceButtons ? ["- Use short headings, bullets, bold text for important terms such as role or company names, lists, links, or code blocks."] : []),
     "- Do not use emojis.",
     ...(allowChoiceButtons ? [
     "- When asking a question to the user to choose one of 2 answer options, you can append exactly one raw choice button block after the visible question. But do not use this too frequently.",
@@ -52,7 +52,7 @@ export function buildCareerChannelContextRules(channel: CareerPromptChannel, all
     "  [[/CAREER_CHOICE_BUTTONS]]",
     "- Keep each choice short and self-contained, including simple yes/no choices. The front end will render the choices as vertical full-width buttons and send the selected choice text back as the user's reply.",
     "- Do not put the choice button block inside a Markdown code block.",
-    ] : ["Use ask_application_input for structured questions in Apply with Harper mode; ordinary chat replies contain prose, not choice-button payloads."]),
+    ] : ["The application question tools own structured questions; ordinary chat replies contain prose, not choice-button payloads."]),
     CAREER_HARPER_LINK_OUTPUT_RULE,
     "",
   ].join("\n");

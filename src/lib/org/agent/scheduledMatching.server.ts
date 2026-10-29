@@ -9,6 +9,7 @@ import { ORG_AGENT_SOL_MODEL } from "./modelConfig";
 import type { OrgAgentConversationRow } from "./store";
 import { scheduledRecommendationOptions, type ScheduledSelectionInput } from "./scheduledSelection";
 import { commitCompanyMessages } from "./companyMessaging";
+import { prepareRoleStartBriefForSearch } from "../roleStart/service";
 
 export { scheduledSearchOptions } from "./scheduledMatchingOptions";
 import { scheduledSearchOptions } from "./scheduledMatchingOptions";
@@ -47,6 +48,7 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
   // The first company-side completion already receives candidate facts. Preparing
   // them is read/evaluation work, not a hidden recruiting decision.
   if (!(runs??[]).length) {
+    await prepareRoleStartBriefForSearch(roleId);
     const prepared=await admin.rpc("enqueue_scheduled_matching_search_v1",{p_parent:args.jobId,
       p_call_id:"prepare-initial-candidates",p_options:{roleId,scope:"unassessed",startStage:1,limit:5000,
         recommendCount:20,recommendCounts:{companyFirst:10,talentFirst:20}}});
@@ -132,6 +134,7 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
       const options=tool.name==="recommend_talents"
         ? scheduledRecommendationOptions(tool.input,selectionInput!,completedRunId)
         : scheduledSearchOptions(tool.input,roleId);
+      if (tool.name === "request_matching_search") await prepareRoleStartBriefForSearch(roleId);
       const {data,error}=await admin.rpc("enqueue_scheduled_matching_search_v1",{p_parent:args.jobId,p_call_id:tool.callId,p_options:options});
       if(error) throw error;
       return {...data,options,complete:false,deliveryConfirmed:false};

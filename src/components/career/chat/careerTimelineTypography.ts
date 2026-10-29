@@ -14,8 +14,8 @@ export const CAREER_TIMELINE_TYPOGRAPHY = {
       lineHeight: "1.72",
     },
     desktop: {
-      fontSize: "14px",
-      lineHeight: "1.8",
+      fontSize: "14.5px",
+      lineHeight: "1.75",
     },
   },
   body: {

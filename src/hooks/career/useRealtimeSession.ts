@@ -1,5 +1,7 @@
 "use client";
 
+import { isStaleInternalCallContext, type InternalCallVoiceContext, type LiveSessionInstructionUpdate } from "@/lib/career/liveSessionUpdates";
+
 import { toolErrorResult, serializeToolResultForModel } from "@/lib/llm/toolError";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FetchWithAuth } from "./useCareerApi";
@@ -241,6 +243,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   >(null);
   const lastConnectFailureRef = useRef<RealtimeConnectFailure | null>(null);
   const mockInterviewOpportunityIdRef = useRef<string | null>(null);
+  const internalCallRequestIdRef = useRef<string | null>(null);
+  const lastInternalCallContextRef = useRef<InternalCallVoiceContext | null>(null);
   const callSessionIdRef = useRef<string | null>(null);
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
   const pendingConnectAbortControllerRef = useRef<AbortController | null>(null);
@@ -347,6 +351,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
   const cleanupTransport = useCallback(() => {
     mockInterviewOpportunityIdRef.current = null;
+    internalCallRequestIdRef.current = null;
+    lastInternalCallContextRef.current = null;
     const dataChannel = dataChannelRef.current;
     dataChannelRef.current = null;
     if (dataChannel) {
@@ -823,13 +829,32 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     setActiveToolNames([...activeToolExecutionIdsRef.current.values()]);
   }, []);
 
+  const updateSessionInstructions = useCallback(
+    (instructions: string, update?: LiveSessionInstructionUpdate | null) => {
+      if (
+        isStaleInternalCallContext(
+          update?.internalCallContext,
+          lastInternalCallContextRef.current,
+        )
+      )
+        return;
+      if (update?.internalCallContext)
+        lastInternalCallContextRef.current = update.internalCallContext;
+      sendEvent({
+        type: "session.update",
+        session: { type: "realtime", instructions },
+      });
+    },
+    [sendEvent],
+  );
+
   const resolveFunctionCalls = useCallback(
     async (
       functionCalls: Array<{
         arguments: string;
         callId: string;
         name: string;
-      }>
+      }>,
     ): Promise<PendingFunctionCallOutput[]> => {
       const outputs: PendingFunctionCallOutput[] = [];
 
@@ -858,6 +883,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             body: JSON.stringify({
               mockInterviewOpportunityId:
                 mockInterviewOpportunityIdRef.current ?? undefined,
+              internalCallRequestId:
+                internalCallRequestIdRef.current ?? undefined,
               channel: "voice",
               conversationId,
               name: functionCall.name,
@@ -870,12 +897,21 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) {
             throw new Error(
-              getErrorText(payload, "Failed to execute realtime tool."), { cause: payload }
+              getErrorText(payload, "Failed to execute realtime tool."),
+              { cause: payload },
             );
           }
 
           output = payload?.output ?? {};
-          preparedModelOutput = typeof payload?.modelOutput === "string" ? payload.modelOutput : undefined;
+          if (payload.nextStepInstructions)
+            updateSessionInstructions(
+              payload.nextStepInstructions,
+              payload.liveSessionUpdate,
+            );
+          preparedModelOutput =
+            typeof payload?.modelOutput === "string"
+              ? payload.modelOutput
+              : undefined;
         } catch (error) {
           output = toolErrorResult(error);
         } finally {
@@ -897,7 +933,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       fetchWithAuth,
       finishToolExecution,
       locale,
-    ]
+      updateSessionInstructions,
+    ],
   );
 
   const getToolVoicePreamble = useCallback(
@@ -1186,25 +1223,47 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             }
 
             if (endCallRequested) {
-              if (
-                shouldSpeakRealtimeEndCallFallback({
-                  endCallRequested,
-                  responseText: fullText,
-                })
-              ) {
-                internalResponseModeRef.current = "end_call_closing";
-                requestExactSpeech(tCareer(H.callEndFallbackSpeech));
-                break;
-              }
-              if (status === "cancelled") {
-                stopNativePlayback();
-              } else {
-                runAfterCurrentPlayback(() => {
-                  setIsAssistantSpeaking(false);
-                });
-              }
-              onAssistantDoneRef.current(fullText);
-              onEndCallToolRef.current?.(endCallOptionsRef.current);
+              const finish = () => {
+                if (
+                  shouldSpeakRealtimeEndCallFallback({
+                    endCallRequested,
+                    responseText: fullText,
+                  })
+                ) {
+                  internalResponseModeRef.current = "end_call_closing";
+                  requestExactSpeech(tCareer(H.callEndFallbackSpeech));
+                  return;
+                }
+                if (status === "cancelled") {
+                  stopNativePlayback();
+                } else {
+                  runAfterCurrentPlayback(() => {
+                    setIsAssistantSpeaking(false);
+                  });
+                }
+                onAssistantDoneRef.current(fullText);
+                onEndCallToolRef.current?.(endCallOptionsRef.current);
+              };
+              if (executableFunctionCalls.length) {
+                // A final response may contain both a save and a hangup. Persist
+                // all requested writes before wrap-up reads the recorded answers.
+                void resolveFunctionCalls(executableFunctionCalls).then(
+                  (outputs) => {
+                    for (const output of outputs)
+                      sendEvent({
+                        type: "conversation.item.create",
+                        item: {
+                          type: "function_call_output",
+                          call_id: output.callId,
+                          output:
+                            output.modelOutput ??
+                            serializeToolResultForModel(output.output),
+                        },
+                      });
+                    finish();
+                  },
+                );
+              } else finish();
               break;
             }
 
@@ -1315,6 +1374,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [
       completeRealtimeAudioTurnFromResponse,
       handleFunctionCalls,
+      resolveFunctionCalls,
+      sendEvent,
       markAssistantPlaybackDone,
       markAssistantPlaybackStarted,
       recordRealtimeAssistantOutputItem,
@@ -1417,6 +1478,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
       mockInterviewOpportunityIdRef.current =
         options?.mockInterviewOpportunityId?.trim() || null;
+      internalCallRequestIdRef.current = options?.internalCallRequestId?.trim() || null;
+      lastInternalCallContextRef.current = null;
       callSessionIdRef.current = options?.callSessionId?.trim() || null;
       setIsConnecting(true);
       lastConnectFailureRef.current = null;
@@ -1435,6 +1498,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         pendingConnectCancelRef.current = null;
         if (dataChannelRef.current?.readyState !== "open") {
           mockInterviewOpportunityIdRef.current = null;
+          internalCallRequestIdRef.current = null;
+          lastInternalCallContextRef.current = null;
         }
         setIsConnecting(false);
       };
@@ -1699,16 +1764,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   }, [ensureRemoteAudioElement]);
 
   /** Update the Realtime session instructions (e.g., on interview step transition) */
-  const updateSessionInstructions = useCallback(
-    (instructions: string) => {
-      sendEvent({
-        type: "session.update",
-        session: { type: "realtime", instructions },
-      });
-    },
-    [sendEvent]
-  );
-
   /** Request the model to speak the given text via native Realtime audio */
   const generateSpeech = useCallback(
     (text: string) => {

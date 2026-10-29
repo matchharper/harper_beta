@@ -333,12 +333,13 @@ async function searchInternalRoleRows(args: {
           to_tsvector('english', coalesce(cr.name, '')) AS title_search_tsv,
           setweight(to_tsvector('english', coalesce(cr.name, '')), 'A') ||
           setweight(to_tsvector('english', coalesce(cr.description, '')), 'B') ||
-          setweight(to_tsvector('english', coalesce(cr.request, '')), 'C') ||
+          setweight(to_tsvector('english', coalesce(internal_role.request, '')), 'C') ||
           setweight(to_tsvector('english', concat_ws(' ', cr.location_text,
             cr.work_mode, array_to_string(cr.type, ' '))), 'D') AS search_tsv,
           cr.posted_at,
           cr.updated_at
         FROM public.company_roles cr
+        LEFT JOIN public.company_internal_roles internal_role ON internal_role.role_id = cr.role_id
         JOIN public.company_workspace cw
           ON cw.company_workspace_id = cr.company_workspace_id
         LEFT JOIN LATERAL (

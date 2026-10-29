@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUpdateOrgRole } from "@/hooks/org/useOrg";
+import { useOrgRoleClosurePreview } from "@/hooks/org/useOrgRoleClosurePreview";
 import {
   useOrgRoleNotificationSettings,
   useUpdateOrgRoleNotificationSettings,
@@ -128,6 +129,11 @@ export function OrgRoleSettingsContent({
   const [statusToConfirm, setStatusToConfirm] = useState<OrgRoleStatus | null>(
     null
   );
+  const closurePreview = useOrgRoleClosurePreview({
+    enabled: statusToConfirm === "ended",
+    roleId: role.roleId,
+    workspaceId,
+  });
   const [roleDeleteConfirmOpen, setRoleDeleteConfirmOpen] = useState(false);
   const [settingsSaveError, setSettingsSaveError] = useState("");
   const [companyFirstSearchError, setCompanyFirstSearchError] = useState("");
@@ -277,10 +283,7 @@ export function OrgRoleSettingsContent({
             title: c("채용을 일시정지할까요?", "Pause hiring?"),
           }
         : {
-            description: c(
-              "후보자 추천을 종료하고, 현재 연결된 후보자들에게 채용 종료 알림을 보냅니다. 이미 전달된 알림은 다시 채용을 진행해도 되돌릴 수 없습니다.",
-              "Stop candidate recommendations and send closing notifications to currently connected candidates. Notifications already sent cannot be undone if hiring resumes."
-            ),
+            description: closurePreview.description,
             title: c("채용을 종료할까요?", "End hiring?"),
           };
 
@@ -362,6 +365,7 @@ export function OrgRoleSettingsContent({
 
   const confirmStatusChange = async () => {
     if (!statusToConfirm || updateRoleStatus.isPending) return;
+    if (statusToConfirm === "ended" && !closurePreview.ready) return;
     try {
       await updateRoleStatus.mutateAsync({
         roleId: role.roleId,
@@ -1259,7 +1263,7 @@ export function OrgRoleSettingsContent({
               {c("취소", "Cancel")}
             </MuteButton>
             <MuteButton
-              disabled={updateRoleStatus.isPending}
+              disabled={updateRoleStatus.isPending || (statusToConfirm === "ended" && !closurePreview.ready)}
               onClick={() => void confirmStatusChange()}
               size="lg"
               variant={statusToConfirm === "ended" ? "warn" : "primary"}
@@ -1282,7 +1286,11 @@ export function OrgRoleSettingsContent({
           </div>
         }
       >
-        <></>
+        {statusToConfirm === "ended" && closurePreview.isError ? (
+          <MuteButton onClick={() => void closurePreview.refetch()} size="md">
+            {c("다시 시도", "Try again")}
+          </MuteButton>
+        ) : null}
       </TalentCareerModal>
 
       <TalentCareerModal

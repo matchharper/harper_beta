@@ -1,3 +1,4 @@
+import { normalizeQuestionList, parseDecision } from "./internalOpportunityCallDecision";
 import type { Json } from "@/types/database.types";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
@@ -25,9 +26,8 @@ import {
 } from "./internalOpportunityCallRequestPolicy";
 import { buildInternalOpportunityCallRequestMarker } from "./internalOpportunityCallMarker";
 import {
-  advanceInternalOpportunityCallQuestionProgress,
-  normalizeInternalOpportunityCallQuestionProgress,
-  type InternalOpportunityCallQuestionProgress,
+  normalizeInternalCallQuestionAnswers,
+  type InternalCallQuestionAnswers,
 } from "./internalOpportunityCallProgress";
 
 export const TALENT_CALL_KIND_INTERNAL_OPPORTUNITY_REQUEST =
@@ -42,16 +42,12 @@ export const isOpenInternalOpportunityCallRequestStatus = (
 ) =>
   status === TALENT_CALL_STATUS_PENDING || status === TALENT_CALL_STATUS_ACTIVE;
 
-export const INTERNAL_CALL_REQUEST_QUESTION_MIN = 3;
-export const INTERNAL_CALL_REQUEST_QUESTION_MAX = 5;
 const INTERNAL_CALL_REQUEST_LOOKBACK_LIMIT = 20;
 const ROLE_DESCRIPTION_MAX_CHARS = 3600;
 const ROLE_REQUEST_MAX_CHARS = 1600;
 const PROFILE_CONTEXT_MAX_CHARS = 7000;
 const INSIGHT_CONTEXT_MAX_CHARS = 2200;
 const RECENT_CONVERSATION_CONTEXT_MAX_CHARS = 2200;
-const USER_FACING_REASON_MAX_CHARS = 220;
-const REASONING_MAX_CHARS = 1200;
 
 type InternalOpportunityCallRoleContext = {
   companyName: string | null;
@@ -60,14 +56,6 @@ type InternalOpportunityCallRoleContext = {
   roleId: string;
   sourceType: string | null;
   title: string | null;
-};
-
-type InternalOpportunityCallDecision = {
-  doRequest: boolean;
-  questions: string[];
-  reasoning: string | null;
-  resumePromptNeeded: boolean;
-  userFacingReason: string | null;
 };
 
 type TalentCallRow = {
@@ -90,7 +78,7 @@ type InternalOpportunityCallRequestState = {
   createdFrom?: string;
   opportunityId?: string;
   questions?: string[];
-  questionProgress?: InternalOpportunityCallQuestionProgress;
+  questionAnswers?: InternalCallQuestionAnswers;
   reason?: string | null;
   reasoning?: string | null;
   resumePromptNeeded?: boolean;
@@ -105,7 +93,7 @@ export type InternalOpportunityCallRequest = {
   id: string;
   opportunityId: string;
   questions: string[];
-  questionProgress: InternalOpportunityCallQuestionProgress;
+  questionAnswers?: InternalCallQuestionAnswers;
   reason: string | null;
   resumePromptNeeded: boolean;
   roleId: string;
@@ -127,22 +115,6 @@ const clip = (value: string | null | undefined, maxLength: number) => {
   return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 };
 
-const normalizeQuestionList = (value: unknown) => {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
-  const questions: string[] = [];
-
-  for (const item of value) {
-    const question = optionalString(item)?.replace(/\s+/g, " ").slice(0, 220);
-    if (!question || seen.has(question)) continue;
-    seen.add(question);
-    questions.push(question);
-    if (questions.length >= INTERNAL_CALL_REQUEST_QUESTION_MAX) break;
-  }
-
-  return questions;
-};
-
 const hasResumeSignal = (
   profile: {
     resume_file_name?: unknown;
@@ -156,47 +128,6 @@ const hasResumeSignal = (
     optionalString(profile?.resume_text)
   );
 
-function parseDecision(raw: string): InternalOpportunityCallDecision {
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!isRecord(parsed)) {
-      return {
-        doRequest: false,
-        questions: [],
-        reasoning: "LLM returned non-object JSON.",
-        resumePromptNeeded: false,
-        userFacingReason: null,
-      };
-    }
-
-    const questions = normalizeQuestionList(parsed.questions);
-    const doRequest = parsed.do_request === true || parsed.doRequest === true;
-
-    return {
-      doRequest:
-        doRequest && questions.length >= INTERNAL_CALL_REQUEST_QUESTION_MIN,
-      questions,
-      reasoning:
-        optionalString(parsed.reasoning)?.slice(0, REASONING_MAX_CHARS) ?? null,
-      resumePromptNeeded:
-        parsed.resume_prompt_needed === true ||
-        parsed.resumePromptNeeded === true,
-      userFacingReason:
-        optionalString(
-          parsed.user_facing_reason ?? parsed.userFacingReason
-        )?.slice(0, USER_FACING_REASON_MAX_CHARS) ?? null,
-    };
-  } catch {
-    return {
-      doRequest: false,
-      questions: [],
-      reasoning: "LLM response was not parseable JSON.",
-      resumePromptNeeded: false,
-      userFacingReason: null,
-    };
-  }
-}
-
 function normalizeCallState(
   value: unknown
 ): InternalOpportunityCallRequestState {
@@ -207,10 +138,7 @@ function normalizeCallState(
     companyName: optionalString(value.companyName) ?? undefined,
     opportunityId: optionalString(value.opportunityId) ?? undefined,
     questions,
-    questionProgress: normalizeInternalOpportunityCallQuestionProgress(
-      value.questionProgress,
-      questions.length
-    ),
+    questionAnswers: normalizeInternalCallQuestionAnswers(value.questionAnswers, questions.length),
     reason: optionalString(value.reason),
     reasoning: optionalString(value.reasoning),
     resumePromptNeeded: value.resumePromptNeeded === true,
@@ -241,10 +169,7 @@ export function serializeInternalOpportunityCallRequest(
     id: row.id,
     opportunityId,
     questions: state.questions ?? [],
-    questionProgress: normalizeInternalOpportunityCallQuestionProgress(
-      state.questionProgress,
-      state.questions?.length ?? 0
-    ),
+    questionAnswers: state.questionAnswers ?? {},
     reason: state.reason ?? null,
     resumePromptNeeded: Boolean(state.resumePromptNeeded),
     roleId,
@@ -561,62 +486,6 @@ export async function touchInternalOpportunityCallRequest(args: {
   }
 }
 
-export async function advanceInternalOpportunityCallRequestQuestion(args: {
-  admin: TalentAdminClient;
-  callId: string;
-  userId: string;
-}) {
-  const { data, error } = await args.admin
-    .from("talent_calls")
-    .select("state")
-    .eq("id", args.callId)
-    .eq("user_id", args.userId)
-    .eq("kind", TALENT_CALL_KIND_INTERNAL_OPPORTUNITY_REQUEST)
-    .in("status", [TALENT_CALL_STATUS_PENDING, TALENT_CALL_STATUS_ACTIVE])
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(
-      error.message ?? "Failed to read internal call question progress"
-    );
-  }
-  if (!data) return null;
-
-  const rawState = isRecord(data.state) ? data.state : {};
-  const state = normalizeCallState(data.state);
-  const questions = state.questions ?? [];
-  const questionProgress = advanceInternalOpportunityCallQuestionProgress(
-    normalizeInternalOpportunityCallQuestionProgress(
-      state.questionProgress,
-      questions.length
-    ),
-    questions.length
-  );
-  const now = new Date().toISOString();
-  const { error: updateError } = await args.admin
-    .from("talent_calls")
-    .update({
-      last_active_at: now,
-      state: {
-        ...rawState,
-        questionProgress,
-      } as Json,
-      updated_at: now,
-    })
-    .eq("id", args.callId)
-    .eq("user_id", args.userId)
-    .eq("kind", TALENT_CALL_KIND_INTERNAL_OPPORTUNITY_REQUEST)
-    .in("status", [TALENT_CALL_STATUS_PENDING, TALENT_CALL_STATUS_ACTIVE]);
-
-  if (updateError) {
-    throw new Error(
-      updateError.message ?? "Failed to update internal call question progress"
-    );
-  }
-
-  return questionProgress;
-}
-
 export async function completeInternalOpportunityCallRequest(args: {
   admin: TalentAdminClient;
   callId: string;
@@ -795,8 +664,8 @@ async function decideInternalOpportunityCallRequest(args: {
       },
     ],
     openAIResponsesReasoningEffort:
-      CAREER_LLM_CONFIG.assistant.openAIResponsesReasoningEffort,
-    primaryModel: CAREER_LLM_CONFIG.assistant.primaryModel,
+      CAREER_LLM_CONFIG.internalOpportunityCallRequest.reasoningEffort,
+    primaryModel: CAREER_LLM_CONFIG.internalOpportunityCallRequest.model,
     temperature: CAREER_LLM_CONFIG.internalOpportunityCallRequest.temperature,
     usageLabel: "career/internal-opportunity-call-request:decision",
   });
@@ -866,10 +735,7 @@ export async function maybeCreateInternalOpportunityCallRequest(args: {
         createdFrom: "internal_opportunity_feedback",
         opportunityId: opportunity.id,
         questions: decision.questions,
-        questionProgress: {
-          candidateQuestionsAsked: false,
-          nextQuestionIndex: 0,
-        },
+        questionAnswers: {},
         reason: decision.userFacingReason,
         reasoning: decision.reasoning,
         resumePromptNeeded: decision.resumePromptNeeded,

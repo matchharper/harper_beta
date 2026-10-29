@@ -13,7 +13,7 @@ const labels: Record<string, string> = {
   investors: "투자자", last_funding_stage: "최근 투자 단계", last_funding_round_description: "최근 투자 설명",
   specialities: "전문 분야", location: "소재지", funding_url: "투자 정보 출처",
   homepageUrl: "홈페이지", linkedinUrl: "LinkedIn", relatedLinks: "참고 링크",
-  summary: "찾는 인재상", hardConditions: "필수 조건", criteria: "평가 기준", otherNotes: "기타 참고 사항",
+  summary: "찾는 인재상", hardConditions: "필수 조건", criteria: "평가 기준",
   question: "질문", why: "질문 이유", chips: "선택지", label: "내용", status: "상태",
   freeText: "팀원의 답변 원문", chip: "선택한 답변", answer: "답변", importance: "중요도",
   signals: "등급별 판단 근거", excellent: "매우 잘 맞음", good: "잘 맞음", uncertain: "확인 필요", bad: "확인된 불일치",

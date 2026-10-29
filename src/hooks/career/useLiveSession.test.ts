@@ -37,6 +37,7 @@ test("Live transport reports backend failures and preserves incoming speech", as
   let channel: any;
   let stopped = 0;
   const toolRequests: any[] = [];
+  let toolResult: Record<string, unknown> = { output: { results: [] } };
   class Peer {
     iceGatheringState = "complete";
     connectionState = "connected";
@@ -99,7 +100,7 @@ test("Live transport reports backend failures and preserves incoming speech", as
         if (url.endsWith("/usage")) usage.push(JSON.parse(String(init?.body)));
         if (url.endsWith("/tool/execute")) {
           toolRequests.push(JSON.parse(String(init?.body)));
-          return new Response(JSON.stringify({ output: { results: [] } }));
+          return new Response(JSON.stringify(toolResult));
         }
         return new Response(
           JSON.stringify({ transport: { sdp: "fixture answer" } })
@@ -115,7 +116,10 @@ test("Live transport reports backend failures and preserves incoming speech", as
       channel.onmessage({ data: JSON.stringify(message) });
     try {
       assert.equal(
-        await controller.connect({ callSessionId: "fixture-call" }),
+        await controller.connect({
+          callSessionId: "fixture-call",
+          internalCallRequestId: "fixture-internal-call",
+        }),
         true
       );
       await t.test(
@@ -173,6 +177,84 @@ test("Live transport reports backend failures and preserves incoming speech", as
         assert.equal(toolRequests.length, 1);
         assert.equal(sent.length, count);
       });
+      await t.test(
+        "answer tool sends the active call and refreshes the speaking model before backend continuation",
+        async () => {
+          const context = {
+            callId: "fixture-internal-call",
+            revision: "2026-10-28T00:01:00.000Z",
+            text: "Question 1: First?\nRecorded response: 모르겠어요",
+          };
+          toolResult = {
+            output: {},
+            modelOutput: "Response saved.",
+            nextStepInstructions: "Realtime instructions",
+            liveSessionUpdate: {
+              instructions: "Backend instructions",
+              onboardingContext: null,
+              internalCallContext: context,
+            },
+          };
+          receive({
+            type: "response.event",
+            delegation_id: "recording",
+            event: {
+              type: "response.created",
+              response: { id: "record-response" },
+            },
+          });
+          receive({
+            type: "response.event",
+            delegation_id: "recording",
+            event: {
+              type: "response.output_item.done",
+              item: {
+                type: "function_call",
+                call_id: "record-call",
+                name: "record_call_answers",
+                arguments:
+                  '{"answers":[{"question_number":1,"response":"모르겠어요"}]}',
+              },
+            },
+          });
+          const before = sent.length;
+          receive({
+            type: "response.event",
+            delegation_id: "recording",
+            event: {
+              type: "response.completed",
+              response: { id: "record-response" },
+            },
+          });
+          await new Promise((resolve) => setImmediate(resolve));
+          assert.equal(
+            toolRequests.at(-1).internalCallRequestId,
+            "fixture-internal-call"
+          );
+          assert.deepEqual(
+            sent.slice(before).map((event) => event.type),
+            [
+              "session.update",
+              "session.thinking.append",
+              "response.item.create",
+              "response.create",
+            ]
+          );
+          assert.ok(sent[before + 1].content.includes(context.text));
+          assert.equal(sent[before + 2].item.output, "Response saved.");
+          const count = sent.length;
+          controller.updateSessionInstructions("Stale", {
+            instructions: "Stale",
+            onboardingContext: null,
+            internalCallContext: {
+              ...context,
+              revision: "2026-10-28T00:00:00.000Z",
+              text: "Response not recorded.",
+            },
+          });
+          assert.equal(sent.length, count);
+        }
+      );
       await t.test(
         "failed response without usage is surfaced, not treated as success",
         () => {

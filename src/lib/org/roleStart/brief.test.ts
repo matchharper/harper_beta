@@ -240,59 +240,48 @@ test("the summary follows the conditions and criteria it recaps, and a team-writ
   const own = mergeVisibleBriefEdit(stored, { ...roleStartBriefView(stored), summary: "우리 팀이 직접 쓴 요약" }, "test", { summaryEdited: true });
   assert.equal(own.summary, "우리 팀이 직접 쓴 요약");
   assert.equal(needsSummary(own), false);
-  // A prepared verdict does not depend on the summary.
-  assert.equal(verdictBriefHash({ ...stored, summary: "다른 요약" }), verdictBriefHash(stored));
+  // A prepared verdict must also match the job-related context in the summary.
+  assert.notEqual(verdictBriefHash({ ...stored, summary: "다른 요약" }), verdictBriefHash(stored));
 });
 
-test("기타 참고 사항: kept through saves, rendered under its own heading, never a protected trait", async () => {
+test("legacy notes become visible summary text and are absent from every new Brief projection", async () => {
   process.env.OPENAI_API_KEY ||= "test-only-not-used";
-  const { isProtectedNote, renderBriefMarkdown, verdictBriefHash, MAX_OTHER_NOTES } = await import("./brief");
+  const { renderBriefMarkdown, verdictBriefHash } = await import("./brief");
   const { visibleBriefHash, roleStartBriefView } = await import("./view");
   const { mergeVisibleBriefEdit } = await import("./service");
-  for (const line of ["20대 후반 선호", "여성 지원자 우대", "남자만", "기혼자 제외", "Age under 35"]) assert.equal(isProtectedNote(line), true, line);
-  for (const line of ["1월 입사 가능", "월 1회 해외 출장", "영어 회의 가능", "팀 분위기: 조용한 편", "비자 스폰서 불가"]) assert.equal(isProtectedNote(line), false, line);
+  const { briefForPrompt } = await import("./verdicts");
+  const { formatPromptText } = await import("@/lib/llm/promptText");
   const brief = normalizeRoleStartBrief({
     summary: "결제 백엔드를 맡아요.",
     hardConditions: [],
     criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", requirement: "required" }],
-    otherNotes: ["1월 입사 가능", "30대 선호", "월 1회 해외 출장", "", "a", "b", "c", "d"],
+    otherNotes: ["1월 입사 가능", "월 1회 해외 출장", ""],
   });
-  assert.deepEqual(brief.otherNotes?.slice(0, 2), ["1월 입사 가능", "월 1회 해외 출장"], "a protected line is not saved");
-  assert.equal(brief.otherNotes?.length, MAX_OTHER_NOTES);
-  // Stored and read back (session JSON), and a screen save, keep them.
-  assert.deepEqual(normalizeRoleStartBrief(JSON.parse(JSON.stringify(brief))).otherNotes, brief.otherNotes);
+  assert.equal(brief.summary, "결제 백엔드를 맡아요.\n\n1월 입사 가능\n\n월 1회 해외 출장");
+  assert.equal("otherNotes" in brief, false);
+  assert.deepEqual(normalizeRoleStartBrief(JSON.parse(JSON.stringify(brief))), brief, "reading a saved Brief never appends the text twice");
   const saved = mergeVisibleBriefEdit(brief, roleStartBriefView(brief), "test");
-  assert.deepEqual(saved.otherNotes, brief.otherNotes);
-  // The saved Brief text carries them under their own heading after the criteria, which the worker reads.
+  assert.equal(saved.summary, brief.summary);
+  assert.equal("otherNotes" in saved, false);
+  assert.equal("otherNotes" in roleStartBriefView(saved), false);
+  assert.deepEqual(Object.keys(briefForPrompt(saved)), ["summary", "hardConditions", "criteria"]);
+  const modelInput = formatPromptText(briefForPrompt(saved));
+  assert.ok(modelInput.includes("1월 입사 가능"));
+  assert.ok(!modelInput.includes("기타 참고 사항"));
   const markdown = renderBriefMarkdown(brief);
-  assert.ok(markdown.indexOf("## Other notes") > markdown.indexOf("## Preferred criteria"));
-  assert.ok(markdown.includes("- 1월 입사 가능"));
-  // Notes change a verdict and a screen's conflict check; the summary alone does neither.
-  assert.notEqual(verdictBriefHash(brief), verdictBriefHash({ ...brief, otherNotes: [] }));
+  assert.ok(!markdown.includes("## Other notes"));
+  assert.ok(markdown.startsWith(brief.summary));
+  assert.notEqual(verdictBriefHash(brief), verdictBriefHash({ ...brief, summary: "결제 백엔드를 맡아요." }));
   assert.equal(visibleBriefHash({ ...brief, summary: "다른 요약" }), visibleBriefHash(brief));
 });
 
-test("a model rewrite that returns no notes keeps the team's notes unless the request was about them", async () => {
-  process.env.OPENAI_API_KEY ||= "test-only-not-used";
-  const { briefFromRaw } = await import("./questions");
-  const { verdictBriefHash } = await import("./brief");
-  const previous = normalizeRoleStartBrief({
-    summary: "요약",
-    hardConditions: [],
-    criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", requirement: "required" }],
-    otherNotes: ["1월 입사 가능"],
-  });
-  const raw = { summary: "요약", hardConditions: [], criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", requirement: "must" as const, kind: "judgment" as const, minYears: null, maxYears: null, signals: {} }], keywords: [], otherNotes: [] };
-  assert.deepEqual(briefFromRaw(raw, previous, "요청: Python을 필수로").otherNotes, ["1월 입사 가능"]);
-  assert.equal(briefFromRaw(raw, previous, "요청: 기타 참고 사항 다 지워줘").otherNotes, undefined);
-  // A question answered with a "기타" chip is not a request about the notes.
-  assert.deepEqual(briefFromRaw(raw, previous, "질문 '기타 우대 사항이 있나요?'에 대한 답: 기타").otherNotes, ["1월 입사 가능"]);
-  // A rewrite without the field keeps them too.
-  const { otherNotes: _omit, ...rawWithout } = raw;
-  assert.deepEqual(briefFromRaw(rawWithout, previous, "요청: Python을 필수로").otherNotes, ["1월 입사 가능"]);
-  // A Brief with no notes keeps the hash it had before notes existed.
-  const { otherNotes: _notes, ...withoutNotes } = previous;
-  assert.equal(verdictBriefHash(withoutNotes), verdictBriefHash({ ...withoutNotes, otherNotes: [] }));
+test("all Brief-producing model schemas omit the retired field", async () => {
+  const { DRAFT_SCHEMA, NEXT_QUESTIONS_SCHEMA, REFLECT_SCHEMA, buildReflectPatchSchema } = await import("./prompts");
+  for (const schema of [DRAFT_SCHEMA, NEXT_QUESTIONS_SCHEMA, REFLECT_SCHEMA, buildReflectPatchSchema(["c1"])]) {
+    assert.equal(JSON.stringify(schema).includes("otherNotes"), false);
+  }
+  const patch = buildReflectPatchSchema(["c1"]);
+  assert.ok(patch.required.includes("summary"));
 });
 
 test("the first-three key follows everything the ranking reads, not only what a verdict reads", async () => {

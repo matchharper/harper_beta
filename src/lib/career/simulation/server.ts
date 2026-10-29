@@ -1,5 +1,6 @@
+import { formatPromptText } from "@/lib/llm/promptText";
 import { runApplicationInspection } from "./applicationInspection";
-import { inspectApplicationForm } from "./applicationFormInspection";
+import { inspectCareerApplicationForm as inspectApplicationForm } from "./applicationInspection";
 import { applicationFormText } from "./applicationFormText";
 import { createPreparation } from "./preparation";
 import { askApplicationInput } from "./applicationInput";
@@ -121,7 +122,11 @@ export async function executeApplicationSimulation(
         })
       : (documents.find((d) => d.is_primary) ?? documents[0] ?? null);
   if (args.emailSourceMessageId && !document)
-    return { ok: false, reason: "A readable resume is required for email application preparation. Use existing document reads, or create a resume from confirmed facts with the user’s authorization before starting." };
+    return {
+      ok: false,
+      reason:
+        "A readable resume is required for email application preparation. Use existing document reads, or create a resume from confirmed facts with the user’s authorization before starting.",
+    };
   if (args.documentId && !document)
     return {
       ok: false,
@@ -154,12 +159,27 @@ export async function executeApplicationSimulation(
     userId: args.userId,
     conversationId: args.conversationId,
   };
-  let current = await sessionOperation({ ...store, operation: "read", messageId: args.resumeMessageId });
+  let current = await sessionOperation({
+    ...store,
+    operation: "read",
+    messageId: args.resumeMessageId,
+  });
   const email = Boolean(args.emailSourceMessageId);
-  if (args.resumeMessageId && (!current || current.state.status !== "active" || current.state.activity?.sourceMessageId !== args.emailSourceMessageId))
+  if (
+    args.resumeMessageId &&
+    (!current ||
+      current.state.status !== "active" ||
+      current.state.activity?.sourceMessageId !== args.emailSourceMessageId)
+  )
     throw new Error("Application continuation unavailable");
   if (args.resumeMessageId && current) {
-    if (current.state.analysisStatus === "completed") return { ok: true, alreadyStarted: true, status: "completed", sessionMessageId: current.messageId };
+    if (current.state.analysisStatus === "completed")
+      return {
+        ok: true,
+        alreadyStarted: true,
+        status: "completed",
+        sessionMessageId: current.messageId,
+      };
   } else if (current?.state.status === "active") {
     if (
       current.state.roleRef !== args.roleRef ||
@@ -171,8 +191,10 @@ export async function executeApplicationSimulation(
           "A different role or source resume is active. A clear request to switch authorizes ending that preparation with manage_simulation_session before starting this one. Preserve its saved work; do not treat it as the requested target or ask for redundant switch confirmation.",
       };
     if (
-      (args.startOfferId && current.state.activity?.offerId === args.startOfferId) ||
-      (email && current.state.activity?.sourceMessageId === args.emailSourceMessageId)
+      (args.startOfferId &&
+        current.state.activity?.offerId === args.startOfferId) ||
+      (email &&
+        current.state.activity?.sourceMessageId === args.emailSourceMessageId)
     )
       return {
         ok: true,
@@ -220,17 +242,36 @@ export async function executeApplicationSimulation(
         preparation: createPreparation(),
         activity: {
           version: 1,
+          roleId:
+            typeof args.role.roleId === "string"
+              ? args.role.roleId
+              : args.roleRef.startsWith("role:")
+                ? args.roleRef.slice(5)
+                : undefined,
           offerId: args.startOfferId,
-          ...(email ? { channel: "email" as const, sourceMessageId: args.emailSourceMessageId,
-            preparationRequest: { role: await (args.loadSavedRole ?? (async () => args.role))(), requestKey: args.requestKey } } : {}),
+          ...(email
+            ? {
+                channel: "email" as const,
+                sourceMessageId: args.emailSourceMessageId,
+                preparationRequest: {
+                  role: await (args.loadSavedRole ?? (async () => args.role))(),
+                  requestKey: args.requestKey,
+                },
+              }
+            : {}),
           outputs: {},
           batches: [],
         },
       },
     });
     if (current && !current.created) {
-      if (current.state.roleRef !== args.roleRef || current.state.documentId !== (document?.id ?? null))
-        throw new Error("Application start returned a different role or source resume");
+      if (
+        current.state.roleRef !== args.roleRef ||
+        current.state.documentId !== (document?.id ?? null)
+      )
+        throw new Error(
+          "Application start returned a different role or source resume"
+        );
       return {
         ok: true,
         alreadyStarted: true,
@@ -241,30 +282,36 @@ export async function executeApplicationSimulation(
     }
   }
   if (!current) throw new Error("Could not start simulation session");
-  args.onMessage?.(current.message);
-  if (args.deferPreparation) return { ok: true, preparationPending: true, sessionMessageId: current.messageId };
+  args.onMessage?.(current!.message);
+  if (args.deferPreparation)
+    return {
+      ok: true,
+      preparationPending: true,
+      sessionMessageId: current.messageId,
+    };
   const startedAt = Date.now();
   let phase = "candidate";
   try {
     if (!current.state.analysisMessageId) {
-    const { data: notice, error: noticeError } = await args.admin
-      .from("talent_messages")
-      .insert({
-        user_id: args.userId,
-        conversation_id: args.conversationId,
-        role: "assistant",
-        message_type: "simulation_notice",
-        content: careerT(
-          args.locale,
-          "career.sim_session.start_notice",
-          "이 포지션과 이력 정보를 분석해볼게요. 분석이 끝나면 다음 준비를 함께 진행할 수 있어요."
-        ),
-      })
-      .select("*")
-      .single();
-    if (noticeError) throw new Error("Failed to save simulation introduction");
-    if (notice)
-      args.onMessage?.(toTalentMessageResponse(notice as TalentMessageRow));
+      const { data: notice, error: noticeError } = await args.admin
+        .from("talent_messages")
+        .insert({
+          user_id: args.userId,
+          conversation_id: args.conversationId,
+          role: "assistant",
+          message_type: "simulation_notice",
+          content: careerT(
+            args.locale,
+            "career.sim_session.start_notice",
+            "우선 이 포지션과 이력서를 분석해볼게요. 저에게 말해주셨던 정보들 혹은 말씀하지 않으셨던 정보를 이용해서 이력서를 어떻게 수정할지부터 이야기해봐요."
+          ),
+        })
+        .select("*")
+        .single();
+      if (noticeError)
+        throw new Error("Failed to save simulation introduction");
+      if (notice)
+        args.onMessage?.(toTalentMessageResponse(notice as TalentMessageRow));
     }
     const state: ApplicationSimulation = {
       version: 6,
@@ -275,23 +322,33 @@ export async function executeApplicationSimulation(
       updatedAt: new Date().toISOString(),
       steps: [{ key: "review", status: "running" }],
     };
-    const previousOutput = current.state.activity?.outputs[String(current.state.analysisMessageId)];
-    const { data: message, error: insertError } = previousOutput ? { data: { id: current.state.analysisMessageId!, created_at: previousOutput.createdAt, content: previousOutput.content }, error: null } : await args.admin
-      .from("talent_messages")
-      .insert({
-        conversation_id: args.conversationId,
-        user_id: args.userId,
-        role: "assistant",
-        content: "",
-        message_type: "application_activity",
-        payload: {
-          activityId: current.state.sessionId,
-          view: "analysis",
-          runId: args.requestKey,
-        },
-      })
-      .select("*")
-      .single();
+    const previousOutput =
+      current.state.activity?.outputs[String(current.state.analysisMessageId)];
+    const { data: message, error: insertError } = previousOutput
+      ? {
+          data: {
+            id: current.state.analysisMessageId!,
+            created_at: previousOutput.createdAt,
+            content: previousOutput.content,
+          },
+          error: null,
+        }
+      : await args.admin
+          .from("talent_messages")
+          .insert({
+            conversation_id: args.conversationId,
+            user_id: args.userId,
+            role: "assistant",
+            content: "",
+            message_type: "application_activity",
+            payload: {
+              activityId: current.state.sessionId,
+              view: "analysis",
+              runId: args.requestKey,
+            },
+          })
+          .select("*")
+          .single();
     if (insertError || !message)
       throw new Error("Failed to save simulation card");
     current = await saveSession(
@@ -319,7 +376,7 @@ export async function executeApplicationSimulation(
       },
       args.requestKey + ":linked"
     );
-    args.onMessage?.(current.message);
+    args.onMessage?.(current!.message);
     args.onMessage?.(
       toTalentMessageResponse({
         ...message,
@@ -331,6 +388,39 @@ export async function executeApplicationSimulation(
     const signal = args.signal
       ? AbortSignal.any([args.signal, timeout])
       : timeout;
+    const saveAnalysis = async (
+      update: (
+        state: NonNullable<typeof current>["state"]
+      ) => NonNullable<typeof current>["state"],
+      key: string
+    ) => {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const latest = await sessionOperation({
+          ...store,
+          operation: "read",
+          messageId: current!.messageId,
+        });
+        if (!latest || latest.state.status !== "active")
+          throw new Error("Application preparation ended");
+        try {
+          current = await saveSession(
+            store,
+            latest,
+            update(structuredClone(latest.state)),
+            `${key}:${latest.state.revision}`
+          );
+          return current;
+        } catch (error) {
+          if (
+            !(error instanceof Error) ||
+            error.message !== "Session revision conflict" ||
+            attempt === 4
+          )
+            throw error;
+        }
+      }
+      throw new Error("Application preparation changed");
+    };
     const publish = async (snapshot: ApplicationSimulation) => {
       const content = [
         `Apply with Harper: ${args.roleName}`,
@@ -339,15 +429,13 @@ export async function executeApplicationSimulation(
           s.result ? [`${s.key}: ${s.result.report}`] : []
         ),
       ].join("\n\n");
-      current = await saveSession(
-        store,
-        current!,
-        {
-          ...current!.state,
+      await saveAnalysis(
+        (latest) => ({
+          ...latest,
           activity: {
-            ...current!.state.activity!,
+            ...latest.activity!,
             outputs: {
-              ...current!.state.activity!.outputs,
+              ...latest.activity!.outputs,
               [message.id]: {
                 messageType: SIMULATION_MESSAGE_TYPE,
                 createdAt: message.created_at,
@@ -356,10 +444,10 @@ export async function executeApplicationSimulation(
               },
             },
           },
-        },
+        }),
         `${args.requestKey}:progress:${crypto.randomUUID()}`
       );
-      args.onMessage?.(current.message);
+      args.onMessage?.(current!.message);
       args.onMessage?.(
         toTalentMessageResponse({
           ...message,
@@ -374,7 +462,14 @@ export async function executeApplicationSimulation(
     ) => {
       phase = nextPhase;
       state.progress = nextPhase;
-      console.info("[application-preparation] stage", JSON.stringify({ sessionMessageId: current!.messageId, phase, durationMs: Date.now() - startedAt }));
+      console.info(
+        "[application-preparation] stage",
+        JSON.stringify({
+          sessionMessageId: current!.messageId,
+          phase,
+          durationMs: Date.now() - startedAt,
+        })
+      );
       state.updatedAt = new Date().toISOString();
       await publish(structuredClone(state));
     };
@@ -390,7 +485,7 @@ export async function executeApplicationSimulation(
     ]);
     const candidate = [
       simulationProfileSnapshot(profile),
-      JSON.stringify({
+      formatPromptText({
         name: userProfile?.name,
         email: userProfile?.email,
         phone: userProfile?.phone_number,
@@ -441,27 +536,90 @@ export async function executeApplicationSimulation(
     );
     if (email) {
       // Read the live JD and inventory before proposing any changes in email.
-      if (jdSource.status === "read") role += "\nLive JD:\n" + JSON.stringify(jdSource);
+      if (jdSource.status === "read")
+        role += "\nLive JD:\n" + formatPromptText(jdSource);
       if (!current.state.applicationInspection) {
-        current = await saveSession(store, current, { ...current.state,
-          applicationUrl: String(args.role.externalJdUrl ?? ""),
-          applicationInspection: { status: "queued", runId: crypto.randomUUID() },
-        }, args.requestKey + ":inspection");
+        current = await saveSession(
+          store,
+          current,
+          {
+            ...current.state,
+            applicationUrl: String(args.role.externalJdUrl ?? ""),
+            applicationInspection: {
+              status: "queued",
+              runId: crypto.randomUUID(),
+            },
+          },
+          args.requestKey + ":inspection"
+        );
       }
-      await runApplicationInspection(store, current.messageId, inspectApplicationForm);
-      current = (await sessionOperation({ ...store, operation: "read", messageId: current.messageId }))!;
-      if (["queued", "running"].includes(current.state.applicationInspection?.status ?? ""))
-        return { ok: true, preparationPending: true, sessionMessageId: current.messageId };
+      await runApplicationInspection(
+        store,
+        current.messageId,
+        inspectApplicationForm
+      );
+      current = (await sessionOperation({
+        ...store,
+        operation: "read",
+        messageId: current.messageId,
+      }))!;
+      if (
+        ["queued", "running"].includes(
+          current.state.applicationInspection?.status ?? ""
+        )
+      )
+        return {
+          ok: true,
+          preparationPending: true,
+          sessionMessageId: current.messageId,
+        };
     }
     signal.throwIfAborted();
     await progress("suggestions");
+    let inspectionWork: Promise<unknown> | undefined;
+    if (!email) {
+      await saveAnalysis(
+        (latest) => ({
+          ...latest,
+          applicationInspection: latest.applicationInspection ?? {
+            status: "queued",
+            runId: crypto.randomUUID(),
+            resolveOfficialLink: true,
+          },
+        }),
+        args.requestKey + ":inspection"
+      );
+      inspectionWork = runApplicationInspection(
+        store,
+        current.messageId,
+        inspectApplicationForm
+      ).catch((error) => {
+        console.error(
+          "[application-inspection] background task interrupted",
+          error
+        );
+      });
+      // Retain the browser task across the response while the user reads the
+      // first suggestions. Its writes merge with the current activity revision.
+      if (args.scheduleAfter)
+        args.scheduleAfter(async () => {
+          await inspectionWork;
+        });
+    }
     state.suggestions = await writeApplicationSuggestions({
       admin: args.admin,
       userId: args.userId,
       candidate,
       resume,
-      role: role + "\nCompany research:\n" + JSON.stringify(research),
-      application: email ? applicationFormText(current.state.applicationForm) : JSON.stringify({ status: "pending", url: current.state.applicationUrl, instruction: "Application requirements are being inspected separately. Focus this first batch on meaningful resume improvements and important role-related experience gaps. Do not ask about application fields or draft additional materials before they are observed." }),
+      role: role + "\nCompany research:\n" + formatPromptText(research),
+      application: email
+        ? applicationFormText(current.state.applicationForm)
+        : formatPromptText({
+            status: "pending",
+            url: current.state.applicationUrl,
+            instruction:
+              "Application requirements are being inspected separately. Focus this first batch on meaningful resume improvements and important role-related experience gaps. Do not ask about application fields or draft additional materials before they are observed.",
+          }),
       language: getCareerPromptLanguageName(args.locale),
       model: args.textChatModel,
       signal,
@@ -477,40 +635,35 @@ export async function executeApplicationSimulation(
     ];
     await publish(state);
     const result = state;
-    let prepared = finishSimulationAnalysis(
-      current!.state,
-      result,
-      Number(message.id)
-    );
-    if (prepared.actions.length)
-      prepared = askApplicationInput(
-        prepared,
-        {
-          purpose: "suggestions",
-          items: prepared.actions.map((a) => ({ actionId: a.id })),
-        },
-        args.requestKey + ":suggestions"
+    const saved = await saveAnalysis((latest) => {
+      let prepared = finishSimulationAnalysis(
+        latest,
+        result,
+        Number(message.id)
       );
-
-    if (!email) prepared.applicationInspection = { status: "queued", runId: crypto.randomUUID() };
-    if (prepared.activity) delete prepared.activity.preparationRequest;
-    const saved = await saveSession(
-      store,
-      current,
-      prepared,
-      args.requestKey + ":result"
-    );
-    current = saved;
+      if (prepared.actions.length)
+        prepared = askApplicationInput(
+          prepared,
+          {
+            purpose: "suggestions",
+            items: prepared.actions.map((action) => ({ actionId: action.id })),
+          },
+          args.requestKey + ":suggestions"
+        );
+      if (prepared.activity) delete prepared.activity.preparationRequest;
+      return prepared;
+    }, args.requestKey + ":result");
+    const prepared = saved.state;
     args.onMessage?.(saved.message);
-    const inspect = async () => {
-      await runApplicationInspection(store, saved.messageId, inspectApplicationForm);
-    };
-    if (email) { /* Inspection already persisted before suggestions. */ }
-    else if (prepared.actions.length && args.scheduleAfter) args.scheduleAfter(inspect);
-    else {
-      await inspect();
-      current = (await sessionOperation({ ...store, operation: "read", messageId: saved.messageId })) ?? saved;
-      args.onMessage?.((current as typeof saved).message ?? saved.message);
+    if (!args.scheduleAfter && inspectionWork) {
+      await inspectionWork;
+      current =
+        (await sessionOperation({
+          ...store,
+          operation: "read",
+          messageId: saved.messageId,
+        })) ?? saved;
+      args.onMessage?.(current!.message);
     }
     return {
       ok: result.status === "completed",
@@ -525,49 +678,84 @@ export async function executeApplicationSimulation(
       awaitingUserInput: prepared.actions.length > 0,
     };
   } catch (error) {
-    const reason = error instanceof Error ? error.message.trim() : String(error ?? "");
-    console.error("[application-preparation] failed", JSON.stringify({
-      sessionMessageId: current.messageId, phase, durationMs: Date.now() - startedAt,
-      name: error instanceof Error ? error.name : "Error", reason,
-      requestAborted: args.signal?.aborted ?? false,
-      abortReason: args.signal?.reason instanceof Error ? { name: args.signal.reason.name, message: args.signal.reason.message } : undefined,
-    }));
+    const reason =
+      error instanceof Error ? error.message.trim() : String(error ?? "");
+    console.error(
+      "[application-preparation] failed",
+      JSON.stringify({
+        sessionMessageId: current.messageId,
+        phase,
+        durationMs: Date.now() - startedAt,
+        name: error instanceof Error ? error.name : "Error",
+        reason,
+        requestAborted: args.signal?.aborted ?? false,
+        abortReason:
+          args.signal?.reason instanceof Error
+            ? {
+                name: args.signal.reason.name,
+                message: args.signal.reason.message,
+              }
+            : undefined,
+      })
+    );
     // A concurrent stop or newer run owns its state; never overwrite it with this run's failure.
-    const latest = await sessionOperation({ ...store, operation: "read" });
-    if (
-      latest?.messageId === current.messageId &&
-      latest.state.revision === current.state.revision
-    ) {
-      const failedState = structuredClone(latest.state);
-      const output =
-        failedState.activity?.outputs[String(failedState.analysisMessageId)];
-      if (output && output.payload && typeof output.payload === "object") {
-        const analysis = output.payload as ApplicationSimulation;
-        analysis.status = args.signal?.aborted ? "cancelled" : "failed";
-        analysis.updatedAt = new Date().toISOString();
-        analysis.steps = analysis.steps.map((step) => ({
-          ...step,
-          status: analysis.status === "cancelled" ? "cancelled" : "failed",
-        }));
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const latest = await sessionOperation({
+        ...store,
+        operation: "read",
+        messageId: current.messageId,
+      });
+      if (
+        latest?.messageId !== current.messageId ||
+        latest.state.status !== "active" ||
+        latest.state.analysisMessageId !== current.state.analysisMessageId ||
+        latest.state.analysisStatus !== "running"
+      )
+        break;
+      try {
+        const failedState = structuredClone(latest.state);
+        const output =
+          failedState.activity?.outputs[String(failedState.analysisMessageId)];
+        if (output && output.payload && typeof output.payload === "object") {
+          const analysis = output.payload as ApplicationSimulation;
+          analysis.status = args.signal?.aborted ? "cancelled" : "failed";
+          analysis.updatedAt = new Date().toISOString();
+          analysis.steps = analysis.steps.map((step) => ({
+            ...step,
+            status: analysis.status === "cancelled" ? "cancelled" : "failed",
+          }));
+        }
+        const saved = await saveSession(
+          store,
+          latest,
+          {
+            ...endSimulationSession(failedState, "failed"),
+            analysisStatus: args.signal?.aborted ? "cancelled" : "failed",
+            lastActivityAt: new Date().toISOString(),
+          },
+          args.requestKey + ":failure:" + latest.state.revision
+        );
+        args.onMessage?.(saved.message);
+        break;
+      } catch (saveError) {
+        if (
+          !(saveError instanceof Error) ||
+          saveError.message !== "Session revision conflict" ||
+          attempt === 4
+        )
+          throw saveError;
       }
-      const saved = await saveSession(
-        store,
-        latest,
-        {
-          ...endSimulationSession(failedState, "failed"),
-          analysisStatus: args.signal?.aborted ? "cancelled" : "failed",
-          lastActivityAt: new Date().toISOString(),
-        },
-        args.requestKey + ":failure"
-      );
-      args.onMessage?.(saved.message);
     }
     return {
       ok: false,
       status: args.signal?.aborted ? "cancelled" : "failed",
       startCardDisplayed: true,
       preparationStarted: true,
-      reason: reason || (args.signal?.aborted ? "The request connection was interrupted during preparation." : "Preparation stopped before suggestions were produced."),
+      reason:
+        reason ||
+        (args.signal?.aborted
+          ? "The request connection was interrupted during preparation."
+          : "Preparation stopped before suggestions were produced."),
       failedStage: phase,
       applicationUrl: current.state.applicationUrl,
     };

@@ -4,6 +4,7 @@ import { hostedBrowserStart } from "./applicationBrowserHostedWorker";
 import { randomUUID } from "node:crypto";
 import { provisionFiles } from "./applicationStagehand/files.mjs";
 import { stopBrowserUseSession } from "./applicationStagehand/browserUseCloud.mjs";
+import { inspectionEvent, type ApplicationInspectionObserver, type ApplicationInspectionEvent } from "./applicationInspectionTrace";
 import type { ApplicationBrowserRuntimeRef } from "./applicationBrowserRuntimeRef";
 import type {
   BrowserPendingRequest,
@@ -22,6 +23,7 @@ export type StagehandFile = {
   mimeType?: string;
 };
 export type StagehandStatus = {
+  events?: (ApplicationInspectionEvent & { sequence: number })[];
   status: string;
   sessionId: string;
   steps: number;
@@ -38,6 +40,7 @@ export type StagehandStatus = {
   report?: unknown;
   error?: string;
   usage?: { id?: string; model?: string; usage?: unknown }[];
+  requestsStarted?: number;
   progress?: { id: string; text: string; at: string }[];
   timings?: {
     snapshots: { ms: number; detailed: boolean; frames: number }[];
@@ -107,13 +110,17 @@ export const applicationStagehandRuntime = {
     url: string,
     options: {
       readOnly?: boolean;
+      inspectionMode?: "questions";
       signal?: AbortSignal;
       browserProvider?: "browserbase" | "browser-use";
+      onEvent?: ApplicationInspectionObserver;
       /** Evaluation-only: restrict all writes and collect pre-submit evidence. */
       preSubmitTest?: { candidate: Record<string, unknown> };
     } = {}
   ): Promise<ApplicationBrowserRuntimeRef> {
     const attachments = provisionFiles(input, options.readOnly);
+    const emit = (message: string, data?: unknown) => inspectionEvent(options.onEvent, "setup", message, data);
+    emit("브라우저 실행 준비");
     const browserProvider = options.browserProvider ?? "browserbase";
     for (const key of [
       browserProvider === "browser-use"
@@ -136,6 +143,7 @@ export const applicationStagehandRuntime = {
     const workerFiles = await Promise.all(
       [
         "worker.mjs",
+        "inspectionText.mjs",
         "form.mjs",
         "gate.mjs",
         "browserUseCloud.mjs",
@@ -157,6 +165,8 @@ export const applicationStagehandRuntime = {
         JSON.stringify({
           url,
           readOnly: options.readOnly,
+          inspectionMode: options.inspectionMode,
+          diagnostics: options.readOnly === true && !!options.onEvent,
           browserProvider,
           preSubmitTest: options.preSubmitTest,
           files: attachments.metadata,
@@ -215,6 +225,7 @@ export const applicationStagehandRuntime = {
     });
     // Reuse the application's existing server compute and encrypted result channel.
     // It receives no model task. Only the selected cloud provider launches a browser.
+    emit("실행 환경 생성·의존성 설치·Browserbase 연결 시작");
     const ref = await executor.create([], url, options);
     const result: ApplicationBrowserRuntimeRef = {
       ...ref,
@@ -226,6 +237,7 @@ export const applicationStagehandRuntime = {
         commandId: randomUUID(),
       });
       result.browserSessionId = state.sessionId;
+      emit("Browserbase 연결 완료", { browserSessionId: state.sessionId, startup: state.startup });
       if (attachments.deferred.length)
         await this.upload(result, attachments.deferred);
       return result;
@@ -234,10 +246,11 @@ export const applicationStagehandRuntime = {
       throw error;
     }
   },
-  async status(ref: ApplicationBrowserRuntimeRef) {
+  async status(ref: ApplicationBrowserRuntimeRef, afterEvent?: number) {
     return command<StagehandStatus>(ref, {
       operation: "status",
       commandId: randomUUID(),
+      afterEvent,
     });
   },
   async start(ref: ApplicationBrowserRuntimeRef, instruction: string) {

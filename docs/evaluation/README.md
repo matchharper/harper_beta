@@ -107,3 +107,5 @@ docs/evaluation/<task>/
 작은 고정 세트는 회귀와 모델 간 사례별 차이를 찾는 도구다. 표본이 대표 추출되지 않았다면 전체 production 성능 향상률로 말하지 않는다. 평균 점수만 보지 말고 hard-constraint 누락, 잘못된 질문/발송, lifecycle 중복, protected-trait 사용, JSON/coverage 실패 같은 critical violation을 별도로 0건 gate로 둔다.
 
 - [role-start-discovery](role-start-discovery/README.md): 회사 맥락·내부 선호를 활용하는 온보딩 Brief/질문 작성, 합성 frozen v1 2건, 정본 scripts/evalRoleStartDiscovery.ts.
+
+- [career-job-link-import](career-job-link-import/README.md): Exa 빈 요약 후 본문 기반 저장과 실제 조회 실패 전달, 합성 frozen v1 2건, 정본 `scripts/evalCareerJobLinkImport.ts`.

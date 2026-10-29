@@ -4,7 +4,6 @@ import {
   Building2,
   Eye,
   Pencil,
-  Plus,
   SchoolIcon,
   UserRound,
 } from "lucide-react";
@@ -29,19 +28,13 @@ import { useCareerMobileChatLauncherVisibility } from "@/components/career/mobil
 import { formatCareerDate } from "@/lib/career/dateFormat";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import {
-  ProfileHeader,
-  ProfileOverviewSection,
-  RecruiterProfileNotice,
-} from "./CareerProfileOverview";
+import { ProfileHeader, ProfileOverviewSection } from "./CareerProfileOverview";
 import CareerProfileEntryModal, {
   type CareerProfileEntryFormValues,
   type CareerProfileEntryKind,
 } from "./CareerProfileEntryModal";
-import CareerProfilePersonalInfo from "./CareerProfilePersonalInfo";
 import CareerEmailChangeModal from "../account/CareerEmailChangeModal";
 import {
-  EmptyEditState,
   ProfileSectionHeader,
   TimelineBlock,
   TimelineEditBlock,
@@ -116,66 +109,6 @@ const formatRange = (
     return `${start} - ${t("career.profile.date.present", "현재")}`;
   if (!start && end) return end;
   return `${start} - ${end}`;
-};
-
-const formatMonth = (
-  months: number | null | undefined,
-  locale: Locale,
-  t: CareerT
-) => {
-  if (!months || months <= 0) return "";
-  const years = Math.floor(months / 12);
-  const remain = months % 12;
-  if (years > 0 && remain > 0) {
-    if (years === 1 && remain === 1) {
-      return t(
-        "career.profile.duration.year_one_month_one",
-        "{years}년 {months}개월",
-        { values: { months: remain, years } }
-      );
-    }
-    if (years === 1) {
-      return t(
-        "career.profile.duration.year_one_month_many",
-        "{years}년 {months}개월",
-        { values: { months: remain, years } }
-      );
-    }
-    if (remain === 1) {
-      return t(
-        "career.profile.duration.year_many_month_one",
-        "{years}년 {months}개월",
-        { values: { months: remain, years } }
-      );
-    }
-    return t(
-      "career.profile.duration.year_many_month_many",
-      "{years}년 {months}개월",
-      { values: { months: remain, years } }
-    );
-  }
-  if (years > 0) {
-    if (years === 1) {
-      return t(
-        "career.profile.duration.year_one_month_zero",
-        "{years}년 0개월",
-        { values: { years } }
-      );
-    }
-    return t(
-      "career.profile.duration.year_many_month_zero",
-      "{years}년 0개월",
-      { values: { years } }
-    );
-  }
-  if (remain === 1) {
-    return t("career.profile.duration.month_one", "{months}개월", {
-      values: { months: remain },
-    });
-  }
-  return t("career.profile.duration.month_many", "{months}개월", {
-    values: { months: remain },
-  });
 };
 
 const parseProfileMonthDate = (
@@ -487,6 +420,10 @@ const CareerTalentProfilePanel = ({
   const [profileImageError, setProfileImageError] = useState("");
   const [entryModalKind, setEntryModalKind] =
     useState<CareerProfileEntryKind | null>(null);
+  const [editingEntry, setEditingEntry] = useState<{
+    index: number;
+    values: Partial<CareerProfileEntryFormValues>;
+  } | null>(null);
   const [pendingRemoval, setPendingRemoval] =
     useState<PendingProfileEntryRemoval | null>(null);
   const [phoneNumberModalOpen, setPhoneNumberModalOpen] = useState(false);
@@ -523,36 +460,23 @@ const CareerTalentProfilePanel = ({
     mergedExperience.length > 0 ||
     talentExtras.length > 0;
   const profileDisplayName = talentUser?.name?.trim() || "Unknown";
-  const recruiterProfileName = talentUser?.name?.trim();
-  const recruiterProfileCopy = recruiterProfileName
-    ? t(
-        "career.profile.recruiter_profile.named",
-        "채용 담당자가 보는 {name}의 프로필",
-        { values: { name: recruiterProfileName } }
-      )
-    : t(
-        "career.profile.recruiter_profile.default",
-        "채용 담당자가 보는 프로필"
-      );
   const profileUpdatedText = formatLastUpdated(
     talentContextsUpdatedAt ?? null,
     locale
   );
   const profileSummary = talentUser?.bio?.trim() ?? "";
-  const backgroundCount = mergedExperience.length + talentExtras.length;
-  const draftBackgroundCount =
-    draftMergedExperience.length + draft.talentExtras.length;
-  const personalInfoUser = isEditing
-    ? {
-        ...draft.talentUser,
-        email: user?.email ?? draft.talentUser.email ?? null,
-      }
-    : talentUser
-      ? {
-          ...talentUser,
-          email: user?.email ?? talentUser.email ?? null,
-        }
-      : createBlankTalentUser(user?.id, user?.email);
+  const experienceEntries = mergedExperience.filter(
+    (entry) => entry.kind === "exp"
+  );
+  const educationEntries = mergedExperience.filter(
+    (entry) => entry.kind === "edu"
+  );
+  const draftExperienceEntries = draftMergedExperience.filter(
+    (entry) => entry.kind === "exp"
+  );
+  const draftEducationEntries = draftMergedExperience.filter(
+    (entry) => entry.kind === "edu"
+  );
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -846,6 +770,7 @@ const CareerTalentProfilePanel = ({
   };
 
   const openEntryModal = (kind: CareerProfileEntryKind) => {
+    setEditingEntry(null);
     if (kind === "work") {
       logCareerEvent("click_profile_add_experience");
     } else if (kind === "education") {
@@ -859,6 +784,117 @@ const CareerTalentProfilePanel = ({
   const addExperience = () => openEntryModal("work");
   const addEducation = () => openEntryModal("education");
   const addExtra = () => openEntryModal("extra");
+
+  const editEntry = (kind: CareerProfileEntryKind, index: number) => {
+    let values: Partial<CareerProfileEntryFormValues>;
+    if (kind === "work") {
+      const entry = talentExperiences[index];
+      values = {
+        role: entry.role ?? "",
+        companyId: entry.company_id ?? "",
+        companyLinkedinUrl: entry.company_link ?? "",
+        companyLogo: entry.company_logo ?? "",
+        companyLocation: entry.company_location ?? "",
+        companyName: entry.company_name ?? "",
+        employmentType: entry.employment_type ?? "",
+        startDate: entry.start_date ?? "",
+        endDate: entry.end_date ?? "",
+        description: entry.description ?? "",
+      };
+    } else if (kind === "education") {
+      const entry = talentEducations[index];
+      values = {
+        school: entry.school ?? "",
+        degree: entry.degree ?? "",
+        field: entry.field ?? "",
+        startDate: entry.start_date ?? "",
+        endDate: entry.end_date ?? "",
+        url: entry.url ?? "",
+        description: entry.description ?? "",
+      };
+    } else {
+      const entry = talentExtras[index];
+      values = {
+        title: entry.title ?? "",
+        date: entry.date ?? "",
+        description: entry.description ?? "",
+      };
+    }
+    setEditingEntry({ index, values });
+    setEntryModalKind(kind);
+  };
+
+  const handleSubmitEntry = async (
+    kind: CareerProfileEntryKind,
+    values: CareerProfileEntryFormValues
+  ) => {
+    if (!editingEntry) return handleAddEntry(kind, values);
+
+    const { index } = editingEntry;
+    return await onSaveTalentProfile({
+      structuredProfile: {
+        ...talentProfile,
+        talentExperiences:
+          kind === "work"
+            ? talentExperiences.map((entry, entryIndex) =>
+                entryIndex === index
+                  ? {
+                      ...entry,
+                      role: trimSingleLine(values.role),
+                      company_id: trimSingleLine(values.companyId),
+                      company_link: trimSingleLine(values.companyLinkedinUrl),
+                      company_logo: trimSingleLine(values.companyLogo),
+                      company_location: trimSingleLine(values.companyLocation),
+                      company_name: trimSingleLine(values.companyName),
+                      employment_type: trimSingleLine(values.employmentType),
+                      start_date: trimDateText(values.startDate),
+                      end_date: trimDateText(values.endDate),
+                      months:
+                        values.startDate === editingEntry.values.startDate &&
+                        values.endDate === editingEntry.values.endDate
+                          ? entry.months
+                          : calculateExperienceMonths(
+                              values.startDate,
+                              values.endDate
+                            ),
+                      description: trimMultiline(values.description),
+                    }
+                  : entry
+              )
+            : talentExperiences,
+        talentEducations:
+          kind === "education"
+            ? talentEducations.map((entry, entryIndex) =>
+                entryIndex === index
+                  ? {
+                      ...entry,
+                      school: trimSingleLine(values.school),
+                      degree: trimSingleLine(values.degree),
+                      field: trimSingleLine(values.field),
+                      start_date: trimDateText(values.startDate),
+                      end_date: trimDateText(values.endDate),
+                      url: trimSingleLine(values.url),
+                      description: trimMultiline(values.description),
+                    }
+                  : entry
+              )
+            : talentEducations,
+        talentExtras:
+          kind === "extra"
+            ? talentExtras.map((entry, entryIndex) =>
+                entryIndex === index
+                  ? {
+                      ...entry,
+                      title: trimSingleLine(values.title),
+                      date: trimDateText(values.date),
+                      description: trimMultiline(values.description),
+                    }
+                  : entry
+              )
+            : talentExtras,
+      },
+    });
+  };
 
   const getTalentId = () =>
     draft.talentUser.user_id ||
@@ -1111,10 +1147,18 @@ const CareerTalentProfilePanel = ({
       /> */}
 
       <div className="flex flex-col items-start justify-start gap-3 pt-3 w-full">
-        <div className="flex items-center text-[15px] font-medium leading-4 text-neutral-primary">
-          {t("career.common.career_workspace_screen.0b0v9cr", "프로필")}
+        <div className="flex items-baseline gap-1 text-[15px] font-medium leading-5 text-neutral-primary">
+          <span className="shrink-0">
+            {t("career.common.career_workspace_screen.0b0v9cr", "프로필")}
+          </span>
+          <span className="font-normal text-neutral-muted">
+            {"- "}
+            {t(
+              "career.profile.company_visible_description",
+              "회사에 보여지는 프로필입니다"
+            )}
+          </span>
         </div>
-        <RecruiterProfileNotice copy={recruiterProfileCopy} />
       </div>
 
       {isEditing ? (
@@ -1138,11 +1182,6 @@ const CareerTalentProfilePanel = ({
             user={draft.talentUser}
           />
 
-          <ProfileSectionHeader
-            icon={<Eye className="h-4 w-4" />}
-            label="Overview"
-          />
-
           <ProfileOverviewSection
             isEditing
             items={[]}
@@ -1152,436 +1191,49 @@ const CareerTalentProfilePanel = ({
           />
 
           <ProfileSectionHeader
-            count={draftBackgroundCount}
-            icon={<Building2 className="h-4 w-4" />}
             label="Background"
+            onAdd={addExperience}
+            addLabel={t(
+              "career.profile.career_talent_profile_panel.0efzyx5",
+              "경력 추가"
+            )}
           />
-
-          <section className="px-1">
-            <div className="mb-4 flex flex-wrap gap-2">
-              <MuteButton
-                type="button"
-                onClick={addExperience}
-                className="h-11 gap-1.5 px-4 text-[13px] md:h-auto md:px-[7px] md:py-[7px] md:text-xs"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t(
-                  "career.profile.career_talent_profile_panel.0efzyx5",
-                  "경력 추가"
-                )}
-              </MuteButton>
-              <MuteButton
-                type="button"
-                onClick={addEducation}
-                className="h-11 gap-1.5 px-4 text-[13px] md:h-auto md:px-[7px] md:py-[7px] md:text-xs"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t(
-                  "career.profile.career_talent_profile_panel.1efofsl",
-                  "학력 추가"
-                )}
-              </MuteButton>
-              <MuteButton
-                type="button"
-                onClick={addExtra}
-                className="h-11 gap-1.5 px-4 text-[13px] md:h-auto md:px-[7px] md:py-[7px] md:text-xs"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t(
-                  "career.profile.career_talent_profile_panel.0wjximy",
-                  "추가 정보"
-                )}
-              </MuteButton>
-            </div>
-
-            {draftBackgroundCount > 0 ? (
-              <div className="relative">
-                {draftMergedExperience.map((entry, index) => {
-                  const isLast =
-                    index === draftMergedExperience.length - 1 &&
-                    draft.talentExtras.length === 0;
-
-                  if (entry.kind === "exp") {
-                    const exp = entry.item;
-                    return (
-                      <TimelineEditBlock
-                        key={exp.clientKey}
-                        kind="work"
-                        logoUrl={exp.company_logo}
-                        logoAlt={exp.company_name ?? exp.role ?? "Company"}
-                        logoText={exp.company_name ?? exp.role ?? ""}
-                        isLast={isLast}
-                        onRemove={() => requestRemoveExperience(entry.index)}
-                        onLogoFileChange={(file) =>
-                          void uploadCompanyLogo(
-                            entry.index,
-                            exp.clientKey,
-                            file
-                          )
-                        }
-                        logoUploadPending={Boolean(
-                          logoUploadPendingKeys[exp.clientKey]
-                        )}
-                      >
-                        <div className="space-y-1.5">
-                          <Input
-                            value={exp.role ?? ""}
-                            onChange={(event) =>
-                              updateExperienceField(
-                                entry.index,
-                                "role",
-                                event.target.value
-                              )
-                            }
-                            placeholder={t(
-                              "career.profile.career_talent_profile_panel.1qnltk8",
-                              "직무"
-                            )}
-                            aria-label={"직무"}
-                            className={cn(
-                              profileEditPlainInputClassName,
-                              "md:text-[14px] md:font-medium md:leading-[1.35]"
-                            )}
-                          />
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
-                            <Input
-                              value={exp.company_name ?? ""}
-                              onChange={(event) =>
-                                updateExperienceField(
-                                  entry.index,
-                                  "company_name",
-                                  event.target.value
-                                )
-                              }
-                              placeholder={t(
-                                "career.profile.career_talent_profile_panel.0uwqvnk",
-                                "회사명"
-                              )}
-                              aria-label={"회사명"}
-                              className={cn(
-                                profileEditPlainInputClassName,
-                                "w-[180px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
-                              )}
-                            />
-                            <span className="text-neutral-1000-a10">·</span>
-                            <Input
-                              value={exp.company_location ?? ""}
-                              onChange={(event) =>
-                                updateExperienceField(
-                                  entry.index,
-                                  "company_location",
-                                  event.target.value
-                                )
-                              }
-                              placeholder={t(
-                                "career.profile.career_talent_profile_panel.00infjs",
-                                "근무 지역"
-                              )}
-                              aria-label={"근무 지역"}
-                              className={cn(
-                                profileEditPlainInputClassName,
-                                "w-[150px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
-                              )}
-                            />
-                            <span className="text-neutral-1000-a10">·</span>
-                            <Input
-                              value={exp.employment_type ?? ""}
-                              onChange={(event) =>
-                                updateExperienceField(
-                                  entry.index,
-                                  "employment_type",
-                                  event.target.value
-                                )
-                              }
-                              placeholder={t(
-                                "career.profile.career_talent_profile_panel.0rtdf2n",
-                                "고용 형태"
-                              )}
-                              aria-label={"고용 형태"}
-                              className={cn(
-                                profileEditPlainInputClassName,
-                                "w-[120px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
-                              )}
-                            />
-                          </div>
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-5 text-neutral-soft">
-                            <Input
-                              value={exp.start_date ?? ""}
-                              onChange={(event) =>
-                                updateExperienceField(
-                                  entry.index,
-                                  "start_date",
-                                  event.target.value
-                                )
-                              }
-                              placeholder={t(
-                                "career.profile.career_talent_profile_panel.11cor6u",
-                                "시작일"
-                              )}
-                              aria-label={"시작일"}
-                              className={cn(
-                                profileEditPlainInputClassName,
-                                "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
-                              )}
-                            />
-                            <span>-</span>
-                            <Input
-                              value={exp.end_date ?? ""}
-                              onChange={(event) =>
-                                updateExperienceField(
-                                  entry.index,
-                                  "end_date",
-                                  event.target.value
-                                )
-                              }
-                              placeholder={t(
-                                "career.profile.career_talent_profile_panel.0p5h1wt",
-                                "현재"
-                              )}
-                              aria-label={"종료일 또는 현재"}
-                              className={cn(
-                                profileEditPlainInputClassName,
-                                "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
-                              )}
-                            />
-                            <span className="text-neutral-1000-a10">·</span>
-                            <span className="rounded-[4px] bg-bg-weak px-1.5 py-1 text-[11.5px] leading-5 text-neutral-soft">
-                              {formatMonth(
-                                calculateExperienceMonths(
-                                  exp.start_date,
-                                  exp.end_date
-                                ),
-                                locale,
-                                t
-                              ) ||
-                                t(
-                                  "career.profile.career_talent_profile_panel.1u4ajdw",
-                                  "기간 자동 계산"
-                                )}
-                            </span>
-                            <span className="text-neutral-1000-a10">·</span>
-                            <Input
-                              value={exp.company_link ?? ""}
-                              onChange={(event) =>
-                                updateExperienceField(
-                                  entry.index,
-                                  "company_link",
-                                  event.target.value
-                                )
-                              }
-                              placeholder={t(
-                                "career.profile.career_talent_profile_panel.07x414y",
-                                "회사 링크"
-                              )}
-                              aria-label={"회사 링크"}
-                              className={cn(
-                                profileEditPlainInputClassName,
-                                "min-w-[180px] flex-1 md:text-[11.5px] md:leading-5 md:text-neutral-soft"
-                              )}
-                            />
-                          </div>
-                          <Textarea
-                            value={exp.description ?? ""}
-                            onChange={(event) =>
-                              updateExperienceField(
-                                entry.index,
-                                "description",
-                                event.target.value
-                              )
-                            }
-                            placeholder={t(
-                              "career.profile.career_talent_profile_panel.051qjyj",
-                              "주요 업무와 성과"
-                            )}
-                            aria-label={"주요 업무와 성과"}
-                            className={cn(
-                              profileEditPlainTextareaClassName,
-                              "mt-2 md:text-[13px] md:leading-6 md:text-neutral-muted"
-                            )}
-                          />
-                        </div>
-                      </TimelineEditBlock>
-                    );
-                  }
-
-                  const edu = entry.item;
-                  return (
-                    <TimelineEditBlock
-                      key={edu.clientKey}
-                      kind="education"
-                      logoText={edu.school ?? "Education"}
-                      isLast={isLast}
-                      onRemove={() => requestRemoveEducation(entry.index)}
-                    >
-                      <div className="space-y-1.5">
-                        <Input
-                          value={edu.school ?? ""}
-                          onChange={(event) =>
-                            updateEducationField(
-                              entry.index,
-                              "school",
-                              event.target.value
-                            )
-                          }
-                          placeholder={t(
-                            "career.profile.career_talent_profile_panel.1afhauj",
-                            "학교명"
-                          )}
-                          aria-label={"학교명"}
-                          className={cn(
-                            profileEditPlainInputClassName,
-                            "md:text-[14px] md:font-medium md:leading-[1.35]"
-                          )}
-                        />
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
-                          <Input
-                            value={edu.field ?? ""}
-                            onChange={(event) =>
-                              updateEducationField(
-                                entry.index,
-                                "field",
-                                event.target.value
-                              )
-                            }
-                            placeholder={t(
-                              "career.profile.career_talent_profile_panel.06x2f2q",
-                              "전공"
-                            )}
-                            aria-label={"전공"}
-                            className={cn(
-                              profileEditPlainInputClassName,
-                              "w-[170px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
-                            )}
-                          />
-                          <span className="text-neutral-1000-a10">·</span>
-                          <Input
-                            value={edu.degree ?? ""}
-                            onChange={(event) =>
-                              updateEducationField(
-                                entry.index,
-                                "degree",
-                                event.target.value
-                              )
-                            }
-                            placeholder={t(
-                              "career.profile.career_talent_profile_panel.0a7k434",
-                              "학위"
-                            )}
-                            aria-label={"학위"}
-                            className={cn(
-                              profileEditPlainInputClassName,
-                              "w-[150px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
-                            )}
-                          />
-                          <span className="text-neutral-1000-a10">·</span>
-                          <Input
-                            value={edu.url ?? ""}
-                            onChange={(event) =>
-                              updateEducationField(
-                                entry.index,
-                                "url",
-                                event.target.value
-                              )
-                            }
-                            placeholder={t(
-                              "career.profile.career_talent_profile_panel.1ywstxy",
-                              "학교/프로그램 링크"
-                            )}
-                            aria-label={"학교/프로그램 링크"}
-                            className={cn(
-                              profileEditPlainInputClassName,
-                              "min-w-[180px] flex-1 md:text-[12.5px] md:leading-5 md:text-neutral-muted"
-                            )}
-                          />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-5 text-neutral-soft">
-                          <Input
-                            value={edu.start_date ?? ""}
-                            onChange={(event) =>
-                              updateEducationField(
-                                entry.index,
-                                "start_date",
-                                event.target.value
-                              )
-                            }
-                            placeholder={t(
-                              "career.profile.career_talent_profile_panel.11cor6u",
-                              "시작일"
-                            )}
-                            aria-label={"시작일"}
-                            className={cn(
-                              profileEditPlainInputClassName,
-                              "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
-                            )}
-                          />
-                          <span>-</span>
-                          <Input
-                            value={edu.end_date ?? ""}
-                            onChange={(event) =>
-                              updateEducationField(
-                                entry.index,
-                                "end_date",
-                                event.target.value
-                              )
-                            }
-                            placeholder={t(
-                              "career.profile.career_talent_profile_panel.13a39zc",
-                              "종료일"
-                            )}
-                            aria-label={"종료일"}
-                            className={cn(
-                              profileEditPlainInputClassName,
-                              "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
-                            )}
-                          />
-                        </div>
-                        <Textarea
-                          value={edu.description ?? ""}
-                          onChange={(event) =>
-                            updateEducationField(
-                              entry.index,
-                              "description",
-                              event.target.value
-                            )
-                          }
-                          placeholder={t(
-                            "career.profile.career_talent_profile_panel.1trcux2",
-                            "학력 설명"
-                          )}
-                          aria-label={"학력 설명"}
-                          className={cn(
-                            profileEditPlainTextareaClassName,
-                            "mt-2 md:text-[13px] md:leading-6 md:text-neutral-muted"
-                          )}
-                        />
-                      </div>
-                    </TimelineEditBlock>
-                  );
-                })}
-
-                {draft.talentExtras.map((extra, extraIndex) => (
+          <section className="px-1" aria-label="Background">
+            <div className="relative">
+              {draftExperienceEntries.map((entry, index) => {
+                const isLast = index === draftExperienceEntries.length - 1;
+                const exp = entry.item;
+                return (
                   <TimelineEditBlock
-                    key={extra.clientKey}
-                    kind="extra"
-                    logoText={extra.title ?? "Extra"}
-                    isLast={extraIndex === draft.talentExtras.length - 1}
-                    onRemove={() => requestRemoveExtra(extraIndex)}
+                    key={exp.clientKey}
+                    kind="work"
+                    logoUrl={exp.company_logo}
+                    logoAlt={exp.company_name ?? exp.role ?? "Company"}
+                    logoText={exp.company_name ?? exp.role ?? ""}
+                    isLast={isLast}
+                    onRemove={() => requestRemoveExperience(entry.index)}
+                    onLogoFileChange={(file) =>
+                      void uploadCompanyLogo(entry.index, exp.clientKey, file)
+                    }
+                    logoUploadPending={Boolean(
+                      logoUploadPendingKeys[exp.clientKey]
+                    )}
                   >
                     <div className="space-y-1.5">
                       <Input
-                        value={extra.title ?? ""}
+                        value={exp.role ?? ""}
                         onChange={(event) =>
-                          updateExtraField(
-                            extraIndex,
-                            "title",
+                          updateExperienceField(
+                            entry.index,
+                            "role",
                             event.target.value
                           )
                         }
                         placeholder={t(
-                          "career.profile.career_talent_profile_panel.1ub2ks6",
-                          "제목"
+                          "career.profile.career_talent_profile_panel.1qnltk8",
+                          "직무"
                         )}
-                        aria-label={"제목"}
+                        aria-label={"직무"}
                         className={cn(
                           profileEditPlainInputClassName,
                           "md:text-[14px] md:font-medium md:leading-[1.35]"
@@ -1589,39 +1241,140 @@ const CareerTalentProfilePanel = ({
                       />
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
                         <Input
-                          value={extra.date ?? ""}
+                          value={exp.company_name ?? ""}
                           onChange={(event) =>
-                            updateExtraField(
-                              extraIndex,
-                              "date",
+                            updateExperienceField(
+                              entry.index,
+                              "company_name",
                               event.target.value
                             )
                           }
                           placeholder={t(
-                            "career.profile.career_talent_profile_panel.1pzl6hl",
-                            "날짜"
+                            "career.profile.career_talent_profile_panel.0uwqvnk",
+                            "회사명"
                           )}
-                          aria-label={"날짜"}
+                          aria-label={"회사명"}
                           className={cn(
                             profileEditPlainInputClassName,
-                            "w-[160px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
+                            "w-[180px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
+                          )}
+                        />
+                        <span className="text-neutral-1000-a10">·</span>
+                        <Input
+                          value={exp.company_location ?? ""}
+                          onChange={(event) =>
+                            updateExperienceField(
+                              entry.index,
+                              "company_location",
+                              event.target.value
+                            )
+                          }
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.00infjs",
+                            "근무 지역"
+                          )}
+                          aria-label={"근무 지역"}
+                          className={cn(
+                            profileEditPlainInputClassName,
+                            "w-[150px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
+                          )}
+                        />
+                        <span className="text-neutral-1000-a10">·</span>
+                        <Input
+                          value={exp.employment_type ?? ""}
+                          onChange={(event) =>
+                            updateExperienceField(
+                              entry.index,
+                              "employment_type",
+                              event.target.value
+                            )
+                          }
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.0rtdf2n",
+                            "고용 형태"
+                          )}
+                          aria-label={"고용 형태"}
+                          className={cn(
+                            profileEditPlainInputClassName,
+                            "w-[120px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
+                          )}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-5 text-neutral-soft">
+                        <Input
+                          value={exp.start_date ?? ""}
+                          onChange={(event) =>
+                            updateExperienceField(
+                              entry.index,
+                              "start_date",
+                              event.target.value
+                            )
+                          }
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.11cor6u",
+                            "시작일"
+                          )}
+                          aria-label={"시작일"}
+                          className={cn(
+                            profileEditPlainInputClassName,
+                            "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
+                          )}
+                        />
+                        <span>-</span>
+                        <Input
+                          value={exp.end_date ?? ""}
+                          onChange={(event) =>
+                            updateExperienceField(
+                              entry.index,
+                              "end_date",
+                              event.target.value
+                            )
+                          }
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.0p5h1wt",
+                            "현재"
+                          )}
+                          aria-label={"종료일 또는 현재"}
+                          className={cn(
+                            profileEditPlainInputClassName,
+                            "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
+                          )}
+                        />
+                        <span className="text-neutral-1000-a10">·</span>
+                        <Input
+                          value={exp.company_link ?? ""}
+                          onChange={(event) =>
+                            updateExperienceField(
+                              entry.index,
+                              "company_link",
+                              event.target.value
+                            )
+                          }
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.07x414y",
+                            "회사 링크"
+                          )}
+                          aria-label={"회사 링크"}
+                          className={cn(
+                            profileEditPlainInputClassName,
+                            "min-w-[180px] flex-1 md:text-[11.5px] md:leading-5 md:text-neutral-soft"
                           )}
                         />
                       </div>
                       <Textarea
-                        value={extra.description ?? ""}
+                        value={exp.description ?? ""}
                         onChange={(event) =>
-                          updateExtraField(
-                            extraIndex,
+                          updateExperienceField(
+                            entry.index,
                             "description",
                             event.target.value
                           )
                         }
                         placeholder={t(
-                          "career.profile.career_talent_profile_panel.07tjd6q",
-                          "설명"
+                          "career.profile.career_talent_profile_panel.051qjyj",
+                          "주요 업무와 성과"
                         )}
-                        aria-label={"설명"}
+                        aria-label={"주요 업무와 성과"}
                         className={cn(
                           profileEditPlainTextareaClassName,
                           "mt-2 md:text-[13px] md:leading-6 md:text-neutral-muted"
@@ -1629,16 +1382,262 @@ const CareerTalentProfilePanel = ({
                       />
                     </div>
                   </TimelineEditBlock>
-                ))}
-              </div>
-            ) : (
-              <EmptyEditState
-                label={t(
-                  "career.profile.career_talent_profile_panel.0x0us78",
-                  "경력, 학력, 추가 정보를 추가해 주세요."
-                )}
-              />
+                );
+              })}
+            </div>
+          </section>
+
+          <ProfileSectionHeader
+            label="Education"
+            onAdd={addEducation}
+            addLabel={t(
+              "career.profile.career_talent_profile_panel.1efofsl",
+              "학력 추가"
             )}
+          />
+          <section className="px-1" aria-label="Education">
+            <div className="relative">
+              {draftEducationEntries.map((entry, index) => {
+                const isLast = index === draftEducationEntries.length - 1;
+                const edu = entry.item;
+                return (
+                  <TimelineEditBlock
+                    key={edu.clientKey}
+                    kind="education"
+                    logoText={edu.school ?? "Education"}
+                    isLast={isLast}
+                    onRemove={() => requestRemoveEducation(entry.index)}
+                  >
+                    <div className="space-y-1.5">
+                      <Input
+                        value={edu.school ?? ""}
+                        onChange={(event) =>
+                          updateEducationField(
+                            entry.index,
+                            "school",
+                            event.target.value
+                          )
+                        }
+                        placeholder={t(
+                          "career.profile.career_talent_profile_panel.1afhauj",
+                          "학교명"
+                        )}
+                        aria-label={"학교명"}
+                        className={cn(
+                          profileEditPlainInputClassName,
+                          "md:text-[14px] md:font-medium md:leading-[1.35]"
+                        )}
+                      />
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
+                        <Input
+                          value={edu.field ?? ""}
+                          onChange={(event) =>
+                            updateEducationField(
+                              entry.index,
+                              "field",
+                              event.target.value
+                            )
+                          }
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.06x2f2q",
+                            "전공"
+                          )}
+                          aria-label={"전공"}
+                          className={cn(
+                            profileEditPlainInputClassName,
+                            "w-[170px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
+                          )}
+                        />
+                        <span className="text-neutral-1000-a10">·</span>
+                        <Input
+                          value={edu.degree ?? ""}
+                          onChange={(event) =>
+                            updateEducationField(
+                              entry.index,
+                              "degree",
+                              event.target.value
+                            )
+                          }
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.0a7k434",
+                            "학위"
+                          )}
+                          aria-label={"학위"}
+                          className={cn(
+                            profileEditPlainInputClassName,
+                            "w-[150px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
+                          )}
+                        />
+                        <span className="text-neutral-1000-a10">·</span>
+                        <Input
+                          value={edu.url ?? ""}
+                          onChange={(event) =>
+                            updateEducationField(
+                              entry.index,
+                              "url",
+                              event.target.value
+                            )
+                          }
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.1ywstxy",
+                            "학교/프로그램 링크"
+                          )}
+                          aria-label={"학교/프로그램 링크"}
+                          className={cn(
+                            profileEditPlainInputClassName,
+                            "min-w-[180px] flex-1 md:text-[12.5px] md:leading-5 md:text-neutral-muted"
+                          )}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-5 text-neutral-soft">
+                        <Input
+                          value={edu.start_date ?? ""}
+                          onChange={(event) =>
+                            updateEducationField(
+                              entry.index,
+                              "start_date",
+                              event.target.value
+                            )
+                          }
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.11cor6u",
+                            "시작일"
+                          )}
+                          aria-label={"시작일"}
+                          className={cn(
+                            profileEditPlainInputClassName,
+                            "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
+                          )}
+                        />
+                        <span>-</span>
+                        <Input
+                          value={edu.end_date ?? ""}
+                          onChange={(event) =>
+                            updateEducationField(
+                              entry.index,
+                              "end_date",
+                              event.target.value
+                            )
+                          }
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.13a39zc",
+                            "종료일"
+                          )}
+                          aria-label={"종료일"}
+                          className={cn(
+                            profileEditPlainInputClassName,
+                            "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
+                          )}
+                        />
+                      </div>
+                      <Textarea
+                        value={edu.description ?? ""}
+                        onChange={(event) =>
+                          updateEducationField(
+                            entry.index,
+                            "description",
+                            event.target.value
+                          )
+                        }
+                        placeholder={t(
+                          "career.profile.career_talent_profile_panel.1trcux2",
+                          "학력 설명"
+                        )}
+                        aria-label={"학력 설명"}
+                        className={cn(
+                          profileEditPlainTextareaClassName,
+                          "mt-2 md:text-[13px] md:leading-6 md:text-neutral-muted"
+                        )}
+                      />
+                    </div>
+                  </TimelineEditBlock>
+                );
+              })}
+            </div>
+          </section>
+
+          <ProfileSectionHeader
+            label="Extra"
+            onAdd={addExtra}
+            addLabel={t(
+              "career.profile.career_talent_profile_panel.0wjximy",
+              "추가 정보"
+            )}
+          />
+          <section className="px-1" aria-label="Extra">
+            <div className="relative">
+              {draft.talentExtras.map((extra, extraIndex) => (
+                <TimelineEditBlock
+                  key={extra.clientKey}
+                  kind="extra"
+                  logoText={extra.title ?? "Extra"}
+                  isLast={extraIndex === draft.talentExtras.length - 1}
+                  onRemove={() => requestRemoveExtra(extraIndex)}
+                >
+                  <div className="space-y-1.5">
+                    <Input
+                      value={extra.title ?? ""}
+                      onChange={(event) =>
+                        updateExtraField(
+                          extraIndex,
+                          "title",
+                          event.target.value
+                        )
+                      }
+                      placeholder={t(
+                        "career.profile.career_talent_profile_panel.1ub2ks6",
+                        "제목"
+                      )}
+                      aria-label={"제목"}
+                      className={cn(
+                        profileEditPlainInputClassName,
+                        "md:text-[14px] md:font-medium md:leading-[1.35]"
+                      )}
+                    />
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
+                      <Input
+                        value={extra.date ?? ""}
+                        onChange={(event) =>
+                          updateExtraField(
+                            extraIndex,
+                            "date",
+                            event.target.value
+                          )
+                        }
+                        placeholder={t(
+                          "career.profile.career_talent_profile_panel.1pzl6hl",
+                          "날짜"
+                        )}
+                        aria-label={"날짜"}
+                        className={cn(
+                          profileEditPlainInputClassName,
+                          "w-[160px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
+                        )}
+                      />
+                    </div>
+                    <Textarea
+                      value={extra.description ?? ""}
+                      onChange={(event) =>
+                        updateExtraField(
+                          extraIndex,
+                          "description",
+                          event.target.value
+                        )
+                      }
+                      placeholder={t(
+                        "career.profile.career_talent_profile_panel.07tjd6q",
+                        "설명"
+                      )}
+                      aria-label={"설명"}
+                      className={cn(
+                        profileEditPlainTextareaClassName,
+                        "mt-2 md:text-[13px] md:leading-6 md:text-neutral-muted"
+                      )}
+                    />
+                  </div>
+                </TimelineEditBlock>
+              ))}
+            </div>
           </section>
         </>
       ) : hasAnyProfileData ? (
@@ -1662,11 +1661,6 @@ const CareerTalentProfilePanel = ({
             user={talentUser}
           />
 
-          <ProfileSectionHeader
-            icon={<Eye className="h-4 w-4" />}
-            label="Overview"
-          />
-
           <ProfileOverviewSection
             isEditing={false}
             items={[]}
@@ -1674,57 +1668,65 @@ const CareerTalentProfilePanel = ({
             summary={profileSummary}
           />
 
-          {backgroundCount > 0 ? (
+          {experienceEntries.length > 0 ? (
             <>
               <ProfileSectionHeader
-                count={backgroundCount}
-                icon={<Building2 className="h-4 w-4" />}
                 label="Background"
+                onAdd={addExperience}
+                addLabel={t(
+                  "career.profile.career_talent_profile_panel.0efzyx5",
+                  "경력 추가"
+                )}
               />
-              <section className="px-1">
+              <section className="px-1" aria-label="Background">
                 <div className="relative">
-                  {mergedExperience.map((entry, index) => {
-                    const isLast =
-                      index ===
-                      mergedExperience.length + talentExtras.length - 1;
-                    const isFirstEntryOfKind = !mergedExperience
-                      .slice(0, index)
-                      .some((previous) => previous.kind === entry.kind);
+                  {experienceEntries.map((entry, index) => {
+                    const isLast = index === experienceEntries.length - 1;
+                    const exp = entry.item;
+                    const meta = [
+                      formatRange(exp.start_date, exp.end_date, locale, t),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
 
-                    if (entry.kind === "exp") {
-                      const exp = entry.item;
-                      const meta = [
-                        formatRange(exp.start_date, exp.end_date, locale, t),
-                        formatMonth(exp.months, locale, t),
-                      ]
-                        .filter(Boolean)
-                        .join(" · ");
+                    return (
+                      <TimelineBlock
+                        key={`exp-${exp.id}-${index}`}
+                        title={exp.role ?? "Employee"}
+                        subtitle={exp.company_name ?? ""}
+                        subtitleTone="primary"
+                        secondarySubtitle={exp.company_location ?? ""}
+                        meta={meta}
+                        description={exp.description ?? ""}
+                        memo={exp.memo ?? ""}
+                        icon={<Building2 className="h-4 w-4" />}
+                        logoUrl={exp.company_logo}
+                        logoAlt={exp.company_name ?? exp.role ?? "Company"}
+                        logoText={exp.company_name ?? exp.role ?? ""}
+                        isLast={isLast}
+                        onEdit={() => editEntry("work", entry.index)}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            </>
+          ) : null}
 
-                      return (
-                        <TimelineBlock
-                          key={`exp-${exp.id}-${index}`}
-                          title={exp.role ?? "Employee"}
-                          subtitle={exp.company_name ?? ""}
-                          subtitleTone="primary"
-                          secondarySubtitle={exp.company_location ?? ""}
-                          meta={meta}
-                          description={exp.description ?? ""}
-                          memo={exp.memo ?? ""}
-                          icon={<Building2 className="h-4 w-4" />}
-                          kind="work"
-                          logoUrl={exp.company_logo}
-                          logoAlt={exp.company_name ?? exp.role ?? "Company"}
-                          logoText={exp.company_name ?? exp.role ?? ""}
-                          isLast={isLast}
-                          onAdd={isFirstEntryOfKind ? addExperience : undefined}
-                          addLabel={t(
-                            "career.profile.career_talent_profile_panel.0efzyx5",
-                            "경력 추가"
-                          )}
-                        />
-                      );
-                    }
-
+          {educationEntries.length > 0 ? (
+            <>
+              <ProfileSectionHeader
+                label="Education"
+                onAdd={addEducation}
+                addLabel={t(
+                  "career.profile.career_talent_profile_panel.1efofsl",
+                  "학력 추가"
+                )}
+              />
+              <section className="px-1" aria-label="Education">
+                <div className="relative">
+                  {educationEntries.map((entry, index) => {
+                    const isLast = index === educationEntries.length - 1;
                     const edu = entry.item;
 
                     return (
@@ -1743,18 +1745,29 @@ const CareerTalentProfilePanel = ({
                         description={edu.description ?? ""}
                         memo={edu.memo ?? ""}
                         icon={<SchoolIcon className="h-4 w-4" />}
-                        kind="education"
                         logoText={edu.school ?? "Education"}
                         isLast={isLast}
-                        onAdd={isFirstEntryOfKind ? addEducation : undefined}
-                        addLabel={t(
-                          "career.profile.career_talent_profile_panel.1efofsl",
-                          "학력 추가"
-                        )}
+                        onEdit={() => editEntry("education", entry.index)}
                       />
                     );
                   })}
+                </div>
+              </section>
+            </>
+          ) : null}
 
+          {talentExtras.length > 0 ? (
+            <>
+              <ProfileSectionHeader
+                label="Extra"
+                onAdd={addExtra}
+                addLabel={t(
+                  "career.profile.career_talent_profile_panel.0wjximy",
+                  "추가 정보"
+                )}
+              />
+              <section className="px-1" aria-label="Extra">
+                <div className="relative">
                   {talentExtras.map((extra, extraIndex) => (
                     <TimelineBlock
                       key={`extra-${extraIndex}-${extra.title ?? "untitled"}`}
@@ -1769,14 +1782,9 @@ const CareerTalentProfilePanel = ({
                       description={extra.description ?? ""}
                       memo={extra.memo ?? ""}
                       icon={<AwardIcon className="h-4 w-4" />}
-                      kind="extra"
                       logoText={extra.title ?? "Extra"}
                       isLast={extraIndex === talentExtras.length - 1}
-                      onAdd={extraIndex === 0 ? addExtra : undefined}
-                      addLabel={t(
-                        "career.profile.career_talent_profile_panel.0wjximy",
-                        "추가 정보"
-                      )}
+                      onEdit={() => editEntry("extra", extraIndex)}
                     />
                   ))}
                 </div>
@@ -1809,10 +1817,11 @@ const CareerTalentProfilePanel = ({
       )}
 
       <CareerProfileEntryModal
-        key={entryModalKind ?? "closed"}
+        key={`${entryModalKind ?? "closed"}-${editingEntry?.index ?? "new"}`}
         kind={entryModalKind}
+        initialValues={editingEntry?.values}
         onClose={() => setEntryModalKind(null)}
-        onSubmit={handleAddEntry}
+        onSubmit={handleSubmitEntry}
         error={isEditing ? null : profileSaveError}
       />
 

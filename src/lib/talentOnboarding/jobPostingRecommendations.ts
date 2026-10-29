@@ -3909,84 +3909,63 @@ async function saveFullJdExternalFitEvaluations(args: {
   return rows.length;
 }
 
-async function saveFullJdRoleSummariesBatch(args: {
+async function saveRoleSummaries(args: {
+  admin: AdminClient;
+  outputLanguage: string;
+  summaries: Array<{ card: RoleCard; content: string | null }>;
+}) {
+  const languageKey = roleSummaryLanguageKey(args.outputLanguage);
+  const pending = args.summaries.flatMap(({ card, content }) => {
+    if (!isUuid(card.roleId) || roleSummaryContent(card, languageKey)) return [];
+    const normalizedContent = normalizeMultiline(
+      content,
+      ROLE_FIT_SUMMARY_MAX_LENGTH
+    );
+    if (!normalizedContent) return [];
+    return [
+      {
+        roleId: card.roleId,
+        roleName: card.row.role_name ?? card.roleName,
+        description: card.row.description ?? "",
+        companyWorkspaceId: card.companyWorkspaceId,
+        payload: {
+          content: normalizedContent,
+          generatedAt: new Date().toISOString(),
+          sourceHash: fullJdRoleSourceHash(card),
+          version: ROLE_FIT_SUMMARY_VERSION,
+        },
+      },
+    ];
+  });
+  let stored = 0;
+  // The existing write RPC accepts at most ten rows and merges one locale
+  // atomically. The raw SQL read RPC cannot execute UPDATE statements.
+  for (let offset = 0; offset < pending.length; offset += 10) {
+    const { data, error } = await args.admin.rpc(
+      "save_external_role_summaries_v2",
+      { p_locale: languageKey, p_rows: pending.slice(offset, offset + 10) }
+    );
+    if (error) throw new Error(error.message ?? "Failed to save role summaries");
+    stored += Array.isArray(data) ? data.length : 0;
+  }
+  return { stored };
+}
+
+export async function saveFullJdRoleSummariesBatch(args: {
   admin: AdminClient;
   cards: RoleCard[];
   evaluations: FullJdFitEvaluation[];
   outputLanguage: string;
 }) {
-  const languageKey = roleSummaryLanguageKey(args.outputLanguage);
   const cardByRoleId = new Map(args.cards.map((card) => [card.roleId, card]));
-  const updates: Array<{ payload: string; roleId: string }> = [];
-  for (const evaluation of args.evaluations) {
-    const roleId = cleanText(evaluation.roleId, 120);
-    const card = cardByRoleId.get(roleId);
-    if (!card || !isUuid(roleId)) continue;
-    if (roleSummaryContent(card, languageKey)) {
-      continue;
-    }
-    const content = normalizeMultiline(
-      evaluation.fitSummary,
-      ROLE_FIT_SUMMARY_MAX_LENGTH
-    );
-    if (!content) continue;
-    updates.push({
-      payload: JSON.stringify({
-        content,
-        generatedAt: new Date().toISOString(),
-        sourceHash: fullJdRoleSourceHash(card),
-        version: ROLE_FIT_SUMMARY_VERSION,
-      }),
-      roleId,
-    });
-  }
-  if (updates.length === 0) {
-    return { stored: 0 };
-  }
-  const valuesSql = updates
-    .map(
-      (item) =>
-        `(${sqlLiteral(item.roleId)}::uuid, ${sqlLiteral(item.payload)}::jsonb)`
-    )
-    .join(",\n  ");
-  const sql = `
-WITH incoming(role_id, payload) AS (
-  VALUES
-  ${valuesSql}
-)
-UPDATE public.company_roles AS role
-SET summary = jsonb_set(
-  COALESCE(role.summary, '{}'::jsonb),
-  ARRAY[${sqlLiteral(languageKey)}::text],
-  incoming.payload,
-  true
-)
-FROM incoming
-WHERE role.role_id = incoming.role_id
-  AND (
-    role.summary IS NULL
-    OR NOT (role.summary ? ${sqlLiteral(languageKey)})
-    OR NULLIF(BTRIM(role.summary -> ${sqlLiteral(languageKey)} ->> 'content'), '') IS NULL
-    OR role.summary -> ${sqlLiteral(languageKey)} ->> 'version' IS DISTINCT FROM ${sqlLiteral(ROLE_FIT_SUMMARY_VERSION)}
-    OR role.summary -> ${sqlLiteral(languageKey)} ->> 'sourceHash' IS DISTINCT FROM incoming.payload ->> 'sourceHash'
-  )
-`.trim();
-  const { error } = await (args.admin.rpc(
-    "set_timeout_and_execute_raw_sql" as never,
-    {
-      limit_num: updates.length,
-      offset_num: 0,
-      page_idx: 0,
-      sql_query: sql,
-    } as never
-  ) as unknown as Promise<{
-    data: unknown;
-    error: { message?: string } | null;
-  }>);
-  if (error) {
-    throw new Error(error.message ?? "Failed to save full JD role summaries");
-  }
-  return { stored: updates.length };
+  return saveRoleSummaries({
+    admin: args.admin,
+    outputLanguage: args.outputLanguage,
+    summaries: args.evaluations.flatMap((evaluation) => {
+      const card = cardByRoleId.get(evaluation.roleId);
+      return card ? [{ card, content: evaluation.fitSummary }] : [];
+    }),
+  });
 }
 
 async function persistFullJdBatchEvaluations(args: {
@@ -4326,64 +4305,14 @@ async function saveRoleFitSummaries(args: {
   outputLanguage: string;
   recommendations: EnrichedRankedRole[];
 }) {
-  const languageKey = roleSummaryLanguageKey(args.outputLanguage);
-  let stored = 0;
-  for (const item of args.recommendations) {
-    const roleId = cleanText(item.roleId || item.role.role_id, 120);
-    if (!roleId || !isUuid(roleId)) continue;
-    if (
-      roleSummaryContentFromSummary(
-        roleSummaryFromValue(item.role.summary),
-        languageKey,
-        fullJdRoleSourceHash(roleCard(item.role))
-      )
-    ) {
-      continue;
-    }
-    const content = normalizeMultiline(
-      item.detail.roleOverviewText,
-      ROLE_FIT_SUMMARY_MAX_LENGTH
-    );
-    if (!content) continue;
-    const payload = JSON.stringify({
-      content,
-      generatedAt: new Date().toISOString(),
-      sourceHash: fullJdRoleSourceHash(roleCard(item.role)),
-      version: ROLE_FIT_SUMMARY_VERSION,
-    });
-    const sql = `
-UPDATE public.company_roles
-SET summary = jsonb_set(
-  COALESCE(summary, '{}'::jsonb),
-  ARRAY[${sqlLiteral(languageKey)}::text],
-  ${sqlLiteral(payload)}::jsonb,
-  true
-)
-WHERE role_id = ${sqlLiteral(roleId)}::uuid
-  AND (
-    summary IS NULL
-    OR NOT (summary ? ${sqlLiteral(languageKey)})
-    OR NULLIF(BTRIM(summary -> ${sqlLiteral(languageKey)} ->> 'content'), '') IS NULL
-    OR summary -> ${sqlLiteral(languageKey)} ->> 'version' IS DISTINCT FROM ${sqlLiteral(ROLE_FIT_SUMMARY_VERSION)}
-    OR summary -> ${sqlLiteral(languageKey)} ->> 'sourceHash' IS DISTINCT FROM ${sqlLiteral(fullJdRoleSourceHash(roleCard(item.role)))}
-  )
-`.trim();
-    const { error } = await (args.admin.rpc(
-      "set_timeout_and_execute_raw_sql" as never,
-      {
-        limit_num: 1,
-        offset_num: 0,
-        page_idx: 0,
-        sql_query: sql,
-      } as never
-    ) as unknown as Promise<{
-      data: unknown;
-      error: { message?: string } | null;
-    }>);
-    if (error) throw new Error(error.message ?? "Failed to save role summary");
-    stored += 1;
-  }
-  return { stored };
+  return saveRoleSummaries({
+    admin: args.admin,
+    outputLanguage: args.outputLanguage,
+    summaries: args.recommendations.map((item) => ({
+      card: roleCard({ ...item.role, role_id: item.roleId || item.role.role_id }),
+      content: item.detail.roleOverviewText,
+    })),
+  });
 }
 
 export async function persistRecommendations(args: {

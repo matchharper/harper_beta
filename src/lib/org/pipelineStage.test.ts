@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   compactOrgProgressMetadata,
   getOrgCompanyIntroBoardStage,
+  humanizeOrgCompanyIntroStatus,
   getOrgAgentPipelineBucket,
   humanizeOrgCandidateActivity,
   humanizeOrgCandidateRequestKind,
@@ -104,6 +105,21 @@ test("requested Company-first intros move into their own board stage", () => {
     "intro_requested"
   );
   assert.equal(getOrgCompanyIntroBoardStage("connecting"), "intro_requested");
+});
+
+test("ending hiring keeps unrequested suggestions in the inbox without reopening delivery", () => {
+  const intro = { status: "closed" as const, closeReason: "role_closed",
+    requestedAt: null, candidateSentAt: null, talentDecisionAt: null };
+  assert.equal(getOrgCompanyIntroBoardStage(intro.status, intro), "company_intro");
+  assert.equal(intro.status, "closed");
+  assert.equal(humanizeOrgCompanyIntroStatus(intro), "채용 종료");
+  for (const changed of [
+    { requestedAt: "2026-10-28" }, { candidateSentAt: "2026-10-28" },
+    { talentDecisionAt: "2026-10-28" }, { closeReason: "talent_declined" },
+    { closeReason: "company_passed" }, { closeReason: "role_moved" },
+  ]) assert.equal(getOrgCompanyIntroBoardStage("closed", { ...intro, ...changed }), "process_stopped");
+  assert.equal(getOrgCompanyIntroBoardStage("passed", intro), "process_stopped");
+  assert.equal(getOrgCompanyIntroBoardStage("closed"), "process_stopped");
 });
 
 test("recommendation ID filters are normalized and strictly bounded", () => {

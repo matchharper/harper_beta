@@ -86,7 +86,12 @@ export async function* browserEvents(sessionId: string, signal: AbortSignal) {
 }
 
 /** Finished runs may retain their provider reference after resource cleanup. */
-export async function stopApplicationBrowser(browser?: {status: string; sessionId?: string; driver?: import("./applicationBrowserRuntimeRef").ApplicationBrowserRuntimeRef}) {
+export async function stopApplicationBrowser(browser?: {status: string; sessionId?: string; driver?: import("./applicationBrowserRuntimeRef").ApplicationBrowserRuntimeRef; engine?: string; managed?: { runId?: string; sessionId?: string; workspaceId?: string }}) {
+  if (browser?.engine === "browser-use-agents") {
+    const { browserUseAgents } = await import("./browserUseAgents");
+    await browserUseAgents.stop(browser.managed ?? {});
+    return;
+  }
   if (browser?.driver) {
     const { applicationBrowserRuntime } = await import("./applicationBrowserRuntime");
     await applicationBrowserRuntime.stop(browser.driver);

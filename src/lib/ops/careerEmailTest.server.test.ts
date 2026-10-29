@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import Module from "node:module";
 import { before, test } from "node:test";
+import { EMAIL_ASSISTANT_MODEL, emailAssistantModel } from "@/lib/email/runtime/model";
 import {
   EmailBusyError,
   EmailContinuationPending,
@@ -149,6 +150,7 @@ test("test jobs always use the new worker, keep account ownership, and reuse the
   assert.equal(first.talent_id, "talent");
   assert.notEqual(first.conversation_id, "live-conversation");
   assert.equal(first.metadata.opsEmailTest.actorId, "operator");
+  assert.equal(first.metadata.opsEmailTest.model, EMAIL_ASSISTANT_MODEL);
   assert.equal(first.metadata.opsEmailTest.email.from, "candidate@example.com");
   await assert.rejects(
     () =>
@@ -230,7 +232,26 @@ test("history exposes test completion without claiming delivery or leaking anoth
   const history = await fetchOpsEmailTests("talent", 0, f.admin);
   assert.equal(history.items[0].status, "completed");
   assert.equal(history.items[0].reply, null);
+  assert.equal(history.items[0].model, null);
   assert.equal(history.nextOffset, null);
+});
+
+test("custom model is saved, shown in history and reused by the consumer; changing it requires a new request", async () => {
+  const f = fixture();
+  const custom = { ...command, model: "vendor/custom-reply-model" };
+  await createOpsEmailTest(custom, "operator", f.admin);
+  await createOpsEmailTest(custom, "operator", f.admin);
+  assert.equal(f.tables.email_reply_jobs.length, 1);
+  assert.equal((await fetchOpsEmailTests("talent", 0, f.admin)).items[0].model, custom.model);
+  await assert.rejects(
+    () => createOpsEmailTest({ ...custom, model: "claude-sonnet-5-5" }, "operator", f.admin),
+    /다른 입력/
+  );
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await runOpsEmailTest("talent", command.requestId, f.admin, async () => {
+      assert.equal(emailAssistantModel(f.tables.email_reply_jobs[0]).primaryModel, custom.model);
+    });
+  }
 });
 
 test("a queued test with a local Queue authentication error resumes through the shared consumer without publishing", async () => {

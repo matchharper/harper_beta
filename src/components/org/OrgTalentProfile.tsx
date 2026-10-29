@@ -346,15 +346,6 @@ export function OrgTalentProfileContent({
 
       {detail.companyPresentation ? (
         <>
-          {detail.companyPresentation.isFromPreviousBrief ? (
-            <p className="text-sm text-muted-foreground">
-              {c(
-                "이 설명은 이전 채용 기준으로 작성됐어요.",
-                "This assessment was written using earlier hiring criteria."
-              )}
-            </p>
-          ) : null}
-
           <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 gap-y-6 my-8 mb-12">
             {[
               {
@@ -391,19 +382,9 @@ export function OrgTalentProfileContent({
           <ProfileSection title="TL;DR">
             {detail.companyPresentation.tldr}
           </ProfileSection>
-          {detail.companyPresentation.recommendationReason ? (
-            <ProfileSection
-              title={c(
-                "추천 이유와 고려할 점",
-                "Why this candidate and what to consider"
-              )}
-            >
-              {detail.companyPresentation.recommendationReason}
-            </ProfileSection>
-          ) : null}
           {detail.companyPresentation.harperNote ? (
             <ProfileSection title="Harper Note">
-              {detail.companyPresentation.harperNote}
+              <MarkdownProfile value={detail.companyPresentation.harperNote} />
             </ProfileSection>
           ) : null}
         </>

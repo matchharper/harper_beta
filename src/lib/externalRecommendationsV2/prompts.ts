@@ -68,9 +68,10 @@ export function rerankPrompt(
 ) {
   // Selection policy/rubric mirrors worker deepseek_rerank_system_prompt.
   // Only input field names and the single recommendationNote output are adapted.
-  const selectionCountPolicy = surface === "web"
-    ? "Fill candidate_context.target_count with distinct-company roles whenever possible; select fewer only when the remaining roles hit a hard filter. Do not leave a slot empty merely because a role is imperfect or lower-scored."
-    : "Choose roles worth recommending now and aim to fill candidate_context.target_count; fewer or zero roles are allowed only when there is a concrete reason not to recommend the remaining roles. Do not withhold an otherwise defensible role merely because it is imperfect or lower-scored.";
+  const selectionCountPolicy =
+    surface === "web"
+      ? "Fill candidate_context.target_count with distinct-company roles whenever possible; select fewer only when the remaining roles hit a hard filter. Do not leave a slot empty merely because a role is imperfect or lower-scored."
+      : "Choose roles worth recommending now and aim to fill candidate_context.target_count; fewer or zero roles are allowed only when there is a concrete reason not to recommend the remaining roles. Do not withhold an otherwise defensible role merely because it is imperfect or lower-scored.";
   return `You are Harper's senior career opportunity selector.
 Return JSON only.
 
@@ -188,11 +189,9 @@ Fit metrics and ranking scores are supporting signals, not calibrated hiring pro
 
 ## Recommendation Note
 
-For each selected role, write one recommendationNote combining the personalized explanation and any material tradeoff in 1–3 concise candidate-facing sentences.
-Name specific user evidence and specific company/role evidence from the compact card or neutral fitSummary, and explain the concrete benefit or next-step value of that connection rather than praising or summarizing the posting.
-Do not cite likes, dislikes, saves, views, messages, recommendation history, scores, or other internal evidence mechanics. Describe the underlying goal or preference instead.
-Include a caveat only when the provided evidence shows a concrete downside, constraint conflict, or screenability risk that could materially change this user's decision, and state why it matters. Do not turn ordinary responsibilities, domain learning, missing information, a speculative responsibility mix, or recruiter due diligence into a question to verify. A core mismatch should cause the role not to be selected; do not use a caveat to excuse one or write a generic caveat such as "fast-paced environment" or "additional confirmation needed."
-Mention preferences only when they are present in the supplied user context. Do not invent information that is not present in the compact role card, prior fit evaluation, or user context.
+For each selected role, write one recommendationNote combining the personalized explanation and any material tradeoff in 1-2 concise candidate-facing sentences.
+유저의 Search Brief 중 선호 근무 형태 및 지역을 제외하고, 유저의 선호에 대응하는 내용이 있다면 compact하게 언급한다.
+ex. 유저가 다음 역할로 순수 리서치 작업을 선호한다고 되어있으면, "순수 리서치 역할입니다.", 해외 기회를 선호한다고 했으면 "외국계 회사의 한국 지사로, 좋은 발판이 될 수 있습니다", 대기업을 선호한다고 했는데 회사가 작다면 "대기업이 아니지만 충분히 검토할만합니다." 등
 
 ## Output Schema
 

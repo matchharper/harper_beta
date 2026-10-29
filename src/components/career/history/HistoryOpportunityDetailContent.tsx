@@ -1,6 +1,7 @@
+import { ApplicationReviewEntry } from "../chat/ApplicationReviewPanel";
 import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
 import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
-import React, { ReactNode, useState } from "react";
+import React, { ReactNode } from "react";
 import {
   CareerOpportunityType,
   type CareerCallStartRequest,
@@ -37,7 +38,6 @@ import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
-import { InternalOpportunityDecisionMenu } from "./InternalOpportunityDecisionActions";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import {
   ActionDropdown,
@@ -58,7 +58,8 @@ import UpcomingMeetingStrip from "./UpcomingMeetingStrip";
 import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
 import NewOpportunityCompanyRoleSwitcher from "./NewOpportunityCompanyRoleSwitcher";
 import HistoryOpportunityRoleActions from "./HistoryOpportunityRoleActions";
-import ApplyWithHarperButton from "./ApplyWithHarperButton";
+import OpportunityCard from "./OpportunityCard";
+import HistoryOpportunityDetailActions from "./HistoryOpportunityDetailActions";
 
 export { getKnownCompanyDataText, parseFundingStageLabel };
 
@@ -582,7 +583,7 @@ export const HistoryOpportunityInlinePage = ({
   onOpenCompanyInfo,
   onOpenChat,
   onOpenLink,
-  onOpenOpportunityInfo,
+  onApply,
   onInternalDecisionAction,
   onSavedStatusChange,
   onUpdateTalentMemo,
@@ -598,7 +599,7 @@ export const HistoryOpportunityInlinePage = ({
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenChat?: () => void;
   onOpenLink: (url: string) => void;
-  onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
+  onApply: () => void;
   onInternalDecisionAction?: (
     action: CareerInternalOpportunityDecisionAction
   ) => void;
@@ -616,46 +617,10 @@ export const HistoryOpportunityInlinePage = ({
   savedStatus?: CareerOpportunityManagementStatus;
 }) => {
   const t = useCareerT();
-  const [detailState, setDetailState] = useState<{
-    itemId: string;
-    open: boolean;
-  } | null>(null);
-  const showDetails =
-    detailState?.itemId === item.id ? detailState.open : false;
   const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
 
   return (
     <section className={cn("min-w-0 pb-8 text-neutral-primary", className)}>
-      {item.feedback === "keep" ? (
-        <div className="mb-4 rounded-lg border border-neutral-1000-a05 p-3 bg-bg-basement">
-          <p className="text-sm text-neutral-800">
-            {t(
-              "career.history.keep.notice",
-              "저장됨 · 아직 수락하거나 거절하지 않았어요. 회사에는 전달되지 않습니다."
-            )}
-          </p>
-          {onKeepDecision ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {!item.isExpired &&
-              (item.status === "active" || item.status === "paused") ? (
-                <MuteButton
-                  disabled={pending}
-                  onClick={() => onKeepDecision("accept")}
-                  variant="primary"
-                >
-                  {t("career.history.keep.accept", "연결 수락")}
-                </MuteButton>
-              ) : null}
-              <MuteButton
-                disabled={pending}
-                onClick={() => onKeepDecision("decline")}
-              >
-                {t("career.history.keep.decline", "거절")}
-              </MuteButton>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
       <div className="mb-4 flex flex-row gap-3 items-center justify-between">
         <nav className="flex min-w-0 items-center gap-1 text-[13px] leading-5 text-neutral-muted">
           <BareButton
@@ -674,15 +639,7 @@ export const HistoryOpportunityInlinePage = ({
           </span>
         </nav>
 
-        {item.isInternal && onInternalDecisionAction ? (
-          <div className="flex max-w-full justify-start sm:justify-end">
-            <InternalOpportunityDecisionMenu
-              item={item}
-              pending={pending}
-              onAction={onInternalDecisionAction}
-            />
-          </div>
-        ) : savedStatus && onSavedStatusChange && canChangeStatus ? (
+        {savedStatus && onSavedStatusChange && canChangeStatus ? (
           <div className="flex max-w-full justify-start sm:justify-end">
             <OpportunityManagementStatusDropdown
               disabled={pending}
@@ -695,47 +652,24 @@ export const HistoryOpportunityInlinePage = ({
 
       <UpcomingMeetingStrip meeting={item.upcomingMeeting} className="mb-4" />
 
-      <HistoryOpportunityOverview
-        hideTags={true}
+      <OpportunityCard
+        key={item.id}
         item={item}
         onOpenCompanyInfo={onOpenCompanyInfo}
-        onOpenLink={onOpenLink}
-        onOpenOpportunityInfo={onOpenOpportunityInfo}
+        onOpenLink={(_, url) => onOpenLink(url)}
+        actions={
+          <HistoryOpportunityDetailActions
+            item={item}
+            pending={pending}
+            onApply={onApply}
+            onSavedStatusChange={onSavedStatusChange}
+            onKeepDecision={onKeepDecision}
+            onInternalDecisionAction={onInternalDecisionAction}
+          />
+        }
       />
 
-      <div className="mt-2 flex justify-center items-center w-full">
-        <BareButton
-          type="button"
-          onClick={() =>
-            setDetailState({ itemId: item.id, open: !showDetails })
-          }
-          className="inline-flex min-h-9 items-center gap-2 text-neutral-muted text-sm hover:text-neutral-primary underline underline-offset-1"
-        >
-          {showDetails
-            ? t("career.history.opportunity_detail_content.hide_detail", "접기")
-            : t(
-                "career.history.opportunity_detail_content.show_detail",
-                "더보기"
-              )}
-        </BareButton>
-      </div>
-
-      {showDetails && (
-        <HistoryOpportunityAdditionalDetails
-          item={item}
-          includeSource
-          onOpenCompanyInfo={onOpenCompanyInfo}
-          onOpenLink={onOpenLink}
-          className="mt-5"
-        />
-      )}
-
-      <ApplyWithHarperButton
-        key={`apply-${item.id}`}
-        item={item}
-        pending={pending}
-        onOpenChat={onOpenChat}
-      />
+      {!item.isInternal && <ApplicationReviewEntry roleId={item.roleId} />}
 
       <TalentRoleActivityTimeline
         item={item}

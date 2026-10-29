@@ -49,7 +49,11 @@ import type {
 type CareerTasksPanelProps = {
   onOpenChat: () => void;
   onOpenChatAction: (action: CareerComposerPendingAction) => void;
-  onOpenOpportunity: (roleId: string, historyTab: "new" | "saved", savedStage?: "connected" | "closed") => void;
+  onOpenOpportunity: (
+    roleId: string,
+    historyTab: "new" | "saved",
+    savedStage?: "connected" | "closed"
+  ) => void;
   onOpenProfile: () => void;
   showTitle?: boolean;
 };
@@ -96,7 +100,7 @@ function TaskRow({
             as="p"
             type="desc"
             tone="muted"
-            className={`mt-1.5 whitespace-pre-wrap break-words${truncateDescription ? " line-clamp-3" : ""}`}
+            className={`mt-1.5 whitespace-pre-wrap break-words${truncateDescription ? " line-clamp-2" : ""}`}
           >
             {description}
           </Text>
@@ -955,7 +959,9 @@ export default function CareerTasksPanel({
                       <MuteButton
                         variant="neutral"
                         size="sm"
-                        onClick={() => onOpenOpportunity(item.roleId, "saved", "closed")}
+                        onClick={() =>
+                          onOpenOpportunity(item.roleId, "saved", "closed")
+                        }
                       >
                         {t("career.tasks.view_progress", "자세히 보기")}
                         <ChevronRight className="h-3.5 w-3.5" />

@@ -3560,7 +3560,10 @@ export async function fetchOrgBoard(args: {
         roleId: row.role_id,
         roleName: roleById.get(row.role_id)?.name ?? null,
         source: "company_intro",
-        stage: getOrgCompanyIntroBoardStage(row.status),
+        stage: getOrgCompanyIntroBoardStage(row.status, {
+          closeReason: row.close_reason, requestedAt: row.requested_at,
+          candidateSentAt: row.candidate_sent_at, talentDecisionAt: row.talent_decision_at,
+        }),
         stageTag: null,
         talent: {
           ...toBoardTalent(talent, { recentCompanies, recentSchools }),
@@ -3971,7 +3974,6 @@ export async function passOrgCompanyIntro(args: {
 }
 
 export async function decideTalentCompanyIntro(args: {
-  expectedUpdatedAt?: string | null;
   decision: "accept" | "decline";
   emailAcceptanceConfirmation?: Json | null;
   feedbackReason?: string | null;
@@ -3983,7 +3985,6 @@ export async function decideTalentCompanyIntro(args: {
     "decide_company_intro_request_v2",
     {
       p_decision: args.decision,
-      p_expected_updated_at: args.expectedUpdatedAt ?? null,
       p_email_acceptance_confirmation: args.emailAcceptanceConfirmation ?? null,
       p_feedback_reason: normalizeNullableText(args.feedbackReason),
       p_recommendation_id: args.recommendationId,
@@ -6521,7 +6522,10 @@ export async function fetchOrgTalentDetail(args: {
   }
   const stageInfo = companyIntro
     ? ({
-        stage: getOrgCompanyIntroBoardStage(companyIntro.status),
+        stage: getOrgCompanyIntroBoardStage(companyIntro.status, {
+          closeReason: companyIntro.close_reason, requestedAt: companyIntro.requested_at,
+          candidateSentAt: companyIntro.candidate_sent_at, talentDecisionAt: companyIntro.talent_decision_at,
+        }),
         stageTag: null,
       } as const)
     : getVisibleOrgStage({

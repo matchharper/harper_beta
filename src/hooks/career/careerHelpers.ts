@@ -60,6 +60,7 @@ export const toUiMessage = (message: {
   simulationAction?: CareerMessage["simulationAction"];
   applicationStartOffer?:CareerMessage["applicationStartOffer"];
   suppressRolePreviews?:boolean;
+  applicationReviewMessageId?: number;
   simulation?: CareerMessage["simulation"];
   attachments?: CareerMessage["attachments"];
   coachingActivity?: CareerMessage["coachingActivity"];
@@ -82,6 +83,7 @@ export const toUiMessage = (message: {
   simulationAction: message.simulationAction,
   applicationStartOffer:message.applicationStartOffer,
   suppressRolePreviews:message.suppressRolePreviews,
+  applicationReviewMessageId: message.applicationReviewMessageId,
   simulation: message.simulation,
   attachments: message.attachments,
   coachingActivity: message.coachingActivity,

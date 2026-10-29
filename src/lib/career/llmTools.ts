@@ -140,6 +140,7 @@ export const CAREER_REALTIME_VOICE_ONBOARDING_TOOL_NAMES: readonly string[] = [
 // 음성에서는 긴 페이지 본문이나 카드 UI가 필요한 tool은 빼고,
 // 짧게 말로 답할 수 있는 tool만 둔다.
 export const CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES = [
+  TALENT_TOOL_NAMES.RECORD_CALL_ANSWERS,
   // 통화 종료는 Realtime voice 전용 로컬 tool로 처리한다.
   TALENT_TOOL_NAMES.END_CALL,
   // 통화에서 사용자가 추천 범위나 수신 범위를 명시적으로 확정하면

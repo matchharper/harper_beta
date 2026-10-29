@@ -2,7 +2,7 @@ import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
 import { browserPresentationPhase } from "@/lib/career/simulation/browserPresentation";
 import { ApplicationQuestionHistoryRow } from "./ApplicationQuestionHistoryRow";
 import { applicationQuestionMessages } from "@/lib/career/simulation/questionHistory";
-import { orderApplicationMessages } from "@/lib/career/simulation/presentation";
+import { attachSavedApplicationReview, orderApplicationMessages } from "@/lib/career/simulation/presentation";
 import { useApplicationTimelineLayout } from "./useApplicationTimelineLayout";
 import { useApplicationPreparation } from "./ApplicationPreparationContext";
 import { latestChoiceMessageIndex } from "@/lib/career/latestChoiceMessage";
@@ -735,7 +735,13 @@ const CareerTimelineSection = ({
         simulationSession: r.state,
       });
     }
-    return orderApplicationMessages([...merged.values()]);
+    const ordered = orderApplicationMessages([...merged.values()]);
+    const review = preparation.record?.state.applicationReview;
+    return attachSavedApplicationReview(ordered, preparation.record && review ? {
+      messageId: preparation.record.messageId,
+      resumeDocumentId: review.resumeDocumentId,
+      startedAt: preparation.record.state.startedAt,
+    } : null);
   }, [historyMessages, preparation.drafts, preparation.record]);
   const browserPhase = browserPresentationPhase(preparation.record?.state, messages);
   const applicationBrowser = preparation.record?.state.browser;

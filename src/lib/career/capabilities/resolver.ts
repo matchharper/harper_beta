@@ -12,6 +12,7 @@ export function resolveCareerCapabilities(args: {
   eligibleTools: readonly TalentChatTool[];
   loaded: ReadonlySet<CareerCapabilityId>;
   mode: CareerCapabilityMode;
+  coreToolNames?: readonly string[];
 }) {
   const eligibleNames = new Set(args.eligibleTools.map((t) => t.function.name));
   const catalog = CAREER_CAPABILITIES.filter((c) =>
@@ -22,6 +23,7 @@ export function resolveCareerCapabilities(args: {
   const coreNames = new Set<string>([
     ...CAREER_CORE_TOOLS,
     ...CAREER_CONDITIONAL_TOOLS,
+    ...(args.coreToolNames ?? []),
   ]);
   const alwaysActive = (capability: (typeof catalog)[number]) =>
     capability.tools.every(([name]) => coreNames.has(name));

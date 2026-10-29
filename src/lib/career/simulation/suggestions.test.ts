@@ -176,10 +176,9 @@ test("buttons settle deterministically; inline text and immutable shown text bot
     context.questionBatches[0].questions[1].question,
     "Which evaluation did you run?"
   );
-  assert.equal(
-    context.actions[0].edits![0].suggestedText,
-    "Built and maintained internal APIs"
-  );
+  assert.ok("content" in context.actions[0]);
+  assert.ok(context.actions[0].content.includes("Built and maintained internal APIs"));
+  assert.equal("needsConfirmation" in context.actions[0], false);
   assert.equal(s.actions[0].status, "completed");
   assert.equal(s.actions[2].status, "skipped");
   assert.equal(s.actions[1].status, "pending");
@@ -270,6 +269,26 @@ test("free requested rewrite can settle without another question; new content ca
     s
   );
 });
+test("automatic continuation cannot reopen a saved skip; later explicit edits remain possible", () => {
+  let s = fixture();
+  for (const item of s.actions)
+    s = finishApplicationAnswer(mutateSimulationSession(s, {
+      action: "respond", actionId: item.id, response: { decision: "skip" },
+    }, 10));
+  const batch = s.activity!.batches.at(-1)!;
+  const unchanged = manageApplicationSuggestions(s, {
+    changes: [{ id: "Q", decision: "ignore" }],
+  }, "already-skipped", 11, batch.id);
+  assert.deepEqual(unchanged, s);
+  assert.throws(() => manageApplicationSuggestions(s, {
+    changes: [{ id: "Q", decision: "ask" }],
+  }, "reopen", 11, batch.id), /already final/);
+  assert.equal(s.actions.find(item => item.id === "Q")!.status, "skipped");
+  const legacy = structuredClone(s);
+  legacy.actions.find(item => item.id === "Q")!.status = "pending";
+  assert.equal(parseSimulationSession(legacy)!.actions.find(item => item.id === "Q")!.status, "skipped");
+});
+
 test("edited responses cannot change source targets or smuggle accept into a question", () => {
   const s = fixture();
   assert.throws(() =>
@@ -455,7 +474,8 @@ test("suggestion delivery retains changed and pending items without settled hist
   assert.doesNotMatch(model, /참조 ID: C/);
   assert.equal(result.suggestions, after.actions);
   assert.equal(result.awaitingUserInput, false, "An existing pending question must allow the approved edits to be saved in this turn");
-  assert.ok(model.includes(result.assistantInstruction));
+  assert.equal(result.documentWritePerformed, false);
+  assert.ok(model.includes(result.questionPresentation));
   const unchanged=applicationSuggestionsResult(after, after).modelOutput;
   assert.match(unchanged, /참조 ID: Q/);
   assert.doesNotMatch(unchanged, /참조 ID: [CM]/);

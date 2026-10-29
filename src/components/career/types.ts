@@ -391,6 +391,9 @@ export type CareerHistoryOpportunity = {
   companyData?: CareerOpportunityCompanyData | null;
   companyDescription: string | null;
   companyDbId?: number | null;
+  companyFoundedYear?: number | null;
+  companyHqLocation?: string | null;
+  companyEmployeeCountRange?: unknown;
   companyHomepageUrl: string | null;
   companyLinkedinUrl: string | null;
   companyLogoUrl: string | null;
@@ -482,6 +485,7 @@ export type CareerMessage = {
   simulationAction?: SimulationCardRef;
   applicationStartOffer?:ApplicationStartOffer;
   suppressRolePreviews?:boolean;
+  applicationReviewMessageId?: number;
   simulation?: ApplicationSimulation;
   attachments?: CareerMessageAttachment[];
   coachingActivity?: CareerCoachingActivity;
@@ -508,6 +512,7 @@ export type CareerMessagePayload = {
   simulationAction?: SimulationCardRef;
   applicationStartOffer?:ApplicationStartOffer;
   suppressRolePreviews?:boolean;
+  applicationReviewMessageId?: number;
   simulation?: ApplicationSimulation;
   attachments?: CareerMessageAttachment[];
   coachingActivity?: CareerCoachingActivity;
@@ -531,10 +536,7 @@ export type CareerInternalOpportunityCallRequest = {
   id: string;
   opportunityId: string;
   questions: string[];
-  questionProgress: {
-    candidateQuestionsAsked: boolean;
-    nextQuestionIndex: number;
-  };
+  questionAnswers?: Record<string, string>;
   reason: string | null;
   resumePromptNeeded: boolean;
   roleId: string;

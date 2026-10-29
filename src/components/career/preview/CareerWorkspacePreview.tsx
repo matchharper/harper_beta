@@ -643,6 +643,8 @@ type CareerWorkspacePreviewProps = {
   disableInteractions?: boolean;
   embedded?: boolean;
   initialTab?: CareerWorkspaceTab | "chat";
+  historyContent?: ReactNode;
+  initialOpportunities?: CareerHistoryOpportunity[];
   initialOnboardingDone?: boolean;
   hideTaskDecisions?: boolean;
   initialProfileLinkCount?: 0 | 1 | 2;
@@ -733,6 +735,8 @@ const CareerWorkspacePreview = ({
   disableInteractions = false,
   embedded = false,
   initialTab = "chat",
+  historyContent,
+  initialOpportunities,
   initialOnboardingDone = true,
   hideTaskDecisions = false,
   initialProfileLinkCount,
@@ -757,6 +761,7 @@ const CareerWorkspacePreview = ({
     [previewConversationTurns]
   );
   const initialHistoryOpportunities = useMemo(() => {
+    if (initialOpportunities) return initialOpportunities;
     const items = getInitialHistoryOpportunities(t);
     if (taskFeedbackExamples) {
       const external = items.find((item) => item.sourceType === "external" && item.feedback === null);
@@ -804,7 +809,7 @@ const CareerWorkspacePreview = ({
         },
       })),
     ];
-  }, [t, taskFeedbackExamples]);
+  }, [initialOpportunities, t, taskFeedbackExamples]);
   const initialTalentInsights = useMemo(() => getInitialTalentInsights(t), [t]);
   const initialTalentProfile = useMemo(() => getInitialTalentProfile(t), [t]);
   const previewPendingActionSeeds = useMemo(
@@ -1160,13 +1165,16 @@ const CareerWorkspacePreview = ({
               ? {
                   ...item,
                   feedback,
-                  feedbackAt: now,
+                  feedbackAt: feedback === null ? null : now,
                   feedbackReason: options?.feedbackReason ?? null,
                   savedStage:
-                    feedback === "positive"
-                      ? (options?.savedStage ??
-                        getCareerDefaultSavedStageForOpportunity(item))
-                      : null,
+                    feedback === "keep"
+                      ? "saved"
+                      : options?.savedStage !== undefined
+                        ? options.savedStage
+                        : feedback === "positive"
+                          ? getCareerDefaultSavedStageForOpportunity(item)
+                          : null,
                 }
               : item
           )
@@ -1176,7 +1184,11 @@ const CareerWorkspacePreview = ({
         setHistoryOpportunities((current) =>
           current.map((item) =>
             item.id === opportunityId
-              ? { ...item, feedback: "positive", savedStage }
+              ? {
+                  ...item,
+                  feedback: savedStage === "hidden" ? item.feedback : "positive",
+                  savedStage,
+                }
               : item
           )
         );
@@ -1670,6 +1682,7 @@ const CareerWorkspacePreview = ({
       <CareerSidebarProvider value={sidebarContextValue}>
         <CareerWorkspaceScreen
           activeTab={workspaceActiveTab}
+          historyContent={historyContent}
           fillParent={embedded}
           forcedViewport={embedded ? resolvedViewport : undefined}
           initialMobileChatOpen={

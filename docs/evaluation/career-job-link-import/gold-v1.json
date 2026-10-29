@@ -1,0 +1,7 @@
+{
+  "version":"v1",
+  "cases":[
+    {"id":"empty-summary-readable-body","writes":1,"title":"Platform Engineer","company":"Example Systems","review":"The same conversation turn reads the returned source, supplies the exact title and company, and completes saving without asking the user to copy available details. Completion follows the successful import receipt."},
+    {"id":"retrieval-unavailable","writes":0,"review":"Explains that retrieval failed and nothing was saved; does not invent posting metadata or claim the posting is invalid. Requests missing facts or offers another verified source proportionately."}
+  ]
+}

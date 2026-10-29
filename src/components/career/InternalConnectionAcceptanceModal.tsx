@@ -204,11 +204,11 @@ export default function InternalConnectionAcceptanceModal({
     <TalentCareerModal
       open
       onClose={closeModal}
-      panelClassName="max-h-[calc(100svh-2rem)] max-w-[640px] overflow-x-hidden overflow-y-auto border border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-h-[calc(100svh-2rem)] max-w-[560px] overflow-x-hidden overflow-y-auto border border-neutral-1000-a05 bg-bg-floating"
       bodyClassName="bg-bg-floating px-5"
       mobileBottomSheet
       footer={
-        <div className="flex flex-col md:flex-row items-center justify-between">
+        <div className="flex flex-col md:flex-row items-center justify-between pt-0.5">
           {!isIntroRequest ? (
             <Checkbox
               checked={acknowledged}
@@ -229,14 +229,10 @@ export default function InternalConnectionAcceptanceModal({
                       { values: { companyName: item.companyName } }
                     )}
                   </Link>
-                  {t(
-                    "career.common.internal_connection_acceptance_modal.acknowledgement",
-                    " 내용을 확인하고 동의합니다."
-                  )}
                 </span>
               }
               onChange={(event) => setAcknowledged(event.target.checked)}
-              size="medium"
+              size="small"
             />
           ) : (
             <div></div>
@@ -257,7 +253,7 @@ export default function InternalConnectionAcceptanceModal({
               form={formId}
               disabled={acceptancePending || !acknowledged}
               className={cn(
-                "border-primary bg-primary text-neutral-00",
+                "border-primary bg-primary text-neutral-00 hover:bg-primary/90",
                 !acknowledged ? "opacity-50" : "",
                 acceptancePending && "animate-pulse"
               )}
@@ -268,11 +264,11 @@ export default function InternalConnectionAcceptanceModal({
               {isIntroRequest
                 ? t(
                     "career.common.internal_connection_acceptance_modal.intro_submit",
-                    "만나볼게요."
+                    "만나볼게요"
                   )
                 : t(
                     "career.common.internal_connection_acceptance_modal.submit",
-                    "연결 수락"
+                    "소개해주세요"
                   )}
             </PrimaryButton>
           </div>
@@ -297,7 +293,7 @@ export default function InternalConnectionAcceptanceModal({
         className="text-[13px] text-neutral-primary font-normal"
       >
         <div className="flex flex-col gap-2 text-[14px] text-neutral-800">
-          <div className="text-base font-semibold pt-6 pb-3 text-neutral-primary">
+          <div className="text-base font-medium pt-6 pb-3 text-neutral-primary">
             {isIntroRequest
               ? t(
                   "career.common.internal_connection_acceptance_modal.intro_title",
@@ -308,7 +304,7 @@ export default function InternalConnectionAcceptanceModal({
                 )
               : t(
                   "career.common.internal_connection_acceptance_modal.01cracx",
-                  "연결을 수락하고 다음 단계를 진행할까요?"
+                  "회원님을 회사에 소개할까요?"
                 )}
           </div>
           <div>
@@ -319,25 +315,22 @@ export default function InternalConnectionAcceptanceModal({
                 )
               : t(
                   "career.common.internal_connection_acceptance_modal.028q399",
-                  "수락하시면 Harper가 회원님을 회사에 소개하기 위한 준비를 시작합니다. 내부 과정을 거쳐 회원님의 주요 정보와 왜 적합한 인재인지를 회사에 직접 전달합니다."
+                  "Harper가 회원님의 경력과 강점을 회사에 소개할게요. 회사에서 확인 후 진행을 원하면 커피챗/인터뷰 등 다음 단계를 안내할 수 있습니다."
                 )}
           </div>
-          <div>
-            {isIntroRequest
-              ? t(
-                  "career.common.internal_connection_acceptance_modal.intro_immediate_connection",
-                  "수락하면 회자와 바로 연결되고, 거절하면 회사에 내용을 잘 가공해서 Harper가 전달합니다."
-                )
-              : t(
-                  "career.common.internal_connection_acceptance_modal.pre_share_confirmation",
-                  "회사에 전달되기 직전, 확인 메일을 한 번 더 드립니다. 그 전까지는 언제든 취소할 수 있어요."
-                )}
-          </div>
-          <p className="mt-5 text-neutral-muted">
-            {t(
+          {isIntroRequest && (
+            <div>
+              {t(
+                "career.common.internal_connection_acceptance_modal.intro_immediate_connection",
+                "수락하면 회자와 바로 연결되고, 거절하면 회사에 내용을 잘 가공해서 Harper가 전달합니다."
+              )}
+            </div>
+          )}
+          <p className="mt-3 text-neutral-muted">
+            {/* {t(
               "career.common.internal_connection_acceptance_modal.memo_description",
               "이 메모는 Harper가 다음 단계를 준비할 때 참고합니다."
-            )}
+            )} */}
           </p>
         </div>
 
@@ -350,7 +343,7 @@ export default function InternalConnectionAcceptanceModal({
             defaultValue={item.feedbackReason ?? ""}
             placeholder={t(
               "career.common.internal_connection_acceptance_modal.memo_placeholder",
-              "(optional) Harper가 다음 단계에서 참고할 포인트, 혹은 회사에 전달하고 싶은 내용을 알려주세요."
+              "(optional) Harper에게 남길 피드백, 혹은 회사에 전달하고 싶은 내용을 알려주세요."
             )}
             className={cn(textareaSurfaceClassName, "mt-2 min-h-[82px]")}
           />

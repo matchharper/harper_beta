@@ -192,6 +192,7 @@ export function createFixtures() {
     },
     session: {
       roleId: ROLE_ID,
+      revision: 1,
       phase: "questions",
       briefHash: "preview-brief",
       stalled: false,
@@ -210,7 +211,6 @@ export function createFixtures() {
           changedAt: undefined,
           reference: null,
         })),
-        otherNotes: [],
         references: [],
       },
       questions: { history: [] },

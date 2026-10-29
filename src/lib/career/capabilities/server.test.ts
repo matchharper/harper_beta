@@ -286,9 +286,9 @@ test("application start owns the turn before an activity exists, and retains its
   assert.ok(selected.toolNames.includes('ready_for_role'));
   assert.ok(plan.promptBlocks.some(b => b.key === 'application_preparation_contract'));
   assert.ok(!plan.promptBlocks.some(b => b.key === 'simulation_availability'));
-  const context=JSON.parse(plan.promptBlocks.find(b => b.key === 'application_preparation_context')!.text);
-  assert.equal(context.status,'active');
-  assert.equal(context.analysisStatus,'completed');
+  const context=plan.promptBlocks.find(b => b.key === 'application_preparation_context')!.text;
+  assert.match(context, /상태: active/);
+  assert.match(context, /analysisStatus: completed/);
 
   let currentState: typeof state | undefined;
   const currentPrompt = () => ({...promptArgs,conversationMode:currentState ? "simulation" as const : "default" as const,simulationSession:currentState,
@@ -303,7 +303,9 @@ test("application start owns the turn before an activity exists, and retains its
   for (const name of applicationTools) assert.ok(started.offeredNames.has(name), name);
   assert.ok(started.offeredNames.has("load_career_capabilities"));
   assert.ok(started.offeredNames.has("write_talent_context"));
-  for (const name of ["web_search", "open_url", "update_talent_profile", "list_documents", "read_document", "write_document", "get_role_context"])
+  assert.ok(started.offeredNames.has("read_document"));
+  assert.equal(turn.runtime.claimCall("read_document", started), null);
+  for (const name of ["web_search", "open_url", "update_talent_profile", "list_documents", "write_document", "get_role_context"])
     assert.ok(!started.offeredNames.has(name), name);
   for (const id of ["web_research", "profile", "documents", "opportunities"])
     assert.ok(started.catalogText.includes(id), id);

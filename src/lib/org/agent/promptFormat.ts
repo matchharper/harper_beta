@@ -2296,9 +2296,9 @@ export function formatOrgAgentToolResult(
       `status=${formatPromptCell(result.status, 40)}`,
       `requested_role=${formatPromptCell(result.requestedRoleName ?? result.roleName, 200)}`,
       `run=${result.runId ?? "없음"}; 실행 상태=${result.runStatus ?? result.status}; Brief=${result.briefVersion ?? "미확인"}; 요청=${formatPromptText(result.options ?? {})}`,
-      ...(result.unavailableReason
+      ...(result.unavailableReason || result.status === "skipped" || result.status === "not_queued"
         ? [
-            `unavailable_reason=${formatPromptCell(result.unavailableReason, 500)}`,
+            `unavailable_reason=${formatPromptCell(result.unavailableReason ?? result.reason, 500)}`,
             "result_meaning=No new search was started. Use the verified reason to respond naturally in the current conversation; mention a next step only when it is genuinely useful.",
           ]
         : result.status === "already_completed" ? ["result_meaning=This exact request already reached the returned terminal runStatus. No new search was created. Read this run for its actual results; terminal failure is not a successful search."] : [

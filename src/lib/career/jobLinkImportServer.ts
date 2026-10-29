@@ -3,6 +3,7 @@ import "server-only";
 import type { Json } from "@/types/database.types";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { getExaClient, type ExaContentsClient } from "@/lib/tools/exaClient";
+import type { JobPostingReadFailure } from "./jobPostingReadResult";
 import {
   fetchCareerJobPosting,
   parseCareerJobUrl,
@@ -36,6 +37,7 @@ type CompanyWorkspace = {
 };
 
 export type CareerJobLinkImportResult = {
+  retrievalFailures?: JobPostingReadFailure[];
   createdRecommendation: boolean;
   createdRole: boolean;
   createdWorkspace: boolean;
@@ -488,6 +490,7 @@ export async function importCareerJobLink(
   }
 
   return {
+    ...(draft?.retrievalFailures?.length ? { retrievalFailures: draft.retrievalFailures } : {}),
     createdRecommendation: row?.created_recommendation === true,
     createdRole: row?.created_role === true,
     createdWorkspace: row?.created_workspace === true,

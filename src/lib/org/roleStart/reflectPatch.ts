@@ -33,7 +33,7 @@ export type ReflectOperation =
 export type ReflectPatch = {
   operations: ReflectOperation[];
   hardConditions: RawCondition[] | null;
-  otherNotes: string[] | null;
+  summary: string | null;
   appliedSummary: string;
 };
 
@@ -78,8 +78,8 @@ function rawConditions(brief: RoleStartBrief): RawCondition[] {
 /**
  * The full RawBrief the model would have returned for these changes, so
  * briefFromRaw applies them exactly like a whole-Brief rewrite (ids, change
- * history, signals kept only for unchanged text, summaryOf). The summary,
- * keywords and titles stay as they are. Anything it cannot place (an unknown
+ * history, signals kept only for unchanged text, summaryOf). Keywords and
+ * titles stay as they are. Anything it cannot place (an unknown
  * or repeated id, a missing field) is an error, never a guess.
  */
 export function rawBriefFromPatch(
@@ -139,18 +139,17 @@ export function rawBriefFromPatch(
   if (new Set(names).size !== names.length) return { ok: false, error: "two criteria with the same name" };
   if (patch.hardConditions !== null && (!Array.isArray(patch.hardConditions) || !patch.hardConditions.every((item) => item && isText(item.label) && isText(item.kind))))
     return { ok: false, error: "hardConditions" };
-  if (patch.otherNotes !== null && (!Array.isArray(patch.otherNotes) || !patch.otherNotes.every((line) => typeof line === "string")))
-    return { ok: false, error: "otherNotes" };
+  if (patch.summary !== null && typeof patch.summary !== "string")
+    return { ok: false, error: "summary" };
   return {
     ok: true,
     raw: {
-      summary: brief.summary,
+      summary: patch.summary ?? brief.summary,
       hardConditions: patch.hardConditions ?? rawConditions(brief),
       criteria,
       keywords: brief.keywords,
       matchingTitles: brief.titles?.matching ?? [],
       nearMissTitles: brief.titles?.nearMiss ?? [],
-      otherNotes: patch.otherNotes ?? brief.otherNotes ?? [],
     },
   };
 }

@@ -114,6 +114,7 @@ export type TalentMessageRow = {
 };
 
 export type TalentMessageResponse = {
+  applicationReviewMessageId?: number;
   suppressRolePreviews?:boolean;
   applicationStartOffer?:ApplicationStartOffer;
   applicationActivity?: {activityId:string; revision:number; runId?:string; view:string};
@@ -165,6 +166,7 @@ export function toTalentMessageResponse(
     ...(attachments.length > 0 ? { attachments } : {}),
     ...(coachingActivity ? { coachingActivity } : {}),
     ...(item.message_type === SIMULATION_MESSAGE_TYPE ? { simulation: parseApplicationSimulation(item.payload) } : {}),
+    applicationReviewMessageId: item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && typeof item.payload.applicationReviewMessageId === "number" ? item.payload.applicationReviewMessageId : undefined,
     suppressRolePreviews: !!item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && item.payload.suppressRolePreviews === true,
     id: item.id,
     role: item.role,

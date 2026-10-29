@@ -13,6 +13,7 @@ import {
   type RoleStartProbe,
 } from "./brief";
 import { roleStartSql } from "./db";
+import { sessionChatWrite, type SessionChatWrite } from "./sessionChat";
 import type { RoleStartPool } from "./fastPath";
 import type { RoleStartLlmUsage } from "./llm";
 import type { RoleStartReferenceRow } from "./referenceRows";
@@ -419,6 +420,7 @@ type SessionPatch = Partial<
     | "phase"
     | "brief"
     | "questions"
+    | "refinedAnswers"
     | "pendingQuestion"
     | "pool"
     | "firstCandidates"
@@ -438,15 +440,17 @@ export async function saveRoleStartSession(args: {
   expectedPhase?: RoleStartPhase | RoleStartPhase[];
   patch: SessionPatch;
   timings?: Record<string, number | string | null>;
+  chat?: SessionChatWrite;
 }) {
   const sql = roleStartSql();
   const patch = args.patch;
   const json = (value: unknown) => sql.json(wellFormedJson(value));
-  const rows = await sql<Row[]>`
+  const rows = await sql<Row[]>`with saved_session as (
     update public.company_role_start_sessions set
       phase = ${patch.phase ?? sql`phase`},
-      brief = ${patch.brief ? json(patch.brief) : sql`brief`},
+      brief = ${patch.brief ? json(normalizeRoleStartBrief(patch.brief)) : sql`brief`},
       questions = ${patch.questions ? json(patch.questions) : sql`questions`},
+      refined_answers = ${patch.refinedAnswers === undefined ? sql`refined_answers` : sql`greatest(refined_answers, ${patch.refinedAnswers})`},
       pending_question = ${"pendingQuestion" in patch ? json(patch.pendingQuestion) : sql`pending_question`},
       pool = null,
       first_candidates = ${patch.firstCandidates ? json(patch.firstCandidates) : sql`first_candidates`},
@@ -463,6 +467,8 @@ export async function saveRoleStartSession(args: {
           : sql`and phase = any(${[args.expectedPhase].flat()}::text[])`
       }
     returning *
+    ) ${args.chat ? sessionChatWrite(sql, args.roleId, args.chat) : sql``}
+    select * from saved_session
   `;
   if (!rows[0]) return null;
   // The pool lives in its own row; written only when the session write succeeded.
@@ -480,6 +486,26 @@ export async function saveRoleStartSession(args: {
   }
   // The pool is not read back: a caller that needs it loads it withPool.
   return fromRow(rows[0]);
+}
+
+/** The fixed compensation answer and Role field are one commit and one DB round trip. */
+export async function saveRoleStartCompensation(roleId: string, salary: string) {
+  const sql = roleStartSql();
+  const rows = await sql<Array<Row & { salary_range: string | null }>>`
+    with salary_write as (
+      update public.company_roles set salary_range = ${salary}, updated_at = now()
+      where role_id = ${roleId} and ${Boolean(salary)} returning salary_range
+    ), saved_session as (
+      update public.company_role_start_sessions
+      set questions = jsonb_set(questions, '{compensation}', ${sql.json(salary ? "answered" : "skipped")}),
+        revision = revision + 1, updated_at = now()
+      where role_id = ${roleId} returning *
+    )
+    select s.*, coalesce((select salary_range from salary_write),
+      (select salary_range from public.company_roles where role_id = ${roleId})) as salary_range
+    from saved_session s
+  `;
+  return { session: rows[0] ? fromRow(rows[0]) : null, salaryRange: rows[0]?.salary_range ?? null };
 }
 
 /** Progress key of a chat edit of a registered Role's Brief (the 매칭 기준 tab locks while it runs). */
@@ -562,7 +588,7 @@ export async function saveRoleStartBrief(args: {
     const [current] = await tx<Array<{ brief: unknown }>>`
       select brief from public.company_role_start_sessions where role_id = ${args.roleId}
     `;
-    const roleBrief = current?.brief ? normalizeRoleStartBrief(current.brief) : args.brief;
+    const roleBrief = normalizeRoleStartBrief(current?.brief ?? args.brief);
     // Grade signals stay in the working session, never on the Role's list.
     const criteria = roleBrief.criteria.map(
       ({ rule: _rule, kind: _kind, evidenceTerms: _terms, signals: _signals, signalsOf: _of, reference: _reference, ...criterion }) => criterion
@@ -600,7 +626,7 @@ export async function saveRoleStartBrief(args: {
         where role_id = ${args.roleId}
       `;
       await tx`
-        update public.company_roles set request = ${markdown}, updated_at = now()
+        update public.company_roles set updated_at = now()
         where role_id = ${args.roleId}
       `;
     }
@@ -783,9 +809,10 @@ export async function savePreparedInflight(roleId: string, inflight: RoleStartPr
 /** Write the prepared pick; `onlyKey` keeps a newer computation from being overwritten by an older one. */
 export async function savePreparedBatch(roleId: string, batch: RoleStartPreparedBatch, onlyKey?: string) {
   const sql = roleStartSql();
+  const stored = batch.result ? { ...batch, result: { ...batch.result, brief: normalizeRoleStartBrief(batch.result.brief) } } : batch;
   const rows = await sql<Array<{ role_id: string }>>`
     update public.company_role_start_sessions
-    set prepared = jsonb_set(prepared, '{batch}', ${sql.json(wellFormedJson(batch))})
+    set prepared = jsonb_set(prepared, '{batch}', ${sql.json(wellFormedJson(stored))})
     where role_id = ${roleId}
       ${onlyKey === undefined ? sql`` : sql`and prepared->'batch'->>'key' = ${onlyKey}`}
     returning role_id

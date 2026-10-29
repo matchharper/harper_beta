@@ -2,7 +2,9 @@ import { useRef, useState } from "react";
 import { ArrowUpRight, Loader2 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
+import { CompanyLogo } from "@/components/career/watchlist/CompanyLogo";
 import { useCareerT } from "@/i18n/useCareerT";
+import { getDisplayableCompanyLogoUrl } from "@/lib/imageUrl";
 import type { CareerHistoryOpportunity } from "../types";
 import ApplyWithHarperButton from "./ApplyWithHarperButton";
 
@@ -59,7 +61,7 @@ export default function ExternalOpportunityApplyModal({
       title={t("career.history.external_application.apply", "지원하기")}
       description={t(
         "career.history.external_application.description",
-        "Harper가 이 포지션의 지원 준비부터 실제 지원까지 도와드릴 수 있어요. 직접 지원하거나 Harper와 함께 시작해 보세요."
+        "Harper와 이 포지션의 지원을 같이 준비할 수 있습니다. 직접 지원하거나 Harper와 함께 시작해 보세요."
       )}
       bodyClassName="px-4 sm:px-5"
       footer={
@@ -109,9 +111,15 @@ export default function ExternalOpportunityApplyModal({
         </div>
       }
     >
-      <p className="text-sm leading-6 text-neutral-primary">
-        {item.companyName} · {item.title}
-      </p>
+      <div className="flex items-center gap-2 text-sm flex-col bg-neutral-50 p-4 rounded-xs">
+        <CompanyLogo
+          logoUrl={getDisplayableCompanyLogoUrl(item.companyLogoUrl)}
+          name={item.companyName}
+          size="xl"
+        />
+        <p className="min-w-0 break-words text-base mt-1">{item.companyName}</p>
+        <p className="min-w-0 break-words">{item.title}</p>
+      </div>
       {error ? (
         <p role="alert" className="mt-3 text-sm text-critical">
           {error}

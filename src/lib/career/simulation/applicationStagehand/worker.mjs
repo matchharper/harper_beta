@@ -7,6 +7,7 @@ import dns from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
 import { SubmissionGate, hash } from "./gate.mjs";
 import { readForm, fillObservedFields } from "./form.mjs";
+import { inspectionSnapshotText, questionReportSchema } from "./inspectionText.mjs";
 import {
   createBrowserUseSession,
   stopBrowserUseSession,
@@ -88,6 +89,7 @@ export async function startWorker(config, directory) {
     required_actions: [],
     steps: 0,
     usage: [],
+    requestsStarted: 0,
     progress: [],
     maxSteps: MAX_STEPS,
     timings: { snapshots: [], model: [], tools: [] },
@@ -101,6 +103,12 @@ export async function startWorker(config, directory) {
   const changed = () => {
     for (const resolve of wake) resolve();
     wake.clear();
+  };
+  const events = [];
+  const trace = (kind, message, data) => {
+    if (!config.readOnly || !config.diagnostics) return;
+    events.push({ sequence: events.length + 1, at: new Date().toISOString(), kind, message, data });
+    changed();
   };
   const gate = new SubmissionGate((item) => {
     state.pendingRequest = item || undefined;
@@ -186,6 +194,7 @@ export async function startWorker(config, directory) {
         : {}),
     };
     state.snapshot = lastSnapshot;
+    if (detailed) trace("snapshot", "페이지·입력 필드 읽기", { ...lastSnapshot, durationMs: Date.now() - began });
     if (detailed) testSafety?.recordSnapshot(lastSnapshot);
     state.timings.snapshots.push({
       ms: Date.now() - began,
@@ -254,6 +263,8 @@ export async function startWorker(config, directory) {
       },
       fetch: async (url, options) => {
         const began = Date.now();
+        state.requestsStarted++;
+        trace("model", "모델 요청 시작", { model: "gpt-6-luna" });
         const response = await fetch(url, options),
           raw = await response
             .clone()
@@ -269,6 +280,7 @@ export async function startWorker(config, directory) {
           model: raw?.model,
           usage: raw?.usage,
         });
+        trace("model", "모델 응답 수신", { status: response.status, durationMs: Date.now() - began, responseId: raw?.id, error: raw?.error?.message });
         return response;
       },
     };
@@ -291,6 +303,19 @@ export async function startWorker(config, directory) {
     await stagehand.init();
     browser = await chromium.connectOverCDP(session.connectUrl);
     const context = browser.contexts()[0];
+    const observePage = (page) => {
+      page.on("framenavigated", (frame) => trace("navigation", "페이지 이동", { url: frame.url(), mainFrame: frame === page.mainFrame() }));
+      page.on("pageerror", (error) => trace("page_error", error.message));
+      page.on("console", (message) => trace("console", message.text(), { type: message.type(), location: message.location() }));
+      page.on("requestfailed", (request) => trace("request_error", "페이지 요청 실패", { url: request.url(), method: request.method(), error: request.failure()?.errorText }));
+      page.on("response", (response) => {
+        if (response.status() >= 400) trace("http_error", "페이지 HTTP 오류", { url: response.url(), status: response.status() });
+      });
+    };
+    if (config.readOnly && config.diagnostics) {
+      context.pages().forEach(observePage);
+      context.on("page", observePage);
+    }
     if (config.preSubmitTest) {
       const { installPreSubmitTest } = await import("./preSubmitTest.mjs");
       testSafety = await installPreSubmitTest({ context, config, state, tool, z, snapshot });
@@ -359,6 +384,7 @@ export async function startWorker(config, directory) {
           !j.query.includes("mutation")
         )
           return route.continue();
+        trace("blocked_request", "읽기 전용 정책으로 요청 차단", { method: r.method(), url: r.url() });
         return route.abort("blockedbyclient");
       }
       if (!dataEntered) return route.continue();
@@ -416,14 +442,19 @@ export async function startWorker(config, directory) {
         description:
           "Read current application fields, values, validation, file names and source text in all tabs/frames. No submission.",
         inputSchema: z.object({}),
-        execute: () => snapshot(),
+        execute: async () => {
+          const observed = await snapshot();
+          return config.readOnly ? inspectionSnapshotText(observed) : observed;
+        },
       }),
       ...(config.readOnly
         ? {
             report_application_form: tool({
               description:
-                "Report observed application input refs from the most recent inspectCurrentFields result. No invented refs. Include observed access limitations; supported means accessible, never guaranteed submission.",
-              inputSchema: z.object({
+                config.inspectionMode === "questions"
+                  ? "Report observed application questions with input types, required state, choices and file restrictions, and any unread portions or access barriers."
+                  : "Report observed application input refs from the most recent inspectCurrentFields result. No invented refs. Include observed access limitations; supported means accessible, never guaranteed submission.",
+              inputSchema: config.inspectionMode === "questions" ? questionReportSchema(z) : z.object({
                 status: z.enum(["read", "partial", "unavailable"]),
                 fieldRefs: z.array(z.string()),
                 limitations: z.array(z.string()),
@@ -433,16 +464,11 @@ export async function startWorker(config, directory) {
                 }),
               }),
               execute: async (report) => {
-                if (
-                  report.fieldRefs.some(
-                    (ref) => !lastSnapshot.elements?.some((e) => e.ref === ref)
-                  )
-                )
-                  throw Error("Inspect fields and select current refs");
                 state.report = report;
+                trace("report", "지원 폼 조사 보고", report);
                 state.status = "completed";
                 changed();
-                return { recorded: true };
+                return "Application inspection report recorded.";
               },
             }),
           }
@@ -631,7 +657,7 @@ export async function startWorker(config, directory) {
             instruction:
               instruction +
               "\nInitial observed page (reuse it until navigation or a control changes):\n" +
-              JSON.stringify(lastSnapshot),
+              (config.readOnly ? inspectionSnapshotText(lastSnapshot) : JSON.stringify(lastSnapshot)),
             maxSteps: MAX_STEPS,
             timings: { snapshots: [], model: [], tools: [] },
             signal: controller.signal,
@@ -663,6 +689,9 @@ export async function startWorker(config, directory) {
               },
               onStepFinish: async (step) => {
                 state.steps++;
+                for (const call of step.toolCalls || []) trace("tool_call", call.toolName, { step: state.steps, toolCallId: call.toolCallId, input: call.input ?? call.args });
+                for (const result of step.toolResults || []) trace("tool_result", result.toolName, { step: state.steps, toolCallId: result.toolCallId, output: result.output ?? result.result });
+                if (step.text?.trim()) trace("progress", step.text, { step: state.steps });
                 state.timings.tools.push({
                   step: state.steps,
                   names: (step.toolCalls || []).map((c) => c.toolName),
@@ -690,13 +719,17 @@ export async function startWorker(config, directory) {
         if (!closed && !state.report) {
           state.status = "error";
           state.error = String(e.message || e);
+          trace("error", state.error);
         }
       } finally {
         changed();
       }
     };
     const command = async (input) => {
-      if (input.operation === "status") return testSafety ? testSafety.pack(state) : state;
+      if (input.operation === "status") return testSafety ? testSafety.pack(state) : {
+        ...state,
+        ...(config.diagnostics && config.readOnly ? { events: events.filter(event => event.sequence > (input.afterEvent ?? 0)) } : {}),
+      };
       if (input.operation === "test-evidence" && testSafety)
         return testSafety.pack(await testSafety.capture());
       if (input.operation === "start") {

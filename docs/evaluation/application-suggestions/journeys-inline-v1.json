@@ -1,0 +1,104 @@
+[
+  {
+    "id": "answered-to-inline-application",
+    "profileRows": [
+      {
+        "rowId": "33333333-3333-4333-8333-333333333333",
+        "type": "experience",
+        "company": "Example Studio",
+        "role": "Backend Engineer",
+        "memo": "API 설계와 온콜 장애 대응. 2024년 Redis 도입으로 검색 API p95를 800ms에서 240ms로 개선함."
+      }
+    ],
+    "profileContext": "Alex Example, alex@example.test. Example Studio Backend Engineer, 2022–2025. Confirmed Redis search API improvement: p95 800ms to 240ms, personally implemented in 2024. Motivation: enjoys developer tools. Prefers hybrid work. These facts are already stored; do not write duplicates.",
+    "suggestions": [
+      {
+        "kind": "question",
+        "title": "이번 역할에 관심이 가는 이유를 간단히 알려주세요.",
+        "reason": "지원 동기를 작성할 때 참고할게요."
+      }
+    ],
+    "applicationForm": {
+      "status": "read",
+      "fields": [
+        {
+          "label": "이름",
+          "type": "text",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "이메일",
+          "type": "email",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "지원 동기와 관련 경험",
+          "type": "textarea",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "이력서",
+          "type": "file",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "개인정보 제공 동의",
+          "type": "checkbox",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "선호 근무 형태",
+          "type": "select-one",
+          "required": false,
+          "options": [
+            "사무실",
+            "하이브리드",
+            "원격"
+          ],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        }
+      ],
+      "limitations": [],
+      "submission": {
+        "status": "supported",
+        "reason": "Public application path is accessible without login. No CAPTCHA observed."
+      },
+      "url": "https://example.test/apply",
+      "checkedAt": "2026-10-29T00:00:00Z"
+    },
+    "application": "Name, email, motivation and related experience, resume file and privacy consent required. Optional working arrangement. Profile confirms hybrid. Consent has not been selected.",
+    "steps": [
+      {
+        "responses": [
+          {
+            "decision": "answer",
+            "text": "개발자들이 매일 쓰는 도구의 속도를 높이는 일이 좋아요. Example Studio에서 제가 직접 Redis를 적용해 검색 API p95를 800ms에서 240ms로 줄인 경험을 살리고 싶어요."
+          }
+        ],
+        "user": "답변했어. 지원 준비 마무리해줘."
+      }
+    ]
+  }
+]

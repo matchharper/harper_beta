@@ -1,3 +1,4 @@
+import { InternalCallAnswersProvider } from "./chat/InternalCallAnswers";
 import {
   ApplicationPreparationProvider,
 } from "./chat/ApplicationPreparationContext";
@@ -314,7 +315,9 @@ function CareerChatPanel(
   const { conversationId } = useCareerChatPanelContext();
   return (
     <ApplicationPreparationProvider key={conversationId ?? "none"}>
-      <CareerChatPanelContent {...props} />
+      <InternalCallAnswersProvider>
+        <CareerChatPanelContent {...props} />
+      </InternalCallAnswersProvider>
     </ApplicationPreparationProvider>
   );
 }

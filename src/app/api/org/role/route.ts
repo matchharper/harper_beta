@@ -4,6 +4,7 @@ import { isRegisteredRoleStartRole } from "@/lib/org/roleStart/session";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { OrgHttpError, updateOrgRole } from "@/lib/org/server";
 import { enqueueOrgAgentWebActionTurn } from "@/lib/org/agent/webActionTurn";
+import { fetchOrgRoleClosurePreview } from "@/lib/org/roleClosurePreview.server";
 
 function actionIdentity(value: unknown) {
   return (
@@ -13,7 +14,7 @@ function actionIdentity(value: unknown) {
   );
 }
 
-function toErrorResponse(error: unknown) {
+function toErrorResponse(error: unknown, fallback = "Failed to update role") {
   const billing = billingErrorResponse(error);
   if (billing) return billing;
   if (error instanceof OrgHttpError) {
@@ -26,7 +27,21 @@ function toErrorResponse(error: unknown) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   console.error("[org/role]", error);
-  return NextResponse.json({ error: "Failed to update role" }, { status: 500 });
+  return NextResponse.json({ error: fallback }, { status: 500 });
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const user = await requireAuthenticatedUser(req);
+    const payload = await fetchOrgRoleClosurePreview({
+      user,
+      roleId: req.nextUrl.searchParams.get("roleId") ?? "",
+      workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",
+    });
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) {
+    return toErrorResponse(error, "Failed to load hiring closure recipients");
+  }
 }
 
 export async function PATCH(req: NextRequest) {

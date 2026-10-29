@@ -60,11 +60,17 @@ test('actual company loop submits a final selection in one completion with zero 
       contextNotesText:'-',completeRoleRequestIds:[],defaultLongTextObservations:[],inProgressRoleCreationsText:'-',
       pendingUpdateText:'-',recentToolContextText:'-'},mentions:[],model:ORG_AGENT_SOL_MODEL,
     readAudience:'company_safe',scopeKey:'test',source:'slack',slackThreadId:null,user:{id:'actor'},
-  } as any,{roleId:'role',scheduledSlot:'2026-10-23T00:00:00Z',rootJobId:'root',inventory:{},currentRoutes:[],selectionInput},{
+  } as any,{roleId:'role',scheduledSlot:'2026-10-23T00:00:00Z',rootJobId:'root',inventory:{},currentRoutes:[],selectionInput,
+    completedRuns:[{runId:'prepared-run',status:'succeeded',coverage:{inputAvailable:50,inputUnavailable:1}}]},{
     complete:async(args)=>{
       calls++;
       assert.equal(calls,1,'successful submission must not cause another completion');
       assert.ok(args.tools?.some(tool=>tool.function.name==='recommend_talents'));
+      const providerText=args.messages.map(message=>typeof message.content==='string'?message.content:'').join('\n');
+      assert.match(providerText,/inputAvailable: 50/);
+      assert.match(providerText,/inputUnavailable: 1/);
+      assert.match(providerText,/prepared-run/);
+      assert.doesNotMatch(providerText,/"completedRuns"\s*:/);
       return {model:ORG_AGENT_SOL_MODEL,response:{choices:[{finish_reason:'tool_calls',message:{role:'assistant',content:null,
         tool_calls:[{id:'choose',type:'function',function:{name:'recommend_talents',arguments:JSON.stringify({actions:[{label:'connect',talent_ids:['A1','A2','A3']}]})}}]}}]}};
     },

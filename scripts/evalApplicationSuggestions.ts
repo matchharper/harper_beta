@@ -1,5 +1,5 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
@@ -15,7 +15,7 @@ async function main() {
   if (!isCareerTextChatModelId(model))
     throw new Error("Unknown evaluation model");
   const task = "docs/evaluation/application-suggestions",
-    runId = new Date().toISOString().replace(/[:.]/g, "-"),
+    runId = new Date().toISOString().replace(/[:.]/g, "-") + "-" + randomUUID(),
     dir = task + "/runs/" + runId;
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const save = (name: string, data: unknown) =>
@@ -50,7 +50,10 @@ async function main() {
   const versionArg = process.argv.indexOf("--dataset");
   const version = versionArg < 0 ? "v1" : process.argv[versionArg + 1];
   if (!["v1", "v2", "editorial-v1"].includes(version)) throw new Error("Unknown dataset");
-  const cases = JSON.parse(readFileSync(task + `/cases-${version}.json`, "utf8"));
+  const fixtures = JSON.parse(readFileSync(task + `/cases-${version}.json`, "utf8"));
+  const caseArg = process.argv.indexOf("--case");
+  const cases = caseArg < 0 ? fixtures : fixtures.filter((fixture: { id: string }) => fixture.id === process.argv[caseArg + 1]);
+  if (!cases.length) throw new Error("Unknown evaluation case");
   const results = [];
   for (const fixture of cases) {
     const start = Date.now();
@@ -92,6 +95,7 @@ async function main() {
   save("manifest", {
     task: "application-suggestions",
     datasetVersion: version,
+    selectedCaseIds: cases.map((fixture: { id: string }) => fixture.id),
     runId,
     createdAt: new Date().toISOString(),
     sourceRevision: execFileSync("git", ["rev-parse", "HEAD"])

@@ -5,8 +5,8 @@
   코드·프롬프트 리뷰
 - canonical source: 이 문서가 Hiring Brief의 공통 작성 계약이다. 작업별 runbook은 evidence 수집,
   권한, 실행 순서와 저장 방법을 추가할 수 있지만 이 작성 계약을 다시 정의하지 않는다.
-- 저장 source of truth: `company_internal_roles.request`. `company_roles.request`는 현재 호환용 사본이며,
-  직접 DB 작업에서 두 값을 함께 관리해야 하는 경우 최종값이 같은지 검증한다.
+- 저장 source of truth: `company_internal_roles.request`. 2026-10-29 운영 DB 반영부터
+  `company_roles.request`는 갱신·동기화하지 않는 과거 값이며 Brief 원본으로 사용하지 않는다.
 
 ## 1. Hiring Brief의 목적
 
@@ -248,6 +248,12 @@ Brief는 먼저 어떤 수준의 전문 환경·문제 난도·책임·훈련·�
 
 ## 9. Canonical 문서 구조
 
+Role 온보딩의 구조화 Brief 본문은 `summary`(찾는 인재상), 필수 조건(`hardConditions`와 필수 `criteria`),
+평가 기준(중요·우대 `criteria`)으로 구성한다. 후보 비교에 영향을 주는 사용자 선호는 그 강도를 보존해
+기준에 반영하고, 비교 기준이 아닌 직무·팀·채용 맥락은 찾는 인재상에 담는다. 별도 기타 메모 본문을
+생성하거나 저장하지 않는다. 기존 session의 메모는 읽을 때 원문을 찾는 인재상에 합쳐 보존하며,
+이후 일반 Brief 저장부터 세 항목 형태를 쓴다. 운영 데이터의 일괄 이관이나 배포를 뜻하지 않는다.
+
 전체 rewrite는 정확히 다음 두 top-level heading을 사용한다.
 
 ```markdown
@@ -312,4 +318,4 @@ coverage가 보장되지 않으므로 해당 소비 경로의 제약을 별도�
 - [ ] 정보 부족과 확인된 불충족을 구분한다.
 - [ ] full rewrite는 canonical top-level heading을 사용한다.
 - [ ] 핵심 기준이 현재 Worker projection 뒤에 숨지 않았다.
-- [ ] `company_internal_roles.request`와 필요한 호환 사본의 최종값을 검증했다.
+- [ ] `company_internal_roles.request`의 최종값을 검증했다. 과거 `company_roles.request`는 수정하지 않았다.

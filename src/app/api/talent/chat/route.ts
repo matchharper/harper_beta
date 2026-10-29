@@ -1,3 +1,8 @@
+import { applicationDocumentResult } from "@/lib/career/simulation/applicationWritingContract";
+import { applicationBatchContinuation } from "@/lib/career/simulation/applicationAnswerContext";
+import { formatToolResultText } from "@/lib/llm/promptText";
+import { internalCallSubmissionSchema } from "@/lib/career/internalCallAnswers";
+import { saveInternalCallChatSubmission } from "@/lib/career/internalCallAnswersDatabase.server";
 import { reportToolDiagnostic } from "@/lib/llm/toolExecution";
 import { extractCareerDocumentLinks } from "@/lib/career/documentLinks";
 import { executeApplicationPreparationTool } from "@/lib/career/simulation/toolExecution";
@@ -197,6 +202,7 @@ import type { TalentMessageResponse } from "@/lib/talentOnboarding/models";
 export const maxDuration = 480;
 
 type Body = {
+  internalCallAnswerSubmission?: unknown;
   clientRequestId?: string;
   allowedToolNames?: unknown;
   channel?: string;
@@ -631,7 +637,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!message && uploadedDocumentIds.length === 0 && !body.applicationInputSubmission) {
+    if (!message && uploadedDocumentIds.length === 0 && !body.applicationInputSubmission && !body.internalCallAnswerSubmission) {
       return NextResponse.json(
         { error: "message or uploadedDocumentIds is required" },
         { status: 400 }
@@ -707,6 +713,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let savedInternalCallAnswers: Awaited<ReturnType<typeof saveInternalCallChatSubmission>> | null = null;
+    if (body.internalCallAnswerSubmission) {
+      const parsed = internalCallSubmissionSchema.safeParse({
+        ...(typeof body.internalCallAnswerSubmission === "object" ? body.internalCallAnswerSubmission : {}),
+        conversationId,
+      });
+      if (!parsed.success) return NextResponse.json({ error: "Invalid call answers" }, { status: 400 });
+      try {
+        savedInternalCallAnswers = await saveInternalCallChatSubmission({
+          input: parsed.data,
+          userId: user.id,
+          isMobile,
+          locale: responseLocale,
+          messagePayload: initialCareerCapabilityPayload(getCareerCapabilityMode()),
+        });
+      } catch (error) {
+        const status = Number((error as { status?: number })?.status) || 500;
+        if (status === 500) console.error("[internal-call-answers]", error);
+        return NextResponse.json({ error: status === 500 ? "Unable to save answers. Please retry." : (error as Error).message }, { status });
+      }
+      // A retry reuses the saved user message and an already-produced reply.
+      if (savedInternalCallAnswers.assistantMessage) return NextResponse.json({
+        userMessage: toResponseMessage(savedInternalCallAnswers.message),
+        assistantMessage: toResponseMessage(savedInternalCallAnswers.assistantMessage),
+      });
+      message = savedInternalCallAnswers.message.content;
+    }
+
     const careerCoachingActivityMessageId = talentSetting?.is_onboarding_done
       ? ((conversation as TalentConversationRow)
           .career_coaching_activity_message_id ?? null)
@@ -772,7 +806,7 @@ export async function POST(req: NextRequest) {
       state.activity!.batches.find(b=>b.id===batch.id)!.continuation="running";
       state.activity!.batches.find(b=>b.id===batch.id)!.continuationStartedAt=new Date().toISOString();
       simulationSession=await saveSession(simulationStore,simulationSession,state,`continue:${batch.id}:${state.revision}`);
-      message = `The user submitted application question batch ${batch.id}. Use that batch in the current application context to continue from their answers; do not ask them to repeat the answers.`;
+      message = applicationBatchContinuation(batch.id);
     }
     const finishApplicationContinuation = async (failed=false) => {
       if (!submission) return;
@@ -1159,7 +1193,9 @@ export async function POST(req: NextRequest) {
       isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
       allowedToolNames,
     });
-    const { data: insertedUserMessage, error: userMessageError } = submission
+    const { data: insertedUserMessage, error: userMessageError } = savedInternalCallAnswers
+      ? { data: savedInternalCallAnswers.message, error: null }
+      : submission
       ? await admin.from("talent_messages").select("*").eq("conversation_id", conversationId).eq("user_id", user.id).order("id", {ascending:false}).limit(1).single()
       : await admin
       .from("talent_messages")
@@ -1228,6 +1264,7 @@ export async function POST(req: NextRequest) {
     const llmMessages = promptMessages
       .filter(
         (item) =>
+          item.id !== savedInternalCallAnswers?.message.id &&
           !["simulation_session", "simulation_action"].includes(
             item.message_type ?? ""
           ) &&
@@ -1249,6 +1286,12 @@ export async function POST(req: NextRequest) {
       }))
       .filter((item) => item.content.trim().length > 0);
 
+    if (savedInternalCallAnswers) llmMessages.push({
+      role: "user",
+      content: formatTalentMessageContentForLlmPrompt(savedInternalCallAnswers.message, {
+        includeCreatedAt: true, preferredLocale: responseLocale, timeZone: promptTimeZone,
+      }),
+    });
     if (submission) llmMessages.push({role: "user", content: message});
 
     const activeInternalFitHoldQuestion =
@@ -1385,6 +1428,9 @@ export async function POST(req: NextRequest) {
         : "The latest message carries a stale career-coaching card reference. Do not apply that action to another activity. Respond using the current activity state and let the user know briefly if the requested card action is no longer available."
       : undefined;
     const runtimeInstruction = [
+      savedInternalCallAnswers
+        ? `The latest user message contains their written answers and explicit skips for the optional internal-role questionnaire. They are already saved and call request ${savedInternalCallAnswers.call.id} is completed.`
+        : undefined,
       selectedPendingActionRuntimeInstruction,
       uploadedDocumentRuntimeInstruction,
       coachingActivityActionRuntimeInstruction,
@@ -1548,6 +1594,7 @@ export async function POST(req: NextRequest) {
     } = { current: null };
     let opportunityRecommendationsChanged = false;
     let documentsChanged = uploadedDocuments.length > 0;
+    let applicationReviewMessageId: number | undefined;
     const generatedDocumentLinks = new Map<string, string>();
     const withGeneratedDocumentLinks = (text: string) => {
       const visibleIds = new Set(extractCareerDocumentLinks(text).documents.map(document => document.id));
@@ -1747,7 +1794,7 @@ export async function POST(req: NextRequest) {
         throw new Error("Tool unavailable in Apply with Harper mode");
       if (toolArgs.name === APPLY_TO_ROLE) {
         if (!simulationSession || simulationSession.state.status !== "active") throw new Error("No active application");
-        const saved=await startApplicationBrowser(simulationStore,simulationSession,toolInput,Number(insertedUserMessage.id));
+        const saved=await startApplicationBrowser(simulationStore,simulationSession,toolInput,Number(insertedUserMessage.id),simulationSession.state.applicationReview?.revision);
         simulationSession=saved;
         onSimulationMessage(saved.message);
         if (saved.execution.applicationInProgress) await dispatchBrowser(saved);
@@ -1771,6 +1818,7 @@ export async function POST(req: NextRequest) {
         const prepared=await executeApplicationPreparationTool({ store: simulationStore, record: simulationSession, name: toolArgs.name, input: toolInput, messageId: Number(insertedUserMessage.id), submittedBatchId: submission?.batchId });
         if (!prepared || !("documentId" in prepared.result)) throw new Error("Prepared document unavailable");
         simulationSession=prepared.record;
+        if (prepared.record.state.applicationReview) applicationReviewMessageId = prepared.record.messageId;
         onSimulationMessage(prepared.record.message);
         generatedDocumentLinks.set(prepared.result.documentId,prepared.result.documentLink);
         documentsChanged=true;
@@ -1893,7 +1941,7 @@ export async function POST(req: NextRequest) {
         if(simulationSession.state.preparation) throw new Error("Use ready_for_role to preserve the selected source and save the prepared resume");
         assertApplicationResumeWrite(simulationSession.state);
       }
-      const result = await executeTalentTool({
+      let result = await executeTalentTool({
         context: {
           admin,
           abortSignal: req.signal,
@@ -1921,6 +1969,8 @@ export async function POST(req: NextRequest) {
           await refreshSimulationRuntime();
         }
       }
+      if (toolArgs.name === TALENT_TOOL_NAMES.WRITE_DOCUMENT && isRecord(result) && result.ok === true && simulationSession?.state.status === "active" && simulationSession.state.preparation)
+        result = applicationDocumentResult(result);
       rememberCareerCoachingActivityMessage(result);
       rememberRecommendationPostingRoleIds(result);
 
@@ -1973,7 +2023,8 @@ export async function POST(req: NextRequest) {
         startConfirmed: true,
       });
       if(isRecord(result) && result.awaitingUserInput===true) applicationQuestionsAsked=true;
-      applicationStartOutcomeInstruction = `The user pressed Start. Verified preparation outcome: ${JSON.stringify(result)}. Suggestions are already published in the composer when awaitingUserInput is true; do not duplicate them or ask another batch. If preparation succeeded and no suggestions are needed, review the now-inspected required application fields first, propose only essential missing information or materials if needed, otherwise call ready_for_role with action=reuse. Its result decides whether to offer assisted application or provide the direct application link. If preparation failed or was interrupted, distinguish the already displayed start card and started work from the unfinished preparation; do not claim that neither existed. Briefly explain the known blocker without inventing a cancellation reason. The role and selected resume are already known: offer to retry with those, without asking the user to identify them again or directing them to press an already consumed Start button. Include the application link when available.`;
+      applicationStartOutcomeInstruction = `The user pressed Start for the known role and selected resume. Current execution result:
+${formatToolResultText(result)}`;
       systemBlocks.push({
         key: "application_start_outcome",
         text: applicationStartOutcomeInstruction,
@@ -2461,7 +2512,7 @@ export async function POST(req: NextRequest) {
                       role: "assistant",
                       content: safeAssistantText,
                       message_type: "chat",
-                      payload: {suppressRolePreviews, ...(responseStartOffer ? { applicationStartRequest: responseStartOffer } : {})},
+                      payload: {suppressRolePreviews, ...(applicationReviewMessageId ? { applicationReviewMessageId } : {}), ...(savedInternalCallAnswers ? { internalCallAnswerMessageId: savedInternalCallAnswers.message.id } : {}), ...(responseStartOffer ? { applicationStartRequest: responseStartOffer } : {})},
                       thinking_logs: thinkingLogs,
                     },
                     isMobile
@@ -3070,7 +3121,7 @@ export async function POST(req: NextRequest) {
               role: "assistant",
               content: safeAssistantText,
               message_type: "chat",
-              payload: {suppressRolePreviews, ...(responseStartOffer ? { applicationStartRequest: responseStartOffer } : {})},
+              payload: {suppressRolePreviews, ...(applicationReviewMessageId ? { applicationReviewMessageId } : {}), ...(savedInternalCallAnswers ? { internalCallAnswerMessageId: savedInternalCallAnswers.message.id } : {}), ...(responseStartOffer ? { applicationStartRequest: responseStartOffer } : {})},
               thinking_logs: thinkingLogs,
             },
             isMobile

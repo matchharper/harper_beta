@@ -1,3 +1,4 @@
+import { RECORD_CALL_ANSWERS, recordCallAnswersParameters, executeRecordCallAnswers } from "@/lib/career/recordCallAnswersTool";
 import { OPS_CONTACT_REPLY_ACKNOWLEDGEMENT } from "@/lib/companyTalentRequests/opsContactContract";
 import { withCompactTalentToolModelResult } from "./toolModelResult";
 import { formatToolError } from "@/lib/llm/toolError";
@@ -164,12 +165,18 @@ export type PendingProcessClosureNotice = {
 };
 
 function opsContactToolResult(idempotent: boolean) {
-  return { ok: true, status: "recorded", idempotent, skipCommonAssistantInstruction: true,
+  return {
+    ok: true,
+    status: "recorded",
+    idempotent,
+    skipCommonAssistantInstruction: true,
     assistantInstruction: OPS_CONTACT_REPLY_ACKNOWLEDGEMENT,
-    modelOutput: `The user's response is recorded for Harper's recruiting follow-through. ${OPS_CONTACT_REPLY_ACKNOWLEDGEMENT}` };
+    modelOutput: `The user's response is recorded for Harper's recruiting follow-through. ${OPS_CONTACT_REPLY_ACKNOWLEDGEMENT}`,
+  };
 }
 
 export type TalentToolExecutionContext = {
+  internalCallRequestId?: string | null;
   textChatModel?: CareerTextChatModelId;
   suppressCommonAssistantInstruction?: boolean;
   simulationStartConfirmed?: boolean;
@@ -260,6 +267,7 @@ export class TalentToolError extends Error {
 export const TALENT_TOOL_NAMES = {
   MANAGE_SIMULATION_SESSION: "manage_simulation_session",
   SIMULATE_APPLICATION: "simulate_application",
+  RECORD_CALL_ANSWERS,
   END_CALL: "end_call",
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
@@ -300,6 +308,7 @@ export type TalentToolName =
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.MANAGE_SIMULATION_SESSION,
   TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
+  TALENT_TOOL_NAMES.RECORD_CALL_ANSWERS,
   TALENT_TOOL_NAMES.END_CALL,
   TALENT_TOOL_NAMES.WEB_SEARCH,
   TALENT_TOOL_NAMES.OPEN_URL,
@@ -335,7 +344,7 @@ export const TALENT_TOOL_COMMON_ASSISTANT_INSTRUCTION = [
   "After every tool result, the final user-facing reply should be longer and more detailed than a terse confirmation.",
   "In the user's language, explain what was checked, changed, saved, or found; what Harper will do differently from now on; what will no longer happen when applicable; what the user can expect or wait for; and how they can change it again later.",
   "Use Markdown structure when it improves readability.",
-  "Do not answer only one-line confirmation. Do not mention tool names, system field names.",
+  "Do not mention tool names, system field names.",
 ].join(" ");
 
 const RECOMMEND_JOB_POSTINGS_ASSISTANT_INSTRUCTION = [
@@ -387,7 +396,10 @@ export function withTalentToolAssistantInstruction(
   includeCommonInstruction = true
 ): Record<string, unknown> {
   if (isTalentToolResultRecord(result)) {
-    if (result.skipCommonAssistantInstruction === true || !includeCommonInstruction) {
+    if (
+      result.skipCommonAssistantInstruction === true ||
+      !includeCommonInstruction
+    ) {
       const { skipCommonAssistantInstruction: _skip, ...rest } = result;
       return {
         ...rest,
@@ -403,7 +415,9 @@ export function withTalentToolAssistantInstruction(
   }
 
   return {
-    assistantInstruction: includeCommonInstruction ? buildCommonTalentToolAssistantInstruction(null) : null,
+    assistantInstruction: includeCommonInstruction
+      ? buildCommonTalentToolAssistantInstruction(null)
+      : null,
     ok: true,
     result,
   };
@@ -792,7 +806,11 @@ export async function runGetRoleContext(args: {
   const [roleResponse, recommendationResponse, fitResponse] = await Promise.all(
     [
       (args.admin.from("company_roles" as any) as any)
-        .select(args.includeJd ? ROLE_CONTEXT_ROLE_SELECT : ROLE_CONTEXT_ROLE_SELECT.replace("  description,\n", ""))
+        .select(
+          args.includeJd
+            ? ROLE_CONTEXT_ROLE_SELECT
+            : ROLE_CONTEXT_ROLE_SELECT.replace("  description,\n", "")
+        )
         .in("role_id", args.roleIds),
       (args.admin.from("talent_opportunity_recommendation" as any) as any)
         .select(ROLE_CONTEXT_RECOMMENDATION_SELECT)
@@ -957,10 +975,13 @@ export async function runGetRoleContext(args: {
         ),
       },
       companyDb: {
-        logoUrl: resolveCompanyLogoUrl({ companyDbLogoUrl: optionalToolString(companyDb?.logo), workspaceLogoUrl: optionalToolString(workspace?.logo_url) }),
+        logoUrl: resolveCompanyLogoUrl({
+          companyDbLogoUrl: optionalToolString(companyDb?.logo),
+          workspaceLogoUrl: optionalToolString(workspace?.logo_url),
+        }),
         name: isInternalRole
           ? workspaceCompanyName
-          : optionalToolString(companyDb?.name) ?? workspaceCompanyName,
+          : (optionalToolString(companyDb?.name) ?? workspaceCompanyName),
         shortDescription: optionalToolString(companyDb?.short_description),
         description: optionalClippedToolString(
           companyDb?.description,
@@ -1271,10 +1292,17 @@ async function updateRecommendedOpportunityFeedback(args: {
   const hasFormalRecommendation =
     resolved.opportunity !== null &&
     !getPostingRoleIdFromOpportunityId(resolved.opportunity.id);
-  if (hasFormalRecommendation && resolved.opportunity?.sourceType === "internal" && args.feedback !== "keep") {
+  if (
+    hasFormalRecommendation &&
+    resolved.opportunity?.sourceType === "internal" &&
+    args.feedback !== "keep"
+  ) {
     const privateReply = await recordOpsCandidateDecision({
-      admin: args.admin, recommendationId: resolved.updateOpportunityId,
-      talentId: args.userId, sourceMessageId: Number(args.userMessageId), resume: args.feedback === "like",
+      admin: args.admin,
+      recommendationId: resolved.updateOpportunityId,
+      talentId: args.userId,
+      sourceMessageId: Number(args.userMessageId),
+      resume: args.feedback === "like",
     });
     if (privateReply) return opsContactToolResult(privateReply.idempotent);
   }
@@ -1598,35 +1626,64 @@ async function readInternalRolePriorityReviewArchive(args: {
   roleTitle: string | null;
   userId: string;
 }) {
-  if (args.hasRecommendation || !isPriorityReviewInboxArchived(args.requestedAt)) return null;
+  if (
+    args.hasRecommendation ||
+    !isPriorityReviewInboxArchived(args.requestedAt)
+  )
+    return null;
   const [reviewResult, recommendationResult] = await Promise.all([
     args.matchingReview !== undefined
       ? Promise.resolve({ data: [args.matchingReview], error: null })
       : (args.admin.from("talent_opportunity_matching_review") as any)
           .select("decision, reviewed_at")
-          .eq("talent_id", args.userId).eq("opportunity_id", args.roleId)
-          .eq("priority_request_id", args.requestId).is("closed_at", null)
-          .order("reviewed_at", { ascending: false }).limit(1),
+          .eq("talent_id", args.userId)
+          .eq("opportunity_id", args.roleId)
+          .eq("priority_request_id", args.requestId)
+          .is("closed_at", null)
+          .order("reviewed_at", { ascending: false })
+          .limit(1),
     args.hasRecommendation !== undefined
       ? Promise.resolve({ data: [], error: null })
       : (args.admin.from("talent_opportunity_recommendation") as any)
-          .select("id").eq("talent_id", args.userId).eq("role_id", args.roleId).limit(1),
+          .select("id")
+          .eq("talent_id", args.userId)
+          .eq("role_id", args.roleId)
+          .limit(1),
   ]);
   if (reviewResult.error || recommendationResult.error) {
-    throw new TalentToolError("Failed to verify the priority-review archive state.");
+    throw new TalentToolError(
+      "Failed to verify the priority-review archive state."
+    );
   }
-  const review = asToolRecord(Array.isArray(reviewResult.data) ? reviewResult.data[0] : null);
-  if ((recommendationResult.data ?? []).length ||
-      !isPriorityReviewInboxArchived(args.requestedAt, review?.decision)) return null;
+  const review = asToolRecord(
+    Array.isArray(reviewResult.data) ? reviewResult.data[0] : null
+  );
+  if (
+    (recommendationResult.data ?? []).length ||
+    !isPriorityReviewInboxArchived(args.requestedAt, review?.decision)
+  )
+    return null;
 
-  const { data, error } = await (args.admin.from("company_intro_candidates") as any)
+  const { data, error } = await (
+    args.admin.from("company_intro_candidates") as any
+  )
     .select("status, close_reason, requested_at")
-    .eq("talent_id", args.userId).eq("role_id", args.roleId)
-    .order("created_at", { ascending: false }).limit(1);
-  if (error) throw new TalentToolError("Failed to read the company's introduction response.");
+    .eq("talent_id", args.userId)
+    .eq("role_id", args.roleId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error)
+    throw new TalentToolError(
+      "Failed to read the company's introduction response."
+    );
   const proposal = asToolRecord(Array.isArray(data) ? data[0] : null);
   // 4주 경과는 Inbox 정리 기준이다. 이미 회사가 연결을 요청한 진행은 종료하지 않는다.
-  if (proposal?.requested_at || ["awaiting_talent", "connecting", "connected"].includes(String(proposal?.status))) {
+  if (
+    proposal?.requested_at ||
+    ["awaiting_talent", "connecting", "connected"].includes(
+      String(proposal?.status)
+    )
+  ) {
     return null;
   }
   return {
@@ -1646,7 +1703,8 @@ async function readInternalRolePriorityReviewArchive(args: {
       proposal
         ? "The profile was put forward for the company's review and the company was invited to consider an introduction. Explain that this has not led to a company introduction request."
         : "The user's interest was recorded, but a company-side profile proposal is not verified. Explain the lack of a connection without claiming that their profile was delivered or an introduction was requested.",
-      proposal?.status === "passed" && proposal?.close_reason === "company_passed"
+      proposal?.status === "passed" &&
+      proposal?.close_reason === "company_passed"
         ? "The company explicitly chose not to request an introduction for this proposal. Describe that recorded decision without extending it to other roles."
         : "The company may be busy or its hiring priorities may have changed; present these only as possible explanations, not known facts or an inferred rejection.",
       "Harper will continue checking for suitable opportunities and relevant changes through its existing routine. Do not invent a new scheduled follow-up or guarantee a response. Suggest applying directly through the company's own channel as a useful alternative and offer help.",
@@ -2138,8 +2196,13 @@ async function updateInternalRolePriorityReview(args: {
     const hasActiveRequest = Boolean(existing || (latest && !withdrawnAt));
     if (existing && requestedAt && roleIsAvailable) {
       const archived = await readInternalRolePriorityReviewArchive({
-        admin: args.admin, companyName, matchingReview: latest,
-        requestId: String(existing.id), requestedAt, roleId, roleTitle: roleTitle ?? null,
+        admin: args.admin,
+        companyName,
+        matchingReview: latest,
+        requestId: String(existing.id),
+        requestedAt,
+        roleId,
+        roleTitle: roleTitle ?? null,
         userId: args.userId,
       });
       if (archived) return archived;
@@ -2407,9 +2470,14 @@ async function updateInternalRolePriorityReview(args: {
 
   if (existing && existingCreatedAt) {
     const archived = await readInternalRolePriorityReviewArchive({
-      admin: args.admin, companyName, hasRecommendation: false,
-      requestId: String(existing.id), requestedAt: existingCreatedAt,
-      roleId, roleTitle: roleTitle ?? null, userId: args.userId,
+      admin: args.admin,
+      companyName,
+      hasRecommendation: false,
+      requestId: String(existing.id),
+      requestedAt: existingCreatedAt,
+      roleId,
+      roleTitle: roleTitle ?? null,
+      userId: args.userId,
     });
     if (archived) return archived;
   }
@@ -2644,6 +2712,43 @@ async function requestInternalRoleReconsideration(args: {
 }
 
 const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
+  [RECORD_CALL_ANSWERS]: {
+    name: RECORD_CALL_ANSWERS,
+    description:
+      "Record the caller's responses to the current call's numbered questions before moving on. Not knowing, uncertainty, refusal, and choosing to skip are valid responses. Use the conversation to decide which questions a response addresses; one utterance may address several. Update a recorded question when the caller corrects it. The result contains saved responses and remaining question numbers; do not claim a response is saved if the tool fails. This records context only and does not contact a company or end the call.",
+    parameters: recordCallAnswersParameters,
+    channels: ["voice"],
+    async execute(input, context) {
+      if (
+        !context?.internalCallRequestId ||
+        !context.userId ||
+        !context.conversationId
+      )
+        throw new TalentToolError("No internal opportunity call is active.");
+      const { callAnswersDatabase, callAnswersQuery } =
+        await import("@/lib/career/internalCallAnswersDatabase.server");
+      try {
+        return await executeRecordCallAnswers({
+          input,
+          callId: context.internalCallRequestId,
+          conversationId: context.conversationId,
+          userId: context.userId,
+          transaction: async (work) =>
+            (await callAnswersDatabase().begin((tx) =>
+              work(callAnswersQuery(tx)),
+            )) as Awaited<ReturnType<typeof work>>,
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          "status" in error &&
+          typeof error.status === "number"
+        )
+          throw new TalentToolError(error.message, error.status);
+        throw error;
+      }
+    },
+  },
   [TALENT_TOOL_NAMES.END_CALL]: {
     name: TALENT_TOOL_NAMES.END_CALL,
     description:
@@ -2653,7 +2758,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       properties: {
         complete_onboarding: {
           type: "boolean",
-          description: "Complete onboarding before disconnecting. False ends only the call.",
+          description:
+            "Complete onboarding before disconnecting. False ends only the call.",
         },
       },
       required: ["complete_onboarding"],
@@ -2731,7 +2837,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "search_connected_gmail requires authenticated service context."
+          "search_connected_gmail requires authenticated service context.",
         );
       }
 
@@ -2759,7 +2865,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.SAVE_JOB_POSTING]: {
     name: TALENT_TOOL_NAMES.SAVE_JOB_POSTING,
     description:
-      "Save one specific external public job posting to this user's Jobs, using the same import as adding a link in history. Use only when the user asks to add/save it or authorizes finding and adding a particular posting; verify its URL with web tools when needed. A link, question or request for analysis alone does not authorize saving. Not for Harper-connected/internal roles. Reuses an existing recommendation and preserves its saved/application progress; does not apply, contact a company or change future search preferences.",
+      "Save one specific external public job posting to this user's Jobs, using the same import as adding a link in history. Use only when the user asks to add/save it or authorizes finding and adding a particular posting; verify its URL with web tools when needed. A link, question or request for analysis alone does not authorize saving. Not for Harper-connected/internal roles. Reuses an existing recommendation and preserves its saved/application progress; does not apply, contact a company or change future search preferences. If extraction is incomplete, the result includes the retrieved page body and actual retrieval failures. Read that body as source data, identify the exact job title and hiring company, then continue the authorized save with the same URL and those fields. Ask the user only for facts unavailable from the source; do not treat an empty summary as an unreadable page.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -2834,7 +2940,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       if (!admin || !conversationId || !userId) {
         throw new TalentToolError(
-          "recommend_job_postings requires user and conversation context."
+          "recommend_job_postings requires user and conversation context.",
         );
       }
       if (!request) {
@@ -2843,7 +2949,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       const directUserMessageId = String(context?.userMessageId ?? "").trim();
       const hasStableDirectUserMessageId = /^[1-9][0-9]*$/.test(
-        directUserMessageId
+        directUserMessageId,
       );
 
       if (kind === "bulk") {
@@ -2872,7 +2978,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           {
             error: formatToolError(error),
             userId,
-          }
+          },
         );
         return {
           ...buildOnDemandJobSearchStatusUnknownResult({
@@ -2945,7 +3051,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         context.channel === "voice"
       )
         throw new TalentToolError(
-          "Resume generation requires authenticated web chat context."
+          "Resume generation requires authenticated web chat context.",
         );
       const { generateResume } = await import("@/lib/resumes/service");
       return generateResume({
@@ -3038,7 +3144,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "string",
           description: "Exact saved document id.",
         },
-        query: { type: "string", maxLength: 300, description: "Optional exact text to locate from offset; returns a bounded passage around its first match. For targeted edits without reading the entire document." },
+        query: {
+          type: "string",
+          maxLength: 300,
+          description:
+            "Optional exact text to locate from offset; returns a bounded passage around its first match. For targeted edits without reading the entire document.",
+        },
         offset: {
           type: "integer",
           minimum: 0,
@@ -3184,7 +3295,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "read_talent_activity_events requires user context."
+          "read_talent_activity_events requires user context.",
         );
       }
 
@@ -3239,7 +3350,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       properties: {
         postingUrl: {
           type: "string",
-          description: "Optional exact JD/application URL from the user or an earlier result. Matches the stored posting URL; omit companyName when using this identifier.",
+          description:
+            "Optional exact JD/application URL from the user or an earlier result. Matches the stored posting URL; omit companyName when using this identifier.",
         },
         companyName: {
           type: "array",
@@ -3273,7 +3385,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "read_recommended_opportunities requires user context."
+          "read_recommended_opportunities requires user context.",
         );
       }
 
@@ -3288,7 +3400,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const onlyInternal = input.only_internal === true;
       const postingUrl = optionalToolString(input.postingUrl);
       const companyFilters = companyNames.map((name) =>
-        name.toLocaleLowerCase("ko-KR")
+        name.toLocaleLowerCase("ko-KR"),
       );
       const opportunities = await fetchTalentOpportunityHistory({
         admin: admin as any,
@@ -3303,7 +3415,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         if (companyFilters.length > 0) {
           const itemCompanyName = item.companyName.toLocaleLowerCase("ko-KR");
           return companyFilters.some((companyFilter) =>
-            itemCompanyName.includes(companyFilter)
+            itemCompanyName.includes(companyFilter),
           );
         }
         return true;
@@ -3313,7 +3425,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const displayedItems = [
         ...baseItems,
         ...filtered.filter(
-          (item) => item.upcomingMeeting && !baseItemIds.has(item.id)
+          (item) => item.upcomingMeeting && !baseItemIds.has(item.id),
         ),
       ];
       const itemsToClose = context?.registerProcessClosureNotices
@@ -3323,7 +3435,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         context?.registerProcessClosureNotices?.(
           itemsToClose.map((item) => ({
             closureKind: ["ended", "deleted"].includes(
-              item.status.trim().toLowerCase()
+              item.status.trim().toLowerCase(),
             )
               ? "role_ended"
               : "company_process_stopped",
@@ -3332,7 +3444,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             recommendationId: item.id,
             roleId: item.roleId,
             roleName: item.title,
-          }))
+          })),
         );
       }
       const closedOpportunityIds = new Set(itemsToClose.map((item) => item.id));
@@ -3341,7 +3453,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           ? itemsToClose
               .map(
                 (item) =>
-                  `${formatRecommendedOpportunityName(item)} 기회에 대해 progress.message에 기반한 안내를 해라. 최대한 기분이 상하지 않도록 잘 전달해라. 해당 기회는 진행 종료 상태로 변경되었음을 자연스럽게 알려라.`
+                  `${formatRecommendedOpportunityName(item)} 기회에 대해 progress.message에 기반한 안내를 해라. 최대한 기분이 상하지 않도록 잘 전달해라. 해당 기회는 진행 종료 상태로 변경되었음을 자연스럽게 알려라.`,
               )
               .join(" ")
           : undefined;
@@ -3352,7 +3464,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         userId,
       });
       const detailedItemById = new Map(
-        detailedItems.map((item) => [item.id, item] as const)
+        detailedItems.map((item) => [item.id, item] as const),
       );
 
       return {
@@ -3373,11 +3485,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             formatCompanyRequestIntroProgress(item);
           const userMemo = optionalToolString(item.talentMemo);
           const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
-            detailedItem.upcomingMeeting?.startAt
+            detailedItem.upcomingMeeting?.startAt,
           );
           const recentActivity = formatTalentRoleActivitiesForPrompt(
             detailedItem.talentRoleActivities,
-            10
+            10,
           );
           const savedStage = closedOpportunityIds.has(item.id)
             ? "closed"
@@ -3480,7 +3592,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "internal_role_priority_review requires user context."
+          "internal_role_priority_review requires user context.",
         );
       }
 
@@ -3491,14 +3603,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         action !== "status"
       ) {
         throw new TalentToolError(
-          "internal_role_priority_review requires action register, withdraw, or status."
+          "internal_role_priority_review requires action register, withdraw, or status.",
         );
       }
 
       const roleId = optionalToolString(input.roleId);
       if (!roleId) {
         throw new TalentToolError(
-          "internal_role_priority_review requires roleId."
+          "internal_role_priority_review requires roleId.",
         );
       }
 
@@ -3546,12 +3658,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const newInformation = optionalToolString(input.newInformation);
       if (!admin || !userId) {
         throw new TalentToolError(
-          "request_internal_role_reconsideration requires user context."
+          "request_internal_role_reconsideration requires user context.",
         );
       }
       if (!roleId || !newInformation) {
         throw new TalentToolError(
-          "request_internal_role_reconsideration requires roleId and newInformation."
+          "request_internal_role_reconsideration requires roleId and newInformation.",
         );
       }
 
@@ -3571,77 +3683,200 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     channels: ["chat"],
     async execute(input, context) {
       if (!context?.admin || !context.userId || !context.conversationId)
-        throw new TalentToolError("Saved preparations require an authenticated conversation.");
-      const { manageSavedApplications } = await import("@/lib/career/simulation/savedApplications");
+        throw new TalentToolError(
+          "Saved preparations require an authenticated conversation.",
+        );
+      const { manageSavedApplications } =
+        await import("@/lib/career/simulation/savedApplications");
       return manageSavedApplications(
-        { admin: context.admin as TalentAdminClient, userId: context.userId, conversationId: context.conversationId },
-        input, `turn:${context.userMessageId ?? context.toolCallId}`,
+        {
+          admin: context.admin as TalentAdminClient,
+          userId: context.userId,
+          conversationId: context.conversationId,
+        },
+        input,
+        `turn:${context.userMessageId ?? context.toolCallId}`,
         context.onSimulationMessage,
       );
     },
   },
   [TALENT_TOOL_NAMES.SIMULATE_APPLICATION]: {
     name: TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
-    description: "Show the Apply with Harper start card for one known role and one chosen resume. Read/list the user's resumes and select document_id before calling. If there is no readable resume, offer upload or ask whether to create a simple resume from their profile, then use generate_resume with consent. The card lets the user change the selection and press Start; only that button starts preparation. Harper improves the existing resume for the role, prepares needed application materials with the user, and can help submit with confirmations. This call does not run analysis, edit files or apply. Optional introduction is your user-visible explanation displayed immediately above the card; this tool ends the turn.",
+    description:
+      "Show the Apply with Harper start card for one known role and one chosen resume. Read/list the user's resumes and select document_id before calling. If there is no readable resume, offer upload or ask whether to create a simple resume from their profile, then use generate_resume with consent. The card lets the user change the selection and press Start; only that button starts preparation. Harper improves the existing resume for the role, prepares needed application materials with the user, and can help submit with confirmations. This call does not run analysis, edit files or apply. Optional introduction is your user-visible explanation displayed immediately above the card; this tool ends the turn.",
     channels: ["chat"],
     parameters: {
-      type: "object", additionalProperties: false,
+      type: "object",
+      additionalProperties: false,
       required: ["document_id"],
       properties: {
-        roleId: { type: "string", description: "Exact known Harper role ID. Supply this or official_job_slug, never both." },
-        official_job_slug: { type: "string", description: "Known public Harper /jobs slug." },
-        document_id: { type: "string", description: "Selected readable resume ID belonging to this user." },
-        introduction: { type: "string", description: "Optional conversational explanation shown with the card." },
+        roleId: {
+          type: "string",
+          description:
+            "Exact known Harper role ID. Supply this or official_job_slug, never both.",
+        },
+        official_job_slug: {
+          type: "string",
+          description: "Known public Harper /jobs slug.",
+        },
+        document_id: {
+          type: "string",
+          description: "Selected readable resume ID belonging to this user.",
+        },
+        introduction: {
+          type: "string",
+          description:
+            "Optional conversational explanation shown with the card.",
+        },
       },
     },
     async execute(input, context) {
-      if (!context?.admin || !context.userId || !context.conversationId) throw new TalentToolError("Simulation requires an authenticated conversation.");
-      if (!context.simulationStartConfirmed && context.applicationChannel !== "email") {
-        const documentId=optionalToolString(input.document_id);
-        if (!documentId) return {ok:false,reason:"Choose a readable resume first. If none exists, offer upload or creation from the profile with the user's consent."};
-        if (Boolean(input.roleId) === Boolean(input.official_job_slug)) throw new TalentToolError("Choose exactly one role identifier");
-        const {prepareApplicationStartPayload}=await import("@/lib/career/simulation/startOfferStore");
-        const message=await prepareApplicationStartPayload({admin:context.admin as TalentAdminClient,userId:context.userId,conversationId:context.conversationId,replyId:Number(context.userMessageId),documentId,introduction:optionalToolString(input.introduction) ?? undefined,request: input.official_job_slug ? {official_job_slug:String(input.official_job_slug)} : {roleId:String(input.roleId)}});
+      if (!context?.admin || !context.userId || !context.conversationId)
+        throw new TalentToolError(
+          "Simulation requires an authenticated conversation.",
+        );
+      if (
+        !context.simulationStartConfirmed &&
+        context.applicationChannel !== "email"
+      ) {
+        const documentId = optionalToolString(input.document_id);
+        if (!documentId)
+          return {
+            ok: false,
+            reason:
+              "Choose a readable resume first. If none exists, offer upload or creation from the profile with the user's consent.",
+          };
+        if (Boolean(input.roleId) === Boolean(input.official_job_slug))
+          throw new TalentToolError("Choose exactly one role identifier");
+        const { prepareApplicationStartPayload } =
+          await import("@/lib/career/simulation/startOfferStore");
+        const message = await prepareApplicationStartPayload({
+          admin: context.admin as TalentAdminClient,
+          userId: context.userId,
+          conversationId: context.conversationId,
+          replyId: Number(context.userMessageId),
+          documentId,
+          introduction: optionalToolString(input.introduction) ?? undefined,
+          request: input.official_job_slug
+            ? { official_job_slug: String(input.official_job_slug) }
+            : { roleId: String(input.roleId) },
+        });
         context.onSimulationMessage?.(message);
-        return {ok:true,startCardDisplayed:true,awaitingUserInput:true,assistantInstruction:"The displayed card owns resume selection and Start. Wait for the user's button action."};
+        return {
+          ok: true,
+          startCardDisplayed: true,
+          awaitingUserInput: true,
+          assistantInstruction:
+            "The displayed card owns resume selection and Start. Wait for the user's button action.",
+        };
       }
       let role: Record<string, unknown> | null = null;
       let roleName = "";
       let loadSavedRole: (() => Promise<Record<string, unknown>>) | undefined;
-      if (typeof input.official_job_slug === "string" && input.official_job_slug.trim()) {
-        const { getPublicOfficialJobBySlug } = await import("@/lib/officialJobs/server");
-        const job = await getPublicOfficialJobBySlug(input.official_job_slug.trim());
+      if (
+        typeof input.official_job_slug === "string" &&
+        input.official_job_slug.trim()
+      ) {
+        const { getPublicOfficialJobBySlug } =
+          await import("@/lib/officialJobs/server");
+        const job = await getPublicOfficialJobBySlug(
+          input.official_job_slug.trim(),
+        );
         if (job) {
           roleName = `${job.companyName} · ${job.roleTitle}`;
-          role = { name: job.roleTitle, company: job.companyName, description: job.roleDescriptionMarkdown, companyDescription: job.shortDescription, location: job.location, compensation: job.compensation, seniority: job.seniority };
-          const linked = job.roleId ? await (context.admin as TalentAdminClient).from("company_roles").select("external_jd_url").eq("role_id",job.roleId).maybeSingle() : null;
-          role.externalJdUrl = linked?.data?.external_jd_url || `https://matchharper.com/jobs/${job.slug}`;
+          role = {
+            roleId: job.roleId,
+            name: job.roleTitle,
+            company: job.companyName,
+            description: job.roleDescriptionMarkdown,
+            companyDescription: job.shortDescription,
+            location: job.location,
+            compensation: job.compensation,
+            seniority: job.seniority,
+          };
+          const linked = job.roleId
+            ? await (context.admin as TalentAdminClient)
+                .from("company_roles")
+                .select("external_jd_url")
+                .eq("role_id", job.roleId)
+                .maybeSingle()
+            : null;
+          role.externalJdUrl =
+            linked?.data?.external_jd_url ||
+            `https://matchharper.com/jobs/${job.slug}`;
         }
       } else {
         const roleIds = normalizeRoleContextRoleIds([input.roleId]);
-        if (roleIds.length !== 1) throw new TalentToolError("Select one valid role before simulation.");
-        const lookup = await runGetRoleContext({ admin: context.admin, userId: context.userId, roleIds, includeJd: false, activityOffset: 0 });
+        if (roleIds.length !== 1)
+          throw new TalentToolError("Select one valid role before simulation.");
+        const lookup = await runGetRoleContext({
+          admin: context.admin,
+          userId: context.userId,
+          roleIds,
+          includeJd: false,
+          activityOffset: 0,
+        });
         const item = lookup.roles[0];
         if (item?.found && item.role) {
           // Explicit allowlist: never forward internalRequest, stored fit decisions or company feedback.
           const r = item.role;
           loadSavedRole = async () => {
-            const fallback = await runGetRoleContext({ admin: context.admin, userId: context.userId!, roleIds, includeJd: true, activityOffset: 0 });
-            return { ...role, description: fallback.roles[0]?.role?.description };
+            const fallback = await runGetRoleContext({
+              admin: context.admin,
+              userId: context.userId!,
+              roleIds,
+              includeJd: true,
+              activityOffset: 0,
+            });
+            return {
+              ...role,
+              description: fallback.roles[0]?.role?.description,
+            };
           };
           roleName = [item.companyDb?.name, r.name].filter(Boolean).join(" · ");
-          role = { name: r.name, description: r.description, location: r.locationText, workMode: r.workMode, seniority: r.seniorityLevel, compensation: r.salaryRange, company: item.companyDb, externalJdUrl: r.externalJdUrl };
+          role = {
+            name: r.name,
+            description: r.description,
+            location: r.locationText,
+            workMode: r.workMode,
+            seniority: r.seniorityLevel,
+            compensation: r.salaryRange,
+            company: item.companyDb,
+            externalJdUrl: r.externalJdUrl,
+          };
         }
       }
-      if (!role) return { ok: false, reason: "A readable role description is unavailable. Ask the user to select a visible Harper role or its public /jobs posting." };
+      if (!role)
+        return {
+          ok: false,
+          reason:
+            "A readable role description is unavailable. Ask the user to select a visible Harper role or its public /jobs posting.",
+        };
       return executeApplicationSimulation({
-      startOfferId: context.simulationStartOfferId,
-        emailSourceMessageId: context.applicationChannel === "email" ? Number(context.userMessageId) : undefined,
+        startOfferId: context.simulationStartOfferId,
+        emailSourceMessageId:
+          context.applicationChannel === "email"
+            ? Number(context.userMessageId)
+            : undefined,
         deferPreparation: context.applicationChannel === "email",
-        admin: context.admin as TalentAdminClient, userId: context.userId, conversationId: context.conversationId,
-        roleRef: typeof input.official_job_slug === "string" ? `job:${input.official_job_slug}` : `role:${input.roleId}`, requestKey: `simulation:${context.userMessageId ?? context.toolCallId ?? crypto.randomUUID()}`,
-        role, loadSavedRole, roleName, documentId: typeof input.document_id === "string" ? input.document_id : undefined, profileOnly: input.profile_only === true,
-        locale: context.responseLocale, textChatModel: context.textChatModel, scheduleAfter: context.scheduleAfter, onMessage: context.onSimulationMessage,
+        admin: context.admin as TalentAdminClient,
+        userId: context.userId,
+        conversationId: context.conversationId,
+        roleRef:
+          typeof input.official_job_slug === "string"
+            ? `job:${input.official_job_slug}`
+            : `role:${input.roleId}`,
+        requestKey: `simulation:${context.userMessageId ?? context.toolCallId ?? crypto.randomUUID()}`,
+        role,
+        loadSavedRole,
+        roleName,
+        documentId:
+          typeof input.document_id === "string" ? input.document_id : undefined,
+        profileOnly: input.profile_only === true,
+        locale: context.responseLocale,
+        textChatModel: context.textChatModel,
+        scheduleAfter: context.scheduleAfter,
+        onMessage: context.onSimulationMessage,
       });
     },
   },
@@ -3689,14 +3924,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const roleIds = normalizeRoleContextRoleIds(input.roleIds);
       if (roleIds.length === 0) {
         throw new TalentToolError(
-          "get_role_context requires 1-3 valid roleIds."
+          "get_role_context requires 1-3 valid roleIds.",
         );
       }
 
       return runGetRoleContext({
         activityOffset: Math.min(
           100000,
-          Math.max(0, Math.floor(Number(input.activityOffset) || 0))
+          Math.max(0, Math.floor(Number(input.activityOffset) || 0)),
         ),
         admin: admin as any,
         includeJd: input.include_jd === true,
@@ -3732,7 +3967,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "record_internal_fit_reevaluation_information requires user context."
+          "record_internal_fit_reevaluation_information requires user context.",
         );
       }
 
@@ -3740,7 +3975,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const newInformation = optionalToolString(input.newInformation);
       if (!fitId || !newInformation) {
         throw new TalentToolError(
-          "record_internal_fit_reevaluation_information requires fitId and newInformation."
+          "record_internal_fit_reevaluation_information requires fitId and newInformation.",
         );
       }
 
@@ -3782,7 +4017,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "read_company_connections requires user context."
+          "read_company_connections requires user context.",
         );
       }
       const connections = await fetchRelayableCompanyTalentConnections({
@@ -3820,7 +4055,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       properties: {
         resumeConfirmed: {
           type: "boolean",
-          description: "Only for an ops-contact connection: execute the previously requested resumption when the user's current meaning clearly confirms renewed interest in this exact Role. Omit for ordinary company contacts and for questions, conditional interest, uncertainty or refusal. This is an action command, not a sentiment label.",
+          description:
+            "Only for an ops-contact connection: execute the previously requested resumption when the user's current meaning clearly confirms renewed interest in this exact Role. Omit for ordinary company contacts and for questions, conditional interest, uncertainty or refusal. This is an action command, not a sentiment label.",
         },
         relayContent: {
           type: "string",
@@ -3857,7 +4093,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         !Number.isSafeInteger(sourceMessageId)
       ) {
         throw new TalentToolError(
-          "contact_company requires an exact mutual connection and user message."
+          "contact_company requires an exact mutual connection and user message.",
         );
       }
       const relay = await createCompanyTalentRelay({
@@ -3869,7 +4105,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         sourceMessageId,
         talentId: userId,
       });
-      if ("opsOnly" in relay && relay.opsOnly) return opsContactToolResult(relay.idempotent);
+      if ("opsOnly" in relay && relay.opsOnly)
+        return opsContactToolResult(relay.idempotent);
       const contentMismatch = Boolean(relay.contentMismatch);
       const assistantInstruction = contentMismatch
         ? "The same source message was already accepted earlier using its original content. State only the returned transport status; do not claim that a differently rewritten version replaced it."
@@ -3946,16 +4183,16 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "update_recommended_opportunity_feedback requires user context."
+          "update_recommended_opportunity_feedback requires user context.",
         );
       }
 
       const feedback = normalizeRecommendedOpportunityToolFeedback(
-        input.feedback
+        input.feedback,
       );
       if (!feedback) {
         throw new TalentToolError(
-          "update_recommended_opportunity_feedback requires a valid feedback."
+          "update_recommended_opportunity_feedback requires a valid feedback.",
         );
       }
 
@@ -3963,11 +4200,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const roleId = normalizePostingRoleId(input.roleId);
       if (roleId && !isPostingRoleId(roleId)) {
         throw new TalentToolError(
-          "update_recommended_opportunity_feedback received an invalid roleId."
+          "update_recommended_opportunity_feedback received an invalid roleId.",
         );
       }
       const fitReasons = normalizeInternalRoleReviewFitReasons(
-        input.fitReasons
+        input.fitReasons,
       );
 
       return updateRecommendedOpportunityFeedback({
@@ -4036,7 +4273,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         if (
           !isSameActivityValue(
             existingSetting?.get_external_recommendation ?? true,
-            nextGetExternalRecommendation
+            nextGetExternalRecommendation,
           )
         ) {
           settingActivityChanges.push({
@@ -4053,7 +4290,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         if (
           !isSameActivityValue(
             existingSetting?.profile_visibility ?? "exceptional_only",
-            nextProfileVisibility
+            nextProfileVisibility,
           )
         ) {
           settingActivityChanges.push({
@@ -4070,12 +4307,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         updatePayload.profileVisibility = nextProfileVisibility;
         updatedSettingFields.push(
           "getExternalRecommendation",
-          "profileVisibility"
+          "profileVisibility",
         );
         if (
           !isSameActivityValue(
             existingSetting?.get_external_recommendation ?? true,
-            nextGetExternalRecommendation
+            nextGetExternalRecommendation,
           )
         ) {
           settingActivityChanges.push({
@@ -4087,7 +4324,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         if (
           !isSameActivityValue(
             existingSetting?.profile_visibility ?? "exceptional_only",
-            nextProfileVisibility
+            nextProfileVisibility,
           )
         ) {
           settingActivityChanges.push({
@@ -4124,9 +4361,18 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         });
       }
 
-      let remainingInternalRoles: ReturnType<typeof compactOpportunityForTool>[] | null = null;
+      let remainingInternalRoles:
+        | ReturnType<typeof compactOpportunityForTool>[]
+        | null = null;
       try {
-        remainingInternalRoles = (await fetchTalentOpportunityHistory({ admin, userId, sourceType: "internal", limit: 100 })).map(compactOpportunityForTool);
+        remainingInternalRoles = (
+          await fetchTalentOpportunityHistory({
+            admin,
+            userId,
+            sourceType: "internal",
+            limit: 100,
+          })
+        ).map(compactOpportunityForTool);
       } catch (historyError) {
         // A supplementary read failure must not turn the committed setting into a failed write.
         console.error("[update-setting/internal-history]", historyError);
@@ -4147,8 +4393,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         ok: true,
         updatedSettingFields,
         settings: {
-          getExternalRecommendation: updatePayload.getExternalRecommendation ?? existingSetting?.get_external_recommendation ?? true,
-          profileVisibility: updatePayload.profileVisibility ?? existingSetting?.profile_visibility ?? "exceptional_only",
+          getExternalRecommendation:
+            updatePayload.getExternalRecommendation ??
+            existingSetting?.get_external_recommendation ??
+            true,
+          profileVisibility:
+            updatePayload.profileVisibility ??
+            existingSetting?.profile_visibility ??
+            "exceptional_only",
         },
       };
     },
@@ -4163,14 +4415,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "update_language_setting requires user context."
+          "update_language_setting requires user context.",
         );
       }
 
       const language = parseCareerLanguageSetting(input.language);
       if (!language) {
         throw new TalentToolError(
-          "update_language_setting requires a valid language."
+          "update_language_setting requires a valid language.",
         );
       }
 
@@ -4241,13 +4493,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "write_talent_context requires user context."
+          "write_talent_context requires user context.",
         );
       }
       const setting = await fetchTalentSetting({ admin, userId });
       if (!setting?.is_onboarding_done) {
         throw new TalentToolError(
-          "Onboarding context is saved by the onboarding extraction flow."
+          "Onboarding context is saved by the onboarding extraction flow.",
         );
       }
       const rawChanges = Array.isArray(input.changes) ? input.changes : [];
@@ -4304,13 +4556,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           }
           if (op === "delete") return [{ op, ref: Number(change.ref) }];
           return [];
-        }
+        },
       );
       if (changes.length !== rawChanges.length || changes.length === 0) {
         throw new TalentToolError("Invalid talent context changes.");
       }
       const refs = changes.flatMap((change) =>
-        change.op === "add" ? [] : [Number(change.ref)]
+        change.op === "add" ? [] : [Number(change.ref)],
       );
       const referencedRows = await fetchTalentContextsByRefs({
         admin,
@@ -4320,7 +4572,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       if (new Set(refs).size !== referencedRows.length) {
         throw new TalentToolError(
           "One or more talent context refs are unavailable.",
-          409
+          409,
         );
       }
       const requestId = createTalentContextMutationRequestId([
@@ -4402,12 +4654,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const conversationId = context?.conversationId;
       if (!admin || !userId || !conversationId) {
         throw new TalentToolError(
-          "manage_career_coaching_activity requires conversation context."
+          "manage_career_coaching_activity requires conversation context.",
         );
       }
 
       const action = optionalToolString(
-        input.action
+        input.action,
       ) as CareerCoachingActivityAction | null;
       if (!action || !["suggest", "start", "update", "end"].includes(action)) {
         throw new TalentToolError("Invalid career coaching action.");
@@ -4437,10 +4689,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           ? input.channel
           : null;
       const plannedMinutes = normalizeCareerCoachingMinutes(
-        input.plannedMinutes
+        input.plannedMinutes,
       );
       const suggestedMinutes = normalizeCareerCoachingMinutes(
-        input.suggestedMinutes
+        input.suggestedMinutes,
       );
       let activityMessage;
       try {
@@ -4450,7 +4702,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           admin,
           agenda: Array.isArray(input.agenda)
             ? input.agenda.filter(
-                (item): item is string => typeof item === "string"
+                (item): item is string => typeof item === "string",
               )
             : null,
           channel,
@@ -4513,7 +4765,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           : {}),
         assistantInstruction: buildCareerCoachingResultInstruction(
           status,
-          channel
+          channel,
         ),
         skipCommonAssistantInstruction: true,
       };
@@ -4703,7 +4955,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const profileRows = await executeProfileRows({
         admin,
         userId,
-        requestId: context?.resumeRequestId ?? context?.userMessageId ?? context?.toolCallId,
+        requestId:
+          context?.resumeRequestId ??
+          context?.userMessageId ??
+          context?.toolCallId,
         rows: input.rows,
         readRows: input.readRows,
       });
@@ -5267,7 +5522,9 @@ const UI_STATUS_MESSAGE_PARAMETER = {
   type: "string",
 };
 
-export function withUiStatusMessageParameter(parameters: Record<string, unknown>) {
+export function withUiStatusMessageParameter(
+  parameters: Record<string, unknown>
+) {
   const properties =
     parameters.properties &&
     typeof parameters.properties === "object" &&
@@ -5285,7 +5542,8 @@ export function withUiStatusMessageParameter(parameters: Record<string, unknown>
 }
 
 function getToolParameters(tool: TalentToolDefinition) {
-  return tool.name === TALENT_TOOL_NAMES.END_CALL ||
+  return tool.name === TALENT_TOOL_NAMES.RECORD_CALL_ANSWERS ||
+    tool.name === TALENT_TOOL_NAMES.END_CALL ||
     tool.name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING ||
     tool.name === TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST
     ? tool.parameters

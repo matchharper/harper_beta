@@ -1,3 +1,4 @@
+import { INTERNAL_OPPORTUNITY_CALL_OPENING_RESPONSE_INSTRUCTION } from "@/lib/career/voiceSessionInstructions";
 import type { CareerEndCallOptions } from "@/lib/career/realtimeEndCall";
 import { MOCK_INTERVIEW_OPENING_PROMPT } from "@/lib/career/prompts/cases/mockInterviewPrompts";
 import {
@@ -88,15 +89,7 @@ const CALL_OPENING_RESPONSE_INSTRUCTION = `
 많은 정보를 들려줄수록 회사 연결 요청이나 맞춤 기회 추천이 더 정확해진다는 취지를 한 번만 짧게 말하고, 함께 헤드헌터의 입장에서 할만한 질문을 던져도 됩니다.
 `;
 
-const INTERNAL_OPPORTUNITY_CALL_OPENING_RESPONSE_INSTRUCTION = `
-## 이번 통화의 첫 응답은 회사 연결 통화의 전용 시작 발화다.
 
-- 세션 instructions의 accepted internal opportunity connection 목적이 이번 통화의 유일한 대화 주제이며, 일반 커리어 상담·최근 추천·온보딩보다 우선한다.
-- 반드시 세션 instructions에 있는 회사명과 역할명을 직접 언급한다.
-- Harper가 회사 연결을 이미 진행 중이라고 알리고, 이 통화는 선택 사항이며 평가가 아니라 후보자를 더 잘 소개하기 위한 짧은 확인이라고 설명한다.
-- 이어서 세션 instructions의 현재 required question을 하나만 묻는다. 저장된 질문 대신 최근 추천, 일반 선호, 요즘 우선순위, 이전 외부 포지션에 관한 질문을 만들지 않는다.
-- {output_language}로 실제 전화 첫마디처럼 2-4문장으로 짧게 말한다. 도구는 사용하지 않는다.
-`;
 
 const ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION = `
 ## 현재 통화는 유저가 5분 커리어 인터뷰를 위해 버튼을 클릭해서 시작되었다.

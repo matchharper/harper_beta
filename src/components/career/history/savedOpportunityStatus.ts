@@ -179,7 +179,7 @@ export const getCareerOpportunityManagementStatusOptions = (
             id: "archived" as const,
             label: t(
               "career.history.saved_opportunity_status.archived",
-              "제외한 포지션"
+              "숨긴 포지션"
             ),
           },
         ]
@@ -195,10 +195,7 @@ export const getCareerOpportunityManagementStatusLabel = (
 ) => {
   const t = tArg ?? fallbackCareerT;
   if (status === "archived") {
-    return t(
-      "career.history.saved_opportunity_status.archived",
-      "제외한 포지션"
-    );
+    return t("career.history.saved_opportunity_status.archived", "숨긴 포지션");
   }
   return getSavedOpportunityStatusLabel(status, t);
 };

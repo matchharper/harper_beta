@@ -11,9 +11,14 @@ const calls: unknown[] = [];
 const background: Array<() => Promise<unknown>> = [];
 let authenticated = true;
 let allowed = true;
+let lostSave = false;
 let finishDraft!: () => void;
 let finished = false;
 const completion = new Promise<void>((resolve) => { finishDraft = resolve; }).then(() => { finished = true; });
+const role = { status: "draft", name: "Fixture", description: "JD", hasDescription: true,
+  locationText: null, workMode: null, employmentTypes: [], salaryRange: null };
+const session = { phase: "questions", brief: {}, questions: { history: [] }, firstCandidates: [] };
+let GET: typeof import("./route").GET;
 let POST: typeof import("./route").POST;
 
 before(async () => {
@@ -32,21 +37,29 @@ before(async () => {
         return roleId;
       },
     };
+    if (name === "@/lib/org/roleStart/access") return {
+      readRoleStartAccess: async () => { if (!allowed) throw new OrgHttpError(403, "Forbidden"); return role; },
+    };
+    if (name === "@/lib/org/roleStart/session") return { loadRoleStartSession: async () => session };
+    if (name === "@/lib/org/roleStart/compensation") return { compensationChips: () => [{ ko: "협의", en: "Discuss" }] };
     if (name === "@/lib/org/roleStart/service") return {
+      checkBriefConsistency: () => [],
+      answerRoleStartQuestion: async (input: unknown) => { calls.push(input); return lostSave ? null : session; },
+      answerRoleStartCompensation: async () => ({ session: { ...session, questions: { history: [], compensation: "answered" } }, salaryRange: "1억원" }),
       evaluateRoleStartCandidate: async (input: unknown) => {
         calls.push(input);
-        return { phase: "evaluating" };
+        return { ...session, phase: "evaluating" };
       },
       beginRoleStartDraft: async (input: unknown) => {
         calls.push(input);
-        return { session: { phase: "drafting" }, completion };
+        return { session: { ...session, phase: "drafting" }, completion };
       },
     };
     if (name === "@/lib/org/roleStart/view") return { roleStartView: (session: unknown) => session };
     if (name.startsWith("@/lib/org/roleStart/")) return {};
     return original.call(this, name, ...args);
   };
-  try { ({ POST } = await import("./route")); } finally { loader._load = original; }
+  try { ({ GET, POST } = await import("./route")); } finally { loader._load = original; }
 });
 
 function request(action: string, body: Record<string, unknown> = {}) {
@@ -74,7 +87,9 @@ test("Setup creates or resumes its chosen draft only through authenticated works
 test("starting Brief returns the persisted session while drafting continues after the response", async () => {
   const response = await POST(request("start"));
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { session: { phase: "drafting" } });
+  const payload = await response.json();
+  assert.equal(payload.session.phase, "drafting");
+  assert.deepEqual(payload.role, role);
   assert.deepEqual(calls.at(-1), { roleId, workspaceId, user });
   assert.equal(finished, false, "Setup must not wait for model and pool completion");
   assert.equal(background.length, 1);
@@ -100,4 +115,34 @@ test("candidate feedback accepts text alone or a rating, but rejects blank and i
     assert.equal((await POST(request("evaluate", { talentId, ...body }))).status, 400);
   }
   assert.equal(calls.length, before, "invalid submissions never reach the service");
+});
+
+
+test("polling and answers return the screen snapshot without loading RoleCreationState", async () => {
+  // The full loader is deliberately absent from the mock: these requests must not call it.
+  const response = await GET(new NextRequest(`https://example.invalid/api/org/role-start?roleId=${roleId}&workspaceId=${workspaceId}`));
+  assert.equal(response.status, 200);
+  const initial = await response.json();
+  const answer = await POST(request("answer", { questionId: "q1", text: "스타트업 경험 중요" }));
+  assert.equal(answer.status, 200);
+  const payload = await answer.json();
+  assert.deepEqual(payload.role, initial.role);
+  assert.deepEqual(payload.issues, []);
+  assert.deepEqual(payload.compensation, initial.compensation);
+  assert.equal(payload.session.phase, "questions");
+  const compensation = await POST(request("compensation", { text: "1억원" }));
+  const saved = await compensation.json();
+  assert.equal(saved.role.salaryRange, "1억원");
+  assert.equal(saved.compensation, null, "the next screen needs no follow-up GET");
+  allowed = false;
+  assert.equal((await GET(new NextRequest(`https://example.invalid/api/org/role-start?roleId=${roleId}&workspaceId=${workspaceId}`))).status, 403);
+  allowed = true;
+});
+
+test("a lost session write returns a conflict, not a successful null snapshot", async () => {
+  lostSave = true;
+  const response = await POST(request("answer", { questionId: "q1", text: "경험" }));
+  assert.equal(response.status, 409);
+  assert.match(response.headers.get("server-timing") ?? "", /^role-start;dur=/);
+  lostSave = false;
 });

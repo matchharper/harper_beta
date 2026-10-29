@@ -1,3 +1,4 @@
+import type { InternalCallChatSubmission } from "@/lib/career/internalCallAnswers";
 import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
@@ -100,6 +101,7 @@ export type CareerChatPanelContextValue = {
   onProfileSubmit: () => void | Promise<void>;
 
   onSendChatMessage: (args: {
+    internalCallAnswerSubmission?: InternalCallChatSubmission;
     applicationInputSubmission?: {batchId:string; sessionMessageId:number; expectedRevision:number};
     allowedToolNames?: readonly string[];
     files?: File[];
@@ -110,6 +112,7 @@ export type CareerChatPanelContextValue = {
     messageType?: TalentUserChatMessageType;
     opportunityMentions?: CareerOpportunityMention[];
     pendingAction?: CareerPendingActionReference;
+    onSuccess?: () => void;
     onError?: () => void;
   }) => void | Promise<void>;
   onPrepareChatDraft?: (args: {

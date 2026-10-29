@@ -24,6 +24,8 @@ const nextConfig = {
     "pdf-parse",
     "@fontsource/noto-sans-kr",
   ],
+  // Private local checkpoints must never be packaged into deployed functions.
+  outputFileTracingExcludes: { "/*": ["./.local/career-reset/**"] },
   outputFileTracingIncludes: {
     "/*": ["./src/lib/career/simulation/applicationStagehand/*.mjs", "./src/lib/career/simulation/applicationStagehand/*.cjs", "./src/lib/career/simulation/applicationStagehand/package*.json"],
     "/api/resume-assets/*": [

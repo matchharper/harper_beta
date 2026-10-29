@@ -1,3 +1,4 @@
+import type { InternalCallVoiceContext } from "./liveSessionUpdates";
 import "server-only";
 import { getCareerLiveSessionConfig } from "./llm";
 import { buildLiveFrontendInstructions } from "./voiceSessionInstructions";
@@ -9,6 +10,7 @@ export function buildCareerLiveSessionConfig(args: {
   responseLocale?: string | null;
   isMockInterview: boolean;
   onboardingContext?: string | null;
+  internalCallContext?: InternalCallVoiceContext | null;
   backendInstructions: string;
   tools: ReturnType<typeof resolveCareerRealtimeTools>["tools"];
 }) {
@@ -21,6 +23,7 @@ export function buildCareerLiveSessionConfig(args: {
       responseLocale: args.responseLocale,
       isMockInterview: args.isMockInterview,
       onboardingContext: args.onboardingContext,
+      internalCallContext: args.internalCallContext?.text,
     }),
     delegation: {
       type: "responses" as const,

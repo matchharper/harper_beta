@@ -1,5 +1,7 @@
 "use client";
 
+import { isStaleInternalCallContext, type InternalCallVoiceContext } from "@/lib/career/liveSessionUpdates";
+
 import {
   buildLiveSessionUpdateEvents,
   type LiveSessionInstructionUpdate,
@@ -152,6 +154,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const mockInterviewOpportunityIdRef = useRef<string | null>(null);
+  const internalCallRequestIdRef = useRef<string | null>(null);
+  const lastInternalCallContextRef = useRef<InternalCallVoiceContext | null>(null);
   const callSessionIdRef = useRef<string | null>(null);
   const audioDiagnosticsTimerRef = useRef<ReturnType<typeof setInterval> | null>(
     null
@@ -448,6 +452,35 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     [sendEvent]
   );
 
+  const updateSessionInstructions = useCallback(
+    (
+      instructions: string,
+      liveUpdate?: LiveSessionInstructionUpdate | null,
+    ) => {
+      if (dataChannelRef.current?.readyState !== "open") return;
+      const update = liveUpdate ?? { instructions, onboardingContext: null };
+      if (
+        isStaleInternalCallContext(
+          update.internalCallContext,
+          lastInternalCallContextRef.current,
+        )
+      )
+        return;
+      for (const event of buildLiveSessionUpdateEvents(
+        update,
+        lastOnboardingContextRef.current,
+        `harper_live_progress_${crypto.randomUUID()}`,
+        lastInternalCallContextRef.current,
+      )) {
+        sendEvent(event);
+      }
+      lastOnboardingContextRef.current = update.onboardingContext;
+      if (update.internalCallContext)
+        lastInternalCallContextRef.current = update.internalCallContext;
+    },
+    [sendEvent],
+  );
+
   const executeFunctionCalls = useCallback(
     async (functionCalls: LiveFunctionCall[]) => {
       if (functionCalls.length === 0) {
@@ -457,14 +490,25 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
 
       setIsToolExecuting(true);
       let shouldContinueBackend = false;
-      for (const functionCall of functionCalls) {
+      // Finish writes before arming hangup, even if tools arrive in reverse order.
+      const orderedCalls = [
+        ...functionCalls.filter(
+          (call) => call.name !== LIVE_END_CALL_TOOL_NAME,
+        ),
+        ...functionCalls.filter(
+          (call) => call.name === LIVE_END_CALL_TOOL_NAME,
+        ),
+      ];
+      for (const functionCall of orderedCalls) {
         if (executedFunctionCallIdsRef.current.has(functionCall.callId)) {
           continue;
         }
         executedFunctionCallIdsRef.current.add(functionCall.callId);
 
         if (functionCall.name === LIVE_END_CALL_TOOL_NAME) {
-          endCallOptionsRef.current = parseCareerEndCallArguments(functionCall.arguments);
+          endCallOptionsRef.current = parseCareerEndCallArguments(
+            functionCall.arguments,
+          );
           pendingEndCallToolIdRef.current = functionCall.callId;
           pendingEndCallRef.current = true;
           if (pendingEndCallFallbackTimerRef.current) {
@@ -472,7 +516,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           }
           pendingEndCallFallbackTimerRef.current = setTimeout(
             finishPendingEndCall,
-            12_000
+            12_000,
           );
           continue;
         }
@@ -496,6 +540,9 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
             method: "POST",
             body: JSON.stringify({
               arguments: parsedArguments,
+              internalCallRequestId:
+                internalCallRequestIdRef.current ?? undefined,
+              responseLocale: locale,
               mockInterviewOpportunityId:
                 mockInterviewOpportunityIdRef.current ?? undefined,
               channel: "voice",
@@ -507,11 +554,20 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) {
             throw new Error(
-              getErrorText(payload, "Failed to execute GPT-Live tool."), { cause: payload }
+              getErrorText(payload, "Failed to execute GPT-Live tool."),
+              { cause: payload },
             );
           }
-          output = isRecord(payload) ? payload.output ?? {} : {};
-          preparedModelOutput = typeof payload?.modelOutput === "string" ? payload.modelOutput : undefined;
+          output = isRecord(payload) ? (payload.output ?? {}) : {};
+          if (payload.liveSessionUpdate)
+            updateSessionInstructions(
+              payload.nextStepInstructions ?? "",
+              payload.liveSessionUpdate,
+            );
+          preparedModelOutput =
+            typeof payload?.modelOutput === "string"
+              ? payload.modelOutput
+              : undefined;
         } catch (error) {
           output = toolErrorResult(error);
         }
@@ -528,7 +584,14 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
       setIsToolExecuting(false);
       if (shouldContinueBackend) sendEvent({ type: "response.create" });
     },
-    [conversationId, fetchWithAuth, finishPendingEndCall, sendEvent]
+    [
+      conversationId,
+      fetchWithAuth,
+      finishPendingEndCall,
+      sendEvent,
+      locale,
+      updateSessionInstructions,
+    ],
   );
 
   const handleDelegatedResponseEvent = useCallback(
@@ -798,6 +861,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     audioDiagnosticsTimerRef.current = null;
     clearCallTimeouts();
     mockInterviewOpportunityIdRef.current = null;
+    internalCallRequestIdRef.current = null;
+    lastInternalCallContextRef.current = null;
     sessionStartedResolverRef.current?.(false);
     sessionStartedResolverRef.current = null;
     pendingInstructionActionsRef.current.forEach(({ timer }) =>
@@ -934,6 +999,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
 
       mockInterviewOpportunityIdRef.current =
         options?.mockInterviewOpportunityId?.trim() || null;
+      internalCallRequestIdRef.current = options?.internalCallRequestId?.trim() || null;
+      lastInternalCallContextRef.current = null;
       callSessionIdRef.current = options?.callSessionId?.trim() || null;
       setIsConnecting(true);
       lastConnectFailureRef.current = null;
@@ -1293,22 +1360,6 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
       );
     },
     [sendInstructionThenCommentary]
-  );
-
-  const updateSessionInstructions = useCallback(
-    (instructions: string, liveUpdate?: LiveSessionInstructionUpdate | null) => {
-      if (dataChannelRef.current?.readyState !== "open") return;
-      const update = liveUpdate ?? { instructions, onboardingContext: null };
-      for (const event of buildLiveSessionUpdateEvents(
-        update,
-        lastOnboardingContextRef.current,
-        `harper_live_progress_${crypto.randomUUID()}`
-      )) {
-        sendEvent(event);
-      }
-      lastOnboardingContextRef.current = update.onboardingContext;
-    },
-    [sendEvent]
   );
 
   const markRealtimeAudioTurnSaved = useCallback(

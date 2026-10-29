@@ -1,3 +1,4 @@
+import type { InternalCallChatSubmission } from "@/lib/career/internalCallAnswers";
 import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
@@ -33,6 +34,7 @@ import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 
 type SendChatArgs = {
+  internalCallAnswerSubmission?: InternalCallChatSubmission;
   applicationInputSubmission?: {batchId:string; sessionMessageId:number; expectedRevision:number};
   simulationAction?:SimulationCardRequest;
   allowedToolNames?: readonly string[];
@@ -50,6 +52,7 @@ type SendChatArgs = {
   messageType?: TalentUserChatMessageType;
   opportunityMentions?: CareerOpportunityMention[];
   pendingAction?: CareerPendingActionReference;
+  onSuccess?: () => void;
   onError?: () => void;
 };
 
@@ -155,8 +158,11 @@ const replaceMessageById = (
   nextMessage: CareerMessage
 ) => {
   const targetKey = String(targetId);
-  const nextIndex = messages.findIndex(
+  let nextIndex = messages.findIndex(
     (message) => String(message.id) === targetKey
+  );
+  if (nextIndex < 0) nextIndex = messages.findIndex(
+    (message) => String(message.id) === String(nextMessage.id)
   );
 
   if (nextIndex < 0) {
@@ -717,7 +723,7 @@ export const useCareerChat = ({
       const text = args.text.trim();
       const link = (args.link ?? "").trim();
       const files = (args.files ?? []).slice(0, 5);
-      if (!text && files.length === 0 && !args.applicationInputSubmission) return;
+      if (!text && files.length === 0 && !args.applicationInputSubmission && !args.internalCallAnswerSubmission) return;
 
       const explicitConversationStarterId = args.conversationStarterId;
       if (
@@ -754,7 +760,7 @@ export const useCareerChat = ({
       activeStreamAssistantIdRef.current = null;
       activeStreamAssistantRef.current = null;
       setChatPending(true);
-      if (!args.applicationInputSubmission) setLocalMessages((prev) => [
+      if (!args.applicationInputSubmission && !args.internalCallAnswerSubmission) setLocalMessages((prev) => [
         ...prev,
         {
           attachments: optimisticAttachments,
@@ -801,6 +807,7 @@ export const useCareerChat = ({
             channel: args.channel ?? "chat",
             simulationAction: args.simulationAction,
             applicationInputSubmission: args.applicationInputSubmission,
+            internalCallAnswerSubmission: args.internalCallAnswerSubmission,
             coachingActivityAction: args.coachingActivityAction,
             conversationStarterId: activeConversationStarterId,
             conversationId,
@@ -1335,6 +1342,7 @@ export const useCareerChat = ({
             throw new Error(tCareer(H.messageStreamEndedEarly));
           }
 
+          args.onSuccess?.();
           return;
         }
 
@@ -1434,6 +1442,7 @@ export const useCareerChat = ({
         if (payload?.progress?.completed) {
           setStage("completed");
         }
+        args.onSuccess?.();
       } catch (error) {
         const wasCancelled =
           cancelRequestedRef.current ||

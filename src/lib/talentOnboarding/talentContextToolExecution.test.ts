@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import Module from "node:module";
 import test from "node:test";
+import { formatToolResultText } from "../llm/promptText";
 
 process.env.OPENAI_API_KEY ??= "test-key";
 
@@ -50,6 +51,14 @@ class FakeQuery<T> {
     return this;
   }
 
+  is() {
+    return this;
+  }
+
+  in() {
+    return Promise.resolve(this.result);
+  }
+
   maybeSingle() {
     return Promise.resolve(this.result);
   }
@@ -57,6 +66,8 @@ class FakeQuery<T> {
 
 class FakeTalentContextAdmin {
   rpcCalls: Array<{ args: Record<string, unknown>; name: string }> = [];
+
+  constructor(private readonly contextRows: Record<string, unknown>[] = []) {}
 
   from(table: string) {
     if (table === "logs") {
@@ -72,12 +83,15 @@ class FakeTalentContextAdmin {
         error: null,
       });
     }
+    if (table === "talent_contexts") {
+      return new FakeQuery({ data: this.contextRows, error: null });
+    }
     throw new Error(`Unexpected table: ${table}`);
   }
 
   async rpc(name: string, args: Record<string, unknown>) {
     this.rpcCalls.push({ args, name });
-    return { data: { applied: [] }, error: null };
+    return { data: { applied: this.contextRows }, error: null };
   }
 }
 
@@ -199,6 +213,72 @@ test("write_talent_context accepts missing Memory importance and Brief label", a
   const changes = mutation?.args.p_changes as Array<Record<string, unknown>>;
   assert.equal(changes[0]?.importance, 1);
   assert.equal(changes[1]?.label, "Career criteria");
+});
+
+test("write_talent_context saves Memory content despite an incidental label and renders success", async () => {
+  const admin = new FakeTalentContextAdmin([
+    {
+      id: 20,
+      ref: 8,
+      revision: 3,
+      talent_id: "11111111-1111-4111-8111-111111111111",
+      collection: "memory",
+      content: "이전 업무 설명",
+      importance: 1,
+      label: null,
+      key: null,
+      source_refs: [],
+      created_at: "2026-09-22T00:00:00.000Z",
+      updated_at: "2026-09-22T00:00:00.000Z",
+      deleted_at: null,
+    },
+  ]);
+  const { executeTalentTool, TALENT_TOOL_NAMES } = await talentToolsPromise;
+  const content = "현장 영업 앱을 개선해 한 번의 방문으로 계약을 마치게 했다.";
+  const label = "Memory에서 사용하지 않는 제목".repeat(20);
+
+  const result = (await executeTalentTool({
+    context: {
+      admin: admin as never,
+      conversationId: "conversation-1",
+      scheduleAfter: () => {},
+      userId: "11111111-1111-4111-8111-111111111111",
+      userMessageId: 123,
+    },
+    input: {
+      changes: [{ op: "update", ref: 8, content, label, importance: 3 }],
+    },
+    logging: false,
+    name: TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
+  })) as Record<string, unknown>;
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.applied, [{ ref: 8 }]);
+  const mutation = admin.rpcCalls.find(
+    (call) => call.name === "mutate_talent_contexts"
+  );
+  const changes = mutation?.args.p_changes as Array<Record<string, unknown>>;
+  assert.deepEqual(changes, [
+    {
+      op: "update",
+      id: 20,
+      expected_revision: 3,
+      content,
+      importance: 3,
+      source_refs: [
+        {
+          type: "conversation_message",
+          conversationId: "conversation-1",
+          messageId: 123,
+        },
+      ],
+    },
+  ]);
+  const modelText = formatToolResultText(result);
+  assert.match(modelText, /ref: 8/);
+  assert.match(modelText, /ok: 예/);
+  assert.equal(modelText.includes(label), false);
+  assert.notEqual(modelText, JSON.stringify(result));
 });
 
 test("coaching lifecycle fills omitted machine references from the current activity", async () => {

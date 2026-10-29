@@ -63,12 +63,8 @@ function fixture(mode: "suggestions" | "empty" | "failure" = "suggestions") {
             : null,
           error: null,
         };
-      if (args.p_operation !== "begin")
-        assert.equal(
-          args.p_revision,
-          state!.revision,
-          "state updates must preserve optimistic concurrency"
-        );
+      if (args.p_operation !== "begin" && args.p_revision !== state!.revision)
+        return { data: null, error: { message: "Session revision conflict" } };
       state = {
         ...structuredClone(args.p_payload),
         revision: (state?.revision ?? 0) + 1,
@@ -253,31 +249,45 @@ test("preparation failure preserves the failed progress card and releases the mo
 });
 
 
-test("suggestions arrive before inspection, which is persisted separately and does not overwrite user answers", async () => {
+test("inspection overlaps suggestions, and its later result preserves answers", async () => {
   const f = fixture();
   const jobs: Array<() => Promise<void>> = [];
+  let release!: () => void;
+  let entered!: () => void;
+  const began = new Promise<void>(resolve => { entered = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const inspect = f.dependencies.inspectApplicationForm;
+  f.dependencies.inspectApplicationForm = async (...args) => { entered(); await gate; return inspect(...args); };
+  const writer = f.dependencies.writeApplicationSuggestions;
+  f.dependencies.writeApplicationSuggestions = async input => { await began; return writer(input); };
   const result = await executeApplicationSimulation({ ...f.args, scheduleAfter: task => jobs.push(task) }, f.dependencies);
   assert.equal(result.ok, true);
-  assert.equal(f.inspections, 0, "no form inspection delays the first suggestions");
-  assert.equal(f.state.applicationInspection?.status, "queued");
+  assert.equal(f.state.applicationInspection?.status, "running");
   assert.equal(jobs.length, 1);
   f.state.facts.push({ id: "user-fact", text: "A saved answer", messageId: 12 });
+  release();
   await jobs[0]();
   assert.equal(f.inspections, 1);
   assert.equal(f.state.applicationInspection?.status, "completed");
   assert.equal(f.state.applicationForm?.url, "https://example.test/apply");
   assert.equal(f.state.facts[0].text, "A saved answer");
   await jobs[0]();
-  assert.equal(f.inspections, 1, "completed inspections cannot be duplicated");
+  assert.equal(f.inspections, 1);
 });
 
-test("ending preparation before background dispatch prevents browser inspection", async () => {
+test("ending preparation while inspection runs discards its late result", async () => {
   const f = fixture();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const inspect = f.dependencies.inspectApplicationForm;
+  f.dependencies.inspectApplicationForm = async (...args) => { await gate; return inspect(...args); };
   const jobs: Array<() => Promise<void>> = [];
   await executeApplicationSimulation({ ...f.args, scheduleAfter: task => jobs.push(task) }, f.dependencies);
   f.state.status = "ended";
+  release();
   await jobs[0]();
-  assert.equal(f.inspections, 0);
+  assert.equal(f.state.applicationForm, undefined);
+  assert.equal(f.state.status, "ended");
 });
 
 

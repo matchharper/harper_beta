@@ -49,11 +49,9 @@ import {
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 import {
-  advanceInternalOpportunityCallRequestQuestion,
   fetchInternalOpportunityCallRequestById,
   isOpenInternalOpportunityCallRequestStatus,
 } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
-import { shouldAdvanceInternalOpportunityCallQuestion } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 
 type Body = {
@@ -360,37 +358,6 @@ export async function saveCareerTurnRequest(req: NextRequest, runtime: CareerReq
       insertedAssistantMessage = data as TalentMessageRow;
     }
 
-    if (
-      isInternalOpportunityCall &&
-      internalCallRequestId &&
-      internalCallRequest &&
-      insertedUserMessage &&
-      insertedAssistantMessage &&
-      shouldAdvanceInternalOpportunityCallQuestion({
-        assistantText: assistantMessageText,
-        progress: internalCallRequest.questionProgress,
-        questions: internalCallRequest.questions,
-        userText: userMessageText,
-      })
-    ) {
-      try {
-        await advanceInternalOpportunityCallRequestQuestion({
-          admin,
-          callId: internalCallRequestId,
-          userId: user.id,
-        });
-      } catch (error) {
-        console.error(
-          "[ChatSave] Failed to advance internal call question progress",
-          {
-            callId: internalCallRequestId,
-            conversationId,
-            error: error instanceof Error ? error.message : String(error),
-            userId: user.id,
-          }
-        );
-      }
-    }
 
     let opportunityRun: Awaited<
       ReturnType<typeof completeOnboardingAndQueueInitialOpportunityRun>
@@ -540,6 +507,7 @@ export async function saveCareerTurnRequest(req: NextRequest, runtime: CareerReq
         liveSessionUpdate = {
           instructions: nextPlan.liveInstructions,
           onboardingContext: nextPlan.liveOnboardingContext,
+          internalCallContext: nextPlan.internalCallContext,
         };
       } catch (error) {
         console.error("[ChatSave] Failed to rebuild realtime instructions", {

@@ -1,5 +1,5 @@
+import { inspectManagedApplicationForm } from "@/lib/ops/applicationQuestionsAgents.server";
 import {
-  inspectApplicationForm,
   FORM_INSPECTION_TIMEOUT_MS,
 } from "./applicationFormInspection";
 import {
@@ -15,7 +15,12 @@ import {
 
 // Persist the external inspection in the existing activity. A lease prevents two
 // reloads from launching the same browser; results merge with the latest answers.
-const LEASE_MS = FORM_INSPECTION_TIMEOUT_MS + 60_000;
+const LEASE_MS = 300_000;
+export async function inspectCareerApplicationForm(rawUrl: unknown, signal = AbortSignal.timeout(FORM_INSPECTION_TIMEOUT_MS)): Promise<ApplicationForm> {
+  const { inspectionHttpsUrl } = await import("@/lib/ops/applicationLinkResolution.server");
+  if (typeof rawUrl !== "string") throw new Error("Application URL is required");
+  return inspectManagedApplicationForm(inspectionHttpsUrl(rawUrl), signal);
+}
 export function needsApplicationInspection(
   record: SessionRecord,
   now = Date.now()
@@ -23,10 +28,10 @@ export function needsApplicationInspection(
   const job = record.state.applicationInspection;
   return (
     record.state.status === "active" &&
-    (record.state.analysisStatus === "completed" || record.state.activity?.channel === "email") &&
+    record.state.analysisStatus !== "failed" && record.state.analysisStatus !== "cancelled" &&
     (job?.status === "queued" ||
       (job?.status === "running" &&
-        now - Date.parse(job.startedAt ?? "1970-01-01") > LEASE_MS))
+        now - Date.parse(job.startedAt ?? "1970-01-01") > (job.resolveOfficialLink ? LEASE_MS : FORM_INSPECTION_TIMEOUT_MS + 60_000)))
   );
 }
 
@@ -70,7 +75,7 @@ export async function refreshApplicationInspection(
   store: SessionStoreArgs,
   messageId: number,
   sourceMessageId: number,
-  inspect = inspectApplicationForm
+  inspect = inspectCareerApplicationForm
 ) {
   const runId = crypto.randomUUID();
   const key = `inspection:refresh:${sourceMessageId}:${runId}`;
@@ -79,7 +84,7 @@ export async function refreshApplicationInspection(
     if (s.browser && ["queued", "running", "waiting"].includes(s.browser.status))
       throw new Error("Finish or stop the application browser before rechecking requirements");
     if (isApplicationInspectionPending(s)) return false;
-    s.applicationInspection = { status: "queued", runId };
+    s.applicationInspection = { status: "queued", runId, resolveOfficialLink: false };
     if (s.preparation) {
       s.preparation.inputRevision++;
       s.preparation.finalDocumentId = null;
@@ -98,7 +103,7 @@ export async function refreshApplicationInspection(
 export async function runApplicationInspection(
   store: SessionStoreArgs,
   messageId: number,
-  inspect = inspectApplicationForm
+  inspect = inspectCareerApplicationForm
 ) {
   const token = crypto.randomUUID();
   const claimed = await mutateInspection(
@@ -107,6 +112,17 @@ export async function runApplicationInspection(
     `inspection:claim:${token}`,
     (record) => {
       if (!needsApplicationInspection(record)) return false;
+      if (record.state.applicationInspection?.resolveOfficialLink && record.state.applicationInspection.status === "running") {
+        // A lost worker must not silently restart the entire single-search budget.
+        record.state.applicationInspection.status = "failed";
+        record.state.applicationInspection.finishedAt = new Date().toISOString();
+        record.state.applicationForm = {
+          status: "unavailable", url: record.state.applicationUrl ?? "", checkedAt: new Date().toISOString(),
+          fields: [], limitations: ["The application inspection was interrupted before its result was saved."],
+          submission: { status: "unknown", reason: "Application access could not be verified." },
+        };
+        return true;
+      }
       record.state.applicationInspection = {
         ...record.state.applicationInspection,
         status: "running",
@@ -122,10 +138,13 @@ export async function runApplicationInspection(
   let form: ApplicationForm;
   try {
     // Browser lifetime belongs to the persisted job, not to a chat connection.
-    form = await inspect(
-      claimed.state.applicationUrl,
-      AbortSignal.timeout(FORM_INSPECTION_TIMEOUT_MS)
-    );
+    if (claimed.state.applicationInspection?.resolveOfficialLink && claimed.state.applicationUrl && inspect === inspectCareerApplicationForm) {
+      // Use the same single-search resolver exercised in Ops, including its
+      // conditional company_roles URL update. No extra search/retry layer.
+      const { runResolvedInspectionDebug } = await import("@/lib/ops/applicationLinkResolution.server");
+      const result = await runResolvedInspectionDebug(claimed.state.applicationUrl, AbortSignal.timeout(240_000), () => {}, { inspect });
+      form = result.form;
+    } else form = await inspect(claimed.state.applicationUrl, AbortSignal.timeout(FORM_INSPECTION_TIMEOUT_MS));
   } catch (error) {
     console.error(
       "[application-inspection] failed",
@@ -186,7 +205,7 @@ export async function runApplicationInspection(
 export async function awaitApplicationInspection<T extends SessionRecord>(
   store: SessionStoreArgs,
   record: T,
-  inspect = inspectApplicationForm
+  inspect = inspectCareerApplicationForm
 ) {
   const deadline = Date.now() + LEASE_MS + 10_000;
   let latest: T | Awaited<ReturnType<typeof sessionOperation>> = record;

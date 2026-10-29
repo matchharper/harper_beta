@@ -129,7 +129,7 @@ export function InternalOpportunityDecisionChangeModal({
     : isAcceptedRevert
       ? t(
           "career.history.internal_decision_actions.revert_accept_title",
-          "연결 수락을 되돌릴까요?"
+          "소개 진행을 취소할까요?"
         )
       : t(
           "career.history.internal_decision_actions.revert_reject_title",
@@ -143,7 +143,7 @@ export function InternalOpportunityDecisionChangeModal({
     : isAcceptedRevert
       ? t(
           "career.history.internal_decision_actions.revert_accept_description",
-          "연결을 취소하고 이 포지션을 ‘새 포지션’으로 되돌립니다. 이미 전달된 정보나 발송된 안내는 자동으로 회수되지 않습니다."
+          "회사에 소개해 달라는 결정을 취소하고 이 포지션을 ‘새 포지션’으로 되돌립니다. 되돌린 뒤 다시 결정할 수 있어요. 이미 전달된 정보나 발송된 안내는 자동으로 회수되지 않습니다."
         )
       : t(
           "career.history.internal_decision_actions.revert_reject_description",

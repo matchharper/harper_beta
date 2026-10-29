@@ -87,3 +87,15 @@
 - Gate: 입력/응답이 유효하고, 필수 주제 완료 시 end_call complete_onboarding=true, 중도 종료 시 false, 누락 시 실제 필요한 한 질문, 최종 확인 재강제 없음. Codex가 문맥과 도구 인자를 직접 읽는다. 실패·연결 오류·미실행은 통과로 세지 않는다. 사례별 최신 유효 결과를 보고하고 최초 실패를 보존한다.
 - 저장 경계: `src/app/api/talent/chat/call-wrapup/route.test.ts`는 실제 route를 격리된 저장·추출 의존성과 실행해 저장 지연/누락/실패/중도 종료를 확인한다. `src/hooks/career/useCareerOnboardingVoice.test.ts`는 실제 콜백을 격리된 hook host/transport에서 실행해 마지막 전사·저장·완료 이전에 연결을 끊지 않는지 확인한다.
 - 한계: 합성 사례이며 운영 DB transaction, 브라우저 WebRTC 재생, 실제 잡음·지연, 서비스 전체 완료율은 검증하지 않는다. hook 검사는 React 렌더링 검증이 아니다. 모델 smoke와 격리된 저장 검사를 합쳐 production E2E 통과라고 부르지 않는다.
+
+## Internal 회사 연결 통화의 기록 도구 (`internal-call-v1`)
+
+2026-10-28 최신 유효 음성 실행 2/2 통과. 첫 실행 한 건은 입력 처리 전에 닫힌 harness 문제로 무효 처리하고 보존했다. [재현 manifest와 사례별 결과](internal-call-manifest-v1.json). 로컬·미배포이며 운영 DB/브라우저 전체 E2E는 미검증이다.
+
+- 목적/단위: 실제 Live 음성 모델에 회사·직무·질문·저장 응답을 직접 주고, 응답 기록 도구와 종료가 이어지는지 합성 통화 2건으로 확인한다. 일반 성능 비교가 아니다.
+- Frozen input/gold: `live-prompt-cases-internal-call-v1.json`. 2026-10-28 작성한 합성 회사·질문·대화·음성과 실행 전 기대 행동이며 운영 원문은 없다. 기존 버전을 덮어쓰지 않는다. 독립 human gold는 아니다.
+- Canonical runner: `CAREER_VOICE_EVAL_VERSION=internal-call-v1 TSX_TSCONFIG_PATH=scripts/tsconfig.json node --env-file=.env.local --import tsx scripts/evalCareerLiveOnboardingPrompt.ts`. 실제 shared frontend/내부 통화/backend prompt와 도구 정의를 사용한다. 합성 음성은 Yuna PCM16/24kHz이며 `record_call_answers`의 실제 executor와 SQL을 격리된 메모리 PGlite에서 실행한다. 운영 DB·메시지·추천·회사 연락은 없다.
+- 계약: 음성 모델은 전체 질문과 저장된 응답을 직접 받는다. LLM이 질문 번호와 응답을 기록하고, 결과의 전용 텍스트 projection 및 실제 `session.update`/`session.thinking.append`로 최신 사실을 전달한다. 첫 사례는 시작·모름·거절·종료, 둘째는 저장 응답 유지·다음 질문 기록·종료를 확인한다.
+- 설정/재현: 제품의 `getCareerLiveSessionConfig()`를 재사용하며 sampling/출력 상한은 별도로 추가하지 않는다. run manifest에는 모델·reasoning·fixture/runner SHA-256·revision/diff hash와 전체 입력을 보존한다. 외부 provider에는 합성 입력만 전송한다. 음성·전체 응답은 ignored `private/internal-call-v1/`와 `runs/`에 owner-only로 저장한다.
+- 지표/gate: 두 사례 모두 회사/직무/질문 유지, 사용자 의미에 맞는 실제 응답 저장, 기존 응답 보존, 이미 답하거나 거절한 질문의 불필요한 반복 없음, 실제 `end_call(false)`, API 오류 0건. Codex가 발화·도구 인자·저장 결과를 직접 읽고 판단한다. 문구 일치·키워드로 의미를 채점하지 않는다. 실패/미실행은 통과로 세지 않는다.
+- 한계: 합성 WebSocket + 메모리 DB 검사다. 사용자 마이크/WebRTC 재생, 운영 DB/배포, 소음/중첩발화 및 전체 서비스 성공률은 검증하지 않는다. 실제 모델 출력은 확률적이며 이 두 사례로 모든 통화의 품질을 보장하지 않는다.

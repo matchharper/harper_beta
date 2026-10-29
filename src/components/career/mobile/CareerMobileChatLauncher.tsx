@@ -34,6 +34,7 @@ import CareerMobileNavigationMenu, {
   type CareerMobileNavigationOptionId,
 } from "@/components/career/mobile/CareerMobileNavigationMenu";
 import { CareerCallIdlePrompt } from "@/components/career/chat/CareerCallIdlePrompt";
+import { CareerMobileChatCloseContext } from "./CareerMobileChatCloseContext";
 
 type CareerMobileChatNavigation = {
   activeTab: CareerMobileNavigationOptionId;
@@ -549,7 +550,11 @@ function CareerMobileChatLauncher({
                     "var(--career-mobile-chat-safe-bottom, env(safe-area-inset-bottom))",
                 }}
               >
-                {children}
+                <CareerMobileChatCloseContext.Provider
+                  value={() => handleOpenChange(false)}
+                >
+                  {children}
+                </CareerMobileChatCloseContext.Provider>
               </div>
             </CareerMobileNavigationFrame>
           </DrawerPrimitive.Content>

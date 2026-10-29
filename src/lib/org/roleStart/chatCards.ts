@@ -2,9 +2,9 @@ import "server-only";
 
 import { insertOrgAgentMessage } from "@/lib/org/agent/store";
 import type { OrgAgentConversationRow } from "@/lib/org/agent/store";
-import { buildOrgHref } from "@/lib/org/routes";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import type { RoleStartChip, RoleStartQuestion } from "./session";
+import type { RoleStartQuestion } from "./session";
+import { roleStartQuestionMessage, roleStartBriefReadyMessage } from "./sessionChat";
 
 /**
  * Role chat cards for the role start questions. The chat and the role start screens read
@@ -46,64 +46,10 @@ export async function postRoleStartQuestionCard(args: {
   if (await findCard(args.roleId, args.workspaceId, args.question.id)) return null;
   return insertOrgAgentMessage({
     admin: target.admin,
-    content: `${args.question.question}\n\n${args.question.why}`,
+    ...roleStartQuestionMessage(args.question),
     conversation: target.conversation,
-    metadata: {
-      roleStartQuestion: {
-        questionId: args.question.id,
-        chips: args.question.chips.map((chip) => ({ id: chip.id, label: chip.label })),
-        status: "pending",
-      },
-    },
     role: "assistant",
     roleId: args.roleId,
-  });
-}
-
-/**
- * Closes the card and, for a chip or skip, records the team's choice as their
- * own message. A free-text answer is already the team's chat message.
- */
-export async function recordRoleStartAnswerInChat(args: {
-  roleId: string;
-  workspaceId: string;
-  question: RoleStartQuestion;
-  chip: RoleStartChip | null;
-  skipped: boolean;
-  /** The answer text when it was typed outside the chat (the role start screens or Slack). */
-  text: string | null;
-  /** True when the answer came from the team's own chat message. */
-  fromChat: boolean;
-  userId: string;
-}) {
-  const target = await roleConversation(args.roleId, args.workspaceId);
-  if (!target) return;
-  const card = await findCard(args.roleId, args.workspaceId, args.question.id);
-  if (card) {
-    const metadata = card.metadata ?? {};
-    const current = (metadata.roleStartQuestion ?? {}) as Record<string, unknown>;
-    const { error } = await (target.admin.from("company_messages" as any) as any)
-      .update({
-        metadata: {
-          ...metadata,
-          roleStartQuestion: {
-            ...current,
-            status: args.skipped ? "skipped" : "answered",
-            answeredChipId: args.chip?.id ?? null,
-          },
-        },
-      })
-      .eq("id", card.id);
-    if (error) throw error;
-  }
-  if (args.fromChat) return;
-  await insertOrgAgentMessage({
-    admin: target.admin,
-    content: args.chip?.label ?? args.text ?? "건너뛰기",
-    conversation: target.conversation,
-    role: "user",
-    roleId: args.roleId,
-    userId: args.userId,
   });
 }
 
@@ -148,14 +94,8 @@ export async function postRoleStartBriefReadyCard(args: { roleId: string; worksp
   if ((data ?? []).length) return null;
   return insertOrgAgentMessage({
     admin: target.admin,
-    // Exact navigation card; the chat agent explains further on its next turn.
-    content: "질문을 마쳤어요. Brief를 확인하고 확정하면 첫 후보를 보여 드려요.",
+    ...roleStartBriefReadyMessage(args.roleId, args.workspaceId),
     conversation: target.conversation,
-    metadata: {
-      roleStartBriefReady: {
-        href: buildOrgHref({ orgId: args.workspaceId, page: "role", roleId: args.roleId, tab: "start" }),
-      },
-    },
     role: "assistant",
     roleId: args.roleId,
   });

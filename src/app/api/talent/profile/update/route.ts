@@ -29,6 +29,7 @@ import {
   sanitizeSingleLineDbText,
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
+import { normalizeProfileDate } from "@/lib/talentOnboarding/profileDate";
 
 export const runtime = "nodejs";
 export const maxDuration = 240;
@@ -146,8 +147,8 @@ const normalizeStructuredProfile = (
         role: sanitizeSingleLineText(row.role, 240),
         description: sanitizeMultilineText(row.description, 8000),
         employment_type: sanitizeSingleLineText(row.employment_type, 120),
-        start_date: sanitizeDateText(row.start_date),
-        end_date: sanitizeDateText(row.end_date),
+        start_date: normalizeProfileDate(row.start_date, "start"),
+        end_date: normalizeProfileDate(row.end_date, "end"),
         months: sanitizeInteger(row.months, 0, 1200),
         company_id: sanitizeSingleLineText(row.company_id, 120),
         company_link: sanitizeSingleLineText(row.company_link, 2000),
@@ -195,8 +196,8 @@ const normalizeStructuredProfile = (
         degree: sanitizeSingleLineText(row.degree, 120),
         description: sanitizeMultilineText(row.description, 8000),
         field: sanitizeSingleLineText(row.field, 240),
-        start_date: sanitizeDateText(row.start_date),
-        end_date: sanitizeDateText(row.end_date),
+        start_date: normalizeProfileDate(row.start_date, "start"),
+        end_date: normalizeProfileDate(row.end_date, "end"),
         url: sanitizeSingleLineText(row.url, 2000),
         memo: sanitizeMultilineText(row.memo, 2000),
       };

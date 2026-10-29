@@ -1,3 +1,6 @@
+import { PreparationDocumentPicker } from "./PreparationDocumentPicker";
+export { PreparationDocumentPicker } from "./PreparationDocumentPicker";
+import { QuestionComposer } from "./QuestionComposer";
 import {
   careerTimelineMessageTextClassName,
   careerTimelineTypographyStyle,
@@ -20,16 +23,7 @@ import {
 import { MuteButton, CardButton } from "@/components/ui/button";
 import { ChatComposerSurface } from "@/components/chat/ChatComposer";
 import { ResponsiveLightTooltip } from "@/components/ui/tooltip";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import { useCareerT } from "@/i18n/useCareerT";
-import { useCareerApi } from "@/hooks/career/useCareerApi";
-import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
 import { Textarea } from "@/components/ui/textarea";
 import type { SimulationSession } from "@/lib/career/simulation/session";
 import { useApplicationPreparation } from "./ApplicationPreparationContext";
@@ -43,118 +37,6 @@ const numberedOptionClassName =
   "flex w-full items-center justify-start gap-2 rounded-xl min-h-10 sm:min-h-9 px-2 py-1 text-left text-[length:inherit] text-sm font-normal leading-[inherit]";
 const optionNumberClassName =
   "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-black text-xs text-white";
-
-export function PreparationDocumentPicker({
-  resume = false,
-  disabled,
-  selectedId,
-  onPick,
-}: {
-  resume?: boolean;
-  disabled: boolean;
-  selectedId?: string;
-  onPick: (id: string) => void | Promise<void>;
-}) {
-  const t = useCareerT();
-  const { fetchWithAuth } = useCareerApi();
-  const [docs, setDocs] = useState<
-    { id: string; fileName: string; kind: string }[]
-  >([]);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetchWithAuth("/api/talent/documents", { signal: controller.signal })
-      .then((r) => r.json())
-      .then((d) => setDocs(d.documents ?? []))
-      .catch(() => {});
-    return () => controller.abort();
-  }, [fetchWithAuth]);
-  const upload = async (file: File) => {
-    setUploading(true);
-    setError("");
-    try {
-      const result = await uploadTalentDocument({
-        fetchWithAuth,
-        file,
-        kind: resume ? "resume" : "document",
-        source: "chat",
-      });
-      const d = result.document;
-      if (typeof d?.id !== "string") throw new Error();
-      const id = d.id;
-      setDocs((prev) => [
-        ...prev.filter((p) => p.id !== d.id),
-        {
-          id,
-          fileName: typeof d.fileName === "string" ? d.fileName : file.name,
-          kind: resume ? "resume" : "document",
-        },
-      ]);
-      await onPick(id);
-    } catch {
-      setError(
-        t(
-          "career.prep.uploadError",
-          "파일을 연결하지 못했어요. 다시 시도해 주세요."
-        )
-      );
-    } finally {
-      setUploading(false);
-    }
-  };
-  return (
-    <div className="space-y-2">
-      <Select
-        disabled={disabled || uploading}
-        onValueChange={(id) => {
-          if (id) void onPick(id);
-        }}
-        value={selectedId ?? ""}
-      >
-        <SelectTrigger aria-label={t("career.prep.selectDoc", "Docs에서 선택")}>
-          <SelectValue
-            placeholder={t("career.prep.selectDoc", "Docs에서 선택")}
-          />
-        </SelectTrigger>
-        <SelectContent>
-          {docs
-            .filter((d) => !resume || d.kind === "resume")
-            .map((d) => (
-              <SelectItem key={d.id} value={d.id}>
-                {d.fileName}
-              </SelectItem>
-            ))}
-        </SelectContent>
-      </Select>
-      <MuteButton
-        disabled={disabled || uploading}
-        onClick={() => ref.current?.click()}
-      >
-        {uploading
-          ? t("career.prep.uploading", "업로드 중…")
-          : t("career.prep.upload", "새 파일 첨부")}
-      </MuteButton>
-      <input
-        ref={ref}
-        type="file"
-        className="hidden"
-        accept=".pdf,.doc,.docx,.txt,.md"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void upload(f);
-          e.target.value = "";
-        }}
-      />
-      {error && (
-        <p role="alert" className="text-sm text-critical">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
 
 export function shouldShowPreparationQuestions(s?: SimulationSession | null) {
   return Boolean(
@@ -200,9 +82,10 @@ export function ApplicationPreparationComposerSlot({
     record.state.activity?.batches.some(
       (b) =>
         b.status === "submitted" &&
+        !(record.state.applicationReview && b.browser) &&
         ["pending", "failed"].includes(b.continuation)
     );
-  return shouldShowPreparationQuestions(record?.state) &&
+  return !(record?.state.applicationReview && pendingApplicationBatch(record.state)?.browser) && shouldShowPreparationQuestions(record?.state) &&
     (!review || renderedReviewId === review.id) ? (
     <ApplicationPreparationComposer />
   ) : (
@@ -218,7 +101,7 @@ export function ApplicationPreparationComposerSlot({
           />
           {t(
             "career.application.inspection.waiting",
-            "답변을 저장했어요. 지원에 필요한 항목을 마저 확인하고 있어요."
+            "지원에 필요한 항목을 추가로 확인하고 있어요."
           )}
         </div>
       )}
@@ -404,6 +287,34 @@ export function ApplicationPreparationComposer() {
     return () => window.removeEventListener("keydown", onKey);
   });
   if (!s || !p || !item || !shouldShowPreparationQuestions(s)) return null;
+  if (kind === "question")
+    return (
+      <QuestionComposer
+        title={item.title}
+        question={item.reason || item.proposal}
+        index={index}
+        count={items.length}
+        value={text}
+        busy={busy}
+        error={error}
+        closeLabel={t("career.application.end.label", "지원 과정 종료")}
+        onClose={() => setEndConfirmationOpen(true)}
+        onNavigate={navigate}
+        onChange={(value) => {
+          setDraftInputs((prev) => ({ ...prev, [inputKey]: value }));
+          if (p.responses[item.id])
+            void command({ operation: "clear", itemId: item.id });
+        }}
+        onAnswer={() => answer({ decision: "answer", text })}
+        onSkip={() => answer({ decision: "skip" })}
+      >
+        <ApplicationEndConfirmation
+          open={endConfirmationOpen}
+          onClose={() => setEndConfirmationOpen(false)}
+          onEnded={clearDrafts}
+        />
+      </QuestionComposer>
+    );
   const selected =
     flash?.key === inputKey
       ? flash.decision
@@ -537,11 +448,6 @@ export function ApplicationPreparationComposer() {
                 )}
               </div>
             ))}
-          {kind === "question" && (
-            <p className="whitespace-pre-wrap">
-              {item.reason || item.proposal}
-            </p>
-          )}
           {kind === "choice" && item.proposal && (
             <p className="whitespace-pre-wrap">{item.proposal}</p>
           )}
@@ -714,16 +620,8 @@ export function ApplicationPreparationComposer() {
           className="min-h-8 max-h-24 flex-1 resize-none bg-transparent outline-none focus:ring-0 focus:shadow-none focus:bg-transparent py-1 text-[16px] leading-[inherit] md:text-[length:inherit]"
           value={text}
           disabled={busy}
-          aria-label={
-            kind === "question"
-              ? t("career.prep.answerInput", "답변 입력")
-              : t("career.prep.directInput", "하퍼에게 직접 말하기…")
-          }
-          placeholder={
-            kind === "question"
-              ? t("career.prep.answerInput", "답변 입력")
-              : t("career.prep.directInput", "하퍼에게 직접 말하기…")
-          }
+          aria-label={t("career.prep.directInput", "하퍼에게 직접 말하기…")}
+          placeholder={t("career.prep.directInput", "하퍼에게 직접 말하기…")}
           onKeyDown={(e) => {
             // IME confirmation (including Safari's 229 event) must not submit Korean text.
             if (

@@ -156,6 +156,7 @@ export async function readCompanyRoleSearch(args: Args & { input: Record<string,
       evidenceCapturedAt:formatLlmDateTime(evidence.capturedAt),
       options: {scope:options.scope,startStage:options.startStage,limit:options.limit,recommendCount:options.recommendCount,reason:options.reason,sourceMessageId:options.sourceMessageId},
       summary: {addedTalentIds: addedIds.filter(id => readableChanges.has(id)), removedTalentIds: removedIds.filter(id => readableChanges.has(id)), hasStageLedger: data.contract_version === 'company_agentic_role_search_v1' || Object.keys(stored).length > 0, added: Array.isArray(stored.addedTalentIds) ? stored.addedTalentIds.length : null, removed: Array.isArray(stored.removedTalentIds) ? stored.removedTalentIds.length : null, retained: Array.isArray(stored.retainedTalentIds) ? stored.retainedTalentIds.length : null, refreshed: Array.isArray(stored.refreshedTalentIds) ? stored.refreshedTalentIds.length : null,
+        briefVersionAtCompletion: stored.briefVersionAtCompletion,
         evaluationFailed: object(stored.counts).evaluationFailed,
         failedEvaluationTotal: visibleFailures.length,
         failedEvaluationNextOffset: offset + limit < visibleFailures.length ? offset + limit : null,
@@ -515,6 +516,8 @@ export function formatCompanyRoleSearch(value: RoleSearchRead) {
     ...(value.run?[`실행 당시 기준 원문:\n${formatPromptText(value.run.briefSnapshot??null)}\n기록 범위 ${value.run.evidenceCoverage}`]:[]),
     `입력 계약: ${value.inputContractVersion??'여러 계약의 이력'}. 이력 수는 현재 입력과 정확히 일치해 재사용할 수 있는 수가 아니다. Worker가 원본 입력을 대조한다. 서로 다른 입력 계약은 합쳐서 현재 평가로 취급하지 않는다.`,
     `Role ${value.roleId} · Brief ${value.briefVersion} · ${value.run ? `실행 ${value.run.id} (${value.run.status})` : allVersions ? '전체 버전 이력; 아래 집계는 후보·버전·단계별 최신 평가 기준' : '같은 버전의 전체 실행 누적; 후보별 최신 평가 기준'}`,
+    ...(summary.briefVersionAtCompletion && summary.briefVersionAtCompletion !== value.briefVersion
+      ? [`실행 중 Brief 변경: 평가는 시작 당시 Brief ${value.briefVersion} 기준으로 저장됨. 완료 시점 Brief ${summary.briefVersionAtCompletion}로 다시 평가한 결과는 아님.`] : []),
     ...(value.hasCompanyHistory !== undefined ? [`통계·목록 모집단 필터: 현재 이 회사에 공개된 이력이 ${value.hasCompanyHistory ? '있는' : '없는'} 후보. 과거 점수와 현재 회사 기록은 별개다.`] : []),
     allVersions
       ? `이 조회의 중복 없는 후보 ${value.counts.evaluatedTalents}명; 버전별 1차 평가 ${value.counts.stage1}건 중 통과 ${value.counts.stage1Passed}건; 2차 평가 ${value.counts.stage2}건; 추천 설명 ${value.counts.stage3}건. 같은 후보가 여러 버전의 평가에 포함될 수 있으며 각 이력의 버전·시각을 함께 확인한다.`

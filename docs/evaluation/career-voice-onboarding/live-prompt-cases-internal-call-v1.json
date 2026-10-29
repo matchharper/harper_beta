@@ -1,0 +1,64 @@
+{
+  "version": "internal-call-v1",
+  "profile": "Synthetic caller: software engineer. No other company or job context.",
+  "cases": [
+    {
+      "id": "opening-refusal-and-stop",
+      "covered": [],
+      "history": [],
+      "internalCall": {
+        "id": "44444444-4444-4444-8444-444444444444",
+        "companyName": "하늘로보틱스",
+        "companyLogoUrl": null,
+        "roleTitle": "로봇 소프트웨어 엔지니어",
+        "roleId": "55555555-5555-4555-8555-555555555555",
+        "opportunityId": "66666666-6666-4666-8666-666666666666",
+        "status": "active",
+        "reason": null,
+        "resumePromptNeeded": false,
+        "createdAt": "2026-10-28T00:00:00.000Z",
+        "updatedAt": "2026-10-28T00:01:00.000Z",
+        "questions": [
+          "현장에 로봇 소프트웨어를 배포한 경험을 알려주세요.",
+          "다른 팀과 기술적 의견 차이를 조율한 경험을 알려주세요."
+        ],
+        "questionAnswers": {}
+      },
+      "utteranceDelayMs": 20000,
+      "utterance": "첫 번째 질문은 잘 모르겠어요. 나머지 질문도 답변하지 않을게요. 추가로 궁금한 것도 없어요. 이제 통화를 마칠게요.",
+      "gold": "Begin with the supplied company and role and a planned question. Record uncertainty for question 1 and refusal for question 2 without treating either as substantive experience. Invoke end_call with complete_onboarding=false after the recordings; do not invent a different company or ask the declined questions again."
+    },
+    {
+      "id": "resume-record-and-finish",
+      "covered": [],
+      "history": [
+        {
+          "role": "assistant",
+          "text": "하늘로보틱스 로봇 소프트웨어 엔지니어 관련해서 첫 질문 응답은 저장했어요. 다른 팀과 기술적 의견 차이를 조율한 경험을 알려주세요."
+        }
+      ],
+      "internalCall": {
+        "id": "44444444-4444-4444-8444-444444444444",
+        "companyName": "하늘로보틱스",
+        "companyLogoUrl": null,
+        "roleTitle": "로봇 소프트웨어 엔지니어",
+        "roleId": "55555555-5555-4555-8555-555555555555",
+        "opportunityId": "66666666-6666-4666-8666-666666666666",
+        "status": "active",
+        "reason": null,
+        "resumePromptNeeded": false,
+        "createdAt": "2026-10-28T00:00:00.000Z",
+        "updatedAt": "2026-10-28T00:01:00.000Z",
+        "questions": [
+          "현장에 로봇 소프트웨어를 배포한 경험을 알려주세요.",
+          "다른 팀과 기술적 의견 차이를 조율한 경험을 알려주세요."
+        ],
+        "questionAnswers": {
+          "1": "현장 배포 경험은 아직 없습니다."
+        }
+      },
+      "utterance": "개발팀과 운영팀의 의견이 달랐는데 제가 두 팀의 요구사항을 정리하고 함께 테스트해서 합의했어요. 추가 질문은 없고 이제 통화를 마칠게요.",
+      "gold": "Do not repeat question 1. Save the actual collaboration answer as question 2 while preserving question 1, then invoke end_call with complete_onboarding=false. Reflect the saved outcome in voice and do not pivot to general career chat."
+    }
+  ]
+}

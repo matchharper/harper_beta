@@ -216,6 +216,7 @@ export function buildCareerConversationPromptPlan(args: {
           isOnboardingActive,
           preferredLocale: args.currentPreferences?.preferredLocale ?? null,
           toolNames: normalizedToolNames,
+          applicationPreparation: Boolean(args.simulationSession?.preparation && args.simulationSession.status === "active"),
         });
 
   const isVoiceCall = args.channel === "voice";
@@ -250,9 +251,18 @@ export function buildCareerConversationPromptPlan(args: {
       enabledToolNames: normalizedToolNames,
       toolPolicy,
       promptBlocks: orderCareerPromptBlocksForCaching([
-        coreSystemPrompt,
+        args.simulationSession.preparation ? {
+          key: "chat_core",
+          cacheable: true,
+          text: [
+            "You are Harper, the user's career assistant, currently preparing their application.",
+            `Use natural, professional ${outputLanguage} for conversation and progress messages.${outputLanguage === "Korean" ? " Use 존댓말 and refer to organization members as 팀원." : ""} This is the chat language: resume edits preserve the original document language, and other application materials follow the employer's requested language.`,
+            channelContextRules,
+            promptVars.language_setting_rule,
+          ].join("\n"),
+        } : coreSystemPrompt,
         ...buildSimulationSessionPrompt(args.simulationSession, normalizedToolNames),
-        { key: "profile_context", text: profileContextBlock, cacheable: true },
+        { key: "profile_context", text: args.simulationSession.preparation ? args.structuredProfileText : profileContextBlock, cacheable: true },
         ...(futureMatchingInsightsSection ? [{ key: "future_matching_insights", text: futureMatchingInsightsSection, cacheable: true }] : []),
         ...(capabilities?.catalogText ? [{ key: "capability_catalog", text: capabilities.catalogText, cacheable: true }] : []),
         ...(toolPolicy ? [{ key: "tool_policy", text: toolPolicy, cacheable: true }] : []),
@@ -432,8 +442,7 @@ export function buildCareerConversationPromptPlan(args: {
 
   if (!isOnboardingActive && args.channel === "chat" && args.simulationAvailability === "inactive") promptBlocks.push({
     key: "application_start_payload",
-    text: "When the user wants to continue a saved application preparation, load application_support and use manage_simulation_session list/resume instead of starting over. For new application help for a known role, load opportunities and documents if necessary, choose one readable resume from list_documents, and call simulate_application with the role identifier and document_id. This displays the existing selection/start card; only the user's Start click runs preparation. Judge the current attempt from tools called in this turn: a historical failure does not establish a current blocker. Fulfill a renewed preparation request by making the current tool call, and report its actual result. If the tool is not yet loaded, load the opportunities capability (and documents when needed). If no readable resume exists, offer upload or ask whether Harper should create a simple resume from the profile, then use generate_resume after consent. The successful call ends this turn with the interactive card, which owns resume selection and the next Start action. Use its introduction for useful context about the transition and next step. Do not output hidden JSON markers or run a lengthy analysis before Start. No exact activation phrase is needed. Resolve an ambiguous target first."
-
+    text: "Application preparation is available through application_support; new role preparation starts through opportunities. Load the relevant capability to act on the user's request. Saved preparation can be resumed with its existing choices and files. An inactive mode does not establish completion or loss of that work.",
   });
   if (args.simulationAvailability) {
     promptBlocks.push({

@@ -13,6 +13,8 @@ import {
 import { documentFingerprint } from "./resumeAttachment";
 import { GENERATED_RESUME_ORIGIN } from "@/lib/resumes/schema";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { buildPreparationPrompt } from "./preparationPrompt";
+import { serializeToolResultForModel } from "@/lib/llm/toolError";
 
 function fixture() {
   const userId = "11111111-1111-4111-8111-111111111111",
@@ -142,6 +144,44 @@ test("private saving remains available during inspection without pinning a submi
     assert.equal(ready.result.applicationStarted, false);
   }
 });
+
+test("ready_for_role saves observed answers and resolves the final resume attachment in the same call", async () => {
+  const f = fixture();
+  f.record.state.actions = [];
+  f.record.state.applicationForm = { status: "read", url: "https://fixture.example/apply", checkedAt: new Date().toISOString(), limitations: [], submission: { status: "supported", reason: "Public form" }, fields: [
+    { label: "Motivation", type: "textarea", required: true, options: [], instructions: "", fileTypes: [], maxLength: null },
+    { label: "Resume", type: "file", required: true, options: [], instructions: "", fileTypes: ["pdf"], maxLength: null },
+  ] };
+  const saved = await readyForRole(f.store, f.record, { action: "reuse", application_fields: [{ fieldId: "field-1", value: "Previously approved text" }, { fieldId: "field-2", documentId: "final_resume" }] }, 1, "ready-form");
+  assert.equal(saved.record.state.applicationReview?.fields[0].value, "Previously approved text");
+  assert.equal(saved.record.state.applicationReview?.fields[1].documentId, f.sourceId);
+  assert.equal(saved.result.applicationReview?.available, true);
+  assert.equal(saved.record.state.browser, undefined);
+});
+test("supporting documents persist on a login handoff and require ownership", async () => {
+  const f = fixture();
+  f.record.state.actions = [];
+  f.record.state.applicationForm = {
+    status: "partial", url: "https://example.test/apply", checkedAt: f.record.state.startedAt,
+    fields: [], limitations: [], submission: { status: "unsupported", reason: "Login required" },
+  };
+  const supportingId = "55555555-5555-4555-8555-555555555555";
+  f.docs.set(supportingId, {
+    ...f.docs.get(f.sourceId), id: supportingId, kind: "document", file_name: "Project.pdf",
+    origin_type: "harper_authored_document", extracted_text: "Known project and contribution",
+  });
+  const saved = await readyForRole(f.store, f.record, {
+    action: "reuse", application_documents: [supportingId],
+  }, 1, "supporting");
+  assert.deepEqual(saved.record.state.applicationReview?.documents, [{ documentId: supportingId, title: "Project.pdf" }]);
+  const again = await readyForRole(f.store, saved.record, { action: "reuse" }, 2, "preserve");
+  assert.deepEqual(again.record.state.applicationReview?.documents, saved.record.state.applicationReview?.documents);
+  f.docs.get(supportingId).talent_id = "different-owner";
+  await assert.rejects(readyForRole(f.store, again.record, {
+    action: "reuse", application_documents: [supportingId],
+  }, 3, "foreign"), /supporting document unavailable/);
+});
+
 test("approved edits save while an unanswered question remains, then reuse the saved copy after resolution", async () => {
   const f = fixture();
   f.record.state.actions.push(suggestionAction({ kind: "question", title: "Portfolio URL?", reason: "Required field" }, "Q"));
@@ -284,6 +324,40 @@ test("readiness preserves partial form uncertainty alongside accessible submissi
   assert.equal(result.submission.status, "supported");
   assert.equal(result.applicationStarted, false);
 });
+
+test("planning retains access evidence; save receipts retain actions without repeating inspection logs", async () => {
+  for (const reason of [
+    "공고 페이지에 마감된 공고로 표시되어 지원할 수 없습니다.",
+    "지원 폼을 보려면 회사 채용 사이트에 로그인이 필요합니다.",
+  ]) {
+    const f = fixture();
+    f.record.state.actions = [];
+    f.record.state.applicationInspection = { status: "completed", runId: "fixture" };
+    f.record.state.applicationForm = {
+      status: "unavailable", url: "https://example.test/job",
+      checkedAt: "2026-10-29T00:30:00.000Z", fields: [], text: "",
+      limitations: ["지원 폼을 열지 못해 질문을 확인하지 못했습니다."],
+      submission: { status: "unsupported", reason },
+    };
+    const context = buildPreparationPrompt(f.record.state)
+      .find(block => block.key === "application_preparation_context")!.text;
+    assert.ok(context.includes(reason));
+    assert.ok(context.includes("Assisted submission access: unsupported"));
+    assert.ok(context.includes("지원 폼을 열지 못해 질문을 확인하지 못했습니다."));
+    assert.ok(!context.includes("2026-10-29T00:30:00.000Z"));
+
+    const { result } = await readyForRole(f.store, f.record, { action: "reuse" }, 1, "barrier");
+    // This is the serializer used for tool delivery to the conversation provider.
+    const providerText = serializeToolResultForModel(result);
+    assert.equal(providerText, result.modelOutput);
+    assert.equal(result.submission.reason, reason);
+    assert.ok(providerText.includes("unsupported"));
+    assert.ok(!providerText.includes(reason));
+    assert.ok(!providerText.includes("지원 폼을 열지 못해 질문을 확인하지 못했습니다."));
+    assert.ok(providerText.includes(result.documentLink));
+    assert.equal(result.applicationStarted, false);
+  }
+});
 test("saving preserves unresolved items and cannot bypass accepted changes, ownership or source preservation", async () => {
   const f = fixture();
   await assert.rejects(
@@ -330,19 +404,25 @@ test("model-facing ready commands use native fields while persisted wrapped call
     document_name: "Alex - Example",
     changes: [{ op: "set", path: "/basics/name", value: "Alex Example" }],
   };
-  assert.deepEqual(readyForRoleSchema.parse(command), { resume: command });
+  const normalized = { ...command, document_name: "Application resume" };
+  assert.deepEqual(readyForRoleSchema.parse(command), { resume: normalized });
   assert.deepEqual(readyForRoleSchema.parse({ resume: command }), {
-    resume: command,
+    resume: normalized,
   });
   assert.deepEqual(readyForRoleSchema.parse({}), {});
   assert.deepEqual(readyForRoleSchema.parse({ action: "reuse" }), {});
+  assert.deepEqual(readyForRoleSchema.parse({
+    action: "reuse", expected_revision: 1, purpose: "Prepare application",
+    application_fields: [{ fieldId: "name", value: "Alex Example" }],
+  }), { applicationFields: [{ fieldId: "name", value: "Alex Example" }] });
   assert.throws(
     () =>
       readyForRoleSchema.parse({ action: "reuse", changes: command.changes }),
-    /no other fields/
+    /apply content or changes/
   );
   assert.ok("action" in readyForRoleTool.function.parameters.properties);
   assert.ok(!("resume" in readyForRoleTool.function.parameters.properties));
+  assert.ok("document_name" in readyForRoleTool.function.parameters.properties);
   assert.throws(() =>
     readyForRoleSchema.parse({
       ...command,
@@ -403,6 +483,20 @@ test("flat create and update commands save through the actual preparation servic
     "Alex Example\nBuilt APIs"
   );
   assert.match(doc.extracted_text, /Built and maintained internal APIs/);
+});
+
+test("application-owned filenames ignore empty legacy values while source revision checks remain intact", async () => {
+  for (const document_name of [undefined, "", null, "Legacy filename"]) {
+    const f = fixture();
+    const command = {
+      action: "create", document_name,
+      content: { language: "en", basics: { name: "Alex Example" } },
+    };
+    const saved = await readyForRole(f.store, f.record, command, 1, "filename");
+    assert.equal(saved.result.fileName, "Example · Engineer.pdf");
+    assert.throws(() => readyForRoleSchema.parse({ ...command, document_id: f.sourceId }), /must not include document_id/);
+    assert.throws(() => readyForRoleSchema.parse({ ...command, expected_revision: 1 }), /expected_revision/);
+  }
 });
 
 test("application names number existing files, ignore deleted/other-owner files and stay stable on retry", async () => {

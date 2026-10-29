@@ -117,7 +117,9 @@ export function ChatAssistantContent({
   onHarperLinkClick?: (href: string) => void;
   renderEmailLinksAsText?: boolean;
   variant?: RichTextVariant;
-  additionalRemarkPlugins?: React.ComponentProps<typeof RichText>["additionalRemarkPlugins"];
+  additionalRemarkPlugins?: React.ComponentProps<
+    typeof RichText
+  >["additionalRemarkPlugins"];
   renderLink?: React.ComponentProps<typeof RichText>["renderLink"];
 }) {
   return (
@@ -192,7 +194,9 @@ export function ChatMessageBubbleFrame({
     >
       <div className="flex items-start gap-2">
         {startAdornment}
-        <div className="min-w-0 flex-1">{children}</div>
+        <div className="min-w-0 flex-1 break-keep wrap-break-word">
+          {children}
+        </div>
       </div>
     </article>
   );
@@ -244,7 +248,7 @@ export function ChatChoiceList({
         </BareButton>
       ))}
       {disabled || !onSelect || !hint ? null : (
-        <div className="text-xs text-neutral-muted">{hint}</div>
+        <div className="text-xs text-neutral-600">{hint}</div>
       )}
     </div>
   );

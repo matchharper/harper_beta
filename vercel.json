@@ -77,10 +77,6 @@
       "schedule": "* * * * *"
     },
     {
-      "path": "/api/internal/zighang/watchdog",
-      "schedule": "0 12 * * *"
-    },
-    {
       "path": "/api/internal/daily-user-stats",
       "schedule": "0 16 * * *"
     },

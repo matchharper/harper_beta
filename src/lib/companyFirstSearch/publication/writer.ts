@@ -13,7 +13,7 @@ export type PublicationRole = {
   outputLanguage: string;
 };
 export type Presentation = {
-  tldr: string; harperNote: string; recommendationReason: string;
+  tldr: string; harperNote: string;
   criteriaEvaluations: Facts[]; finalFit: null; fingerprint: string; usage: Facts;
 };
 export const PRESENTATION_MODEL = 'gpt-6-luna';
@@ -83,7 +83,7 @@ export function presentationInput(role: PublicationRole, candidate: PublicationC
 }
 export function parsePresentation(raw: Facts, role: PublicationRole, candidate: PublicationCandidate) {
   if (!raw || typeof raw.tldr !== 'string' || typeof raw.harper_note !== 'string'
-    || typeof raw.recommendationReason !== 'string' || !Array.isArray(raw.criteriaEvaluations))
+    || !Array.isArray(raw.criteriaEvaluations))
     throw new Error('Candidate presentation has an invalid output structure');
   const refs = new Map<string, Facts>();
   for (const item of raw.criteriaEvaluations) {
@@ -93,7 +93,7 @@ export function parsePresentation(raw: Facts, role: PublicationRole, candidate: 
   }
   if (refs.size !== role.criteria.length || role.criteria.some((_, i) => !refs.has(`c${i + 1}`)))
     throw new Error('Candidate presentation does not cover the supplied criteria');
-  return {tldr: raw.tldr, harperNote: raw.harper_note, recommendationReason: raw.recommendationReason,
+  return {tldr: raw.tldr, harperNote: raw.harper_note,
     finalFit: null, criteriaEvaluations: role.criteria.map((criterion, index) => {
       const score = (candidate.assessment.criteria ?? []).find((item: Facts) => item.name === criterion.name) ?? {};
       return {name: criterion.name, fitness: score.label ?? 'uncertain', content: refs.get(`c${index + 1}`)!.content,
@@ -102,8 +102,8 @@ export function parsePresentation(raw: Facts, role: PublicationRole, candidate: 
     })};
 }
 export const presentationSchema = {
-  type: 'object', additionalProperties: false, required: ['tldr','harper_note','recommendationReason','criteriaEvaluations'],
-  properties: {tldr: {type: 'string'}, harper_note: {type: 'string'}, recommendationReason: {type: 'string'},
+  type: 'object', additionalProperties: false, required: ['tldr','harper_note','criteriaEvaluations'],
+  properties: {tldr: {type: 'string'}, harper_note: {type: 'string'},
     criteriaEvaluations: {type: 'array', items: {type: 'object', additionalProperties: false,
       required: ['criterionRef','content'], properties: {criterionRef: {type: 'string'}, content: {type: 'string'}}}}},
 };
