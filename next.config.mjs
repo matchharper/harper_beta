@@ -13,7 +13,13 @@ const packageAsset = (packageName, asset) =>
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
+    webpackBuildWorker: true,
     webpackMemoryOptimizations: true,
+  },
+  webpack(config, { dev }) {
+    // The restored compiler cache exceeds the Vercel build container's memory.
+    if (!dev) config.cache = false;
+    return config;
   },
   // Inline the same real package paths used by tracing. Serverless bundles do
   // not necessarily preserve pnpm's top-level node_modules symlinks.
