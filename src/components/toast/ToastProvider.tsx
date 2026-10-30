@@ -64,6 +64,19 @@ function Toast({ item, onClose }: { item: ToastItem; onClose: () => void }) {
       <span className="flex-1 whitespace-pre-wrap wrap-break-word">
         {normalizeToastMessage(item.message)}
       </span>
+      {item.actions?.map((action) => (
+        <button
+          className="shrink-0 rounded-sm px-1 font-medium underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-current"
+          key={action.label}
+          onClick={() => {
+            action.onClick();
+            onClose();
+          }}
+          type="button"
+        >
+          {action.label}
+        </button>
+      ))}
     </Animate>
   );
 }

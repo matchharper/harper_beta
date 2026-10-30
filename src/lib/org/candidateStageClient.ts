@@ -16,6 +16,8 @@ export type OrgCandidateStageMutationInput = {
   contactDirectly?: OrgStageChangeOptions["contactDirectly"];
   durationMinutes?: OrgStageChangeOptions["durationMinutes"];
   emailMode?: InternalConnectionConfirmationEmailMode;
+  introEmailDraft?: OrgStageChangeOptions["introEmailDraft"];
+  introBookingLink?: OrgStageChangeOptions["introBookingLink"];
   introEmails?: OrgStageChangeOptions["introEmails"];
   meetingCandidateMessage?: OrgStageChangeOptions["meetingCandidateMessage"];
   meetingPurpose?: OrgStageChangeOptions["meetingPurpose"];

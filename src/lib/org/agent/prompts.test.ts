@@ -37,8 +37,8 @@ test("web response locale selects voice and exact stage names without changing l
   assert.ok(english.includes(sharedPolicies));
   assert.ok(korean.includes(sharedPolicies));
   assert.match(korean, /<response_language locale="ko">/);
-  assert.match(korean, /pending_connection: 연결 대기/);
-  assert.match(korean, /company_intro: 먼저 제안 가능한 후보/);
+  assert.match(korean, /pending_connection: 연결 수락할 후보/);
+  assert.match(korean, /company_intro: 연결 제안할 후보/);
   assert.match(slack, /<response_language locale="conversation">/);
 });
 

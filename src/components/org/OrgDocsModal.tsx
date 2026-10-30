@@ -191,8 +191,8 @@ export function OrgDocsModal({
             id="decision"
             title={c("연결 수락과 연결 거절", "Accept or decline an introduction")}
             description={c(
-              "Accept Intro를 누르면 이메일로 소개받거나 바로 인터뷰를 요청하는 방식을 선택할 수 있습니다. 내용을 확인하고 수락하면 선택한 방식으로 진행합니다. Reject는 이번 역할의 진행을 끝내는 결정입니다. 이유는 선택 사항이며 다음 추천에 참고합니다.",
-              "Choose Accept Intro to get introduced by email or request an interview. Review the details and confirm to proceed with your chosen method. Reject ends consideration for this role. A reason is optional and helps improve future recommendations."
+              "Accept Intro를 누르면 Harper가 후보자와 팀원을 소개 이메일로 연결합니다. Google Calendar와 인터뷰 가능 시간을 설정해 두었다면 메일 끝에 면접 예약 링크가 함께 들어갑니다. Reject는 이번 역할의 진행을 끝내는 결정입니다. 이유는 선택 사항이며 다음 추천에 참고합니다.",
+              "Choose Accept Intro to have Harper introduce the candidate and your teammates by email. If you've connected Google Calendar and set your interview availability, the email ends with a booking link. Reject ends consideration for this role. A reason is optional and helps improve future recommendations."
             )}
           >
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -255,7 +255,7 @@ export function OrgDocsModal({
           >
             <div className="overflow-x-auto text-[12px] font-normal text-neutral-primary">
               <div className="flex min-w-max items-center gap-3">
-                <span>{c("연결 대기", "Ready to connect")}</span>
+                <span>{c("연결 수락할 후보", "Ready to connect")}</span>
                 <span className="text-neutral-soft">→</span>
                 <span>{c("연결됨", "Connected")}</span>
                 <span className="text-neutral-soft">→</span>

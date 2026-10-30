@@ -209,12 +209,50 @@ the conversation in a transparent overlay, without a reserved header row or whit
 strip. Only the handle and buttons capture pointer events; keep the conversation
 scrollable underneath and preserve visual-viewport/safe-area positioning.
 
+Career의 범용 `BrowserSessionDock`은 활성 브라우저를 composer 오른쪽 위에 겹쳐
+표시한다. 세션별 제목을 누르면 해당 화면이 앞으로 나와 펼쳐지고, 같은 iframe을
+유지하며 너비를 전환한다. 다른 브라우저의 윗부분은 선택할 수 있게 남겨 둔다.
+Harper의 `[[browser:session_id]]`는 해당 화면을 자동으로 펼치고 대화에 다시 열기
+버튼을 남긴다. 마커는 화면 표시만 바꾸며 제어권을 넘기거나 실행을 중단하지 않는다.
+기존 Radix Popover가 위치·바깥 클릭·Escape를 처리하고 reduced-motion에서는 전환을 끈다.
+읽기 전용 화면을 기본으로 사용하며 human 상태의 펼친 화면에서만 직접 입력한다.
+실제 제어권 전환·종료는 소유권을 확인하는 기존 API를 사용한다. 브라우저가 종료되면
+작은 팝업도 제거한다. 뷰어 URL은 메모리에만 둔다.
+
+`CareerFormCard`는 동시에 여러 개를 유지하며 각 폼의 입력과 응답 저장 상태가 독립적이다.
+Harper의 답변이나 다른 폼 처리가 진행 중이어도 응답할 수 있다. 저장된 응답별로
+기존 백그라운드 대화를 이어가며, 폼의 revision과 응답 멱등성은 보존한다.
+
 On mobile, `ChatComposerFrame` and its token overlay use 16px input text in both
 collapsed and focused states to prevent Safari focus zoom. Only the placeholder
 uses the smaller 14px size; callers must not shrink the textarea itself.
 `ChatMessageBubbleFrame` accepts `animateEntrance` for a newly sent optimistic
 user message: a short upward fade and subtle scale, disabled for reduced motion.
 Do not enable it for restored history or the persisted replacement message.
+
+Career 메시지 아래에는 `CareerMessageActions`의 복사·삭제 버튼을 모든 사용자에게 제공한다.
+시간과 버튼은 같은 묶음으로 메시지 hover 또는 키보드 focus 시 표시하고, 삭제는 한 번 더 눌러 확정한다.
+유저 메시지는 `시간 · 복사 · 삭제`, Harper 메시지는 `복사 · 삭제 · 시간` 순서로
+서로 붙여 배치한다. 묶음은 각 메시지 아래에서 유저는 오른쪽, Harper는 왼쪽에 정렬한다.
+복사 성공 시 토스트 대신 아래 `Slide Blur Swap`으로 복사 아이콘을 체크로 바꾸고 2초 뒤 복원한다.
+`formatCareerMessageTime`은 브라우저 현지 시각을 기준으로 오늘·어제에는 `오늘 6:23 PM`,
+`어제 6:23 PM`을 표시한다. 주가 달라도 어제 표시를 우선한다. 나머지 이번 주(월요일 시작)는
+요일과 12시간제 시각, 이전에는 일·주·달 단위 경과 시간, 1년 이상이면 `yy.MM.dd`를 표시한다.
+
+## Slide Blur Swap (슬라이드 블러 스왑)
+
+“슬라이드 블러 스왑 써줘” 또는 “Slide Blur Swap 적용해줘”는 아래 아이콘 교체 효과를 뜻한다.
+기존 아이콘이 오른쪽으로 스르륵 밀려나며 흐려지고, 새 아이콘이 왼쪽에서 들어와 선명하게 자리 잡는다.
+
+- 같은 고정 크기 wrapper 안에 두 아이콘을 absolute로 겹쳐 배치해 주변 레이아웃을 유지한다.
+- 퇴장: `translateX(0 → 6px)`, `opacity(1 → 0)`, `blur(0 → 3px)`.
+- 등장: `translateX(-6px → 0)`, `opacity(0 → 1)`, `blur(3px → 0)`.
+- 두 전환을 동시에 `500ms ease-in-out`으로 실행한다. 원래 상태로 돌아갈 때는 역방향으로 전환한다.
+- Tailwind: `transition-[translate,opacity,filter] duration-500 ease-in-out`.
+  동작 줄이기 설정은 `motion-reduce:transition-none`으로 존중한다.
+- 기준 구현: `src/pages/about.tsx`의 공고 제목 화살표 ↔ 이모지,
+  `src/components/career/chat/CareerMessageActions.tsx`의 복사 ↔ 체크.
+  hover/focus 또는 복사 성공 같은 전환 계기와 복원 시점은 각 사용처가 결정한다.
 
 ## Typography
 
@@ -358,6 +396,9 @@ shared level that has multiple realistic consumers and add it to this catalog.
 
 Shared component catalog:
 
+- `ConversationExamples` (`src/components/ui/conversation-examples.tsx`): `examples: { id, messages: { role: "user" | "assistant", text }[] }[]`로 대화 예시를 표시한다. 하나는 정적 대화, 여러 개는 swipe·방향키·페이지 점으로 탐색한다. `navigationLabel`, `getPageLabel(page)`에 현지화된 접근성 문구를 전달한다. `assistantName`, `assistantAvatar`로 발화자를 바꿀 수 있다. Gmail은 기존 번역 wrapper를 통해 이 공용 컴포넌트를 사용한다.
+- `SelectBox` (`src/components/ui/select-box.tsx`): 둥근 약한 배경 안에 제목·설명·구분선·오른쪽 원형 체크를 표시하는 단일 선택 목록. `options: { value, title, description?, disabled? }[]`, `value`, `onValueChange`를 전달한다. 미선택은 `null`. `aria-label` 또는 `aria-labelledby`로 그룹을 명명하고, form 제출에는 `name`, 필수 선택에는 `required`를 전달한다. native Radio의 키보드와 form 동작을 유지한다.
+
 Mobile settings detail headers use equal-width left/right grid columns around
 the centered title, shared by Profile, Resume/Links, Referral, and Account.
 Keep back/close controls at the outer edges and allow long titles to wrap within
@@ -370,6 +411,11 @@ the center column; unequal action widths must not shift the title off-center.
 | Quiet compact action | `MuteButton` |
 | Tab explanations | `Tabs` items support `tooltipVariant="light"`, sharing the existing light tooltip appearance through `Tooltips`. Org Inbox's pending and suggested tabs show plain labels without info icons and reveal their existing descriptions on hover/focus. |
 | Icon-only action | `MuteButton` |
+| Panel anchored to a trigger (column settings, To-do list) | `Popover`, `PopoverTrigger`, `PopoverAnchor`, `PopoverContent` from `src/components/ui/popover.tsx`. `PopoverContent` renders in a portal with the shared floating surface; pass `surface={false}` when the content draws its own box. Feature code does not import `@radix-ui/react-popover` directly. |
+| Toggle chips (reasons, templates, who writes) | `MuteButton` with `variant="selected"` for the chosen chip and `variant="default"` for the rest; `variant="draft"` (dashed) for a new item not saved yet; `variant="neutral"` with `aria-disabled` for a chip that always stays on. Do not pass color or border classes from the call site. |
+| Inline text action inside a form (미리보기) | `MuteButton variant="link"` |
+| White chip on a tinted surface (To-do above the chat) | `MuteButton variant="raised"` |
+| Count beside a tab or heading | `Badge size="xs" variant="count"` |
 | Animated acceptance icon | `AnimatedHandshake` from `src/components/ui/animated-handshake.tsx`: shared by Org Accept Intro and Career connection acceptance buttons. Plays on entrance, button hover, and keyboard focus; respects disabled buttons and reduced motion. |
 | Intro ticket icon | `Ticket` from `src/components/ui/ticket.tsx`: filled `currentColor`, `text-positive`, rotated 45 degrees; only accepts a numeric `size` (default 16px). Use after the shared-Intro heading and send-intro modal button label, and instead of the visible Intro unit in remaining balances. Preserve the full localized balance in screen-reader text. |
 | GitHub, LinkedIn, Slack logos | `GithubLogo`, `LinkedinLogo`, `SlackLogo` from `src/components/common/BrandLogos.tsx`: existing public SVG assets; GitHub follows the surrounding text color for light and dark surfaces. |

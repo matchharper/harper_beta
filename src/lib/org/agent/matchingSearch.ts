@@ -83,9 +83,9 @@ const MATCHING_SEARCH_UNAVAILABLE_REASONS: Record<string, string> = {
   brief_missing:
     "이 Role에는 아직 검색에 사용할 Hiring Brief가 저장되어 있지 않아요.",
   pending_capacity_reached:
-    "이 Role은 현재 연결 대기 인원이 설정된 상한에 도달해 새 검색을 시작하지 않았어요.",
+    "이 Role은 현재 연결 수락할 후보 인원이 설정된 상한에 도달해 새 검색을 시작하지 않았어요.",
   ready_backlog_reached:
-    "아직 회사의 판단을 기다리는 먼저 제안 가능한 후보가 설정된 상한에 도달해 새 검색을 시작하지 않았어요.",
+    "아직 회사의 판단을 기다리는 연결 제안할 후보가 설정된 상한에 도달해 새 검색을 시작하지 않았어요.",
   role_channel_unavailable:
     "이 Role의 검색 결과를 전달할 활성 Slack 채널이 없어 새 검색을 시작하지 않았어요.",
   role_unavailable:

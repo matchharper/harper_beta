@@ -28,7 +28,7 @@ test("an unpurchased company-first profile renders its real identity and origina
       const body = dom.window.document.body;
       assert.ok(body.textContent?.includes("Visible Candidate"));
       assert.ok(body.textContent?.includes("Visible Employer"));
-      assert.ok(body.textContent?.includes(locale === "ko" ? "Intro 보내기" : "Send intro"));
+      assert.ok(body.textContent?.includes(locale === "ko" ? "Send Intro" : "Send Intro"));
       assert.equal(body.querySelector('[class*="blur"]'), null);
       assert.ok(!body.textContent?.includes("프로필 열람"));
     } finally { dom.window.close(); }

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { billingDb, billingRpc, throwBillingDbError } from "./store";
+import { OrgHttpError } from "@/lib/org/httpError";
 import { WorkspaceBillingError } from "./types";
 
 export type ConnectionApproval = {
@@ -61,7 +62,13 @@ export async function claimConnection(id: string) {
     "workspace_billing_claim_action_v1",
     { p_event: id, p_token: token }
   );
-  if (!claimed) throw new WorkspaceBillingError("billing_conflict");
+  // Another request is carrying out, or already finished, this connection
+  // (a second click or tab). It is not a subscription change.
+  if (!claimed)
+    throw new OrgHttpError(
+      409,
+      "이 후보자의 연결을 이미 처리하고 있어요. 잠시 뒤 새로고침해 확인해 주세요."
+    );
   return token;
 }
 export async function completeConnection(id: string, token: string) {

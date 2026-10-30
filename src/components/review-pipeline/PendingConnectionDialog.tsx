@@ -51,7 +51,10 @@ function PendingConnectionDialogContent({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : t("pendingConnection.failed", "연결 대기 상태로 옮기지 못했습니다.")
+          : t(
+              "pendingConnection.failed",
+              "연결 수락할 후보로 옮기지 못했습니다."
+            )
       );
     }
   };
@@ -61,12 +64,12 @@ function PendingConnectionDialogContent({
       open={true}
       onClose={() => handleClose()}
       mobileBottomSheet
-      title={<>{t("pendingConnection.title", "연결 대기로 이동")}</>}
+      title={<>{t("pendingConnection.title", "연결 수락할 후보로 이동")}</>}
       description={
         <>
           {t(
             "pendingConnection.confirm",
-            "{candidateName} 후보자를 연결 대기로 옮기시겠습니까?",
+            "{candidateName} 후보자를 연결 수락할 후보로 옮기시겠습니까?",
             { candidateName }
           )}
         </>

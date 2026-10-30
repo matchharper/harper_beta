@@ -109,7 +109,7 @@ test("capacity facts stop candidate outreach while preserving company review and
       { roleId: "other-role", pendingCount: 99, maxPendingTalents: 9 },
     ],
   });
-  assert.match(result, /연결 대기 14명/);
+  assert.match(result, /연결 수락할 후보 14명/);
   assert.match(result, /상한 10명/);
   assert.match(result, /회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다/);
   assert.match(result, /회사가 새 검색을 직접 요청한 결과는 아니다/);
@@ -131,9 +131,10 @@ test("explicit review request is known interest without invented acceptance", ()
 
 test("interactive evaluation without new cards does not invent a lack of suitable candidates", () => {
   const result = buildCompanyMatchingResultContext({ candidates: [], roles: [{id:"role-1",name:"Engineer",automaticSearchEnabled:false}], runStatus:"succeeded", interactiveSearch: {
-    briefVersion:"version-1",scope:"unassessed",startStage:1,stage1Passed:22,stage2Evaluated:22,addedTalentIds:[],removedTalentIds:[],retainedTalentIds:["existing-1"],criteriaStats:[],
+    selectionMethod:"evaluation_only",briefVersion:"version-1",scope:"unassessed",startStage:1,stage1Passed:22,stage2Evaluated:22,addedTalentIds:[],removedTalentIds:[],retainedTalentIds:["existing-1"],criteriaStats:[],
   }});
-  assert.match(result,/평가만 요청했거나 기존 결과를 유지/);
+  assert.match(result,/후보 선정과 추천 목록 등록은 수행하지 않았다/);
+  assert.match(result,/사용자가 평가만 요청했다는 뜻이 아니며/);
   assert.match(result,/2차 평가 22명/);
   assert.match(result,/기존 유지 1명/);
   assert.doesNotMatch(result,/확신할 만한 사람은 고르지 못/);

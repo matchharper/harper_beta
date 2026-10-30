@@ -1284,3 +1284,32 @@
     animation: none;
   }
 }
+
+/* The org To-do chip glows softly while there is something to do or an
+   unread update, so the team looks at it. */
+.org-todo-glow {
+  animation: org-todo-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes org-todo-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-action) 30%, transparent),
+      0 0 6px 0 color-mix(in srgb, var(--color-action) 20%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-action) 60%, transparent),
+      0 0 16px 3px color-mix(in srgb, var(--color-action) 40%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .org-todo-glow {
+    animation: none;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-action) 50%, transparent),
+      0 0 12px 2px color-mix(in srgb, var(--color-action) 30%, transparent);
+  }
+}

@@ -2,11 +2,17 @@ import { create } from "zustand";
 
 export type ToastVariant = "default" | "success" | "error" | "white" | "dark";
 
+export type ToastAction = {
+  label: string;
+  onClick: () => void;
+};
+
 export type ToastItem = {
   id: string;
   message: string;
   variant: ToastVariant;
   ttl: number;
+  actions?: ToastAction[];
 };
 
 export type ToastInput = {
@@ -14,6 +20,7 @@ export type ToastInput = {
   message: string;
   variant?: ToastVariant;
   duration?: number;
+  actions?: ToastAction[];
 };
 
 type ToastStore = {
@@ -39,6 +46,7 @@ export const useToastStore = create<ToastStore>()((set) => ({
           message: opts.message,
           variant: opts.variant ?? "default",
           ttl: duration,
+          actions: opts.actions,
         },
       ],
     }));

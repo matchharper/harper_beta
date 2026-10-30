@@ -2,7 +2,7 @@ import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { localizeOrgProfilePeriod } from "@/i18n/org/profilePeriod";
 import Image from "next/image";
 import { MoreHorizontal } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { ProfileLabelCell } from "@/components/ops/matching/MatchingTalentCells";
 import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
@@ -150,7 +150,9 @@ export function OrgCandidateCard({
   profileLabelsError,
   profileLabelsLoading,
   stages = [],
+  topRight,
   viewed = true,
+  withStatus = true,
 }: {
   canManageCandidates?: boolean;
   internalOpsAccess?: boolean;
@@ -163,7 +165,11 @@ export function OrgCandidateCard({
   profileLabelsError?: boolean;
   profileLabelsLoading?: boolean;
   stages?: OrgStage[];
+  /** A control in the top-right corner, e.g. Unsave in 저장함. */
+  topRight?: ReactNode;
   viewed?: boolean;
+  /** The colored state strip under the card; 저장함 leaves it out. */
+  withStatus?: boolean;
 }) {
   const { locale, c } = useOrgLocale();
   const sourceT = useOrgSourceT();
@@ -270,7 +276,7 @@ export function OrgCandidateCard({
           </div>
           <div className="flex flex-wrap mt-1 gap-1.5 text-[13px] font-normal text-neutral-600">
             {/* {item.stage === "pending_connection"
-                  ? c("연결 대기 등록", "Ready to connect since")
+                  ? c("연결 수락할 후보 등록", "Ready to connect since")
                   : item.source === "company_intro"
                     ? c("회사에 제안", "Offer to company")
                     : c("추천", "Recommend")}{" "} */}
@@ -297,7 +303,16 @@ export function OrgCandidateCard({
           </div>
         ) : null}
       </div>
-      {item.processClosureNoticeUnresolved ? (
+      {topRight ? (
+        <div
+          className="absolute right-2 top-2"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          {topRight}
+        </div>
+      ) : null}
+      {!withStatus ? null : item.processClosureNoticeUnresolved ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
           {c("프로세스 종료 안내됨", "Candidate notified that hiring has ended")}
         </div>
@@ -346,7 +361,7 @@ export function OrgCandidateCard({
             size="sm"
             variant="dark"
           >
-            {c("Intro 보내기", "Send intro")}
+            {c("Send Intro", "Send Intro")}
           </MuteButton>
         </div>
       ) : null}

@@ -234,6 +234,33 @@ export const queryKeys = {
       roleId?: string | null
     ) =>
       ["org", "matchingSearchStatus", workspaceId ?? "", roleId ?? ""] as const,
+    roleTodo: (workspaceId?: string | null, roleId?: string | null) =>
+      ["org", "roleTodo", workspaceId ?? "", roleId ?? ""] as const,
+    roleTodoRange: (
+      workspaceId?: string | null,
+      roleId?: string | null,
+      range: "all" | "recent" = "recent"
+    ) => ["org", "roleTodo", workspaceId ?? "", roleId ?? "", range] as const,
+    roleListColumns: (workspaceId?: string | null, roleId?: string | null) =>
+      ["org", "roleListColumns", workspaceId ?? "", roleId ?? ""] as const,
+    roleBoardCards: (workspaceId?: string | null, roleId?: string | null) =>
+      ["org", "roleBoardCards", workspaceId ?? "", roleId ?? ""] as const,
+    roleBoardViewport: (workspaceId?: string | null, roleId?: string | null) =>
+      ["org", "roleBoardViewport", workspaceId ?? "", roleId ?? ""] as const,
+    roleBoardTexts: (
+      workspaceId?: string | null,
+      roleId?: string | null,
+      board?: string | null
+    ) =>
+      [
+        "org",
+        "roleBoardTexts",
+        workspaceId ?? "",
+        roleId ?? "",
+        board ?? "",
+      ] as const,
+    messageTemplates: (workspaceId?: string | null, kind?: string | null) =>
+      ["org", "messageTemplates", workspaceId ?? "", kind ?? ""] as const,
     agentMentions: (filters?: {
       query?: string | null;
       roleId?: string | null;

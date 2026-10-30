@@ -8,6 +8,7 @@ const titles: Partial<Record<OrgWorkspacePageId, string>> = {
   settings: "Integrations",
   slots: "Slots",
   billing: "Billing",
+  templates: "Templates",
   home: "Home",
   inbox: "Inbox",
   jobs: "Roles",

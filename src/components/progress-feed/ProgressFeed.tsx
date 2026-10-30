@@ -21,6 +21,7 @@ import {
   StickyNote,
   Trash2,
   XCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { formatKst } from "@/components/ops/career/utils";
 import { cx, opsTheme } from "@/components/ops/theme";
@@ -70,6 +71,26 @@ export type ProgressFeedItem = {
   title?: string | null;
 };
 
+/**
+ * A step of the process the records belong to (a pipeline column). With
+ * stages, the feed is one vertical line, newest first: the stages still
+ * ahead, then what happened in the current stage above where it began, and
+ * so on back to the first stage.
+ */
+export type ProgressFeedStage = {
+  /** When it was reached. Records from then until the next stage go under it. */
+  at: string | null;
+  /** A short line beside the label, e.g. the date. */
+  detail?: string;
+  /** Shown under the label, e.g. how far it is inside that stage. */
+  extra?: ReactNode;
+  icon: LucideIcon;
+  key: string;
+  label: string;
+  /** `now` is the current stage, `done` one passed, `next` one still ahead. */
+  state: "done" | "next" | "now";
+};
+
 export type ProgressFeedLabels = {
   actorFallback: string;
   body: string;
@@ -117,19 +138,68 @@ type ProgressFeedProps = {
   pendingEditId?: string | null;
   pendingSubmit?: boolean;
   placeholder?: string;
+  /** Lays the records out between these stages, newest first. */
+  stages?: ProgressFeedStage[];
   submitError?: Error | null;
   submitLabel?: string;
 };
 
-function ProgressIcon({ icon }: { icon?: ProgressFeedIcon }) {
-  if (icon === "harper")
-    return <Image src="/svgs/face.svg" alt="" width={14} height={14} />;
-  if (icon === "check") return <CheckCircle2 className="h-3.5 w-3.5" />;
-  if (icon === "eye") return <Eye className="h-3.5 w-3.5" />;
-  if (icon === "mail") return <Mail className="h-3.5 w-3.5" />;
-  if (icon === "sparkles") return <Sparkles className="h-3.5 w-3.5" />;
-  if (icon === "x") return <XCircle className="h-3.5 w-3.5" />;
-  return <StickyNote className="h-3.5 w-3.5" />;
+function time(value: string | null) {
+  const parsed = value ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Puts each record under the last stage reached at or before it. Records
+ * older than every stage go under the first one; stages still ahead get none.
+ */
+export function groupProgressFeedByStage(
+  stages: ProgressFeedStage[],
+  items: ProgressFeedItem[]
+) {
+  const groups = stages.map((stage) => ({
+    items: [] as ProgressFeedItem[],
+    stage,
+  }));
+  const reached = groups.filter((group) => group.stage.state !== "next");
+  // A stage without a date starts when the one before it did.
+  let start = Number.NEGATIVE_INFINITY;
+  const starts = reached.map((group) => {
+    start = Math.max(start, time(group.stage.at) ?? start);
+    return start;
+  });
+  const sorted = [...items].sort(
+    (left, right) => (time(left.createdAt) ?? 0) - (time(right.createdAt) ?? 0)
+  );
+  for (const item of sorted) {
+    const at = time(item.createdAt) ?? 0;
+    let index = 0;
+    starts.forEach((stageStart, position) => {
+      if (stageStart <= at) index = position;
+    });
+    reached[index]?.items.push(item);
+  }
+  return groups;
+}
+
+function ProgressIcon({
+  icon,
+  small = false,
+}: {
+  icon?: ProgressFeedIcon;
+  small?: boolean;
+}) {
+  const size = small ? "h-3 w-3" : "h-3.5 w-3.5";
+  if (icon === "harper") {
+    const px = small ? 12 : 14;
+    return <Image src="/svgs/face.svg" alt="" width={px} height={px} />;
+  }
+  if (icon === "check") return <CheckCircle2 className={size} />;
+  if (icon === "eye") return <Eye className={size} />;
+  if (icon === "mail") return <Mail className={size} />;
+  if (icon === "sparkles") return <Sparkles className={size} />;
+  if (icon === "x") return <XCircle className={size} />;
+  return <StickyNote className={size} />;
 }
 
 function DeliveryPreview({
@@ -218,6 +288,8 @@ type ProgressFeedItemRowProps = {
   canEditItems: boolean;
   deleteDisabled: boolean;
   editingText: string;
+  /** Beside a line of stages: a smaller mark, so the stages stand out. */
+  besideStages: boolean;
   expanded: boolean;
   isDeleting: boolean;
   isEditing: boolean;
@@ -282,6 +354,7 @@ function equalRowProps(
   return (
     left.actionsDisabled === right.actionsDisabled &&
     left.actionsVariant === right.actionsVariant &&
+    left.besideStages === right.besideStages &&
     left.canDeleteItems === right.canDeleteItems &&
     left.canEditItems === right.canEditItems &&
     left.deleteDisabled === right.deleteDisabled &&
@@ -304,6 +377,7 @@ function equalRowProps(
 const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
   actionsDisabled,
   actionsVariant,
+  besideStages,
   canDeleteItems,
   canEditItems,
   deleteDisabled,
@@ -328,9 +402,16 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
   const useActionMenu = (canEdit || canDelete) && actionsVariant === "menu";
 
   return (
-    <div className="flex items-start gap-1.5">
-      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-weak text-neutral-muted">
-        <ProgressIcon icon={item.icon} />
+    // Beside a line of stages the record sits right of the line, starting
+    // where the stage names start, with a mark smaller than a stage's dot.
+    <div className={cx("flex items-start gap-1.5", besideStages && "pl-8")}>
+      <span
+        className={cx(
+          "relative mt-0.5 flex shrink-0 items-center justify-center rounded-full bg-bg-weak text-neutral-muted",
+          besideStages ? "size-5" : "size-6"
+        )}
+      >
+        <ProgressIcon icon={item.icon} small={besideStages} />
       </span>
       <article className="min-w-0 flex-1 rounded-sm border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-primary">
         <div className="flex items-start gap-2.5">
@@ -504,6 +585,7 @@ export function ProgressFeed({
   pendingEditId,
   pendingSubmit,
   placeholder = "메모를 남겨주세요.",
+  stages,
   submitError,
   submitLabel = "메모 추가",
 }: ProgressFeedProps) {
@@ -560,6 +642,43 @@ export function ProgressFeed({
   const trimmedDraft = draft.trim();
   const showComposer = Boolean(onDraftChange && onSubmit);
 
+  const renderItem = (item: ProgressFeedItem) => {
+    if (item.customContent) {
+      return (
+        // Lined up with the other records' cards beside the stage line.
+        <div className={stages?.length ? "pl-[58px]" : undefined} key={item.id}>
+          <ProgressFeedCustomItem content={item.customContent} />
+        </div>
+      );
+    }
+    const isEditing = editingItemId === item.id;
+    const deliveryKey = item.delivery ? `${item.id}:${item.delivery.id}` : null;
+    return (
+      <ProgressFeedItemRow
+        actionsDisabled={Boolean(pendingDeleteId || pendingEditId)}
+        actionsVariant={actionsVariant}
+        besideStages={Boolean(stages?.length)}
+        canDeleteItems={Boolean(onDelete)}
+        canEditItems={Boolean(onEdit)}
+        deleteDisabled={Boolean(pendingDeleteId)}
+        editingText={isEditing ? editingText : ""}
+        expanded={deliveryKey !== null && expandedDeliveryId === deliveryKey}
+        isDeleting={pendingDeleteId === item.id}
+        isEditing={isEditing}
+        isEditPending={pendingEditId === item.id}
+        item={item}
+        key={item.id}
+        labels={labels}
+        onCancelEdit={handleCancelEdit}
+        onDeleteItem={handleDeleteItem}
+        onEditingTextChange={handleEditingTextChange}
+        onSaveEdit={handleSaveEdit}
+        onStartEdit={handleStartEdit}
+        onToggleDelivery={handleToggleDelivery}
+      />
+    );
+  };
+
   return (
     <div className="space-y-4">
       {showComposer ? (
@@ -609,53 +728,71 @@ export function ProgressFeed({
         </div>
       ) : error ? (
         <div className={opsTheme.errorNotice}>{error.message}</div>
+      ) : stages?.length ? (
+        <ol className="relative">
+          <span
+            aria-hidden
+            className="absolute bottom-3 left-[11.5px] top-3 w-px bg-neutral-1000-a10"
+          />
+          {/* Newest first, like every feed: the stages still ahead on top,
+              then each stage's records above the point where it began. */}
+          {groupProgressFeedByStage(stages, items)
+            .reverse()
+            .map(({ items: group, stage }) => {
+              const Icon = stage.icon;
+              return (
+                <li
+                  aria-current={stage.state === "now" ? "step" : undefined}
+                  className="relative"
+                  key={stage.key}
+                >
+                  {group.length ? (
+                    <div className="space-y-2 pb-1.5 pt-1.5">
+                      {[...group].reverse().map(renderItem)}
+                    </div>
+                  ) : null}
+                  <div className="flex min-h-9 items-center gap-2 py-1.5">
+                    <span
+                      className={cx(
+                        "relative flex size-6 shrink-0 items-center justify-center rounded-full border",
+                        stage.state === "now"
+                          ? "border-neutral-900 bg-neutral-900 text-white"
+                          : stage.state === "done"
+                            ? "border-neutral-1000-a10 bg-bg-weak text-neutral-600"
+                            : "border-dashed border-neutral-1000-a10 bg-bg-default text-neutral-soft"
+                      )}
+                    >
+                      <Icon aria-hidden className="size-3" />
+                    </span>
+                    <span
+                      className={cx(
+                        "text-[13px] font-medium",
+                        stage.state === "next"
+                          ? "text-neutral-muted"
+                          : "text-neutral-primary"
+                      )}
+                    >
+                      {stage.label}
+                    </span>
+                    {stage.detail ? (
+                      <span className="text-[12px] tabular-nums text-neutral-muted">
+                        {stage.detail}
+                      </span>
+                    ) : null}
+                  </div>
+                  {stage.extra ? (
+                    <div className="pb-1.5 pl-8">{stage.extra}</div>
+                  ) : null}
+                </li>
+              );
+            })}
+        </ol>
       ) : items.length === 0 ? (
         <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-6 text-center text-sm text-neutral-soft">
           {emptyLabel}
         </div>
       ) : (
-        <div className="space-y-2">
-          {items.map((item) => {
-            if (item.customContent) {
-              return (
-                <ProgressFeedCustomItem
-                  content={item.customContent}
-                  key={item.id}
-                />
-              );
-            }
-            const isEditing = editingItemId === item.id;
-            const deliveryKey = item.delivery
-              ? `${item.id}:${item.delivery.id}`
-              : null;
-
-            return (
-              <ProgressFeedItemRow
-                actionsDisabled={Boolean(pendingDeleteId || pendingEditId)}
-                actionsVariant={actionsVariant}
-                canDeleteItems={Boolean(onDelete)}
-                canEditItems={Boolean(onEdit)}
-                deleteDisabled={Boolean(pendingDeleteId)}
-                editingText={isEditing ? editingText : ""}
-                expanded={
-                  deliveryKey !== null && expandedDeliveryId === deliveryKey
-                }
-                isDeleting={pendingDeleteId === item.id}
-                isEditing={isEditing}
-                isEditPending={pendingEditId === item.id}
-                item={item}
-                key={item.id}
-                labels={labels}
-                onCancelEdit={handleCancelEdit}
-                onDeleteItem={handleDeleteItem}
-                onEditingTextChange={handleEditingTextChange}
-                onSaveEdit={handleSaveEdit}
-                onStartEdit={handleStartEdit}
-                onToggleDelivery={handleToggleDelivery}
-              />
-            );
-          })}
-        </div>
+        <div className="space-y-2">{items.map(renderItem)}</div>
       )}
     </div>
   );

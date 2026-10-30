@@ -193,7 +193,7 @@ test("history preserves measured capacity facts and omits unrelated roles or pri
   } } as any]) as any, workspaceId });
   assert.deepEqual(history.items[0].candidateOutreachPauses, [{ roleId, pendingCount: 14, maxPendingTalents: 10 }]);
   const formatted = formatMatchingRunHistory(history);
-  assert.match(formatted, /당시 연결 대기 14명 \/ 상한 10명/);
+  assert.match(formatted, /당시 연결 수락할 후보 14명 \/ 상한 10명/);
   assert.match(formatted, /회사에 먼저 후보를 제안하는 경로에는 적용하지 않음/);
   assert.doesNotMatch(formatted, /PRIVATE|100명/);
   assert.deepEqual(readCandidateOutreachPauses({ candidateOutreachPauses: [

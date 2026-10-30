@@ -1920,6 +1920,42 @@ export type Database = {
           },
         ]
       }
+      company_message_templates: {
+        Row: {
+          company_workspace_id: string
+          content: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          name: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_workspace_id: string
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          name: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_workspace_id?: string
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          name?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       company_messages: {
         Row: {
           company_user_id: string | null
@@ -2046,6 +2082,105 @@ export type Database = {
           },
         ]
       }
+      company_role_board_cards: {
+        Row: {
+          company_workspace_id: string
+          recommendation_id: string
+          role_id: string
+          updated_at: string
+          updated_by: string | null
+          x: number
+          y: number
+        }
+        Insert: {
+          company_workspace_id: string
+          recommendation_id: string
+          role_id: string
+          updated_at?: string
+          updated_by?: string | null
+          x: number
+          y: number
+        }
+        Update: {
+          company_workspace_id?: string
+          recommendation_id?: string
+          role_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          x?: number
+          y?: number
+        }
+        Relationships: []
+      }
+      company_role_board_texts: {
+        Row: {
+          board: string
+          company_workspace_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          role_id: string
+          size: number
+          text: string
+          updated_at: string
+          updated_by: string | null
+          x: number
+          y: number
+        }
+        Insert: {
+          board: string
+          company_workspace_id: string
+          created_at?: string
+          created_by?: string | null
+          id: string
+          role_id: string
+          size?: number
+          text: string
+          updated_at?: string
+          updated_by?: string | null
+          x: number
+          y: number
+        }
+        Update: {
+          board?: string
+          company_workspace_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role_id?: string
+          size?: number
+          text?: string
+          updated_at?: string
+          updated_by?: string | null
+          x?: number
+          y?: number
+        }
+        Relationships: []
+      }
+      company_role_board_viewports: {
+        Row: {
+          company_user_id: string
+          company_workspace_id: string
+          role_id: string
+          updated_at: string
+          viewport: Json
+        }
+        Insert: {
+          company_user_id: string
+          company_workspace_id: string
+          role_id: string
+          updated_at?: string
+          viewport: Json
+        }
+        Update: {
+          company_user_id?: string
+          company_workspace_id?: string
+          role_id?: string
+          updated_at?: string
+          viewport?: Json
+        }
+        Relationships: []
+      }
       company_role_calibrations: {
         Row: {
           available_at: string
@@ -2093,6 +2228,45 @@ export type Database = {
             referencedColumns: ["role_id"]
           },
         ]
+      }
+      company_role_list_columns: {
+        Row: {
+          company_workspace_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          label: string
+          role_id: string
+          updated_at: string
+          updated_by: string | null
+          values: Json
+        }
+        Insert: {
+          company_workspace_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          label: string
+          role_id: string
+          updated_at?: string
+          updated_by?: string | null
+          values?: Json
+        }
+        Update: {
+          company_workspace_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          label?: string
+          role_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          values?: Json
+        }
+        Relationships: []
       }
       company_role_liveness: {
         Row: {
@@ -2812,6 +2986,117 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      company_todo_reads: {
+        Row: {
+          item_id: string
+          read_at: string
+          role_id: string
+          user_id: string
+        }
+        Insert: {
+          item_id: string
+          read_at?: string
+          role_id: string
+          user_id: string
+        }
+        Update: {
+          item_id?: string
+          read_at?: string
+          role_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      company_todo_suggestion_mutes: {
+        Row: {
+          company_workspace_id: string
+          created_at: string
+          created_by: string | null
+          kind: string
+          role_id: string
+        }
+        Insert: {
+          company_workspace_id: string
+          created_at?: string
+          created_by?: string | null
+          kind: string
+          role_id: string
+        }
+        Update: {
+          company_workspace_id?: string
+          created_at?: string
+          created_by?: string | null
+          kind?: string
+          role_id?: string
+        }
+        Relationships: []
+      }
+      company_todo_suggestions: {
+        Row: {
+          approval_message_id: number | null
+          company_workspace_id: string
+          completed_at: string | null
+          conversation_id: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          expires_at: string
+          id: string
+          kind: string
+          plan: string
+          role_id: string
+          slack_thread_id: string | null
+          source: string | null
+          status: string
+          talent_ids: string[]
+          talent_stages: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          approval_message_id?: number | null
+          company_workspace_id: string
+          completed_at?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          expires_at?: string
+          id?: string
+          kind: string
+          plan: string
+          role_id: string
+          slack_thread_id?: string | null
+          source?: string | null
+          status?: string
+          talent_ids?: string[]
+          talent_stages?: Json
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          approval_message_id?: number | null
+          company_workspace_id?: string
+          completed_at?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          expires_at?: string
+          id?: string
+          kind?: string
+          plan?: string
+          role_id?: string
+          slack_thread_id?: string | null
+          source?: string | null
+          status?: string
+          talent_ids?: string[]
+          talent_stages?: Json
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       company_user_calendar_busy_blocks: {
         Row: {

@@ -17,6 +17,7 @@ import { criterionLevel } from "@/lib/org/roleCriteria";
 import type { RoleStartBriefView } from "@/lib/org/roleStart/view";
 import { useOrgAgentLiveChatStore } from "@/store/useOrgAgentLiveChatStore";
 import { useToastStore } from "@/store/useToastStore";
+import { expectOrgCriteriaRecheck } from "@/store/useOrgCriteriaRecheckStore";
 
 /**
  * The Role's Brief as one view: 요약, 필수 조건 (profile facts and criteria
@@ -92,6 +93,7 @@ export function RoleBriefSection({
       setEdited(null);
       setEditing(false);
       void queryClient.invalidateQueries({ queryKey });
+      if (result.judging) expectOrgCriteriaRecheck(roleId);
       addToast({
         message: result.judging
           ? c("기준을 바꿨어요. 바뀐 기준으로 후보를 다시 보고 있어요.", "Criteria updated. Reviewing candidates again for the changed criteria.")

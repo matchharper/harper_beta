@@ -194,7 +194,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
                     onClick={props.onAccept}
                     aria-keyshortcuts="r"
                   >
-                    {c("Intro 보내기", "Send intro")}
+                    {c("Send Intro", "Send Intro")}
                   </MuteButton>
                 </>
               ) : (

@@ -25,6 +25,7 @@ import {
   getProfileCareerSummary,
 } from "@/lib/org/profileCareerSummary";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
+import { OrgCareerLineage } from "./OrgCareerLineage";
 import { OrgCriteriaEvaluation } from "./OrgCriteriaEvaluation";
 
 type ResourceLinkKind =
@@ -220,6 +221,21 @@ export function OrgTalentProfile({
   );
 }
 
+/** "Role at Company" for the job the person holds now, newest first. */
+function currentRoleLine(
+  experiences: OrgTalentDetailResponse["profile"]["experiences"]
+) {
+  const current = experiences
+    .filter((experience) => !experience.endDate)
+    .sort((left, right) =>
+      (right.startDate ?? "").localeCompare(left.startDate ?? "")
+    )[0];
+  const role = current?.role?.trim();
+  const company = current?.companyName?.trim();
+  if (role && company) return `${role} at ${company}`;
+  return role || company || null;
+}
+
 /** Shared professional profile body; a preview carries no invented recommendation. */
 export function OrgTalentProfileContent({
   detail,
@@ -322,6 +338,7 @@ export function OrgTalentProfileContent({
     detail.companyPresentation?.criteriaEvaluations ??
     [];
   const careerSummary = getProfileCareerSummary(detail.profile.experiences);
+  const currentRole = currentRoleLine(detail.profile.experiences);
 
   const header = (
     <TalentProfileHeader
@@ -333,7 +350,7 @@ export function OrgTalentProfileContent({
           large={review}
         />
       }
-      headline={detail.talent.headline}
+      headline={currentRole ?? detail.talent.headline}
       name={name}
       primaryResources={primaryResources}
       secondaryResources={secondaryResources}
@@ -344,41 +361,13 @@ export function OrgTalentProfileContent({
     <div className="min-w-0 max-w-full space-y-7 px-4 md:px-2 [overflow-wrap:anywhere]">
       {header}
 
+      <OrgCareerLineage
+        educations={detail.profile.educations}
+        experiences={detail.profile.experiences}
+      />
+
       {detail.companyPresentation ? (
         <>
-          <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 gap-y-6 my-8 mb-12">
-            {[
-              {
-                label: c("위치", "Location"),
-                icon: MapPin,
-                value: detail.profile.location?.trim() || "—",
-              },
-              {
-                label: c("경력", "Experience"),
-                icon: CalendarDays,
-                value: formatProfileExperience(careerSummary, locale),
-              },
-              {
-                label: c("마지막 이직", "Last job change"),
-                icon: BriefcaseBusiness,
-                value: formatProfileDuration(
-                  careerSummary.lastMoveMonths,
-                  locale,
-                  true
-                ),
-              },
-            ].map(({ label, icon: Icon, value }) => (
-              <div key={label} className="min-w-0">
-                <dt className="text-[14px] font-normal text-neutral-primary">
-                  {label}
-                </dt>
-                <dd className="mt-2 flex items-start gap-2 text-[14px] text-neutral-800">
-                  <Icon aria-hidden className="mt-1 size-3.5 shrink-0" />
-                  <span className="min-w-0 break-words">{value}</span>
-                </dd>
-              </div>
-            ))}
-          </dl>
           <ProfileSection title="TL;DR">
             {detail.companyPresentation.tldr}
           </ProfileSection>
@@ -405,6 +394,39 @@ export function OrgTalentProfileContent({
         </ProfileSection>
       ) : null}
 
+      <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 gap-y-6 mt-16 mb-12">
+        {[
+          {
+            label: c("위치", "Location"),
+            icon: MapPin,
+            value: detail.profile.location?.trim() || "—",
+          },
+          {
+            label: c("경력", "Experience"),
+            icon: CalendarDays,
+            value: formatProfileExperience(careerSummary, locale),
+          },
+          {
+            label: c("마지막 이직", "Last job change"),
+            icon: BriefcaseBusiness,
+            value: formatProfileDuration(
+              careerSummary.lastMoveMonths,
+              locale,
+              true
+            ),
+          },
+        ].map(({ label, icon: Icon, value }) => (
+          <div key={label} className="min-w-0">
+            <dt className="text-[14px] font-normal text-neutral-primary">
+              {label}
+            </dt>
+            <dd className="mt-2 flex items-start gap-2 text-[14px] text-neutral-800">
+              <Icon aria-hidden className="mt-1 size-3.5 shrink-0" />
+              <span className="min-w-0 break-words">{value}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
       {criteriaEvaluations.length > 0 ? (
         <ProfileSection title={c("기준", "Criteria")}>
           <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">

@@ -113,7 +113,7 @@ test("Documents renders only the canonical Company FAQ collection", () => {
   assert.match(page, /item\.showInDocuments === false/);
   assert.match(page, /\.map\(\(item\) =>/);
   assert.doesNotMatch(page, /const FAQ_ITEMS =/);
-  assert.doesNotMatch(page, /한 역할에 연결 대기 후보자가 5명 이상/);
+  assert.doesNotMatch(page, /한 역할에 연결 수락할 후보가 5명 이상/);
 });
 
 test("Documents visually separates callouts from genuine quotes", () => {
@@ -157,7 +157,7 @@ test("Documents provides reusable callout, quote, example, and action formats", 
 test("the post-registration flow explains the company’s next steps", () => {
   assert.match(content, /화면을 계속 열어둘 필요는 없습니다/);
   assert.match(content, /회사와 역할에 대한 설명을 듣고 대화해 볼 의사/);
-  assert.match(content, /후보자는 회사의 답을 기다립니다/);
+  assert.match(content, /연결 수락할 후보는 회사의 답을 기다립니다/);
   assert.match(content, /Slack과 \[Inbox\]/);
   assert.match(content, /후보자의 관심이나 지원 의사를 확정할 수는 없습니다/);
 });
@@ -169,7 +169,7 @@ test("the introduction explains Harper's candidate introduction model", () => {
     /프로필만으로 역할을 판단하는 데 중요한 정보가 부족하면/
   );
   assert.match(content, /실제로 이 회사와 대화해 보고 싶다는 의사/);
-  assert.match(content, /연결 대기\*\* 상태로 회사에 소개/);
+  assert.match(content, /연결 수락할 후보\*\* 상태로 회사에 소개/);
   assert.match(content, /회사와 역할에 대한 설명을 듣고 대화해 볼 의사/);
   assert.doesNotMatch(content, /Harper 팀의 마지막 검토/);
   assert.doesNotMatch(content, /Harper의 마지막 검토/);

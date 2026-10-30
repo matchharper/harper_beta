@@ -84,6 +84,7 @@ test("Intro submits without a process stage and displays validation errors", asy
     assert.deepEqual(submissions, [
       {
         companyAppeal: "운영 경험을 이야기하고 싶습니다.",
+        companyAppeals: ["운영 경험을 이야기하고 싶습니다."],
         introRecipientEmails: ["member@example.invalid"],
       },
     ]);

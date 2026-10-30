@@ -116,7 +116,8 @@ export function companyEmailActionText(
         "예: 지금까지 만든 제품과 초기 팀에서의 오너십이 저희가 찾는 역할과 잘 맞습니다. 특히 … 이야기를 나눠보고 싶습니다.",
         "e.g. Your product work and ownership in early teams stood out. We'd like to discuss this role with you."
       ),
-      confirm: c(locale, "제안 확정하기", "Confirm intro request"),
+      // The button the person clicked in the email, as on the web and Slack.
+      confirm: "Send Intro",
       // The request is recorded now; Harper delivers it to the candidate afterwards.
       doneTitle: c(
         locale,
@@ -137,7 +138,7 @@ export function companyEmailActionText(
         `이 역할의 후보 목록에서 빠져요. ${name}님에게는 아무 연락도 가지 않아요.`,
         `${name} will be removed from this role's candidate list. Nothing will be sent to ${name}.`
       ),
-      confirm: c(locale, "제외 확정하기", "Confirm pass"),
+      confirm: "Pass",
       doneTitle: c(locale, "후보 목록에서 뺐어요.", "Removed from the candidate list."),
       doneDescription: "",
     };
@@ -146,10 +147,10 @@ export function companyEmailActionText(
       title: c(locale, `${name}님과 연결할까요?`, `Connect with ${name}?`),
       description: c(
         locale,
-        `${name}님과 아래 메일 주소로 소개 메일을 바로 보내요. 보낸 메일은 되돌릴 수 없어요.`,
-        `Harper will send an intro email to ${name} and the address below right away. Sent emails can't be undone.`
+        `${name}님과 아래 메일 주소로 소개 메일을 바로 보내요. 면접 예약 링크를 설정해 두었다면 메일 끝에 함께 넣어요. 보낸 메일은 되돌릴 수 없어요.`,
+        `Harper will send an intro email to ${name} and the address below right away. If you've set up the booking link, it goes at the end. Sent emails can't be undone.`
       ),
-      confirm: c(locale, "연결 확정하기", "Confirm connection"),
+      confirm: "Accept Intro",
       doneTitle: c(locale, "소개 메일을 보냈어요.", "Intro email sent."),
       doneDescription: c(
         locale,
@@ -161,11 +162,18 @@ export function companyEmailActionText(
     title: c(locale, `${name}님과 연결하지 않을까요?`, `Decline connecting with ${name}?`),
     description: c(
       locale,
-      `Harper가 ${name}님에게 이번 역할은 진행하지 않는다고 정중히 안내해요. 안내는 되돌릴 수 없어요.`,
-      `Harper will politely let ${name} know this role won't move forward. This can't be undone.`
+      `${name}님과의 연결을 거절해요. 되돌릴 수 없어요.`,
+      `You'll decline connecting with ${name}. This can't be undone.`
     ),
-    confirm: c(locale, "거절 확정하기", "Confirm decline"),
-    doneTitle: c(locale, "연결 거절을 전했어요.", "Decline sent."),
+    // Same choice as the web Reject dialog.
+    closingNoteLabel: c(
+      locale,
+      "Harper가 종료 안내 보내기",
+      "Have Harper send a closing note"
+    ),
+    // Same as the web Reject dialog's button.
+    confirm: c(locale, "연결 거절", "Reject"),
+    doneTitle: c(locale, "연결을 거절했어요.", "Connection declined."),
     doneDescription: "",
   };
 }

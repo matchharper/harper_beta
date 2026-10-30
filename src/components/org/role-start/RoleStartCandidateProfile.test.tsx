@@ -22,7 +22,9 @@ test("Align preserves profile facts and verdicts in the shared information body"
   try {
     const body = dom.window.document.body;
     const text = body.textContent ?? "";
-    for (const value of [candidate.name, candidate.headline, candidate.location,
+    // The header names the job the person holds now; the headline is the fallback.
+    const currentRole = `${profile.experiences[0].role} at ${profile.experiences[0].company}`;
+    for (const value of [candidate.name, currentRole, candidate.location,
       candidate.verdict!.tldr, profile.experiences[0].company,
       profile.experiences[0].description, "예시대학교", "시각디자인", "2015 – 2019"]) {
       assert.ok(value && text.includes(value));
@@ -32,7 +34,7 @@ test("Align preserves profile facts and verdicts in the shared information body"
     }
     assert.equal(text.split(candidate.verdict!.tldr).length - 1, 1, "show the verdict once");
     assert.equal(body.querySelector('[role="dialog"],textarea,[aria-keyshortcuts]'), null);
-    assert.ok(!text.includes("Intro 보내기"));
+    assert.ok(!text.includes("Send Intro"));
     assert.ok(!text.includes("후보자 상세 보기"));
   } finally {
     dom.window.close();

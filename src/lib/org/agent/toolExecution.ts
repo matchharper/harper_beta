@@ -116,6 +116,8 @@ import {
   updateOrgRoleRequestOnly,
   type OrgStageId,
 } from "@/lib/org/server";
+import { setOrgCandidateStageWithIntroBooking } from "@/lib/org/introBooking.server";
+import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import {
   getCareerPromptLanguageName,
   parseCareerPromptLocale,
@@ -539,6 +541,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "후보자 메모 저장 완료",
       "후보자 메모를 저장하지 못했습니다",
     ],
+    manage_comparison_columns: [
+      "리스트 비교 열을 정리하는 중",
+      "리스트 비교 열 정리 완료",
+      "리스트 비교 열을 정리하지 못했습니다",
+    ],
     get_more_data: [
       "회사 정보를 읽는 중",
       "회사 정보 확인 완료",
@@ -788,6 +795,91 @@ async function executeAddCandidateNote(args: {
     note,
     roleName: role.name,
     status: "saved",
+  };
+}
+
+function comparisonCells(value: unknown) {
+  const cells: Record<string, string> = {};
+  if (!Array.isArray(value)) return cells;
+  for (const entry of value) {
+    const talentId = text((entry as { talentId?: unknown })?.talentId);
+    if (!talentId) continue;
+    cells[talentId] = String((entry as { value?: unknown })?.value ?? "").trim();
+  }
+  return cells;
+}
+
+async function executeManageComparisonColumns(args: {
+  callId: string;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  const role = roleOrThrow(args.state, args.input.roleId);
+  const action = text(args.input.action);
+  const { changeOrgRoleListColumns } = await import("@/lib/org/roleViews.server");
+  const optional = (value: unknown) =>
+    value === undefined ? undefined : text(value) || null;
+  let result;
+  if (action === "add") {
+    const label = text(args.input.label);
+    if (!label) throw new OrgAgentToolInputError("label is required");
+    result = await changeOrgRoleListColumns({
+      change: {
+        action,
+        description: optional(args.input.description) ?? null,
+        label,
+        values: comparisonCells(args.input.values),
+      },
+      roleId: role.roleId,
+      userId: args.user.id,
+      workspaceId: args.workspaceId,
+    });
+  } else if (action === "update" || action === "remove") {
+    const columnId = requiredText(args.input.columnId, "columnId", 100);
+    result = await changeOrgRoleListColumns({
+      change:
+        action === "remove"
+          ? { action, columnId }
+          : {
+              action,
+              columnId,
+              description: optional(args.input.description),
+              label: text(args.input.label) || null,
+              values: comparisonCells(args.input.values),
+            },
+      roleId: role.roleId,
+      userId: args.user.id,
+      workspaceId: args.workspaceId,
+    });
+  } else if (action === "list") {
+    const { listOrgRoleListColumns } = await import("@/lib/org/roleViews.server");
+    result = {
+      changed: null,
+      columns: await listOrgRoleListColumns({
+        roleId: role.roleId,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      }),
+    };
+  } else {
+    throw new OrgAgentToolInputError("action must be add, update, remove or list");
+  }
+  args.state.preferredRoleId = role.roleId;
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary: action === "list" ? "리스트 비교 열 조회" : "리스트 비교 열 변경",
+  });
+  return {
+    action,
+    changedColumnId: result.changed?.id ?? null,
+    columns: result.columns,
+    roleName: role.name,
+    status: action === "list" ? "read" : "saved",
   };
 }
 
@@ -2635,6 +2727,13 @@ async function immediatelyPresentedCandidateDecision(args: {
   };
 }
 
+/**
+ * Accept Intro adds the interview booking link on the accepting person's
+ * own calendar when it is set up, so the confirmation says so first.
+ */
+const INTRO_BOOKING_LINK_NOTICE =
+  "요청하신 분의 Google Calendar와 가능한 시간이 설정되어 있으면 메일 끝에 면접 예약 링크도 넣어서, 후보자가 그 캘린더의 빈 시간 중에서 인터뷰 시간을 바로 고를 수 있어요.";
+
 function candidateDecisionConfirmationText(args: {
   notifyCandidateOnClosure?: boolean;
   candidateEmail: string;
@@ -2671,7 +2770,7 @@ function candidateDecisionConfirmationText(args: {
   if (recipients.length === 0) {
     return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작하면 Harper가 후보자와 회사 담당자에게 소개 이메일을 보내고, 양측이 같은 이메일에서 인사와 다음 일정을 이어갈 수 있게 도와드려요.\n\n현재 함께 연결할 회사 담당자가 없어 아직 진행할 수 없어요. 소개 이메일을 받을 회사 담당자 이메일을 알려 주세요.`;
   }
-  return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 ${args.processStageName || "연결됨"} 단계로 이어갈게요.\n\n소개 이메일 방식을 선택하면 Harper가 후보자와 ${recipients.join(", ")}에게 소개 이메일을 바로 보내고, 서로 인사한 뒤 같은 이메일에서 다음 일정을 조율할 수 있게 연결해요. 보낸 이메일은 회수할 수 없어요.\n\n소개 이메일을 보내고 진행할까요?`;
+  return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 ${args.processStageName || "연결됨"} 단계로 이어갈게요.\n\n소개 이메일 방식을 선택하면 Harper가 후보자와 ${recipients.join(", ")}에게 소개 이메일을 바로 보내고, 서로 인사한 뒤 같은 이메일에서 다음 일정을 조율할 수 있게 연결해요. ${INTRO_BOOKING_LINK_NOTICE} 보낸 이메일은 회수할 수 없어요.\n\n소개 이메일을 보내고 진행할까요?`;
 }
 
 async function executeCandidateContactLifecycleItem(args: {
@@ -4167,7 +4266,7 @@ async function executeMoveCandidateStage(args: {
   );
   if (currentStage === "company_intro" || currentStage === "intro_requested") {
     throw new OrgAgentToolInputError(
-      "먼저 제안 가능한 후보와 Intro Requested 후보는 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 먼저 제안하기에서 만나고 싶은 이유와 수락 시 소개 이메일을 받을 담당자를 정해 주세요. 이미 제안을 요청했다면 Intro Requested에서 진행 상태를 확인해 주세요."
+      "연결 제안할 후보와 연결 제안한 후보는 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 Send Intro에서 만나고 싶은 이유와 수락 시 소개 이메일을 받을 담당자를 정해 주세요. 이미 제안을 요청했다면 연결 제안한 후보에서 진행 상태를 확인해 주세요."
     );
   }
   const candidateName = text(talent.candidate.name) || "후보자";
@@ -4839,7 +4938,7 @@ async function readCandidateDecisionTarget(args: {
   if (matchingPositions.length === 0) {
     throw new OrgAgentToolInputError(
       args.decision === "accept"
-        ? "후보자가 현재 이 역할의 연결 대기 또는 프로세스 종료 상태가 아니라 연결을 시작할 수 없어요."
+        ? "후보자가 현재 이 역할의 연결 수락할 후보 또는 프로세스 종료 상태가 아니라 연결을 시작할 수 없어요."
         : "후보자가 현재 이 역할에서 종료할 수 있는 회사 측 진행 상태가 아니에요."
     );
   }
@@ -4970,7 +5069,7 @@ function companyIntroConfirmationFallback(args: {
   roleName: string;
 }) {
   if (args.decision === "pass") {
-    return `${args.candidateName}님에게 ${args.roleName} 역할을 이번에는 제안하지 않을게요. 반영하면 후보자에게 이 기회나 연락이 전달되지 않고, 먼저 제안 가능한 후보 목록에서 제외돼요. 이대로 제안하지 않기로 할까요?`;
+    return `${args.candidateName}님에게 ${args.roleName} 역할을 이번에는 제안하지 않을게요. 반영하면 후보자에게 이 기회나 연락이 전달되지 않고, 연결 제안할 후보 목록에서 제외돼요. 이대로 제안하지 않기로 할까요?`;
   }
   return [
     `${args.candidateName}님은 아직 ${args.roleName} 역할을 수락하지 않은 상태예요.`,
@@ -5880,13 +5979,19 @@ async function executeCandidateConnectionDecision(args: {
           ? "후보자 연결 수락 재확인 필요"
           : "후보자 연결 거절 재확인 필요",
     });
+    const mayCarryBookingLink =
+      decision === "accept" && proposedConnectionMethod === "intro_email";
     return {
       candidateName: talent.candidate.name,
       connectionMethod: proposedConnectionMethod,
       decision,
+      introBookingLink: mayCarryBookingLink
+        ? "added_when_requester_calendar_ready"
+        : null,
       introEmails: proposedIntroEmails,
-      responseGuidance:
-        "Summarize the proposed candidate decision and ask for confirmation once.",
+      responseGuidance: mayCarryBookingLink
+        ? "Summarize the proposed candidate decision and ask for confirmation once. Say that when the requester's Google Calendar and open times are set, the intro email also ends with an interview booking link on the requester's own calendar."
+        : "Summarize the proposed candidate decision and ask for confirmation once.",
       notifyCandidateOnClosure: args.input.notifyCandidateOnClosure !== false,
       status: "confirmation_required",
     };
@@ -6206,27 +6311,37 @@ async function executeCandidateConnectionDecision(args: {
   const confirmedProcessStageId = customPipelineStageDbId(
     confirmed.processStageId
   );
-  const result = await setOrgCandidateStage({
-    acceptReason: finalReason,
-    contactDirectly: connectionMethod === "direct_contact",
-    expectedPreviousStage: position.stage,
-    introEmails,
-    recommendationId: position.recommendationId,
-    candidateConsentRelayId,
-    reengagementActionId: `company-message:${args.currentUserMessageId}`,
-    reengagementResolution:
-      closedState.closed && reengagementResolution === "company_confirmed"
-        ? "company_confirmed"
-        : null,
-    roleId: current.roleId,
-    stage:
-      position.stage === "pending_connection" && confirmedProcessStageId
-        ? (`custom:${confirmedProcessStageId}` as OrgStageId)
-        : "connected",
-    talentId,
-    user: args.user,
-    workspaceId: args.workspaceId,
+  // The same intro email as the web and Slack: it carries the interview
+  // booking link when this person's Calendar and open times are set.
+  const decided = await setOrgCandidateStageWithIntroBooking({
+    baseUrl: getConfiguredPublicSiteUrl(),
+    booking: "if_ready",
+    stage: {
+      acceptReason: finalReason,
+      contactDirectly: connectionMethod === "direct_contact",
+      expectedPreviousStage: position.stage,
+      introEmails,
+      recommendationId: position.recommendationId,
+      candidateConsentRelayId,
+      reengagementActionId: `company-message:${args.currentUserMessageId}`,
+      reengagementResolution:
+        closedState.closed && reengagementResolution === "company_confirmed"
+          ? "company_confirmed"
+          : null,
+      roleId: current.roleId,
+      stage:
+        position.stage === "pending_connection" && confirmedProcessStageId
+          ? (`custom:${confirmedProcessStageId}` as OrgStageId)
+          : "connected",
+      talentId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    },
   });
+  const result = decided.payload;
+  const bookingNote = decided.bookingLinkIncluded
+    ? " 메일 끝에 면접 예약 링크를 넣어서 후보자가 바로 인터뷰 시간을 고를 수 있어요."
+    : "";
   if (!("stage" in result)) {
     args.state.fallbackReply =
       "후보자의 다시 진행할 의사를 먼저 확인해야 해서 아직 연결 상태를 변경하지 않았어요.";
@@ -6248,7 +6363,7 @@ async function executeCandidateConnectionDecision(args: {
           ? "종료 안내가 이미 전달된 후보자를 다시 연결됨으로 표시했어요. Harper는 소개 이메일을 보내지 않았어요. 회사에서 직접 연락하며 이미 안내된 종료 결정과 상황이 바뀐 점을 솔직하게 설명해 주세요."
           : "Harper의 별도 종료 안내를 중단하고 후보자를 다시 연결됨으로 표시했어요. Harper는 소개 이메일을 보내지 않았어요. 이전 종료 결정이 후보자 화면에 이미 표시됐을 수 있으므로 회사에서 직접 연락해 상황이 바뀐 점을 설명해 주세요."
         : connectionMethod === "intro_email"
-          ? `${candidateName}님과 연결해드렸어요. Harper가 ${candidateName}님과 선택한 회사 담당자에게 소개 이메일을 보냈어요.`
+          ? `${candidateName}님과 연결해드렸어요. Harper가 ${candidateName}님과 선택한 회사 담당자에게 소개 이메일을 보냈어요.${bookingNote}`
           : `${candidateName}님과 연결해드렸어요. Harper는 소개 이메일을 보내지 않았으니 회사에서 직접 연락해 주세요.`;
   args.state.updateSummaries.push(changeSummary);
   recordResult(args.state, {
@@ -6270,7 +6385,9 @@ async function executeCandidateConnectionDecision(args: {
     decision,
     nextProcess:
       connectionMethod === "intro_email"
-        ? "후보자와 선택한 회사 담당자가 같은 소개 이메일에서 인사하고 다음 일정을 직접 조율해요."
+        ? decided.bookingLinkIncluded
+          ? "후보자가 소개 이메일의 면접 예약 링크로 인터뷰 시간을 고르거나, 같은 메일에서 회사 담당자와 일정을 조율해요."
+          : "후보자와 선택한 회사 담당자가 같은 소개 이메일에서 인사하고 다음 일정을 직접 조율해요."
         : "Harper가 소개 이메일을 보내지 않았으므로 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주세요.",
     roleId: result.roleId,
     roleName: current.name,
@@ -6597,6 +6714,15 @@ export async function executeOrgAgentTool(args: {
       admin: args.admin,
       audience: args.audience,
       input,
+      user: args.user,
+      workspaceId,
+    });
+  } else if (args.name === "manage_comparison_columns") {
+    return executeManageComparisonColumns({
+      callId: args.callId,
+      input,
+      name: args.name,
+      state: args.state,
       user: args.user,
       workspaceId,
     });

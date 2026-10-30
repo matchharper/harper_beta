@@ -74,7 +74,7 @@ test("review actions stay in the header and the standalone body needs only profi
         .find((button) => button.textContent === "Save")!
         .click();
       buttons()
-        .find((button) => button.textContent === "Intro 보내기")!
+        .find((button) => button.textContent === "Send Intro")!
         .click();
       press("s");
       press("r");

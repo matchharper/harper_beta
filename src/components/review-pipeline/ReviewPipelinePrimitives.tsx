@@ -321,7 +321,7 @@ export function ReviewPipelineStageDialog({
             ? t("pipeline.editDescription", "Pipeline 프로세스명을 수정합니다.")
             : t(
                 "pipeline.addDescription",
-                "연결 대기와 최종 오퍼 사이에 새 단계를 추가합니다."
+                "연결 수락할 후보와 최종 오퍼 사이에 새 단계를 추가합니다."
               )}
         </>
       }
