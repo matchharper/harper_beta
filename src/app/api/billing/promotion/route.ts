@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PROMOTION_COOKIE, PROMOTION_END, readPromotion } from "@/lib/org/billing/promotion";
+import { PROMOTION_COOKIE, promotionEnd, readPromotion } from "@/lib/org/billing/promotion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,11 +7,12 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
   try {
-    if (!readPromotion(token)) throw new Error("Missing invitation");
+    const promotion = readPromotion(token);
+    if (!promotion) throw new Error("Missing invitation");
     const response = NextResponse.redirect(new URL("/org/slots?purchase=slot&interval=month&lang=ko", req.url));
     response.cookies.set(PROMOTION_COOKIE, token!, {
       httpOnly: true, secure: req.nextUrl.protocol === "https:", sameSite: "lax",
-      path: "/", expires: new Date(PROMOTION_END),
+      path: "/", expires: new Date(promotionEnd(promotion.endsOn)),
     });
     response.headers.set("Cache-Control", "private, no-store");
     response.headers.set("Referrer-Policy", "no-referrer");

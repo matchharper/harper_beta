@@ -18,6 +18,8 @@ export type ScheduledMatchingFacts = {
   completedRuns?: Array<Record<string, unknown>>;
   selectionInput?: ScheduledSelectionInput;
   currentRole?: Record<string, unknown>;
+  currentBriefVersion?: string;
+  selectionUnavailableReason?: string;
 };
 
 export function scheduledMatchingAssignment(facts: ScheduledMatchingFacts) {
@@ -69,6 +71,12 @@ everyone. scope=evaluated reuses compatible stored stage-two results with no Dec
 other scopes evaluate missing compatible steps. A compatible evaluation already includes
 Profile + entire Search Brief + the same Behavior Context version (worker_behavior_v1).
 Unknown coverage is not zero. Return after an async submission; completion resumes this review.
+When the Hiring Brief changes or an earlier step fails, the original recruiting assignment
+remains unfinished. Use the current Brief, completion facts and existing searches to decide
+the next useful action. An unavailable or stale candidate list is not a finding of no fit.
+Prepare current evidence through request_matching_search when needed; compatible current
+evidence can be reused with scope=evaluated. Do not select from an earlier Brief or repeat
+work already in progress. A failure after preparation or publication is not proof of delivery.
 
 A scheduled tick grants no Request Intro, company acceptance/rejection, direct contact,
 meeting, or Brief/Memory edit authority. After actual introductions, use delivery receipts

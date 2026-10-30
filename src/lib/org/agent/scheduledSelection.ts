@@ -29,6 +29,12 @@ export type ScheduledSelectionInput = {
   candidates: ScheduledCandidate[];
 };
 
+/** Stale evidence is unavailable, not a reason to terminate the recruiting turn. */
+export function currentScheduledSelection(input: ScheduledSelectionInput | undefined, roleId: string, briefVersion: string) {
+  if (input && input.roleId !== roleId) throw new Error('Scheduled selection Role scope mismatch');
+  return input?.briefVersion === briefVersion ? input : undefined;
+}
+
 /** This is the model's entire default candidate input, not a full-source loader. */
 export function scheduledCandidateText(input: ScheduledSelectionInput) {
   const text = (value: unknown) => value == null || value === '' ? 'not recorded' : String(value);

@@ -7,7 +7,7 @@ import { runScheduledMatchingLoop } from "./scheduledMatching";
 import { executeOrgAgentTool } from "./toolExecution";
 import { ORG_AGENT_SOL_MODEL } from "./modelConfig";
 import type { OrgAgentConversationRow } from "./store";
-import { scheduledRecommendationOptions, type ScheduledSelectionInput } from "./scheduledSelection";
+import { currentScheduledSelection, scheduledRecommendationOptions, type ScheduledSelectionInput } from "./scheduledSelection";
 import { commitCompanyMessages } from "./companyMessaging";
 import { prepareRoleStartBriefForSearch } from "../roleStart/service";
 
@@ -38,7 +38,7 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
   await assertOrgRoleAccess({admin,user:args.user,workspaceId,roleId});
   const rootJobId=String(args.actionContext.rootJobId??args.jobId);
   const {data:runs,error:runsError}=await admin.from("company_first_search_runs")
-    .select("id,status,request_options,result,source_snapshot")
+    .select("id,status,request_options,result,source_snapshot,error_code,error_message")
     .eq("company_workspace_id",workspaceId).eq("role_id",roleId).eq("request_options->>rootJobId",rootJobId).order("created_at");
   if(runsError) throw runsError;
   // A retry after child enqueue recovers its receipt rather than regenerating a
@@ -101,21 +101,24 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
         closedSelections:(selections??[]).filter((row:any)=>row.closed_at).length,
         jobStates,deliveryStates,
         note:"Selection, stored recommendation and actual channel delivery are distinct facts. Counts contain no private candidate identities."},
-      error:run.result?.roleSearch?.error});
+      briefVersion:run.request_options.briefVersion,
+      error:run.error_message ?? run.result?.roleSearch?.error});
   }
   const completedRunId=String(args.actionContext.completedRunId??"");
   const completed=(runs??[]).find((run:any)=>run.id===completedRunId);
   // Only this completion's prepared input is actionable. Old aliases never leak
   // into a later selection; publication completions carry receipts instead.
-  const selectionInput:ScheduledSelectionInput|undefined=completed?.status==="succeeded"
+  const preparedInput:ScheduledSelectionInput|undefined=completed?.status==="succeeded"
     && !completed.request_options.selectionSourceRunId ? completed.result?.selectionInput : undefined;
-  if(selectionInput && (selectionInput.roleId!==roleId || selectionInput.briefVersion!==version))
-    throw new Error("Scheduled selection input no longer matches this Role Brief");
+  const selectionInput=currentScheduledSelection(preparedInput,roleId,version);
   const result=await runScheduledMatchingLoop({admin,user:args.user,conversation:args.conversation,context,
     actorId:args.user.id,actorLabel:"Harper scheduled matching service",currentUserMessageId:args.anchorMessageId,
     model:ORG_AGENT_SOL_MODEL,responseLocale:args.responseLocale??"auto",source:"slack",readAudience:"company_safe",
     scopeKey:`scheduled:${roleId}`,slackThreadId:null,mentions:[],signal:AbortSignal.timeout(240000)},
     {roleId,scheduledSlot:String(args.actionContext.scheduledSlot),rootJobId,currentRoutes:accepted.currentRoutes??[],
+      currentBriefVersion:version,
+      ...(preparedInput && !selectionInput ? {selectionUnavailableReason:
+        `Prepared candidates belong to an earlier Hiring Brief (${preparedInput.briefVersion}). No candidates from that version are supplied for selection.`} : {}),
       currentRole:{name:role.name,hiringBrief:role.request,criteria:role.criteria,description:role.description,
         location:role.locationText,workMode:role.workMode,salaryRange:role.salaryRange},
       inventory:{recordedAllContractsInventory:inventory,...accepted,
