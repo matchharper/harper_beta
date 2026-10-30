@@ -584,12 +584,12 @@ export function useOrgAgentChat(args: {
                   [parsed.data as OrgAgentMessage]
                 );
               }
-              // One turn may publish a progress message and later a terminal
-              // message. Commit the completed bubble while keeping the same
+              // Commit each completed bubble while keeping the same
               // SSE turn alive for its remaining tool work.
               useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
                 assistantStatus: "pending",
                 streamingText: "",
+                thinkingLogs: [],
               });
             } else if (parsed.event === "role_created") {
               const roleId = String(

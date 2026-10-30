@@ -46,7 +46,7 @@ export function buildCompanyMatchingResultContext(
   const lines = [
     input.requestedByCompany === false
       ? `- ${roleNames} 채용의 정기 매칭 확인 결과다. 회사가 새 검색을 직접 요청한 결과는 아니다.`
-      : `- Harper가 ${roleNames} 채용에 관해 앞서 부탁받은 확인을 마쳤다.`,
+      : `- ${roleNames} 채용 검색 실행의 결과다.`,
     ...(succeeded
       ? selected > 0
         ? [
@@ -54,7 +54,10 @@ export function buildCompanyMatchingResultContext(
             "- 일반 선제 제안은 후보자의 관심을 아직 확인하지 않았다. 본인이 우선 검토를 요청한 사람은 아래에 그 사실이 표시된다. 어느 쪽도 역할 수락이나 연결 완료를 의미하지 않는다. 회사가 만나 보고 싶은 사람을 고르면 Harper가 본인에게 역할 수락 의사를 묻는다.",
           ]
         : input.interactiveSearch ? [
-            "- 이번 실행에서 새로 소개할 후보 카드가 없다. 평가만 요청했거나 기존 결과를 유지했을 수도 있으므로 이 사실만으로 적합한 후보가 없다고 판단하지 않는다. 아래 실행의 실제 요청과 통계를 읽는다.",
+            ...(input.interactiveSearch.selectionMethod === "evaluation_only" ? [
+              "- 이번 실행은 후보 평가를 완료했으며, 후보 선정과 추천 목록 등록은 수행하지 않았다. 추천 목록에 대한 변경은 없다.",
+              "- 평가 전용은 이 실행 단계의 범위다. 사용자가 평가만 요청했다는 뜻이 아니며, 적합한 후보가 없다는 선정 결과도 아니다.",
+            ] : ["- 이번 실행에서 새로 등록한 후보 카드가 없다. 실제 목록 변경 내역과 평가 근거는 아래에 있다."]),
           ] : [
             "- 지금 Harper가 알고 있는 사람들 가운데 회사가 찾는 사람에 비춰 바로 소개해도 좋겠다고 확신할 만한 사람은 고르지 못했다.",
             "- 이 채용에 잘 맞는 사람이 전혀 없다는 뜻은 아니다. 확신이 부족한 사람을 숫자를 채우기 위해 소개하지 않았다는 뜻이다.",
@@ -109,7 +112,7 @@ export function buildCompanyMatchingResultContext(
   for (const pause of input.candidateOutreachPauses ?? []) {
     const role = input.roles.find(role => role.id === pause.roleId);
     if (!role) continue;
-    lines.push(`- ${role.name}: 이번 확인 당시 연결 대기 ${pause.pendingCount}명, 후보자에게 먼저 제안하는 경로의 상한 ${pause.maxPendingTalents}명. 상한 이상이므로 이번에는 후보자에게 먼저 역할을 추천하는 경로를 진행하지 않았다. 이 제한은 회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다. 검색·fit 평가 전체를 하지 않았다는 뜻은 아니다. Role-based 검색의 새 후보자 선추천은 연결 대기가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아니다.`);
+    lines.push(`- ${role.name}: 이번 확인 당시 연결 수락할 후보 ${pause.pendingCount}명, 후보자에게 먼저 제안하는 경로의 상한 ${pause.maxPendingTalents}명. 상한 이상이므로 이번에는 후보자에게 먼저 역할을 추천하는 경로를 진행하지 않았다. 이 제한은 회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다. 검색·fit 평가 전체를 하지 않았다는 뜻은 아니다. Role-based 검색의 새 후보자 선추천은 연결 수락할 후보가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아니다.`);
   }
 
   if (selected > 0) {

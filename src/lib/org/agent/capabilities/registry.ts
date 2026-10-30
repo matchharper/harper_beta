@@ -18,6 +18,7 @@ export const COMPANY_CAPABILITIES = [
   { id: "candidate_search", summary: "현재 추천 목록 밖의 후보를 발굴해 검토 목록에 추가하거나, 미결정 목록을 교체. 저장된 평가·과거 검색을 재사용하고 필요하면 미평가 후보를 새로 검색·평가한다. 후보 목록 추가는 Intro 발송과 별개다.", policyIds: ["candidate_search"], toolIds: ["request_matching_search", "publish_role_recommendations", "recommend_talents"] },
   { id: "candidate_contact", summary: "회사가 궁금한 내용을 대신 물어보고 답을 돌려받거나 자료·정보를 전달할 수 있다. 관심·경험·가능 시점 같은 미확인 사항도 연락 내용이며 별도 기능이 아니다. 제안 답변 대기 중에도 연락 가능하다. 가벼운 답변·일상적 팔로업은 바로 전달할 수 있고, 후보자에게 처음 연락하거나 회사의 인상·설득이 중요한 순간에는 회사가 한 번 검토할 초안을 준비한다. 후속 연락의 예정·전달 이력 조회와 날짜 추가·변경·취소 가능. 수락·공유 권한은 별개.", policyIds: ["candidate_contact"], toolIds: ["list_contacts", "read_contact", "contact_talent"] },
   { id: "candidate_connection", summary: "연결 수락·거절 또는 회사가 먼저 제안. 경로별 의사 확인 필요; 먼저 제안은 후보자 수락 시 연결 약속.", policyIds: ["candidate_connection"], toolIds: ["prepare_candidate_connection", "decide_candidate_connection", "decide_company_intro"] },
+  { id: "candidate_comparison", summary: "Role 인박스 리스트 보기에 회사가 비교하고 싶은 항목을 열로 추가·수정·삭제하고 후보자별 값을 채운다. 회사 내부 표시용이며 채용 기준·평가·추천·연락은 바뀌지 않는다.", policyIds: ["candidate_comparison"], toolIds: ["manage_comparison_columns"] },
   { id: "candidate_process", summary: "후보자 메모·단계/역할 이동·일정 조율. 기록과 실제 외부 연락 효과는 다르며 동의·공유 범위 유지.", policyIds: ["candidate_process"], toolIds: ["add_candidate_note", "move_candidate_stage", "move_candidate_to_role", "manage_interview_availability"] },
 ] as const satisfies readonly { id: string; summary: string; policyIds: readonly CompanyPolicyId[]; toolIds: readonly OrgAgentToolName[] }[];
 

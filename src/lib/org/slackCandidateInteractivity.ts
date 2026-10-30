@@ -104,7 +104,7 @@ export async function handleSlackCandidateInteraction(
         ) {
           throw new Error(
             read.locale === "ko"
-              ? "현재 이 후보자의 Intro 요청 또는 Pass를 결정할 수 없어요."
+              ? "지금은 이 후보자에게 Send Intro나 Pass를 할 수 없어요."
               : "You cannot request an intro or pass on this candidate right now."
           );
         }

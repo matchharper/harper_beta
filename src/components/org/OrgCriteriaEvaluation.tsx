@@ -1,5 +1,4 @@
-import Image from "next/image";
-import { LoaderCircle } from "lucide-react";
+import { Circle, LoaderCircle, X, type LucideProps } from "lucide-react";
 import { BareButton } from "@/components/ui/button";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
@@ -9,11 +8,77 @@ import {
   type OrgCompanyCriteriaEvaluation,
 } from "@/lib/org/companyCriteriaEvaluations";
 
+/** ◎: a circle inside a circle, drawn on the same 24px grid as lucide. */
+function DoubleCircle(props: LucideProps) {
+  const { strokeWidth = 2, ...rest } = props;
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={strokeWidth}
+      viewBox="0 0 24 24"
+      {...rest}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="4.5" />
+    </svg>
+  );
+}
+
+/** △ */
+function Triangle(props: LucideProps) {
+  const { strokeWidth = 2, ...rest } = props;
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={strokeWidth}
+      viewBox="0 0 24 24"
+      {...rest}
+    >
+      <path d="M12 4 21 19.5H3Z" />
+    </svg>
+  );
+}
+
+const FIT_ICON = {
+  excellent: { Icon: DoubleCircle, tone: "text-positive-strong" },
+  good: { Icon: Circle, tone: "text-positive" },
+  uncertain: { Icon: Triangle, tone: "text-info-strong" },
+  limited: { Icon: Triangle, tone: "text-info-strong" },
+  bad: { Icon: X, tone: "text-critical" },
+  conflict: { Icon: X, tone: "text-critical" },
+} as const;
+
+/** The mark for one criterion's fit, shared by every company-side screen. */
+export function OrgCriterionFitIcon({
+  className = "size-5",
+  fitness,
+}: {
+  className?: string;
+  fitness: OrgCompanyCriteriaEvaluation["fitness"];
+}) {
+  const { Icon, tone } = FIT_ICON[fitness];
+  return (
+    <Icon
+      aria-hidden="true"
+      className={`${className} ${tone} shrink-0`}
+      strokeWidth={2}
+    />
+  );
+}
+
 export function OrgCriteriaEvaluation({
+  compact = false,
   evaluation,
   onClick,
   showContent = false,
 }: {
+  compact?: boolean;
   evaluation: OrgCompanyCriteriaEvaluation;
   onClick?: () => void;
   showContent?: boolean;
@@ -34,9 +99,11 @@ export function OrgCriteriaEvaluation({
       >
         <LoaderCircle
           aria-hidden="true"
-          className="size-4 shrink-0 animate-spin text-neutral-soft"
+          className={`${compact ? "size-3.5" : "size-4"} shrink-0 animate-spin text-neutral-soft`}
         />
-        <span className="line-clamp-2 min-w-0 text-[12px] font-medium leading-4 text-neutral-primary">
+        <span
+          className={`line-clamp-2 min-w-0 leading-4 text-neutral-primary ${compact ? "text-[13px] font-normal" : "text-[12px] font-medium"}`}
+        >
           {evaluation.name}
         </span>
         <span className="shrink-0 text-[12px] leading-4 text-neutral-soft">
@@ -48,16 +115,12 @@ export function OrgCriteriaEvaluation({
 
   const indicator = (
     <>
-      <Image
-        alt=""
-        aria-hidden="true"
-        className="size-5 shrink-0"
-        height={16}
-        src={`/svgs/${evaluation.fitness === "conflict" ? "bad" : evaluation.fitness === "limited" ? "uncertain" : evaluation.fitness}.svg`}
-        width={16}
+      <OrgCriterionFitIcon
+        className={compact ? "size-3.5" : "size-5"}
+        fitness={evaluation.fitness}
       />
       <span
-        className={`min-w-0 text-[15px] font-medium text-neutral-primary leading-5 truncate`}
+        className={`min-w-0 text-neutral-primary leading-5 truncate ${compact ? "text-[13px] font-normal" : "text-[15px] font-medium"}`}
       >
         {evaluation.name}
       </span>
@@ -67,7 +130,7 @@ export function OrgCriteriaEvaluation({
   if (showContent) {
     return (
       <div className="min-w-0 space-y-2">
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-2">
           {indicator}
           <span className="sr-only">{fitnessLabel}</span>
         </div>

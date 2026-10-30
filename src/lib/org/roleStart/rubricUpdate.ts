@@ -34,7 +34,7 @@ import { visibleBriefHash, withLatestBackground } from "./view";
  * One path for changing a Role's rubric after the start flow, used by the
  * board's filter panel and the 매칭 기준 tab:
  *  1) a new Brief version (reason, date) and the Role's criteria;
- *  2) candidates now shown in the inbox (연결 대기, 먼저 제안 가능한 후보) keep
+ *  2) candidates now shown in the inbox (연결 수락할 후보, 연결 제안할 후보) keep
  *     grades for unchanged criteria; changed or added criteria are judged
  *     again (one call per candidate, in parallel) and show "다시 보는 중";
  *     removed criteria disappear from cards (the history stays in versions);

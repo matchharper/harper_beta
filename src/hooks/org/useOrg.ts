@@ -873,6 +873,7 @@ export function useOpenOrgResume() {
   return useMutation({
     mutationFn: (args: {
       documentId?: string | null;
+      roleId?: string | null;
       kind?: "storage" | "link" | "document" | null;
       link?: string | null;
       talentId: string;

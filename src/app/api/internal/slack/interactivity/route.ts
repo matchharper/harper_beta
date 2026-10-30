@@ -60,7 +60,9 @@ import {
 import { dispatchSlackReplyJob } from "@/lib/org/slackQueueDispatch";
 import { handleRoleStartSlackAction } from "@/lib/org/roleStart/slackActions";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { OrgHttpError, setOrgCandidateStage } from "@/lib/org/server";
+import { setOrgCandidateStageWithIntroBooking } from "@/lib/org/introBooking.server";
+import { OrgHttpError } from "@/lib/org/server";
+import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import { handleSlackCandidateInteraction } from "@/lib/org/slackCandidateInteractivity";
 
 export const runtime = "nodejs";
@@ -472,28 +474,42 @@ async function hydrateSubmittedDecisionModal(args: {
       );
     }
 
-    await setOrgCandidateStage({
-      acceptReason:
-        args.submission.decision === "accept"
-          ? args.submission.acceptReason
-          : null,
-      contactDirectly:
-        args.submission.decision === "accept" &&
-        args.submission.connectionMode === "contact_directly",
-      expectedPreviousStage: "pending_connection",
-      introEmails:
-        args.submission.decision === "accept"
-          ? args.submission.introEmails
-          : null,
-      recommendationId: candidate.recommendationId,
-      roleId: candidate.roleId,
-      stage:
-        args.submission.decision === "accept" ? "connected" : "process_stopped",
-      stopNote:
-        args.submission.decision === "reject" ? args.submission.stopNote : null,
-      talentId: candidate.talentId,
-      user: authData.user,
-      workspaceId: args.workspaceId,
+    // Accept sends the same intro email as the web, with the interview
+    // booking link when this person's Calendar and open times are set.
+    const decided = await setOrgCandidateStageWithIntroBooking({
+      baseUrl: getConfiguredPublicSiteUrl(),
+      booking: "if_ready",
+      stage: {
+        acceptReason:
+          args.submission.decision === "accept"
+            ? args.submission.acceptReason
+            : null,
+        contactDirectly:
+          args.submission.decision === "accept" &&
+          args.submission.connectionMode === "contact_directly",
+        expectedPreviousStage: "pending_connection",
+        introEmails:
+          args.submission.decision === "accept"
+            ? args.submission.introEmails
+            : null,
+        notifyCandidateOnClosure:
+          args.submission.decision === "reject"
+            ? args.submission.notifyCandidateOnClosure
+            : undefined,
+        recommendationId: candidate.recommendationId,
+        roleId: candidate.roleId,
+        stage:
+          args.submission.decision === "accept"
+            ? "connected"
+            : "process_stopped",
+        stopNote:
+          args.submission.decision === "reject"
+            ? args.submission.stopNote
+            : null,
+        talentId: candidate.talentId,
+        user: authData.user,
+        workspaceId: args.workspaceId,
+      },
     });
 
     await updateReviewModalSafely({
@@ -502,9 +518,13 @@ async function hydrateSubmittedDecisionModal(args: {
         candidateName: candidate.name,
         ...(args.submission.decision === "accept"
           ? {
+              bookingLinkIncluded: decided.bookingLinkIncluded,
               connectionMode: args.submission.connectionMode,
             }
-          : {}),
+          : {
+              notifyCandidateOnClosure:
+                args.submission.notifyCandidateOnClosure,
+            }),
         decision: args.submission.decision,
       }),
       viewId: args.viewId,

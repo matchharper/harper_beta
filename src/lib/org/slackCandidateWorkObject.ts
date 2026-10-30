@@ -223,7 +223,7 @@ export function buildSlackCandidateEntity(args: {
                   ? [
                       {
                         action_id: SLACK_CANDIDATE_INTRO_ACTION,
-                        text: locale === "ko" ? "Intro 요청" : "Request Intro",
+                        text: "Send Intro",
                         style: "primary",
                         value: candidate.id,
                       },
@@ -366,9 +366,9 @@ export function buildSlackCandidateDecisionView(args: {
     type: "modal",
     callback_id: SLACK_CANDIDATE_DECISION_CALLBACK,
     private_metadata: JSON.stringify(args.metadata),
-    title: plain(request ? (ko ? "Intro 요청" : "Request Intro") : "Pass"),
+    title: plain(request ? "Send Intro" : "Pass"),
     close: plain(ko ? "취소" : "Cancel"),
-    submit: plain(request ? (ko ? "Intro 요청" : "Request Intro") : "Pass"),
+    submit: plain(request ? "Send Intro" : "Pass"),
     blocks: [
       {
         type: "section",

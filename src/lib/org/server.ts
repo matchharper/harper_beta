@@ -43,6 +43,11 @@ import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
 import { buildOrgIntroCandidateProfessionalSummary } from "@/lib/org/introEmailProfessionalSummary";
 import { parseCareerPromptLocale } from "@/lib/career/promptLocale";
 import { appendOrgIntroCaptureDisclosure } from "@/lib/org/introEmailDisclosure";
+import {
+  orgIntroBookingLinkAsText,
+  ORG_INTRO_TEMPLATE_FIELDS,
+  withOrgIntroBookingLink,
+} from "@/lib/org/messageTemplates";
 import { getOrCreateOrgIntroCaptureThread } from "@/lib/org/introEmailCapture";
 import {
   canInitiateOrgCandidateContact,
@@ -402,6 +407,12 @@ export type OrgStageId = OrgBuiltInStageId | OrgCustomStageId;
 export type OrgStage = {
   id: OrgStageId;
   label: string;
+  /** Interview defaults a custom stage remembers from its last request. */
+  meetingDefaults?: {
+    candidateMessage: string | null;
+    durationMinutes: number | null;
+    meetingPurpose: string | null;
+  } | null;
   roleId?: string;
   sortOrder: number;
 };
@@ -728,6 +739,8 @@ export type OrgTalentDetailResponse = {
     links: string[];
   };
   role: OrgRole;
+  /** The company's stage moves for this candidate, oldest first. */
+  stageHistory?: Array<{ at: string; stage: string }>;
   talent: {
     bio: string | null;
     email: string | null;
@@ -808,6 +821,34 @@ export type OrgResumeAccessResponse = {
   url: string;
 };
 
+export type OrgIntroEmailDraftInput = { body: string; subject: string };
+
+/** A time-picking link the intro email carries, with its words. */
+export type OrgIntroBookingLink = { label: string; url: string };
+
+function normalizeOrgIntroBookingLink(
+  value: unknown
+): OrgIntroBookingLink | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const url = normalizeText(record.url);
+  const label = normalizeText(record.label).slice(0, 80);
+  return /^https?:\/\//.test(url) && label ? { label, url } : null;
+}
+
+function normalizeOrgIntroEmailDraftInput(
+  value: unknown
+): OrgIntroEmailDraftInput | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const subject = normalizeText(record.subject).slice(0, 200);
+  const body = String(record.body ?? "")
+    .replace(/\u0000/g, "")
+    .trim()
+    .slice(0, 8_000);
+  return subject && body ? { body, subject } : null;
+}
+
 export type OrgStageChangeOptions = {
   acceptReason?: string | null;
   additionalMessage?: string | null;
@@ -816,6 +857,13 @@ export type OrgStageChangeOptions = {
   contactDirectly?: boolean;
   durationMinutes?: number;
   emailMode?: InternalConnectionConfirmationEmailMode;
+  /** The team's own intro email (from a template) instead of Harper's draft. */
+  introEmailDraft?: OrgIntroEmailDraftInput | null;
+  /**
+   * Put a time-picking link for a first meeting inside the intro email,
+   * instead of sending it separately. Needs Google Calendar.
+   */
+  introBookingLink?: boolean;
   introEmails?: string[] | null;
   meetingCandidateMessage?: string | null;
   meetingPurpose?: string | null;
@@ -1339,9 +1387,9 @@ function customTagKeyFromStageRow(row: RoleStageRow) {
 function buildStageLabel(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "accepted") return "수락";
   if (stage === "archived") return "아카이브";
-  if (stage === "company_intro") return "먼저 제안 가능한 후보";
-  if (stage === "intro_requested") return "Intro Requested";
-  if (stage === "pending_connection") return "연결 대기";
+  if (stage === "company_intro") return "연결 제안할 후보";
+  if (stage === "intro_requested") return "연결 제안한 후보";
+  if (stage === "pending_connection") return "연결 수락할 후보";
   if (stage === "connected") return "연결됨";
   if (stage === "final_offer") return "최종 오퍼";
   if (stage === "process_stopped") return "프로세스 중단";
@@ -2548,7 +2596,9 @@ async function fetchCustomStages(
   const { data, error } = await (
     admin.from("ops_matching_role_stages" as any) as any
   )
-    .select("id, role_id, label, sort_order")
+    .select(
+      "id, role_id, label, sort_order, meeting_purpose, meeting_duration_minutes, meeting_candidate_message"
+    )
     .in("role_id", roleIds)
     .order("sort_order", { ascending: true })
     .limit(ORG_BOARD_STAGE_DEPENDENCY_CAP);
@@ -2576,9 +2626,9 @@ function buildBoardStages(args: {
           },
         ]
       : []),
-    { id: "company_intro", label: "먼저 제안 가능한 후보", sortOrder: -0.5 },
-    { id: "intro_requested", label: "Intro Requested", sortOrder: -0.25 },
-    { id: "pending_connection", label: "연결 대기", sortOrder: 0 },
+    { id: "company_intro", label: "연결 제안할 후보", sortOrder: -0.5 },
+    { id: "intro_requested", label: "연결 제안한 후보", sortOrder: -0.25 },
+    { id: "pending_connection", label: "연결 수락할 후보", sortOrder: 0 },
     { id: "connected", label: "연결됨", sortOrder: 1 },
     ...args.customStages.map((row) => {
       const roleName = args.roleById.get(row.role_id)?.name ?? null;
@@ -2588,6 +2638,13 @@ function buildBoardStages(args: {
           args.selectedRoleId || !roleName
             ? row.label
             : `${roleName} · ${row.label}`,
+        meetingDefaults: row.meeting_purpose
+          ? {
+              candidateMessage: row.meeting_candidate_message ?? null,
+              durationMinutes: row.meeting_duration_minutes ?? null,
+              meetingPurpose: row.meeting_purpose,
+            }
+          : null,
         roleId: row.role_id,
         sortOrder: 100 + (row.sort_order ?? 0),
       };
@@ -3827,7 +3884,7 @@ async function assertNoPendingCompanyIntroCompanyAction(args: {
   if (data) {
     throw new OrgHttpError(
       409,
-      "먼저 제안 가능한 후보나 Intro Requested 후보에게 추가로 연락하려면 연결이 완료되어야 합니다. 제안 전에는 먼저 제안하기 또는 제안하지 않기를 선택하고, 제안을 요청했다면 Intro Requested에서 진행 상태를 확인해 주세요."
+      "연결 제안할 후보나 연결 제안한 후보에게 추가로 연락하려면 연결이 완료되어야 합니다. 제안 전에는 Send Intro 또는 Pass를 선택하고, 제안을 요청했다면 연결 제안한 후보에서 진행 상태를 확인해 주세요."
     );
   }
 }
@@ -4450,6 +4507,10 @@ async function sendOrgIntroEmail(args: {
     userId: string;
   };
   introEmails: string[];
+  /** Written by the team; skips Harper's generated draft. */
+  draft?: OrgIntroEmailDraftInput | null;
+  /** A time-picking link the email carries. */
+  bookingLink?: OrgIntroBookingLink | null;
   recommendation: RecommendationRow;
   role: CompanyRoleRow;
   workspace: CompanyWorkspaceRow;
@@ -4507,7 +4568,7 @@ async function sendOrgIntroEmail(args: {
   const storedBody = normalizeText(existingMessage?.body_text);
   let introLocale: "en" | "ko" = "ko";
   let candidateProfessionalSummary: string | null = null;
-  if (!storedSubject || !storedBody) {
+  if ((!storedSubject || !storedBody) && !args.draft) {
     const [talentSettingResult, experienceResult] = await Promise.all([
       (args.admin.from("talent_setting" as any) as any)
         .select("preferred_locale, setting_locale")
@@ -4545,7 +4606,9 @@ async function sendOrgIntroEmail(args: {
   const generatedDraft =
     storedSubject && storedBody
       ? null
-      : await buildOrgIntroEmailDraft({
+      : args.draft
+        ? { ...args.draft, model: "company_template" }
+        : await buildOrgIntroEmailDraft({
           candidateName:
             normalizeText(args.candidate.name) || candidateEmail.split("@")[0],
           candidateProfessionalSummary,
@@ -4568,9 +4631,18 @@ async function sendOrgIntroEmail(args: {
           roleTitle: args.role.name,
           senderName: "Harper",
         });
-  const subject = storedSubject || generatedDraft?.subject || "";
+  // The link goes in the body only; a link field put in the subject is dropped.
+  const subject = (storedSubject || generatedDraft?.subject || "")
+    .split(ORG_INTRO_TEMPLATE_FIELDS.bookingLink)
+    .join("")
+    .replace(/\s{2,}/g, " ")
+    .trim();
   const body = appendOrgIntroCaptureDisclosure(
-    storedBody || generatedDraft?.body || ""
+    // A stored body already has the link from the first attempt.
+    withOrgIntroBookingLink(
+      storedBody || generatedDraft?.body || "",
+      args.bookingLink ?? null
+    )
   );
   const model = generatedDraft?.model ?? CLAUDE_MODEL;
   const now = new Date().toISOString();
@@ -4665,7 +4737,7 @@ async function sendOrgIntroEmail(args: {
       idempotencyKey: identity.idempotencyKey,
       replyTo,
       subject,
-      text: body,
+      text: orgIntroBookingLinkAsText(body, args.bookingLink ?? null),
       to: candidateEmail,
     });
   } catch (error) {
@@ -4914,6 +4986,9 @@ export async function setOrgCandidateStage(args: {
   contactDirectly?: boolean;
   emailMode?: InternalConnectionConfirmationEmailMode;
   expectedPreviousStage?: OrgStageId;
+  introEmailDraft?: unknown;
+  /** Reserved by the caller; the intro email carries it. */
+  introBookingLink?: OrgIntroBookingLink | null;
   introEmails?: string[] | null;
   recommendationId: string;
   reengagementActionId?: string | null;
@@ -5350,6 +5425,17 @@ export async function setOrgCandidateStage(args: {
           admin,
           candidate,
           companyUser,
+          // A resumed approval keeps the email the team originally wrote.
+          draft: normalizeOrgIntroEmailDraftInput(
+            resumingApproval
+              ? existingApproval.action_payload.input?.introEmailDraft
+              : args.introEmailDraft
+          ),
+          bookingLink: normalizeOrgIntroBookingLink(
+            resumingApproval
+              ? existingApproval.action_payload.input?.introBookingLink
+              : args.introBookingLink
+          ),
           introEmails,
           recommendation,
           role,
@@ -5416,7 +5502,9 @@ export async function setOrgCandidateStage(args: {
     const baseText =
       stage === "process_stopped"
         ? `프로세스 중단으로 옮겼습니다.`
-        : isIntroRequested
+        : isIntroRequested && introDelivery && args.introBookingLink
+          ? `${nextDestinationLabel} 옮기고 면접 예약 링크를 넣은 소개 메일을 보냈습니다.`
+          : isIntroRequested
           ? previousStage === stage
             ? `warm intro를 요청했습니다.`
             : `${nextDestinationLabel} 옮기고 warm intro를 요청했습니다.`
@@ -5442,6 +5530,7 @@ export async function setOrgCandidateStage(args: {
       introEmailMessageId: introDelivery?.messageId ?? null,
       introEmailRecipients: introDelivery?.recipients ?? [],
       introEmailResendId: introDelivery?.resendEmailId ?? null,
+      introBookingLink: Boolean(introDelivery && args.introBookingLink),
       introEmails: isIntroRequested ? introEmails : [],
       introRequested: isIntroRequested,
       org: true,
@@ -5532,6 +5621,7 @@ export async function setOrgCandidateStage(args: {
           stopNote: stage === "process_stopped" ? stopNote : null,
           notifyCandidateOnClosure: stage === "process_stopped" ? args.notifyCandidateOnClosure !== false : null,
           contactDirectly, introEmailDelivered: Boolean(introDelivery),
+          introEmailHasBookingLink: Boolean(introDelivery && args.introBookingLink),
         },
       }));
       companyUpdateJobId = queued.jobId;
@@ -5542,6 +5632,7 @@ export async function setOrgCandidateStage(args: {
     return {
       ok: true as const,
       companyUpdateJobId,
+      introEmailMessageId: introDelivery?.messageId ?? null,
       closureNotificationDelivered:
         processClosureNotification?.status === "sent",
       closureNotificationDeliveredAt:
@@ -5856,11 +5947,9 @@ function getExtraMarkdown(extras: TalentExtraRow[]) {
       const title = normalizeNullableText(record.title ?? record.name);
       const description = normalizeNullableText(record.description);
       const date = normalizeNullableText(record.date);
-      const memo = normalizeNullableText(record.memo);
-      if (!title && !description && !memo) continue;
+      if (!title && !description) continue;
       lines.push(`- ${[title, date].filter(Boolean).join(" · ")}`);
       if (description) lines.push(`  ${description}`);
-      if (memo) lines.push(`  Harper memo: ${memo}`);
     }
   }
   return lines;
@@ -5876,9 +5965,8 @@ function buildProfileExtras(extras: TalentExtraRow[]): OrgProfileExtra[] {
       const title = normalizeNullableText(record.title ?? record.name);
       const description = normalizeNullableText(record.description);
       const date = normalizeNullableText(record.date);
-      const memo = normalizeNullableText(record.memo);
-      if (!title && !description && !memo) return [];
-      return [{ date, description, memo, title }];
+      if (!title && !description) return [];
+      return [{ date, description, memo: null, title }];
     });
   });
 }
@@ -7046,6 +7134,13 @@ export async function fetchOrgTalentDetail(args: {
         }
       : null,
     companyPresentation,
+    stageHistory: progressRows
+      .filter((row) => row.kind === "org_stage_change")
+      .flatMap((row) => {
+        const stage = normalizeText(getJsonRecord(row.metadata).stage);
+        return stage ? [{ at: row.created_at, stage }] : [];
+      })
+      .sort((left, right) => left.at.localeCompare(right.at)),
     criteriaEvaluations:
       criteriaEvaluationsByKey.get(`${talentId}:${recommendation.role_id}`) ??
       companyPresentation?.criteriaEvaluations ??
@@ -7085,7 +7180,7 @@ export async function fetchOrgTalentDetail(args: {
         description: education.description ?? null,
         endDate: education.end_date ?? null,
         field: education.field ?? null,
-        memo: education.memo ?? null,
+        memo: null,
         school: education.school ?? null,
         startDate: education.start_date ?? null,
         url: education.url ?? null,
@@ -7097,7 +7192,7 @@ export async function fetchOrgTalentDetail(args: {
         description: experience.description ?? null,
         employmentType: experience.employment_type ?? null,
         endDate: experience.end_date ?? null,
-        memo: experience.memo ?? null,
+        memo: null,
         role: experience.role ?? null,
         startDate: experience.start_date ?? null,
       })),

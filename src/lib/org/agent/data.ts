@@ -2183,9 +2183,9 @@ export async function readOrgAgentRole(args: {
       text: compactProgressText(row) || null,
     })),
     stageCounts: [
-      { count: bucketCounts.intro, stage: "먼저 제안 가능한 후보" },
-      { count: bucketCounts.requested, stage: "Intro Requested" },
-      { count: bucketCounts.waiting, stage: "연결 대기" },
+      { count: bucketCounts.intro, stage: "연결 제안할 후보" },
+      { count: bucketCounts.requested, stage: "연결 제안한 후보" },
+      { count: bucketCounts.waiting, stage: "연결 수락할 후보" },
       { count: bucketCounts.active, stage: "진행 중" },
       { count: bucketCounts.ended, stage: "프로세스 종료" },
     ],

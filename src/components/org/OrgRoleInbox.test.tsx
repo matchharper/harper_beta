@@ -148,6 +148,38 @@ test("card review loads another batch only when next is requested at the page bo
           },
         };
       if (name === "./OrgCriteriaBars") return { OrgCriteriaBars: empty };
+      // The list view's own table, selection bar and criteria review have
+      // their own tests; here one article stands for each listed candidate.
+      if (name === "@/hooks/org/useOrgWorkspace")
+        return {
+          useOrgWorkspace: () => ({
+            permissions: { canManageCandidates: true },
+          }),
+        };
+      if (name === "./OrgInboxListTable")
+        return {
+          OrgInboxListTable: ({
+            items: listed,
+          }: {
+            items: { recommendationId: string }[];
+          }) => (
+            <>
+              {listed.map((item) => (
+                <article key={item.recommendationId} />
+              ))}
+            </>
+          ),
+        };
+      if (name === "./OrgCandidateSelectionBar")
+        return { OrgCandidateSelectionBar: empty };
+      if (name === "./OrgCriteriaRecheck")
+        return {
+          OrgCriteriaReviewPanel: empty,
+          useOrgCriteriaReviewCounts: () => ({
+            company_intro: 0,
+            pending_connection: 0,
+          }),
+        };
       if (name === "./OrgSearchHistory") return { OrgSearchHistory: empty };
       if (name === "./OrgRoleTalentBoard") return { OrgRoleTalentBoard: empty };
       if (name === "./OrgHomeInbox") return { ReviewEmptyState: empty };

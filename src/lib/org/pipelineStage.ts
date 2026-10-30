@@ -72,11 +72,11 @@ export function humanizeOrgCompanyIntroStatus(intro: {
 const STAGE_LABELS: Record<string, string> = {
   accepted: "내부 수락",
   archived: "아카이브",
-  company_intro: "먼저 제안 가능한 후보",
+  company_intro: "연결 제안할 후보",
   connected: "연결됨",
   final_offer: "최종 오퍼 단계",
-  intro_requested: "Intro Requested",
-  pending_connection: "연결 대기",
+  intro_requested: "연결 제안한 후보",
+  pending_connection: "연결 수락할 후보",
   process_stopped: "프로세스 종료",
 };
 

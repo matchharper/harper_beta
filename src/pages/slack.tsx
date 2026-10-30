@@ -69,7 +69,7 @@ export default function SlackPage({ locale }: Props) {
         ),
       ],
       note: c(
-        "먼저 제안 가능한 후보는 아직 회사에 대한 관심이 확인된 상태가 아니에요. 연결 대기 후보는 후보자가 Role을 수락하고 회사 결정을 기다리는 상태예요. 실제 화면의 상태를 확인해 주세요.",
+        "연결 제안할 후보는 아직 회사에 대한 관심이 확인된 상태가 아니에요. 연결 수락할 후보는 후보자가 Role을 수락하고 회사 결정을 기다리는 상태예요. 실제 화면의 상태를 확인해 주세요.",
         "Suggested candidates have not necessarily expressed interest in your company. Ready to connect means the candidate has accepted the Role and is waiting for the company’s decision. Check the status shown on each candidate."
       ),
     },

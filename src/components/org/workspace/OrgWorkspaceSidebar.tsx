@@ -3,6 +3,7 @@ import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
   ArrowLeft,
   Blocks,
+  FileText,
   BookOpenText,
   BriefcaseBusiness,
   Building2,
@@ -707,7 +708,8 @@ export function OrgWorkspaceSidebar({
     activePage === "member" ||
     activePage === "settings" ||
     activePage === "slots" ||
-    activePage === "billing";
+    activePage === "billing" ||
+    activePage === "templates";
   const documentsMode = activePage === "documents";
   const activeDocumentSection =
     typeof router.query.section === "string" &&
@@ -717,7 +719,9 @@ export function OrgWorkspaceSidebar({
   const animateOrganizationSidebarEntry =
     shouldAnimateOrganizationSidebarEntry(previousPathname);
   const organizationSection =
-    activePage === "slots" || activePage === "billing"
+    activePage === "slots" ||
+    activePage === "billing" ||
+    activePage === "templates"
       ? activePage
       : activePage === "settings"
         ? "integration"
@@ -742,6 +746,12 @@ export function OrgWorkspaceSidebar({
       href: navHref("settings"),
       icon: Blocks,
       label: ORG_PRODUCT_LABELS.integrations,
+    },
+    {
+      active: organizationSection === "templates",
+      href: navHref("templates"),
+      icon: FileText,
+      label: "Templates",
     },
     ...(permissions.canManageWorkspace
       ? [

@@ -68,7 +68,7 @@ export function orgHomeActivityTitle(
   > = {
     intro_sent: [`${name}님에게 Intro를 보냈어요`, `Intro sent to ${name}`],
     pending_connection: [
-      `새로운 연결 대기 후보 · ${name}`,
+      `연결 수락할 후보 도착 · ${name}`,
       `New candidate to review · ${name}`,
     ],
     intro_accepted: [

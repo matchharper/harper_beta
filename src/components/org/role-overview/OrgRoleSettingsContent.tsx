@@ -964,11 +964,11 @@ export function OrgRoleSettingsContent({
           <div className="flex items-start justify-between gap-6 py-5">
             <RoleSectionHeading
               description={c(
-                "Harper가 정기적으로 연락해보실만한 후보자를 찾아 알려드려요. 연락하고 싶은 후보자가 있다면 ‘Intro 요청’을 눌러 주세요.",
-                "Harper searches for candidates your team can reach out to on your schedule. Choose Send intro when you'd like Harper to reach out. Turning this off doesn't stop Harper from recommending eligible roles to candidates and introducing those who want to talk."
+                "Harper가 정기적으로 연락해보실만한 후보자를 찾아 알려드려요. 연락하고 싶은 후보자가 있다면 ‘Send Intro’를 눌러 주세요.",
+                "Harper searches for candidates your team can reach out to on your schedule. Choose Send Intro when you'd like Harper to reach out. Turning this off doesn't stop Harper from recommending eligible roles to candidates and introducing those who want to talk."
               )}
               info={c(
-                "켜짐: Harper가 정기적으로 연락해보실만한 후보자를 찾아 알려드려요. ‘Intro 요청’을 누르면 Harper가 후보자에게 연락해요. 꺼짐: Harper는 후보자에게 역할을 먼저 추천할 수 있고, 회사에는 수락한 후보자만 보여드려요.",
+                "켜짐: Harper가 정기적으로 연락해보실만한 후보자를 찾아 알려드려요. ‘Send Intro’를 누르면 Harper가 후보자에게 연락해요. 꺼짐: Harper는 후보자에게 역할을 먼저 추천할 수 있고, 회사에는 수락한 후보자만 보여드려요.",
                 "When this is on, Harper searches for candidates your team can approach. Turning it off stops scheduled searches, but eligible roles can still receive introductions from candidates who have expressed interest."
               )}
               title={c("추천 후보 검색", "Scheduled candidate search")}

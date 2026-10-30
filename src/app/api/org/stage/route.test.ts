@@ -7,7 +7,9 @@ import type { NextRequest } from "next/server";
 const calls: string[] = [];
 let setupFails = false,
   previewFails = false,
-  queueFails = false;
+  queueFails = false,
+  reserveFails = false;
+let delivered: Record<string, unknown> | null = null;
 let scheduleStatus = "preparing";
 let companyUpdateJobId: string | null = null;
 let queued: any, stageArgs: any;
@@ -24,6 +26,7 @@ before(async () => {
   const mod = Module as any,
     original = mod._load;
   const mocks: Record<string, unknown> = {
+    "server-only": {},
     "@/lib/org/billing/http": { billingErrorResponse: () => null },
     "@/lib/server/candidateAccess": {
       requireAuthenticatedUser: async () => ({ id: "member" }),
@@ -36,6 +39,7 @@ before(async () => {
         return {
           ok: true,
           companyUpdateJobId,
+          introEmailMessageId: args.introBookingLink ? "intro-message" : null,
           stage: "connected",
           roleId: "role",
           talentId: "talent",
@@ -84,6 +88,25 @@ before(async () => {
         queued = args;
         if (queueFails) throw new Error("Delivery unavailable");
       },
+      reserveMeetingInvitationForIntro: async () => {
+        calls.push("reserve");
+        if (reserveFails) throw new HttpError(409, "Calendar required");
+        return {
+          invitationUrl: "https://example.invalid/meeting/token",
+          linkLabel: "Select your interview availability",
+          locale: "en",
+          queueId: "queue",
+          roundId: "round",
+          scheduleId: "meeting",
+          workspaceId: "workspace",
+        };
+      },
+      markMeetingInvitationSentInIntro: async (
+        args: Record<string, unknown>
+      ) => {
+        calls.push("delivered");
+        delivered = args;
+      },
     },
   };
   mod._load = function (request: string, parent: unknown, isMain: boolean) {
@@ -117,9 +140,9 @@ async function submit(overrides: Record<string, unknown> = {}) {
 }
 function reset() {
   calls.length = 0;
-  setupFails = previewFails = queueFails = false;
+  setupFails = previewFails = queueFails = reserveFails = false;
   scheduleStatus = "preparing";
-  queued = stageArgs = null;
+  queued = stageArgs = delivered = null;
 }
 test("interview prepares before accepting, then sends once without a second confirmation", async () => {
   reset();
@@ -166,6 +189,47 @@ test("delivery failure reports the completed connection without claiming email s
   assert.equal(response.status, 502);
   assert.match((await response.json()).error, /연결은 완료/);
   assert.ok(!calls.includes("notify"));
+});
+test("the intro email carries the booking link: one email, then the link counts as sent", async () => {
+  reset();
+  const response = await submit({
+    introBookingLink: true,
+    introEmails: ["team@example.invalid"],
+    scheduleInterview: false,
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls, ["setup", "draft", "reserve", "accept", "delivered", "notify"]);
+  assert.equal(stageArgs.scheduleInterview, false);
+  assert.deepEqual(stageArgs.introBookingLink, {
+    label: "Select your interview availability",
+    url: "https://example.invalid/meeting/token",
+  });
+  assert.deepEqual(delivered, {
+    introMessageId: "intro-message",
+    queueId: "queue",
+    roundId: "round",
+  });
+  // No separate scheduling email.
+  assert.ok(!calls.includes("send"));
+});
+test("a booking link that cannot be prepared moves and emails no one", async () => {
+  reset();
+  reserveFails = true;
+  const response = await submit({
+    introBookingLink: true,
+    scheduleInterview: false,
+  });
+  assert.equal(response.status, 409);
+  assert.ok(!calls.includes("accept"));
+  assert.ok(!calls.includes("delivered"));
+});
+test("a booking link and a separate interview email are not both requested", async () => {
+  reset();
+  assert.equal(
+    (await submit({ introBookingLink: true, scheduleInterview: true })).status,
+    400
+  );
+  assert.deepEqual(calls, []);
 });
 test("rejects incompatible stage or contact choices before side effects", async () => {
   for (const overrides of [

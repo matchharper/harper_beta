@@ -1,4 +1,5 @@
 import { billingErrorCopy, isBillingErrorCode } from "@/lib/org/billing/types";
+import { ORG_INTRO_UNKNOWN_FIELD_ERROR } from "@/lib/org/messageTemplates";
 import type { OrgLocale } from "./locale";
 
 const ENGLISH_SLACK_ERRORS = new Map([
@@ -10,8 +11,13 @@ const ENGLISH_SLACK_ERRORS = new Map([
   ["Slack 채널이나 메일 중 하나는 켜 두어야 해요.", "Keep at least one Slack channel or email on."],
 ]);
 
+const ENGLISH_CONNECTION_ERRORS = new Map([
+  ["이 후보자의 연결을 이미 처리하고 있어요. 잠시 뒤 새로고침해 확인해 주세요.", "This connection is already being processed. Refresh in a moment to check."],
+  [ORG_INTRO_UNKNOWN_FIELD_ERROR, "Some values won't be filled in. Use only {후보자 이름}, {회사 이름}, {역할}, {내 이름} and {면접 예약 링크}."],
+]);
+
 const ENGLISH_MEETING_ERRORS = new Map([
-  ["연결 대기 후보자를 선택해 인터뷰를 요청해 주세요.", "Select a candidate awaiting connection to request an interview."],
+  ["연결 수락할 후보를 선택해 인터뷰를 요청해 주세요.", "Select a candidate awaiting connection to request an interview."],
   ["이미 인터뷰 요청이 시작되었어요. 후보자의 현재 진행 상황을 확인해 주세요.", "An interview has already been requested. Check the candidate's current progress."],
   ["후보자 연결은 완료했지만 인터뷰 요청 메일의 발송 상태를 확인하지 못했어요. Harper 채팅에서 이 후보자의 인터뷰 요청 상태를 확인해 주세요.", "The candidate is connected, but we couldn't confirm the interview email status. Ask Harper in chat to check this candidate's interview request before trying again."],
   ["일정 담당자의 Google Calendar를 연결해 주세요. 후보자에게는 아직 연락하지 않았어요.", "Connect the organizer's Google Calendar first. The candidate hasn't been contacted."],
@@ -32,6 +38,6 @@ export function localizedOrgErrorMessage(
     : "Your account is under review. Workspace access is paused until the review is complete.";
   if (!message) return fallback;
   if (locale === "ko") return message;
-  return ENGLISH_MEETING_ERRORS.get(message) ?? ENGLISH_SLACK_ERRORS.get(message) ??
+  return ENGLISH_MEETING_ERRORS.get(message) ?? ENGLISH_CONNECTION_ERRORS.get(message) ?? ENGLISH_SLACK_ERRORS.get(message) ??
     (/[가-힣]/.test(message) ? fallback : message);
 }
