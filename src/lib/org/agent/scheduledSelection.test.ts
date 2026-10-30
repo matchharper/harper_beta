@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scheduledCandidateText, scheduledRecommendationOptions, type ScheduledSelectionInput } from './scheduledSelection';
+import { currentScheduledSelection, scheduledCandidateText, scheduledRecommendationOptions, type ScheduledSelectionInput } from './scheduledSelection';
 import { resolveCompanyCapabilities } from './capabilities/resolver';
 import { runScheduledMatchingLoop } from './scheduledMatching';
 import { ORG_AGENT_SOL_MODEL } from './modelConfig';
@@ -48,6 +48,43 @@ test('unknown aliases, conflicting routes, duplicates and exceeded capacity do n
 test('ordinary company turns cannot load the scheduled action capability',()=>{
   const ordinary=resolveCompanyCapabilities({surface:'slack',mode:'full',loaded:new Set()});
   assert.equal(ordinary.offeredToolNames.has('recommend_talents'),false);
+});
+test('a changed Brief drops old candidates while the real loop can prepare current evidence',async()=>{
+  const old=input();
+  assert.equal(currentScheduledSelection(old,'role','brief'),old);
+  assert.throws(()=>currentScheduledSelection(old,'other-role','brief'),/scope mismatch/);
+  const current=currentScheduledSelection(old,'role','updated-brief');
+  assert.equal(current,undefined);
+  let calls=0, searches=0;
+  const result=await runScheduledMatchingLoop({actorId:'actor',actorLabel:'Harper',currentUserMessageId:4,
+    admin:new Proxy({}, {get(){throw Error('DB access forbidden');}}),
+    conversation:{id:'conversation',role_id:'role',company_workspace_id:'workspace'},
+    context:{workspace:{workspaceId:'workspace'},roles:[],companyText:'Fixture',rolesText:'Updated Brief',
+      conversationText:'Keep recommending with the amended requirements.',conversationMessages:[],summariesText:'-',
+      recentContactsText:'-',recentRecommendationsText:'-',contextNotesText:'-',completeRoleRequestIds:[],
+      defaultLongTextObservations:[],inProgressRoleCreationsText:'-',pendingUpdateText:'-',recentToolContextText:'-'},
+    mentions:[],model:ORG_AGENT_SOL_MODEL,readAudience:'company_safe',scopeKey:'test',source:'slack',
+    slackThreadId:null,user:{id:'actor'},
+  } as any,{roleId:'role',scheduledSlot:'2026-10-29T05:00:00Z',rootJobId:'root',inventory:{},currentRoutes:[],
+    currentBriefVersion:'updated-brief',selectionInput:current,
+    selectionUnavailableReason:'Prepared candidates belong to an earlier Hiring Brief.',
+    completedRuns:[{runId:'old-run',briefVersion:'brief',status:'succeeded'}]}, {
+    complete:async(args)=>{
+      calls++;
+      assert.equal(args.tools?.some(tool=>tool.function.name==='recommend_talents'),false);
+      assert.ok(args.tools?.some(tool=>tool.function.name==='request_matching_search'));
+      const providerText=args.messages.map(m=>typeof m.content==='string'?m.content:'').join('\n');
+      assert.match(providerText,/updated-brief/);
+      assert.match(providerText,/earlier Hiring Brief/);
+      assert.match(providerText,/original recruiting assignment/);
+      assert.doesNotMatch(providerText,/T1 \| T1|uuid-T1/);
+      return {model:ORG_AGENT_SOL_MODEL,response:{choices:[{finish_reason:'tool_calls',message:{role:'assistant',content:null,
+        tool_calls:[{id:'prepare-current',type:'function',function:{name:'request_matching_search',
+          arguments:JSON.stringify({roleId:'role',scope:'all',startStage:1})}}]}}]}};
+    },
+    executeTool:async(args)=>{assert.equal(args.name,'request_matching_search'); searches++; return {status:'queued',runId:'current-run'};},
+  });
+  assert.equal(calls,1);assert.equal(searches,1);assert.equal(result.reply,'');
 });
 test('actual company loop submits a final selection in one completion with zero detail reads',async()=>{
   let calls=0, reads=0, actions=0;

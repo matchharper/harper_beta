@@ -27,6 +27,30 @@ test("promotion entry retains a signed offer through login without granting work
   assert.equal((await GET(new NextRequest(`https://harper.invalid/api/billing/promotion?token=${token}x`))).status, 410);
 });
 
+test("dated invitations retain their own signed deadline without extending legacy invitations", async (t) => {
+  const end = Date.parse("2026-11-15T00:00:00+09:00");
+  t.mock.method(Date, "now", () => end - 1);
+  const before = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "synthetic-test-key";
+  t.after(() => { if (before === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY; else process.env.SUPABASE_SERVICE_ROLE_KEY = before; });
+  const token = buildPromotionToken("orangeplanet", "2026-11-14");
+  assert.deepEqual(readPromotion(token), { id: "early_teams_202610", endsOn: "2026-11-14" });
+  assert.throws(() => readPromotion(token, end));
+  assert.throws(() => readPromotion(buildPromotionToken("fixture")));
+  assert.throws(() => readPromotion(token.replace("2026-11-14", "2026-11-15")));
+  assert.throws(() => readPromotion(token.replace("orangeplanet", "another-invitation")));
+  assert.throws(() => readPromotion(token.split(".").filter((_, i) => i !== 2).join(".")));
+  const response = await GET(new NextRequest(`https://harper.invalid/api/billing/promotion?token=${token}`));
+  assert.equal(response.status, 307);
+  const cookie = response.cookies.get(PROMOTION_COOKIE)!;
+  assert.equal(cookie.value, token);
+  assert.ok(cookie.expires instanceof Date);
+  assert.equal(cookie.expires.getTime(), end);
+  assert.equal((await GET(new NextRequest(`https://harper.invalid/api/billing/promotion?token=${token.replace("2026-11-14", "2026-11-15")}`))).status, 410);
+  t.mock.method(Date, "now", () => end);
+  assert.equal((await GET(new NextRequest(`https://harper.invalid/api/billing/promotion?token=${token}`))).status, 410);
+});
+
 test("authenticated checkout forwards the cookie and displayed unit price to the payment executor", async (t) => {
   const mod = Module as unknown as { _load: (id: string, parent: unknown, main: boolean) => unknown };
   const original = mod._load;
