@@ -48,7 +48,7 @@ function tagQuery(admin: Admin) {
 }
 
 /**
- * 연결 수락할 후보 for the given Roles: candidates whose latest internal stage
+ * 연결 수락한 후보 for the given Roles: candidates whose latest internal stage
  * on the Role is 내부:연결대기, saved ones included (still undecided), deleted
  * candidates left out. The web To-do and the Slack Mon/Wed/Fri table both
  * count with this, so the two numbers are the same for the same Roles.
