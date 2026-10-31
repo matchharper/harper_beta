@@ -104,7 +104,7 @@ export const ORG_TODO_RECENT_DAYS = 7;
 export const ORG_TODO_SUGGESTIONS_SHOWN = 3;
 
 /**
- * The chip number: things to do, not people. "연결 수락할 후보 5명" is one
+ * The chip number: things to do, not people. "연결 수락한 후보 5명" is one
  * thing to do, so a long list of suggested candidates does not drown the rest.
  */
 export function orgTodoMyTurn(items: OrgTodoItem[]) {

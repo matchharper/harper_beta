@@ -55,7 +55,7 @@ test("Company onboarding FAQ adapts to the workspace's current Role state", () =
   assert.match(gettingStarted?.answer ?? "", /Slack에서 Harper에게/);
   assert.match(gettingStarted?.answer ?? "", /작성 중인 역할/);
   assert.match(gettingStarted?.answer ?? "", /채용 중인 역할/);
-  assert.match(gettingStarted?.answer ?? "", /Inbox에 연결 수락할 후보/);
+  assert.match(gettingStarted?.answer ?? "", /Inbox에 연결 수락한 후보/);
   assert.match(gettingStarted?.answer ?? "", /중단하거나 삭제/);
 });
 

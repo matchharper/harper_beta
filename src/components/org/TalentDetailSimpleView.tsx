@@ -255,11 +255,11 @@ function CandidateDecisionActions({
     if (!onMoveToPendingConnection) return null;
     return (
       <section
-        aria-label={c("연결 수락할 후보로 이동", "Move to Ready to connect")}
+        aria-label={c("연결 수락한 후보로 이동", "Move to Ready to connect")}
         className={cn("rounded-md bg-bg-weak px-4 py-4", className)}
       >
         <div className="text-[16px] font-medium text-neutral-primary">
-          {c("연결 수락할 후보로 옮기시겠습니까?", "Move to Ready to connect?")}
+          {c("연결 수락한 후보로 옮기시겠습니까?", "Move to Ready to connect?")}
         </div>
         <p className="mt-1 text-sm font-normal leading-5 text-neutral-muted">
           {c(
@@ -275,7 +275,7 @@ function CandidateDecisionActions({
           type="button"
           variant="primary"
         >
-          {c("연결 수락할 후보로 이동", "Move to Ready to connect")}
+          {c("연결 수락한 후보로 이동", "Move to Ready to connect")}
         </MuteButton>
       </section>
     );

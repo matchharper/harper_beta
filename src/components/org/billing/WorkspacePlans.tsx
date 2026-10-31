@@ -54,7 +54,7 @@ export function WorkspacePlans({
         c("활성 Role 1개", "1 active role"),
         c("월 3개의 Intro", "3 Intros every month"),
         c(
-          "후보자 추천과 연결 수락할 후보",
+          "후보자 추천과 연결 수락한 후보",
           "Candidate recommendations and Ready to connect"
         ),
         c("Slack 연결 지원", "Slack integration included"),

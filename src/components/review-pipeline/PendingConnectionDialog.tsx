@@ -53,7 +53,7 @@ function PendingConnectionDialogContent({
           ? submitError.message
           : t(
               "pendingConnection.failed",
-              "연결 수락할 후보로 옮기지 못했습니다."
+              "연결 수락한 후보로 옮기지 못했습니다."
             )
       );
     }
@@ -64,12 +64,12 @@ function PendingConnectionDialogContent({
       open={true}
       onClose={() => handleClose()}
       mobileBottomSheet
-      title={<>{t("pendingConnection.title", "연결 수락할 후보로 이동")}</>}
+      title={<>{t("pendingConnection.title", "연결 수락한 후보로 이동")}</>}
       description={
         <>
           {t(
             "pendingConnection.confirm",
-            "{candidateName} 후보자를 연결 수락할 후보로 옮기시겠습니까?",
+            "{candidateName} 후보자를 연결 수락한 후보로 옮기시겠습니까?",
             { candidateName }
           )}
         </>
