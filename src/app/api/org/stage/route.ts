@@ -124,7 +124,7 @@ async function handleStagePost(req: NextRequest) {
     ) {
       throw new OrgHttpError(
         400,
-        "연결 수락할 후보를 선택해 인터뷰를 요청해 주세요."
+        "연결 수락한 후보를 선택해 인터뷰를 요청해 주세요."
       );
     }
     const stageInput = {

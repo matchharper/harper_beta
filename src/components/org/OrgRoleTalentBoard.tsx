@@ -153,7 +153,7 @@ function OrgRoleRecommendationStatus({
       ? c(TALENT_FIRST_CAPACITY_NOTICE.ko, TALENT_FIRST_CAPACITY_NOTICE.en)
       : active
         ? c(
-            "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 수락할 후보’에 추천해 드려요.",
+            "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 수락한 후보’에 추천해 드려요.",
             "Harper introduces your company and role to suitable candidates without waiting for a search or Intro request.\n\nWhen someone agrees to talk, Harper prepares their introduction for your team to review in Ready to connect."
           )
         : status === "paused"

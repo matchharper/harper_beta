@@ -276,7 +276,7 @@ export function OrgCandidateCard({
           </div>
           <div className="flex flex-wrap mt-1 gap-1.5 text-[13px] font-normal text-neutral-600">
             {/* {item.stage === "pending_connection"
-                  ? c("연결 수락할 후보 등록", "Ready to connect since")
+                  ? c("연결 수락한 후보 등록", "Ready to connect since")
                   : item.source === "company_intro"
                     ? c("회사에 제안", "Offer to company")
                     : c("추천", "Recommend")}{" "} */}

@@ -247,7 +247,7 @@ function PreviewHome() {
         />
         <div className="grid grid-cols-[minmax(0,1fr)_72px] gap-3 pb-2 text-[14px] font-light text-neutral-soft sm:grid-cols-[minmax(0,1fr)_88px]">
           <span>Role</span>
-          <span className="hidden text-right sm:block">연결 수락할 후보</span>
+          <span className="hidden text-right sm:block">연결 수락한 후보</span>
         </div>
         <div className="divide-y divide-neutral-1000-a05">
           {roleRows.map((role) => (

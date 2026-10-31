@@ -4938,7 +4938,7 @@ async function readCandidateDecisionTarget(args: {
   if (matchingPositions.length === 0) {
     throw new OrgAgentToolInputError(
       args.decision === "accept"
-        ? "후보자가 현재 이 역할의 연결 수락할 후보 또는 프로세스 종료 상태가 아니라 연결을 시작할 수 없어요."
+        ? "후보자가 현재 이 역할의 연결 수락한 후보 또는 프로세스 종료 상태가 아니라 연결을 시작할 수 없어요."
         : "후보자가 현재 이 역할에서 종료할 수 있는 회사 측 진행 상태가 아니에요."
     );
   }

@@ -320,7 +320,7 @@ export function OrgRoleInbox() {
                   value: "pending_connection",
                   label: (
                     <span className="inline-flex items-center gap-1.5 text-sm">
-                      {c("연결 수락할 후보", "Ready to connect")}
+                      {c("연결 수락한 후보", "Ready to connect")}
                       {stageCounts.pending_connection > 0 && (
                         <Badge
                           className="min-w-6"

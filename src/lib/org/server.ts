@@ -1389,7 +1389,7 @@ function buildStageLabel(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "archived") return "아카이브";
   if (stage === "company_intro") return "연결 제안할 후보";
   if (stage === "intro_requested") return "연결 제안한 후보";
-  if (stage === "pending_connection") return "연결 수락할 후보";
+  if (stage === "pending_connection") return "연결 수락한 후보";
   if (stage === "connected") return "연결됨";
   if (stage === "final_offer") return "최종 오퍼";
   if (stage === "process_stopped") return "프로세스 중단";
@@ -2628,7 +2628,7 @@ function buildBoardStages(args: {
       : []),
     { id: "company_intro", label: "연결 제안할 후보", sortOrder: -0.5 },
     { id: "intro_requested", label: "연결 제안한 후보", sortOrder: -0.25 },
-    { id: "pending_connection", label: "연결 수락할 후보", sortOrder: 0 },
+    { id: "pending_connection", label: "연결 수락한 후보", sortOrder: 0 },
     { id: "connected", label: "연결됨", sortOrder: 1 },
     ...args.customStages.map((row) => {
       const roleName = args.roleById.get(row.role_id)?.name ?? null;

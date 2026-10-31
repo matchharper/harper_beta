@@ -960,7 +960,7 @@ test("selected Slack history returns a rolling summary and newer messages", () =
 
 test("candidate connection decisions return a compact outcome", () => {
   const compact = serializeOrgAgentToolResult("decide_candidate_connection", {
-    changeSummary: "연결 수락할 후보에게 소개 메일을 보내 연결을 시작했습니다.",
+    changeSummary: "연결 수락한 후보에게 소개 메일을 보내 연결을 시작했습니다.",
     connectionMethod: "intro_email",
     decision: "accept",
     roleId: "role-1",
@@ -1179,7 +1179,7 @@ test("scheduled stage movement gives the writer user-safe coordination facts", (
       summary: "평일 10:00-17:00",
       timezone: "Asia/Seoul",
     },
-    previousStageLabel: "연결 수락할 후보",
+    previousStageLabel: "연결 수락한 후보",
     roleName: "Product",
     scheduleId: "schedule-private-id",
     schedulingSettingsUrl:
@@ -1249,14 +1249,14 @@ test("blocked scheduled movement identifies company organizer availability witho
         candidateMessage: "궁금한 점도 편하게 질문해 주세요.",
       },
     },
-    previousStageLabel: "연결 수락할 후보",
+    previousStageLabel: "연결 수락한 후보",
     roleName: "Product Engineer",
     stageLabel: "1차 기술 인터뷰",
     status: "meeting_setup_required",
   });
 
   assert.match(compact, /outcome=not_completed/);
-  assert.match(compact, /current_stage=연결 수락할 후보/);
+  assert.match(compact, /current_stage=연결 수락한 후보/);
   assert.match(compact, /candidate_moved=false/);
   assert.match(compact, /meeting_request_created=false/);
   assert.match(compact, /candidate_contacted=false/);
@@ -1284,7 +1284,7 @@ test("blocked scheduled movement explains the Calendar prerequisite and setup li
       },
       draftBlocker: "calendar_connection_missing",
     },
-    previousStageLabel: "연결 수락할 후보",
+    previousStageLabel: "연결 수락한 후보",
     roleName: "Product Engineer",
     stageLabel: "1차 기술 인터뷰",
     status: "meeting_setup_required",
