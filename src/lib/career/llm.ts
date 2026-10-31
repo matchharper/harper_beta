@@ -247,16 +247,24 @@ type AnthropicAssistantContentBlock =
   | AnthropicRedactedThinkingBlock;
 type AnthropicUserContentBlock = AnthropicTextBlock | AnthropicToolResultBlock;
 
+type AnthropicToolChangeBlock = {
+  tool: { name: string; type: "tool_reference" };
+  type: "tool_addition" | "tool_removal";
+};
+type AnthropicSystemContentBlock = AnthropicTextBlock | AnthropicToolChangeBlock;
+
 type AnthropicMessage = {
   content:
     | string
     | AnthropicAssistantContentBlock[]
-    | AnthropicUserContentBlock[];
-  role: "assistant" | "user";
+    | AnthropicUserContentBlock[]
+    | AnthropicSystemContentBlock[];
+  role: "assistant" | "user" | "system";
 };
 
 type AnthropicTool = {
   cache_control?: AnthropicCacheControl;
+  defer_loading?: boolean;
   description: string;
   input_schema: Record<string, unknown>;
   name: string;
@@ -400,6 +408,258 @@ function buildAnthropicTools(tools: TalentChatTool[]) {
 
 function getTalentChatToolName(tool: TalentChatTool) {
   return tool.function.name;
+}
+
+const MID_CONVERSATION_TOOL_CHANGES_BETA = "mid-conversation-tool-changes-2026-07-01";
+
+function supportsMidConversationToolChanges(model: string) {
+  const normalized = model.trim().toLowerCase();
+  return ["claude-sonnet-5-5", "claude-opus-5-5"].some(
+    (id) => normalized === id || normalized.startsWith(`${id}-`)
+  );
+}
+
+type AnthropicToolChanges = {
+  callableToolNames: readonly string[];
+  deferredToolNames: ReadonlySet<string>;
+};
+
+type AnthropicStepRequest = {
+  /** What a provider without the fixed prefix should see: the current sections, no update notes. */
+  latestSystemBlocks: CareerChatSystemBlock[];
+  systemBlocks: CareerChatSystemBlock[];
+  toolChanges?: AnthropicToolChanges;
+  tools: TalentChatTool[];
+};
+
+const SYSTEM_UPDATE_HEADER = "System update for the rest of this response.";
+
+function namedSystemSections(blocks: CareerChatSystemBlock[]) {
+  return blocks
+    .filter((block) => block.text.trim().length > 0)
+    .map((block, index) => ({ ...block, key: block.key ?? `section_${index}` }));
+}
+
+function systemSectionMap(blocks: CareerChatSystemBlock[]) {
+  return new Map(namedSystemSections(blocks).map((block) => [block.key, block.text]));
+}
+
+function sameToolDefinition(a: TalentChatTool, b: TalentChatTool) {
+  return JSON.stringify(a.function) === JSON.stringify(b.function);
+}
+
+/**
+ * Keeps one answer's request prefix (tools, system, earlier messages) identical
+ * across its tool steps, so each step reads the previous one from the prompt
+ * cache. On models that accept mid-conversation changes, the first step's tools
+ * and system stay fixed and later changes are appended as a system message.
+ */
+class AnthropicTurnPrefix {
+  readonly enabled: boolean;
+  private systemBlocks: CareerChatSystemBlock[] | null = null;
+  private latestSystemBlocks: CareerChatSystemBlock[] = [];
+  private sections = new Map<string, string>();
+  private tools: TalentChatTool[] = [];
+  private deferred = new Set<string>();
+  private callable = new Set<string>();
+
+  constructor(model: string) {
+    this.enabled = supportsMidConversationToolChanges(model);
+  }
+
+  /** Omitting `tools` keeps the currently callable tools. */
+  next(
+    messages: AnthropicMessage[],
+    desired: {
+      allTools?: readonly TalentChatTool[];
+      systemBlocks: CareerChatSystemBlock[];
+      tools?: readonly TalentChatTool[];
+    }
+  ): AnthropicStepRequest {
+    if (!this.enabled) {
+      return {
+        latestSystemBlocks: desired.systemBlocks,
+        systemBlocks: desired.systemBlocks,
+        tools: [...(desired.tools ?? [])],
+      };
+    }
+    this.latestSystemBlocks = desired.systemBlocks;
+    const callable = desired.tools
+      ? desired.tools.map(getTalentChatToolName)
+      : [...this.callable];
+
+    const redefined = [...(desired.allTools ?? []), ...(desired.tools ?? [])].some((tool) => {
+      const known = this.tools.find((item) => getTalentChatToolName(item) === getTalentChatToolName(tool));
+      return known && !sameToolDefinition(known, tool);
+    });
+    if (redefined) {
+      // Rare: a tool changed shape mid-answer (application mode started, Gmail revoked).
+      // Start the prefix over from the current state; the earlier updates no longer apply.
+      for (let index = messages.length - 1; index >= 0; index -= 1) {
+        if (messages[index].role === "system") messages.splice(index, 1);
+      }
+      this.systemBlocks = null;
+      this.tools = [];
+    }
+
+    if (!this.systemBlocks) {
+      // Named sections let a later update say exactly which section it replaces.
+      this.systemBlocks = namedSystemSections(desired.systemBlocks).map((block) => ({
+        ...block,
+        text: `<section name="${block.key}">\n${block.text}\n</section>`,
+      }));
+      this.sections = systemSectionMap(desired.systemBlocks);
+      for (const tool of [...(desired.allTools ?? []), ...(desired.tools ?? [])]) {
+        if (!this.tools.some((known) => getTalentChatToolName(known) === getTalentChatToolName(tool))) {
+          this.tools.push(tool);
+        }
+      }
+      this.callable = new Set(callable);
+      this.deferred = new Set(
+        this.tools.map(getTalentChatToolName).filter((name) => !this.callable.has(name))
+      );
+      return this.request();
+    }
+
+    const changes: AnthropicSystemContentBlock[] = [];
+    for (const tool of desired.tools ?? []) {
+      const name = getTalentChatToolName(tool);
+      if (!this.tools.some((known) => getTalentChatToolName(known) === name)) {
+        // Rare: eligibility grew mid-answer. Appending breaks only the cache after the tool mark.
+        this.tools.push(tool);
+        this.deferred.add(name);
+      }
+      if (!this.callable.has(name)) {
+        changes.push({ type: "tool_addition", tool: { type: "tool_reference", name } });
+      }
+    }
+    for (const name of this.callable) {
+      if (!callable.includes(name)) {
+        changes.push({ type: "tool_removal", tool: { type: "tool_reference", name } });
+      }
+    }
+    this.callable = new Set(callable);
+
+    const next = systemSectionMap(desired.systemBlocks);
+    const changed = [...next].filter(([key, text]) => this.sections.get(key) !== text);
+    const removed = [...this.sections.keys()].filter((key) => !next.has(key));
+    this.sections = next;
+    if (changed.length > 0 || removed.length > 0) {
+      changes.push({
+        type: "text",
+        text: [
+          `${SYSTEM_UPDATE_HEADER} Each section below replaces the earlier system section of the same name; earlier sections not named here still apply.`,
+          ...changed.map(([key, text]) => `<section name="${key}">\n${text}\n</section>`),
+          ...(removed.length > 0
+            ? [`These earlier system sections no longer apply: ${removed.join(", ")}.`]
+            : []),
+        ].join("\n\n"),
+      });
+    }
+    if (changes.length > 0) messages.push({ role: "system", content: changes });
+    return this.request();
+  }
+
+  private request(): AnthropicStepRequest {
+    return {
+      latestSystemBlocks: this.latestSystemBlocks,
+      systemBlocks: this.systemBlocks!,
+      tools: this.tools,
+      toolChanges: {
+        callableToolNames: [...this.callable],
+        deferredToolNames: new Set(this.deferred),
+      },
+    };
+  }
+}
+
+function buildAnthropicDeferredTools(
+  tools: TalentChatTool[],
+  deferredToolNames: ReadonlySet<string>
+) {
+  // Deferred tools cannot carry a cache mark; the system marks cover them.
+  const lastCallableIndex = tools.findLastIndex(
+    (tool) => !deferredToolNames.has(getTalentChatToolName(tool))
+  );
+  return tools.map((tool, index) => ({
+    name: tool.function.name,
+    description: tool.function.description,
+    input_schema: tool.function.parameters,
+    ...(deferredToolNames.has(tool.function.name) ? { defer_loading: true } : {}),
+    ...(index === lastCallableIndex
+      ? { cache_control: { type: "ephemeral" as const } }
+      : {}),
+  })) as AnthropicTool[];
+}
+
+function withLastMessageCacheMark(messages: AnthropicMessage[]) {
+  const last = messages.at(-1);
+  if (!last || last.role === "assistant") return messages;
+  const blocks =
+    typeof last.content === "string"
+      ? [{ type: "text" as const, text: last.content }]
+      : last.content;
+  if (blocks.length === 0) return messages;
+  return [
+    ...messages.slice(0, -1),
+    {
+      ...last,
+      content: [
+        ...blocks.slice(0, -1),
+        { ...blocks.at(-1)!, cache_control: { type: "ephemeral" as const } },
+      ],
+    } as AnthropicMessage,
+  ];
+}
+
+// Requests without declared tool changes cannot reference tools by name.
+function withoutToolChangeBlocks(messages: AnthropicMessage[]) {
+  if (!messages.some((message) => message.role === "system")) return messages;
+  return messages
+    .map((message) =>
+      message.role === "system" && Array.isArray(message.content)
+        ? {
+            ...message,
+            content: (message.content as AnthropicSystemContentBlock[]).filter(
+              (block) => block.type === "text"
+            ),
+          }
+        : message
+    )
+    .filter((message) => message.content.length > 0);
+}
+
+function buildAnthropicToolRequest(args: {
+  messages: AnthropicMessage[];
+  toolChanges?: AnthropicToolChanges;
+  toolChoice?: "auto" | "none";
+  tools: TalentChatTool[];
+}) {
+  if (!args.toolChanges || args.tools.length === 0) {
+    return {
+      body: {
+        messages: withoutToolChangeBlocks(args.messages),
+        ...(args.tools.length > 0
+          ? {
+              tool_choice: { type: "auto" as const },
+              tools: buildAnthropicTools(args.tools),
+            }
+          : {}),
+      },
+      headers: {} as Record<string, string>,
+      offeredToolNames: args.tools.map(getTalentChatToolName),
+    };
+  }
+  return {
+    body: {
+      messages: withLastMessageCacheMark(args.messages),
+      tool_choice: { type: args.toolChoice ?? "auto" },
+      tools: buildAnthropicDeferredTools(args.tools, args.toolChanges.deferredToolNames),
+    },
+    headers: { "anthropic-beta": MID_CONVERSATION_TOOL_CHANGES_BETA },
+    offeredToolNames:
+      args.toolChoice === "none" ? [] : [...args.toolChanges.callableToolNames],
+  };
 }
 
 function normalizeUniqueToolNames(toolNames: readonly string[]) {
@@ -699,7 +959,8 @@ function appendUserInstructionToMessages(
   instruction: string
 ): AnthropicMessage[] {
   const lastMessage = messages[messages.length - 1];
-  if (lastMessage?.role === "user") {
+  // A trailing system message may only be followed by an assistant message.
+  if (lastMessage?.role === "user" || lastMessage?.role === "system") {
     return [
       ...messages.slice(0, -1),
       {
@@ -740,6 +1001,24 @@ function stringifyAnthropicContent(content: AnthropicMessage["content"]) {
     .join("\n");
 }
 
+// Direct providers get the latest system sections separately, so section updates are dropped.
+function toDirectOpenAIMessages(messages: AnthropicMessage[]) {
+  return messages
+    .map(
+      (message): DirectOpenAIMessage => ({
+        role: message.role,
+        content: stringifyAnthropicContent(
+          message.role === "system" && Array.isArray(message.content)
+            ? (message.content as AnthropicSystemContentBlock[]).filter(
+                (block) => !(block.type === "text" && block.text.startsWith(SYSTEM_UPDATE_HEADER))
+              )
+            : message.content
+        ),
+      })
+    )
+    .filter((message) => message.content.trim().length > 0);
+}
+
 function buildDirectRecoveryMessages(args: {
   messages: AnthropicMessage[];
   responseLocale?: string | null;
@@ -755,14 +1034,7 @@ function buildDirectRecoveryMessages(args: {
         .filter((text) => text.trim().length > 0)
         .join("\n\n"),
     },
-    ...args.messages
-      .map(
-        (message): DirectOpenAIMessage => ({
-          role: message.role,
-          content: stringifyAnthropicContent(message.content),
-        })
-      )
-      .filter((message) => message.content.trim().length > 0),
+    ...toDirectOpenAIMessages(args.messages),
   ];
 }
 
@@ -843,6 +1115,8 @@ async function createAnthropicMessage(args: {
   model: string;
   systemBlocks: CareerChatSystemBlock[];
   temperature: number;
+  toolChanges?: AnthropicToolChanges;
+  toolChoice?: "auto" | "none";
   toolCostAttribution?: LlmToolCostAttribution;
   tools?: TalentChatTool[];
   usageLabel?: string;
@@ -853,11 +1127,18 @@ async function createAnthropicMessage(args: {
   }
 
   const tools = args.tools ?? [];
+  const toolRequest = buildAnthropicToolRequest({
+    messages: args.messages,
+    toolChanges: args.toolChanges,
+    toolChoice: args.toolChoice,
+    tools,
+  });
+  const { messages, ...toolFields } = toolRequest.body;
   const requestBody = {
     model: args.model,
     max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
     system: buildAnthropicSystemBlocks(args.systemBlocks),
-    messages: args.messages,
+    messages,
     ...buildAnthropicOutputConfig({
       model: args.model,
       usageLabel: args.usageLabel,
@@ -865,12 +1146,7 @@ async function createAnthropicMessage(args: {
     ...(supportsSamplingParametersForModel(args.model)
       ? { temperature: args.temperature }
       : {}),
-    ...(tools.length > 0
-      ? {
-          tool_choice: { type: "auto" as const },
-          tools: buildAnthropicTools(tools),
-        }
-      : {}),
+    ...toolFields,
   };
   logCareerChatLlmRequestBody({
     requestBody,
@@ -884,6 +1160,7 @@ async function createAnthropicMessage(args: {
       "content-type": "application/json",
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
+      ...toolRequest.headers,
     },
     body: JSON.stringify(requestBody),
     cache: "no-store",
@@ -899,7 +1176,7 @@ async function createAnthropicMessage(args: {
   const json = (await response.json()) as AnthropicMessageResponse;
   logLlmTokenUsage({
     label: args.usageLabel,
-    meta: { offeredToolNames: tools.map(getTalentChatToolName), systemChars: args.systemBlocks.reduce((n, b) => n + b.text.length, 0) },
+    meta: { offeredToolNames: toolRequest.offeredToolNames, systemChars: args.systemBlocks.reduce((n, b) => n + b.text.length, 0) },
     model: args.model,
     response: json,
   });
@@ -931,7 +1208,7 @@ async function createAnthropicMessage(args: {
     systemCacheableKeys: args.systemBlocks
       .filter((block) => block.cacheable)
       .map((block) => block.key ?? "system"),
-    toolCount: tools.length,
+    toolCount: toolRequest.offeredToolNames.length,
     toolsCached: tools.length > 0,
   });
 
@@ -943,6 +1220,8 @@ async function createAnthropicMessageText(args: {
   model: string;
   systemBlocks: CareerChatSystemBlock[];
   temperature: number;
+  toolChanges?: AnthropicToolChanges;
+  toolChoice?: "auto" | "none";
   toolCostAttribution?: LlmToolCostAttribution;
   tools?: TalentChatTool[];
   usageLabel?: string;
@@ -958,6 +1237,8 @@ async function createAnthropicMessageStreamResponse(args: {
   onToolUseStart?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   systemBlocks: CareerChatSystemBlock[];
   temperature: number;
+  toolChanges?: AnthropicToolChanges;
+  toolChoice?: "auto" | "none";
   toolCostAttribution?: LlmToolCostAttribution;
   tools?: TalentChatTool[];
   usageLabel?: string;
@@ -966,12 +1247,18 @@ async function createAnthropicMessageStreamResponse(args: {
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY is required for Anthropic Messages API");
   }
-  const tools = args.tools?.length ? buildAnthropicTools(args.tools) : [];
+  const toolRequest = buildAnthropicToolRequest({
+    messages: args.messages,
+    toolChanges: args.toolChanges,
+    toolChoice: args.toolChoice,
+    tools: args.tools ?? [],
+  });
+  const { messages, ...toolFields } = toolRequest.body;
   const requestBody = {
     model: args.model,
     max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
     system: buildAnthropicSystemBlocks(args.systemBlocks),
-    messages: args.messages,
+    messages,
     stream: true,
     ...buildAnthropicOutputConfig({
       model: args.model,
@@ -980,12 +1267,7 @@ async function createAnthropicMessageStreamResponse(args: {
     ...(supportsSamplingParametersForModel(args.model)
       ? { temperature: args.temperature }
       : {}),
-    ...(tools.length > 0
-      ? {
-          tool_choice: { type: "auto" as const },
-          tools,
-        }
-      : {}),
+    ...toolFields,
   };
   logCareerChatLlmRequestBody({
     requestBody,
@@ -999,6 +1281,7 @@ async function createAnthropicMessageStreamResponse(args: {
       "content-type": "application/json",
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
+      ...toolRequest.headers,
     },
     body: JSON.stringify(requestBody),
     cache: "no-store",
@@ -1220,7 +1503,7 @@ async function createAnthropicMessageStreamResponse(args: {
 
   logLlmTokenUsage({
     label: args.usageLabel,
-    meta: { offeredToolNames: (args.tools ?? []).map(getTalentChatToolName), systemChars: args.systemBlocks.reduce((n, b) => n + b.text.length, 0) },
+    meta: { offeredToolNames: toolRequest.offeredToolNames, systemChars: args.systemBlocks.reduce((n, b) => n + b.text.length, 0) },
     model: args.model,
     response: { id: messageId, model: messageModel, usage },
   });
@@ -1256,7 +1539,7 @@ async function createAnthropicMessageStreamResponse(args: {
     systemCacheableKeys: args.systemBlocks
       .filter((block) => block.cacheable)
       .map((block) => block.key ?? "system"),
-    toolCount: tools.length,
+    toolCount: toolRequest.offeredToolNames.length,
   });
 
   return {
@@ -1274,6 +1557,8 @@ async function createAnthropicMessageStream(args: {
   onTextDelta: (delta: string) => void | Promise<void>;
   systemBlocks: CareerChatSystemBlock[];
   temperature: number;
+  toolChanges?: AnthropicToolChanges;
+  toolChoice?: "auto" | "none";
   toolCostAttribution?: LlmToolCostAttribution;
   tools?: TalentChatTool[];
   usageLabel?: string;
@@ -1283,6 +1568,8 @@ async function createAnthropicMessageStream(args: {
 }
 
 async function recoverVisibleTextFromAnthropicMessages(args: {
+  /** Latest sections for the direct provider; defaults to systemBlocks. */
+  directSystemBlocks?: CareerChatSystemBlock[];
   instruction?: string;
   messages: AnthropicMessage[];
   modelConfig: CareerAssistantModelConfig;
@@ -1344,7 +1631,7 @@ async function recoverVisibleTextFromAnthropicMessages(args: {
       messages: buildDirectRecoveryMessages({
         messages: recoveryMessages,
         responseLocale: args.responseLocale,
-        systemBlocks: args.systemBlocks,
+        systemBlocks: args.directSystemBlocks ?? args.systemBlocks,
       }),
       model: args.modelConfig.fallbackModel,
       reasoningEffort:
@@ -1442,14 +1729,7 @@ async function createRecommendationToolResultFinalText(args: {
         role: "system",
         content: flattenCareerSystemBlocks(args.systemBlocks),
       },
-      ...args.messages
-        .map(
-          (message): DirectOpenAIMessage => ({
-            role: message.role,
-            content: stringifyAnthropicContent(message.content),
-          })
-        )
-        .filter((message) => message.content.trim().length > 0),
+      ...toDirectOpenAIMessages(args.messages),
     ],
     model: CAREER_LLM_CONFIG.chat.recommendationFinalizer.model,
     reasoningEffort:
@@ -1597,6 +1877,7 @@ async function runCareerChatAssistantImpl(args: {
     .map(message => ({ role: message.role, content: message.content }));
   let startedExecution = false;
   let recoverySystemBlocks = args.systemBlocks;
+  let recoveryDirectSystemBlocks = args.systemBlocks;
   try {
     const maxToolCalls = args.toolRuntime?.maxToolCalls ?? (args.tools.some(tool => ["generate_resume", "ready_for_role"].includes(getTalentChatToolName(tool))) ? RESUME_TOOL_CALL_LIMIT : args.tools.some(tool => getTalentChatToolName(tool) === "manage_simulation_session") ? 8 : 4);
     let totalToolCalls = 0;
@@ -1623,6 +1904,7 @@ async function runCareerChatAssistantImpl(args: {
     }
 
     const maxToolLoops = args.toolRuntime?.maxToolLoops ?? (args.tools.some(tool => ["generate_resume", "ready_for_role"].includes(getTalentChatToolName(tool))) ? RESUME_TOOL_CALL_LIMIT : args.tools.some(tool => getTalentChatToolName(tool) === "manage_simulation_session") ? 8 : 3);
+    const turnPrefix = new AnthropicTurnPrefix(modelConfig.primaryModel);
     for (let loop = 0; loop < maxToolLoops; loop += 1) {
       const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
       const capabilityStep = args.toolRuntime?.resolveStep();
@@ -1647,14 +1929,21 @@ async function runCareerChatAssistantImpl(args: {
             }
           : undefined;
       pendingToolResultAttribution = [];
-      recoverySystemBlocks = systemBlocksForStep;
+      const stepRequest = turnPrefix.next(workingMessages, {
+        allTools: capabilityStep?.allTools ?? args.tools,
+        systemBlocks: systemBlocksForStep,
+        tools: stepTools,
+      });
+      recoverySystemBlocks = stepRequest.systemBlocks;
+      recoveryDirectSystemBlocks = stepRequest.latestSystemBlocks;
       const response = await createAnthropicMessage({
         messages: workingMessages,
         model: modelConfig.primaryModel,
-        systemBlocks: systemBlocksForStep,
+        systemBlocks: stepRequest.systemBlocks,
         temperature,
+        toolChanges: stepRequest.toolChanges,
         toolCostAttribution,
-        tools: stepTools,
+        tools: stepRequest.tools,
         usageLabel,
       });
 
@@ -1671,11 +1960,12 @@ async function runCareerChatAssistantImpl(args: {
         );
         if (responseText) return responseText;
         return recoverVisibleTextFromAnthropicMessages({
+          directSystemBlocks: stepRequest.latestSystemBlocks,
           messages: workingMessages,
           modelConfig,
           reason: "empty_text_without_tool_use",
           responseLocale: args.responseLocale,
-          systemBlocks: systemBlocksForStep,
+          systemBlocks: stepRequest.systemBlocks,
           usageLabel,
         });
       }
@@ -1823,17 +2113,21 @@ async function runCareerChatAssistantImpl(args: {
       pendingToolResultAttribution = attemptedToolNames;
     }
 
+    // Same tools with tool_choice none keeps the cached prefix; the policy update says none are callable.
+    const finalStep = turnPrefix.next(workingMessages, {
+      systemBlocks: withScopedContinuationToolPolicy({
+        callableToolNames: [],
+        executedToolNames: executedToolNamesForPolicy,
+        isOnboardingActive: args.isOnboardingActive,
+        responseLocale: args.responseLocale,
+        systemBlocks: args.toolRuntime?.resolveStep().systemBlocks ?? args.systemBlocks,
+      }),
+    });
+    const finalSystemBlocks = finalStep.systemBlocks;
     const finalMessages = appendUserInstructionToMessages(
       workingMessages,
       `Tool call budget is exhausted. Answer now in ${outputLanguage} without additional tool use.`
     );
-    const finalSystemBlocks = withScopedContinuationToolPolicy({
-      callableToolNames: [],
-      executedToolNames: executedToolNamesForPolicy,
-      isOnboardingActive: args.isOnboardingActive,
-      responseLocale: args.responseLocale,
-      systemBlocks: args.toolRuntime?.resolveStep().systemBlocks ?? args.systemBlocks,
-    });
     const finalToolCostAttribution =
       pendingToolResultAttribution.length > 0
         ? {
@@ -1847,7 +2141,7 @@ async function runCareerChatAssistantImpl(args: {
       ? await createRecommendationToolResultFinalText({
           fallbackModel: modelConfig.fallbackModel,
           messages: finalMessages,
-          systemBlocks: finalSystemBlocks,
+          systemBlocks: finalStep.latestSystemBlocks,
           toolCostAttribution: finalToolCostAttribution,
           usageLabel,
         })
@@ -1856,11 +2150,15 @@ async function runCareerChatAssistantImpl(args: {
           model: modelConfig.primaryModel,
           systemBlocks: finalSystemBlocks,
           temperature,
+          toolChanges: finalStep.toolChanges,
+          toolChoice: "none",
           toolCostAttribution: finalToolCostAttribution,
+          tools: finalStep.tools,
           usageLabel,
         });
     if (finalText) return finalText;
     return recoverVisibleTextFromAnthropicMessages({
+      directSystemBlocks: finalStep.latestSystemBlocks,
       messages: finalMessages,
       modelConfig,
       reason: "empty_text_after_tool_budget",
@@ -1872,7 +2170,7 @@ async function runCareerChatAssistantImpl(args: {
     throwIfToolControlError(error);
     if (isAbortLikeError(error)) throw error;
     if (startedExecution) {
-      const recovered = await recoverVisibleTextFromAnthropicMessages({ messages: workingMessages, modelConfig, reason: "error_after_tool_execution", responseLocale: args.responseLocale, systemBlocks: recoverySystemBlocks, usageLabel, skipNativeRetry: true });
+      const recovered = await recoverVisibleTextFromAnthropicMessages({ messages: workingMessages, modelConfig, reason: "error_after_tool_execution", responseLocale: args.responseLocale, systemBlocks: recoverySystemBlocks, directSystemBlocks: recoveryDirectSystemBlocks, usageLabel, skipNativeRetry: true });
       if (recovered) return recovered;
       // Do not let an outer empty-response recovery lose already executed effects.
       throw error;
@@ -2027,6 +2325,7 @@ async function runCareerChatAssistantStreamImpl(args: {
   };
   const getForwardedVisibleText = () => cleanModelText(forwardedVisibleText);
   let activeSystemBlocksForRecovery = args.systemBlocks;
+  let activeDirectSystemBlocksForRecovery = args.systemBlocks;
 
   try {
     if (args.tools.length === 0) {
@@ -2056,6 +2355,7 @@ async function runCareerChatAssistantStreamImpl(args: {
     let activeTools = args.tools;
     let executedToolNamesForPolicy: string[] = [];
     let toolLoopIndex = 0;
+    const turnPrefix = new AnthropicTurnPrefix(modelConfig.primaryModel);
 
     while (activeTools.length > 0) {
       const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
@@ -2075,7 +2375,13 @@ async function runCareerChatAssistantStreamImpl(args: {
               systemBlocks: stepSystemBlocks,
             })
           : stepSystemBlocks;
-      activeSystemBlocksForRecovery = systemBlocksForStep;
+      const stepRequest = turnPrefix.next(workingMessages, {
+        allTools: capabilityStep?.allTools ?? args.tools,
+        systemBlocks: systemBlocksForStep,
+        tools: activeTools,
+      });
+      activeSystemBlocksForRecovery = stepRequest.systemBlocks;
+      activeDirectSystemBlocksForRecovery = stepRequest.latestSystemBlocks;
       const toolCostAttribution =
         pendingToolResultAttribution.length > 0
           ? {
@@ -2093,10 +2399,11 @@ async function runCareerChatAssistantStreamImpl(args: {
           if (!args.toolRuntime?.isInternalTool(tool.name) && activeToolNames.includes(tool.name)) await args.onToolDetected?.(tool);
         },
         onTextDelta: forwardTextDelta,
-        systemBlocks: systemBlocksForStep,
+        systemBlocks: stepRequest.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
+        toolChanges: stepRequest.toolChanges,
         toolCostAttribution,
-        tools: activeTools,
+        tools: stepRequest.tools,
         usageLabel,
       });
 
@@ -2113,12 +2420,13 @@ async function runCareerChatAssistantStreamImpl(args: {
         );
         if (!responseText) {
           const recoveredText = await recoverVisibleTextFromAnthropicMessages({
+            directSystemBlocks: stepRequest.latestSystemBlocks,
             messages: workingMessages,
             modelConfig,
             onTextDelta: forwardTextDelta,
             reason: "stream_empty_text_without_tool_use",
             responseLocale: args.responseLocale,
-            systemBlocks: systemBlocksForStep,
+            systemBlocks: stepRequest.systemBlocks,
             usageLabel,
           });
           return getForwardedVisibleText() || recoveredText;
@@ -2305,14 +2613,19 @@ async function runCareerChatAssistantStreamImpl(args: {
       break;
     }
 
-    const finalSystemBlocks = withScopedContinuationToolPolicy({
-      callableToolNames: [],
-      executedToolNames: executedToolNamesForPolicy,
-      isOnboardingActive: args.isOnboardingActive,
-      responseLocale: args.responseLocale,
-      systemBlocks: args.toolRuntime?.resolveStep().systemBlocks ?? args.systemBlocks,
+    // Same tools with tool_choice none keeps the cached prefix; the policy update says none are callable.
+    const finalStep = turnPrefix.next(workingMessages, {
+      systemBlocks: withScopedContinuationToolPolicy({
+        callableToolNames: [],
+        executedToolNames: executedToolNamesForPolicy,
+        isOnboardingActive: args.isOnboardingActive,
+        responseLocale: args.responseLocale,
+        systemBlocks: args.toolRuntime?.resolveStep().systemBlocks ?? args.systemBlocks,
+      }),
     });
+    const finalSystemBlocks = finalStep.systemBlocks;
     activeSystemBlocksForRecovery = finalSystemBlocks;
+    activeDirectSystemBlocksForRecovery = finalStep.latestSystemBlocks;
     const finalToolCostAttribution =
       pendingToolResultAttribution.length > 0
         ? {
@@ -2327,7 +2640,7 @@ async function runCareerChatAssistantStreamImpl(args: {
       ? await createRecommendationToolResultFinalText({
           fallbackModel: modelConfig.fallbackModel,
           messages: workingMessages,
-          systemBlocks: finalSystemBlocks,
+          systemBlocks: finalStep.latestSystemBlocks,
           toolCostAttribution: finalToolCostAttribution,
           usageLabel,
         })
@@ -2337,7 +2650,10 @@ async function runCareerChatAssistantStreamImpl(args: {
           onTextDelta: forwardTextDelta,
           systemBlocks: finalSystemBlocks,
           temperature: CAREER_LLM_CONFIG.chat.temperature,
+          toolChanges: finalStep.toolChanges,
+          toolChoice: "none",
           toolCostAttribution: finalToolCostAttribution,
+          tools: finalStep.tools,
           usageLabel,
         });
     if (useRecommendationFinalizer && finalText) {
@@ -2345,6 +2661,7 @@ async function runCareerChatAssistantStreamImpl(args: {
     }
     if (finalText) return getForwardedVisibleText() || finalText;
     const recoveredText = await recoverVisibleTextFromAnthropicMessages({
+      directSystemBlocks: finalStep.latestSystemBlocks,
       messages: workingMessages,
       modelConfig,
       onTextDelta: forwardTextDelta,
@@ -2368,6 +2685,7 @@ async function runCareerChatAssistantStreamImpl(args: {
         responseLocale: args.responseLocale,
         skipNativeRetry: true,
         systemBlocks: activeSystemBlocksForRecovery,
+        directSystemBlocks: activeDirectSystemBlocksForRecovery,
         usageLabel,
       });
       if (recoveredText) return getForwardedVisibleText() || recoveredText;
