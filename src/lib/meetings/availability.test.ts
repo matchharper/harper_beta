@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createDefaultMeetingAvailabilityDocument,
+  defaultMeetingIntervalsForNewDate,
+  getMeetingAvailabilityIntervalsOnDate,
+  setMeetingDateIntervals,
+  toggleMeetingDate,
   formatMeetingAvailabilitySummary,
   getMeetingAvailabilityIntervalsForDate,
   hasMeetingStartInTimeRange,
@@ -181,4 +185,73 @@ test("time block toggles split and merge normalized intervals", () => {
     }),
     [{ end: "12:00", start: "09:00" }]
   );
+});
+
+// 2026-11-02 is a Monday. Today's 7 days run through 2026-11-08 (Sunday).
+const TODAY = "2026-11-02";
+
+test("weekly hours open only the next seven days", () => {
+  const value = createDefaultMeetingAvailabilityDocument();
+  assert.deepEqual(
+    getMeetingAvailabilityIntervalsOnDate(value, "2026-11-06", TODAY),
+    [{ end: "19:00", start: "10:00" }]
+  );
+  // The following Monday is past the seven days.
+  assert.deepEqual(
+    getMeetingAvailabilityIntervalsOnDate(value, "2026-11-09", TODAY),
+    []
+  );
+  assert.deepEqual(
+    getMeetingAvailabilityIntervalsOnDate(value, "2026-11-01", TODAY),
+    []
+  );
+});
+
+test("clicking a date opens it with its weekday hours, and again closes it", () => {
+  const value = createDefaultMeetingAvailabilityDocument();
+  value.weeklyRules["1"] = [{ end: "12:00", start: "09:00" }];
+  const opened = toggleMeetingDate(value, "2026-11-09", TODAY);
+  assert.deepEqual(opened.dateOverrides, {
+    "2026-11-09": [{ end: "12:00", start: "09:00" }],
+  });
+  const closed = toggleMeetingDate(opened, "2026-11-09", TODAY);
+  assert.deepEqual(closed.dateOverrides, {});
+});
+
+test("closing a date within the seven days keeps it closed", () => {
+  const value = createDefaultMeetingAvailabilityDocument();
+  const closed = toggleMeetingDate(value, "2026-11-04", TODAY);
+  assert.deepEqual(closed.dateOverrides, { "2026-11-04": [] });
+  const reopened = toggleMeetingDate(closed, "2026-11-04", TODAY);
+  assert.deepEqual(reopened.dateOverrides, {});
+});
+
+test("a weekend date takes weekday hours when its own day has none", () => {
+  const value = createDefaultMeetingAvailabilityDocument();
+  value.weeklyRules["2"] = [{ end: "17:00", start: "13:00" }];
+  value.weeklyRules["1"] = [];
+  assert.deepEqual(defaultMeetingIntervalsForNewDate(value, "2026-11-14"), [
+    { end: "17:00", start: "13:00" },
+  ]);
+  const empty = createDefaultMeetingAvailabilityDocument();
+  for (const key of ["1", "2", "3", "4", "5"] as const) {
+    empty.weeklyRules[key] = [];
+  }
+  assert.deepEqual(defaultMeetingIntervalsForNewDate(empty, "2026-11-14"), [
+    { end: "19:00", start: "10:00" },
+  ]);
+});
+
+test("a date's hours are kept only where they differ from its default", () => {
+  const value = createDefaultMeetingAvailabilityDocument();
+  const changed = setMeetingDateIntervals(value, "2026-11-03", TODAY, [
+    { end: "12:00", start: "10:00" },
+  ]);
+  assert.deepEqual(changed.dateOverrides, {
+    "2026-11-03": [{ end: "12:00", start: "10:00" }],
+  });
+  const back = setMeetingDateIntervals(changed, "2026-11-03", TODAY, [
+    { end: "19:00", start: "10:00" },
+  ]);
+  assert.deepEqual(back.dateOverrides, {});
 });

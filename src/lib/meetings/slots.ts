@@ -1,6 +1,5 @@
 import {
-  getMeetingAvailabilityIntervalsForDate,
-  type IsoWeekdayKey,
+  getMeetingAvailabilityIntervalsOnDate,
   meetingDateKeyInTimezone,
   meetingTimeToMinutes,
   type SavedMeetingAvailability,
@@ -27,11 +26,6 @@ function dateKeyFromUtcDate(date: Date) {
 function addDaysToDateKey(dateKey: string, days: number) {
   const [year, month, day] = dateKey.split("-").map(Number);
   return dateKeyFromUtcDate(new Date(Date.UTC(year, month - 1, day + days)));
-}
-
-function isoWeekdayForDateKey(dateKey: string): IsoWeekdayKey {
-  const day = new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
-  return String(day === 0 ? 7 : day) as IsoWeekdayKey;
 }
 
 function timezoneParts(date: Date, timezone: string) {
@@ -118,6 +112,8 @@ export function calculateMeetingCandidateSlots(args: {
   availability: SavedMeetingAvailability;
   busyRanges?: MeetingBusyRange[];
   durationMinutes: number;
+  /** Today for the weekly hours' reach; defaults to the current time. */
+  now?: Date;
   stepMinutes?: number;
   windowEnd: Date;
   windowStart: Date;
@@ -136,14 +132,15 @@ export function calculateMeetingCandidateSlots(args: {
   const timezone = args.availability.timezone;
   const firstDateKey = meetingDateKeyInTimezone(args.windowStart, timezone);
   const lastDateKey = meetingDateKeyInTimezone(args.windowEnd, timezone);
+  const todayKey = meetingDateKeyInTimezone(args.now ?? new Date(), timezone);
   const slots: MeetingCandidateSlot[] = [];
   let dateKey = firstDateKey;
 
   while (dateKey <= lastDateKey) {
-    const intervals = getMeetingAvailabilityIntervalsForDate(
+    const intervals = getMeetingAvailabilityIntervalsOnDate(
       args.availability,
       dateKey,
-      isoWeekdayForDateKey(dateKey)
+      todayKey
     );
     for (const interval of intervals) {
       const intervalStart = meetingTimeToMinutes(interval.start);
