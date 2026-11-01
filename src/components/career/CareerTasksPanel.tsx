@@ -27,6 +27,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useCareerT } from "@/i18n/useCareerT";
+import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerTasks } from "@/hooks/career/useCareerTasks";
 import { useCareerTaskSuggestions } from "@/hooks/career/useCareerTaskSuggestions";
 import { useCareerRecentInfo } from "@/hooks/career/useCareerRecentInfo";
@@ -144,6 +145,7 @@ export default function CareerTasksPanel({
   const { locale } = useMessages();
   const router = useRouter();
   const tasks = useCareerTasks(true);
+  const { fetchWithAuth } = useCareerApi();
   const [withdrawingRoleId, setWithdrawingRoleId] = useState<string | null>(
     null
   );
@@ -152,7 +154,7 @@ export default function CareerTasksPanel({
     setWithdrawingRoleId(roleId);
     setWithdrawalError(null);
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `/api/talent/pending-actions?priorityReviewRoleId=${encodeURIComponent(roleId)}`,
         {
           method: "DELETE",
