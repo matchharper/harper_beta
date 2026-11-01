@@ -65,6 +65,21 @@ export function resolveCareerCapabilities(args: {
     args.mode === "full"
       ? [...args.eligibleTools]
       : [...core, ...(hasLoader ? [loader] : []), ...deferred];
+  // Every tool this request could offer, in the same stable order. Providers that
+  // accept mid-response tool changes declare these once and reveal loaded ones later.
+  const catalogNames = new Set<string>(
+    catalog.flatMap((c) => c.tools.map(([name]) => name))
+  );
+  const allTools =
+    args.mode === "full"
+      ? tools
+      : [
+          ...core,
+          ...(hasLoader ? [loader] : []),
+          ...args.eligibleTools.filter(
+            (t) => !coreNames.has(t.function.name) && catalogNames.has(t.function.name)
+          ),
+        ];
   const catalogText = !args.eligibleTools.length
     ? ""
     : [
@@ -84,6 +99,7 @@ export function resolveCareerCapabilities(args: {
       ].join("\n");
   return {
     tools,
+    allTools,
     catalogText,
     eligibleNames,
     offeredNames: new Set(tools.map((t) => t.function.name)),
