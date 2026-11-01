@@ -1078,10 +1078,12 @@ export function OrgInterviewAvailabilityDialog({
         }}
         open={open}
       >
+        {/* The accept-intro modal (TalentCareerModal, z-80) also opens this
+            editor, so it sits above that layer, not at Dialog's z-50. */}
         <DialogContent
           hideCloseButton
-          className="!inset-0 m-auto h-[100svh] w-screen max-w-none !translate-x-0 !translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none p-0 data-[state=closed]:animate-none data-[state=open]:animate-none sm:h-[min(760px,calc(100svh-2rem))] sm:w-[calc(100vw-2rem)] sm:max-w-[1120px] sm:rounded-2xl"
-          overlayClassName="data-[state=closed]:animate-none data-[state=open]:animate-none"
+          className="z-[90] !inset-0 m-auto h-[100svh] w-screen max-w-none !translate-x-0 !translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none p-0 data-[state=closed]:animate-none data-[state=open]:animate-none sm:h-[min(760px,calc(100svh-2rem))] sm:w-[calc(100vw-2rem)] sm:max-w-[1120px] sm:rounded-2xl"
+          overlayClassName="z-[90] data-[state=closed]:animate-none data-[state=open]:animate-none"
           ref={setPortalContainer}
         >
           <header className="flex min-h-[60px] items-center justify-between gap-4 border-b border-neutral-1000-a05 px-5 py-3 sm:px-6">
@@ -1302,6 +1304,8 @@ export function OrgInterviewAvailabilityDialog({
       <TalentCareerModal
         open={discardOpen}
         onClose={() => setDiscardOpen(false)}
+        backdropClassName="z-[100]"
+        overlayClassName="z-[100]"
         mobileBottomSheet
         title={<>{c("저장하지 않고 닫을까요?", "Close without saving?")}</>}
         description={

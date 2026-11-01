@@ -10,6 +10,35 @@ const layoutSource = readFileSync(
   new URL("../../meetings/MeetingAvailabilityLayout.tsx", import.meta.url),
   "utf8"
 );
+const sharedModalSource = readFileSync(
+  new URL("../../common/TalentCareerModal.tsx", import.meta.url),
+  "utf8"
+);
+
+test("the editor opens above the shared modal it is launched from", () => {
+  // The accept-intro modal (TalentCareerModal) opens this editor on top.
+  const sharedLayer = Number(
+    sharedModalSource.match(/fixed inset-0 z-(\d+) /)?.[1]
+  );
+  const editorLayer = Number(
+    source.match(/className="z-\[(\d+)\] !inset-0/)?.[1]
+  );
+  const editorOverlayLayer = Number(
+    source.match(/overlayClassName="z-\[(\d+)\] data-/)?.[1]
+  );
+  const discardLayer = Number(
+    source.match(/backdropClassName="z-\[(\d+)\]"/)?.[1]
+  );
+  const discardOverlayLayer = Number(
+    source.match(/overlayClassName="z-\[(\d+)\]"/)?.[1]
+  );
+
+  assert.ok(sharedLayer > 0);
+  assert.ok(editorLayer > sharedLayer);
+  assert.equal(editorOverlayLayer, editorLayer);
+  assert.ok(discardLayer > editorLayer);
+  assert.equal(discardOverlayLayer, discardLayer);
+});
 
 test("meeting availability dropdowns stay inside the dialog scroll boundary", () => {
   assert.match(
