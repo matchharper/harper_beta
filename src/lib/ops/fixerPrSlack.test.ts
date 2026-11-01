@@ -13,7 +13,6 @@ import {
   FIXER_PR_MERGE_ACTION_ID,
   FIXER_PR_NOT_ALLOWED_TEXT,
   FIXER_PR_SLACK_CHANNEL_ID,
-  FIXER_PR_SLACK_EVENT_TYPE,
   FIXER_PR_SLACK_TEAM_ID,
   FIXER_PR_UNAVAILABLE_TEXT,
   FixerPrGitHubError,
@@ -21,6 +20,7 @@ import {
   formatFixerPrSeoulTime,
   parseFixerPrButtonValue,
   parseFixerPrIncidentNumber,
+  readFixerPrCard,
   routeFixerPrSlackAction,
   runFixerPrWebhook,
   verifyFixerPrWebhookSignature,
@@ -30,6 +30,8 @@ import {
   type FixerPrPull,
   type FixerPrSecrets,
   type FixerPrSlackCall,
+  type FixerPrWebhookDeps,
+  type FixerPrWebhookInput,
 } from "./fixerPrSlack";
 
 const SHA = "3f2a9c1d4e5f60718293a4b5c6d7e8f901234567";
@@ -40,9 +42,14 @@ const SECRETS: FixerPrSecrets = {
   githubToken: "github-token-for-tests",
   webhookSecret: WEBHOOK_SECRET,
 };
+const BOT_USER = "U0BL4BE6EBH";
 const ALLOWED_USER = "U0C8E9KPMSA";
 const OTHER_ALLOWED_USER = "U09B4FF7TV0";
 const RESPONSE_URL = "https://hooks.slack.com/actions/T09ASGLN207/1/response";
+/** The card's Slack message. */
+const CARD_TS = "1762050000.000200";
+/** What chat.postMessage answers in these tests. */
+const POSTED_TS = "1762052000.000100";
 /** 11/2 11:52 in Seoul. */
 const NOW = new Date("2026-11-02T02:52:00Z");
 const PR_LINK = "<https://github.com/matchharper/harper_beta/pull/230|harper_beta #230>";
@@ -92,6 +99,15 @@ function makeWorkerPull(overrides: Partial<FixerPrPull> = {}) {
   });
 }
 
+const pushedPull = () => makePull({ head: { ...makePull().head, sha: NEW_SHA } });
+const mergedPull = () =>
+  makePull({
+    merge_commit_sha: MERGE_SHA,
+    merged: true,
+    merged_at: NOW.toISOString(),
+    state: "closed",
+  });
+
 const buttonValue = (
   overrides: Partial<FixerPrButtonValue> = {}
 ): FixerPrButtonValue => ({ base: "dev", pr: 230, repo: "harper_beta", sha: SHA, ...overrides });
@@ -110,6 +126,15 @@ const textOf = (card: { blocks: unknown }) =>
     .join("\n");
 const actionsOf = (card: { blocks: unknown }) =>
   blocksOf(card).find((block) => block.type === "actions");
+/** Blocks of a chat.postMessage / chat.update call (Slack gets them as JSON). */
+const blocksIn = (call: { body: Record<string, any> }) => ({
+  blocks: JSON.parse(call.body.blocks) as Block[],
+});
+const ephemeral = (text: string) => ({
+  replace_original: false,
+  response_type: "ephemeral",
+  text,
+});
 
 const sign = (body: string, secret = WEBHOOK_SECRET) =>
   `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
@@ -192,7 +217,7 @@ test("incident number comes from the branch, else the body's 관련 사건 line"
   assert.equal(parseFixerPrIncidentNumber({ body: "관련 사건: other/repo#3", branch: "fix/x" }), null);
 });
 
-test("open card: PR line, TL;DR, target and commit, and two confirmed buttons", () => {
+test("open card: PR line, TL;DR, target and commit, two confirmed buttons, and the card key", () => {
   const card = buildFixerPrOpenCard({ pull: makePull(), repo: "harper_beta" });
   assert.equal(
     textOf(card),
@@ -205,6 +230,7 @@ test("open card: PR line, TL;DR, target and commit, and two confirmed buttons", 
     ].join("\n")
   );
   assert.doesNotMatch(textOf(card), /누를 수 있는 사람|<@/);
+  assert.equal(blocksOf(card)[0].block_id, `harper_fixer_pr_card:harper_beta:230:${SHA}`);
   const [merge, close] = actionsOf(card)?.elements ?? [];
   assert.equal(merge.action_id, FIXER_PR_MERGE_ACTION_ID);
   assert.equal(merge.style, "primary");
@@ -222,10 +248,6 @@ test("open card: PR line, TL;DR, target and commit, and two confirmed buttons", 
     assert.deepEqual(JSON.parse(button.value), { repo: "harper_beta", pr: 230, sha: SHA, base: "dev" });
     assert.deepEqual(parseFixerPrButtonValue(button.value), buttonValue());
   }
-  assert.deepEqual(card.metadata, {
-    event_payload: { pr: 230, repo: "harper_beta", sha: SHA },
-    event_type: FIXER_PR_SLACK_EVENT_TYPE,
-  });
 });
 
 test("open card for harper_worker, without TL;DR, and with Slack-safe TL;DR text", () => {
@@ -235,6 +257,7 @@ test("open card for harper_worker, without TL;DR, and with Slack-safe TL;DR text
     /대상 `main` · 커밋 `3f2a9c1` · 머지하면 main에 들어가요\. 서버 반영\(재시작\)은 따로 해야 해요\.$/
   );
   assert.equal(actionsOf(worker)?.elements?.[0].confirm.text.text, "harper_worker #12를 main에 머지할까요?");
+  assert.equal(blocksOf(worker)[0].block_id, `harper_fixer_pr_card:harper_worker:12:${SHA}`);
   const bare = buildFixerPrOpenCard({ pull: makePull({ body: "본문만 있어요" }), repo: "harper_beta" });
   assert.doesNotMatch(textOf(bare), /^> /m);
   assert.equal(textOf(bare).split("\n").length, 3);
@@ -279,8 +302,10 @@ test("final and base-changed cards keep the PR link and have no buttons", () => 
   for (const card of [merged, onGitHub, closed, closedOnGitHub, baseChanged]) {
     assert.equal(actionsOf(card), undefined);
     assert.ok(textOf(card).includes(PR_LINK));
-    assert.equal(card.metadata.event_type, FIXER_PR_SLACK_EVENT_TYPE);
   }
+  for (const card of [merged, onGitHub, closed, closedOnGitHub])
+    assert.equal(blocksOf(card)[0].block_id, `harper_fixer_pr_final:harper_beta:230:${SHA}`);
+  assert.equal(blocksOf(baseChanged)[0].block_id, `harper_fixer_pr_card:harper_beta:230:${SHA}`);
 });
 
 test("card times are Asia/Seoul M/D HH:mm", () => {
@@ -295,13 +320,12 @@ test("decideFixerPrAction covers every outcome of a press", () => {
     decideFixerPrAction({ action, pull, value: buttonValue() });
   assert.equal(decide(makePull()), "merge");
   assert.equal(decide(makePull(), "close"), "close");
-  assert.equal(decide(makePull({ merged: true, merged_at: NOW.toISOString(), state: "closed" })), "already_merged");
+  assert.equal(decide(mergedPull()), "already_merged");
   assert.equal(decide(makePull({ merged: true, state: "closed" }), "close"), "already_merged");
   assert.equal(decide(makePull({ state: "closed" })), "already_closed");
   assert.equal(decide(makePull({ state: "closed" }), "close"), "already_closed");
-  const pushed = makePull({ head: { ...makePull().head, sha: NEW_SHA } });
-  assert.equal(decide(pushed), "stale_head");
-  assert.equal(decide(pushed, "close"), "stale_head");
+  assert.equal(decide(pushedPull()), "stale_head");
+  assert.equal(decide(pushedPull(), "close"), "stale_head");
   assert.equal(decide(makePull({ base: { ref: "main" } })), "base_changed");
   assert.equal(decide(makePull({ draft: true })), "not_eligible");
   assert.equal(
@@ -368,22 +392,14 @@ test("Vault secrets are cached for five minutes; a missing secret or failed quer
   assert.equal(await failing(), null);
 });
 
-function slackFake(pages: unknown[][] = [[]], fail?: { method: string; code: string }) {
+function slackFake(history: unknown[] = [], fail?: { code: string; method: string }) {
   const calls: Array<{ body: Record<string, any>; method: string }> = [];
-  let historyPage = 0;
   const slack: FixerPrSlackCall = async (method, body) => {
     calls.push({ body, method });
     if (fail?.method === method)
       throw Object.assign(new Error(`Slack API ${method} 실패: ${fail.code}`), { code: fail.code });
-    if (method === "conversations.history") {
-      const page = historyPage;
-      historyPage += 1;
-      return {
-        messages: pages[page] ?? [],
-        response_metadata: { next_cursor: page + 1 < pages.length ? `cursor-${page + 1}` : "" },
-      };
-    }
-    if (method === "chat.postMessage") return { ts: "1762052000.000100" };
+    if (method === "conversations.history") return { messages: history };
+    if (method === "chat.postMessage") return { ts: POSTED_TS };
     return {};
   };
   return {
@@ -394,240 +410,13 @@ function slackFake(pages: unknown[][] = [[]], fail?: { method: string; code: str
   };
 }
 
-function delivery(event: string, payload: unknown, secret = WEBHOOK_SECRET) {
-  const rawBody = JSON.stringify(payload);
-  return { event, rawBody, signature: sign(rawBody, secret) };
-}
-
-const prEvent = (action: string, pull: FixerPrPull, extra: Record<string, unknown> = {}) => ({
-  action,
-  pull_request: pull,
-  repository: { full_name: pull.base?.repo?.full_name ?? "matchharper/harper_beta" },
-  sender: { login: "fixer-bot" },
-  ...extra,
-});
-
-const cardMessage = (card: FixerPrCard, ts = "1762050000.000200") => ({
-  blocks: card.blocks,
-  bot_id: "B0HARPER",
-  metadata: card.metadata,
-  text: card.text,
-  ts,
-  type: "message",
-});
-
-const webhook = (
-  slack: FixerPrSlackCall,
-  input: { event: string; rawBody: string; signature: string | null },
-  secrets: FixerPrSecrets | null = SECRETS
-) => runFixerPrWebhook(input, { loadSecrets: async () => secrets, now: () => NOW, slack });
-
-const parsedBody = (call: { body: Record<string, any> }) => ({
-  blocks: JSON.parse(call.body.blocks) as Block[],
-  metadata: JSON.parse(call.body.metadata),
-});
-
-test("webhook is off without Vault secrets and refuses unsigned deliveries", async () => {
-  const fake = slackFake();
-  const opened = delivery("pull_request", prEvent("opened", makePull()));
-  assert.equal((await webhook(fake.slack, opened, null)).status, 503);
-  assert.equal((await webhook(fake.slack, { ...opened, signature: null })).status, 401);
-  const forged = delivery("pull_request", prEvent("opened", makePull()), "guessed-secret");
-  assert.equal((await webhook(fake.slack, forged)).status, 401);
-  assert.equal(fake.calls.length, 0);
-});
-
-test("ping and other events are acknowledged without touching Slack", async () => {
-  const fake = slackFake();
-  const ping = await webhook(fake.slack, delivery("ping", { zen: "Keep it logically awesome." }));
-  assert.deepEqual(ping, { body: { ok: true, status: "pong" }, status: 200 });
-  const issue = await webhook(fake.slack, delivery("issues", { action: "opened" }));
-  assert.equal(issue.status, 200);
-  assert.equal(issue.body.ignored, true);
-  const broken = await webhook(fake.slack, { event: "pull_request", rawBody: "{", signature: sign("{") });
-  assert.equal(broken.status, 400);
-  assert.equal(fake.calls.length, 0);
-});
-
-test("opened posts the card with the PR metadata", async () => {
-  const fake = slackFake([[{ text: "다른 메시지", ts: "1762040000.000100" }]]);
-  const result = await webhook(fake.slack, delivery("pull_request", prEvent("opened", makePull())));
-  assert.equal(result.status, 200);
-  assert.deepEqual(result.body, {
-    action: "opened",
-    ok: true,
-    pr: 230,
-    repo: "harper_beta",
-    result: "posted",
-    ts: "1762052000.000100",
-  });
-  const [history] = fake.history();
-  assert.deepEqual(history.body, {
-    channel: FIXER_PR_SLACK_CHANNEL_ID,
-    include_all_metadata: true,
-    limit: 200,
-    oldest: String(Math.floor(NOW.getTime() / 1000) - 30 * 24 * 60 * 60),
-  });
-  const [post] = fake.writes();
-  assert.equal(post.method, "chat.postMessage");
-  assert.equal(post.body.channel, FIXER_PR_SLACK_CHANNEL_ID);
-  assert.equal(post.body.unfurl_links, false);
-  const { blocks, metadata } = parsedBody(post);
-  assert.deepEqual(metadata, {
-    event_payload: { pr: 230, repo: "harper_beta", sha: SHA },
-    event_type: FIXER_PR_SLACK_EVENT_TYPE,
-  });
-  assert.ok(blocks.some((block) => block.type === "actions"));
-  assert.match(post.body.text, /^수정 PR · 머지할지 정해 주세요: harper_beta #230/);
-});
-
-test("a redelivered opened updates the existing card instead of posting again", async () => {
-  const existing = buildFixerPrOpenCard({ pull: makePull(), repo: "harper_beta" });
-  const otherPr = buildFixerPrOpenCard({ pull: makePull({ number: 231 }), repo: "harper_beta" });
-  const fake = slackFake([[cardMessage(otherPr, "1762051000.000300"), cardMessage(existing)]]);
-  const result = await webhook(fake.slack, delivery("pull_request", prEvent("opened", makePull())));
-  assert.equal(result.body.result, "updated");
-  const [update] = fake.writes();
-  assert.equal(fake.writes().length, 1);
-  assert.equal(update.method, "chat.update");
-  assert.equal(update.body.ts, "1762050000.000200");
-  assert.equal(update.body.channel, FIXER_PR_SLACK_CHANNEL_ID);
-  assert.doesNotMatch(parsedBody(update).blocks[0].text?.text ?? "", /커밋이 바뀌었어요/);
-});
-
-test("synchronize moves the card to the new head commit", async () => {
-  const existing = buildFixerPrOpenCard({ pull: makePull(), repo: "harper_beta" });
-  const fake = slackFake([[], [cardMessage(existing)]]);
-  const pushed = makePull({ head: { ...makePull().head, sha: NEW_SHA } });
-  const result = await webhook(fake.slack, delivery("pull_request", prEvent("synchronize", pushed)));
-  assert.equal(result.body.result, "updated");
-  assert.equal(fake.history().length, 2);
-  assert.equal(fake.history()[1].body.cursor, "cursor-1");
-  const [update] = fake.writes();
-  const { blocks, metadata } = parsedBody(update);
-  assert.match(blocks[0].text?.text ?? "", /^커밋이 바뀌었어요: `3f2a9c1` → `9b8c7d6`$/m);
-  assert.match(blocks[0].text?.text ?? "", /^대상 `dev` · 커밋 `9b8c7d6`/m);
-  assert.equal(metadata.event_payload.sha, NEW_SHA);
-  const actions = blocks.find((block) => block.type === "actions");
-  assert.equal(JSON.parse(actions?.elements?.[0].value).sha, NEW_SHA);
-});
-
-test("synchronize posts a card when none is found within three history pages", async () => {
-  const existing = buildFixerPrOpenCard({ pull: makePull(), repo: "harper_beta" });
-  const fake = slackFake([[], [], [], [cardMessage(existing)]]);
-  const result = await webhook(fake.slack, delivery("pull_request", prEvent("synchronize", makePull())));
-  assert.equal(result.body.result, "posted");
-  assert.equal(fake.history().length, 3);
-  assert.equal(fake.writes()[0].method, "chat.postMessage");
-});
-
-test("closed finalizes the card, and does nothing without a card", async () => {
-  const existing = cardMessage(buildFixerPrOpenCard({ pull: makePull(), repo: "harper_beta" }));
-  const mergedPull = makePull({
-    merge_commit_sha: MERGE_SHA,
-    merged: true,
-    merged_at: NOW.toISOString(),
-    state: "closed",
-  });
-  const merged = slackFake([[existing]]);
-  const result = await webhook(merged.slack, delivery("pull_request", prEvent("closed", mergedPull)));
-  assert.equal(result.body.result, "updated");
-  const { blocks } = parsedBody(merged.writes()[0]);
-  assert.equal(merged.writes()[0].method, "chat.update");
-  assert.match(blocks[0].text?.text ?? "", /^✅ 머지됨 · \(GitHub에서\) · 11\/2 11:52 · `dev` 커밋 `7c1e0d2`$/m);
-  assert.equal(blocks.some((block) => block.type === "actions"), false);
-
-  const closed = slackFake([[existing]]);
-  await webhook(closed.slack, delivery("pull_request", prEvent("closed", makePull({ state: "closed" }))));
-  assert.match(parsedBody(closed.writes()[0]).blocks[0].text?.text ?? "", /^닫힘 · 머지 안 함 · \(GitHub에서\)$/m);
-
-  const none = slackFake([[]]);
-  const skipped = await webhook(none.slack, delivery("pull_request", prEvent("closed", mergedPull)));
-  assert.deepEqual([skipped.body.result, skipped.body.reason], ["skipped", "no_card"]);
-  assert.equal(none.writes().length, 0);
-});
-
-test("a card a press already finalized is kept; only reopened brings it back", async () => {
-  const pressed = cardMessage(
-    buildFixerPrFinalCard({ by: OTHER_ALLOWED_USER, outcome: "closed", pull: makePull({ state: "closed" }), repo: "harper_beta" })
-  );
-  const closedAgain = slackFake([[pressed]]);
-  const closedResult = await webhook(
-    closedAgain.slack,
-    delivery("pull_request", prEvent("closed", makePull({ state: "closed" })))
-  );
-  assert.deepEqual([closedResult.body.result, closedResult.body.reason], ["skipped", "final_card"]);
-  const redelivered = slackFake([[pressed]]);
-  await webhook(redelivered.slack, delivery("pull_request", prEvent("opened", makePull())));
-  assert.equal(redelivered.writes().length, 0);
-  const reopened = slackFake([[pressed]]);
-  const reopenedResult = await webhook(reopened.slack, delivery("pull_request", prEvent("reopened", makePull())));
-  assert.equal(reopenedResult.body.result, "updated");
-  assert.ok(parsedBody(reopened.writes()[0]).blocks.some((block) => block.type === "actions"));
-});
-
-test("a base change turns the buttons off; a title edit only refreshes an existing card", async () => {
-  const existing = cardMessage(buildFixerPrOpenCard({ pull: makePull(), repo: "harper_beta" }));
-  const retargeted = slackFake([[existing]]);
-  const result = await webhook(
-    retargeted.slack,
-    delivery(
-      "pull_request",
-      prEvent("edited", makePull({ base: { ref: "main", repo: { full_name: "matchharper/harper_beta" } } }), {
-        changes: { base: { ref: { from: "dev" }, sha: { from: SHA } } },
-      })
-    )
-  );
-  assert.equal(result.body.result, "updated");
-  const { blocks } = parsedBody(retargeted.writes()[0]);
-  assert.match(blocks[0].text?.text ?? "", /^대상 브랜치가 바뀌었어요: `dev` → `main` · 버튼을 껐어요\./);
-  assert.equal(blocks.some((block) => block.type === "actions"), false);
-
-  const titleOnly = slackFake([[]]);
-  const edited = await webhook(
-    titleOnly.slack,
-    delivery("pull_request", prEvent("edited", makePull(), { changes: { title: { from: "이전 제목" } } }))
-  );
-  assert.deepEqual([edited.body.result, edited.body.reason], ["skipped", "no_card"]);
-  assert.equal(titleOnly.writes().length, 0);
-});
-
-test("PRs the buttons must not act on never reach Slack", async () => {
-  const fake = slackFake();
-  const cases: Array<[string, Record<string, unknown>]> = [
-    [
-      "fork",
-      prEvent("opened", makePull({ head: { ref: "fix/incident-44-x", repo: { full_name: "someone/harper_beta" }, sha: SHA } })),
-    ],
-    [
-      "branch_prefix",
-      prEvent("opened", makePull({ head: { ref: "feature/review", repo: { full_name: "matchharper/harper_beta" }, sha: SHA } })),
-    ],
-    ["wrong_base", prEvent("opened", makePull({ base: { ref: "main", repo: { full_name: "matchharper/harper_beta" } } }))],
-    ["draft", prEvent("opened", makePull({ draft: true }))],
-    ["unknown_repo", { ...prEvent("opened", makePull()), repository: { full_name: "matchharper/harper_incidents" } }],
-    ["action_labeled", prEvent("labeled", makePull())],
-  ];
-  for (const [reason, payload] of cases) {
-    const result = await webhook(fake.slack, delivery("pull_request", payload));
-    assert.equal(result.status, 200, reason);
-    assert.equal(result.body.reason, reason);
-  }
-  assert.equal(fake.calls.length, 0);
-});
-
-test("a Slack failure answers 500 so GitHub records a failed delivery", async (t) => {
-  t.mock.method(console, "error", () => {});
-  const fake = slackFake([[]], { code: "not_in_channel", method: "chat.postMessage" });
-  const result = await webhook(fake.slack, delivery("pull_request", prEvent("opened", makePull())));
-  assert.equal(result.status, 500);
-  assert.equal(result.body.error, "slack_failed");
-  assert.equal(result.body.code, "not_in_channel");
-});
-
 function githubFake(routes: {
   close?: { body: unknown; status: number };
+  get?: { body: unknown; status: number };
   merge?: { body: unknown; status: number };
+  /** This method gets no response (network error). */
+  offline?: "PATCH" | "PUT";
+  /** Successive GET answers; the last one repeats. */
   pulls?: FixerPrPull[];
 } = {}) {
   const requests: Array<{
@@ -647,7 +436,9 @@ function githubFake(routes: {
       method,
       url: String(input),
     });
+    if (routes.offline === method) throw new TypeError("fetch failed");
     if (method === "GET") {
+      if (routes.get) return json(routes.get.status, routes.get.body);
       const pulls = routes.pulls ?? [makePull()];
       return json(200, pulls[Math.min(reads++, pulls.length - 1)]);
     }
@@ -661,14 +452,367 @@ function githubFake(routes: {
   return { fetchImpl, requests, writes: () => requests.filter((request) => request.method !== "GET") };
 }
 
-function clickHarness(
+function delivery(event: string, payload: unknown, secret = WEBHOOK_SECRET) {
+  const rawBody = JSON.stringify(payload);
+  return { event, rawBody, signature: sign(rawBody, secret) };
+}
+
+const prEvent = (action: string, pull: FixerPrPull, extra: Record<string, unknown> = {}) => ({
+  action,
+  pull_request: pull,
+  repository: { full_name: pull.base?.repo?.full_name ?? "matchharper/harper_beta" },
+  sender: { login: "fixer-bot" },
+  ...extra,
+});
+
+/** A message as conversations.history returns it. */
+const cardMessage = (card: FixerPrCard, ts = CARD_TS, user = BOT_USER) => ({
+  blocks: card.blocks,
+  bot_id: "B0HARPER01",
+  text: card.text,
+  ts,
+  type: "message",
+  user,
+});
+const openCardMessage = () =>
+  cardMessage(buildFixerPrOpenCard({ pull: makePull(), repo: "harper_beta" }));
+
+/** The webhook with Slack (#qa history), GitHub (the PR now), and the Vault faked. */
+function webhookHarness(
   options: {
-    github?: ReturnType<typeof githubFake>;
-    refuse?: (body: Record<string, unknown>) => boolean;
+    fail?: { code: string; method: string };
+    get?: { body: unknown; status: number };
+    history?: unknown[];
+    pulls?: FixerPrPull[];
     secrets?: FixerPrSecrets | null;
   } = {}
 ) {
+  const slack = slackFake(options.history, options.fail);
+  const github = githubFake({ get: options.get, pulls: options.pulls });
+  const counters = { secretLoads: 0 };
+  const deps: FixerPrWebhookDeps = {
+    botUserId: async () => BOT_USER,
+    github: (token) => createFixerPrGitHubClient({ fetch: github.fetchImpl, token }),
+    loadSecrets: async () => {
+      counters.secretLoads += 1;
+      return options.secrets === undefined ? SECRETS : options.secrets;
+    },
+    now: () => NOW,
+    slack: slack.slack,
+  };
+  return {
+    counters,
+    github,
+    run: (input: FixerPrWebhookInput) => runFixerPrWebhook(input, deps),
+    slack,
+  };
+}
+
+test("webhook refuses unsigned deliveries before reading the Vault, and is off without secrets", async () => {
+  const opened = delivery("pull_request", prEvent("opened", makePull()));
+  const unsigned = webhookHarness();
+  assert.equal((await unsigned.run({ ...opened, signature: null })).status, 401);
+  assert.equal((await unsigned.run({ ...opened, signature: "sha1=abc" })).status, 401);
+  assert.equal(unsigned.counters.secretLoads, 0);
+  const off = webhookHarness({ secrets: null });
+  assert.deepEqual(await off.run(opened), { body: { error: "fixer_pr_unavailable" }, status: 503 });
+  const forged = webhookHarness();
+  const forgedResult = await forged.run(
+    delivery("pull_request", prEvent("opened", makePull()), "guessed-secret")
+  );
+  assert.equal(forgedResult.status, 401);
+  for (const harness of [unsigned, off, forged]) {
+    assert.equal(harness.slack.calls.length, 0);
+    assert.equal(harness.github.requests.length, 0);
+  }
+});
+
+test("ping and other events are acknowledged without touching GitHub or Slack", async () => {
+  const harness = webhookHarness();
+  const ping = await harness.run(delivery("ping", { zen: "Keep it logically awesome." }));
+  assert.deepEqual(ping, { body: { ok: true, status: "pong" }, status: 200 });
+  const issue = await harness.run(delivery("issues", { action: "opened" }));
+  assert.equal(issue.status, 200);
+  assert.equal(issue.body.ignored, true);
+  const broken = await harness.run({ event: "pull_request", rawBody: "{", signature: sign("{") });
+  assert.equal(broken.status, 400);
+  assert.equal(harness.slack.calls.length, 0);
+  assert.equal(harness.github.requests.length, 0);
+});
+
+test("opened posts the card drawn from the PR as GitHub reports it now", async () => {
+  const harness = webhookHarness({
+    history: [
+      { text: "다른 메시지", ts: "1762040000.000100", user: OTHER_ALLOWED_USER },
+      {
+        blocks: [{ block_id: "digest", type: "section" }],
+        text: "Harper의 다른 메시지",
+        ts: "1762040000.000200",
+        user: BOT_USER,
+      },
+    ],
+  });
+  const result = await harness.run(delivery("pull_request", prEvent("opened", makePull())));
+  assert.deepEqual(result, {
+    body: { action: "opened", ok: true, pr: 230, repo: "harper_beta", result: "posted", ts: POSTED_TS },
+    status: 200,
+  });
+  assert.equal(harness.github.requests.length, 1);
+  const [read] = harness.github.requests;
+  assert.equal(read.method, "GET");
+  assert.equal(read.url, "https://api.github.com/repos/matchharper/harper_beta/pulls/230");
+  assert.equal(read.headers.Authorization, "Bearer github-token-for-tests");
+  assert.equal(harness.slack.history().length, 1);
+  assert.deepEqual(harness.slack.history()[0].body, {
+    channel: FIXER_PR_SLACK_CHANNEL_ID,
+    limit: 200,
+    oldest: String(Math.floor(NOW.getTime() / 1000) - 30 * 24 * 60 * 60),
+  });
+  assert.equal(harness.slack.writes().length, 1);
+  const [post] = harness.slack.writes();
+  assert.equal(post.method, "chat.postMessage");
+  assert.equal(post.body.channel, FIXER_PR_SLACK_CHANNEL_ID);
+  assert.equal(post.body.unfurl_links, false);
+  const { blocks } = blocksIn(post);
+  assert.equal(blocks[0].block_id, `harper_fixer_pr_card:harper_beta:230:${SHA}`);
+  assert.ok(blocks.some((block) => block.type === "actions"));
+  assert.match(post.body.text, /^수정 PR · 머지할지 정해 주세요: harper_beta #230/);
+});
+
+test("a redelivered opened updates the PR's card instead of posting again", async () => {
+  const otherPr = buildFixerPrOpenCard({ pull: makePull({ number: 231 }), repo: "harper_beta" });
+  const sameNumberOtherRepo = buildFixerPrOpenCard({
+    pull: makeWorkerPull({ number: 230 }),
+    repo: "harper_worker",
+  });
+  const harness = webhookHarness({
+    history: [
+      cardMessage(otherPr, "1762051000.000300"),
+      cardMessage(sameNumberOtherRepo, "1762050500.000100"),
+      openCardMessage(),
+    ],
+  });
+  const result = await harness.run(delivery("pull_request", prEvent("opened", makePull())));
+  assert.deepEqual([result.body.result, result.body.ts], ["updated", CARD_TS]);
+  assert.equal(harness.slack.writes().length, 1);
+  const [update] = harness.slack.writes();
+  assert.equal(update.method, "chat.update");
+  assert.equal(update.body.ts, CARD_TS);
+  assert.equal(update.body.channel, FIXER_PR_SLACK_CHANNEL_ID);
+  assert.doesNotMatch(blocksIn(update).blocks[0].text?.text ?? "", /커밋이 바뀌었어요/);
+});
+
+test("only the Harper bot's own messages are cards", async () => {
+  const card = buildFixerPrOpenCard({ pull: makePull(), repo: "harper_beta" });
+  assert.deepEqual(readFixerPrCard(cardMessage(card), BOT_USER), {
+    final: false,
+    pr: 230,
+    repo: "harper_beta",
+    sha: SHA,
+    ts: CARD_TS,
+  });
+  const closed = buildFixerPrFinalCard({ outcome: "closed", pull: makePull({ state: "closed" }), repo: "harper_beta" });
+  assert.equal(readFixerPrCard(cardMessage(closed), BOT_USER)?.final, true);
+  assert.equal(readFixerPrCard(cardMessage(card, CARD_TS, "U0OTHERAPP1"), BOT_USER), null);
+  assert.equal(readFixerPrCard(cardMessage(card), ""), null);
+  assert.equal(readFixerPrCard({ ...cardMessage(card), ts: "" }, BOT_USER), null);
+  assert.equal(readFixerPrCard({ ...cardMessage(card), blocks: [] }, BOT_USER), null);
+  assert.equal(
+    readFixerPrCard(
+      {
+        ...cardMessage(card),
+        blocks: [{ block_id: `harper_fixer_pr_card:harper_incidents:230:${SHA}`, type: "section" }],
+      },
+      BOT_USER
+    ),
+    null
+  );
+  // Another app's copy cannot be updated with Harper's token: a card of its own is posted.
+  const harness = webhookHarness({ history: [cardMessage(card, CARD_TS, "U0OTHERAPP1")] });
+  const result = await harness.run(delivery("pull_request", prEvent("opened", makePull())));
+  assert.equal(result.body.result, "posted");
+});
+
+test("synchronize moves the card to the new head commit", async () => {
+  const harness = webhookHarness({ history: [openCardMessage()], pulls: [pushedPull()] });
+  const result = await harness.run(delivery("pull_request", prEvent("synchronize", pushedPull())));
+  assert.equal(result.body.result, "updated");
+  const { blocks } = blocksIn(harness.slack.writes()[0]);
+  assert.equal(blocks[0].block_id, `harper_fixer_pr_card:harper_beta:230:${NEW_SHA}`);
+  assert.match(blocks[0].text?.text ?? "", /^커밋이 바뀌었어요: `3f2a9c1` → `9b8c7d6`$/m);
+  assert.match(blocks[0].text?.text ?? "", /^대상 `dev` · 커밋 `9b8c7d6`/m);
+  const actions = blocks.find((block) => block.type === "actions");
+  assert.equal(JSON.parse(actions?.elements?.[0].value).sha, NEW_SHA);
+});
+
+test("late or out-of-order deliveries leave the card GitHub's current state calls for", async () => {
+  // A synchronize for an older push arrives after a newer one: the card shows GitHub's head.
+  const lateSync = webhookHarness({ history: [openCardMessage()], pulls: [pushedPull()] });
+  await lateSync.run(delivery("pull_request", prEvent("synchronize", makePull())));
+  assert.equal(
+    blocksIn(lateSync.slack.writes()[0]).blocks[0].block_id,
+    `harper_fixer_pr_card:harper_beta:230:${NEW_SHA}`
+  );
+
+  // An opened delivered after the PR was merged on GitHub finalizes the card, never reopens it.
+  const lateOpened = webhookHarness({ history: [openCardMessage()], pulls: [mergedPull()] });
+  await lateOpened.run(delivery("pull_request", prEvent("opened", makePull())));
+  const finalBlocks = blocksIn(lateOpened.slack.writes()[0]).blocks;
+  assert.equal(finalBlocks[0].block_id, `harper_fixer_pr_final:harper_beta:230:${SHA}`);
+  assert.equal(finalBlocks.some((block) => block.type === "actions"), false);
+
+  // A closed delivered after the PR was reopened keeps the buttons.
+  const closedCard = cardMessage(
+    buildFixerPrFinalCard({ outcome: "closed", pull: makePull({ state: "closed" }), repo: "harper_beta" })
+  );
+  const lateClosed = webhookHarness({ history: [closedCard], pulls: [makePull()] });
+  const result = await lateClosed.run(
+    delivery("pull_request", prEvent("closed", makePull({ state: "closed" })))
+  );
+  assert.equal(result.body.result, "updated");
+  assert.ok(blocksIn(lateClosed.slack.writes()[0]).blocks.some((block) => block.type === "actions"));
+});
+
+test("closed finalizes the card, and does nothing without a card", async () => {
+  const merged = webhookHarness({ history: [openCardMessage()], pulls: [mergedPull()] });
+  const result = await merged.run(delivery("pull_request", prEvent("closed", mergedPull())));
+  assert.equal(result.body.result, "updated");
+  const [update] = merged.slack.writes();
+  assert.equal(update.method, "chat.update");
+  const { blocks } = blocksIn(update);
+  assert.match(blocks[0].text?.text ?? "", /^✅ 머지됨 · \(GitHub에서\) · 11\/2 11:52 · `dev` 커밋 `7c1e0d2`$/m);
+  assert.equal(blocks.some((block) => block.type === "actions"), false);
+
+  const closedPull = makePull({ state: "closed" });
+  const closed = webhookHarness({ history: [openCardMessage()], pulls: [closedPull] });
+  await closed.run(delivery("pull_request", prEvent("closed", closedPull)));
+  assert.match(blocksIn(closed.slack.writes()[0]).blocks[0].text?.text ?? "", /^닫힘 · 머지 안 함 · \(GitHub에서\)$/m);
+
+  const none = webhookHarness({ pulls: [mergedPull()] });
+  const skipped = await none.run(delivery("pull_request", prEvent("closed", mergedPull())));
+  assert.deepEqual([skipped.body.result, skipped.body.reason], ["skipped", "no_card"]);
+  assert.equal(none.slack.writes().length, 0);
+});
+
+test("a card a press already finalized is kept; reopening brings the buttons back", async () => {
+  const pressed = cardMessage(
+    buildFixerPrFinalCard({ by: OTHER_ALLOWED_USER, outcome: "closed", pull: makePull({ state: "closed" }), repo: "harper_beta" })
+  );
+  const closedPull = makePull({ state: "closed" });
+  for (const action of ["closed", "opened"]) {
+    const late = webhookHarness({ history: [pressed], pulls: [closedPull] });
+    const result = await late.run(delivery("pull_request", prEvent(action, makePull())));
+    assert.deepEqual([result.body.result, result.body.reason], ["skipped", "final_card"], action);
+    assert.equal(late.slack.writes().length, 0);
+  }
+  const reopened = webhookHarness({ history: [pressed], pulls: [makePull()] });
+  const result = await reopened.run(delivery("pull_request", prEvent("reopened", makePull())));
+  assert.equal(result.body.result, "updated");
+  assert.ok(blocksIn(reopened.slack.writes()[0]).blocks.some((block) => block.type === "actions"));
+});
+
+test("a base change or a draft turns the buttons off; a title edit posts a missing card", async () => {
+  const retargetedPull = makePull({ base: { ref: "main", repo: { full_name: "matchharper/harper_beta" } } });
+  const retargeted = webhookHarness({ history: [openCardMessage()], pulls: [retargetedPull] });
+  const result = await retargeted.run(
+    delivery(
+      "pull_request",
+      prEvent("edited", retargetedPull, { changes: { base: { ref: { from: "dev" }, sha: { from: SHA } } } })
+    )
+  );
+  assert.equal(result.body.result, "updated");
+  const { blocks } = blocksIn(retargeted.slack.writes()[0]);
+  assert.match(blocks[0].text?.text ?? "", /^대상 브랜치가 바뀌었어요: `dev` → `main` · 버튼을 껐어요\./);
+  assert.equal(blocks.some((block) => block.type === "actions"), false);
+
+  const draftPull = makePull({ draft: true });
+  const drafted = webhookHarness({ history: [openCardMessage()], pulls: [draftPull] });
+  await drafted.run(delivery("pull_request", prEvent("converted_to_draft", draftPull)));
+  const draftBlocks = blocksIn(drafted.slack.writes()[0]).blocks;
+  assert.match(draftBlocks[0].text?.text ?? "", /^초안 상태라 버튼을 껐어요\. GitHub에서 확인해 주세요\.$/m);
+  assert.equal(draftBlocks.some((block) => block.type === "actions"), false);
+
+  // Not ready for a decision and no card yet: nothing is posted.
+  for (const pull of [retargetedPull, draftPull]) {
+    const fresh = webhookHarness({ pulls: [pull] });
+    const skipped = await fresh.run(delivery("pull_request", prEvent("opened", pull)));
+    assert.deepEqual([skipped.body.result, skipped.body.reason], ["skipped", "no_card"]);
+    assert.equal(fresh.slack.writes().length, 0);
+  }
+
+  const titleOnly = webhookHarness();
+  const edited = await titleOnly.run(
+    delivery("pull_request", prEvent("edited", makePull(), { changes: { title: { from: "이전 제목" } } }))
+  );
+  assert.equal(edited.body.result, "posted");
+});
+
+test("forks, other branches and repositories, and other actions stop before GitHub and Slack", async () => {
+  const harness = webhookHarness();
+  const cases: Array<[string, unknown]> = [
+    [
+      "fork",
+      prEvent("opened", makePull({ head: { ref: "fix/incident-44-x", repo: { full_name: "someone/harper_beta" }, sha: SHA } })),
+    ],
+    [
+      "branch_prefix",
+      prEvent("opened", makePull({ head: { ref: "feature/review", repo: { full_name: "matchharper/harper_beta" }, sha: SHA } })),
+    ],
+    ["unknown_repo", { ...prEvent("opened", makePull()), repository: { full_name: "matchharper/harper_incidents" } }],
+    ["action_labeled", prEvent("labeled", makePull())],
+    ["invalid_payload", { action: "opened", pull_request: {}, repository: { full_name: "matchharper/harper_beta" } }],
+  ];
+  for (const [reason, payload] of cases) {
+    const result = await harness.run(delivery("pull_request", payload));
+    assert.equal(result.status, 200, reason);
+    assert.equal(result.body.reason, reason);
+  }
+  assert.equal(harness.github.requests.length, 0);
+  assert.equal(harness.slack.calls.length, 0);
+});
+
+test("a GitHub read failure answers 502 and leaves Slack alone", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const harness = webhookHarness({ get: { body: { message: "Server Error" }, status: 502 } });
+  const result = await harness.run(delivery("pull_request", prEvent("opened", makePull())));
+  assert.deepEqual(result, {
+    body: { action: "opened", code: 502, error: "github_failed", ok: false, pr: 230, repo: "harper_beta" },
+    status: 502,
+  });
+  assert.equal(harness.slack.calls.length, 0);
+});
+
+test("a Slack failure answers 500 so GitHub records a failed delivery", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const refused = webhookHarness({ fail: { code: "not_in_channel", method: "chat.postMessage" } });
+  const result = await refused.run(delivery("pull_request", prEvent("opened", makePull())));
+  assert.equal(result.status, 500);
+  assert.equal(result.body.error, "slack_failed");
+  assert.equal(result.body.code, "not_in_channel");
+  const limited = webhookHarness({ fail: { code: "ratelimited", method: "conversations.history" } });
+  const limitedResult = await limited.run(delivery("pull_request", prEvent("synchronize", makePull())));
+  assert.deepEqual([limitedResult.status, limitedResult.body.code], [500, "ratelimited"]);
+  assert.equal(limited.slack.writes().length, 0);
+});
+
+test("GitHub's form-encoded deliveries are read like JSON ones", async () => {
+  const harness = webhookHarness();
+  const rawBody = new URLSearchParams({
+    payload: JSON.stringify(prEvent("opened", makePull())),
+  }).toString();
+  const result = await harness.run({ event: "pull_request", rawBody, signature: sign(rawBody) });
+  assert.equal(result.body.result, "posted");
+});
+
+function clickHarness(
+  options: {
+    github?: ReturnType<typeof githubFake>;
+    secrets?: FixerPrSecrets | null;
+    slackFail?: { code: string; method: string };
+  } = {}
+) {
   const github = options.github ?? githubFake();
+  const slack = slackFake([], options.slackFail);
   const responses: Array<{ body: Record<string, any>; url: string }> = [];
   const tasks: Promise<void>[] = [];
   const counters = { githubClients: 0, secretLoads: 0 };
@@ -683,12 +827,12 @@ function clickHarness(
     },
     now: () => NOW,
     respond: async (url, body) => {
-      if (options.refuse?.(body)) throw new Error("Slack response_url 400: invalid_payload");
       responses.push({ body, url });
     },
     schedule: (task) => {
       tasks.push(task());
     },
+    slack: slack.slack,
   };
   return {
     counters,
@@ -698,6 +842,7 @@ function clickHarness(
     },
     github,
     responses,
+    slack,
     tasks,
   };
 }
@@ -707,7 +852,7 @@ function press(overrides: Record<string, unknown> = {}, actionId = FIXER_PR_MERG
     actions: [{ action_id: actionId, value: typeof value === "string" ? value : JSON.stringify(value) }],
     api_app_id: "A_HARPER",
     channel: { id: FIXER_PR_SLACK_CHANNEL_ID },
-    container: { channel_id: FIXER_PR_SLACK_CHANNEL_ID, message_ts: "1762050000.000200" },
+    container: { channel_id: FIXER_PR_SLACK_CHANNEL_ID, message_ts: CARD_TS },
     response_url: RESPONSE_URL,
     team: { id: FIXER_PR_SLACK_TEAM_ID },
     type: "block_actions",
@@ -730,7 +875,7 @@ test("a press from another workspace, channel, or person never reaches GitHub", 
   const harness = clickHarness();
   const otherTeam = await routeFixerPrSlackAction(press({ team: { id: "T0CUSTOMER1" } }), harness.deps);
   const otherChannel = await routeFixerPrSlackAction(
-    press({ channel: { id: "C0OTHER0001" }, container: { channel_id: "C0OTHER0001" } }),
+    press({ channel: { id: "C0OTHER0001" }, container: { channel_id: "C0OTHER0001", message_ts: CARD_TS } }),
     harness.deps
   );
   assert.equal(otherTeam?.ignored, true);
@@ -739,17 +884,13 @@ test("a press from another workspace, channel, or person never reaches GitHub", 
   const stranger = await routeFixerPrSlackAction(press({ user: { id: "U0STRANGER1" } }), harness.deps);
   assert.equal(stranger?.status, "fixer_pr_not_allowed");
   await harness.flush();
-  assert.deepEqual(harness.responses, [
-    {
-      body: { replace_original: false, response_type: "ephemeral", text: FIXER_PR_NOT_ALLOWED_TEXT },
-      url: RESPONSE_URL,
-    },
-  ]);
+  assert.deepEqual(harness.responses, [{ body: ephemeral(FIXER_PR_NOT_ALLOWED_TEXT), url: RESPONSE_URL }]);
   assert.deepEqual(harness.counters, { githubClients: 0, secretLoads: 0 });
   assert.equal(harness.github.requests.length, 0);
+  assert.equal(harness.slack.calls.length, 0);
 });
 
-test("an allowed press on [머지] merges the commit on the card with a merge commit", async () => {
+test("[머지] merges the commit on the card with a merge commit and rewrites that card", async () => {
   const harness = clickHarness();
   const ack = await routeFixerPrSlackAction(press(), harness.deps);
   assert.deepEqual(ack, { ok: true, status: "fixer_pr_merge_started" });
@@ -764,17 +905,21 @@ test("an allowed press on [머지] merges the commit on the card with a merge co
   assert.equal(merge.headers.Accept, "application/vnd.github+json");
   assert.equal(merge.headers["X-GitHub-Api-Version"], "2022-11-28");
   assert.ok(merge.headers["User-Agent"]);
-  assert.equal(harness.responses.length, 1);
-  const [{ body, url }] = harness.responses;
-  assert.equal(url, RESPONSE_URL);
-  assert.equal(body.replace_original, true);
-  assert.equal(actionsOf(body as FixerPrCard), undefined);
-  assert.match(textOf(body as FixerPrCard), /^✅ 머지됨 · <@U0C8E9KPMSA> · 11\/2 11:52 · `dev` 커밋 `7c1e0d2`$/m);
-  assert.ok(textOf(body as FixerPrCard).includes(PR_LINK));
-  assert.equal(body.metadata.event_type, FIXER_PR_SLACK_EVENT_TYPE);
+  assert.equal(harness.responses.length, 0);
+  assert.equal(harness.slack.calls.length, 1);
+  const [update] = harness.slack.calls;
+  assert.equal(update.method, "chat.update");
+  assert.equal(update.body.channel, FIXER_PR_SLACK_CHANNEL_ID);
+  assert.equal(update.body.ts, CARD_TS);
+  const { blocks } = blocksIn(update);
+  assert.equal(blocks[0].block_id, `harper_fixer_pr_final:harper_beta:230:${SHA}`);
+  assert.equal(blocks.some((block) => block.type === "actions"), false);
+  assert.match(blocks[0].text?.text ?? "", /^✅ 머지됨 · <@U0C8E9KPMSA> · 11\/2 11:52 · `dev` 커밋 `7c1e0d2`$/m);
+  assert.ok((blocks[0].text?.text ?? "").includes(PR_LINK));
+  assert.match(update.body.text, /^✅ 머지됨: harper_beta #230/);
 });
 
-test("[머지 안 함] closes the PR without merging", async () => {
+test("[머지 안 함] closes the PR without merging and rewrites that card", async () => {
   const harness = clickHarness();
   await routeFixerPrSlackAction(press({ user: { id: OTHER_ALLOWED_USER } }, FIXER_PR_CLOSE_ACTION_ID), harness.deps);
   await harness.flush();
@@ -783,118 +928,148 @@ test("[머지 안 함] closes the PR without merging", async () => {
   assert.equal(writes[0].method, "PATCH");
   assert.equal(writes[0].url, "https://api.github.com/repos/matchharper/harper_beta/pulls/230");
   assert.deepEqual(writes[0].body, { state: "closed" });
-  const card = harness.responses[0].body as FixerPrCard;
-  assert.match(textOf(card), /^닫힘 · 머지 안 함 · <@U09B4FF7TV0>$/m);
-  assert.equal(actionsOf(card), undefined);
+  assert.equal(harness.responses.length, 0);
+  const [update] = harness.slack.calls;
+  assert.equal(update.method, "chat.update");
+  assert.equal(update.body.ts, CARD_TS);
+  assert.match(blocksIn(update).blocks[0].text?.text ?? "", /^닫힘 · 머지 안 함 · <@U09B4FF7TV0>$/m);
 });
 
-test("a new commit after the card was posted re-renders the buttons instead of merging", async () => {
-  const github = githubFake({ pulls: [makePull({ head: { ...makePull().head, sha: NEW_SHA } })] });
-  const harness = clickHarness({ github });
-  await routeFixerPrSlackAction(press(), harness.deps);
-  await harness.flush();
-  assert.equal(github.writes().length, 0);
-  const card = harness.responses[0].body as FixerPrCard;
-  assert.match(textOf(card), /^커밋이 바뀌었어요: `3f2a9c1` → `9b8c7d6`$/m);
-  assert.match(textOf(card), /다시 눌러 주세요/);
-  assert.equal(JSON.parse(actionsOf(card)?.elements?.[0].value).sha, NEW_SHA);
-  assert.equal(card.metadata.event_payload.sha, NEW_SHA);
-});
-
-test("a PR merged, closed, or retargeted on GitHub only updates the card", async () => {
-  const cases: Array<[FixerPrPull, RegExp, boolean]> = [
-    [makePull({ merge_commit_sha: MERGE_SHA, merged: true, merged_at: NOW.toISOString(), state: "closed" }), /^✅ 머지됨 · \(GitHub에서\) · 11\/2 11:52/m, false],
-    [makePull({ state: "closed" }), /^닫힘 · 머지 안 함 · \(GitHub에서\)$/m, false],
-    [makePull({ base: { ref: "main" } }), /^대상 브랜치가 바뀌었어요: `dev` → `main`/m, false],
-    [makePull({ draft: true }), /^초안 상태라 버튼을 껐어요\./m, false],
+test("a press that changes nothing on GitHub only tells the presser why", async () => {
+  const cases: Array<[FixerPrPull, string]> = [
+    [
+      pushedPull(),
+      "카드를 올린 뒤 새 커밋이 생겨(`3f2a9c1` → `9b8c7d6`) 아무것도 하지 않았어요. 카드가 새 커밋으로 바뀌면 확인하고 다시 눌러 주세요. 안 바뀌면 GitHub에서 처리해 주세요.",
+    ],
+    [mergedPull(), "이미 머지된 PR이에요. 아무것도 바꾸지 않았어요."],
+    [makePull({ state: "closed" }), "이미 닫힌 PR이에요. 아무것도 바꾸지 않았어요."],
+    [
+      makePull({ base: { ref: "main" } }),
+      "대상 브랜치가 바뀌어(`dev` → `main`) 아무것도 하지 않았어요. GitHub에서 확인해 주세요.",
+    ],
+    [
+      makePull({ draft: true }),
+      "초안이거나 수정 에이전트 PR이 아니라 아무것도 하지 않았어요. GitHub에서 확인해 주세요.",
+    ],
   ];
-  for (const [pull, expected, hasButtons] of cases) {
-    const github = githubFake({ pulls: [pull] });
-    const harness = clickHarness({ github });
-    await routeFixerPrSlackAction(press(), harness.deps);
-    await harness.flush();
-    assert.equal(github.writes().length, 0);
-    const card = harness.responses[0].body as FixerPrCard;
-    assert.match(textOf(card), expected);
-    assert.equal(Boolean(actionsOf(card)), hasButtons);
+  for (const [pull, text] of cases) {
+    for (const actionId of [FIXER_PR_MERGE_ACTION_ID, FIXER_PR_CLOSE_ACTION_ID]) {
+      const harness = clickHarness({ github: githubFake({ pulls: [pull] }) });
+      await routeFixerPrSlackAction(press({}, actionId), harness.deps);
+      await harness.flush();
+      assert.deepEqual(harness.responses, [{ body: ephemeral(text), url: RESPONSE_URL }]);
+      assert.equal(harness.github.writes().length, 0);
+      assert.equal(harness.slack.calls.length, 0);
+    }
   }
 });
 
-test("GitHub refusals keep the buttons only where pressing again can work", async (t) => {
+test("GitHub refusals tell the presser why and leave the card to GitHub's events", async (t) => {
   t.mock.method(console, "warn", () => {});
-  const notMergeable = githubFake({ merge: { body: { message: "Pull Request is not mergeable" }, status: 405 } });
-  const retry = clickHarness({ github: notMergeable });
-  await routeFixerPrSlackAction(press(), retry.deps);
-  await retry.flush();
-  const retryCard = retry.responses[0].body as FixerPrCard;
-  assert.match(textOf(retryCard), /⚠️ 지금은 머지할 수 없어요 \(GitHub 405 · Pull Request is not mergeable\)/);
-  assert.ok(actionsOf(retryCard));
-
-  const forbidden = githubFake({
-    merge: { body: { message: "Resource not accessible by personal access token" }, status: 403 },
-  });
-  const refused = clickHarness({ github: forbidden });
-  await routeFixerPrSlackAction(press(), refused.deps);
-  await refused.flush();
-  const refusedCard = refused.responses[0].body as FixerPrCard;
-  assert.match(textOf(refusedCard), /⚠️ GitHub이 거절했어요 \(GitHub 403 · Resource not accessible/);
-  assert.equal(actionsOf(refusedCard), undefined);
-
-  const headMoved = githubFake({
-    merge: { body: { message: "Head branch was modified. Review and try the merge again." }, status: 409 },
-    pulls: [makePull(), makePull({ head: { ...makePull().head, sha: NEW_SHA } })],
-  });
-  const moved = clickHarness({ github: headMoved });
-  await routeFixerPrSlackAction(press(), moved.deps);
-  await moved.flush();
-  const movedCard = moved.responses[0].body as FixerPrCard;
-  assert.match(textOf(movedCard), /커밋이 바뀌었어요: `3f2a9c1` → `9b8c7d6`/);
-  assert.equal(JSON.parse(actionsOf(movedCard)?.elements?.[0].value).sha, NEW_SHA);
-
-  const raced = githubFake({
-    close: { body: { message: "Validation Failed" }, status: 422 },
-    pulls: [makePull(), makePull({ merge_commit_sha: MERGE_SHA, merged: true, merged_at: NOW.toISOString(), state: "closed" })],
-  });
-  const lateClose = clickHarness({ github: raced });
-  await routeFixerPrSlackAction(press({}, FIXER_PR_CLOSE_ACTION_ID), lateClose.deps);
-  await lateClose.flush();
-  assert.match(textOf(lateClose.responses[0].body as FixerPrCard), /^✅ 머지됨 · \(GitHub에서\)/m);
+  const notice = async (github: ReturnType<typeof githubFake>, actionId = FIXER_PR_MERGE_ACTION_ID) => {
+    const harness = clickHarness({ github });
+    await routeFixerPrSlackAction(press({}, actionId), harness.deps);
+    await harness.flush();
+    assert.equal(harness.slack.calls.length, 0);
+    assert.equal(harness.responses.length, 1);
+    assert.equal(harness.responses[0].body.response_type, "ephemeral");
+    assert.equal(harness.responses[0].body.replace_original, false);
+    return String(harness.responses[0].body.text);
+  };
+  assert.equal(
+    await notice(githubFake({ merge: { body: { message: "Pull Request is not mergeable" }, status: 405 } })),
+    "⚠️ 지금은 머지할 수 없어요 (GitHub 405 · Pull Request is not mergeable). 충돌이나 필수 검사가 풀리면 다시 눌러 주세요."
+  );
+  assert.equal(
+    await notice(
+      githubFake({ merge: { body: { message: "Resource not accessible by personal access token" }, status: 403 } })
+    ),
+    "⚠️ GitHub이 거절했어요 (GitHub 403 · Resource not accessible by personal access token). GitHub에서 확인해 주세요."
+  );
+  assert.equal(
+    await notice(githubFake({ offline: "PUT" })),
+    "⚠️ GitHub 응답을 받지 못했어요. 잠시 후 다시 눌러 주세요."
+  );
+  // A push or another press explains the refusal: the notice says so.
+  assert.match(
+    await notice(
+      githubFake({
+        merge: { body: { message: "Head branch was modified. Review and try the merge again." }, status: 409 },
+        pulls: [makePull(), pushedPull()],
+      })
+    ),
+    /^카드를 올린 뒤 새 커밋이 생겨\(`3f2a9c1` → `9b8c7d6`\)/
+  );
+  assert.equal(
+    await notice(
+      githubFake({ close: { body: { message: "Validation Failed" }, status: 422 }, pulls: [makePull(), mergedPull()] }),
+      FIXER_PR_CLOSE_ACTION_ID
+    ),
+    "이미 머지된 PR이에요. 아무것도 바꾸지 않았어요."
+  );
+  assert.equal(
+    await notice(githubFake({ close: { body: makePull({ merged: true, state: "closed" }), status: 200 } }), FIXER_PR_CLOSE_ACTION_ID),
+    "이미 머지된 PR이에요. 아무것도 바꾸지 않았어요."
+  );
 });
 
-test("a card Slack refuses after a merge is retried without metadata, never treated as a GitHub refusal", async (t) => {
+test("with two presses, only the one that changed GitHub writes the card", async () => {
+  const github = githubFake({ pulls: [makePull(), mergedPull()] });
+  const first = clickHarness({ github });
+  const second = clickHarness({ github });
+  await routeFixerPrSlackAction(press(), first.deps);
+  await first.flush();
+  await routeFixerPrSlackAction(press({ user: { id: OTHER_ALLOWED_USER } }, FIXER_PR_CLOSE_ACTION_ID), second.deps);
+  await second.flush();
+  assert.deepEqual(github.writes().map((request) => request.method), ["PUT"]);
+  assert.equal(first.slack.calls.length, 1);
+  assert.equal(second.slack.calls.length, 0);
+  assert.deepEqual(second.responses, [
+    { body: ephemeral("이미 머지된 PR이에요. 아무것도 바꾸지 않았어요."), url: RESPONSE_URL },
+  ]);
+});
+
+test("when Slack refuses the card update after a merge, the presser still sees the result", async (t) => {
   t.mock.method(console, "warn", () => {});
-  const harness = clickHarness({ refuse: (body) => "metadata" in body });
+  const harness = clickHarness({ slackFail: { code: "message_not_found", method: "chat.update" } });
   await routeFixerPrSlackAction(press(), harness.deps);
   await harness.flush();
-  assert.deepEqual(
-    harness.github.requests.map((request) => request.method),
-    ["GET", "PUT"]
-  );
+  assert.deepEqual(harness.github.requests.map((request) => request.method), ["GET", "PUT"]);
   assert.equal(harness.responses.length, 1);
-  const { body } = harness.responses[0];
-  assert.equal(body.replace_original, true);
-  assert.equal("metadata" in body, false);
-  assert.match(textOf(body as FixerPrCard), /^✅ 머지됨 · <@U0C8E9KPMSA> · 11\/2 11:52/m);
+  assert.equal(harness.responses[0].body.response_type, "ephemeral");
+  assert.match(harness.responses[0].body.text, /^✅ 머지됨: harper_beta #230/);
 });
 
-test("without Vault secrets a press gets a short notice and GitHub is not called", async (t) => {
-  t.mock.method(console, "warn", () => {});
+test("without Vault secrets a press gets a short notice and GitHub is not called", async () => {
   const harness = clickHarness({ secrets: null });
   await routeFixerPrSlackAction(press(), harness.deps);
   await harness.flush();
-  assert.deepEqual(harness.responses[0].body, {
-    replace_original: false,
-    response_type: "ephemeral",
-    text: FIXER_PR_UNAVAILABLE_TEXT,
-  });
+  assert.deepEqual(harness.responses, [{ body: ephemeral(FIXER_PR_UNAVAILABLE_TEXT), url: RESPONSE_URL }]);
   assert.equal(harness.counters.githubClients, 0);
+  assert.equal(harness.slack.calls.length, 0);
 });
 
-test("a malformed button value is ignored without scheduling work", async () => {
+test("a malformed button value or a press without its message is ignored", async () => {
   const harness = clickHarness();
-  const result = await routeFixerPrSlackAction(press({}, FIXER_PR_MERGE_ACTION_ID, { ...buttonValue(), sha: "abc" }), harness.deps);
-  assert.equal(result?.ignored, true);
+  const badValue = await routeFixerPrSlackAction(
+    press({}, FIXER_PR_MERGE_ACTION_ID, { ...buttonValue(), sha: "abc" }),
+    harness.deps
+  );
+  assert.equal(badValue?.ignored, true);
+  const noMessage = await routeFixerPrSlackAction(
+    press({ container: { channel_id: FIXER_PR_SLACK_CHANNEL_ID } }),
+    harness.deps
+  );
+  assert.equal(noMessage?.ignored, true);
   assert.equal(harness.tasks.length, 0);
+  // message.ts identifies the card when container has none.
+  const fallback = clickHarness();
+  await routeFixerPrSlackAction(
+    press({ container: { channel_id: FIXER_PR_SLACK_CHANNEL_ID }, message: { ts: "1762050000.000999" } }),
+    fallback.deps
+  );
+  await fallback.flush();
+  assert.equal(fallback.slack.calls[0].body.ts, "1762050000.000999");
 });
 
 test("GitHub client errors carry the HTTP status, or 0 without a response", async () => {
