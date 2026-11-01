@@ -320,6 +320,92 @@ export async function prepareMeetingScheduleDraft(args: {
   };
 }
 
+const INVITATION_QUEUE_TYPE = "meeting_schedule_candidate_invitation";
+
+/** The idempotency key of a meeting a web button started (no chat message). */
+export function webMeetingRequestIdempotencyKey(args: {
+  recommendationId: string;
+  webRequestKey: string;
+  workspaceId: string;
+}) {
+  return [
+    "meeting_web_request",
+    args.workspaceId,
+    args.recommendationId,
+    args.webRequestKey,
+  ].join(":");
+}
+
+/**
+ * The draft an earlier attempt made for this candidate whose link no email
+ * has carried yet: the attempt failed after the draft was saved (the intro
+ * email failed, or the move was refused and the link taken back). A retry
+ * continues it, as the saved connection approval continues that attempt's
+ * recipients, email and link. Asking the database for a second draft under
+ * the same key with other settings is refused, so a retry whose dialog came
+ * back with its default topic could never go through.
+ *
+ * Null when there is no such draft, or once its link went out or the
+ * candidate answered: then the usual draft creation decides.
+ */
+export async function findUnsentWebMeetingDraft(args: {
+  admin: OrgAgentAdminClient;
+  recommendationId: string;
+  talentId: string;
+  webRequestKey: string;
+  workspaceId: string;
+}) {
+  const { data: schedule, error } = await (
+    args.admin.from("meeting_schedules" as any) as any
+  )
+    .select("id, status, active_round_id")
+    .eq("idempotency_key", webMeetingRequestIdempotencyKey(args))
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("recommendation_id", args.recommendationId)
+    .eq("talent_id", args.talentId)
+    .maybeSingle();
+  if (error) throw error;
+  const scheduleId = clean(schedule?.id);
+  const activeRoundId = clean(schedule?.active_round_id);
+  if (!scheduleId || !activeRoundId) return null;
+
+  const { data: round, error: roundError } = await (
+    args.admin.from("meeting_schedule_rounds" as any) as any
+  )
+    .select("id, status, delivery_queue_id, submitted_at")
+    .eq("id", activeRoundId)
+    .eq("schedule_id", scheduleId)
+    .maybeSingle();
+  if (roundError) throw roundError;
+  if (!round || round.submitted_at) return null;
+  const draft = {
+    alreadyExisted: true,
+    roundId: clean(round.id),
+    scheduleId,
+    status: clean(schedule.status) || "preparing",
+  };
+  // Never linked, or its link was taken back after a failed move.
+  if (round.status === "draft") return draft;
+
+  const queueId = clean(round.delivery_queue_id);
+  if (round.status !== "queued" || !queueId) return null;
+  const { data: queue, error: queueError } = await (
+    args.admin.from("contact_queue" as any) as any
+  )
+    .select("status, sent_at, payload")
+    .eq("id", queueId)
+    .eq("type", INVITATION_QUEUE_TYPE)
+    .maybeSingle();
+  if (queueError) throw queueError;
+  // Set aside for an intro email that has not gone out.
+  return queue?.status === "queued" &&
+    !queue.sent_at &&
+    isRecord(queue.payload) &&
+    queue.payload.heldForIntroEmail === true
+    ? draft
+    : null;
+}
+
 export async function createMeetingScheduleDraft(args: {
   admin: OrgAgentAdminClient;
   draft: PreparedMeetingScheduleDraft;
@@ -349,12 +435,11 @@ export async function createMeetingScheduleDraft(args: {
   }
   const idempotencyKey =
     args.sourceCompanyMessageId === null
-      ? [
-          "meeting_web_request",
-          args.workspaceId,
-          args.recommendationId,
-          args.webRequestKey,
-        ].join(":")
+      ? webMeetingRequestIdempotencyKey({
+          recommendationId: args.recommendationId,
+          webRequestKey: args.webRequestKey ?? "",
+          workspaceId: args.workspaceId,
+        })
       : buildMeetingRequestIdempotencyKey({
           workspaceId: args.workspaceId,
           recommendationId: args.recommendationId,
