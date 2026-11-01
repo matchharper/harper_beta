@@ -179,7 +179,7 @@ function appId() {
   return value;
 }
 
-function localDevelopmentValue(name: string) {
+export function localDevelopmentValue(name: string) {
   if (process.env.NODE_ENV === "production") return "";
   return text(process.env[name]);
 }

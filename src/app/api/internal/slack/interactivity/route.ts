@@ -64,6 +64,7 @@ import { setOrgCandidateStageWithIntroBooking } from "@/lib/org/introBooking.ser
 import { OrgHttpError } from "@/lib/org/server";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import { handleSlackCandidateInteraction } from "@/lib/org/slackCandidateInteractivity";
+import { handleFixerPrSlackAction } from "@/lib/ops/fixerPrSlack.server";
 
 export const runtime = "nodejs";
 
@@ -563,6 +564,9 @@ export async function POST(req: NextRequest) {
   if (!isHarperSlackAppId(payload.api_app_id)) {
     return NextResponse.json({ error: "wrong_app" }, { status: 403 });
   }
+
+  const fixerPrInteraction = await handleFixerPrSlackAction(payload);
+  if (fixerPrInteraction) return NextResponse.json(fixerPrInteraction);
 
   const candidateInteraction = await handleSlackCandidateInteraction(payload);
   if (candidateInteraction) return NextResponse.json(candidateInteraction);
