@@ -10,6 +10,8 @@ let stageInput: Record<string, unknown> | null = null;
 let stageError: Error | null = null;
 let prepareInput: Record<string, unknown> | null = null;
 let approvalLink: { url: string } | null = null;
+let unsentDraft: Record<string, unknown> | null = null;
+let reservedScheduleId: unknown = null;
 const LINK = "https://example.invalid/meeting/token";
 
 type Helper = typeof import("./introBooking.server");
@@ -30,14 +32,21 @@ before(async () => {
         prepareInput = input;
         return { draft: { draftBlocker: blocker } };
       },
+      findUnsentWebMeetingDraft: async () => {
+        if (unsentDraft) calls.push("continue");
+        return unsentDraft;
+      },
       createMeetingScheduleDraft: async () => {
         calls.push("draft");
         return { scheduleId: "schedule" };
       },
     },
     "@/lib/meetings/invitationServer": {
-      reserveMeetingInvitationForIntro: async () => {
+      reserveMeetingInvitationForIntro: async (input: {
+        scheduleId: unknown;
+      }) => {
         calls.push("reserve");
+        reservedScheduleId = input.scheduleId;
         return {
           invitationUrl: LINK,
           linkLabel: "인터뷰 가능 시간 선택하기",
@@ -90,6 +99,8 @@ beforeEach(() => {
   stageError = null;
   prepareInput = null;
   approvalLink = null;
+  unsentDraft = null;
+  reservedScheduleId = null;
   stagePayload = { introEmailMessageId: "message", stage: "connected" };
 });
 
@@ -185,6 +196,33 @@ test("a failed email keeps the link its saved approval retries with", async () =
     })
   );
   assert.deepEqual(calls, ["prepare", "draft", "reserve", "stage"]);
+});
+
+test("a retry after a failed email continues the earlier draft and its link", async () => {
+  // The earlier attempt saved the draft, set its link aside and failed at the
+  // email; the dialog now comes back with its default topic.
+  unsentDraft = {
+    alreadyExisted: true,
+    roundId: "earlier-round",
+    scheduleId: "earlier",
+    status: "awaiting_talent",
+  };
+  approvalLink = { url: LINK };
+  const result = await helper.setOrgCandidateStageWithIntroBooking({
+    baseUrl: "https://example.invalid",
+    booking: "required",
+    meeting: { meetingPurpose: "서로를 알아 가는 첫 대화" },
+    stage: accept,
+  });
+  assert.deepEqual(calls, [
+    "prepare",
+    "continue",
+    "reserve",
+    "stage",
+    "delivered",
+  ]);
+  assert.equal(reservedScheduleId, "earlier");
+  assert.equal(result.bookingLinkIncluded, true);
 });
 
 test("an old screen re-sent after the connection sends nothing and releases the link", async () => {
