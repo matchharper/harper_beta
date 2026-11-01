@@ -19,8 +19,11 @@ import {
   type FixerPrWebhookInput,
 } from "./fixerPrSlack";
 
-/** GitHub waits 10 seconds for a webhook response; Slack work must end before. */
-const WEBHOOK_SLACK_BUDGET_MS = 8_000;
+/** GitHub waits 10 seconds for a webhook response: one PR read, then the Slack work. */
+const WEBHOOK_GITHUB_TIMEOUT_MS = 4_000;
+const WEBHOOK_SLACK_BUDGET_MS = 5_000;
+/** A press updates its card after the GitHub work, outside Slack's 3-second window. */
+const CLICK_SLACK_BUDGET_MS = 8_000;
 const RESPONSE_URL_TIMEOUT_MS = 5_000;
 
 let client: ReturnType<typeof postgres> | undefined;
@@ -49,12 +52,15 @@ const loadFixerPrSecrets = createFixerPrSecretsLoader({
 });
 
 /** The Harper bot in the internal Slack workspace. Every active row for the team holds the same bot. */
-async function loadFixerPrBotToken() {
+async function loadFixerPrBot(): Promise<{ botUserId: string; token: string }> {
   const localToken = localDevelopmentValue("SLACK_HARPER_LOCAL_BOT_TOKEN");
-  if (localToken) return localToken;
+  if (localToken) {
+    const auth = await slackApi<{ ok: boolean; user_id?: string }>(localToken, "auth.test");
+    return { botUserId: String(auth.user_id ?? "").trim(), token: localToken };
+  }
   const { data, error } = await getSupabaseAdmin()
     .from("company_slack_integrations")
-    .select("bot_token_ciphertext")
+    .select("bot_token_ciphertext, slack_bot_user_id")
     .eq("slack_team_id", FIXER_PR_SLACK_TEAM_ID)
     .eq("status", "active")
     .not("bot_token_ciphertext", "is", null)
@@ -62,15 +68,29 @@ async function loadFixerPrBotToken() {
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  if (!data?.bot_token_ciphertext)
+  if (!data?.bot_token_ciphertext || !data.slack_bot_user_id)
     throw new Error("Harper Slack is not connected to the internal workspace");
-  return decryptHarperSlackToken(data.bot_token_ciphertext);
+  return {
+    botUserId: String(data.slack_bot_user_id).trim(),
+    token: decryptHarperSlackToken(data.bot_token_ciphertext),
+  };
 }
 
-function fixerPrSlackCaller(signal: AbortSignal): FixerPrSlackCall {
-  let token: Promise<string> | undefined;
-  return async (method, body) =>
-    slackApi(await (token ??= loadFixerPrBotToken()), method, body, signal);
+/** Slack calls with the Harper bot; the time budget starts at the first call. */
+function fixerPrSlack(budgetMs: number): {
+  botUserId: () => Promise<string>;
+  call: FixerPrSlackCall;
+} {
+  let bot: ReturnType<typeof loadFixerPrBot> | undefined;
+  let signal: AbortSignal | undefined;
+  const load = () => (bot ??= loadFixerPrBot());
+  return {
+    botUserId: async () => (await load()).botUserId,
+    call: async (method, body) => {
+      const { token } = await load();
+      return slackApi(token, method, body, (signal ??= AbortSignal.timeout(budgetMs)));
+    },
+  };
 }
 
 async function postFixerPrSlackResponse(
@@ -96,9 +116,13 @@ async function postFixerPrSlackResponse(
 
 /** GitHub `pull_request` webhook for fixer PRs: posts or updates the #qa card. */
 export function handleFixerPrWebhook(input: FixerPrWebhookInput) {
+  const slack = fixerPrSlack(WEBHOOK_SLACK_BUDGET_MS);
   return runFixerPrWebhook(input, {
+    botUserId: slack.botUserId,
+    github: (token) =>
+      createFixerPrGitHubClient({ timeoutMs: WEBHOOK_GITHUB_TIMEOUT_MS, token }),
     loadSecrets: loadFixerPrSecrets,
-    slack: fixerPrSlackCaller(AbortSignal.timeout(WEBHOOK_SLACK_BUDGET_MS)),
+    slack: slack.call,
   });
 }
 
@@ -109,5 +133,6 @@ export function handleFixerPrSlackAction(payload: FixerPrSlackActionPayload) {
     loadSecrets: loadFixerPrSecrets,
     respond: postFixerPrSlackResponse,
     schedule: (task) => after(task),
+    slack: fixerPrSlack(CLICK_SLACK_BUDGET_MS).call,
   });
 }
