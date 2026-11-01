@@ -22,6 +22,7 @@ test("calculates half-hour starts and subtracts overlapping Harper meetings", ()
       },
     ],
     durationMinutes: 60,
+    now: new Date("2026-08-26T00:00:00.000Z"),
     windowEnd: new Date("2026-08-26T06:00:00.000Z"),
     windowStart: new Date("2026-08-26T00:00:00.000Z"),
   });
@@ -45,6 +46,7 @@ test("date overrides replace weekly hours before slots are generated", () => {
   const result = calculateMeetingCandidateSlots({
     availability: value,
     durationMinutes: 60,
+    now: new Date("2026-08-25T15:00:00.000Z"),
     windowEnd: new Date("2026-08-26T15:00:00.000Z"),
     windowStart: new Date("2026-08-25T15:00:00.000Z"),
   });
@@ -52,6 +54,24 @@ test("date overrides replace weekly hours before slots are generated", () => {
     result.map((slot) => slot.startAt),
     ["2026-08-26T05:00:00.000Z"]
   );
+});
+
+test("weekly hours reach seven days from today; later dates open only by hand", () => {
+  // 2026-08-26 (Wed) is today in Seoul. 09-01 (Tue) is the 7th day, 09-02
+  // (Wed) the 8th; 09-03 (Thu) was opened by hand.
+  const value = availability();
+  value.dateOverrides["2026-09-03"] = [{ end: "11:00", start: "10:00" }];
+  const result = calculateMeetingCandidateSlots({
+    availability: value,
+    durationMinutes: 60,
+    now: new Date("2026-08-26T00:00:00.000Z"),
+    windowEnd: new Date("2026-09-03T15:00:00.000Z"),
+    windowStart: new Date("2026-08-31T15:00:00.000Z"),
+  });
+  assert.deepEqual(Array.from(new Set(result.map((slot) => slot.dateKey))), [
+    "2026-09-01",
+    "2026-09-03",
+  ]);
 });
 
 test("converts local time with the correct daylight-saving offset", () => {

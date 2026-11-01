@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { format, getISODay } from "date-fns";
+import { addDays, format } from "date-fns";
 import { ko } from "date-fns/locale";
 import Image from "next/image";
 import { useRouter } from "next/router";
@@ -23,7 +23,6 @@ import {
 } from "@/components/meetings/MeetingAvailabilityLayout";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Combobox,
   ComboboxContent,
@@ -43,10 +42,11 @@ import {
 import { Tooltips } from "@/components/ui/tooltip";
 import {
   createDefaultMeetingAvailabilityDocument,
-  getMeetingAvailabilityIntervalsForDate,
+  getMeetingAvailabilityIntervalsOnDate,
   isMeetingTimeRangeAvailable,
+  MEETING_SELECTABLE_DAYS,
+  MEETING_WEEKLY_HOURS_DAYS,
   ISO_WEEKDAYS,
-  type IsoWeekdayKey,
   meetingAvailabilityDocumentsEqual,
   meetingDateKeyInTimezone,
   type MeetingCalendarBusyBlock,
@@ -55,7 +55,9 @@ import {
   type MeetingAvailabilityInterval,
   meetingTimeToMinutes,
   normalizeMeetingAvailabilityInput,
+  setMeetingDateIntervals,
   setMeetingTimeRangeAvailability,
+  toggleMeetingDate,
 } from "@/lib/meetings/availability";
 import {
   calendarBusyBlockOverlapsDate,
@@ -115,10 +117,6 @@ function dateKey(date: Date) {
     .join("-");
 }
 
-function isoWeekdayKey(date: Date) {
-  return String(getISODay(date)) as IsoWeekdayKey;
-}
-
 function calendarDateInTimezone(timezone: string) {
   const [year, month, day] = meetingDateKeyInTimezone(new Date(), timezone)
     .split("-")
@@ -155,20 +153,6 @@ function supportedTimezones(currentTimezone: string) {
     "Asia/Tokyo",
   ];
   return [...new Set([...prioritized, ...values].filter(Boolean))];
-}
-
-function intervalListsEqual(
-  left: MeetingAvailabilityInterval[],
-  right: MeetingAvailabilityInterval[]
-) {
-  return (
-    left.length === right.length &&
-    left.every(
-      (interval, index) =>
-        interval.start === right[index]?.start &&
-        interval.end === right[index]?.end
-    )
-  );
 }
 
 function getDefaultNewInterval(intervals: MeetingAvailabilityInterval[]) {
@@ -491,6 +475,7 @@ function DateOverridePanel({
   onBack,
   onChange,
   onMakeCalendarBusyBlocksAvailable,
+  todayKey,
 }: {
   availability: MeetingAvailabilityDocument;
   calendarBusyBlocks: MeetingCalendarBusyBlock[];
@@ -501,20 +486,18 @@ function DateOverridePanel({
   onMakeCalendarBusyBlocksAvailable: (
     busyBlocks: MeetingCalendarBusyBlock[]
   ) => void;
+  todayKey: string;
 }) {
   const { c } = useOrgLocale();
   const key = dateKey(date);
-  const weekdayKey = isoWeekdayKey(date);
-  const weekday = ISO_WEEKDAYS.find((item) => item.key === weekdayKey)!;
-  const weeklyIntervals = availability.weeklyRules[weekdayKey];
   const hasOverride = Object.prototype.hasOwnProperty.call(
     availability.dateOverrides,
     key
   );
-  const intervals = getMeetingAvailabilityIntervalsForDate(
+  const intervals = getMeetingAvailabilityIntervalsOnDate(
     availability,
     key,
-    weekdayKey
+    todayKey
   );
   const calendarBusyBlocksForDate = calendarBusyBlocks.filter((busyBlock) =>
     calendarBusyBlockOverlapsDate({
@@ -523,34 +506,10 @@ function DateOverridePanel({
       timezone: availability.timezone,
     })
   );
-  const unavailable = intervals.length === 0;
-  const availableBeforeClosedRef = useRef<MeetingAvailabilityInterval[]>(
-    intervals.length > 0
-      ? intervals.map((interval) => ({ ...interval }))
-      : weeklyIntervals.length > 0
-        ? weeklyIntervals.map((interval) => ({ ...interval }))
-        : [{ end: "18:00", start: "08:00" }]
-  );
-
-  useEffect(() => {
-    if (intervals.length > 0) {
-      availableBeforeClosedRef.current = intervals.map((interval) => ({
-        ...interval,
-      }));
-    }
-  }, [intervals]);
-
-  const setDateIntervals = (nextIntervals: MeetingAvailabilityInterval[]) => {
-    const next = cloneDocument(availability);
-    if (intervalListsEqual(nextIntervals, weeklyIntervals)) {
-      delete next.dateOverrides[key];
-    } else {
-      next.dateOverrides[key] = nextIntervals.map((interval) => ({
-        ...interval,
-      }));
-    }
-    onChange(next);
-  };
+  const setDateIntervals = (nextIntervals: MeetingAvailabilityInterval[]) =>
+    onChange(
+      setMeetingDateIntervals(availability, key, todayKey, nextIntervals)
+    );
 
   return (
     <div className="min-h-full p-5 sm:p-6">
@@ -563,23 +522,7 @@ function DateOverridePanel({
           locale: ko,
         })}
       </h3>
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <Checkbox
-          checked={unavailable}
-          label={c("미팅 불가", "Unavailable for meetings")}
-          onChange={(event) => {
-            if (event.target.checked) {
-              setDateIntervals([]);
-              return;
-            }
-            setDateIntervals(
-              availableBeforeClosedRef.current.map((interval) => ({
-                ...interval,
-              }))
-            );
-          }}
-          size="medium"
-        />
+      <div className="mt-5 flex items-center justify-end gap-3">
         {hasOverride ? (
           <MuteButton
             onClick={() => {
@@ -664,21 +607,17 @@ function WeeklyEditor({
   };
 
   return (
-    <div className="min-h-full p-5 sm:p-6">
+    <section>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-[16px] font-medium text-neutral-primary">
-            {c("가능한 일정", "Interview availability")}
+            {c("요일별 기본 시간", "Default hours by weekday")}
           </h3>
           <p className="mt-1 text-[12px] font-light leading-4 text-neutral-muted">
             {c(
-              "미팅 스케줄링을 허용할 요일과 시간을 설정하세요.",
-              "Set days and times when meetings can be scheduled."
-            )}
-            <br />
-            {c(
-              "날짜를 선택하면 그날의 일정만 조정할 수 있어요.",
-              "Selecting a date adjusts only that day's schedule."
+              "오늘부터 {p0}일은 이 시간으로 열려요. 달력에서 날짜를 새로 열 때도 이 시간을 써요.",
+              "These hours open the next {p0} days, and any date you open on the calendar.",
+              { p0: MEETING_WEEKLY_HOURS_DAYS }
             )}
           </p>
         </div>
@@ -808,7 +747,93 @@ function WeeklyEditor({
           />
         ))}
       </div>
-    </div>
+    </section>
+  );
+}
+
+/** The dates a candidate can pick from, each with its own hours. */
+function OpenDatesEditor({
+  availability,
+  onChange,
+  onShowDate,
+  portalContainer,
+  today,
+  todayKey,
+}: {
+  availability: MeetingAvailabilityDocument;
+  onChange: (availability: MeetingAvailabilityDocument) => void;
+  onShowDate: (date: Date) => void;
+  portalContainer: HTMLElement | null;
+  today: Date;
+  todayKey: string;
+}) {
+  const { c, locale } = useOrgLocale();
+  const openDates = Array.from(
+    { length: MEETING_SELECTABLE_DAYS },
+    (_, index) => addDays(today, index)
+  ).flatMap((date) => {
+    const key = dateKey(date);
+    const intervals = getMeetingAvailabilityIntervalsOnDate(
+      availability,
+      key,
+      todayKey
+    );
+    return intervals.length > 0 ? [{ date, intervals, key }] : [];
+  });
+
+  return (
+    <section>
+      <h3 className="text-[16px] font-medium text-neutral-primary">
+        {c("열린 날짜", "Open dates")}
+      </h3>
+      <p className="mt-1 text-[12px] font-light leading-4 text-neutral-muted">
+        {c(
+          "후보는 이 날짜에서 시간을 골라요. 달력에서 날짜를 누르면 열리고, 다시 누르면 닫혀요.",
+          "Candidates pick a time on these dates. Select a date on the calendar to open it, and again to close it."
+        )}
+      </p>
+      {openDates.length === 0 ? (
+        <p className="mt-4 text-[13px] text-neutral-soft">
+          {c("열린 날짜가 없어요.", "No dates are open.")}
+        </p>
+      ) : (
+        <div className="mt-4 border-b border-neutral-1000-a05">
+          {openDates.map(({ date, intervals, key }) => (
+            <div
+              className="grid gap-3 border-t border-neutral-1000-a05 py-3 sm:grid-cols-[112px_minmax(0,1fr)]"
+              key={key}
+            >
+              <div className="pt-1">
+                <button
+                  className="text-left text-[13px] font-medium text-neutral-primary underline-offset-2 hover:underline"
+                  onClick={() => onShowDate(date)}
+                  title={c("그날 시간표 보기", "Show that day's hours")}
+                  type="button"
+                >
+                  {format(date, c("M월 d일 (EEE)", "EEE, MMM d"), {
+                    locale: locale === "en" ? undefined : ko,
+                  })}
+                </button>
+              </div>
+              <IntervalEditor
+                intervals={intervals}
+                onChange={(nextIntervals) =>
+                  onChange(
+                    setMeetingDateIntervals(
+                      availability,
+                      key,
+                      todayKey,
+                      nextIntervals
+                    )
+                  )
+                }
+                portalContainer={portalContainer}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1045,19 +1070,18 @@ export function OrgInterviewAvailabilityDialog({
 
   const selectedDateKey = selectedDate ? dateKey(selectedDate) : null;
   const today = calendarDateInTimezone(draft.timezone);
+  const todayKey = dateKey(today);
+  // Candidates choose within this reach, so later dates cannot be opened.
+  const lastSelectableDate = addDays(today, MEETING_SELECTABLE_DAYS - 1);
   const isPastDate = (date: Date) => date.getTime() < today.getTime();
   const isAvailableDate = (date: Date) =>
     !isPastDate(date) &&
-    getMeetingAvailabilityIntervalsForDate(
-      draft,
-      dateKey(date),
-      isoWeekdayKey(date)
-    ).length > 0;
-  const isOverrideDate = (date: Date) =>
-    !isPastDate(date) &&
-    Object.prototype.hasOwnProperty.call(draft.dateOverrides, dateKey(date));
-  const isClosedOverrideDate = (date: Date) =>
-    isOverrideDate(date) && draft.dateOverrides[dateKey(date)].length === 0;
+    getMeetingAvailabilityIntervalsOnDate(draft, dateKey(date), todayKey)
+      .length > 0;
+  const openDates = Array.from(
+    { length: MEETING_SELECTABLE_DAYS },
+    (_, index) => addDays(today, index)
+  ).filter(isAvailableDate);
   const isCalendarBusyDate = (date: Date) =>
     !isPastDate(date) &&
     (availabilityQuery.data?.calendarBusyBlocks ?? []).some(
@@ -1134,25 +1158,33 @@ export function OrgInterviewAvailabilityDialog({
               calendar={
                 <>
                   <MeetingAvailabilityCalendar
-                    disabled={{ before: today }}
-                    locale={ko}
-                    mode="single"
+                    disabled={[
+                      { before: today },
+                      { after: lastSelectableDate },
+                    ]}
+                    locale={locale === "en" ? undefined : ko}
+                    // Every open date is selected: a click opens a closed
+                    // date with its default hours or closes an open one.
+                    mode="multiple"
                     modifiers={{
                       available: isAvailableDate,
                       calendarBusy: isCalendarBusyDate,
-                      closedOverride: isClosedOverrideDate,
-                      override: isOverrideDate,
                     }}
                     modifiersClassNames={{
                       calendarBusy:
                         "[&>button]:relative [&>button]:after:absolute [&>button]:after:bottom-1.5 [&>button]:after:left-1/2 [&>button]:after:size-1 [&>button]:after:-translate-x-1/2 [&>button]:after:rounded-full [&>button]:after:bg-action [&>button]:after:content-['']",
-                      closedOverride:
-                        "[&>button]:rounded-md [&>button]:bg-bg-weak [&>button]:text-neutral-disabled [&>button]:hover:bg-bg-weak [&>button[data-selected-single=true]]:bg-primary [&>button[data-selected-single=true]]:text-neutral-00",
-                      override:
-                        "[&>button]:ring-1 [&>button]:ring-inset [&>button]:ring-primary/50",
                     }}
-                    onSelect={(date) => date && setSelectedDate(date)}
-                    selected={selectedDate ?? undefined}
+                    onSelect={(_dates, triggerDate) => {
+                      if (!triggerDate || isPastDate(triggerDate)) return;
+                      setDraft((current) =>
+                        toggleMeetingDate(
+                          current,
+                          dateKey(triggerDate),
+                          todayKey
+                        )
+                      );
+                    }}
+                    selected={openDates}
                   />
 
                   <div className="mt-5 border-t border-neutral-1000-a05 pt-4">
@@ -1206,6 +1238,7 @@ export function OrgInterviewAvailabilityDialog({
             >
               {selectedDate && selectedDateKey ? (
                 <DateOverridePanel
+                  todayKey={todayKey}
                   availability={draft}
                   calendarBusyBlocks={
                     availabilityQuery.data?.calendarBusyBlocks ?? []
@@ -1220,11 +1253,21 @@ export function OrgInterviewAvailabilityDialog({
                   }
                 />
               ) : (
-                <WeeklyEditor
-                  availability={draft}
-                  onChange={setDraft}
-                  portalContainer={portalContainer}
-                />
+                <div className="min-h-full space-y-8 p-5 sm:p-6">
+                  <OpenDatesEditor
+                    availability={draft}
+                    onChange={setDraft}
+                    onShowDate={setSelectedDate}
+                    portalContainer={portalContainer}
+                    today={today}
+                    todayKey={todayKey}
+                  />
+                  <WeeklyEditor
+                    availability={draft}
+                    onChange={setDraft}
+                    portalContainer={portalContainer}
+                  />
+                </div>
               )}
             </MeetingAvailabilitySplitLayout>
           )}
