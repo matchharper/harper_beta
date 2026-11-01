@@ -40,12 +40,14 @@ export const FIXER_PR_UNAVAILABLE_TEXT =
 
 const INCIDENTS_URL = `https://github.com/${FIXER_PR_GITHUB_OWNER}/harper_incidents/issues`;
 const CARD_BLOCK_ID = "harper_fixer_pr_card";
-/** Marks a card for a merged or closed PR. */
-const FINAL_BLOCK_ID = "harper_fixer_pr_final";
+/** Cards for a merged or closed PR, one kind per outcome. */
+const FINAL_BLOCK_IDS = {
+  closed: "harper_fixer_pr_closed",
+  merged: "harper_fixer_pr_merged",
+} as const;
 /** First block of every card: `<kind>:<repo>:<pr>:<head sha>`, how a card is found again. */
-const CARD_KEY_PATTERN = new RegExp(
-  `^(${CARD_BLOCK_ID}|${FINAL_BLOCK_ID}):([a-z_]+):([1-9]\\d*):([0-9a-f]{40})?$`
-);
+const CARD_KEY_PATTERN =
+  /^harper_fixer_pr_(card|merged|closed):([a-z_]+):([1-9]\d*):([0-9a-f]{40})?$/;
 const ACTIONS_BLOCK_ID = "harper_fixer_pr_actions";
 const CARD_LOOKUP_DAYS = 30;
 const CARD_LOOKUP_LIMIT = 200;
@@ -294,7 +296,7 @@ function fallbackText(label: string, repo: FixerPrRepo, pull: FixerPrPull) {
 }
 
 function cardKey(
-  kind: typeof CARD_BLOCK_ID | typeof FINAL_BLOCK_ID,
+  kind: typeof CARD_BLOCK_ID | (typeof FINAL_BLOCK_IDS)[keyof typeof FINAL_BLOCK_IDS],
   repo: FixerPrRepo,
   pull: FixerPrPull
 ) {
@@ -426,7 +428,9 @@ export function buildFixerPrFinalCard(args: {
           .join(" · ")
       : `닫힘 · 머지 안 함 · ${who}`;
   return {
-    blocks: [section(cardKey(FINAL_BLOCK_ID, repo, pull), `${status}\n${pullLine(repo, pull)}`)],
+    blocks: [
+      section(cardKey(FINAL_BLOCK_IDS[args.outcome], repo, pull), `${status}\n${pullLine(repo, pull)}`),
+    ],
     text: fallbackText(
       args.outcome === "merged" ? "✅ 머지됨" : "닫힘 · 머지 안 함",
       repo,
@@ -484,6 +488,16 @@ export function planFixerPrCard(pull: FixerPrPull, repo: FixerPrRepo): FixerPrCa
   if (problem === "wrong_base") return { kind: "base_changed" };
   if (problem) return { kind: "disabled" };
   return { kind: "open" };
+}
+
+/** The card for the PR as GitHub reports it now. */
+function drawFixerPrCard(pull: FixerPrPull, repo: FixerPrRepo, previousSha?: string | null) {
+  const plan = planFixerPrCard(pull, repo);
+  if (plan.kind === "open") return buildFixerPrOpenCard({ previousSha, pull, repo });
+  if (plan.kind === "final")
+    return buildFixerPrFinalCard({ at: pull.merged_at, outcome: plan.outcome, pull, repo });
+  if (plan.kind === "base_changed") return buildFixerPrBaseChangedCard({ pull, repo });
+  return buildFixerPrDisabledCard({ pull, repo });
 }
 
 /** What a press should do, from the PR as GitHub reports it now. */
@@ -634,7 +648,8 @@ export type FixerPrSlackCall = (
 ) => Promise<FixerPrSlackResponse>;
 
 export type FixerPrFoundCard = {
-  final: boolean;
+  /** What a final card shows; null for a card still asking for a decision. */
+  outcome: "merged" | "closed" | null;
   pr: number;
   repo: FixerPrRepo;
   sha: string;
@@ -656,7 +671,7 @@ export function readFixerPrCard(
   const ts = clean(record.ts);
   if (!match || !isFixerPrRepo(match[2]) || !ts) return null;
   return {
-    final: match[1] === FINAL_BLOCK_ID,
+    outcome: match[1] === "merged" || match[1] === "closed" ? match[1] : null,
     pr: Number(match[3]),
     repo: match[2],
     sha: match[4] ?? "",
@@ -720,17 +735,10 @@ export async function syncFixerPrCard(args: {
     slack,
   });
   if (plan.kind !== "open" && !card) return { reason: "no_card", result: "skipped" };
-  // A press already wrote the final card, with who pressed; keep it.
-  if (plan.kind === "final" && card?.final)
+  // A press may have written this outcome with who pressed; keep it.
+  if (plan.kind === "final" && card?.outcome === plan.outcome)
     return { reason: "final_card", result: "skipped" };
-  const next =
-    plan.kind === "open"
-      ? buildFixerPrOpenCard({ previousSha: card?.sha, pull, repo })
-      : plan.kind === "final"
-        ? buildFixerPrFinalCard({ at: pull.merged_at, outcome: plan.outcome, pull, repo })
-        : plan.kind === "base_changed"
-          ? buildFixerPrBaseChangedCard({ pull, repo })
-          : buildFixerPrDisabledCard({ pull, repo });
+  const next = drawFixerPrCard(pull, repo, card?.sha);
   if (card) {
     await slack("chat.update", { ...cardBody(next), ts: card.ts });
     return { result: "updated", ts: card.ts };
@@ -809,8 +817,8 @@ export async function runFixerPrWebhook(
   input: FixerPrWebhookInput,
   deps: FixerPrWebhookDeps
 ): Promise<FixerPrWebhookResult> {
-  // Requests without a signature never reach the database.
-  if (!clean(input.signature).startsWith("sha256="))
+  // Requests without a GitHub-shaped signature never reach the database.
+  if (!/^sha256=[0-9a-f]{64}$/.test(clean(input.signature)))
     return { body: { error: "invalid_signature" }, status: 401 };
   const secrets = await deps.loadSecrets();
   if (!secrets) return { body: { error: "fixer_pr_unavailable" }, status: 503 };
@@ -936,11 +944,26 @@ function refusalNotice(error: unknown) {
   return `⚠️ GitHub 응답을 받지 못했어요${status ? ` (GitHub ${status})` : ""}. 잠시 후 다시 눌러 주세요.`;
 }
 
+type FixerPrPressOutcome = { card?: FixerPrCard; notice?: string };
+
 /**
- * Merge or close on GitHub. Only a press that changed the PR gets a card to
- * write; any other outcome is a notice for the presser, so a losing press in a
- * race never overwrites the winner's card.
+ * A press that changed nothing on GitHub: a notice for the presser. While the PR
+ * is open no press has written a final card, so the pressed card can show the
+ * PR as it is now; once merged or closed, the card is left to the press or
+ * webhook that wrote it, so a losing press never overwrites the winner's card.
  */
+function unchangedPress(
+  decision: Exclude<FixerPrDecision, FixerPrButtonAction>,
+  pull: FixerPrPull,
+  value: FixerPrButtonValue
+): FixerPrPressOutcome {
+  const notice = decisionNotice(decision, pull, value);
+  return decision === "already_merged" || decision === "already_closed"
+    ? { notice }
+    : { card: drawFixerPrCard(pull, value.repo, value.sha), notice };
+}
+
+/** Merge or close on GitHub. Only a press that changed the PR writes its final card. */
 async function applyFixerPrPress(args: {
   action: FixerPrButtonAction;
   github: FixerPrGitHub;
@@ -948,7 +971,7 @@ async function applyFixerPrPress(args: {
   pull: FixerPrPull;
   userId: string;
   value: FixerPrButtonValue;
-}): Promise<{ card: FixerPrCard } | { notice: string }> {
+}): Promise<FixerPrPressOutcome> {
   const { action, github, pull, userId, value } = args;
   try {
     if (action === "merge") {
@@ -967,7 +990,7 @@ async function applyFixerPrPress(args: {
     }
     const closed = await github.closePull(value.repo, value.pr);
     // Someone merged it in the meantime: closing changed nothing.
-    if (closed.merged === true) return { notice: decisionNotice("already_merged", closed, value) };
+    if (closed.merged === true) return unchangedPress("already_merged", closed, value);
     return {
       card: buildFixerPrFinalCard({ by: userId, outcome: "closed", pull: closed, repo: value.repo }),
     };
@@ -977,7 +1000,7 @@ async function applyFixerPrPress(args: {
     const latest = await github.getPull(value.repo, value.pr).catch(() => null);
     const latestDecision = latest ? decideFixerPrAction({ action, pull: latest, value }) : action;
     if (latestDecision !== "merge" && latestDecision !== "close")
-      return { notice: decisionNotice(latestDecision, latest ?? pull, value) };
+      return unchangedPress(latestDecision, latest ?? pull, value);
     return { notice: refusalNotice(error) };
   }
 }
@@ -1006,24 +1029,27 @@ async function runFixerPrClick(args: {
     );
   }
   const decision = decideFixerPrAction({ action, pull, value });
-  if (decision !== "merge" && decision !== "close")
-    return notify(decisionNotice(decision, pull, value));
-  const outcome = await applyFixerPrPress({
-    action: decision,
-    github,
-    now: deps.now ?? (() => new Date()),
-    pull,
-    userId,
-    value,
-  });
-  if ("notice" in outcome) return notify(outcome.notice);
-  try {
-    await deps.slack("chat.update", { ...cardBody(outcome.card), ts: args.messageTs });
-  } catch (error) {
-    // GitHub already changed; its closed event redraws the card.
-    console.warn("[fixer-pr/click] card not updated", error);
-    await notify(outcome.card.text);
+  const outcome =
+    decision === "merge" || decision === "close"
+      ? await applyFixerPrPress({
+          action: decision,
+          github,
+          now: deps.now ?? (() => new Date()),
+          pull,
+          userId,
+          value,
+        })
+      : unchangedPress(decision, pull, value);
+  if (outcome.card) {
+    try {
+      await deps.slack("chat.update", { ...cardBody(outcome.card), ts: args.messageTs });
+    } catch (error) {
+      console.warn("[fixer-pr/click] card not updated", error);
+      // A merge or close the card could not show: the presser still sees it.
+      if (!outcome.notice) await notify(outcome.card.text);
+    }
   }
+  if (outcome.notice) await notify(outcome.notice);
 }
 
 /**

@@ -303,8 +303,10 @@ test("final and base-changed cards keep the PR link and have no buttons", () => 
     assert.equal(actionsOf(card), undefined);
     assert.ok(textOf(card).includes(PR_LINK));
   }
-  for (const card of [merged, onGitHub, closed, closedOnGitHub])
-    assert.equal(blocksOf(card)[0].block_id, `harper_fixer_pr_final:harper_beta:230:${SHA}`);
+  for (const card of [merged, onGitHub])
+    assert.equal(blocksOf(card)[0].block_id, `harper_fixer_pr_merged:harper_beta:230:${SHA}`);
+  for (const card of [closed, closedOnGitHub])
+    assert.equal(blocksOf(card)[0].block_id, `harper_fixer_pr_closed:harper_beta:230:${SHA}`);
   assert.equal(blocksOf(baseChanged)[0].block_id, `harper_fixer_pr_card:harper_beta:230:${SHA}`);
 });
 
@@ -512,7 +514,8 @@ test("webhook refuses unsigned deliveries before reading the Vault, and is off w
   const opened = delivery("pull_request", prEvent("opened", makePull()));
   const unsigned = webhookHarness();
   assert.equal((await unsigned.run({ ...opened, signature: null })).status, 401);
-  assert.equal((await unsigned.run({ ...opened, signature: "sha1=abc" })).status, 401);
+  for (const signature of ["sha1=abc", "sha256=abc", `sha256=${"z".repeat(64)}`])
+    assert.equal((await unsigned.run({ ...opened, signature })).status, 401, signature);
   assert.equal(unsigned.counters.secretLoads, 0);
   const off = webhookHarness({ secrets: null });
   assert.deepEqual(await off.run(opened), { body: { error: "fixer_pr_unavailable" }, status: 503 });
@@ -605,14 +608,15 @@ test("a redelivered opened updates the PR's card instead of posting again", asyn
 test("only the Harper bot's own messages are cards", async () => {
   const card = buildFixerPrOpenCard({ pull: makePull(), repo: "harper_beta" });
   assert.deepEqual(readFixerPrCard(cardMessage(card), BOT_USER), {
-    final: false,
+    outcome: null,
     pr: 230,
     repo: "harper_beta",
     sha: SHA,
     ts: CARD_TS,
   });
   const closed = buildFixerPrFinalCard({ outcome: "closed", pull: makePull({ state: "closed" }), repo: "harper_beta" });
-  assert.equal(readFixerPrCard(cardMessage(closed), BOT_USER)?.final, true);
+  assert.equal(readFixerPrCard(cardMessage(closed), BOT_USER)?.outcome, "closed");
+  assert.equal(readFixerPrCard(cardMessage(buildFixerPrFinalCard({ outcome: "merged", pull: mergedPull(), repo: "harper_beta" })), BOT_USER)?.outcome, "merged");
   assert.equal(readFixerPrCard(cardMessage(card, CARD_TS, "U0OTHERAPP1"), BOT_USER), null);
   assert.equal(readFixerPrCard(cardMessage(card), ""), null);
   assert.equal(readFixerPrCard({ ...cardMessage(card), ts: "" }, BOT_USER), null);
@@ -658,7 +662,7 @@ test("late or out-of-order deliveries leave the card GitHub's current state call
   const lateOpened = webhookHarness({ history: [openCardMessage()], pulls: [mergedPull()] });
   await lateOpened.run(delivery("pull_request", prEvent("opened", makePull())));
   const finalBlocks = blocksIn(lateOpened.slack.writes()[0]).blocks;
-  assert.equal(finalBlocks[0].block_id, `harper_fixer_pr_final:harper_beta:230:${SHA}`);
+  assert.equal(finalBlocks[0].block_id, `harper_fixer_pr_merged:harper_beta:230:${SHA}`);
   assert.equal(finalBlocks.some((block) => block.type === "actions"), false);
 
   // A closed delivered after the PR was reopened keeps the buttons.
@@ -709,6 +713,13 @@ test("a card a press already finalized is kept; reopening brings the buttons bac
   const result = await reopened.run(delivery("pull_request", prEvent("reopened", makePull())));
   assert.equal(result.body.result, "updated");
   assert.ok(blocksIn(reopened.slack.writes()[0]).blocks.some((block) => block.type === "actions"));
+  // Reopened and merged before the card caught up: the closed card becomes a merged one.
+  const mergedLater = webhookHarness({ history: [pressed], pulls: [mergedPull()] });
+  const mergedResult = await mergedLater.run(delivery("pull_request", prEvent("closed", mergedPull())));
+  assert.equal(mergedResult.body.result, "updated");
+  const { blocks } = blocksIn(mergedLater.slack.writes()[0]);
+  assert.equal(blocks[0].block_id, `harper_fixer_pr_merged:harper_beta:230:${SHA}`);
+  assert.match(blocks[0].text?.text ?? "", /^✅ 머지됨 · \(GitHub에서\)/m);
 });
 
 test("a base change or a draft turns the buttons off; a title edit posts a missing card", async () => {
@@ -912,7 +923,7 @@ test("[머지] merges the commit on the card with a merge commit and rewrites th
   assert.equal(update.body.channel, FIXER_PR_SLACK_CHANNEL_ID);
   assert.equal(update.body.ts, CARD_TS);
   const { blocks } = blocksIn(update);
-  assert.equal(blocks[0].block_id, `harper_fixer_pr_final:harper_beta:230:${SHA}`);
+  assert.equal(blocks[0].block_id, `harper_fixer_pr_merged:harper_beta:230:${SHA}`);
   assert.equal(blocks.some((block) => block.type === "actions"), false);
   assert.match(blocks[0].text?.text ?? "", /^✅ 머지됨 · <@U0C8E9KPMSA> · 11\/2 11:52 · `dev` 커밋 `7c1e0d2`$/m);
   assert.ok((blocks[0].text?.text ?? "").includes(PR_LINK));
@@ -935,22 +946,10 @@ test("[머지 안 함] closes the PR without merging and rewrites that card", as
   assert.match(blocksIn(update).blocks[0].text?.text ?? "", /^닫힘 · 머지 안 함 · <@U09B4FF7TV0>$/m);
 });
 
-test("a press that changes nothing on GitHub only tells the presser why", async () => {
+test("a press on a merged or closed PR only tells the presser, keeping whoever wrote the card", async () => {
   const cases: Array<[FixerPrPull, string]> = [
-    [
-      pushedPull(),
-      "카드를 올린 뒤 새 커밋이 생겨(`3f2a9c1` → `9b8c7d6`) 아무것도 하지 않았어요. 카드가 새 커밋으로 바뀌면 확인하고 다시 눌러 주세요. 안 바뀌면 GitHub에서 처리해 주세요.",
-    ],
     [mergedPull(), "이미 머지된 PR이에요. 아무것도 바꾸지 않았어요."],
     [makePull({ state: "closed" }), "이미 닫힌 PR이에요. 아무것도 바꾸지 않았어요."],
-    [
-      makePull({ base: { ref: "main" } }),
-      "대상 브랜치가 바뀌어(`dev` → `main`) 아무것도 하지 않았어요. GitHub에서 확인해 주세요.",
-    ],
-    [
-      makePull({ draft: true }),
-      "초안이거나 수정 에이전트 PR이 아니라 아무것도 하지 않았어요. GitHub에서 확인해 주세요.",
-    ],
   ];
   for (const [pull, text] of cases) {
     for (const actionId of [FIXER_PR_MERGE_ACTION_ID, FIXER_PR_CLOSE_ACTION_ID]) {
@@ -964,13 +963,70 @@ test("a press that changes nothing on GitHub only tells the presser why", async 
   }
 });
 
+test("a press on a card the open PR has outgrown redraws that card and says why", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const cases: Array<[FixerPrPull, string, string, RegExp, boolean]> = [
+    [
+      pushedPull(),
+      "카드를 올린 뒤 새 커밋이 생겨(`3f2a9c1` → `9b8c7d6`) 아무것도 하지 않았어요. 카드가 새 커밋으로 바뀌면 확인하고 다시 눌러 주세요. 안 바뀌면 GitHub에서 처리해 주세요.",
+      `harper_fixer_pr_card:harper_beta:230:${NEW_SHA}`,
+      /^커밋이 바뀌었어요: `3f2a9c1` → `9b8c7d6`$/m,
+      true,
+    ],
+    [
+      makePull({ base: { ref: "main" } }),
+      "대상 브랜치가 바뀌어(`dev` → `main`) 아무것도 하지 않았어요. GitHub에서 확인해 주세요.",
+      `harper_fixer_pr_card:harper_beta:230:${SHA}`,
+      /^대상 브랜치가 바뀌었어요: `dev` → `main` · 버튼을 껐어요\./m,
+      false,
+    ],
+    [
+      makePull({ draft: true }),
+      "초안이거나 수정 에이전트 PR이 아니라 아무것도 하지 않았어요. GitHub에서 확인해 주세요.",
+      `harper_fixer_pr_card:harper_beta:230:${SHA}`,
+      /^초안 상태라 버튼을 껐어요\./m,
+      false,
+    ],
+  ];
+  for (const [pull, text, key, line, buttons] of cases) {
+    for (const actionId of [FIXER_PR_MERGE_ACTION_ID, FIXER_PR_CLOSE_ACTION_ID]) {
+      const harness = clickHarness({ github: githubFake({ pulls: [pull] }) });
+      await routeFixerPrSlackAction(press({}, actionId), harness.deps);
+      await harness.flush();
+      assert.deepEqual(harness.responses, [{ body: ephemeral(text), url: RESPONSE_URL }]);
+      assert.equal(harness.github.writes().length, 0);
+      assert.equal(harness.slack.calls.length, 1);
+      const [update] = harness.slack.calls;
+      assert.equal(update.method, "chat.update");
+      assert.equal(update.body.ts, CARD_TS);
+      const { blocks } = blocksIn(update);
+      assert.equal(blocks[0].block_id, key);
+      assert.match(blocks[0].text?.text ?? "", line);
+      assert.equal(blocks.some((block) => block.type === "actions"), buttons);
+    }
+  }
+  // If Slack refuses the redraw, the presser still gets only the reason.
+  const refused = clickHarness({
+    github: githubFake({ pulls: [pushedPull()] }),
+    slackFail: { code: "message_not_found", method: "chat.update" },
+  });
+  await routeFixerPrSlackAction(press(), refused.deps);
+  await refused.flush();
+  assert.equal(refused.responses.length, 1);
+  assert.match(refused.responses[0].body.text, /^카드를 올린 뒤 새 커밋이 생겨/);
+});
+
 test("GitHub refusals tell the presser why and leave the card to GitHub's events", async (t) => {
   t.mock.method(console, "warn", () => {});
-  const notice = async (github: ReturnType<typeof githubFake>, actionId = FIXER_PR_MERGE_ACTION_ID) => {
+  const notice = async (
+    github: ReturnType<typeof githubFake>,
+    actionId = FIXER_PR_MERGE_ACTION_ID,
+    cardUpdates = 0
+  ) => {
     const harness = clickHarness({ github });
     await routeFixerPrSlackAction(press({}, actionId), harness.deps);
     await harness.flush();
-    assert.equal(harness.slack.calls.length, 0);
+    assert.equal(harness.slack.calls.length, cardUpdates);
     assert.equal(harness.responses.length, 1);
     assert.equal(harness.responses[0].body.response_type, "ephemeral");
     assert.equal(harness.responses[0].body.replace_original, false);
@@ -990,13 +1046,15 @@ test("GitHub refusals tell the presser why and leave the card to GitHub's events
     await notice(githubFake({ offline: "PUT" })),
     "⚠️ GitHub 응답을 받지 못했어요. 잠시 후 다시 눌러 주세요."
   );
-  // A push or another press explains the refusal: the notice says so.
+  // A push or another press explains the refusal: the notice says so (a push also redraws the card).
   assert.match(
     await notice(
       githubFake({
         merge: { body: { message: "Head branch was modified. Review and try the merge again." }, status: 409 },
         pulls: [makePull(), pushedPull()],
-      })
+      }),
+      FIXER_PR_MERGE_ACTION_ID,
+      1
     ),
     /^카드를 올린 뒤 새 커밋이 생겨\(`3f2a9c1` → `9b8c7d6`\)/
   );
