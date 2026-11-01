@@ -28,7 +28,6 @@ export const FIXER_PR_REPOS = {
 export const FIXER_PR_BRANCH_PREFIX = "fix/incident-";
 export const FIXER_PR_MERGE_ACTION_ID = "harper_fixer_pr_merge";
 export const FIXER_PR_CLOSE_ACTION_ID = "harper_fixer_pr_close";
-export const FIXER_PR_SLACK_EVENT_TYPE = "harper_fixer_pr";
 /** Supabase Vault secret names. */
 export const FIXER_PR_GITHUB_TOKEN_SECRET = "fixer_github_token";
 export const FIXER_PR_WEBHOOK_SECRET = "fixer_github_webhook_secret";
@@ -43,9 +42,13 @@ const INCIDENTS_URL = `https://github.com/${FIXER_PR_GITHUB_OWNER}/harper_incide
 const CARD_BLOCK_ID = "harper_fixer_pr_card";
 /** Marks a card for a merged or closed PR. */
 const FINAL_BLOCK_ID = "harper_fixer_pr_final";
+/** First block of every card: `<kind>:<repo>:<pr>:<head sha>`, how a card is found again. */
+const CARD_KEY_PATTERN = new RegExp(
+  `^(${CARD_BLOCK_ID}|${FINAL_BLOCK_ID}):([a-z_]+):([1-9]\\d*):([0-9a-f]{40})?$`
+);
 const ACTIONS_BLOCK_ID = "harper_fixer_pr_actions";
 const CARD_LOOKUP_DAYS = 30;
-const CARD_LOOKUP_PAGES = 3;
+const CARD_LOOKUP_LIMIT = 200;
 const TLDR_MAX_LINES = 3;
 const TLDR_MAX_CHARS = 500;
 const GITHUB_API_URL = "https://api.github.com";
@@ -92,13 +95,8 @@ export type FixerPrPull = {
   title?: string | null;
 };
 
-export type FixerPrCardMetadata = {
-  event_payload: { pr: number; repo: FixerPrRepo; sha: string };
-  event_type: typeof FIXER_PR_SLACK_EVENT_TYPE;
-};
 export type FixerPrCard = {
   blocks: HarperSlackBlock[];
-  metadata: FixerPrCardMetadata;
   text: string;
 };
 
@@ -295,11 +293,12 @@ function fallbackText(label: string, repo: FixerPrRepo, pull: FixerPrPull) {
   return `${label}: ${repo} #${pull.number} ${escapeMrkdwn(clean(pull.title))}`.trim();
 }
 
-function cardMetadata(repo: FixerPrRepo, pull: FixerPrPull): FixerPrCardMetadata {
-  return {
-    event_payload: { pr: pull.number, repo, sha: clean(pull.head?.sha) },
-    event_type: FIXER_PR_SLACK_EVENT_TYPE,
-  };
+function cardKey(
+  kind: typeof CARD_BLOCK_ID | typeof FINAL_BLOCK_ID,
+  repo: FixerPrRepo,
+  pull: FixerPrPull
+) {
+  return [kind, repo, pull.number, clean(pull.head?.sha)].join(":");
 }
 
 export function encodeFixerPrButtonValue(value: FixerPrButtonValue) {
@@ -396,10 +395,9 @@ export function buildFixerPrOpenCard(args: {
   ];
   return {
     blocks: [
-      section(CARD_BLOCK_ID, lines.join("\n")),
+      section(cardKey(CARD_BLOCK_ID, repo, pull), lines.join("\n")),
       ...(args.buttons === false ? [] : [actionsBlock(repo, pull)]),
     ],
-    metadata: cardMetadata(repo, pull),
     text: fallbackText("수정 PR · 머지할지 정해 주세요", repo, pull),
   };
 }
@@ -428,8 +426,7 @@ export function buildFixerPrFinalCard(args: {
           .join(" · ")
       : `닫힘 · 머지 안 함 · ${who}`;
   return {
-    blocks: [section(FINAL_BLOCK_ID, `${status}\n${pullLine(repo, pull)}`)],
-    metadata: cardMetadata(repo, pull),
+    blocks: [section(cardKey(FINAL_BLOCK_ID, repo, pull), `${status}\n${pullLine(repo, pull)}`)],
     text: fallbackText(
       args.outcome === "merged" ? "✅ 머지됨" : "닫힘 · 머지 안 함",
       repo,
@@ -446,8 +443,7 @@ export function buildFixerPrBaseChangedCard(args: {
   const { pull, repo } = args;
   const line = `대상 브랜치가 바뀌었어요: \`${FIXER_PR_REPOS[repo].base}\` → \`${clean(pull.base?.ref)}\` · 버튼을 껐어요. GitHub에서 확인해 주세요.`;
   return {
-    blocks: [section(CARD_BLOCK_ID, `${line}\n${pullLine(repo, pull)}`)],
-    metadata: cardMetadata(repo, pull),
+    blocks: [section(cardKey(CARD_BLOCK_ID, repo, pull), `${line}\n${pullLine(repo, pull)}`)],
     text: fallbackText("대상 브랜치가 바뀌어 버튼을 껐어요", repo, pull),
   };
 }
@@ -464,11 +460,30 @@ export function buildFixerPrDisabledCard(args: {
       : `수정 에이전트 PR(같은 저장소의 \`${FIXER_PR_BRANCH_PREFIX}\` 브랜치)이 아니라 버튼을 껐어요.`;
   return {
     blocks: [
-      section(CARD_BLOCK_ID, `${reason} GitHub에서 확인해 주세요.\n${pullLine(repo, pull)}`),
+      section(
+        cardKey(CARD_BLOCK_ID, repo, pull),
+        `${reason} GitHub에서 확인해 주세요.\n${pullLine(repo, pull)}`
+      ),
     ],
-    metadata: cardMetadata(repo, pull),
     text: fallbackText("버튼을 껐어요", repo, pull),
   };
+}
+
+export type FixerPrCardPlan =
+  | { kind: "open" | "base_changed" | "disabled" }
+  | { kind: "final"; outcome: "merged" | "closed" };
+
+/** The card a PR should show, from the PR as GitHub reports it now. */
+export function planFixerPrCard(pull: FixerPrPull, repo: FixerPrRepo): FixerPrCardPlan {
+  if (pull.merged === true || clean(pull.merged_at)) return { kind: "final", outcome: "merged" };
+  if (clean(pull.state) !== "open") return { kind: "final", outcome: "closed" };
+  const problem = fixerPrIneligibility({
+    pull,
+    repositoryFullName: `${FIXER_PR_GITHUB_OWNER}/${repo}`,
+  });
+  if (problem === "wrong_base") return { kind: "base_changed" };
+  if (problem) return { kind: "disabled" };
+  return { kind: "open" };
 }
 
 /** What a press should do, from the PR as GitHub reports it now. */
@@ -478,14 +493,11 @@ export function decideFixerPrAction(args: {
   value: FixerPrButtonValue;
 }): FixerPrDecision {
   const { action, pull, value } = args;
-  if (pull.merged === true || clean(pull.merged_at)) return "already_merged";
-  if (clean(pull.state) !== "open") return "already_closed";
-  const problem = fixerPrIneligibility({
-    pull,
-    repositoryFullName: `${FIXER_PR_GITHUB_OWNER}/${value.repo}`,
-  });
-  if (problem === "wrong_base") return "base_changed";
-  if (problem) return "not_eligible";
+  const plan = planFixerPrCard(pull, value.repo);
+  if (plan.kind === "final")
+    return plan.outcome === "merged" ? "already_merged" : "already_closed";
+  if (plan.kind === "base_changed") return "base_changed";
+  if (plan.kind === "disabled") return "not_eligible";
   // The person decided on the commit the card showed, for either button.
   if (clean(pull.head?.sha) !== value.sha) return "stale_head";
   return action;
@@ -614,11 +626,7 @@ export function createFixerPrSecretsLoader(args: {
   };
 }
 
-export type FixerPrSlackResponse = {
-  messages?: unknown[];
-  response_metadata?: { next_cursor?: string };
-  ts?: string;
-};
+export type FixerPrSlackResponse = { messages?: unknown[]; ts?: string };
 /** A Slack Web API call with the Harper bot token (form-encoded body). */
 export type FixerPrSlackCall = (
   method: string,
@@ -633,52 +641,51 @@ export type FixerPrFoundCard = {
   ts: string;
 };
 
-export function readFixerPrCard(message: unknown): FixerPrFoundCard | null {
+/**
+ * A card is a message from the Harper bot whose first block id is the card
+ * key. Another app's message is never a card: this token could not update it.
+ */
+export function readFixerPrCard(
+  message: unknown,
+  botUserId: string
+): FixerPrFoundCard | null {
   const record = asRecord(message);
-  const metadata = asRecord(record.metadata);
-  if (metadata.event_type !== FIXER_PR_SLACK_EVENT_TYPE) return null;
-  const payload = asRecord(metadata.event_payload);
-  const repo = clean(payload.repo);
-  const pr = Number(payload.pr);
+  if (!clean(botUserId) || clean(record.user) !== clean(botUserId)) return null;
+  const first = Array.isArray(record.blocks) ? asRecord(record.blocks[0]) : {};
+  const match = CARD_KEY_PATTERN.exec(clean(first.block_id));
   const ts = clean(record.ts);
-  if (!isFixerPrRepo(repo) || !Number.isSafeInteger(pr) || pr <= 0 || !ts)
-    return null;
+  if (!match || !isFixerPrRepo(match[2]) || !ts) return null;
   return {
-    final:
-      Array.isArray(record.blocks) &&
-      record.blocks.some((block) => asRecord(block).block_id === FINAL_BLOCK_ID),
-    pr,
-    repo,
-    sha: clean(payload.sha),
+    final: match[1] === FINAL_BLOCK_ID,
+    pr: Number(match[3]),
+    repo: match[2],
+    sha: match[4] ?? "",
     ts,
   };
 }
 
-/** Newest card for this PR in the last 30 days of the channel, at most 3 pages. */
+/**
+ * Newest card for this PR among the channel's latest messages of the last 30
+ * days, in one read. Slack may allow an app outside its Marketplace one history
+ * read a minute and 15 messages a read; a second page would then fail.
+ */
 export async function findFixerPrCard(args: {
+  botUserId: string;
   now: Date;
   pr: number;
   repo: FixerPrRepo;
   slack: FixerPrSlackCall;
 }) {
-  const oldest = String(
-    Math.floor(args.now.getTime() / 1000) - CARD_LOOKUP_DAYS * 24 * 60 * 60
-  );
-  let cursor = "";
-  for (let page = 0; page < CARD_LOOKUP_PAGES; page += 1) {
-    const result = await args.slack("conversations.history", {
-      channel: FIXER_PR_SLACK_CHANNEL_ID,
-      ...(cursor ? { cursor } : {}),
-      include_all_metadata: true,
-      limit: 200,
-      oldest,
-    });
-    for (const message of result.messages ?? []) {
-      const card = readFixerPrCard(message);
-      if (card?.repo === args.repo && card.pr === args.pr) return card;
-    }
-    cursor = clean(result.response_metadata?.next_cursor);
-    if (!cursor) break;
+  const result = await args.slack("conversations.history", {
+    channel: FIXER_PR_SLACK_CHANNEL_ID,
+    limit: CARD_LOOKUP_LIMIT,
+    oldest: String(
+      Math.floor(args.now.getTime() / 1000) - CARD_LOOKUP_DAYS * 24 * 60 * 60
+    ),
+  });
+  for (const message of result.messages ?? []) {
+    const card = readFixerPrCard(message, args.botUserId);
+    if (card?.repo === args.repo && card.pr === args.pr) return card;
   }
   return null;
 }
@@ -687,59 +694,93 @@ function cardBody(card: FixerPrCard) {
   return {
     blocks: JSON.stringify(card.blocks),
     channel: FIXER_PR_SLACK_CHANNEL_ID,
-    metadata: JSON.stringify(card.metadata),
     text: card.text,
   };
 }
 
-export type FixerPrWebhookPlan =
-  | { kind: "ignore"; reason: string }
-  | {
-      kind: "open";
-      postIfMissing: boolean;
-      pull: FixerPrPull;
-      repo: FixerPrRepo;
-      /** Only a reopened PR brings a merged/closed card back. */
-      reviveFinal: boolean;
-    }
-  | { kind: "base_changed" | "final"; pull: FixerPrPull; repo: FixerPrRepo };
+/**
+ * Bring the PR's card in line with the PR as GitHub reports it now. Deliveries
+ * can arrive late, twice, or out of order; drawing from GitHub's current state
+ * makes each one leave the same card.
+ */
+export async function syncFixerPrCard(args: {
+  botUserId: string;
+  now: Date;
+  pull: FixerPrPull;
+  repo: FixerPrRepo;
+  slack: FixerPrSlackCall;
+}): Promise<Record<string, unknown>> {
+  const { pull, repo, slack } = args;
+  const plan = planFixerPrCard(pull, repo);
+  const card = await findFixerPrCard({
+    botUserId: args.botUserId,
+    now: args.now,
+    pr: pull.number,
+    repo,
+    slack,
+  });
+  if (plan.kind !== "open" && !card) return { reason: "no_card", result: "skipped" };
+  // A press already wrote the final card, with who pressed; keep it.
+  if (plan.kind === "final" && card?.final)
+    return { reason: "final_card", result: "skipped" };
+  const next =
+    plan.kind === "open"
+      ? buildFixerPrOpenCard({ previousSha: card?.sha, pull, repo })
+      : plan.kind === "final"
+        ? buildFixerPrFinalCard({ at: pull.merged_at, outcome: plan.outcome, pull, repo })
+        : plan.kind === "base_changed"
+          ? buildFixerPrBaseChangedCard({ pull, repo })
+          : buildFixerPrDisabledCard({ pull, repo });
+  if (card) {
+    await slack("chat.update", { ...cardBody(next), ts: card.ts });
+    return { result: "updated", ts: card.ts };
+  }
+  const posted = await slack("chat.postMessage", {
+    ...cardBody(next),
+    unfurl_links: false,
+    unfurl_media: false,
+  });
+  return { result: "posted", ts: clean(posted.ts) || null };
+}
 
-/** Which card a `pull_request` delivery should leave in the channel. */
-export function planFixerPrWebhook(payload: unknown): FixerPrWebhookPlan {
+/** `pull_request` actions that can change what the card shows. */
+const CARD_ACTIONS = new Set([
+  "closed",
+  "converted_to_draft",
+  "edited",
+  "opened",
+  "ready_for_review",
+  "reopened",
+  "synchronize",
+]);
+
+/**
+ * The PR a delivery is about. A fork or another branch never becomes a fixer
+ * PR, so those stop here; the base and draft state can change, so the PR as
+ * GitHub reports it now decides those.
+ */
+export function fixerPrWebhookTarget(
+  payload: unknown
+): { pr: number; repo: FixerPrRepo } | { ignore: string } {
   const record = asRecord(payload);
   const pull = asRecord(record.pull_request) as unknown as FixerPrPull;
-  const ignore = (reason: string): FixerPrWebhookPlan => ({ kind: "ignore", reason });
   if (!Number.isSafeInteger(pull.number) || pull.number <= 0)
-    return ignore("invalid_payload");
+    return { ignore: "invalid_payload" };
   const repositoryFullName = asRecord(record.repository).full_name;
   const repo = fixerPrRepoFromFullName(repositoryFullName);
   const problem = fixerPrIneligibility({ pull, repositoryFullName });
   if (!repo || problem === "unknown_repo" || problem === "fork" || problem === "branch_prefix")
-    return ignore(problem ?? "unknown_repo");
+    return { ignore: problem ?? "unknown_repo" };
   const action = clean(record.action);
-  const open = clean(pull.state) === "open";
-  switch (action) {
-    case "opened":
-    case "reopened":
-    case "ready_for_review":
-    case "synchronize":
-      if (!open) return ignore("not_open");
-      if (problem) return ignore(problem);
-      return { kind: "open", postIfMissing: true, pull, repo, reviveFinal: action === "reopened" };
-    case "edited": {
-      if (!open) return ignore("not_open");
-      const baseChanged = "base" in asRecord(record.changes);
-      if (problem === "wrong_base")
-        return baseChanged ? { kind: "base_changed", pull, repo } : ignore(problem);
-      if (problem) return ignore(problem);
-      // A base changed back to the expected branch posts; a title/body edit only refreshes.
-      return { kind: "open", postIfMissing: baseChanged, pull, repo, reviveFinal: false };
-    }
-    case "closed":
-      return { kind: "final", pull, repo };
-    default:
-      return ignore(`action_${action || "missing"}`);
-  }
+  if (!CARD_ACTIONS.has(action)) return { ignore: `action_${action || "missing"}` };
+  return { pr: pull.number, repo };
+}
+
+/** GitHub sends `payload=<json>` when the webhook's content type is form-urlencoded. */
+function webhookJson(rawBody: string) {
+  return rawBody.startsWith("payload=")
+    ? (new URLSearchParams(rawBody).get("payload") ?? "")
+    : rawBody;
 }
 
 export type FixerPrWebhookInput = {
@@ -748,6 +789,9 @@ export type FixerPrWebhookInput = {
   signature: string | null;
 };
 export type FixerPrWebhookDeps = {
+  /** The Harper bot's Slack user id: only its messages are cards. */
+  botUserId: () => Promise<string>;
+  github: (token: string) => FixerPrGitHub;
   loadSecrets: () => Promise<FixerPrSecrets | null>;
   now?: () => Date;
   slack: FixerPrSlackCall;
@@ -757,55 +801,17 @@ export type FixerPrWebhookResult = {
   status: number;
 };
 
-async function applyFixerPrWebhookPlan(
-  plan: Exclude<FixerPrWebhookPlan, { kind: "ignore" }>,
-  deps: FixerPrWebhookDeps
-): Promise<Record<string, unknown>> {
-  const card = await findFixerPrCard({
-    now: deps.now?.() ?? new Date(),
-    pr: plan.pull.number,
-    repo: plan.repo,
-    slack: deps.slack,
-  });
-  if (plan.kind === "open") {
-    if (card?.final && !plan.reviveFinal) return { reason: "final_card", result: "skipped" };
-    const next = buildFixerPrOpenCard({ previousSha: card?.sha, pull: plan.pull, repo: plan.repo });
-    if (card) {
-      await deps.slack("chat.update", { ...cardBody(next), ts: card.ts });
-      return { result: "updated", ts: card.ts };
-    }
-    if (!plan.postIfMissing) return { reason: "no_card", result: "skipped" };
-    const posted = await deps.slack("chat.postMessage", {
-      ...cardBody(next),
-      unfurl_links: false,
-      unfurl_media: false,
-    });
-    return { result: "posted", ts: clean(posted.ts) || null };
-  }
-  if (!card) return { reason: "no_card", result: "skipped" };
-  // A press already wrote the final card, with who pressed; keep it.
-  if (card.final) return { reason: "final_card", result: "skipped" };
-  const next =
-    plan.kind === "base_changed"
-      ? buildFixerPrBaseChangedCard(plan)
-      : buildFixerPrFinalCard({
-          at: plan.pull.merged_at,
-          outcome: plan.pull.merged === true ? "merged" : "closed",
-          pull: plan.pull,
-          repo: plan.repo,
-        });
-  await deps.slack("chat.update", { ...cardBody(next), ts: card.ts });
-  return { result: "updated", ts: card.ts };
-}
-
 /**
  * GitHub `pull_request` webhook. Works inline so GitHub records a failed
- * delivery (500) when Slack did not take the card; a redelivery updates it.
+ * delivery when the card was not written; a redelivery updates it.
  */
 export async function runFixerPrWebhook(
   input: FixerPrWebhookInput,
   deps: FixerPrWebhookDeps
 ): Promise<FixerPrWebhookResult> {
+  // Requests without a signature never reach the database.
+  if (!clean(input.signature).startsWith("sha256="))
+    return { body: { error: "invalid_signature" }, status: 401 };
   const secrets = await deps.loadSecrets();
   if (!secrets) return { body: { error: "fixer_pr_unavailable" }, status: 503 };
   const verified = verifyFixerPrWebhookSignature({
@@ -820,17 +826,37 @@ export async function runFixerPrWebhook(
     return { body: { event, ignored: true, ok: true }, status: 200 };
   let payload: unknown;
   try {
-    payload = JSON.parse(input.rawBody);
+    payload = JSON.parse(webhookJson(input.rawBody));
   } catch {
     return { body: { error: "invalid_json" }, status: 400 };
   }
   const action = clean(asRecord(payload).action);
-  const plan = planFixerPrWebhook(payload);
-  if (plan.kind === "ignore")
-    return { body: { action, ignored: true, ok: true, reason: plan.reason }, status: 200 };
-  const summary = { action, pr: plan.pull.number, repo: plan.repo };
+  const target = fixerPrWebhookTarget(payload);
+  if ("ignore" in target)
+    return { body: { action, ignored: true, ok: true, reason: target.ignore }, status: 200 };
+  const summary = { action, pr: target.pr, repo: target.repo };
+  let pull: FixerPrPull;
   try {
-    const result = await applyFixerPrWebhookPlan(plan, deps);
+    pull = await deps.github(secrets.githubToken).getPull(target.repo, target.pr);
+  } catch (error) {
+    console.error("[fixer-pr/webhook] PR not read from GitHub", {
+      ...summary,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    const status = error instanceof FixerPrGitHubError ? error.status : 0;
+    return {
+      body: { error: "github_failed", ok: false, ...summary, code: status || null },
+      status: 502,
+    };
+  }
+  try {
+    const result = await syncFixerPrCard({
+      botUserId: await deps.botUserId(),
+      now: deps.now?.() ?? new Date(),
+      pull,
+      repo: target.repo,
+      slack: deps.slack,
+    });
     return { body: { ok: true, ...summary, ...result }, status: 200 };
   } catch (error) {
     console.error("[fixer-pr/webhook] Slack card not written", {
@@ -852,7 +878,8 @@ export async function runFixerPrWebhook(
 export type FixerPrSlackActionPayload = {
   actions?: Array<{ action_id?: string; value?: string }>;
   channel?: { id?: string };
-  container?: { channel_id?: string };
+  container?: { channel_id?: string; message_ts?: string };
+  message?: { ts?: string };
   response_url?: string;
   team?: { id?: string };
   type?: string;
@@ -866,6 +893,7 @@ export type FixerPrClickDeps = {
   respond: (responseUrl: string, body: Record<string, unknown>) => Promise<void>;
   /** Work after Slack has its acknowledgement (`after` on the server). */
   schedule: (task: () => Promise<void>) => void;
+  slack: FixerPrSlackCall;
 };
 
 const ephemeral = (text: string) => ({
@@ -873,32 +901,28 @@ const ephemeral = (text: string) => ({
   response_type: "ephemeral",
   text,
 });
-function cardForDecision(
+
+/** Why a press changed nothing on GitHub, for the person who pressed. */
+function decisionNotice(
   decision: Exclude<FixerPrDecision, FixerPrButtonAction>,
   pull: FixerPrPull,
   value: FixerPrButtonValue
-): FixerPrCard {
-  const repo = value.repo;
+) {
   switch (decision) {
     case "already_merged":
-      return buildFixerPrFinalCard({ at: pull.merged_at, outcome: "merged", pull, repo });
+      return "이미 머지된 PR이에요. 아무것도 바꾸지 않았어요.";
     case "already_closed":
-      return buildFixerPrFinalCard({ outcome: "closed", pull, repo });
+      return "이미 닫힌 PR이에요. 아무것도 바꾸지 않았어요.";
     case "base_changed":
-      return buildFixerPrBaseChangedCard({ pull, repo });
+      return `대상 브랜치가 바뀌어(\`${FIXER_PR_REPOS[value.repo].base}\` → \`${clean(pull.base?.ref)}\`) 아무것도 하지 않았어요. GitHub에서 확인해 주세요.`;
     case "not_eligible":
-      return buildFixerPrDisabledCard({ pull, repo });
+      return "초안이거나 수정 에이전트 PR이 아니라 아무것도 하지 않았어요. GitHub에서 확인해 주세요.";
     case "stale_head":
-      return buildFixerPrOpenCard({
-        notice: "버튼을 새 커밋 기준으로 바꿨어요. 확인하고 다시 눌러 주세요.",
-        previousSha: value.sha,
-        pull,
-        repo,
-      });
+      return `카드를 올린 뒤 새 커밋이 생겨(\`${shortSha(value.sha)}\` → \`${shortSha(pull.head?.sha)}\`) 아무것도 하지 않았어요. 카드가 새 커밋으로 바뀌면 확인하고 다시 눌러 주세요. 안 바뀌면 GitHub에서 처리해 주세요.`;
   }
 }
 
-/** GitHub refused: say why, keeping the buttons only where a later press can succeed. */
+/** GitHub refused the merge or close: why, and whether pressing again can work. */
 function refusalNotice(error: unknown) {
   const status = error instanceof FixerPrGitHubError ? error.status : 0;
   const detail = escapeMrkdwn(
@@ -906,22 +930,17 @@ function refusalNotice(error: unknown) {
   );
   const reason = [status ? `GitHub ${status}` : "", detail].filter(Boolean).join(" · ");
   if (status === 405)
-    return {
-      buttons: true,
-      notice: `⚠️ 지금은 머지할 수 없어요 (${reason}). 충돌이나 필수 검사가 풀리면 다시 눌러 주세요.`,
-    };
+    return `⚠️ 지금은 머지할 수 없어요 (${reason}). 충돌이나 필수 검사가 풀리면 다시 눌러 주세요.`;
   if ([401, 403, 404, 422].includes(status))
-    return {
-      buttons: false,
-      notice: `⚠️ GitHub이 거절했어요 (${reason}). GitHub에서 확인해 주세요.`,
-    };
-  return {
-    buttons: true,
-    notice: `⚠️ GitHub 응답을 받지 못했어요${status ? ` (GitHub ${status})` : ""}. 잠시 후 다시 눌러 주세요.`,
-  };
+    return `⚠️ GitHub이 거절했어요 (${reason}). GitHub에서 확인해 주세요.`;
+  return `⚠️ GitHub 응답을 받지 못했어요${status ? ` (GitHub ${status})` : ""}. 잠시 후 다시 눌러 주세요.`;
 }
 
-/** Merge or close on GitHub; the card to show for what actually happened. */
+/**
+ * Merge or close on GitHub. Only a press that changed the PR gets a card to
+ * write; any other outcome is a notice for the presser, so a losing press in a
+ * race never overwrites the winner's card.
+ */
 async function applyFixerPrPress(args: {
   action: FixerPrButtonAction;
   github: FixerPrGitHub;
@@ -929,58 +948,52 @@ async function applyFixerPrPress(args: {
   pull: FixerPrPull;
   userId: string;
   value: FixerPrButtonValue;
-}): Promise<FixerPrCard> {
+}): Promise<{ card: FixerPrCard } | { notice: string }> {
   const { action, github, pull, userId, value } = args;
   try {
     if (action === "merge") {
       const merged = await github.mergePull(value.repo, value.pr, value.sha);
       if (!merged.merged) throw new FixerPrGitHubError(0, "GitHub did not merge the PR");
-      return buildFixerPrFinalCard({
-        at: args.now(),
-        by: userId,
-        mergeSha: merged.sha,
-        outcome: "merged",
-        pull,
-        repo: value.repo,
-      });
+      return {
+        card: buildFixerPrFinalCard({
+          at: args.now(),
+          by: userId,
+          mergeSha: merged.sha,
+          outcome: "merged",
+          pull,
+          repo: value.repo,
+        }),
+      };
     }
     const closed = await github.closePull(value.repo, value.pr);
     // Someone merged it in the meantime: closing changed nothing.
-    if (closed.merged === true) return cardForDecision("already_merged", closed, value);
-    return buildFixerPrFinalCard({ by: userId, outcome: "closed", pull: closed, repo: value.repo });
+    if (closed.merged === true) return { notice: decisionNotice("already_merged", closed, value) };
+    return {
+      card: buildFixerPrFinalCard({ by: userId, outcome: "closed", pull: closed, repo: value.repo }),
+    };
   } catch (error) {
     console.warn(`[fixer-pr/click] ${action} refused`, error);
-    // Read the PR again so a race (another press, a push, GitHub) shows the real state.
+    // Read the PR again: a race (another press, a push, GitHub) explains most refusals.
     const latest = await github.getPull(value.repo, value.pr).catch(() => null);
     const latestDecision = latest ? decideFixerPrAction({ action, pull: latest, value }) : action;
     if (latestDecision !== "merge" && latestDecision !== "close")
-      return cardForDecision(latestDecision, latest ?? pull, value);
-    const { buttons, notice } = refusalNotice(error);
-    return buildFixerPrOpenCard({ buttons, notice, pull: latest ?? pull, repo: value.repo });
+      return { notice: decisionNotice(latestDecision, latest ?? pull, value) };
+    return { notice: refusalNotice(error) };
   }
 }
 
 async function runFixerPrClick(args: {
   action: FixerPrButtonAction;
   deps: FixerPrClickDeps;
+  messageTs: string;
   responseUrl: string;
   userId: string;
   value: FixerPrButtonValue;
 }) {
   const { action, deps, userId, value } = args;
-  const respond = (body: Record<string, unknown>) => deps.respond(args.responseUrl, body);
-  const replace = async (card: FixerPrCard) => {
-    try {
-      await respond({ ...card, replace_original: true });
-    } catch (error) {
-      // Slack documents message metadata for chat.* methods, not for
-      // response_url. If Slack refuses it there, the visible card matters more.
-      console.warn("[fixer-pr/click] card replacement refused; retrying without metadata", error);
-      await respond({ blocks: card.blocks, replace_original: true, text: card.text });
-    }
-  };
+  const notify = (text: string) => deps.respond(args.responseUrl, ephemeral(text));
   const secrets = await deps.loadSecrets();
-  if (!secrets) return respond(ephemeral(FIXER_PR_UNAVAILABLE_TEXT));
+  if (!secrets) return notify(FIXER_PR_UNAVAILABLE_TEXT);
   const github = deps.github(secrets.githubToken);
   let pull: FixerPrPull;
   try {
@@ -988,25 +1001,29 @@ async function runFixerPrClick(args: {
   } catch (error) {
     console.warn("[fixer-pr/click] PR not read", error);
     const status = error instanceof FixerPrGitHubError ? error.status : 0;
-    return respond(
-      ephemeral(
-        `GitHub에서 PR을 불러오지 못했어요${status ? ` (GitHub ${status})` : ""}. 잠시 후 다시 눌러 주세요.`
-      )
+    return notify(
+      `GitHub에서 PR을 불러오지 못했어요${status ? ` (GitHub ${status})` : ""}. 잠시 후 다시 눌러 주세요.`
     );
   }
   const decision = decideFixerPrAction({ action, pull, value });
   if (decision !== "merge" && decision !== "close")
-    return replace(cardForDecision(decision, pull, value));
-  return replace(
-    await applyFixerPrPress({
-      action: decision,
-      github,
-      now: deps.now ?? (() => new Date()),
-      pull,
-      userId,
-      value,
-    })
-  );
+    return notify(decisionNotice(decision, pull, value));
+  const outcome = await applyFixerPrPress({
+    action: decision,
+    github,
+    now: deps.now ?? (() => new Date()),
+    pull,
+    userId,
+    value,
+  });
+  if ("notice" in outcome) return notify(outcome.notice);
+  try {
+    await deps.slack("chat.update", { ...cardBody(outcome.card), ts: args.messageTs });
+  } catch (error) {
+    // GitHub already changed; its closed event redraws the card.
+    console.warn("[fixer-pr/click] card not updated", error);
+    await notify(outcome.card.text);
+  }
 }
 
 /**
@@ -1045,11 +1062,12 @@ export async function routeFixerPrSlackAction(
     return { ok: true, status: "fixer_pr_not_allowed" };
   }
   const value = parseFixerPrButtonValue(action?.value);
-  if (!value || !responseUrl)
+  const messageTs = clean(payload.container?.message_ts || payload.message?.ts);
+  if (!value || !responseUrl || !messageTs)
     return { ignored: true, ok: true, status: "fixer_pr_invalid_value" };
   // Slack wants the acknowledgement within three seconds; GitHub work follows it.
   deps.schedule(() =>
-    runFixerPrClick({ action: kind, deps, responseUrl, userId, value }).catch(
+    runFixerPrClick({ action: kind, deps, messageTs, responseUrl, userId, value }).catch(
       (error) => console.warn("[fixer-pr/click]", error)
     )
   );
