@@ -1,16 +1,15 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
+import { ArrowLeft, Check, ChevronDown, LoaderCircle, X } from "lucide-react";
 import {
-  ArrowLeft,
-  Check,
-  ChevronDown,
-  LoaderCircle,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { addDays, format } from "date-fns";
 import { ko } from "date-fns/locale";
 import Image from "next/image";
@@ -155,15 +154,6 @@ function supportedTimezones(currentTimezone: string) {
   return [...new Set([...prioritized, ...values].filter(Boolean))];
 }
 
-function getDefaultNewInterval(intervals: MeetingAvailabilityInterval[]) {
-  const lastEnd = meetingTimeToMinutes(intervals.at(-1)?.end ?? "09:00", true);
-  const startMinutes = Math.min(lastEnd ?? 9 * 60, 23 * 60);
-  return {
-    end: meetingMinutesToTime(Math.min(startMinutes + 60, 24 * 60)),
-    start: meetingMinutesToTime(startMinutes),
-  };
-}
-
 function TimeSelect({
   className,
   endOfDay = false,
@@ -211,140 +201,172 @@ function TimeSelect({
   );
 }
 
-function IntervalEditor({
-  intervals,
-  onChange,
-  portalContainer,
-}: {
-  intervals: MeetingAvailabilityInterval[];
-  onChange: (intervals: MeetingAvailabilityInterval[]) => void;
-  portalContainer: HTMLElement | null;
-}) {
-  const { c } = useOrgLocale();
-  const updateInterval = (
-    index: number,
-    field: "end" | "start",
-    value: string
-  ) => {
-    const next = intervals.map((interval) => ({ ...interval }));
-    next[index][field] = value;
-    const startMinutes = meetingTimeToMinutes(next[index].start) ?? 0;
-    const endMinutes = meetingTimeToMinutes(next[index].end, true) ?? 0;
-    if (field === "start" && startMinutes >= endMinutes) {
-      next[index].end = meetingMinutesToTime(
-        Math.min(startMinutes + 60, 24 * 60)
-      );
-    }
-    if (field === "end" && endMinutes <= startMinutes) {
-      next[index].start = meetingMinutesToTime(Math.max(endMinutes - 60, 0));
-    }
-    onChange(next);
-  };
+/** Earliest hour the strips show unless a saved time starts earlier. */
+const STRIP_FIRST_HOUR = 6;
 
+function hourRange(hour: number): MeetingAvailabilityInterval {
+  return {
+    end: meetingMinutesToTime((hour + 1) * 60),
+    start: meetingMinutesToTime(hour * 60),
+  };
+}
+
+/** The hours every strip shows, so the rows line up under one header. */
+function stripHours(rows: MeetingAvailabilityInterval[][]) {
+  const earliest = Math.min(
+    STRIP_FIRST_HOUR,
+    ...rows
+      .flat()
+      .map((interval) =>
+        Math.floor((meetingTimeToMinutes(interval.start) ?? 24 * 60) / 60)
+      )
+  );
+  return Array.from({ length: 24 - earliest }, (_, index) => earliest + index);
+}
+
+function overlapsHour(intervals: MeetingAvailabilityInterval[], hour: number) {
+  return intervals.some((interval) => {
+    const start = meetingTimeToMinutes(interval.start);
+    const end = meetingTimeToMinutes(interval.end, true);
+    return (
+      start !== null &&
+      end !== null &&
+      start < (hour + 1) * 60 &&
+      end > hour * 60
+    );
+  });
+}
+
+/**
+ * While a pointer is held on a cell, the value it paints; null otherwise.
+ * One press can paint across cells and rows.
+ */
+function useHourPaint() {
+  const paint = useRef<boolean | null>(null);
+  useEffect(() => {
+    const stop = () => {
+      paint.current = null;
+    };
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+    return () => {
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+  }, []);
+  return paint;
+}
+
+const STRIP_COLUMNS = "grid grid-flow-col auto-cols-[minmax(16px,1fr)] gap-0.5";
+const STRIP_ROW =
+  "grid items-center gap-2 border-t border-neutral-1000-a05 py-2.5 sm:grid-cols-[104px_minmax(0,1fr)]";
+
+function HourStripHeader({ hours }: { hours: number[] }) {
   return (
-    <div className="grid gap-2">
-      {intervals.map((interval, index) => (
-        <div
-          className="flex min-w-0 items-center gap-1.5"
-          key={`${index}-${interval.start}-${interval.end}`}
-        >
-          <TimeSelect
-            label={c("시작 시간 {p0}", "Start time {p0}", {
-              p0: index + 1,
-            })}
-            onChange={(value) => updateInterval(index, "start", value)}
-            portalContainer={portalContainer}
-            value={interval.start}
-          />
-          <span className="text-[12px] text-neutral-soft">–</span>
-          <TimeSelect
-            endOfDay
-            label={c("종료 시간 {p0}", "End time {p0}", {
-              p0: index + 1,
-            })}
-            onChange={(value) => updateInterval(index, "end", value)}
-            portalContainer={portalContainer}
-            value={interval.end}
-          />
-          <MuteButton
-            aria-label={c(
-              "{p0}부터 {p1} 시간 삭제",
-              "Delete {p1} hours starting at {p0}",
-              {
-                p0: interval.start,
-                p1: interval.end,
-              }
-            )}
-            onClick={() =>
-              onChange(intervals.filter((_, itemIndex) => itemIndex !== index))
-            }
-            size="sm"
-            variant="transparent"
-          >
-            <Trash2 className="size-3.5" />
-          </MuteButton>
-          {index === intervals.length - 1 ? (
-            <MuteButton
-              disabled={
-                intervals.length >= 8 ||
-                meetingTimeToMinutes(interval.end, true) === 24 * 60
-              }
-              onClick={() =>
-                onChange([...intervals, getDefaultNewInterval(intervals)])
-              }
-              size="sm"
-              variant="transparent"
-            >
-              <Plus className="size-3.5" />
-              {c("추가", "Add")}
-            </MuteButton>
-          ) : null}
-        </div>
-      ))}
+    <div
+      aria-hidden="true"
+      className="hidden items-end gap-2 pb-1.5 sm:grid sm:grid-cols-[104px_minmax(0,1fr)]"
+    >
+      <span />
+      <div
+        className={cn(
+          STRIP_COLUMNS,
+          "text-[10px] tabular-nums text-neutral-soft"
+        )}
+      >
+        {hours.map((hour) => (
+          <span key={hour}>{hour % 2 === 0 ? hour : ""}</span>
+        ))}
+      </div>
     </div>
   );
 }
 
-function WeekdayRow({
+/** One day's hours as 1-hour cells; press or drag across them to paint. */
+function HourStrip({
+  busyHours,
+  hours,
   intervals,
   label,
-  onChange,
-  portalContainer,
+  onPaint,
+  paint,
 }: {
+  busyHours?: Set<number>;
+  hours: number[];
   intervals: MeetingAvailabilityInterval[];
   label: string;
-  onChange: (intervals: MeetingAvailabilityInterval[]) => void;
-  portalContainer: HTMLElement | null;
+  onPaint: (hour: number, available: boolean) => void;
+  paint: { current: boolean | null };
 }) {
   const { c } = useOrgLocale();
   return (
-    <div className="grid gap-3 border-t border-neutral-1000-a05 py-3 sm:grid-cols-[112px_minmax(0,1fr)]">
-      <div className="pt-1">
-        <span className="text-[13px] font-medium text-neutral-primary">
-          {label}
-        </span>
+    <div className="overflow-x-auto">
+      <div
+        aria-label={label}
+        className={cn(STRIP_COLUMNS, "touch-none select-none")}
+        role="group"
+      >
+        {hours.map((hour) => {
+          const { end, start } = hourRange(hour);
+          const available = isMeetingTimeRangeAvailable({
+            intervals,
+            rangeEnd: end,
+            rangeStart: start,
+          });
+          const partial = !available && overlapsHour(intervals, hour);
+          const busy = busyHours?.has(hour) ?? false;
+          return (
+            <button
+              aria-label={c("{p0}–{p1} {p2}", "{p0}–{p1} {p2}", {
+                p0: start,
+                p1: end,
+                p2: available
+                  ? c("가능", "available")
+                  : c("불가", "unavailable"),
+              })}
+              aria-pressed={available}
+              className={cn(
+                "relative h-8 rounded-[3px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40",
+                available
+                  ? "bg-primary hover:bg-primary/85"
+                  : partial
+                    ? "bg-primary/35 hover:bg-primary/50"
+                    : "bg-bg-weak hover:bg-primary/20",
+                busy &&
+                  "after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-action after:content-['']"
+              )}
+              key={hour}
+              onClick={(event) => {
+                // Keyboard only: a pointer already painted on press.
+                if (event.detail === 0) onPaint(hour, !available);
+              }}
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                event.preventDefault();
+                // Let the next cells receive the drag on touch screens.
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+                paint.current = !available;
+                onPaint(hour, !available);
+              }}
+              onPointerEnter={() => {
+                if (paint.current !== null) onPaint(hour, paint.current);
+              }}
+              title={
+                busy
+                  ? c(
+                      "{p0}–{p1} · Google Calendar 일정 있음",
+                      "{p0}–{p1} · Busy in Google Calendar",
+                      { p0: start, p1: end }
+                    )
+                  : `${start}–${end}`
+              }
+              type="button"
+            />
+          );
+        })}
       </div>
-      {intervals.length > 0 ? (
-        <IntervalEditor
-          intervals={intervals}
-          onChange={onChange}
-          portalContainer={portalContainer}
-        />
-      ) : (
-        <div className="flex min-h-8 items-center justify-between gap-3">
-          <p className="text-[13px] text-neutral-soft">
-            {c("가능한 시간 없음", "No available times")}
-          </p>
-          <MuteButton
-            onClick={() => onChange([{ end: "19:00", start: "10:00" }])}
-            size="sm"
-            variant="transparent"
-          >
-            <Plus className="size-3.5" />
-            {c("추가", "Add")}
-          </MuteButton>
-        </div>
-      )}
     </div>
   );
 }
@@ -574,11 +596,15 @@ function DateOverridePanel({
 
 function WeeklyEditor({
   availability,
+  hours,
   onChange,
+  paint,
   portalContainer,
 }: {
   availability: MeetingAvailabilityDocument;
-  onChange: (availability: MeetingAvailabilityDocument) => void;
+  hours: number[];
+  onChange: Dispatch<SetStateAction<MeetingAvailabilityDocument>>;
+  paint: { current: boolean | null };
   portalContainer: HTMLElement | null;
 }) {
   const { c } = useOrgLocale();
@@ -732,20 +758,36 @@ function WeeklyEditor({
         </Popover.Root>
       </div>
 
-      <div className="mt-5 border-b border-neutral-1000-a05">
-        {ISO_WEEKDAYS.map(({ key, label }) => (
-          <WeekdayRow
-            intervals={availability.weeklyRules[key]}
-            key={key}
-            label={sourceT(label)}
-            onChange={(intervals) => {
-              const next = cloneDocument(availability);
-              next.weeklyRules[key] = intervals;
-              onChange(next);
-            }}
-            portalContainer={portalContainer}
-          />
-        ))}
+      <div className="mt-4">
+        <HourStripHeader hours={hours} />
+        <div className="border-b border-neutral-1000-a05">
+          {ISO_WEEKDAYS.map(({ key, label }) => (
+            <div className={STRIP_ROW} key={key}>
+              <span className="text-[13px] font-medium text-neutral-primary">
+                {sourceT(label)}
+              </span>
+              <HourStrip
+                hours={hours}
+                intervals={availability.weeklyRules[key]}
+                label={sourceT(label)}
+                onPaint={(hour, available) =>
+                  onChange((current) => {
+                    const { end, start } = hourRange(hour);
+                    const next = cloneDocument(current);
+                    next.weeklyRules[key] = setMeetingTimeRangeAvailability({
+                      available,
+                      intervals: current.weeklyRules[key],
+                      rangeEnd: end,
+                      rangeStart: start,
+                    });
+                    return next;
+                  })
+                }
+                paint={paint}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -754,16 +796,20 @@ function WeeklyEditor({
 /** The dates a candidate can pick from, each with its own hours. */
 function OpenDatesEditor({
   availability,
+  calendarBusyBlocks,
+  hours,
   onChange,
   onShowDate,
-  portalContainer,
+  paint,
   today,
   todayKey,
 }: {
   availability: MeetingAvailabilityDocument;
-  onChange: (availability: MeetingAvailabilityDocument) => void;
+  calendarBusyBlocks: MeetingCalendarBusyBlock[];
+  hours: number[];
+  onChange: Dispatch<SetStateAction<MeetingAvailabilityDocument>>;
   onShowDate: (date: Date) => void;
-  portalContainer: HTMLElement | null;
+  paint: { current: boolean | null };
   today: Date;
   todayKey: string;
 }) {
@@ -778,8 +824,27 @@ function OpenDatesEditor({
       key,
       todayKey
     );
-    return intervals.length > 0 ? [{ date, intervals, key }] : [];
+    if (intervals.length === 0) return [];
+    // Hours a Google Calendar event takes; candidates are not offered them.
+    const busyHours = new Set(
+      hours.filter((hour) => {
+        const { end, start } = hourRange(hour);
+        return calendarBusyBlocks.some(
+          (busyBlock) =>
+            busyBlock.isBlocking &&
+            calendarBusyBlockOverlapsTimeRange({
+              busyBlock,
+              dateKey: key,
+              rangeEnd: end,
+              rangeStart: start,
+              timezone: availability.timezone,
+            })
+        );
+      })
+    );
+    return [{ busyHours, date, intervals, key }];
   });
+  const anyBusy = openDates.some(({ busyHours }) => busyHours.size > 0);
 
   return (
     <section>
@@ -792,45 +857,68 @@ function OpenDatesEditor({
           "Candidates pick a time on these dates. Select a date on the calendar to open it, and again to close it."
         )}
       </p>
+      {anyBusy ? (
+        <p className="mt-2 flex items-center gap-1.5 text-[12px] text-neutral-muted">
+          <span className="size-1.5 shrink-0 rounded-full bg-action" />
+          {c(
+            "Google Calendar 일정이 있는 시간은 후보에게 보이지 않아요.",
+            "Times with a Google Calendar event aren't offered to candidates."
+          )}
+        </p>
+      ) : null}
       {openDates.length === 0 ? (
         <p className="mt-4 text-[13px] text-neutral-soft">
           {c("열린 날짜가 없어요.", "No dates are open.")}
         </p>
       ) : (
-        <div className="mt-4 border-b border-neutral-1000-a05">
-          {openDates.map(({ date, intervals, key }) => (
-            <div
-              className="grid gap-3 border-t border-neutral-1000-a05 py-3 sm:grid-cols-[112px_minmax(0,1fr)]"
-              key={key}
-            >
-              <div className="pt-1">
-                <button
-                  className="text-left text-[13px] font-medium text-neutral-primary underline-offset-2 hover:underline"
-                  onClick={() => onShowDate(date)}
-                  title={c("그날 시간표 보기", "Show that day's hours")}
-                  type="button"
-                >
-                  {format(date, c("M월 d일 (EEE)", "EEE, MMM d"), {
-                    locale: locale === "en" ? undefined : ko,
-                  })}
-                </button>
-              </div>
-              <IntervalEditor
-                intervals={intervals}
-                onChange={(nextIntervals) =>
-                  onChange(
-                    setMeetingDateIntervals(
-                      availability,
-                      key,
-                      todayKey,
-                      nextIntervals
-                    )
-                  )
-                }
-                portalContainer={portalContainer}
-              />
-            </div>
-          ))}
+        <div className="mt-4">
+          <HourStripHeader hours={hours} />
+          <div className="border-b border-neutral-1000-a05">
+            {openDates.map(({ busyHours, date, intervals, key }) => {
+              const label = format(date, c("M월 d일 (EEE)", "EEE, MMM d"), {
+                locale: locale === "en" ? undefined : ko,
+              });
+              return (
+                <div className={STRIP_ROW} key={key}>
+                  <button
+                    className="text-left text-[13px] font-medium text-neutral-primary underline-offset-2 hover:underline"
+                    onClick={() => onShowDate(date)}
+                    title={c("그날 시간표 보기", "Show that day's hours")}
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                  <HourStrip
+                    busyHours={busyHours}
+                    hours={hours}
+                    intervals={intervals}
+                    label={label}
+                    onPaint={(hour, available) =>
+                      onChange((current) => {
+                        const { end, start } = hourRange(hour);
+                        return setMeetingDateIntervals(
+                          current,
+                          key,
+                          todayKey,
+                          setMeetingTimeRangeAvailability({
+                            available,
+                            intervals: getMeetingAvailabilityIntervalsOnDate(
+                              current,
+                              key,
+                              todayKey
+                            ),
+                            rangeEnd: end,
+                            rangeStart: start,
+                          })
+                        );
+                      })
+                    }
+                    paint={paint}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </section>
@@ -879,6 +967,7 @@ export function OrgInterviewAvailabilityDialog({
     null
   );
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const paint = useHourPaint();
   const timezoneOptions = useMemo(
     () => supportedTimezones(draft.timezone),
     [draft.timezone]
@@ -1082,6 +1171,13 @@ export function OrgInterviewAvailabilityDialog({
     { length: MEETING_SELECTABLE_DAYS },
     (_, index) => addDays(today, index)
   ).filter(isAvailableDate);
+  const calendarBusyBlocks = availabilityQuery.data?.calendarBusyBlocks ?? [];
+  const hours = stripHours([
+    ...openDates.map((date) =>
+      getMeetingAvailabilityIntervalsOnDate(draft, dateKey(date), todayKey)
+    ),
+    ...ISO_WEEKDAYS.map(({ key }) => draft.weeklyRules[key]),
+  ]);
   const isCalendarBusyDate = (date: Date) =>
     !isPastDate(date) &&
     (availabilityQuery.data?.calendarBusyBlocks ?? []).some(
@@ -1256,15 +1352,19 @@ export function OrgInterviewAvailabilityDialog({
                 <div className="min-h-full space-y-8 p-5 sm:p-6">
                   <OpenDatesEditor
                     availability={draft}
+                    calendarBusyBlocks={calendarBusyBlocks}
+                    hours={hours}
                     onChange={setDraft}
                     onShowDate={setSelectedDate}
-                    portalContainer={portalContainer}
+                    paint={paint}
                     today={today}
                     todayKey={todayKey}
                   />
                   <WeeklyEditor
                     availability={draft}
+                    hours={hours}
                     onChange={setDraft}
+                    paint={paint}
                     portalContainer={portalContainer}
                   />
                 </div>
