@@ -4618,6 +4618,397 @@ export type Database = {
           },
         ]
       }
+      external_candidate_contacts: {
+        Row: {
+          id: string
+          external_candidate_id: string
+          company_workspace_id: string
+          role_id: string
+          requested_by: string | null
+          status: string
+          available_at: string
+          lease_token: string | null
+          lease_expires_at: string | null
+          attempt_count: number
+          email: string | null
+          email_kind: string | null
+          source_kind: string | null
+          source_url: string | null
+          same_person_basis: string | null
+          checks: Json
+          cost: Json
+          result: Json
+          error_code: string | null
+          error_message: string | null
+          created_at: string
+          started_at: string | null
+          finished_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          external_candidate_id: string
+          company_workspace_id: string
+          role_id: string
+          requested_by?: string | null
+          status?: string
+          available_at?: string
+          lease_token?: string | null
+          lease_expires_at?: string | null
+          attempt_count?: number
+          email?: string | null
+          email_kind?: string | null
+          source_kind?: string | null
+          source_url?: string | null
+          same_person_basis?: string | null
+          checks?: Json
+          cost?: Json
+          result?: Json
+          error_code?: string | null
+          error_message?: string | null
+          created_at?: string
+          started_at?: string | null
+          finished_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          external_candidate_id?: string
+          company_workspace_id?: string
+          role_id?: string
+          requested_by?: string | null
+          status?: string
+          available_at?: string
+          lease_token?: string | null
+          lease_expires_at?: string | null
+          attempt_count?: number
+          email?: string | null
+          email_kind?: string | null
+          source_kind?: string | null
+          source_url?: string | null
+          same_person_basis?: string | null
+          checks?: Json
+          cost?: Json
+          result?: Json
+          error_code?: string | null
+          error_message?: string | null
+          created_at?: string
+          started_at?: string | null
+          finished_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_candidate_contacts_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "external_candidate_contacts_external_candidate_id_fkey"
+            columns: ["external_candidate_id"]
+            isOneToOne: true
+            referencedRelation: "external_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_candidate_contacts_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
+      external_candidate_replies: {
+        Row: {
+          id: string
+          external_intro_request_id: string
+          email_reply_job_id: string
+          from_email: string | null
+          from_invited_address: boolean
+          subject: string | null
+          body_text: string | null
+          reply_type: string | null
+          summary: string | null
+          classified_at: string | null
+          company_notice: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          external_intro_request_id: string
+          email_reply_job_id: string
+          from_email?: string | null
+          from_invited_address?: boolean
+          subject?: string | null
+          body_text?: string | null
+          reply_type?: string | null
+          summary?: string | null
+          classified_at?: string | null
+          company_notice?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          external_intro_request_id?: string
+          email_reply_job_id?: string
+          from_email?: string | null
+          from_invited_address?: boolean
+          subject?: string | null
+          body_text?: string | null
+          reply_type?: string | null
+          summary?: string | null
+          classified_at?: string | null
+          company_notice?: Json
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_candidate_replies_external_intro_request_id_fkey"
+            columns: ["external_intro_request_id"]
+            isOneToOne: false
+            referencedRelation: "external_intro_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_candidates: {
+        Row: {
+          company_decision_reason: string | null
+          company_decided_at: string | null
+          company_decided_by: string | null
+          id: string
+          run_id: string
+          company_workspace_id: string
+          role_id: string
+          person_key: string
+          linkedin_url: string | null
+          name: string | null
+          headline: string | null
+          current_company: string | null
+          location: string | null
+          career_lines: Json
+          evidence: Json
+          screen: Json
+          verdict: Json
+          rank: number | null
+          delivered: boolean
+          excluded_reason: string | null
+          profile_text: string | null
+          raw_purged_at: string | null
+          company_decision: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          company_decision_reason?: string | null
+          company_decided_at?: string | null
+          company_decided_by?: string | null
+          id?: string
+          run_id: string
+          company_workspace_id: string
+          role_id: string
+          person_key: string
+          linkedin_url?: string | null
+          name?: string | null
+          headline?: string | null
+          current_company?: string | null
+          location?: string | null
+          career_lines?: Json
+          evidence?: Json
+          screen?: Json
+          verdict?: Json
+          rank?: number | null
+          delivered?: boolean
+          excluded_reason?: string | null
+          profile_text?: string | null
+          raw_purged_at?: string | null
+          company_decision?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          company_decision_reason?: string | null
+          company_decided_at?: string | null
+          company_decided_by?: string | null
+          id?: string
+          run_id?: string
+          company_workspace_id?: string
+          role_id?: string
+          person_key?: string
+          linkedin_url?: string | null
+          name?: string | null
+          headline?: string | null
+          current_company?: string | null
+          location?: string | null
+          career_lines?: Json
+          evidence?: Json
+          screen?: Json
+          verdict?: Json
+          rank?: number | null
+          delivered?: boolean
+          excluded_reason?: string | null
+          profile_text?: string | null
+          raw_purged_at?: string | null
+          company_decision?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_candidates_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "external_candidates_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "external_candidates_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "external_sourcing_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_contact_suppressions: {
+        Row: {
+          email_hash: string
+          reason: string
+          external_intro_request_id: string | null
+          created_at: string
+        }
+        Insert: {
+          email_hash: string
+          reason: string
+          external_intro_request_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          email_hash?: string
+          reason?: string
+          external_intro_request_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_contact_suppressions_external_intro_request_id_fkey"
+            columns: ["external_intro_request_id"]
+            isOneToOne: false
+            referencedRelation: "external_intro_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_intro_requests: {
+        Row: {
+          id: string
+          external_candidate_id: string
+          company_workspace_id: string
+          role_id: string
+          requested_by: string
+          company_appeal: string
+          intro_recipient_emails: string[]
+          status: string
+          result: Json
+          created_at: string
+          updated_at: string
+          available_at: string
+          lease_expires_at: string | null
+          attempt_count: number
+          recipient_email: string | null
+          reply_token_hash: string | null
+          unsubscribe_token_hash: string | null
+          invite_email_id: string | null
+          invited_at: string | null
+          opened_at: string | null
+          last_reply_at: string | null
+          reply_type: string | null
+          error_code: string | null
+        }
+        Insert: {
+          id?: string
+          external_candidate_id: string
+          company_workspace_id: string
+          role_id: string
+          requested_by: string
+          company_appeal: string
+          intro_recipient_emails?: string[]
+          status?: string
+          result?: Json
+          created_at?: string
+          updated_at?: string
+          available_at?: string
+          lease_expires_at?: string | null
+          attempt_count?: number
+          recipient_email?: string | null
+          reply_token_hash?: string | null
+          unsubscribe_token_hash?: string | null
+          invite_email_id?: string | null
+          invited_at?: string | null
+          opened_at?: string | null
+          last_reply_at?: string | null
+          reply_type?: string | null
+          error_code?: string | null
+        }
+        Update: {
+          id?: string
+          external_candidate_id?: string
+          company_workspace_id?: string
+          role_id?: string
+          requested_by?: string
+          company_appeal?: string
+          intro_recipient_emails?: string[]
+          status?: string
+          result?: Json
+          created_at?: string
+          updated_at?: string
+          available_at?: string
+          lease_expires_at?: string | null
+          attempt_count?: number
+          recipient_email?: string | null
+          reply_token_hash?: string | null
+          unsubscribe_token_hash?: string | null
+          invite_email_id?: string | null
+          invited_at?: string | null
+          opened_at?: string | null
+          last_reply_at?: string | null
+          reply_type?: string | null
+          error_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_intro_requests_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "external_intro_requests_external_candidate_id_fkey"
+            columns: ["external_candidate_id"]
+            isOneToOne: true
+            referencedRelation: "external_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_intro_requests_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
       external_recommendation_runs: {
         Row: {
           attempts: number
@@ -4692,6 +5083,96 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "talent_users"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      external_sourcing_runs: {
+        Row: {
+          id: string
+          company_workspace_id: string
+          role_id: string
+          trigger: string
+          requested_by: string | null
+          status: string
+          available_at: string
+          lease_token: string | null
+          lease_expires_at: string | null
+          heartbeat_at: string | null
+          attempt_count: number
+          input: Json
+          budget: Json
+          cost: Json
+          counts: Json
+          result: Json
+          error_code: string | null
+          error_message: string | null
+          created_at: string
+          started_at: string | null
+          finished_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_workspace_id: string
+          role_id: string
+          trigger: string
+          requested_by?: string | null
+          status?: string
+          available_at?: string
+          lease_token?: string | null
+          lease_expires_at?: string | null
+          heartbeat_at?: string | null
+          attempt_count?: number
+          input?: Json
+          budget?: Json
+          cost?: Json
+          counts?: Json
+          result?: Json
+          error_code?: string | null
+          error_message?: string | null
+          created_at?: string
+          started_at?: string | null
+          finished_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_workspace_id?: string
+          role_id?: string
+          trigger?: string
+          requested_by?: string | null
+          status?: string
+          available_at?: string
+          lease_token?: string | null
+          lease_expires_at?: string | null
+          heartbeat_at?: string | null
+          attempt_count?: number
+          input?: Json
+          budget?: Json
+          cost?: Json
+          counts?: Json
+          result?: Json
+          error_code?: string | null
+          error_message?: string | null
+          created_at?: string
+          started_at?: string | null
+          finished_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_sourcing_runs_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "external_sourcing_runs_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
           },
         ]
       }

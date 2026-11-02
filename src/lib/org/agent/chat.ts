@@ -585,6 +585,8 @@ export async function runOrgAgentToolLoop(
   args: {
     allowSilentCompletion?: boolean;
     backgroundOrigin?: "scheduled_review" | "scheduled_matching";
+    /** A Harper event or assignment, not a live company message (e.g. a web action event). */
+    harperInitiated?: boolean;
     capabilityMode?: CompanyCapabilityMode;
     companyMessageAudience?: CompanyMessageAudience;
     actorId: string;
@@ -697,6 +699,7 @@ export async function runOrgAgentToolLoop(
       mode: capabilityMode,
       loaded: loadedCapabilities,
       allowedToolNames: args.allowedToolNames,
+      workspaceId: args.conversation.company_workspace_id,
     });
     const offeredTools = resolved.offeredToolNames;
     messages[0] = {
@@ -886,7 +889,8 @@ export async function runOrgAgentToolLoop(
           result = loadCompanyCapabilities(
             parseToolArguments(toolCall.function.arguments),
             loadedCapabilities,
-            args.source
+            args.source,
+            args.conversation.company_workspace_id
           );
         } catch {
           result = {
@@ -987,6 +991,7 @@ export async function runOrgAgentToolLoop(
           companySideContext: companySideUserPrompt,
           conversation: args.conversation,
           currentUserMessageId: args.currentUserMessageId,
+          harperInitiated: Boolean(args.backgroundOrigin || args.harperInitiated),
           input: toolInput,
           name: toolName,
           onToolProgress: emitToolProgress,
@@ -1429,6 +1434,7 @@ export async function runOrgAgentWebActionTurn(args: {
 
   const llmResult = await runOrgAgentToolLoop({
     allowSilentCompletion: !isHiringBriefRequest && (!isCompanyUpdate || companyMessageAlreadyDelivered),
+    harperInitiated: true,
     companyMessageAudience,
     slackExecutionContext,
     responseLocale: args.responseLocale ?? "auto",

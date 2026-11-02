@@ -51,3 +51,17 @@ test("company reply namespace wins over talent/referral routing only on the conf
   assert.deepEqual(classifyInboundEmailJob({ toAddresses: ["company+abcdefghijklmnop@other.example"], ccAddresses: [] }),
     { kind: "reply", metadata: {} });
 });
+
+test("routes replies to an external invitation to the web runtime only", () => {
+  assert.deepEqual(
+    classifyInboundEmailJob({
+      ccAddresses: [],
+      toAddresses: ["Harper <candidate+abc_def-1234567@reply.matchharper.com>"],
+    }),
+    { kind: "reply", metadata: { externalCandidateEmail: true } }
+  );
+  assert.deepEqual(
+    classifyInboundEmailJob({ ccAddresses: [], toAddresses: ["candidate+abc_def-1234567@example.com"] }),
+    { kind: "reply", metadata: {} }
+  );
+});

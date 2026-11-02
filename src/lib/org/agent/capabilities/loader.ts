@@ -1,7 +1,7 @@
 import { COMPANY_CAPABILITIES, type CompanyCapabilityId } from "./registry";
 import { resolveCompanyCapabilities } from "./resolver";
 
-export function loadCompanyCapabilities(input: unknown, loaded: Set<CompanyCapabilityId>, surface: "chat" | "slack") {
+export function loadCompanyCapabilities(input: unknown, loaded: Set<CompanyCapabilityId>, surface: "chat" | "slack", workspaceId?: string) {
   const validIds = COMPANY_CAPABILITIES.map((c) => c.id);
   if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some((key) => key !== "capabilityIds")) {
     return { ok: false, error: "Expected only capabilityIds.", validIds };
@@ -13,7 +13,7 @@ export function loadCompanyCapabilities(input: unknown, loaded: Set<CompanyCapab
   const requested = [...new Set(ids)] as CompanyCapabilityId[];
   const tentative = new Set([...loaded, ...requested]);
   // Resolve all policies and schemas before mutating state (atomic activation).
-  const resolved = resolveCompanyCapabilities({ surface, mode: "progressive", loaded: tentative });
+  const resolved = resolveCompanyCapabilities({ surface, mode: "progressive", loaded: tentative, workspaceId });
   if (requested.some((id) => !resolved.activeCapabilityIds.includes(id))) {
     return { ok: false, error: "Capability unavailable on this surface. Nothing was loaded.", validIds };
   }
