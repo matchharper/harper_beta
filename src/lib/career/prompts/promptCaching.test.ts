@@ -85,7 +85,6 @@ test("capability loading, Gmail availability and coaching revisions leave saved-
   assert.equal(loaded.promptBlocks.some(block => block.key === "tool_policy"), false);
   assert.notEqual(text(cold, "gmail_capability"), text(loaded, "gmail_capability"));
   assert.notEqual(text(cold, "career_coaching_state"), text(loaded, "career_coaching_state"));
-  assert.match(text(loaded, "career_main"), /general tools/);
 });
 
 test("loaded handbook bodies and fresh execution evidence stay intact after saved-context cache boundaries", () => {

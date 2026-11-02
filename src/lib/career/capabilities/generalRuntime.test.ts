@@ -58,7 +58,7 @@ test("new and carried application leases use the single current source without e
   assert.equal(findCareerHandbook("unknown"), undefined);
   const catalog = careerHandbookCatalog().filter(book => book.id === "application");
   assert.equal(catalog.length, 1);
-  assert.equal(catalog[0].version, "current");
+  assert.equal(catalog[0].version, findCareerHandbook("application")!.version);
   assert.equal(catalog[0].characters, Array.from(APPLICATION_HANDBOOK).length);
 
   for (const version of ["2026-10-29-v1", "2026-10-30-v9"]) {
@@ -76,7 +76,7 @@ test("new and carried application leases use the single current source without e
   const runtime = make({ handbooks: [{ id: "application", version: "2026-10-30-v2", remainingReplies: 1 }] });
   const loaded = runtime.load({ handbook_ids: ["application"] }, runtime.resolveStep(false), CAREER_HANDBOOK_LOADER);
   assert.equal(loaded.ok, true);
-  assert.deepEqual(runtime.handbooks.snapshot(), [{ id: "application", version: "current", remainingReplies: 3 }]);
+  assert.deepEqual(runtime.handbooks.snapshot(), [{ id: "application", version: catalog[0].version, remainingReplies: 3 }]);
 });
 
 test("form review remains callable when the selector only chooses the external executor", () => {

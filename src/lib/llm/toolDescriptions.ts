@@ -147,7 +147,7 @@ This reads only and does not change profile, settings, recommendations, or shari
   // src/lib/talentOnboarding/tools.ts
   write_talent_context: `Save or correct durable user context after onboarding. Put current opportunity-search criteria and premises that the user can review in Search Brief; put other context worth remembering for future conversations or opportunity judgment in Memory.
 
-Save only facts the user stated; never infer or add details the user did not provide. When a saved fact is corrected or no longer true, update or delete that row instead of appending a conflicting current fact; keep a past event only when it remains useful as history.
+Save facts stated by the user or supported by verified sources, preserving their subject, source and uncertainty. An inference does not establish personal experience, contribution or preference. When a saved fact is corrected or no longer true, update or delete that row instead of appending a conflicting current fact; keep a past event only when it remains useful as history.
 
 For each new Memory, choose importance 3 if it can materially change matching, 2 if it is useful supporting context, or 1 if it mainly preserves conversational continuity. For a Brief, do not repeat its label in content.
 
