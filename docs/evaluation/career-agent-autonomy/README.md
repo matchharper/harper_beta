@@ -28,3 +28,7 @@ The repository evaluation README had already been deleted in the user's workspac
 ## Interpretation and gate
 
 Report each trial's usefulness, factual grounding, user effort and scope/permission behavior with evidence. A favorable comparison requires useful progress across the challenging cases without degrading the sufficient-material control or inventing candidate achievements. Failures and infrastructure limitations must remain visible. Four synthetic cases cannot establish general reliability, isolate every individual prompt change, or authorize deployment. Company delivery, PDF rendering, real browser behavior, production DB authorization and voice/background conversations are outside this experiment.
+
+## Recorded comparison
+
+[2026-11-02 comparison](reports/2026-11-02-comparison.md) records all 16 trials, observed gains, unchanged behavior and remaining failures. Baseline source is `84c52faa` (product baseline `463d83cb`); simplified source is `0967d691`. Raw provider traces and readable full transcripts remain in ignored `runs/`. The comparison is not a deployment or general-reliability gate pass.
