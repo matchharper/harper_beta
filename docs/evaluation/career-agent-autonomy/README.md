@@ -51,3 +51,5 @@ Review both useful completion and unwanted behavior: over-research, cosmetic rew
 ## v3 fixture consistency correction
 
 During v2 review, two cases inherited the generic profile helper's company/contact values while their documents named different employers and emails. The model correctly noticed these contradictions, so those extra questions cannot be counted as unnecessary questioning. `v3` corrects only these profile facts in `sufficient_resume_review` and `missing_personal_fields`, keeps messages/pages/gold criteria unchanged, and repeats both A/B twice (8 additional trials). All v2 data and outputs remain unchanged. Use the v2 commands with `--dataset v3` and labels `v3-A` / `v3-B`. No product-guidance changes follow the observed outputs.
+
+[2026-11-03 transfer and side-effect report](reports/2026-11-03-transfer-and-side-effects.md) records the exact prompt additions, 48 v2 trials, 8 declared fixture-correction trials, unnecessary document creation, preserved boundaries and tool-contract errors. It revises the earlier broad B-is-better interpretation. Product guidance remains unchanged.
