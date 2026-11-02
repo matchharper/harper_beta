@@ -47,3 +47,7 @@ NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-serv
 ```
 
 Review both useful completion and unwanted behavior: over-research, cosmetic rewriting, scope expansion, unsupported facts, missing essential questions, language drift, private disclosures, durable preference changes and unreviewed external actions. No runtime quality filter or automatic judge is added. Failed source replay/preflight is infrastructure failure and must be fixed before model generation. Any later fixture failure remains visible in results.
+
+## v3 fixture consistency correction
+
+During v2 review, two cases inherited the generic profile helper's company/contact values while their documents named different employers and emails. The model correctly noticed these contradictions, so those extra questions cannot be counted as unnecessary questioning. `v3` corrects only these profile facts in `sufficient_resume_review` and `missing_personal_fields`, keeps messages/pages/gold criteria unchanged, and repeats both A/B twice (8 additional trials). All v2 data and outputs remain unchanged. Use the v2 commands with `--dataset v3` and labels `v3-A` / `v3-B`. No product-guidance changes follow the observed outputs.
