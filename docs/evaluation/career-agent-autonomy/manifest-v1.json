@@ -1,0 +1,12 @@
+{
+  "datasetVersion": "v1",
+  "createdAt": "2026-11-02",
+  "baselineRevision": "463d83cb",
+  "hashes": {
+    "cases-v1.json": "8c2e34eb55064dc6f266f9ea27648b091da63f1b116d418992e1c2caca221b28",
+    "gold-v1.json": "001290210fcf66d294ec27fe4c46f63d4b660ec4749873fa605cd13f7bab7741"
+  },
+  "model": "production default Career model and reasoning; no sampling override",
+  "repetitions": 2,
+  "boundary": "Live Career LLM and capability selector; fixed synthetic search/browser/account data; actual document authoring with isolated memory persistence. No external business effects."
+}
