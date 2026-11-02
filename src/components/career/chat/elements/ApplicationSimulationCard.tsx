@@ -106,7 +106,7 @@ export function ApplicationSimulationCard({
     return (
       <section
         className="w-full max-w-[420px] rounded-md p-3 border border-neutral-1000-a10"
-        aria-label={t("career.apply.title", "Harper와 준비하기")}
+        aria-label={t("career.apply.prepare_title", "Harper와 준비하기")}
       >
         <RecommendationSearchProgress
           keepVisual
@@ -190,12 +190,12 @@ export function ApplicationSimulationCard({
   return (
     <section
       className="w-full max-w-[740px] overflow-hidden rounded-xl border border-neutral-1000-a10 bg-bg-floating"
-      aria-label={t("career.apply.title", "Harper와 준비하기")}
+      aria-label={t("career.apply.prepare_title", "Harper와 준비하기")}
     >
       <div className="flex items-center justify-between gap-3 border-b border-neutral-1000-a05 p-4">
         <div>
           <div className="font-medium">
-            {t("career.apply.title", "Harper와 준비하기")}
+            {t("career.apply.prepare_title", "Harper와 준비하기")}
           </div>
           <div className="text-sm text-neutral-muted">
             {simulation.roleName}

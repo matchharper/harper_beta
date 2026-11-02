@@ -1,0 +1,8 @@
+{
+  "version": "v1",
+  "provenance": "Synthetic inputs, frozen before running; manual gold authored 2026-11-02",
+  "hashes": {
+    "cases-v1.json": "eb1053832f5bef065e48440e559df7c2c59a7e51fd1168f279509ba0ce6dd71d",
+    "gold-v1.json": "1ee69b1836355a7ce4e3417806bb7c455c6f14768e9f52c8f7143f5261e3a6e5"
+  }
+}

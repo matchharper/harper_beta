@@ -13,6 +13,7 @@ import type {
 import type { OpportunityRunMarkerRelation } from "@/lib/opportunityDiscovery/messageMarker";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import type { CareerMessageAttachment } from "@/lib/career/messageAttachments";
+import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 export {
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
@@ -328,12 +329,13 @@ export type CareerOpportunityCompanyData = {
 };
 
 export type CareerOpportunityUpcomingMeeting = {
-  endAt: string;
+  endAt: string | null;
   startAt: string;
   title: string | null;
 };
 
 export type CareerOpportunityMeeting = CareerOpportunityUpcomingMeeting & {
+  endAt: string;
   confirmedAt: string | null;
   id: string;
 };
@@ -350,6 +352,11 @@ export type CareerTalentRoleActivity = {
 export type CareerHistoryOpportunityPageFilter = {
   historyTab: CareerHistoryTabId;
   savedStage?: CareerOpportunitySavedStageFilter;
+};
+
+export type CareerHistoryOpportunityPageState = {
+  loading: boolean;
+  nextOffset: number | null;
 };
 
 export type CareerHistoryOpportunityCounts = {
@@ -384,6 +391,8 @@ export type CareerPreferenceFitItem = {
 };
 
 export type CareerHistoryOpportunity = {
+  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
+  listPosition?: "current" | "previous";
   estimatedAnnualSalary?: EstimatedAnnualSalary | null;
   updatedAt?: string | null;
   activityTimelineLoaded?: boolean;
@@ -478,6 +487,9 @@ export type CareerHistoryItem = {
 };
 
 export type CareerMessage = {
+  careerForm?: import("@/lib/career/forms/schema").CareerForm;
+  formResponse?: import("@/lib/career/forms/schema").CareerFormResponse;
+  browserSession?: { sessionId: string };
   applicationActivity?: {activityId:string; revision:number; runId?:string; view:string};
   applicationQuestions?: ApplicationQuestionHistory;
   applicationDraft?: ApplicationDraft;
@@ -496,15 +508,22 @@ export type CareerMessage = {
   createdAt: string;
   mockInterviewOffers?: MockInterviewOffer[];
   opportunityPreview?: CareerHistoryOpportunity[];
+  opportunityMentions?: CareerOpportunityMention[];
   recommendationSearchRelation?: OpportunityRunMarkerRelation | null;
   recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: string[];
+  turnStopped?: boolean;
+  turnPending?: boolean;
+  clientRequestId?: string;
   typing?: boolean;
   typingMode?: "stream" | "word";
 };
 
 export type CareerMessagePayload = {
+  careerForm?: import("@/lib/career/forms/schema").CareerForm;
+  formResponse?: import("@/lib/career/forms/schema").CareerFormResponse;
+  browserSession?: { sessionId: string };
   applicationActivity?: {activityId:string; revision:number; runId?:string; view:string};
   applicationQuestions?: ApplicationQuestionHistory;
   applicationDraft?: ApplicationDraft;
@@ -523,10 +542,14 @@ export type CareerMessagePayload = {
   createdAt: string;
   mockInterviewOffers?: MockInterviewOffer[];
   opportunityPreview?: CareerHistoryOpportunity[];
+  opportunityMentions?: CareerOpportunityMention[];
   recommendationSearchRelation?: OpportunityRunMarkerRelation | null;
   recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: string[];
+  turnStopped?: boolean;
+  turnPending?: boolean;
+  clientRequestId?: string;
 };
 
 export type CareerInternalOpportunityCallRequest = {

@@ -2,6 +2,16 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderReplyEmail, emailVisibleMarkdown } from "./format";
 
+test("Korean emphasis around punctuation renders without changing literal code", () => {
+  const email = renderReplyEmail(
+    '면접이 **오늘 오후 3시–4시(한국 시간)**로 예정되어 있어요.\n\n`**문자 그대로(한국 시간)**로`\n\n\\*\\*이스케이프(한국 시간)\\*\\*로'
+  );
+  assert.match(email.html, /<strong>오늘 오후 3시–4시\(한국 시간\)<\/strong>로/);
+  assert.ok(email.text.startsWith('면접이 오늘 오후 3시–4시(한국 시간)로 예정되어 있어요.'));
+  assert.match(email.html, /<code>\*\*문자 그대로\(한국 시간\)\*\*로<\/code>/);
+  assert.ok(email.text.includes('**이스케이프(한국 시간)**로'));
+});
+
 test("email renders nested Markdown, tables, quotes and literal code in both parts", () => {
   const email = renderReplyEmail(
     "## 확인한 내용\n\n**역할**과 _조건_입니다.\n\n- 첫 항목\n  - 하위 항목\n\n> 받은 안내\n\n| 항목 | 값 |\n|---|---|\n| 지역 | 서울 |\n\n```text\na_b <literal>\n```\n\n[상세](https://example.com/a_(b))"

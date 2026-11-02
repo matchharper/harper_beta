@@ -27,6 +27,10 @@ test("suggestions use the shared chat default and inherit model-specific setting
         const finish = request.tools?.find(
           (tool) => tool.function.name === "finish_application_suggestions"
         );
+        assert.deepEqual(
+          request.tools?.map(tool => tool.function.name).sort(),
+          ["finish_application_suggestions", "list_documents", "read_document", "read_talent_context"]
+        );
         assert.equal(
           (
             finish?.function.parameters as {

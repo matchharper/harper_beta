@@ -6,7 +6,7 @@ import type {
 } from "@/components/career/types";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
+import { getHistoryOpportunityBucket, isSavedHistoryOpportunity } from "@/hooks/career/careerSessionData";
 import { useCareerT } from "@/i18n/useCareerT";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
@@ -144,7 +144,7 @@ export default function HistoryOpportunityRoleActions({
   const showsAction = (action: HistoryOpportunityRoleActionId) =>
     visibleActions.includes(action) &&
     (action !== "mock_interview" ||
-      getHistoryOpportunityBucket(item) === "saved");
+      isSavedHistoryOpportunity(item));
   const entrance = (delay: number) =>
     variant === "tags"
       ? { initial: false as const }

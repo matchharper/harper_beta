@@ -135,3 +135,18 @@ test("invalid structural search commands are rejected before any effect", async 
   }
   assert.equal(calls,0);
 });
+
+test("candidate sets have stable execution inputs and reuse keeps the original receipt", async () => {
+  const ids=["00000000-0000-4000-8000-000000000001","00000000-0000-4000-8000-000000000002"];
+  const result=await enqueueOrgAgenticMatchingSearch({
+    admin:{rpc:async(_name:string,args:any)=>{
+      assert.deepEqual(args.p_options.talentIds,ids);
+      return {data:{status:"already_running",runId:"existing",sourceMessageId:42},error:null};
+    }} as any,
+    roleId:"role",userId:"actor",workspaceId:"workspace",requestId:"second",sourceMessageId:99,
+    input:{talentIds:[ids[1],ids[0],ids[1]]},
+  });
+  assert.ok('runId' in result && 'sourceMessageId' in result);
+  assert.equal(result.runId,"existing");assert.equal(result.sourceMessageId,42);
+  assert.equal(result.status,"already_running");
+});

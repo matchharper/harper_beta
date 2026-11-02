@@ -35,7 +35,7 @@ const InternalRoleDecisionBanner = ({
       historyOpportunities
         .filter(
           (item) =>
-            getHistoryOpportunityBucket(item) === "new" &&
+            getHistoryOpportunityBucket(item) === "new" && item.feedback === null &&
             (item.sourceType === "internal" || item.isInternal)
         )
         .sort(compareRecommendedAtDesc),

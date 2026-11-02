@@ -18,7 +18,7 @@ export function getCareerMobileJobsEmptyStateMessage(
   if (tab === "applied")
     return t(
       "career.history.career_mobile_jobs_view.mobile_active_empty",
-      "지원한 포지션이 없습니다."
+      "진행중인 포지션이 없습니다."
     );
   if (tab === "connected")
     return t(
@@ -33,7 +33,7 @@ export function getCareerMobileJobsEmptyStateMessage(
   if (tab === "hidden")
     return t(
       "career.history.career_mobile_jobs_view.mobile_hidden_empty",
-      "숨긴 포지션이 없습니다."
+      "종료하거나 보관한 포지션이 없습니다."
     );
   return t(
     "career.history.career_mobile_jobs_view.0llq6g8",

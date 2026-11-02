@@ -22,7 +22,8 @@ const HIDDEN_MESSAGE_TYPES = new Set([
 
 function removeHiddenMessages(messages: TalentMessageRow[]) {
   return messages.filter(
-    (message) => !HIDDEN_MESSAGE_TYPES.has(message.message_type ?? "")
+    (message) => !HIDDEN_MESSAGE_TYPES.has(message.message_type ?? "") &&
+      !(message.payload && typeof message.payload === "object" && !Array.isArray(message.payload) && (message.payload.hidden === true || (message.message_type === "career_form" && message.payload.presentationDeferred === true)))
   );
 }
 
@@ -337,6 +338,7 @@ export async function fetchRecentMessages(args: {
     .neq("message_type", "application_start_offer")
     .neq("message_type", "simulation_session")
     .neq("message_type", "simulation_action")
+    .or("payload->>hidden.is.null,payload->>hidden.eq.false")
     .order("id", { ascending: false })
     .limit(limit);
 

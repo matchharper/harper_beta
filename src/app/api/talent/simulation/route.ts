@@ -1,24 +1,17 @@
-import { needsApplicationInspection, runApplicationInspection } from "@/lib/career/simulation/applicationInspection";
-import { after } from "next/server";
-import { runApplicationBrowser } from "@/lib/career/simulation/applicationBrowserServer";
-import { enqueueApplicationBrowser } from "@/lib/career/simulation/applicationBrowserQueue";
 import {
   toTalentMessageResponse,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/models";
 import {
-  activityRecord,
+  readActivityRecord,
   activityOutputMessages,
-  activityOperation,
 } from "@/lib/career/simulation/activityStore";
-import {
-  executePreparationRequest,
-  preparationRequestSchema,
-} from "@/lib/career/simulation/preparationService";
 export const maxDuration = 300;
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
+import { browserUseAgents } from "@/lib/career/simulation/browserUseAgents";
+import { applicationBrowserPreviewSession } from "@/lib/career/simulation/applicationBrowserPreview";
 
 export async function GET(req: NextRequest) {
   const user = await getRequestUser(req);
@@ -70,8 +63,8 @@ export async function GET(req: NextRequest) {
       { error: "Application storage unavailable" },
       { status: 503 }
     );
-  const store = { userId: user.id, conversationId };
-  const records = (rows ?? []).map((row) => activityRecord(row, store));
+  const store = { admin, userId: user.id, conversationId };
+  const records = await Promise.all((rows ?? []).map((row) => readActivityRecord(row, store)));
   // Card refreshes are read-only and never schedule a browser worker.
   if (requestedMessage) {
     const record = records.find(
@@ -80,6 +73,20 @@ export async function GET(req: NextRequest) {
         r.state.activity?.outputs[requestedMessage]
     );
     const output = record?.state.activity?.outputs[requestedMessage];
+    if (req.nextUrl.searchParams.get("browserPreview") === "true") {
+      const sessionId = applicationBrowserPreviewSession(record?.state);
+      try {
+        return NextResponse.json(
+          { sessionId, liveUrl: sessionId ? await browserUseAgents.livePreview(sessionId) : null },
+          { headers: { "Cache-Control": "private, no-store" } }
+        );
+      } catch {
+        return NextResponse.json(
+          { error: "Browser preview unavailable" },
+          { status: 502, headers: { "Cache-Control": "private, no-store" } }
+        );
+      }
+    }
     return NextResponse.json(
       {
         simulation:
@@ -91,44 +98,6 @@ export async function GET(req: NextRequest) {
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
-  }
-  let active = records.findLast((r) => r.state.status === "active");
-  if (active) {
-    const refreshed = await activityOperation({
-      ...store,
-      admin,
-      operation: "touch",
-      messageId: active.messageId,
-    });
-    if (refreshed) {
-      records[records.indexOf(active)] = refreshed;
-      active = refreshed;
-    }
-  }
-  if (active && needsApplicationInspection(active)) {
-    const messageId = active.messageId;
-    after(() => runApplicationInspection({ ...store, admin }, messageId).then(() => {}));
-  }
-  const browser = active?.state.browser;
-  if (
-    active?.state.status === "active" &&
-    browser &&
-    !browser.resultMessageId &&
-    browser.status !== "waiting" &&
-    browser.status !== "cancelled" &&
-    (!browser.leaseUntil || Date.parse(browser.leaseUntil) < Date.now())
-  ) {
-    if (process.env.NODE_ENV === "development")
-      after(() => runApplicationBrowser({ ...store, admin }, active.messageId));
-    else
-      after(() =>
-        enqueueApplicationBrowser(
-          user.id,
-          conversationId,
-          active.messageId,
-          active.state.revision
-        )
-      );
   }
   const current =
     records.findLast((r) => r.state.status === "active") ??
@@ -162,71 +131,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const parsed = preparationRequestSchema.safeParse(
-    await req.json().catch(() => null)
-  );
-  if (!parsed.success)
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-  const input = parsed.data;
-  const admin = getTalentSupabaseAdmin();
-  const { data: conversation } = await admin
-    .from("talent_conversations")
-    .select("id")
-    .eq("id", input.conversationId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (!conversation)
-    return NextResponse.json({ error: "Unavailable" }, { status: 404 });
-  // Flush committed responses and the generation claim before awaiting the model.
-  // The same request owns generation; retries remain guarded by the session revision/run ID.
-  let disconnected = false;
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const encoder = new TextEncoder();
-      const publish = (event: unknown) => {
-        if (disconnected) return;
-        try {
-          controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
-        } catch {
-          disconnected = true;
-        }
-      };
-      try {
-        const result = await executePreparationRequest(
-          { admin, userId: user.id, conversationId: input.conversationId },
-          input,
-          undefined,
-          (session) =>
-            publish({
-              session: { messageId: session.messageId, state: session.state },
-            })
-        );
-        publish({
-          session: result
-            ? { messageId: result.messageId, state: result.state }
-            : null,
-          done: true,
-        });
-      } catch (error) {
-        console.error("[preparation] request failed", error);
-        publish({
-          error: "Unable to update preparation. Refresh its state and retry.",
-        });
-      } finally {
-        if (!disconnected) controller.close();
-      }
-    },
-    cancel() {
-      disconnected = true;
-    },
-  });
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "private, no-store, no-transform",
-      "X-Accel-Buffering": "no",
-    },
-  });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return NextResponse.json({ error: "This saved application is read-only. Continue in chat." }, { status: 410 });
 }

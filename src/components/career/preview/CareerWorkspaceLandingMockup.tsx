@@ -405,10 +405,7 @@ const StaticChatPanel = ({
         )}
       >
         <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 py-1">
-          <ChatDateDivider
-            className="text-[13px] leading-[1.55]"
-            label={copy.dateLabel}
-          />
+          <ChatDateDivider label={copy.dateLabel} />
           {copy.messages.map((message) => (
             <MessageBubble
               key={message.id}

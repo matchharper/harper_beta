@@ -54,7 +54,7 @@ type ResumeInputMetadata = {
 export type GenerateResumeInput = ResumeInputMetadata &
   (
     | { action: "create"; content: ResumeContent; changes?: never }
-    | { action: "update"; changes: ResumeChange[]; content?: never }
+    | { action: "update"; changes?: ResumeChange[]; content?: never }
     | { action: "copy"; changes?: ResumeChange[]; content?: never }
   );
 export type StructuredResume = {
@@ -106,7 +106,7 @@ export const GENERATE_RESUME_PARAMETERS = obj(
       type: "string",
       enum: ["create", "update", "copy"],
       description:
-        "create requires document_name and full content. update requires document_id, expected_revision and changes. copy requires the source document_id, expected_revision and a new document_name; changes are optional. Read the current JSON before update or copy.",
+        "create requires document_name and full content. update requires document_id, expected_revision and scoped changes or a name/source/target update. copy requires the source document_id, expected_revision and a new document_name; changes are optional. Read the current structured document before update or copy.",
     },
     document_name: {
       ...str(),
@@ -254,10 +254,10 @@ export function parseResumeInput(value: unknown): GenerateResumeInput {
     throw new Error("create requires content and must not include changes.");
   if (
     input.action === "update" &&
-    (!input.changes || input.content !== undefined)
+    (input.content !== undefined || (!input.changes && input.document_name === undefined && input.target_role === undefined && input.source_document_ids === undefined && input.source_refs === undefined))
   )
     throw new Error(
-      "update requires changes and must not include full content."
+      "update requires scoped changes or a name/source/target update and must not include full content."
     );
   if (input.action === "copy" && input.content !== undefined)
     throw new Error("copy must not include full content.");

@@ -1,4 +1,6 @@
+import { CareerAutomationSettingsSection } from "./CareerAutomationSettingsSection";
 import {
+  AlarmClock,
   AlertTriangle,
   ArrowLeft,
   ChevronRight,
@@ -9,12 +11,11 @@ import {
   Trash2,
   UserCircle2,
   UserRoundPlus,
-  X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Drawer as DrawerPrimitive } from "vaul";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
+import { useFloatingPortalContainer } from "@/components/ui/floating-portal";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -55,7 +56,12 @@ import {
   useCareerReferralAttention,
 } from "@/hooks/career/useCareerReferralAttention";
 
-export type CareerSettingsTab = "profile" | "resume" | "referral" | "account";
+export type CareerSettingsTab =
+  | "profile"
+  | "resume"
+  | "referral"
+  | "account"
+  | "automation";
 type MobileSettingsView = "menu" | CareerSettingsTab;
 
 type SettingsTabDefinition = {
@@ -147,6 +153,11 @@ const getSettingsTabs = (
     },
   ];
 
+  tabs.push({
+    key: "automation",
+    label: t("career.automation.tab", "일정 및 팔로우"),
+    Icon: AlarmClock,
+  });
   if (showReferralEntryPoints) {
     tabs.push({
       key: "referral",
@@ -163,10 +174,6 @@ const getSettingsTabs = (
 
   return tabs;
 };
-
-const MENU_SNAP = "340px";
-const FULL_SNAP = 0.95;
-const SETTINGS_SNAP_POINTS: Array<number | string> = [MENU_SNAP, FULL_SNAP];
 
 const getAccountDeleteErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message.trim()) {
@@ -536,6 +543,7 @@ const AccountSectionContent = ({
 }) => {
   const t = useCareerT();
   const isMobile = useIsMobile();
+  const portalContainer = useFloatingPortalContainer();
   const accountNameLabel = t(
     "career.settings.career_settings_modal.account_name",
     "이름"
@@ -875,7 +883,7 @@ const AccountSectionContent = ({
     <div
       className={
         isMobile
-          ? "fixed bottom-1 left-1 right-1 z-[70]"
+          ? "absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 right-4 z-10"
           : "absolute bottom-4 right-4"
       }
     >
@@ -1059,8 +1067,8 @@ const AccountSectionContent = ({
         />
       </form>
 
-      {isMobile && saveButton && typeof document !== "undefined"
-        ? createPortal(saveButton, document.body)
+      {isMobile && saveButton && portalContainer
+        ? createPortal(saveButton, portalContainer)
         : saveButton}
 
       <AccountDeleteConfirmDialog
@@ -1192,6 +1200,7 @@ const renderSection = (
   profileVisibility: "open_to_matches" | "exceptional_only" | "dont_share",
   talentPreferences: CareerTalentPreferences | null
 ) => {
+  if (tab === "automation") return <CareerAutomationSettingsSection />;
   if (tab === "profile") return <CareerProfileSettingsSection />;
   if (tab === "resume") return <CareerResumeLinksSettingsSection />;
   if (tab === "referral") return <CareerReferralSettingsSection />;
@@ -1243,13 +1252,11 @@ const CareerSettingsModal = ({
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<CareerSettingsTab>("profile");
   const [mobileView, setMobileView] = useState<MobileSettingsView>("menu");
-  const [snap, setSnap] = useState<number | string | null>(MENU_SNAP);
   const hasUnseenReferral = useCareerReferralAttention(user?.id);
   const showReferralAttention = showReferralEntryPoints && hasUnseenReferral;
 
   const resetMobileSettings = useCallback(() => {
     setMobileView("menu");
-    setSnap(MENU_SNAP);
     setActiveTab("profile");
   }, []);
 
@@ -1274,7 +1281,6 @@ const CareerSettingsModal = ({
       if (initialTab === "referral") markCareerReferralSeen(user?.id);
       if (!isMobile) return;
       setMobileView(initialTab);
-      setSnap(FULL_SNAP);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [initialTab, isMobile, open, user?.id]);
@@ -1314,128 +1320,90 @@ const CareerSettingsModal = ({
   };
 
   if (isMobile) {
-    const handleOpenChange = (nextOpen: boolean) => {
-      if (!nextOpen) handleClose();
-    };
-
     const handleSelectTab = (tab: CareerSettingsTab) => {
       logCareerEvent(`click_settings_tab_${tab}`);
       if (tab === "referral") markCareerReferralSeen(user?.id);
       setActiveTab(tab);
       setMobileView(tab);
-      setSnap(FULL_SNAP);
     };
 
     const handleBackToMenu = () => {
       logCareerEvent("click_settings_back_to_menu");
       setMobileView("menu");
-      setSnap(MENU_SNAP);
     };
 
     return (
-      <DrawerPrimitive.Root
+      <TalentCareerModal
         open={open}
-        onOpenChange={handleOpenChange}
-        snapPoints={SETTINGS_SNAP_POINTS}
-        activeSnapPoint={snap}
-        setActiveSnapPoint={setSnap}
-        fadeFromIndex={0}
-        shouldScaleBackground={false}
+        onClose={handleClose}
+        mobileBottomSheet
+        ariaLabel={t(
+          "career.settings.career_settings_modal.11hatjy",
+          "커리어 설정"
+        )}
+        closeButtonAriaLabel={t("career.common.career.16x7oad", "설정 닫기")}
+        panelClassName={
+          mobileView === "menu" ? "max-w-none" : "h-[95dvh] max-w-none"
+        }
+        bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden max-md:overflow-hidden"
       >
-        <DrawerPrimitive.Portal>
-          <DrawerPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
-          <DrawerPrimitive.Content
-            className="fixed inset-x-0 bottom-0 z-50 flex h-full max-h-[97svh] flex-col rounded-t-[20px] border-t border-neutral-1000-a05 bg-bg-floating text-neutral-primary outline-none"
-            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-          >
-            <DrawerPrimitive.Title className="sr-only">
-              {t(
-                "career.settings.career_settings_modal.11hatjy",
-                "커리어 설정"
-              )}
-            </DrawerPrimitive.Title>
-            <DrawerPrimitive.Description className="sr-only">
-              {t(
-                "career.settings.career_settings_modal.18qhozv",
-                "아래로 드래그하면 메뉴 크기로 축소되고, 위로 드래그하면 전체화면으로 확장됩니다."
-              )}
-            </DrawerPrimitive.Description>
-
-            <div className="flex shrink-0 justify-center pt-3 pb-2">
-              <div className="h-1.5 w-12 rounded-full bg-black/20" />
+        {mobileView === "menu" ? (
+          <>
+            <header className="flex min-h-16 shrink-0 items-center px-5 pb-2 pr-16 pt-4">
+              <h2 className="font-instrument text-[22px] leading-none text-neutral-primary">
+                {t("career.settings.career_settings_modal.1338q8i", "설정")}
+              </h2>
+            </header>
+            <nav className="flex flex-col gap-1 overflow-y-auto px-3 pb-6 pt-2">
+              {settingsTabs.map((tab) => (
+                <BareButton
+                  key={tab.key}
+                  type="button"
+                  onClick={() => handleSelectTab(tab.key)}
+                  className="flex w-full min-h-11 items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-[15px] text-neutral-primary transition-colors hover:bg-bg-weak active:bg-bg-weak"
+                >
+                  <span className="flex items-center gap-3">
+                    <tab.Icon className="h-5 w-5 text-neutral-muted" />
+                    {tab.label}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    {tab.key === "referral" && showReferralAttention ? (
+                      <CareerReferralAttentionDot />
+                    ) : null}
+                    <ChevronRight className="h-4 w-4 text-neutral-soft" />
+                  </span>
+                </BareButton>
+              ))}
+            </nav>
+          </>
+        ) : (
+          <>
+            <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_fit-content(50%)_minmax(0,1fr)] items-center gap-2 border-b border-neutral-1000-a05 px-3 pb-2 pt-4">
+              <MuteButton
+                type="button"
+                variant="transparent"
+                onClick={handleBackToMenu}
+                className="min-h-11 min-w-0 max-w-full justify-self-start gap-1 text-sm"
+              >
+                <ArrowLeft className="h-4 w-4 shrink-0" />
+                <span className="truncate">
+                  {t("career.settings.career_settings_modal.1338q8i", "설정")}
+                </span>
+              </MuteButton>
+              <h2 className="min-w-0 break-words text-center text-[15px] font-semibold text-neutral-primary">
+                {settingsTabs.find((tab) => tab.key === mobileView)?.label ??
+                  (mobileView === "referral"
+                    ? t("career.referral.menu.invite", "초대하기")
+                    : null)}
+              </h2>
+              <span aria-hidden="true" />
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {renderTabPanel(mobileView)}
             </div>
-
-            {mobileView === "menu" ? (
-              <>
-                <header className="flex shrink-0 items-center justify-between px-5 pb-2">
-                  <h2 className="font-instrument text-[22px] leading-none text-neutral-primary">
-                    {t("career.settings.career_settings_modal.1338q8i", "설정")}
-                  </h2>
-                  <DrawerPrimitive.Close
-                    aria-label={"설정 닫기"}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
-                  >
-                    <X className="h-4 w-4" />
-                  </DrawerPrimitive.Close>
-                </header>
-                <nav className="flex flex-col gap-1 overflow-y-auto px-3 pb-6 pt-2">
-                  {settingsTabs.map((tab) => (
-                    <BareButton
-                      key={tab.key}
-                      type="button"
-                      onClick={() => handleSelectTab(tab.key)}
-                      className="flex w-full min-h-11 items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-[15px] text-neutral-primary transition-colors hover:bg-bg-weak active:bg-bg-weak"
-                    >
-                      <span className="flex items-center gap-3">
-                        <tab.Icon className="h-5 w-5 text-neutral-muted" />
-                        {tab.label}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-3">
-                        {tab.key === "referral" && showReferralAttention ? (
-                          <CareerReferralAttentionDot />
-                        ) : null}
-                        <ChevronRight className="h-4 w-4 text-neutral-soft" />
-                      </span>
-                    </BareButton>
-                  ))}
-                </nav>
-              </>
-            ) : (
-              <>
-                <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_fit-content(50%)_minmax(0,1fr)] items-center gap-2 border-b border-neutral-1000-a05 px-3 pb-2">
-                  <MuteButton
-                    type="button"
-                    variant="transparent"
-                    onClick={handleBackToMenu}
-                    className="min-h-11 min-w-0 max-w-full justify-self-start gap-1 text-sm"
-                  >
-                    <ArrowLeft className="h-4 w-4 shrink-0" />
-                    <span className="truncate">
-                      {t("career.settings.career_settings_modal.1338q8i", "설정")}
-                    </span>
-                  </MuteButton>
-                  <h2 className="min-w-0 break-words text-center text-[15px] font-semibold text-neutral-primary">
-                    {settingsTabs.find((tab) => tab.key === mobileView)
-                      ?.label ??
-                      (mobileView === "referral"
-                        ? t("career.referral.menu.invite", "초대하기")
-                        : null)}
-                  </h2>
-                  <DrawerPrimitive.Close
-                    aria-label={"설정 닫기"}
-                    className="inline-flex h-9 w-9 justify-self-end items-center justify-center rounded-full text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
-                  >
-                    <X className="h-4 w-4" />
-                  </DrawerPrimitive.Close>
-                </header>
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  {renderTabPanel(mobileView)}
-                </div>
-              </>
-            )}
-          </DrawerPrimitive.Content>
-        </DrawerPrimitive.Portal>
-      </DrawerPrimitive.Root>
+          </>
+        )}
+      </TalentCareerModal>
     );
   }
 

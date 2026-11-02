@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       documentId?: string | null;
+      roleId?: string | null;
       kind?: "storage" | "link" | "document" | null;
       link?: string | null;
       talentId?: string;
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
     };
     const payload = await openOrgResume({
       documentId: body.documentId ?? null,
+      roleId: body.roleId ?? null,
       kind: body.kind ?? null,
       link: body.link ?? null,
       talentId: body.talentId ?? "",

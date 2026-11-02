@@ -163,17 +163,21 @@ test("profile snapshot keeps career evidence and omits account metadata", async 
       name: "Name",
     },
     talentExperiences: [{
-      role: "Nurse", company_name: "Hospital", start_date: "2020-01-01",
-      end_date: null, months: 24, memo: "Emergency care",
+      role: "Nurse", company_name: "Hospital", start_date: "2020-01-01T00:00:00.000Z",
+      end_date: null, months: 24, description: "Coordinated triage.\nTrained new nurses.", memo: "Led the emergency care handoff redesign.",
     }],
-    talentEducations: [],
+    talentEducations: [{
+      school: "Nursing School", degree: "BSN", field: "Nursing",
+      start_date: "2015-09", end_date: "2019-06",
+      description: "Clinical training", memo: "Completed a rural care placement.",
+    }],
     talentExtras: [
       {
         id: "private-extra-id",
         title: "Certification",
         description: "Credential evidence",
-        date: null,
-        memo: null,
+        date: "2024",
+        memo: "Renewed after practical assessment.",
       },
     ],
   };
@@ -181,13 +185,19 @@ test("profile snapshot keeps career evidence and omits account metadata", async 
   const snapshot = simulationProfileSnapshot(
     profile as unknown as Parameters<typeof simulationProfileSnapshot>[0]
   );
-  assert.match(snapshot, /Emergency care/);
-  assert.match(snapshot, /Credential evidence/);
+  assert.ok(snapshot.includes("### Nurse — Hospital"));
+  assert.ok(snapshot.includes("Coordinated triage.\nTrained new nurses.\n\nLed the emergency care handoff redesign."));
+  assert.ok(snapshot.includes("### Nursing School — BSN — Nursing"));
+  assert.ok(snapshot.includes("Clinical training\n\nCompleted a rural care placement."));
+  assert.ok(snapshot.includes("Credential evidence\n\nRenewed after practical assessment."));
   assert.doesNotMatch(snapshot, /private|visibility|blocked/);
-  const experience = JSON.parse(snapshot).experiences[0];
-  assert.equal(experience.startDate, "2020-01-01");
-  assert.equal(Object.hasOwn(experience, "endDate"), false);
-  assert.equal(experience.recordedDurationMonths, 24);
+  const experience = snapshot.split("## Experience\n\n")[1].split("## Education")[0];
+  assert.ok(experience.includes("Start date: 2020-01-01"));
+  assert.ok(!experience.includes("End date:"));
+  assert.ok(experience.includes("Recorded duration in months: 24"));
+  assert.ok(snapshot.includes("Start date: 2015-09"));
+  assert.ok(snapshot.includes("Date: 2024"));
+  assert.ok(!snapshot.includes("2020-01-01T00:00:00.000Z"));
 });
 
 test("a stage timeout is recorded distinctly while completed stages survive", async () => {

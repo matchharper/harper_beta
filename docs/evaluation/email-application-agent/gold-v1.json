@@ -1,0 +1,8 @@
+{
+  "version":"v1",
+  "cases":[
+    {"id":"review_correction","rubric":["Resolve here from the single recommendation","Prepare using existing resume and display the actual review in email","Apply phone correction to the same browser and submit after reply without another approval","State site receipt, not company reading or hiring","Status question must not submit again"]},
+    {"id":"login_resume","rubric":["Give an authenticated link to the exact browser for login","Do not claim form access or submission before login","After login reply continue the same logical session and present the actual review","After approval submit once and report observed receipt"]},
+    {"id":"unverified_receipt","rubric":["Show review in email","After approval attempt submission once","Do not claim success or non-submission when outcome is unknown","Read the same run/site if useful, never blindly submit again"]}
+  ]
+}

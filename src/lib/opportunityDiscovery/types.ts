@@ -3,6 +3,8 @@ import type { Json } from "@/types/database.types";
 export type OpportunityRunStatus =
   | "queued"
   | "running"
+  | "handed_off"
+  | "cancelled"
   | "completed"
   | "failed"
   | "partial";

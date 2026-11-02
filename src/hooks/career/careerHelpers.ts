@@ -53,6 +53,9 @@ const normalizeThinkingLogs = (value: unknown) =>
     : [];
 
 export const toUiMessage = (message: {
+  careerForm?: CareerMessage["careerForm"];
+  formResponse?: CareerMessage["formResponse"];
+  browserSession?: CareerMessage["browserSession"];
   applicationActivity?: CareerMessage["applicationActivity"];
   applicationQuestions?: ApplicationQuestionHistory;
   applicationDraft?: ApplicationDraft;
@@ -71,11 +74,21 @@ export const toUiMessage = (message: {
   createdAt?: string;
   mockInterviewOffers?: CareerMessage["mockInterviewOffers"];
   opportunityPreview?: CareerMessage["opportunityPreview"];
+  opportunityMentions?: CareerMessage["opportunityMentions"];
   recommendationSearchRelation?: CareerMessage["recommendationSearchRelation"];
   recommendationSearchRun?: CareerMessage["recommendationSearchRun"];
   recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: unknown;
+  turnStopped?: boolean;
+  turnPending?: boolean;
+  clientRequestId?: string;
 }): CareerMessage => ({
+  turnStopped: message.turnStopped,
+  turnPending: message.turnPending,
+  clientRequestId: message.clientRequestId,
+  careerForm: message.careerForm,
+  formResponse: message.formResponse,
+  browserSession: message.browserSession,
   applicationQuestions: message.applicationQuestions,
   applicationDraft: message.applicationDraft,
   applicationActivity: message.applicationActivity,
@@ -94,6 +107,7 @@ export const toUiMessage = (message: {
   createdAt: message.createdAt ?? new Date().toISOString(),
   mockInterviewOffers: message.mockInterviewOffers,
   opportunityPreview: message.opportunityPreview,
+  opportunityMentions: message.opportunityMentions,
   recommendationSearchRelation: message.recommendationSearchRelation ?? null,
   recommendationSearchRun: message.recommendationSearchRun ?? null,
   recommendationStatusAfterCharCount:

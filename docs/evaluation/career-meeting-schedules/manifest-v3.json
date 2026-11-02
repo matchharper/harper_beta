@@ -1,0 +1,8 @@
+{
+  "version": "v3",
+  "provenance": "Synthetic challenge cases authored before first v3 model run, 2026-11-02. Four invocations share one isolated database and captured email history; two independent ambiguity/failure cases. Labels reviewed by Codex before seeing outputs. v1/v2 unchanged.",
+  "hashes": {
+    "cases-v3.json": "8604486834992f4d058a26a3973006ef23baed34ad44c49eb94a5e1e37114dd7",
+    "gold-v3.json": "317208ddd1519ba861182fdb1a255e8d5ff3bf0f12ea8e3051dad2bafbd15e1a"
+  }
+}

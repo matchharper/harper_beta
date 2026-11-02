@@ -13,6 +13,7 @@ import {
   normalizeTalentBlockedCompanies,
 } from "@/lib/talentOnboarding/stateStore";
 import { safeSlice } from "@/lib/textSanitization";
+import { formatLlmPartialDate } from "@/lib/llm/promptDateTime";
 
 export const MEMO_MAX_CHARS = 2000;
 
@@ -271,13 +272,10 @@ function formatDateRange(
   startDate: string | null | undefined,
   endDate: string | null | undefined
 ) {
-  const start = String(startDate ?? "").trim();
-  const end = String(endDate ?? "").trim();
-  if (!start && !end) return "";
-  if (start && end) return `${start} ~ ${end}`;
-  // Missing data is not confirmation that employment or education is ongoing.
-  if (start) return `${start} ~ (end date not recorded)`;
-  return end;
+  if (startDate === undefined && endDate === undefined) return "";
+  const start = startDate == null ? "null" : formatLlmPartialDate(startDate);
+  const end = endDate == null ? "null" : formatLlmPartialDate(endDate);
+  return `${start} ~ ${end}`;
 }
 
 export async function fetchTalentUserProfile(args: {
@@ -436,6 +434,10 @@ export function buildTalentProfileContext(args: {
   if (talentUser) {
     lines.push("Basic");
     if (talentUser.name) lines.push(`- Name: ${talentUser.name}`);
+    const email = talentUser.email ?? profile?.email;
+    const phone = talentUser.phone_number ?? profile?.phone_number;
+    if (email) lines.push(`- Email: ${email}`);
+    if (phone) lines.push(`- Phone: ${phone}`);
     if (talentUser.headline) lines.push(`- Headline: ${talentUser.headline}`);
     if (talentUser.location) lines.push(`- Location: ${talentUser.location}`);
     const currentLocation = clampPromptText(

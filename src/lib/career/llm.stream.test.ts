@@ -98,8 +98,12 @@ test(`${model} streaming preserves signed and redacted thinking through tool con
   let visibleText = "";
   try {
     const { runCareerChatAssistantStream } = await import("./llm");
+    const { withTalentToolAssistantInstruction, TALENT_TOOL_COMMON_ASSISTANT_INSTRUCTION } = await import("@/lib/talentOnboarding/tools");
     const result = await runCareerChatAssistantStream({
-      executeTool: async () => ({ ok: true }),
+      executeTool: async () => withTalentToolAssistantInstruction({
+        ok: true,
+        assistantInstruction: "The browser is open for user login.",
+      }),
       messages: [{ role: "user", content: "저장된 내용을 확인해줘" }],
       onTextDelta: (text) => {
         visibleText += text;
@@ -142,6 +146,10 @@ test(`${model} streaming preserves signed and redacted thinking through tool con
       { type: "thinking", thinking: "", signature: "signed-continuation" },
       { type: "redacted_thinking", data: "encrypted-thinking" },
     ]);
+    const continuation = requests[1].messages.at(-1).content;
+    const instructions = continuation.filter((block: any) => block.type === "text").map((block: any) => block.text).join("\n");
+    assert.ok(!instructions.includes(TALENT_TOOL_COMMON_ASSISTANT_INSTRUCTION));
+    assert.ok(instructions.includes("The browser is open for user login."));
   } finally {
     globalThis.fetch = previousFetch;
     console.log = previousLog;
@@ -348,7 +356,7 @@ test("resume-capable streaming retains eight calls and main's unrestricted conti
       const limit = hasResume ? 8 : 3;
       const tools = [
         "read_document",
-        ...(hasResume ? ["generate_resume"] : []),
+        ...(hasResume ? ["upsert_document"] : []),
       ];
       let executions = 0;
       const requests: string[][] = [];
@@ -382,7 +390,7 @@ test("resume-capable streaming retains eight calls and main's unrestricted conti
                   id: `tool-${requests.length}`,
                   name:
                     hasResume && executions === limit - 1
-                      ? "generate_resume"
+                      ? "upsert_document"
                       : "read_document",
                   input: {},
                 },
@@ -428,5 +436,61 @@ test("resume-capable streaming retains eight calls and main's unrestricted conti
     else process.env.ANTHROPIC_API_KEY = previousApiKey;
     if (previousOpenAiApiKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previousOpenAiApiKey;
+  }
+});
+
+test("a queued form is delivered at the end without calling a second writer for an empty final reply", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousApiKey = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  try {
+    const { runCareerChatAssistant, runCareerChatAssistantStream } = await import("./llm");
+    const { createCareerFormPresenter } = await import("./forms/server");
+    for (const streaming of [false, true]) {
+      let calls = 0;
+      let deliveredArtifact = false;
+      const form = { formId: 123, revision: 1, kind: "form" as const,
+        items: [{ id: "phone", label: "연락처", type: "text", content: "" }] };
+      const presenter = createCareerFormPresenter({
+        admin: { rpc: async (_name: string, input: Record<string, unknown>) => ({
+          data: { id: 124, role: "assistant", message_type: "career_form_presentation", content: "", payload: input.p_payload }, error: null,
+        }) } as never, userId: "user", conversationId: "conversation",
+      }, () => { deliveredArtifact = true; }, "turn:1");
+      globalThis.fetch = async () => {
+        calls += 1;
+        assert.ok(calls <= 2, "a visible form must not trigger another writer");
+        const content = calls === 1
+          ? [{ type: "tool_use", id: "form-tool", name: "suggest_form", input: {} }]
+          : [];
+        if (!streaming) return Response.json({ id: `artifact-${calls}`, model: "claude-sonnet-5-5", content, stop_reason: content.length ? "tool_use" : "end_turn", usage: { input_tokens: 1, output_tokens: 1 } });
+        return toAnthropicStream([
+          { type: "message_start", message: { id: `artifact-${calls}`, model: "claude-sonnet-5-5", usage: { input_tokens: 1, output_tokens: 0 } } },
+          ...content.flatMap(block => [{ type: "content_block_start", index: 0, content_block: block }, { type: "content_block_stop", index: 0 }]),
+          { type: "message_delta", delta: { stop_reason: content.length ? "tool_use" : "end_turn" }, usage: { output_tokens: 1 } },
+          { type: "message_stop" },
+        ]);
+      };
+      const args = {
+        executeTool: async () => { await presenter.presentForm(form); return { ok: true, modelOutput: "Form 123 revision 1 saved with editable answers and submit action." }; },
+        hasDeliveredArtifact: () => deliveredArtifact || presenter.hasPending(),
+        messages: [{ role: "user" as const, content: "지원서를 준비해줘" }],
+        primaryModel: "claude-sonnet-5-5",
+        systemBlocks: [{ text: "Prepare an editable review form." }],
+        tools: [{ type: "function" as const, function: { name: "suggest_form", description: "Display a form.", parameters: { type: "object", properties: {} } } }],
+        usageLabel: "test:artifact-only",
+      };
+      const text = streaming
+        ? await runCareerChatAssistantStream({ ...args, onTextDelta: () => assert.fail("No prose was generated") })
+        : await runCareerChatAssistant(args);
+      assert.equal(text, "");
+      assert.equal(calls, 2);
+      assert.equal(deliveredArtifact, false, "the form must wait for the model to finish");
+      await presenter.flush();
+      assert.equal(deliveredArtifact, true);
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = previousApiKey;
   }
 });

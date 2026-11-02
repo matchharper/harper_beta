@@ -41,7 +41,7 @@ for (const provider of questionProviders) {
           return result(url, "read");
         },
         resolution: {
-          resolve: async () => {
+          agent: async () => {
             throw new Error("must not search");
           },
           save: async () => {
@@ -55,7 +55,7 @@ for (const provider of questionProviders) {
     );
     assert.equal(actual.linkResolution, undefined);
   });
-  test(`${provider}: toggle on searches once and passes selected URL to chosen agent even when inspection fails`, async () => {
+  test(`${provider}: toggle on uses the chosen provider and preserves the stored URL when access is unverified`, async () => {
     const sequence: string[] = [];
     let count = 0;
     const actual = await runQuestionsDebug(
@@ -72,7 +72,7 @@ for (const provider of questionProviders) {
             assert.equal(url, source.originalUrl);
             return source;
           },
-          resolve: async ({ previous, onEvent }) => {
+          agent: async ({ previous, onEvent, extract }) => {
             count++;
             assert.equal(previous.attempts.length, count - 1);
             sequence.push("search");
@@ -84,25 +84,25 @@ for (const provider of questionProviders) {
               data: { costUsd: 0.01 },
             });
             return {
-              query: "Fixture Engineer",
-              selectedUrl: `https://official.example/job/${count}`,
-              candidates: [],
+              attemptId: (
+                await extract(`https://official.example/job/${count}`)
+              ).attemptId,
               reason: "Same official role",
-              durationMs: 1,
-              costUsd: 0.01,
             };
           },
           save: async (role, expected, url) => {
             assert.equal(role.id, source.id);
-            assert.equal(
-              expected,
-              source.originalUrl
-            );
+            assert.equal(expected, source.originalUrl);
             assert.equal(url, `https://official.example/job/${count}`);
             sequence.push("save");
           },
         },
-        inspect: async (url, selected) => {
+        inspect: async (url, selected, _model, _signal, target) => {
+          assert.deepEqual(target, {
+            company: source.company,
+            name: source.name,
+            location: source.location,
+          });
           assert.equal(selected, provider);
           assert.equal(url, `https://official.example/job/${count}`);
           sequence.push("inspect");
@@ -119,15 +119,11 @@ for (const provider of questionProviders) {
         },
       }
     );
-    assert.deepEqual(sequence, [
-      "search",
-      "save",
-      "inspect",
-    ]);
+    assert.deepEqual(sequence, ["search", "inspect"]);
     assert.equal(count, 1);
     assert.equal(actual.status, "unavailable");
     assert.equal(actual.url, "https://official.example/job/1");
-    assert.equal(actual.linkResolution?.savedUrl, actual.url);
+    assert.equal(actual.linkResolution?.savedUrl, source.originalUrl);
     assert.equal(actual.linkResolution?.usage.searchCostUsd, 0.01);
     assert.deepEqual(
       actual.linkResolution?.attempts.map((a) => a.execution?.runId),
@@ -146,14 +142,7 @@ test("no official candidate returns the search limitation without starting a pai
     new AbortController().signal,
     {
       resolution: {
-        resolve: async () => ({
-          query: "Fixture",
-          selectedUrl: null,
-          candidates: [],
-          reason: "공식 공고 없음",
-          durationMs: 0,
-          costUsd: 0,
-        }),
+        agent: async () => ({ attemptId: null, reason: "공식 공고 없음" }),
       },
       inspect: async () => {
         throw new Error("must not run");
@@ -162,4 +151,40 @@ test("no official candidate returns the search limitation without starting a pai
   );
   assert.equal(actual.status, "unavailable");
   assert.ok(actual.limitations.includes("공식 공고 없음"));
+});
+
+test("selecting an earlier attempt returns its questions and execution, not the latest attempt", async () => {
+  const actual = await runQuestionsDebug(
+    {
+      source,
+      provider: "browser-use",
+      model: "fixture",
+      resolveOfficialLink: true,
+    },
+    new AbortController().signal,
+    {
+      resolution: {
+        agent: async ({ extract }) => {
+          await extract("https://ats.example/first");
+          await extract("https://ats.example/second");
+          return { attemptId: 1, reason: "first is complete" };
+        },
+        save: async () => {},
+      },
+      inspect: async (url) => ({
+        ...result(url, url.endsWith("first") ? "read" : "unavailable"),
+        execution: {
+          provider: "browser-use",
+          model: "fixture",
+          durationMs: 1,
+          warnings: [],
+          runId: url,
+        },
+      }),
+    }
+  );
+  assert.equal(actual.url, "https://ats.example/first");
+  assert.equal(actual.status, "read");
+  assert.equal(actual.execution?.runId, "https://ats.example/first");
+  assert.equal(actual.linkResolution?.attempts.length, 2);
 });

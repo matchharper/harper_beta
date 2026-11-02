@@ -1,19 +1,17 @@
-import { buildSimulationSessionPrompt } from "../simulation/sessionPrompt";
+import { buildCareerMainPrompt } from "./mainPrompts";
+import { CAREER_TEXT_CHAT_DISPLAY_RULES } from "./mainPrompt2";
 import { orderCareerPromptBlocksForCaching } from "./promptCaching";
+import {
+  careerPromptText,
+  type CareerPromptExperiment,
+} from "./promptExperiment";
 import type { SimulationSession } from "../simulation/session";
 import type { ActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
-import {
-  getCareerPromptLanguageName,
-  getCareerPromptToneRule,
-} from "@/lib/career/promptLocale";
+import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import {
   CAREER_CHAT_CORE_SYSTEM_PROMPT,
   CAREER_CORE_RESPONSE_GUIDANCE_PROMPT,
   CAREER_CORE_RESPONSE_GUIDANCE_PROMPT_FOR_ONBOARDING_CALL,
-  CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
-  CAREER_GENERAL_CONVERSATION_GUIDANCE_PROMPT,
-  CAREER_LANGUAGE_REQUEST_RULE,
-  CAREER_LANGUAGE_SETTINGS_SCREEN_RULE,
   CAREER_ONBOARDING_CONVERSATION_PROMPT,
   CAREER_POST_ONBOARDING_VOICE_RESPONSE_GUIDANCE_PROMPT,
 } from "@/lib/career/prompts/rawPrompts";
@@ -59,7 +57,10 @@ import type {
 } from "@/lib/career/prompts/types";
 import { getCareerInterruptHandlingPrompt } from "./initialPrompts";
 import { buildInternalOpportunityRealtimeInstruction } from "./cases/lifecyclePrompts";
-import { buildCareerCoachingPrompt } from "./cases/coachingPrompts";
+import {
+  buildCareerCoachingPrompt,
+  formatCareerCoachingSnapshot,
+} from "./cases/coachingPrompts";
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import {
@@ -76,8 +77,7 @@ const ONBOARDING_TOOL_POLICY_ALLOWED_TOOLS = [
   "read_recommended_opportunities",
   "list_documents",
   "read_document",
-  "update_document",
-  "write_document",
+  "upsert_document",
   "save_job_posting",
 ] as const;
 
@@ -106,9 +106,7 @@ export function buildGmailCapabilityPrompt(capability: GmailCapability) {
 
   return [
     "## Gmail capability",
-    "The user's Gmail is not connected, so you cannot access or inspect their inbox.",
-    "If the user asks for Gmail information, explain this limitation and direct them to Profile → Resume & Links → Gmail Connect.",
-    "Never imply that you checked their Gmail.",
+    "Gmail is not connected. Reading mail or sending email through Gmail requires a connection. Prepared content and attachments can be retained while connection is completed.",
   ].join("\n");
 }
 
@@ -116,7 +114,8 @@ export function buildGmailCapabilityPrompt(capability: GmailCapability) {
  * /career 텍스트 채팅과 실시간 voice call 프롬프트를 조립하는 핵심 함수.
  *
  * 블록 포함 규칙:
- * - 항상 포함: chat_core, mode guidance, profile_context, dynamic_state.
+ * - 일반 채팅: mainPrompts.ts의 career_main + profile_context, dynamic_state.
+ * - 그 외 채널: chat_core + 해당 mode guidance + profile_context, dynamic_state.
  * - 온보딩 중에만 포함: onboarding_rules, dynamic_state 안의 checklist/runtime progress.
  * - 온보딩 완료 후 대화에는 post-onboarding guide를 포함하되, wrap-up 같은 별도 산출물은 명시적으로 제외할 수 있다.
  * - voice call에만 포함: voice_call_rules, dynamic_state 안의 최근 채팅 맥락.
@@ -127,12 +126,14 @@ export function buildCareerConversationPromptPlan(args: {
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
   careerCoachingActivity?: CareerCoachingActivity | null;
   channel: CareerPromptChannel;
+  backgroundInvocation?: boolean;
   companyTalentRequestText?: string | null;
   conversationMode?: CareerConversationPromptMode;
   mockInterviewContext?: MockInterviewContext | null;
   talentContextSection: string;
   currentPreferences?: CareerPromptPreferences | null;
   gmailCapability?: GmailCapability;
+  // Opt in only when generating the onboarding-completion handoff.
   includePostOnboardingConversationGuide?: boolean;
   isConversationCompletedOpportunityRunActive?: boolean;
   internalCallRequest?: InternalOpportunityCallRequest | null;
@@ -143,6 +144,7 @@ export function buildCareerConversationPromptPlan(args: {
   pendingOpportunityFeedbackContext?: string | null;
   postOnboardingContext?: CareerPostOnboardingContext | null;
   profile: CareerPromptProfile | null;
+  promptExperiment?: CareerPromptExperiment;
   recentActivitySummaries?: readonly CareerPromptActivitySummary[] | null;
   recentRecommendedOpportunitiesText?: string | null;
   recentConversationSection?: string;
@@ -166,24 +168,36 @@ export function buildCareerConversationPromptPlan(args: {
     });
   }
 
-  const channelType = getCareerChannelType(args.channel);
-  const channelContextRules = buildCareerChannelContextRules(args.channel, args.simulationSession?.status !== "active");
+  const channelType = args.backgroundInvocation
+    ? "Background Career work"
+    : getCareerChannelType(args.channel);
+  const channelContextRules = args.backgroundInvocation
+    ? "This is scheduled or event-triggered Career work. The user is not in a live conversation. Intermediate text and the final assistant response are private; only deliver_career_email delivers an email. Use real URLs for saved artifacts rather than chat-only card markers."
+    : buildCareerChannelContextRules(args.channel, true);
 
   const outputLanguage = getCareerPromptLanguageName(
-    args.currentPreferences?.preferredLocale
-  );
-  const outputLanguageToneRule = getCareerPromptToneRule(
     args.currentPreferences?.preferredLocale
   );
   const positionsTabLabel =
     outputLanguage === "English" ? "Jobs tab" : "포지션 탭";
 
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
+  const isMainChat = !isOnboardingActive && args.channel === "chat" && !args.backgroundInvocation;
 
   const conversationMode = args.conversationMode ?? "default";
+  const experiment =
+    !isOnboardingActive && !args.backgroundInvocation && args.channel === "chat"
+      ? args.promptExperiment
+      : undefined;
+  const promptText = (key: string, text: string) =>
+    careerPromptText(experiment, key, text);
 
-  const capabilities = !isOnboardingActive && args.channel === "chat" ? args.capabilities : undefined;
-  const normalizedToolNames = capabilities?.policyToolNames ?? normalizeToolNames(args.toolNames);
+  const capabilities =
+    !isOnboardingActive && args.channel === "chat"
+      ? args.capabilities
+      : undefined;
+  const normalizedToolNames =
+    capabilities?.policyToolNames ?? normalizeToolNames(args.toolNames);
 
   // 온보딩 중에는 checklist 진행/종료 조건을 하나의 runtime state 블록으로 넣는다.
   // 저장된 Brief/Memory 본문은 아래 talentContextSection에서만 한 번 제공한다.
@@ -209,14 +223,14 @@ export function buildCareerConversationPromptPlan(args: {
     shouldIncludeToolPolicyDuringOnboarding(normalizedToolNames);
 
   const toolPolicy =
-    isOnboardingActive && !allowToolPolicyDuringOnboarding
+    isMainChat || (isOnboardingActive && !allowToolPolicyDuringOnboarding)
       ? ""
       : buildCareerToolPolicyPrompt({
           channel: args.channel,
+          backgroundInvocation: args.backgroundInvocation,
           isOnboardingActive,
           preferredLocale: args.currentPreferences?.preferredLocale ?? null,
           toolNames: normalizedToolNames,
-          applicationPreparation: Boolean(args.simulationSession?.preparation && args.simulationSession.status === "active"),
         });
 
   const isVoiceCall = args.channel === "voice";
@@ -226,54 +240,26 @@ export function buildCareerConversationPromptPlan(args: {
   const promptBlocks: CareerPromptBlock[] = [];
   const promptVars = {
     channel_context_rules: channelContextRules,
-    language_setting_rule: normalizedToolNames.includes(
-      "update_language_setting"
-    )
-      ? CAREER_LANGUAGE_REQUEST_RULE
-      : CAREER_LANGUAGE_SETTINGS_SCREEN_RULE,
     output_language: outputLanguage,
-    output_language_tone_rule: outputLanguageToneRule,
     positions_tab_label: positionsTabLabel,
   };
 
   const coreSystemPrompt = {
     key: "chat_core",
     text: interpolateCareerPromptText(
-      CAREER_CHAT_CORE_SYSTEM_PROMPT,
+      promptText("chat_core", CAREER_CHAT_CORE_SYSTEM_PROMPT),
       promptVars
     ),
     cacheable: true,
   };
 
-  if (args.conversationMode === "simulation" && args.simulationSession) {
-    return {
-      isOnboardingActive: false,
-      enabledToolNames: normalizedToolNames,
-      toolPolicy,
-      promptBlocks: orderCareerPromptBlocksForCaching([
-        args.simulationSession.preparation ? {
-          key: "chat_core",
-          cacheable: true,
-          text: [
-            "You are Harper, the user's career assistant, currently preparing their application.",
-            `Use natural, professional ${outputLanguage} for conversation and progress messages.${outputLanguage === "Korean" ? " Use 존댓말 and refer to organization members as 팀원." : ""} This is the chat language: resume edits preserve the original document language, and other application materials follow the employer's requested language.`,
-            channelContextRules,
-            promptVars.language_setting_rule,
-          ].join("\n"),
-        } : coreSystemPrompt,
-        ...buildSimulationSessionPrompt(args.simulationSession, normalizedToolNames),
-        { key: "profile_context", text: args.simulationSession.preparation ? args.structuredProfileText : profileContextBlock, cacheable: true },
-        ...(futureMatchingInsightsSection ? [{ key: "future_matching_insights", text: futureMatchingInsightsSection, cacheable: true }] : []),
-        ...(capabilities?.catalogText ? [{ key: "capability_catalog", text: capabilities.catalogText, cacheable: true }] : []),
-        ...(toolPolicy ? [{ key: "tool_policy", text: toolPolicy, cacheable: true }] : []),
-        ...(args.runtimeInstruction
-          ? [{ key: "runtime_instruction", text: args.runtimeInstruction }]
-          : []),
-      ]),
-    };
-  }
-
   const conversationGuidePrompt = () => {
+    if (args.backgroundInvocation)
+      return {
+        key: "background_execution",
+        text: "Decide useful work from the delegated purpose, current facts and available tools. There is no fixed recommendation count or sequence. Read relevant history before repeating work. You may complete quietly, deliver a useful email, or schedule a future check. Do not fabricate a user turn, consent, or company response.",
+        cacheable: true,
+      };
     if (isOnboardingActive)
       if (isVoiceCall)
         // 단순히 더 짧은 프롬프트.
@@ -294,43 +280,30 @@ export function buildCareerConversationPromptPlan(args: {
           ),
           cacheable: true,
         };
-    else if (isVoiceCall)
-      return {
-        key: "post_onboarding_voice_response_guidance",
-        text: interpolateCareerPromptText(
-          CAREER_POST_ONBOARDING_VOICE_RESPONSE_GUIDANCE_PROMPT,
-          promptVars
-        ),
-        cacheable: true,
-      };
-    else
-      return {
-        key: "default_conversation_guidance",
-        text: interpolateCareerPromptText(
-          capabilities && !capabilities.activeIds.includes("opportunities")
-            ? CAREER_GENERAL_CONVERSATION_GUIDANCE_PROMPT
-            : CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
-          promptVars
-        ),
-        cacheable: true,
-      };
+    return {
+      key: "post_onboarding_voice_response_guidance",
+      text: interpolateCareerPromptText(
+        CAREER_POST_ONBOARDING_VOICE_RESPONSE_GUIDANCE_PROMPT,
+        promptVars
+      ),
+      cacheable: true,
+    };
   };
 
-  promptBlocks.push(coreSystemPrompt);
-  promptBlocks.push(conversationGuidePrompt());
-  if (args.channel === "chat") {
+  if (isMainChat) {
     promptBlocks.push({
-      key: "mock_interview_offer",
+      key: "career_main",
+      text: buildCareerMainPrompt({ outputLanguage, positionsTabLabel, promptExperiment: experiment }),
       cacheable: true,
-      text: `## 모의 인터뷰 제안
-사용자가 특정 포지션의 면접 연습을 요청하거나 면접 일정·준비 고민처럼 연습이 도움이 되는 맥락이면 음성 모의 인터뷰를 제안할 수 있다. 사용자에게 이미 추천되었거나 저장된 Harper 포지션만 대상으로 한다. 기존 대화·조회 툴에서 확인한 정확한 roleId로 [[MOCK_INTERVIEW:roleId]]를 별도 줄에 출력하면 회사·직무와 시작 버튼이 있는 카드가 표시된다. 버튼을 누르면 안내 모달을 확인한 뒤 사용자가 음성 통화를 시작한다. 마커에 회사명·JD·임의의 식별자를 쓰지 않는다.
-대상이 불명확하면 기존 조회 툴로 확인하고 여러 후보가 남으면 선택을 묻는다. 기본적으로 한 응답에 한 포지션을 제안하되 여러 포지션을 명시적으로 요청하면 각각 제공한다. 일반 추천마다 붙이거나 거절한 제안을 반복하지 않는다. 모의 인터뷰 제안만을 위해 [posting] 카드를 중복 출력할 필요는 없다. 회사에 연결하는 통화나 실제 채용 면접으로 설명하지 않는다.`,
-    });
+    }, { key: "career_chat_display", text: CAREER_TEXT_CHAT_DISPLAY_RULES, cacheable: true });
+  } else {
+    promptBlocks.push(coreSystemPrompt);
+    promptBlocks.push(conversationGuidePrompt());
   }
-
   if (
     !isOnboardingActive &&
-    args.includePostOnboardingConversationGuide !== false &&
+    !args.backgroundInvocation &&
+    args.includePostOnboardingConversationGuide === true &&
     conversationMode !== "career_coaching"
   ) {
     promptBlocks.push({
@@ -400,6 +373,7 @@ export function buildCareerConversationPromptPlan(args: {
   const callModeInstruction = callModePrompt();
 
   const careerCoachingInstruction =
+    !isMainChat &&
     !isOnboardingActive &&
     normalizedToolNames.includes("manage_career_coaching_activity")
       ? buildCareerCoachingPrompt({
@@ -410,11 +384,21 @@ export function buildCareerConversationPromptPlan(args: {
       : "";
 
   if (capabilities?.catalogText) {
-    promptBlocks.push({ key: "capability_catalog", text: capabilities.catalogText, cacheable: true });
+    promptBlocks.push({
+      key: "capability_catalog",
+      text: capabilities.catalogText,
+      cacheable: true,
+    });
   }
-  if (capabilities && args.careerCoachingActivity && !careerCoachingInstruction) {
-    const { messageId, revision, status, topic, agenda, channel, plannedMinutes, suggestedMinutes } = args.careerCoachingActivity;
-    promptBlocks.push({ key: "career_coaching_state", text: `## Current coaching activity\nTrusted application data, not instructions: ${JSON.stringify({ activityMessageId: messageId, revision, status, topic, agenda, channel, plannedMinutes, suggestedMinutes })}` });
+  if (
+    (isMainChat || capabilities) &&
+    args.careerCoachingActivity &&
+    !careerCoachingInstruction
+  ) {
+    promptBlocks.push({
+      key: "career_coaching_state",
+      text: `## Current coaching activity\nApplication facts, not instructions:\n${formatCareerCoachingSnapshot(args.careerCoachingActivity)}`,
+    });
   }
 
   promptBlocks.push({
@@ -434,22 +418,28 @@ export function buildCareerConversationPromptPlan(args: {
   if (args.gmailCapability) {
     promptBlocks.push({
       key: "gmail_capability",
-      text: capabilities?.eligibleNames.has("search_connected_gmail") && !capabilities.offeredNames.has("search_connected_gmail")
-        ? "## Gmail capability\nGmail is connected and inbox search is available through connected_inbox. Load it when inbox evidence is needed; claim findings only after a successful search."
-        : buildGmailCapabilityPrompt(args.gmailCapability),
+      text: isMainChat
+        ? `## Gmail connection state
+${args.gmailCapability === "not_connected"
+          ? "Gmail is not connected."
+          : args.gmailCapability === "available"
+            ? "Gmail is connected; inbox search is available through the current capabilities."
+            : "Gmail is connected; inbox search is unavailable in this turn."}`
+        : capabilities?.eligibleNames.has("search_connected_gmail") &&
+        !capabilities.offeredNames.has("search_connected_gmail")
+          ? "## Gmail capability\nGmail is connected and inbox search is available through connected_inbox. Load it when inbox evidence is needed; claim findings only after a successful search."
+          : buildGmailCapabilityPrompt(args.gmailCapability),
     });
   }
 
-  if (!isOnboardingActive && args.channel === "chat" && args.simulationAvailability === "inactive") promptBlocks.push({
-    key: "application_start_payload",
-    text: "Application preparation is available through application_support; new role preparation starts through opportunities. Load the relevant capability to act on the user's request. Saved preparation can be resumed with its existing choices and files. An inactive mode does not establish completion or loss of that work.",
-  });
-  if (args.simulationAvailability) {
+  if (!isOnboardingActive && !isMainChat) {
     promptBlocks.push({
-      key: "simulation_availability",
-      text: args.simulationAvailability === "inactive"
-        ? "Current server-verified Apply with Harper state: no active 함께 지원 모드 in this conversation. This current state takes precedence over historical chat, old analysis cards and earlier claims that a mode was open. If the user asks to stop it, explain briefly that no mode is currently active and continue normally; no closing action or UI button is needed. Do not claim you just closed it, infer why or when it ended, or describe the missing management tool as an inability to close a still-active mode. Mention this state only when relevant to the user's request."
-        : "The current Apply with Harper state could not be verified because the capability is unavailable. Past conversation does not establish that a mode is still active. If the user asks about stopping it, explain the verification limitation briefly without asserting it is open or closed or inventing a required UI action.",
+      key: "autonomous_career_work",
+      cacheable: true,
+      text: promptText(
+        "autonomous_career_work",
+        "Carry work through with the general tools, choosing the order yourself. Use relevant handbooks and load additional capabilities as needed. Preserve existing authorization; a form is a proposal, while an execution result records what happened."
+      ),
     });
   }
 
@@ -476,7 +466,13 @@ export function buildCareerConversationPromptPlan(args: {
   }
 
   const optionalFollowUpOpportunitiesSection =
-    buildOptionalFollowUpOpportunitiesSection({
+    isMainChat
+      ? (args.activeInternalFitHoldQuestion
+        ? `## Private matching clarification
+fitId: ${args.activeInternalFitHoldQuestion.fitId}
+summary: ${args.activeInternalFitHoldQuestion.summary}`
+        : "")
+      : buildOptionalFollowUpOpportunitiesSection({
       activeInternalFitHoldQuestion: args.activeInternalFitHoldQuestion,
       canRecordInternalFitHoldQuestion: normalizedToolNames.includes(
         "record_internal_fit_reevaluation_information"
@@ -485,23 +481,28 @@ export function buildCareerConversationPromptPlan(args: {
         args.isConversationCompletedOpportunityRunActive,
       isOnboardingActive,
       profile: args.profile,
+      promptExperiment: experiment,
     });
 
-  const recentActivitySummariesSection =
-    buildRecentActivitySummariesSection(args.recentActivitySummaries, {
-          preferredLocale: args.currentPreferences?.preferredLocale,
-          timeZone: args.timeZone,
-        });
+  const recentActivitySummariesSection = buildRecentActivitySummariesSection(
+    args.recentActivitySummaries,
+    {
+      preferredLocale: args.currentPreferences?.preferredLocale,
+      timeZone: args.timeZone,
+    }
+  );
 
   const opportunityStatusSection = buildOpportunityStatusSection(
     args.opportunityStatus,
     {
       preferredLocale: args.currentPreferences?.preferredLocale,
       timeZone: args.timeZone,
-    }
+    },
+    { factsOnly: isMainChat }
   );
   const existingPreferencesSection = buildKnownPreferencesSection(
-    args.currentPreferences
+    args.currentPreferences,
+    { factsOnly: isMainChat }
   );
 
   const officialJobSignupIntentPrompt = isOnboardingActive
@@ -511,11 +512,14 @@ export function buildCareerConversationPromptPlan(args: {
     ? ""
     : buildCareerPostOnboardingContextSection({
         context: args.postOnboardingContext,
-        toolNames: capabilities ? [...capabilities.eligibleNames] : normalizedToolNames,
+        factsOnly: isMainChat,
+        toolNames: capabilities
+          ? [...capabilities.eligibleNames]
+          : normalizedToolNames,
       });
 
   const runtimeOneTimeInstruction = args.runtimeInstruction
-    ? "## High-priority runtime instruction : " + args.runtimeInstruction
+    ? "## Current turn context\n" + args.runtimeInstruction
     : "";
 
   const promptTimeZone = normalizeCareerPromptTimeZone(args.timeZone);
@@ -554,7 +558,9 @@ export function buildCareerConversationPromptPlan(args: {
   return {
     enabledToolNames: normalizedToolNames,
     isOnboardingActive,
-    promptBlocks: orderCareerPromptBlocksForCaching(promptBlocks),
+    promptBlocks: orderCareerPromptBlocksForCaching(
+      promptBlocks.filter((block) => block.text.trim())
+    ),
     toolPolicy,
   };
 }

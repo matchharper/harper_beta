@@ -627,6 +627,12 @@ function formatTalentProfile(profile: Record<string, any>, sections?: string[]) 
         ...(item.description ? [formatPromptSection("profile_description", source(item.description))] : []),
       ].join("\n")).join("\n")
     )] : []),
+    ...(rows(profile.documents).length && (sections === undefined || sections.includes("documents")) ? [formatPromptSection(
+      "documents_shared_for_this_role", rows(profile.documents).map(item => [
+        `- Document ${source(item.documentId)}; revision ${item.revision}; ${source(item.title)}`,
+        ...(item.description ? [source(item.description)] : []),
+      ].join("\n")).join("\n")
+    )] : []),
   ].join("\n");
 }
 
@@ -889,10 +895,19 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
     result.profileIncluded && Object.keys(profile).length > 0
       ? formatTalentProfile(profile, Array.isArray(result.profileSections) ? result.profileSections : undefined)
       : "profile_included=false",
+    ...formatRoleProfiles(result),
   ].join("\n");
 }
 
 /** The calibration reader needs professional source evidence, not company workflow history. */
+function formatRoleProfiles(result: Record<string, any>) {
+  if (!Array.isArray(result.roleProfiles) || !result.roleProfiles.length) return [];
+  return result.roleProfiles.map((row: any) => [
+    `Role ${row.roleId}; material ${row.materialId ?? "default profile"}${row.profileId ? `; profile ${row.profileId} revision ${row.revision}` : ""}`,
+    !result.profile && row.profile ? formatTalentProfile(asRecord(row.profile), result.profileSections) : "",
+  ].filter(Boolean).join("\n"));
+}
+
 function formatProfessionalTalent(result: Record<string, any>) {
   const candidate = asRecord(result.candidate);
   const profile = asRecord(result.profile);
@@ -902,6 +917,7 @@ function formatProfessionalTalent(result: Record<string, any>) {
     ...(Array.isArray(result.profileSections) ? [`profile_sections=${result.profileSections.join(",") || "location_only"}`] : []),
     result.profileIncluded && Object.keys(profile).length
       ? formatTalentProfile(profile, result.profileSections) : "profile_included=false",
+    ...formatRoleProfiles(result),
   ].join("\n");
 }
 
@@ -2324,16 +2340,27 @@ export function formatOrgAgentToolResult(
     return formatPromptText(projectLlmDateTimes(result));
   }
   if (name === "request_matching_search") {
+    const options = asRecord(result.options);
     return [
       `status=${formatPromptCell(result.status, 40)}`,
       `requested_role=${formatPromptCell(result.requestedRoleName ?? result.roleName, 200)}`,
-      `run=${result.runId ?? "없음"}; 실행 상태=${result.runStatus ?? result.status}; Brief=${result.briefVersion ?? "미확인"}; 요청=${formatPromptText(result.options ?? {})}`,
+      `run=${result.runId ?? "없음"}; 실행 상태=${result.runStatus ?? result.status}; Brief=${result.briefVersion ?? "미확인"}`,
+      ...(result.effect === "evaluation_only" ? [
+        `평가 범위=${options.scope ?? "미확인"}; 시작 단계=${options.startStage ?? "미확인"}; 평가 예산=${options.limit ?? "미확인"}`,
+        ...(options.reason ? [`검색 목적: ${options.reason}`] : []),
+        ...((result.sourceMessageId ?? options.sourceMessageId) !== undefined ? [`원본 요청 message_id=${result.sourceMessageId ?? options.sourceMessageId}`] : []),
+        ...(Array.isArray(options.talentIds) ? [`평가 대상 IDs: ${options.talentIds.join(", ")}`] : []),
+        "이번 작업은 평가 근거를 저장하는 단계다. 후보 선정·추천 목록 등록·후보자 연락은 아직 수행하지 않았다. 평가 완료 후 회사 대화가 이어진다.",
+      ] : [`요청=${formatPromptText(options)}`]),
       ...(result.unavailableReason || result.status === "skipped" || result.status === "not_queued"
         ? [
             `unavailable_reason=${formatPromptCell(result.unavailableReason ?? result.reason, 500)}`,
             "result_meaning=No new search was started. Use the verified reason to respond naturally in the current conversation; mention a next step only when it is genuinely useful.",
           ]
-        : result.status === "already_completed" ? ["result_meaning=This exact request already reached the returned terminal runStatus. No new search was created. Read this run for its actual results; terminal failure is not a successful search."] : [
+        : result.status === "already_completed" ? ["result_meaning=This exact request already reached the returned terminal runStatus. No new search was created. Read this run for its actual results; terminal failure is not a successful search."]
+        : result.status === "already_running" || result.status === "already_queued" ? [
+            "result_meaning=An existing evaluation already covers this request against the returned Hiring Brief. No new search was created. Continue from that run and its completion instead of submitting the same evaluation again.",
+          ] : [
             "result_meaning=A search against the saved current Hiring Brief is now queued or already running. Evaluating the pool can take time, and the completed outcome will be shared separately.",
           ]),
       ...formatOptionalResponseGuidance(result),

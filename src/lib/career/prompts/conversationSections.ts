@@ -1,3 +1,4 @@
+import { careerPromptText, type CareerPromptExperiment } from "./promptExperiment";
 import {
   ONBOARDING_QUESTION_MIN_COVERED_COUNT,
   getInsightChecklist,
@@ -43,7 +44,6 @@ export function buildCareerChannelContextRules(channel: CareerPromptChannel, all
     "The candidate is currently communicating through Text Chat.",
     "- Use Markdown for better readability.",
     "- Do not begin a reply with a timestamp or relative-time label.",
-    ...(allowChoiceButtons ? ["- Use short headings, bullets, bold text for important terms such as role or company names, lists, links, or code blocks."] : []),
     "- Do not use emojis.",
     ...(allowChoiceButtons ? [
     "- When asking a question to the user to choose one of 2 answer options, you can append exactly one raw choice button block after the visible question. But do not use this too frequently.",
@@ -195,9 +195,16 @@ export function buildExtractionInsightChecklistSection(args: {
 
 /** 저장된 추천 수신 설정과 profile visibility를 모델이 이해할 수 있는 runtime 블록으로 만든다. */
 export function buildKnownPreferencesSection(
-  prefs: CareerPromptPreferences | null | undefined
+  prefs: CareerPromptPreferences | null | undefined,
+  options?: { factsOnly?: boolean }
 ) {
   if (!prefs) return "";
+  if (options?.factsOnly) return [
+    "## Recommendation and profile settings",
+    `Proactive external recommendations: ${prefs.getExternalRecommendation ?? "unknown"}`,
+    `Profile visibility: ${prefs.profileVisibility ?? "unknown"}`,
+    `Subscription status: ${prefs.talentSettingStatus ?? "unknown"}`,
+  ].join("\n");
 
   const lines: string[] = [];
   if (typeof prefs.getExternalRecommendation === "boolean") {
@@ -225,16 +232,10 @@ export function buildKnownPreferencesSection(
       );
     }
   }
-  if (
-    typeof prefs.recommendationBatchSize === "number" &&
-    Number.isFinite(prefs.recommendationBatchSize)
-  ) {
-    lines.push(`- recommendationBatchSize: ${prefs.recommendationBatchSize}`);
+  if (prefs.talentSettingStatus === "stopped") {
+    lines.push("- Proactive external recommendations are paused. This is not a global ban on explicit user tasks, scheduled delegated work, or existing company-request obligations. Do not silently change this preference.");
   }
-  const cadenceGuidance = buildRecommendationCadenceGuidance(prefs);
-  if (cadenceGuidance) {
-    lines.push(`- recommendationCycle: ${cadenceGuidance}`);
-  }
+  lines.push("- Contact timing comes from the current schedules. Choose agent-managed timing from context; preserve explicit user schedules. Legacy batch size and lifecycle labels do not set a recommendation quota or cadence.");
   if (prefs.profileVisibility === "dont_share") {
     lines.push("- recommendationMode: all_matching_contact_disabled");
     lines.push(
@@ -243,7 +244,7 @@ export function buildKnownPreferencesSection(
   } else if (prefs.getExternalRecommendation === false) {
     lines.push("- recommendationMode: directly_connectable_opportunities_only");
     lines.push(
-      "- external/public job posting recommendations are disabled; do not use recommend_job_postings unless the user explicitly asks to turn external recommendations back on first."
+      "- Proactive external/public posting recommendations are disabled. A direct request to research a posting does not by itself re-enable recurring recommendations."
     );
     if (prefs.profileVisibility === "open_to_matches") {
       lines.push(
@@ -260,42 +261,11 @@ export function buildKnownPreferencesSection(
   return ["## 현재 recommendation/profile settings", ...lines].join("\n");
 }
 
-/** 추천 발송 주기를 사람이 이해할 수 있는 안내 문장으로 압축한다. */
-function buildRecommendationCadenceGuidance(
-  prefs: CareerPromptPreferences
-): string | null {
-  const status = String(prefs.talentSettingStatus ?? "")
-    .trim()
-    .toLowerCase();
-
-  const periodicIntervalDays =
-    typeof prefs.periodicIntervalDays === "number" &&
-    Number.isFinite(prefs.periodicIntervalDays)
-      ? Math.max(1, Math.min(7, Math.floor(prefs.periodicIntervalDays)))
-      : 3;
-
-  const recommendationBatchSize =
-    typeof prefs.recommendationBatchSize === "number" &&
-    Number.isFinite(prefs.recommendationBatchSize)
-      ? Math.max(3, Math.min(10, Math.floor(prefs.recommendationBatchSize)))
-      : 3;
-
-  if (status === "active") {
-    return `현재 유저는 active 상태다. 높은 빈도로 오픈포지션을 찾아서 알려준다. 오래 유의미한 반응이 없으면 passive로 바뀌어 주기가 길어지고, 추천 공고 2개에 연속 피드백하면 현재 주기가 유지된다. 현재 기준은 ${periodicIntervalDays}일마다 최대 ${recommendationBatchSize}개다.`;
-  }
-  if (status === "passive") {
-    return `현재 유저는 passive 상태다. 오래 유의미한 액션이 없어 외부 오픈포지션은 낮은 빈도로만 보낸다. 추천 공고 2개에 연속 피드백하거나 새 공고 추천을 요청하면 active로 돌아가 더 자주 보낼 수 있다. 현재 기준은 ${periodicIntervalDays * 2}일마다 최대 ${recommendationBatchSize}개다.`;
-  }
-  if (status === "stopped") {
-    return "현재 유저는 stopped 상태다. 오래 유의미한 액션이 없어 외부 오픈포지션 정기 추천은 멈춘 상태다. 유저가 새 공고 추천을 직접 요청하면 active로 돌아가 추천을 재개할 수 있다.";
-  }
-  return null;
-}
-
 /** 온보딩 직후 opportunity search 진행 상태를 모델에게 알려주는 runtime 블록을 만든다. */
 export function buildOpportunityStatusSection(
   status: CareerPromptOpportunityStatus | null | undefined,
-  dateTimeOptions?: CareerPromptDateTimeOptions
+  dateTimeOptions?: CareerPromptDateTimeOptions,
+  options?: { factsOnly?: boolean }
 ) {
   if (!status) return "";
 
@@ -319,15 +289,15 @@ export function buildOpportunityStatusSection(
   }
   if (status.isInitialSearchRunning) {
     lines.push(
-      "- Initial opportunity search is currently queued/running after onboarding completion."
+      "- Initial Career work is currently queued/running/handed_off after onboarding completion."
     );
     lines.push(
-      "- Queued means waiting to start; running describes the recorded execution status, not proof of completed search or delivery. The work is independent of the current conversation, so the user can keep chatting."
+      "- Queued means waiting to start; running is worker execution; handed_off means the original Career agent owns the work. None is proof of completed search or delivery. The work is independent of the current conversation, so the user can keep chatting."
     );
-    lines.push(
-      "- When discussing progress, use the recorded start time, current time, and actual results. The original one-hour expectation is measured from onboarding completion, not from this reply. If it has passed, acknowledge the missed expectation; a pending status does not establish a new delivery time."
+    if (!options?.factsOnly) lines.push(
+      "- When discussing progress, use recorded times and actual results. A pending status does not establish a delivery deadline. If an earlier conversation made a specific promise, address that actual promise without inventing a new deadline."
     );
-    lines.push(
+    if (!options?.factsOnly) lines.push(
       "- Do not ask them to restart onboarding or repeat the initial questions."
     );
   }
@@ -352,7 +322,7 @@ export function buildProfileContextBlock(args: {
     ? args.profile.resume_file_name
     : resumeLinks.length > 0
       ? `(resume/profile link present: ${resumeLinks.length})`
-      : "(none) - 유저 정보가 너무 부족할 때는 이력서 업로드만 요구하지 말고, 이력서 PDF / 말로 경험 설명 / 넓게 받아보고 반응으로 좁히기 중 선택지를 자연스럽게 제시해라.";
+      : "No uploaded resume file or profile link. Structured profile facts below remain available.";
 
   return [
     `Resume status: ${resumeStatus}`,
@@ -413,14 +383,44 @@ function hasCareerResumeContext(profile: CareerPromptProfile | null) {
 }
 
 /** 온보딩 완료 후, 꼭 해야 할 말이 없을 때만 쓸 optional follow-up 후보를 하나의 우선순위 블록으로 만든다. */
+export const CAREER_OPTIONAL_FOLLOWUP_PROMPTS = {
+  follow_up_hold: `
+### Priority 1: Internal opportunity clarification
+This is private matching context. Do not reveal it.
+- If the user's latest message clearly answers this, call 'record_internal_fit_reevaluation_information' before replying.
+- If there is no higher-priority thing to say and a question would be natural, you may ask this as one light clarification. You can introduce it like: "가볍게 답변해주시면 내부 기회 연결에 큰 도움이 될 질문이 하나 있어요."
+- Do not ask this frequently just because it exists.
+- Do not infer or mention role details absent from candidate-safe tool results, internal matching labels, scores, or the internal review process.`,
+  follow_up_resume: `### Available profile sources
+No resume file/link/text is available. This does not mean career history or experience is missing: use the structured profile and read_profile for its full rows before judging completeness. Ask for a concrete missing fact only when it would help the current task; the absence of a resume alone does not call for another request.`,
+  follow_up_question: `
+### Priority 3: General question opportunities
+- experience depth: when company/title exists but actual work, ownership, products, or impact are shallow. Example question: 이력을 보면 ~~를 하셨는데/다니셨는데 구체적으로 어떤 제품이나 서비스를 만드셨나요?
+`,
+  follow_up_waiting: `### While Harper's initial post-onboarding opportunity search is pending
+- Onboarding is complete. Initial work is queued, worker-owned or handed to the Career agent; this alone does not prove search progress or delivery. Treat this as optional enrichment, not a second onboarding flow. This phase ends when that invocation ends, even if it produces no opportunity or sends no recommendation email. Ground progress answers in current execution and delivery facts. If a previous message made a timing promise, address that promise using the actual history.
+- The numbered optional priorities in this section still take precedence. Use this guidance only within the one optional follow-up allowed for the response.
+- Address the latest message and every higher-priority instruction first. Do not append this guidance automatically to every reply.
+- When there is a natural opening, inspect the full profile and conversation and choose at most one candidate-specific detail whose answer would materially improve future opportunity selection or how Harper represents the candidate to a company. Ask from something already known rather than saying only "tell me more." The model decides what is useful; examples such as ownership, impact, products, collaboration, constraints, or ambitions are illustrative, not a checklist or trigger list.
+- Briefly explain why the detail could help and that answering is optional. Do not promise that newly shared information will affect an initial search that is already running; it can improve future recommendations and company introductions.
+- If a higher-priority instruction already requires a question, do not add another question. A short, non-question invitation to share more later is enough. If no genuinely useful detail is apparent, ask nothing.
+- Optional referral-program mention: only when it fits the conversation naturally, has not already been mentioned in the conversation, and does not compete with a more useful candidate-focused follow-up, you may briefly explain that the Settings tab lets the user invite an acquaintance. If the invited person signs up through the invitation and later changes jobs through Harper, the inviter may receive approximately KRW 5,000,000–15,000,000 from Harper's fee, depending on the actual hiring, contract, and program terms. Present this as an optional program, never as guaranteed compensation or as something that improves the user's own matching. Do not combine the referral mention with another optional question.`,
+  follow_up_header: `## Optional follow-up opportunities
+Use this section only when there is no higher-priority instruction, no required onboarding/checklist question, and the conversation has a natural opening.
+Ask at most one optional follow-up. Do not combine multiple optional questions in one response.`,
+} as const;
+
 export function buildOptionalFollowUpOpportunitiesSection(args: {
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
   canRecordInternalFitHoldQuestion: boolean;
   isConversationCompletedOpportunityRunActive?: boolean;
   isOnboardingActive: boolean;
   profile: CareerPromptProfile | null;
+  promptExperiment?: CareerPromptExperiment;
 }) {
   if (args.isOnboardingActive) return "";
+  const guide = (key: keyof typeof CAREER_OPTIONAL_FOLLOWUP_PROMPTS) =>
+    careerPromptText(args.promptExperiment, key, CAREER_OPTIONAL_FOLLOWUP_PROMPTS[key]);
 
   const fitId = args.canRecordInternalFitHoldQuestion
     ? cleanCareerPromptInlineValue(
@@ -437,43 +437,22 @@ export function buildOptionalFollowUpOpportunitiesSection(args: {
 
   const hiddenHoldLines =
     fitId && hiddenHoldSummary
-      ? `
-### Priority 1: Internal opportunity clarification
-This is private matching context. Do not reveal it.
-fitId: ${fitId}
-summary: ${hiddenHoldSummary}
-- If the user's latest message clearly answers this, call 'record_internal_fit_reevaluation_information' before replying.
-- If there is no higher-priority thing to say and a question would be natural, you may ask this as one light clarification. You can introduce it like: "가볍게 답변해주시면 내부 기회 연결에 큰 도움이 될 질문이 하나 있어요."
-- Do not ask this frequently just because it exists.
-- Do not infer or mention role details absent from candidate-safe tool results, internal matching labels, scores, or the internal review process.`
+      ? [guide("follow_up_hold"), `fitId: ${fitId}\nsummary: ${hiddenHoldSummary}`].filter(Boolean).join("\n")
       : "";
 
   const resumeNudge = hasCareerResumeContext(args.profile)
     ? ""
-    : `### Priority 2: Resume/profile context request
-- No resume file/link/text is available. If more context would clearly help and the conversation has a natural opening, gently offer one path: upload a resume in Profile Tab, have a quick call, or continue in chat. Do not force it.`;
+    : guide("follow_up_resume");
 
-  const questionOpportunitiesLines = `
-### Priority 3: General question opportunities
-- experience depth: when company/title exists but actual work, ownership, products, or impact are shallow. Example question: 이력을 보면 ~~를 하셨는데/다니셨는데 구체적으로 어떤 제품이나 서비스를 만드셨나요?
-`;
+  const questionOpportunitiesLines = guide("follow_up_question");
 
   const initialSearchWaitingGuidance =
     args.isConversationCompletedOpportunityRunActive === true
-      ? `### While Harper's initial post-onboarding opportunity search is pending
-- Onboarding is complete. Initial work is either queued or has a recent Worker heartbeat; this alone does not prove search progress or delivery. Treat this as optional enrichment, not a second onboarding flow. This phase ends when that search run ends or its heartbeat expires, even if it produces no opportunity or sends no recommendation email. Ground progress answers in current execution and delivery facts, and acknowledge a missed one-hour expectation rather than renewing it.
-- The numbered optional priorities in this section still take precedence. Use this guidance only within the one optional follow-up allowed for the response.
-- Address the latest message and every higher-priority instruction first. Do not append this guidance automatically to every reply.
-- When there is a natural opening, inspect the full profile and conversation and choose at most one candidate-specific detail whose answer would materially improve future opportunity selection or how Harper represents the candidate to a company. Ask from something already known rather than saying only "tell me more." The model decides what is useful; examples such as ownership, impact, products, collaboration, constraints, or ambitions are illustrative, not a checklist or trigger list.
-- Briefly explain why the detail could help and that answering is optional. Do not promise that newly shared information will affect an initial search that is already running; it can improve future recommendations and company introductions.
-- If a higher-priority instruction already requires a question, do not add another question. A short, non-question invitation to share more later is enough. If no genuinely useful detail is apparent, ask nothing.
-- Optional referral-program mention: only when it fits the conversation naturally, has not already been mentioned in the conversation, and does not compete with a more useful candidate-focused follow-up, you may briefly explain that the Settings tab lets the user invite an acquaintance. If the invited person signs up through the invitation and later changes jobs through Harper, the inviter may receive approximately KRW 5,000,000–15,000,000 from Harper's fee, depending on the actual hiring, contract, and program terms. Present this as an optional program, never as guaranteed compensation or as something that improves the user's own matching. Do not combine the referral mention with another optional question.`
+      ? guide("follow_up_waiting")
       : "";
 
   return [
-    "## Optional follow-up opportunities",
-    "Use this section only when there is no higher-priority instruction, no required onboarding/checklist question, and the conversation has a natural opening.",
-    "Ask at most one optional follow-up. Do not combine multiple optional questions in one response.",
+    guide("follow_up_header"),
     initialSearchWaitingGuidance,
     hiddenHoldLines,
     resumeNudge,

@@ -16,6 +16,7 @@ import {
   type CareerHistoryOpportunityCounts,
   type CareerHistoryOpportunityFeedback,
   type CareerHistoryOpportunityPageFilter,
+  type CareerHistoryOpportunityPageState,
   type CareerInternalOpportunityCallRequest,
   type CareerMessagePayload,
   type CareerOpportunityFeedbackFollowUpTrigger,
@@ -147,22 +148,9 @@ const incrementCountsForItem = (
   counts: CareerHistoryOpportunityCounts,
   item: CareerHistoryOpportunity
 ) => {
-  const bucket = getHistoryBucket(item);
-  counts[bucket] += 1;
-  counts.total += 1;
-
-  if (bucket === "new" && isInternalHistoryOpportunity(item)) {
-    counts.newInternal += 1;
-  }
-
-  if (bucket === "new" && !isInternalHistoryOpportunity(item) && !item.viewedAt) {
-    counts.newExternalUnread += 1;
-  }
-
-  if (bucket === "saved") {
-    const stage = item.savedStage ?? getDefaultSavedStage(item);
-    counts.savedStages[stage] += 1;
-  }
+  const delta=deriveHistoryOpportunityCounts([item]);
+  for(const key of ['new','saved','archived','newInternal','newExternalUnread','total'] as const) counts[key]+=delta[key];
+  for(const stage of Object.keys(counts.savedStages) as CareerOpportunitySavedStage[]) counts.savedStages[stage]+=delta.savedStages[stage];
 };
 
 
@@ -296,31 +284,6 @@ export function useCareerHistoryState(args: {
 
           return payload;
         };
-        const postInternalCallRequestFollowUp = async (
-          requestOptions?: OpportunityFeedbackFollowUpRequestOptions
-        ) => {
-          const response = await fetchWithAuth(
-            "/api/talent/opportunities/internal-call-request-followup",
-            {
-              method: "POST",
-              body: JSON.stringify({
-                conversationId,
-                feedback: requestOptions?.feedback ?? null,
-                opportunityId: requestOptions?.opportunityId ?? null,
-              }),
-            }
-          );
-          const payload = await response.json().catch(() => ({}));
-
-          if (!response.ok) {
-            throw new Error(
-              getErrorMessage(payload, tCareer(H.feedbackFollowUpCreateFailed))
-            );
-          }
-
-          return payload;
-        };
-
         const applyFollowUpPayload = async (
           payload: Record<string, unknown>
         ) => {
@@ -341,16 +304,6 @@ export function useCareerHistoryState(args: {
         };
 
         await applyFollowUpPayload(await postFeedbackFollowUp(options));
-
-        const shouldRunInternalCallRequestFollowUp =
-          options?.shouldCreateInternalCallRequest === true &&
-          trigger ===
-            CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback;
-        if (shouldRunInternalCallRequestFollowUp) {
-          await applyFollowUpPayload(
-            await postInternalCallRequestFollowUp(options)
-          );
-        }
 
         if (options?.refreshHistory) {
           await refreshLatestHistoryOpportunitiesRef.current();
@@ -574,63 +527,10 @@ export function useCareerHistoryState(args: {
         const baseCounts =
           current ?? deriveHistoryOpportunityCounts(historyOpportunities);
         const nextCounts = cloneHistoryCounts(baseCounts);
-        const previousBucket = getHistoryBucket(previousItem);
-        const nextBucket = getHistoryBucket(nextItem);
-
-        if (previousBucket !== nextBucket) {
-          nextCounts[previousBucket] = Math.max(
-            0,
-            nextCounts[previousBucket] - 1
-          );
-          nextCounts[nextBucket] += 1;
-        }
-
-        if (
-          previousBucket === "new" &&
-          isInternalHistoryOpportunity(previousItem)
-        ) {
-          nextCounts.newInternal = Math.max(0, nextCounts.newInternal - 1);
-        }
-
-        if (nextBucket === "new" && isInternalHistoryOpportunity(nextItem)) {
-          nextCounts.newInternal += 1;
-        }
-
-        if (
-          previousBucket === "new" &&
-          !isInternalHistoryOpportunity(previousItem) &&
-          !previousItem.viewedAt
-        ) {
-          nextCounts.newExternalUnread = Math.max(
-            0,
-            nextCounts.newExternalUnread - 1
-          );
-        }
-        if (
-          nextBucket === "new" &&
-          !isInternalHistoryOpportunity(nextItem) &&
-          !nextItem.viewedAt
-        ) {
-          nextCounts.newExternalUnread += 1;
-        }
-
-        if (previousBucket === "saved") {
-          const previousStage =
-            previousItem.savedStage ?? getDefaultSavedStage(previousItem);
-          nextCounts.savedStages[previousStage] = Math.max(
-            0,
-            nextCounts.savedStages[previousStage] - 1
-          );
-        }
-
-        if (nextBucket === "saved") {
-          const nextStage =
-            nextItem.savedStage ?? getDefaultSavedStage(nextItem);
-          nextCounts.savedStages[nextStage] += 1;
-        }
-
-        nextCounts.total =
-          nextCounts.new + nextCounts.saved + nextCounts.archived;
+        const before=deriveHistoryOpportunityCounts([previousItem]);
+        const after=deriveHistoryOpportunityCounts([nextItem]);
+        for(const key of ['new','saved','archived','newInternal','newExternalUnread','total'] as const) nextCounts[key]=Math.max(0,nextCounts[key]-before[key]+after[key]);
+        for(const stage of Object.keys(nextCounts.savedStages) as CareerOpportunitySavedStage[]) nextCounts.savedStages[stage]=Math.max(0,nextCounts.savedStages[stage]-before.savedStages[stage]+after.savedStages[stage]);
 
         return nextCounts;
       });
@@ -809,6 +709,7 @@ export function useCareerHistoryState(args: {
 
   const patchHistoryOpportunity = useCallback(
     async (body: {
+      acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
       action:
         | "feedback"
         | "saved_stage"
@@ -982,6 +883,7 @@ export function useCareerHistoryState(args: {
           : null;
       const nextItem: CareerHistoryOpportunity = {
         ...previousItem,
+        ...(previousItem.listPosition && feedback === "negative" ? { listPosition: "previous" as const } : {}),
         feedback,
         feedbackAt: feedback ? now : null,
         feedbackReason: feedback ? (options?.feedbackReason ?? null) : null,
@@ -1034,6 +936,7 @@ export function useCareerHistoryState(args: {
         }
         const payload = await patchHistoryOpportunity({
           action: "feedback",
+          acceptanceMaterial: previousItem.acceptanceMaterial,
           conversationId,
           feedback,
           feedbackReason: options?.feedbackReason ?? null,
@@ -1180,12 +1083,18 @@ export function useCareerHistoryState(args: {
   );
 
   const onUpdateHistoryOpportunitySavedStage = useCallback(
-    async (opportunityId: string, savedStage: CareerOpportunitySavedStage) => {
+    async (
+      opportunityId: string,
+      savedStage: CareerOpportunitySavedStage,
+      fallbackOpportunity?: CareerHistoryOpportunity
+    ) => {
       const normalizedOpportunityId = opportunityId.trim();
-      if (!normalizedOpportunityId) return;
+      if (!normalizedOpportunityId) return false;
 
-      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
-      if (!previousItem) return;
+      const cachedPreviousItem = historyOpportunityById.get(normalizedOpportunityId)
+        ?? findCachedHistoryOpportunity(normalizedOpportunityId, fallbackOpportunity?.roleId);
+      const previousItem = cachedPreviousItem ?? fallbackOpportunity;
+      if (!previousItem) return false;
 
       beginHistoryUpdate(normalizedOpportunityId);
       const isNeutralExternalHide =
@@ -1213,12 +1122,18 @@ export function useCareerHistoryState(args: {
       };
       const previousCounts = historyOpportunityCounts;
 
-      updateHistoryOpportunityLocally(normalizedOpportunityId, () => nextItem);
-      applyHistoryOpportunityCountsTransition(previousItem, nextItem);
+      upsertHistoryOpportunityLocally(nextItem);
+      if (cachedPreviousItem) {
+        applyHistoryOpportunityCountsTransition(previousItem, nextItem);
+      } else {
+        applyHistoryOpportunityCountsInsertion(nextItem);
+      }
 
       try {
         const payload = await patchHistoryOpportunity({
-          action: "saved_stage",
+          ...(previousItem.feedback !== "positive" && !isNeutralExternalHide
+            ? { action: "feedback" as const, feedback: "positive" as const }
+            : { action: "saved_stage" as const }),
           opportunityId: normalizedOpportunityId,
           savedStage,
         });
@@ -1233,14 +1148,20 @@ export function useCareerHistoryState(args: {
         void queryClient.invalidateQueries({
           queryKey: ["career-task-external-feedback", userId],
         });
+        return true;
       } catch (error) {
-        restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
+        if (cachedPreviousItem) {
+          restoreHistoryOpportunity(previousItem.id, previousItem);
+        } else {
+          removeHistoryOpportunityLocally(previousItem.id);
+        }
         setHistoryOpportunityCounts(previousCounts);
         setHistoryUpdateError(
           error instanceof Error
             ? error.message
             : tCareer(H.opportunityStatusUpdateFailed)
         );
+        return false;
       } finally {
         endHistoryUpdate(normalizedOpportunityId);
       }
@@ -1249,13 +1170,15 @@ export function useCareerHistoryState(args: {
       beginHistoryUpdate,
       endHistoryUpdate,
       historyOpportunityById,
+      findCachedHistoryOpportunity,
       historyOpportunityCounts,
       applyHistoryOpportunityCountsTransition,
+      applyHistoryOpportunityCountsInsertion,
+      removeHistoryOpportunityLocally,
       patchHistoryOpportunity,
       queryClient,
       restoreHistoryOpportunity,
       tCareer,
-      updateHistoryOpportunityLocally,
       upsertHistoryOpportunityLocally,
       userId,
     ]
@@ -1632,7 +1555,6 @@ export function useCareerHistoryState(args: {
       ) {
         return;
       }
-      const recoveringCompletedFilter = currentState?.nextOffset === null;
       const offset =
         currentState?.nextOffset ??
         (filter.historyTab === "saved"
@@ -1663,10 +1585,12 @@ export function useCareerHistoryState(args: {
           [filterKey]: {
             loading: false,
             nextOffset: page.nextOffset,
-            recoveryLoadedCount:
-              recoveringCompletedFilter && page.nextOffset === null
-                ? loadedCount
-                : undefined,
+            recoveryLoadedCount: page.nextOffset === null
+              ? getLoadedHistoryFilterCount(
+                  queryClient.getQueryData<InfiniteData<CareerHistoryPage, number>>(queryKey),
+                  filter
+                )
+              : undefined,
           },
         }));
       } catch (error) {
@@ -1703,6 +1627,26 @@ export function useCareerHistoryState(args: {
     [filteredPageState]
   );
 
+  const getHistoryOpportunityPageFilterState = useCallback(
+    (
+      filter: CareerHistoryOpportunityPageFilter
+    ): CareerHistoryOpportunityPageState | undefined => {
+      const state = filteredPageState[getHistoryFilterKey(filter)];
+      if (
+        state?.nextOffset === null &&
+        state.recoveryLoadedCount !==
+          getLoadedHistoryFilterCount(
+            { pages: [{ items: historyOpportunities }], pageParams: [0] },
+            filter
+          )
+      ) {
+        return undefined;
+      }
+      return state;
+    },
+    [filteredPageState, historyOpportunities]
+  );
+
   const loadSavedStageHistoryOpportunityPages = useCallback(
     async (savedStages: CareerOpportunitySavedStage[]) => {
       if (!enabled || !userId || savedStages.length === 0) return;
@@ -1728,18 +1672,21 @@ export function useCareerHistoryState(args: {
         stagesByOffset.set(offset, stages);
       }
 
-      for (const [offset, stages] of stagesByOffset) {
-        updateFilteredPageState((current) => {
-          const next = { ...current };
+      if (stagesByOffset.size === 0) return;
+      updateFilteredPageState((current) => {
+        const next = { ...current };
+        for (const [offset, stages] of stagesByOffset) {
           for (const savedStage of stages) {
             next[getHistoryFilterKey({ historyTab: "saved", savedStage })] = {
               loading: true,
               nextOffset: offset,
             };
           }
-          return next;
-        });
+        }
+        return next;
+      });
 
+      for (const [offset, stages] of stagesByOffset) {
         try {
           const searchParams = new URLSearchParams({
             historyTab: "saved",
@@ -1852,14 +1799,15 @@ export function useCareerHistoryState(args: {
     hasMoreHistoryOpportunities: Boolean(infinite.hasNextPage),
     historyOpportunityCounts: resolvedHistoryOpportunityCounts,
     historyInitialLoading: autoLoad && infinite.isPending && !infinite.data,
-    historyLoaded: historyLoaded || Boolean(infinite.data),
+    historyLoaded: historyLoaded || Boolean(infinite.data) || infinite.isError,
     historyLoadingMore: infinite.isFetchingNextPage || isFilteredPageLoading,
     historyOpportunities,
     historyOpportunityById,
-    historyUpdateError,
+    historyUpdateError: historyUpdateError || (infinite.error instanceof Error ? infinite.error.message : ""),
     historyUpdatingOpportunityIds,
     hydrateHistoryOpportunityCounts,
     hydrateHistoryOpportunities,
+    getHistoryOpportunityPageFilterState,
     isHistoryOpportunityPageFilterLoading,
     loadSavedStageHistoryOpportunityPages,
     loadHistoryOpportunityByRoleId,

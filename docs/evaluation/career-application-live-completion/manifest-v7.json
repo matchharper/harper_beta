@@ -1,0 +1,86 @@
+{
+  "task": "career-application-live-completion",
+  "datasetVersion": "live-postings-v6",
+  "goldVersion": "manual-ending-v1",
+  "createdAt": "2026-10-29T22:45:30.128488+00:00",
+  "sourceRevision": "4a14635e5f29dc7379304ef4a13e6d5a948911bf",
+  "dirtyWorktree": true,
+  "runtimeSourceHashes": {
+    "src/app/api/talent/chat/route.ts": "29036ce140be62c5f64477b7cc4973053c8b207a6312ef8ded88ff627e397adf",
+    "src/lib/career/llm.ts": "6ee65bc314ae7b612ff987f398669807f1f1c4c96fc765fa19b992f41c54acc7",
+    "src/lib/career/chatTurn.ts": "fb4a954153d7f4fc080c6fe5c72ed53249beea827bab1622781a029c3b04e132",
+    "src/lib/career/agentTurnRuntime.server.ts": "652d350b92d14eae702e40c3d12f577059a5fb846d9371c957614747bf96c0ec",
+    "src/lib/career/agentReplyWorker.ts": "715cbe77b5398c9f271faaf54792a27b51fb70b7e4bd30f9bb80e49d02a2b9c9",
+    "src/lib/career/developmentQueue.server.ts": "92a801d2de1fc757d0132654dff9576b70d73c78d38e4542f7a302a2d35176f5",
+    "src/lib/career/externalOperationContinuation.ts": "ce03a5e16d043fde9ef74a90b358a3c8a8959d277273a18da662e2afb481f0ba",
+    "src/lib/career/browser/tool.ts": "58643b4f2a71614f84bfbe600e0f2e4fb5a5eed312f53543761ce48e47a6ed90",
+    "src/lib/career/browser/worker.ts": "814bd5802ae0b3c0a515ac87888f37f5d2cd98e6a78663d14df4cb1456e656c0",
+    "src/lib/career/simulation/browserUseAgents.ts": "0ed7879fb685d1ea6e8117b954a160dd1fe35c118bb20f427dad0fb4cae92ab3",
+    "src/lib/career/capabilities/decisions.ts": "c331445f7f37454250bca75bade1c5b975c73023ee3d1dcd17b18456ce1f87c2",
+    "src/lib/career/capabilities/runtime.ts": "588efa403ea486f72507dbb5a719ce4d5403e883d2c7b5b2c7b44b1abfdafe75",
+    "src/lib/career/handbooks/application.ts": "1ee323856e7cac867b8474d06184497bbc063098e275726376f29cf2af541fea",
+    "src/lib/career/handbooks/resume.ts": "979bda7ca3e234d1c214ad381f64867e12c2fe3eec0ff6e6587e9a18f54cb0f8",
+    "src/lib/career/prompts/conversationPlan.ts": "d4b0ea5ebfe2a215e30a6fcc5b800a90f39b7625113800bbfb8fd91111a8e768",
+    "src/lib/talentOnboarding/tools.ts": "6e3dcfb173054062c2cb20bf3a88a5c6eeede20c83809a13b4fa4f9ce2946d35",
+    "src/lib/career/agentReplyQueue.ts": "61509895f6de2e823ffacd3ff5ae66fab3263946c4c72bdebf16a9d62d5639da",
+    "src/lib/career/agentReplyError.ts": "e103f5bf370137f2bbd25aec9675675696b4105fe4042cab4441bcf84540f42e",
+    "src/i18n/careerMessage.ts": "98472f3ab48d22d9ceb15b4b9e929a9f64a6da76c7414c4b3662c1d7a99a77cb"
+  },
+  "runtimeFingerprint": "22103daf709b3a3ae629f3cf8a4823b0e5efbfebab94066983447f502156366a",
+  "inputAndGoldHashes": {
+    "input-contract-v2.md": "ef1d702c02d1a938fe4724d20b4410f37f47ac12fafbc9e42abbd1dc65485879",
+    "gold-v1.json": "e2e3b8ae53fd7397cf6424083af51de1f8ec0d406a7b73d23fe0d22b22b1ea48"
+  },
+  "frozenInput": "Initial request template; actual private source message and selected posting preserved per case. Historical requests are not replaced. Live website content is mutable.",
+  "provenance": "Existing account recommendations/messages/browser operations, read-only capture; two retrospective cases plus new live UI observations.",
+  "canonicalRunner": "Existing Chrome Career UI through actual product runtime. No alternate executor.",
+  "configuration": {
+    "conversationModel": "Actual per attempt; unknown when absent from recorded trace.",
+    "reasoning": "Actual per attempt; unknown when absent.",
+    "sampling": "Actual provider settings per attempt; do not infer from requested defaults.",
+    "decisions": {
+      "sourceDefaultModel": "gpt-6-luna",
+      "endpoint": "https://api.openai.com/v1/decisions",
+      "sourceRequestTimeoutMs": 5000
+    },
+    "browser": {
+      "sourceDefaultModel": "gpt-6-luna",
+      "endpoint": "https://api.browser-use.com/api/v4",
+      "sourceRequestTimeoutMs": 30000
+    },
+    "deadline": "Existing product runtime and continuation; no evaluation-specific step or model budget.",
+    "tools": "Current eligible general capabilities and loaders; no evaluation-only runtime tools."
+  },
+  "historicalMetrics": {
+    "distinctCases": 2,
+    "userAttempts": 7,
+    "browserRuns": 5,
+    "acceptedEndings": 0
+  },
+  "privacy": {
+    "privateArtifacts": "private/",
+    "runArtifacts": "runs/",
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "credentialsCaptured": false,
+    "providerRetention": "Existing product settings, not independently verified or changed."
+  },
+  "limitations": [
+    "One purposively selected account; not representative success-rate benchmark.",
+    "Live pages/login state vary.",
+    "Retrospective screenshots absent in initial capture.",
+    "No final submission, email sending or employer receipt tested.",
+    "Synthetic tone, resume suggestion and old browser lab results excluded.",
+    "Prior synthetic account facts contaminated some generated documents. These outputs cannot establish completed valid application preparation; repair and subsequent runs are separate evidence."
+  ],
+  "status": "Prepared; root executing real UI cases. Private ledger is current result source.",
+  "parentManifest": "manifest-v6.json",
+  "changeReason": "Shortlist23→25 adds two actual official email-application postings. Inputv2 and goldv1 unchanged.",
+  "sourceCaptureNote": "Runtime hashes preserved fromv6; this manifest records candidate addition only.",
+  "privateInputHashes": {
+    "selected-candidates-v6.json": "0d95a08308762472a310c4a17d407c2a9fc77f00ff44c1af8745f0931d1ef0b0"
+  },
+  "runVersion": "live-runtime-v7",
+  "dataRepairBoundary": "Separate scoped repair verified2026-10-30 07:34KST. Source/derived data exact-ID backup and correction recorded privately. Actual new application attempts remain UI-driven; no prior attempt upgraded.",
+  "inputVersion": "input-contract-v2"
+}

@@ -1,0 +1,89 @@
+{
+  "task": "career-application-live-completion",
+  "datasetVersion": "live-postings-v6",
+  "goldVersion": "manual-ending-v1",
+  "createdAt": "2026-10-30T02:27:12.742441+00:00",
+  "sourceRevision": "4a14635e5f29dc7379304ef4a13e6d5a948911bf",
+  "dirtyWorktree": true,
+  "runtimeSourceHashes": {
+    "src/app/api/talent/chat/route.ts": "29036ce140be62c5f64477b7cc4973053c8b207a6312ef8ded88ff627e397adf",
+    "src/lib/career/llm.ts": "6ee65bc314ae7b612ff987f398669807f1f1c4c96fc765fa19b992f41c54acc7",
+    "src/lib/career/chatTurn.ts": "fb4a954153d7f4fc080c6fe5c72ed53249beea827bab1622781a029c3b04e132",
+    "src/lib/career/agentTurnRuntime.server.ts": "9c42ab751c89baf51b863d1f789df4af809edabf6dae2aa32e6b75914c1db124",
+    "src/lib/career/agentReplyWorker.ts": "5f255e1a8ca16ef398c5d9c0943e1e09f1cac76558c331b9b6d44365522f54d5",
+    "src/lib/career/developmentQueue.server.ts": "92a801d2de1fc757d0132654dff9576b70d73c78d38e4542f7a302a2d35176f5",
+    "src/lib/career/externalOperationContinuation.ts": "444fccc2386d2f9784011d26e2b0c143f10a1aec040b30aea138861adf773767",
+    "src/lib/career/browser/tool.ts": "b87d35aab7d82775e310fdea0ebddaffe861152545395f12dc1c52a8e2f0e27e",
+    "src/lib/career/browser/worker.ts": "814bd5802ae0b3c0a515ac87888f37f5d2cd98e6a78663d14df4cb1456e656c0",
+    "src/lib/career/simulation/browserUseAgents.ts": "0ed7879fb685d1ea6e8117b954a160dd1fe35c118bb20f427dad0fb4cae92ab3",
+    "src/lib/career/capabilities/decisions.ts": "c331445f7f37454250bca75bade1c5b975c73023ee3d1dcd17b18456ce1f87c2",
+    "src/lib/career/capabilities/runtime.ts": "588efa403ea486f72507dbb5a719ce4d5403e883d2c7b5b2c7b44b1abfdafe75",
+    "src/lib/career/handbooks/application.ts": "a29644a6bcdfab90fef2df1bfef50497c37f034d04d5406b6c1606bc6069696f",
+    "src/lib/career/handbooks/resume.ts": "979bda7ca3e234d1c214ad381f64867e12c2fe3eec0ff6e6587e9a18f54cb0f8",
+    "src/lib/career/prompts/conversationPlan.ts": "60322e1abbee6c7f830d32953d0de9bb10ee5888cc8f96c4efd3786e059dd59d",
+    "src/lib/talentOnboarding/tools.ts": "b76c971bb69b12249deb243e4fa4b3e233bcf4f9ef31e63eaa542aadaf642581",
+    "src/lib/career/agentReplyQueue.ts": "61509895f6de2e823ffacd3ff5ae66fab3263946c4c72bdebf16a9d62d5639da",
+    "src/lib/career/agentReplyError.ts": "e103f5bf370137f2bbd25aec9675675696b4105fe4042cab4441bcf84540f42e",
+    "src/i18n/careerMessage.ts": "98472f3ab48d22d9ceb15b4b9e929a9f64a6da76c7414c4b3662c1d7a99a77cb",
+    "src/lib/career/handbooks/registry.ts": "d021426a0ec5f2ff4ee98d42e4eb34675b62b335e579d23803c7632bff84ec87",
+    "src/lib/career/prompts/rawPrompts.ts": "328a3a317d721ed88e1f6243a686a7c612fc09fe80b1f95e6b31f553ae5cf71f",
+    "src/lib/career/opportunityFeedbackNote.ts": "59225c3730402ed0199958588136a8c127f72137826dca76e4de3c6fb4ff3ddc"
+  },
+  "runtimeFingerprint": "b2dc28bdd99eeef869eb68841439e6e6edc7e9530ad8fd03565b1c23a2fa26b9",
+  "inputAndGoldHashes": {
+    "input-contract-v2.md": "ef1d702c02d1a938fe4724d20b4410f37f47ac12fafbc9e42abbd1dc65485879",
+    "gold-v1.json": "e2e3b8ae53fd7397cf6424083af51de1f8ec0d406a7b73d23fe0d22b22b1ea48"
+  },
+  "frozenInput": "Initial request template; actual private source message and selected posting preserved per case. Historical requests are not replaced. Live website content is mutable.",
+  "provenance": "Existing account recommendations/messages/browser operations, read-only capture; two retrospective cases plus new live UI observations.",
+  "canonicalRunner": "Existing Chrome Career UI through actual product runtime. No alternate executor.",
+  "configuration": {
+    "conversationModel": "Actual per attempt; unknown when absent from recorded trace.",
+    "reasoning": "Actual per attempt; unknown when absent.",
+    "sampling": "Actual provider settings per attempt; do not infer from requested defaults.",
+    "decisions": {
+      "sourceDefaultModel": "gpt-6-luna",
+      "endpoint": "https://api.openai.com/v1/decisions",
+      "sourceRequestTimeoutMs": 5000
+    },
+    "browser": {
+      "sourceDefaultModel": "gpt-6-luna",
+      "endpoint": "https://api.browser-use.com/api/v4",
+      "sourceRequestTimeoutMs": 30000
+    },
+    "deadline": "Existing product runtime and continuation; no evaluation-specific step or model budget.",
+    "tools": "Current eligible general capabilities and loaders; no evaluation-only runtime tools."
+  },
+  "historicalMetrics": {
+    "distinctCases": 2,
+    "userAttempts": 7,
+    "browserRuns": 5,
+    "acceptedEndings": 0
+  },
+  "privacy": {
+    "privateArtifacts": "private/",
+    "runArtifacts": "runs/",
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "credentialsCaptured": false,
+    "providerRetention": "Existing product settings, not independently verified or changed."
+  },
+  "limitations": [
+    "One purposively selected account; not representative success-rate benchmark.",
+    "Live pages/login state vary.",
+    "Retrospective screenshots absent in initial capture.",
+    "No final submission, email sending or employer receipt tested.",
+    "Synthetic tone, resume suggestion and old browser lab results excluded.",
+    "Prior synthetic account facts contaminated some generated documents. These outputs cannot establish completed valid application preparation; repair and subsequent runs are separate evidence."
+  ],
+  "status": "Phone continuation and source-attribution verification in progress.",
+  "parentManifest": "manifest-v8.json",
+  "changeReason": "Resume/read presents browser cards; current execution observation separated from history; browser-card identity survives LLM history; shared response guidance shortened and operational completion clarified; default index keeps sibling references without repeating full reports.",
+  "sourceCaptureNote": "Captured after the later phone-continuation request began. Earlier phone attempts used intermediate changes and are not attributed to this final fingerprint. Actual source/model and screenshots remain private.",
+  "privateInputHashes": {
+    "selected-candidates-v6.json": "0d95a08308762472a310c4a17d407c2a9fc77f00ff44c1af8745f0931d1ef0b0"
+  },
+  "runVersion": "live-runtime-v9",
+  "dataRepairBoundary": "Separate scoped repair verified2026-10-30 07:34KST. Source/derived data exact-ID backup and correction recorded privately. Actual new application attempts remain UI-driven; no prior attempt upgraded.",
+  "inputVersion": "input-contract-v2"
+}

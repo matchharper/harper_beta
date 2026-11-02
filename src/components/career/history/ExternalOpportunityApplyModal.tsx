@@ -61,7 +61,7 @@ export default function ExternalOpportunityApplyModal({
       title={t("career.history.external_application.apply", "지원하기")}
       description={t(
         "career.history.external_application.description",
-        "Harper와 이 포지션의 지원을 같이 준비할 수 있습니다. 직접 지원하거나 Harper와 함께 시작해 보세요."
+        "Harper와 이 포지션의 지원을 같이 준비할 수 있습니다."
       )}
       bodyClassName="px-4 sm:px-5"
       footer={
@@ -82,13 +82,10 @@ export default function ExternalOpportunityApplyModal({
               })
             }
           >
-            <div className="min-w-40">
-              {t(
-                "career.history.external_application.direct",
-                "사이트에서 직접 지원하기"
-              )}
-            </div>
-            <ArrowUpRight className="size-4" aria-hidden />
+            {t(
+              "career.history.external_application.direct",
+              "사이트에서 직접 지원하기"
+            )}
           </MuteButton>
           <ApplyWithHarperButton
             item={item}
@@ -101,12 +98,10 @@ export default function ExternalOpportunityApplyModal({
               onOpenChat();
             }}
           >
-            <div className="min-w-40">
-              {t(
-                "career.history.external_application.with_harper",
-                "Harper와 지원하기"
-              )}
-            </div>
+            {t(
+              "career.history.external_application.with_harper",
+              "Harper와 지원하기"
+            )}
           </ApplyWithHarperButton>
         </div>
       }

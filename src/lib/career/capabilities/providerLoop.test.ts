@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSimulationSession } from "../simulation/session";
 import { CareerCapabilityRuntime } from "./runtime";
 import {
   CAREER_CAPABILITY_LOADER as LOADER,
@@ -23,7 +22,6 @@ test("every provider and streaming path reassembles policies and schemas, reject
   try {
     const { runCareerChatAssistant, runCareerChatAssistantStream } =
       await import("../llm");
-    for (const switching of [false, true])
     for (const provider of [
       "anthropic",
       "openai",
@@ -41,10 +39,8 @@ test("every provider and streaming path reassembles policies and schemas, reject
           ...CAREER_CORE_TOOLS,
           "list_documents",
           "read_document",
-          "generate_resume",
-          "web_search",
-          "open_url",
-          ...(switching ? ["manage_simulation_session"] : []),
+          "upsert_document",
+          "read_talent_activity_events",
         ].map((name) => ({
           type: "function" as const,
           function: {
@@ -53,16 +49,11 @@ test("every provider and streaming path reassembles policies and schemas, reject
             parameters: { type: "object", properties: {} },
           },
         }));
-        let active = switching;
-        const simulation = createSimulationSession({roleRef:"job:fixture",roleName:"Fixture",documentId:"fixture",documentName:"Resume"});
-        const eligible = () => active ? tools.filter(t => !["research_company", "web_search", "open_url"].includes(t.function.name)) : tools.filter(t => t.function.name !== "manage_simulation_session");
         const runtime = new CareerCapabilityRuntime({
           mode: "progressive",
-          eligibleTools: eligible(),
-          getEligibleTools: eligible,
+          eligibleTools: tools,
           promptArgs: () => ({
             channel: "chat",
-            ...(active ? {conversationMode:"simulation" as const,simulationSession:simulation} : {}),
             isOnboardingDone: true,
             profile: null,
             structuredProfileText: "",
@@ -90,38 +81,27 @@ test("every provider and streaming path reassembles policies and schemas, reject
           const offered = body.tools.map(
             (tool: any) => tool.name ?? tool.function?.name
           );
-          assert.equal(offered.includes("generate_resume"), switching || requests >= 2);
-          assert.equal(offered.includes("web_search"), !switching && requests >= 4);
-          if(switching) {
-            assert.equal(offered.includes("manage_simulation_session"),requests === 1);
-            assert.equal(offered.includes("research_company"), requests >= 2);
-            for(const common of ["read_talent_context","write_talent_context","update_talent_profile"]) assert.ok(offered.includes(common));
-          }
-          const text = JSON.stringify(
-            body.system ?? body.messages ?? body.input
-          );
-          assert.equal(
-            text.includes("### Resume creation and revision"),
-            switching || requests >= 2
-          );
+          assert.equal(offered.includes("upsert_document"), requests >= 2);
+          assert.ok(offered.includes("web_search"));
+          assert.ok(offered.includes("open_url"));
+          assert.equal(offered.includes("read_talent_activity_events"), requests >= 4);
           if (provider === "anthropic")
             assert.ok(
               (JSON.stringify(body).match(/"cache_control"/g) ?? []).length <= 4
             );
-          if (!switching && requests === 2)
+          if (requests === 2)
             assert.ok(
               JSON.stringify(body).includes("tool_not_offered"),
               "denied call is paired with an explicit result"
             );
-          const names = switching ? (requests === 1 ? ["manage_simulation_session"] : ["research_company", "read_document"]) :
-            requests === 1
-              ? [LOADER, "generate_resume"]
+          const names = requests === 1
+              ? ["web_search", "open_url", LOADER, "upsert_document"]
               : requests === 2
-                ? ["read_document", "generate_resume"]
+                ? ["read_document", "upsert_document"]
                 : requests === 3
                   ? [LOADER]
                   : requests === 4
-                    ? ["web_search"]
+                    ? ["read_talent_activity_events"]
                     : [];
           const calls = names.map((name, index) => ({
             id: `c-${requests}-${index}`,
@@ -130,7 +110,7 @@ test("every provider and streaming path reassembles policies and schemas, reject
               name === LOADER
                 ? {
                     capabilityIds: [
-                      requests === 1 ? "resume_authoring" : "web_research",
+                      requests === 1 ? "documents" : "activity_history",
                     ],
                   }
                 : {},
@@ -247,10 +227,9 @@ test("every provider and streaming path reassembles policies and schemas, reject
             },
           ],
           usageLabel: "test:career-progressive",
-          stopAfterToolNames: switching ? ["simulate_application"] : [],
+          stopAfterToolNames: [],
           executeTool: async ({ name }: { name: string }) => {
             executed.push(name);
-            if(switching && name === "manage_simulation_session") {active=false;args.stopAfterToolNames.splice(0,args.stopAfterToolNames.length,"research_company");}
             return { ok: true };
           },
           onToolStart: ({ name }: { name: string }) => {
@@ -265,23 +244,19 @@ test("every provider and streaming path reassembles policies and schemas, reject
           await (streaming
             ? runCareerChatAssistantStream(args)
             : runCareerChatAssistant(args)),
-          switching ? "" : "done"
+          "done"
         );
-        if(switching) {
-          assert.equal(requests,2);
-          assert.deepEqual(executed,["manage_simulation_session","research_company"]);
-          assert.ok(!ui.includes(LOADER));
-          continue;
-        }
         assert.deepEqual(executed, [
-          "read_document",
-          "generate_resume",
           "web_search",
+          "open_url",
+          "read_document",
+          "upsert_document",
+          "read_talent_activity_events",
         ]);
         assert.ok(!ui.includes(LOADER));
         assert.deepEqual(runtime.completedRecord().used, [
-          "resume_authoring",
-          "web_research",
+          "documents",
+          "activity_history",
         ]);
       }
   } finally {

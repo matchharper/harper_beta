@@ -1,6 +1,5 @@
 import type { User } from "@supabase/supabase-js";
 import {
-  DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT,
   type OpportunityDiscoveryTrigger,
   type OpportunityDiscoveryAgentVariant,
   type OpportunityRunMode,
@@ -14,7 +13,6 @@ import {
   fetchTalentSetting,
   getTalentSupabaseAdmin,
   sanitizeTalentProfileVisibility,
-  setTalentOnboardingDone,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
 import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
@@ -31,7 +29,6 @@ import {
   normalizeTalentRecommendationBatchSize,
   normalizeTalentRecommendationToggle,
 } from "@/lib/talentOnboarding/recommendationSettings";
-import { sendInitialSearchStartedEmail } from "./initialSearchNotification";
 
 if (typeof window !== "undefined") {
   throw new Error("opportunityDiscovery store must not run in the browser");
@@ -48,7 +45,6 @@ const DEFAULT_SETTINGS: RecommendationSettings = {
 const OPPORTUNITY_RUN_LOCK_TIMEOUT_MS = 3 * 60 * 1000;
 // Worker heartbeats every 30 seconds and recovers ownership after ten misses.
 const OPPORTUNITY_RUN_HEARTBEAT_TIMEOUT_MS = 5 * 60 * 1000;
-const INITIAL_ONBOARDING_RECOMMENDATION_COUNT = 15;
 const CAREER_CHAT_EXTERNAL_SEARCH_RUN_CONTRACT =
   "career_chat_external_search_v1";
 
@@ -327,7 +323,7 @@ export async function getActiveOpportunityRun(args: {
     .select("*")
     .eq("talent_id", args.userId)
     .eq("conversation_id", args.conversationId)
-    .in("status", ["queued", "running"])
+    .in("status", ["queued", "running", "handed_off"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle() as any);
@@ -349,7 +345,7 @@ export async function hasActiveConversationCompletedOpportunityRun(args: {
     .select("status, lease_heartbeat_at, started_at, created_at")
     .eq("talent_id", args.userId)
     .eq("trigger", "conversation_completed")
-    .in("status", ["queued", "running"]) as any);
+    .in("status", ["queued", "running", "handed_off"]) as any);
 
   if (error) {
     throw new Error(
@@ -361,7 +357,7 @@ export async function hasActiveConversationCompletedOpportunityRun(args: {
   return (data ?? []).some((run: Pick<OpportunityRunRow,
     "status" | "lease_heartbeat_at" | "started_at" | "created_at"
   >) => {
-    if (run.status === "queued") return true;
+    if (run.status === "queued" || run.status === "handed_off") return true;
     const lastHeartbeat = Date.parse(
       run.lease_heartbeat_at ?? run.started_at ?? run.created_at
     );
@@ -380,7 +376,7 @@ async function fetchActiveOpportunityRunForTalent(args: {
   )
     .select("*")
     .eq("talent_id", args.userId)
-    .in("status", ["queued", "running"])
+    .in("status", ["queued", "running", "handed_off"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle() as any);
@@ -437,11 +433,11 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
   source: string;
   userId: string;
 }) {
-  await setTalentOnboardingDone({
-    admin: args.admin,
-    userId: args.userId,
-    isOnboardingDone: true,
+  const { data: queuedRun, error: enqueueError } = await (args.admin.rpc as any)("enqueue_career_onboarding_invocation", {
+    p_user_id: args.userId, p_conversation_id: args.conversationId,
+    p_payload: { completionReason: args.completionReason, source: args.source },
   });
+  if (enqueueError) throw enqueueError;
   await cancelCareerOnboardingContactQueue({
     admin: args.admin,
     userId: args.userId,
@@ -461,38 +457,7 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
     });
   });
 
-  const hasInitialRun = await hasInitialOpportunityDiscoveryRun({
-    admin: args.admin,
-    userId: args.userId,
-  });
-  if (hasInitialRun) {
-    await insertTalentActivityEvent({
-      admin: args.admin,
-      changedDomains: ["onboarding", "opportunity_search"],
-      conversationId: args.conversationId,
-      eventType: "onboarding_completed",
-      impactLevel: "high",
-      source: "onboarding",
-      summary:
-        "Onboarding completed; initial opportunity search was not queued because an initial run already exists.",
-      userId: args.userId,
-    });
-    return null;
-  }
-
-  const run = await createOpportunityDiscoveryRun({
-    admin: args.admin,
-    conversationId: args.conversationId,
-    runMode: "initial",
-    talentId: args.userId,
-    targetRecommendationCount: INITIAL_ONBOARDING_RECOMMENDATION_COUNT,
-    trigger: "conversation_completed",
-    triggerPayload: {
-      completionReason: args.completionReason,
-      entryPoint: "first_onboarding_batch",
-      source: args.source,
-    },
-  });
+  const run = queuedRun as OpportunityRunRow;
 
   await Promise.all([
     insertTalentActivityEvent({
@@ -502,24 +467,8 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
       eventType: "onboarding_completed",
       impactLevel: "high",
       source: "onboarding",
-      summary: `Onboarding completed; initial opportunity search ${run.id} was queued.`,
+      summary: `Onboarding completed; Career continuation ${run.id} is recorded.`,
       userId: args.userId,
-    }),
-    sendInitialSearchStartedEmail({
-      admin: args.admin,
-      conversationId: args.conversationId,
-      opportunityRunId: run.id,
-      userId: args.userId,
-    }).catch((error) => {
-      console.error(
-        "[opportunity-discovery] Failed to send initial search receipt",
-        {
-          error: error instanceof Error ? error.message : String(error),
-          runId: run.id,
-          userId: args.userId,
-        }
-      );
-      return null;
     }),
   ]);
 
@@ -530,7 +479,7 @@ export function serializeOpportunityRun(
   run: OpportunityRunRow | null
 ): SerializedOpportunityRun | null {
   if (!run) return null;
-  const active = run.status === "queued" || run.status === "running";
+  const active = ["queued", "running", "handed_off"].includes(run.status);
   const triggerPayload = getRecord(run.trigger_payload) ?? {};
   const request = getRecord(triggerPayload.request);
   const safeCoverage = getSafeOpportunityRunCoverage(run.coverage);
@@ -539,7 +488,7 @@ export function serializeOpportunityRun(
   const locksConversationInput =
     typeof triggerPayload.locksConversationInput === "boolean"
       ? triggerPayload.locksConversationInput
-      : true;
+      : triggerPayload.runContract !== "career_agent_v1";
   const inputLocked = isOnDemand
     ? active && locksConversationInput
     : active && locksConversationInput && !isOpportunityRunLockExpired(run);
@@ -569,7 +518,7 @@ export function serializeOpportunityRun(
     safeCoverage.searchTerminal === true ||
     run.status === "completed" ||
     run.status === "partial" ||
-    run.status === "failed";
+    run.status === "failed" || run.status === "cancelled";
 
   return {
     active,
@@ -637,7 +586,7 @@ export async function fetchActiveOpportunityRunsForConversation(args: {
     .select("*")
     .eq("talent_id", args.userId)
     .eq("conversation_id", args.conversationId)
-    .in("status", ["queued", "running"])
+    .in("status", ["queued", "running", "handed_off"])
     .order("created_at", { ascending: false }) as any);
 
   if (error) {
@@ -714,33 +663,30 @@ export async function createOpportunityDiscoveryRun(
     userId: args.talentId,
   });
 
-  const requestedAgentVariant = readOpportunityAgentVariant(
-    args.triggerPayload
-  );
+  const originalPayload = args.triggerPayload ?? {};
+  const manual = getRecord(originalPayload.manualInternalRecommendation);
   const triggerPayload = {
-    ...(args.triggerPayload ?? {}),
-    opportunityAgentVariant:
-      requestedAgentVariant ?? DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT,
+    ...originalPayload,
+    runContract: "career_agent_v1",
+    locksConversationInput: false,
+    instruction: typeof originalPayload.instruction === "string" ? originalPayload.instruction
+      : manual ? `An authorized Harper operator requested review of internal role ${manual.roleId}. Operator context: ${manual.reason ?? "none"}. Assess and save a useful opportunity through the shared tools. This is not candidate consent for company sharing.`
+      : "Review the candidate's current Career context and choose useful next work through the general tools. No recommendation quota or fixed interval is requested.",
   };
-  const recommendationBatchSizeForRun =
-    args.targetRecommendationCount ?? settings.recommendationBatchSize;
-
   const payload = {
     conversation_id: args.conversationId ?? null,
     run_mode: args.runMode ?? triggerToRunMode(args.trigger),
     settings_snapshot: {
       getExternalRecommendation: settings.getExternalRecommendation,
       profileVisibility: settings.profileVisibility,
-      recommendationBatchSize: recommendationBatchSizeForRun,
+      recommendationBatchSize: settings.recommendationBatchSize,
     },
     status: args.initialStatus ?? "queued",
     ...(args.initialStatus === "running"
       ? { started_at: new Date().toISOString() }
       : {}),
     talent_id: args.talentId,
-    ...(args.targetRecommendationCount !== undefined
-      ? { target_recommendation_count: args.targetRecommendationCount }
-      : {}),
+    target_recommendation_count: 0,
     trigger: args.trigger,
     trigger_payload: triggerPayload,
   };

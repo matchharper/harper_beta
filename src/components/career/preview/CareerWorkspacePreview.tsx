@@ -745,6 +745,7 @@ const CareerWorkspacePreview = ({
   viewport = "auto",
 }: CareerWorkspacePreviewProps) => {
   const router = useRouter();
+  const [previewNow] = useState(Date.now);
   const t = useCareerT();
   const previewConversationTurns = useMemo(
     () => (initialOnboardingDone ? getPreviewConversationTurns(t) : []),
@@ -763,6 +764,34 @@ const CareerWorkspacePreview = ({
   const initialHistoryOpportunities = useMemo(() => {
     if (initialOpportunities) return initialOpportunities;
     const items = getInitialHistoryOpportunities(t);
+    if (router.query.opportunityViews === "1") {
+      const base = items.find((item) => item.sourceType === "external")!;
+      const now = previewNow;
+      const day = 86_400_000;
+      // Local UI fixtures only. No roles or applications are written to a database.
+      const examples = [
+        ["Amazon", "Senior UI/UX Designer", "amazon.svg", "서울", "onsite"],
+        ["Google", "Graphic Designer", "google.svg", "서울", "hybrid"],
+        ["Microsoft", "Senior Motion Designer", "microsoft.svg", "부산", "remote"],
+        ["NVIDIA", "프로덕트 엔지니어 · AI 플랫폼", "nvidia.svg", "서울", "hybrid"],
+        ["Google", "Senior Backend Engineer, Developer Experience", "google.svg", "도쿄", "remote"],
+        ["Amazon", "Founding Product Engineer", "amazon.svg", "샌프란시스코", "onsite"],
+      ].map(([companyName, title, logo, location, workMode], index) => ({
+        ...base, id: `preview-saved-view-${index}`, roleId: `10000000-0000-4000-8000-00000000000${index}`,
+        companyName, title, location, workMode, companyLogoUrl: `/images/logos/${logo}`,
+        employmentTypes: [index % 2 ? "full_time" : "contract"],
+        feedback: "positive" as const, savedStage: "saved" as const,
+        postedAt: new Date(now - (index + 2) * day).toISOString(),
+        expiresAt: new Date(now + (index === 5 ? -1 : index === 0 ? 3 : index === 2 ? 9 : 25) * day).toISOString(),
+      }));
+      return [...examples, ...examples.slice(0, 3).map((item, index) => ({
+        ...item, id: `preview-progress-view-${index}`, roleId: `20000000-0000-4000-8000-00000000000${index}`,
+        savedStage: index === 2 ? "applied" as const : "connected" as const,
+        listPosition: index === 1 ? "current" as const : "previous" as const,
+        upcomingMeeting: index === 2 ? null : { title: index === 0 ? "팀 인터뷰" : "채용 담당자 미팅", startAt: new Date(now + (index + 1) * day).toISOString(), endAt: new Date(now + (index + 1) * day + 3_600_000).toISOString() },
+        talentMemo: index === 0 ? "최근 프로젝트에서 맡은 역할과 제품 개선 사례를 정리해 두기." : null,
+      }))];
+    }
     if (taskFeedbackExamples) {
       const external = items.find((item) => item.sourceType === "external" && item.feedback === null);
       if (external) {
@@ -809,7 +838,7 @@ const CareerWorkspacePreview = ({
         },
       })),
     ];
-  }, [initialOpportunities, t, taskFeedbackExamples]);
+  }, [initialOpportunities, t, taskFeedbackExamples, router.query.opportunityViews, previewNow]);
   const initialTalentInsights = useMemo(() => getInitialTalentInsights(t), [t]);
   const initialTalentProfile = useMemo(() => getInitialTalentProfile(t), [t]);
   const previewPendingActionSeeds = useMemo(
@@ -1121,6 +1150,7 @@ const CareerWorkspacePreview = ({
       historyUpdateError: "",
       onLoadMoreHistoryOpportunities: () => undefined,
       isHistoryOpportunityPageFilterLoading: () => false,
+      getHistoryOpportunityPageFilterState: () => ({ loading: false, nextOffset: null }),
       onLoadSavedStageHistoryOpportunityPages: () => undefined,
       onLoadHistoryOpportunityByRoleId: (roleId) =>
         historyOpportunities.find((item) => item.roleId === roleId) ?? null,
@@ -1567,6 +1597,7 @@ const CareerWorkspacePreview = ({
           id: Date.now(),
           role: "user",
           content: text,
+          opportunityMentions,
           messageType: "chat",
           createdAt: new Date().toISOString(),
         };

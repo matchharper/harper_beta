@@ -1,4 +1,10 @@
+import { CareerSuggestionHistory } from "./CareerSuggestionComposer";
 import { ApplicationReviewEntry } from "./ApplicationReviewPanel";
+import { CareerFormCard } from "./CareerFormCard";
+import { GmailIntegrationAction } from "./GmailIntegrationAction";
+import { extractGmailIntegrationMarker } from "@/lib/career/forms/integrationMarker";
+import { BrowserSessionLink } from "../BrowserSessionDock";
+import { extractBrowserMarkers } from "@/lib/career/browser/marker";
 import { InternalCallWriteButton, useInternalCallAnswers } from "./InternalCallAnswers";
 import { ApplicationSimulationCard } from "./elements/ApplicationSimulationCard";
 import CareerCallProposalCard from "./CareerCallProposalCard";
@@ -24,6 +30,7 @@ import type {
   CareerMessage,
 } from "@/components/career/types";
 import { TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE } from "@/lib/career/opportunityFeedbackNote";
+import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
 import { stripStandalonePostingLinksFromText } from "@/lib/career/postingLinks";
 import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildChatTypewriterChunks } from "@/lib/chat/typewriter";
@@ -35,6 +42,7 @@ import {
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { ChatMessageAttachmentList } from "@/components/chat/ChatMessageAttachmentList";
 import { cn } from "@/lib/utils";
+import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import {
   careerTimelineAssistantRichTextClassName,
   careerTimelineFeedbackNoteTextClassName,
@@ -45,7 +53,6 @@ import { formatCareerMessageByKey } from "@/i18n/careerMessage";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
-  CHAT_ASSISTANT_BUBBLE_CLASS,
   CHAT_USER_BUBBLE_CLASS,
   ChatAssistantContent,
   ChatAssistantPending,
@@ -58,11 +65,6 @@ import {
   type CareerReengagementAction,
 } from "@/lib/career/reengagementActions";
 import Image from "next/image";
-
-// User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
-export const USER_BUBBLE_CLASS = CHAT_USER_BUBBLE_CLASS;
-
-export const ASSISTANT_BUBBLE_CLASS = CHAT_ASSISTANT_BUBBLE_CLASS;
 
 export const CAREER_MESSAGE_LINK_CLASS =
   "inline-flex max-w-full cursor-pointer items-center align-baseline leading-5 text-left text-action no-underline wrap-break-word transition-colors hover:underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
@@ -349,6 +351,46 @@ function renderHighlightedContent(
     : renderTextWithLinks(content, "full", onHarperLinkClick);
 }
 
+function renderUserContent(
+  content: string,
+  mentions: CareerOpportunityMention[],
+  onHarperLinkClick: (href: string) => void
+): ReactNode {
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+  while (cursor < content.length) {
+    let selected: CareerOpportunityMention | undefined;
+    let start = content.length;
+    for (const mention of mentions) {
+      if (!mention.label) continue;
+      const index = content.indexOf(mention.label, cursor);
+      if (index < 0) continue;
+      if (
+        index < start ||
+        (index === start && mention.label.length > (selected?.label.length ?? 0))
+      ) {
+        selected = mention;
+        start = index;
+      }
+    }
+    if (start > cursor) {
+      nodes.push(
+        <React.Fragment key={`text-${cursor}`}>
+          {renderHighlightedContent(content.slice(cursor, start), onHarperLinkClick)}
+        </React.Fragment>
+      );
+    }
+    if (!selected) break;
+    nodes.push(
+      <span key={`mention-${start}`} className="text-action">
+        {selected.label}
+      </span>
+    );
+    cursor = start + selected.label.length;
+  }
+  return nodes;
+}
+
 function AnimatedAssistantTypingContent({ content }: { content: string }) {
   const chunks = React.useMemo(
     () => buildChatTypewriterChunks(content),
@@ -383,6 +425,9 @@ const CareerMessageBubble = ({
   onStartCallMode,
 }: Props) => {
   const t = useCareerT();
+  const useAssistantBubble = useCareerWorkspaceUiStore(
+    (state) => !isUser && state.assistantBubbleStyle === "bubble"
+  );
   const callActionOpeningText = t(
     "career.chat.career_message_bubble.0jnmgxp",
     "좋아요. 최근 업데이트나 요즘 재밌게 하고 계신 일부터 편하게 들려주세요."
@@ -418,9 +463,15 @@ const CareerMessageBubble = ({
   const reengagementActionExtraction = !isUser
     ? extractCareerReengagementActions(choiceBlockExtraction.content)
     : { actions: [], content: choiceBlockExtraction.content };
+  const integrationExtraction = !isUser
+    ? extractGmailIntegrationMarker(reengagementActionExtraction.content)
+    : { content: reengagementActionExtraction.content, showGmailIntegration: false };
+  const browserExtraction = !isUser
+    ? extractBrowserMarkers(integrationExtraction.content)
+    : { content: integrationExtraction.content, sessionIds: [] };
   const displayContent = !isUser
-    ? stripOpportunityRunMarkers(reengagementActionExtraction.content)
-    : reengagementActionExtraction.content;
+    ? stripOpportunityRunMarkers(browserExtraction.content)
+    : browserExtraction.content;
   const assistantChoices = choiceBlockExtraction.choices;
   const reengagementActions = reengagementActionExtraction.actions;
   const internalCallRequestMarkers = internalCallRequestExtraction.markers;
@@ -452,9 +503,16 @@ const CareerMessageBubble = ({
         animateEntrance={isUser && String(message.id).startsWith("temp-user-")}
         active={isAssistantSpeaking}
         className={cn(
-          isUser
+          useAssistantBubble && [
+            CHAT_USER_BUBBLE_CLASS,
+            "ml-0 self-start rounded-br-[16px] rounded-bl-sm bg-black/3 text-black px-4 py-3",
+          ],
+          isUser || useAssistantBubble
             ? "max-w-[min(700px,92%)]"
             : "max-w-[min(700px,100%)] md:max-w-[min(700px,94%)]",
+          !isUser && !useAssistantBubble && !isOpportunityFeedbackNote &&
+            "max-md:rounded-[16px] max-md:rounded-bl-sm max-md:bg-[rgba(245,245,245,1)] max-md:px-3 max-md:py-1.5",
+          !isUser && (message.browserSession || message.careerForm) && "w-full",
           isOpportunityFeedbackNote
             ? cn(
                 "ml-auto px-1 py-0 text-right text-neutral-soft",
@@ -496,7 +554,11 @@ const CareerMessageBubble = ({
       >
         {isUser ? (
           <div className="whitespace-pre-wrap wrap-break-word">
-            {renderHighlightedContent(displayContent, handleHarperLinkClick)}
+            {renderUserContent(
+              displayContent,
+              message.opportunityMentions ?? [],
+              handleHarperLinkClick
+            )}
           </div>
         ) : message.typing && !assistantContent.trim() ? (
           <ChatAssistantPending
@@ -522,6 +584,9 @@ const CareerMessageBubble = ({
             )}
           </>
         )}
+        {!isUser && !message.typing && message.careerForm ? message.careerForm.kind === "suggestion" ? <CareerSuggestionHistory form={message.careerForm} /> : <CareerFormCard form={message.careerForm} /> : null}
+        {!isUser && browserExtraction.sessionIds.map((id) => <BrowserSessionLink key={id} sessionId={id} />)}
+        {!isUser && !message.typing && integrationExtraction.showGmailIntegration ? <GmailIntegrationAction /> : null}
         {!isUser && !message.typing && message.applicationReviewMessageId && (
           <ApplicationReviewEntry messageId={message.applicationReviewMessageId} inline />
         )}

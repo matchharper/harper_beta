@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useState } from "react";
+import { MuteButton } from "@/components/ui/button";
 import CareerMobileShell from "../CareerMobileShell";
 import CareerMobileTopBar, {
   type CareerMobileTopBarOption,
@@ -17,7 +18,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
 import {
   getCareerOpportunityManagementStatus,
-  getCareerOpportunityManagementStatusOptions,
+  getMyOpportunityTabs,
   type CareerOpportunityManagementStatus,
 } from "@/components/career/history/savedOpportunityStatus";
 import { CareerMobileJobsList } from "@/components/career/mobile/jobs/CareerMobileJobsList";
@@ -28,6 +29,7 @@ import type {
 } from "@/components/career/mobile/jobs/types";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import CareerJobLinkImportButton from "@/components/career/history/CareerJobLinkImportButton";
+import { SavedOpportunityViewPicker } from "@/components/career/history/SavedOpportunityViews";
 
 type CareerMobileJobsViewProps = {
   onChangeWorkspaceTab: (tab: CareerWorkspaceTab) => void;
@@ -156,24 +158,20 @@ export default function CareerMobileJobsView({
     [onChangeTopBarOption, onChangeWorkspaceTab, setTab, tab]
   );
 
-  const statusTabItems: TabBoxItem<JobsStatusTab>[] =
-    getCareerOpportunityManagementStatusOptions(t, {
-      hiddenLabel: t(
-        "career.history.saved_opportunity_status.0exoa8f",
-        "보관함"
+  const statusTabItems: TabBoxItem<JobsStatusTab>[] = [
+    ...getMyOpportunityTabs(t),
+    {
+      id: "archived" as const,
+      label: t(
+        "career.history.saved_opportunity_status.archived",
+        "숨긴 포지션"
       ),
-      includeArchived: true,
-    }).map((option) => ({
-      label: (
-        <>
-          {option.label}
-          <span className="ml-1.5 text-[10px] font-medium tabular-nums opacity-70">
-            {statusCounts[option.id]}
-          </span>
-        </>
-      ),
-      value: option.id,
-    }));
+    },
+  ].map((option) => ({
+    label: option.label,
+    count: statusCounts[option.id],
+    value: option.id,
+  }));
 
   return (
     <CareerMobileShell
@@ -197,17 +195,19 @@ export default function CareerMobileJobsView({
       <div className="relative flex flex-1 flex-col">
         {!isInboxTab ? (
           <div className="sticky top-0 z-20 flex flex-col bg-transparent">
-            <div className="bg-bg-default px-3 py-2">
+            <div className="from-bg-default from-50% to-bg-white/0 px-3 py-3">
               <TabBoxes
                 activeValue={tab}
                 items={statusTabItems}
                 onValueChange={setTab}
-                size="xs"
+                size="lg"
+                variant="neutral"
                 className="[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               />
             </div>
-            {!detailOpportunity ? (
-              <div className="flex justify-end bg-transparent px-3 py-2">
+            {!detailOpportunity && tab === "saved" ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-transparent px-3 py-2">
+                <SavedOpportunityViewPicker />
                 <CareerJobLinkImportButton />
               </div>
             ) : null}
@@ -275,20 +275,44 @@ export default function CareerMobileJobsView({
               />
             </div>
           ) : (
-            <CareerMobileJobsList
-              activeTab={tab}
-              hasMore={hasMoreOpportunities}
-              isLoading={isLoading}
-              onLoadMore={onLoadMoreOpportunities}
-              onOpenCompanyInfo={onOpenCompanyInfo}
-              onOpenDetail={onOpenDetail}
-              onOpenOpportunityInfo={onOpenOpportunityInfo}
-              onInternalDecisionAction={onInternalDecisionAction}
-              onStatusChange={onStatusChange}
-              opportunities={opportunities}
-              pendingOpportunityIds={pendingOpportunityIds}
-              bottomReservePx={bottomReservePx}
-            />
+            <>
+              {error && (
+                <div
+                  role="alert"
+                  className="mx-3 my-3 flex flex-wrap items-center justify-between gap-2 text-[13px] text-critical"
+                >
+                  <span>{error}</span>
+                  {opportunities.length === 0 && (
+                    <MuteButton
+                      size="sm"
+                      disabled={isLoading}
+                      onClick={onLoadMoreOpportunities}
+                    >
+                      {t("career.tasks.retry", "다시 불러오기")}
+                    </MuteButton>
+                  )}
+                </div>
+              )}
+              {(!error || opportunities.length > 0) && (
+                <CareerMobileJobsList
+                  onApply={(item) =>
+                    item.isInternal ? onPositive(item) : onApply(item)
+                  }
+                  activeTab={tab}
+                  hasMore={hasMoreOpportunities}
+                  isLoading={isLoading}
+                  onLoadMore={onLoadMoreOpportunities}
+                  onOpenCompanyInfo={onOpenCompanyInfo}
+                  onOpenDetail={onOpenDetail}
+                  onOpenOpportunityInfo={onOpenOpportunityInfo}
+                  onInternalDecisionAction={onInternalDecisionAction}
+                  onStatusChange={onStatusChange}
+                  opportunities={opportunities}
+                  pendingOpportunityIds={pendingOpportunityIds}
+                  bottomReservePx={bottomReservePx}
+                />
+              )}
+            </>
           )}
         </div>
       </div>

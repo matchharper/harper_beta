@@ -1,13 +1,17 @@
 import { useEffect, useState, type SetStateAction } from "react";
 
-type Values = Record<string, string>;
-function read(key: string): Values {
+type Values<T> = Record<string, T>;
+const isString = (value: unknown): value is string => typeof value === "string";
+function read<T>(
+  key: string,
+  isValue: (value: unknown) => value is T
+): Values<T> {
   try {
     const value = JSON.parse(sessionStorage.getItem(key) ?? "null");
     return value &&
       typeof value === "object" &&
       !Array.isArray(value) &&
-      Object.values(value).every((entry) => typeof entry === "string")
+      Object.values(value).every(isValue)
       ? value
       : {};
   } catch {
@@ -17,9 +21,17 @@ function read(key: string): Values {
 
 // Unsubmitted text survives closing mobile chat or switching layouts. Scope it
 // to the exact activity/batch; it never becomes an answer without submission.
-export function useApplicationComposerDraft(key: string) {
-  const [stored, setStored] = useState(() => ({ key, values: read(key) }));
-  if (stored.key !== key) setStored({ key, values: read(key) });
+export function useApplicationComposerDraft<T = string>(
+  key: string,
+  isValue: (value: unknown) => value is T = isString as (
+    value: unknown
+  ) => value is T
+) {
+  const [stored, setStored] = useState(() => ({
+    key,
+    values: read(key, isValue),
+  }));
+  if (stored.key !== key) setStored({ key, values: read(key, isValue) });
   useEffect(() => {
     if (stored.key !== key) return;
     try {
@@ -30,9 +42,10 @@ export function useApplicationComposerDraft(key: string) {
       /* In-memory drafts still work when storage is unavailable. */
     }
   }, [key, stored]);
-  const setValues = (next: SetStateAction<Values>) =>
+  const setValues = (next: SetStateAction<Values<T>>) =>
     setStored((previous) => {
-      const current = previous.key === key ? previous.values : read(key);
+      const current =
+        previous.key === key ? previous.values : read(key, isValue);
       return { key, values: typeof next === "function" ? next(current) : next };
     });
   const clear = () => {

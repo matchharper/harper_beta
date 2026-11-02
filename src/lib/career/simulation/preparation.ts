@@ -49,6 +49,13 @@ export const preparationSchema = z.object({
   inputRevision: z.number().int(),
   preparedInputRevision: z.number().int().optional(),
   preparedResumeChangesFingerprint: z.string().optional(),
+  resumeDelivery: z.object({ documentId: z.string(), fingerprint: z.string(), messageId: z.number() }).optional(),
+  applicationFollowUp: z.object({
+    id: z.string(),
+    status: z.string(),
+    startedAt: z.string().optional(),
+    messageId: z.number().optional(),
+  }).optional(),
   generation: z.object({
     status: z.enum(["idle", "running", "failed", "ready"]),
     runId: z.string().nullable(),
@@ -109,6 +116,7 @@ export function createPreparation(): Preparation {
 }
 type Item = {
   id: string;
+  documentPurpose?: "final_resume" | "supporting";
   inputKind?: "change" | "question" | "material" | "choice";
   draftText?: string;
   edits?: {target:string;originalText:string;suggestedText:string}[];
@@ -172,7 +180,10 @@ export function respondToPreparation(
   next.responses[id] = response;
   next.inputRevision++;
   next.approvedVersion = null;
-  next.finalDocumentId = null;
+  if (preparationKind(item) === "change" || item.documentPurpose === "final_resume") {
+    next.finalDocumentId = null;
+    next.finalDocumentFingerprint = null;
+  }
   next.currentItemId = items.find((i) => !next.responses[i.id])?.id ?? id;
   return next;
 }

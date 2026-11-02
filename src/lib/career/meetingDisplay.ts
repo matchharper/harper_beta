@@ -50,15 +50,20 @@ function dateTimeParts(value: string, locale: CareerMeetingDisplayLocale) {
 }
 
 export function formatCareerMeetingDateTimeRange(args: {
-  endAt: string;
+  endAt: string | null;
   locale: CareerMeetingDisplayLocale;
   startAt: string;
 }) {
   const start = dateTimeParts(args.startAt, args.locale);
-  const end = dateTimeParts(args.endAt, args.locale);
-  if (!start || !end) return null;
+  if (!start) return null;
+  const end = args.endAt ? dateTimeParts(args.endAt, args.locale) : null;
+  if (!end) return `${start.dateText} ${start.timeText} KST`;
 
-  return `${start.dateText} ${start.timeText}–${end.timeText} KST`;
+  const endText =
+    start.dateText === end.dateText
+      ? end.timeText
+      : `${end.dateText} ${end.timeText}`;
+  return `${start.dateText} ${start.timeText}–${endText} KST`;
 }
 
 export function formatCareerActivityRelativeTime(

@@ -11,6 +11,7 @@ import { normalizeCareerUtmSource } from "@/lib/career/utm";
 import {
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+  OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM,
   OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
 } from "@/lib/officialJobs";
 import {
@@ -171,6 +172,11 @@ export const useCareerAuth = () => {
       nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM) ||
       ""
     ).trim();
+    const officialJobRoleId = (
+      currentUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM) ||
+      nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM) ||
+      ""
+    ).trim();
     const emailOnboardingToken =
       currentUrl.searchParams.get(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM) ||
       nextUrl.searchParams.get(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM);
@@ -226,6 +232,12 @@ export const useCareerAuth = () => {
         emailOnboardingToken
       );
     }
+    if (source === OFFICIAL_JOBS_LANDING_SOURCE && officialJobRoleId) {
+      nextUrl.searchParams.set(
+        OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM,
+        officialJobRoleId
+      );
+    }
 
     const callbackUrl = new URL("/auths/callback", window.location.origin);
     callbackUrl.searchParams.set("flow", "talent_capture");
@@ -265,6 +277,12 @@ export const useCareerAuth = () => {
       callbackUrl.searchParams.set(
         OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
         officialJobSlug
+      );
+    }
+    if (source === OFFICIAL_JOBS_LANDING_SOURCE && officialJobRoleId) {
+      callbackUrl.searchParams.set(
+        OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM,
+        officialJobRoleId
       );
     }
     if (emailOnboardingToken) {

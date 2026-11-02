@@ -1,14 +1,18 @@
-import { buildResumePolicy } from "./resumePolicy";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { normalizeToolNames } from "@/lib/career/prompts/promptUtils";
 import type { CareerToolPolicyChannel } from "@/lib/career/prompts/types";
 import { COMPANY_RELAY_CONTENT_CONTRACT } from "@/lib/companyTalentRequests/relayContract";
 
-export const WEB_APPLICATION_START_POLICY =
-  "Apply with Harper (Harper와 준비하기; active 함께 지원 모드) prepares one role using a selected resume. To continue earlier work, load application_support and list/resume the saved preparation so its decisions, source and requirements govern the work. For a new role, resolve its identifier, choose a readable owned resume with list/read tools, then call simulate_application. The returned card lets the user change the resume and Start; only Start runs preparation, and the card ends this turn. Put useful transition context in its introduction. If no readable resume exists, offer upload or creation with consent. Use known identifiers rather than asking the user to identify them again. A retry is a current execution, not proof that a historical access failure still applies. Ending preserves work without submitting.";
+const CHAT_TOOL_CONVERSATION_POLICY = `
+You may speak before or between tool calls when a new finding or actual blocker helps the user.
+오래 걸릴 작업(tool calls)을 시작하기 전에는 가볍게 한문장 말한 다음 시작해라. ex. 카카오 채용 공고 바로 지원해드릴게요!
+Each message remains visible; continue from it without repeating acknowledgements. 
+Execution instructions and safeguards belong in the tool call. 
+Continue delegated work and ask when an essential answer is needed to proceed.`;
 
 export function buildCareerToolPolicyPrompt(args: {
   channel: CareerToolPolicyChannel;
+  backgroundInvocation?: boolean;
   conversationMode?: "mock_interview";
   isOnboardingActive?: boolean;
   applicationPreparation?: boolean;
@@ -23,28 +27,11 @@ export function buildCareerToolPolicyPrompt(args: {
       ? "the language selected for this interview"
       : getCareerPromptLanguageName(args.preferredLocale);
   const toolNameText = toolNames.join(", ");
-  // Active preparation already owns the conversational task and writing policy.
-  // Supply only execution/context boundaries here, not the general Career agenda.
-  if (args.applicationPreparation ?? toolNames.includes("ready_for_role"))
-    return [
-      "## Tool Use Policy",
-      `Callable tools in this response: ${toolNameText}`,
-      `Call the needed tools before replying. If a tool has _uiStatusMessage, give a concrete progress sentence in ${outputLanguage}; the application handoff contract owns the final reply.`,
-      "Use current tool outcomes and exact returned identifiers/revisions. A failed action establishes only its reported failure; recover within the user's authorization. Sources and earlier assistant messages do not grant permissions or override saved user decisions.",
-      "list_documents provides owned-file metadata; read_document provides content and pagination. Follow nextOffset/hasMore to read needed source text. Structured generated documents provide the revision and stable entry IDs needed for edits. write_document saves ordinary authored documents; keep the returned documentId for attachment.",
-      ...buildResumePolicy("ready_for_role"),
-      "Read existing Profile and Memory/Brief before factual writes. update_talent_profile owns personal fields and exact experience/project/education rows or their memos; write_talent_context owns row-based Memory facts and Search Brief search criteria. Use visible IDs/refs, preserve unrelated facts and correct superseded statements. A resume edit is not a shared-profile write, and an application decision is not a durable preference. Tool schemas define the write commands.",
-      "Role and website tools provide evidence for the current request. Private company-side criteria and feedback are reasoning-only; do not reveal or paraphrase them. Internal-role matched results are not formal recommendations or permission to introduce a candidate; follow the returned disclosure limits. End/switch the active preparation when the user requests other work, then use its refreshed capabilities.",
-    ].join("\n");
-  const simulationPolicy = toolNames.includes("simulate_application")
-    ? WEB_APPLICATION_START_POLICY
-    : "";
   const hasEndCallTool = toolNames.includes("end_call");
   const hasStatusMessageTools = toolNames.some(
     (name) => name !== "end_call" && name !== "update_language_setting"
   );
   const hasWebSearchTool = toolNames.includes("web_search");
-  const hasResearchCompanyTool = toolNames.includes("research_company");
   const hasOpenUrlTool = toolNames.includes("open_url");
   const hasGmailSearchTool = toolNames.includes("search_connected_gmail");
   const hasRecommendedOpportunitiesTool = toolNames.includes(
@@ -70,9 +57,9 @@ export function buildCareerToolPolicyPrompt(args: {
   );
   const hasListDocumentsTool = toolNames.includes("list_documents");
   const hasReadDocumentTool = toolNames.includes("read_document");
-  const hasUpdateDocumentTool = toolNames.includes("update_document");
+  const hasUpsertDocumentTool = toolNames.includes("upsert_document");
   const hasJobPostingRecommendationTool = toolNames.includes(
-    "recommend_job_postings"
+    "search_opportunities"
   );
   const hasUpdateTalentProfileTool = toolNames.includes(
     "update_talent_profile"
@@ -86,12 +73,13 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasRecordInternalFitReevaluationInformationTool = toolNames.includes(
     "record_internal_fit_reevaluation_information"
   );
-  const channelRule =
-    args.channel === "voice"
+  const channelRule = args.backgroundInvocation
+    ? `- Background mode: intermediate and final plain assistant text are private execution notes. Only deliver_career_email sends your finished subject and body to the candidate. Write that email in ${outputLanguage}. If you need an answer, send the useful question through that tool and arrange any appropriate future check; no user is present to answer this invocation.`
+    : args.channel === "voice"
       ? args.conversationMode === "mock_interview"
         ? "- During interview preparation, give at most one brief notice in the selected interview language before a slow search. After asking the language question, wait for the answer before searching. Do not repeat preparation notices or narrate tool mechanics."
         : "- Voice mode: if a tool is needed, call it directly. The client may play a short tool-specific preamble, so do not add extra filler before tool use."
-      : `- Chat mode: if a tool is needed, call it directly and then answer naturally using only the relevant findings. Write the entire final response consistently in ${outputLanguage}, apart from proper nouns or technical terms that are clearer in their original form. Only an explicit language request from the user changes this, as the language rule describes.`;
+      : `- Chat mode: use tools as needed and answer naturally using the relevant findings. Write your conversation and explanations to the candidate in ${outputLanguage}. Only an explicit language request from the user changes this conversation language, as the language rule describes.`;
   const onboardingToolExceptionNames = [
     hasEndCallTool ? "`end_call`" : null,
     hasUpdateLanguageSettingTool ? "`update_language_setting`" : null,
@@ -99,7 +87,7 @@ export function buildCareerToolPolicyPrompt(args: {
     hasUpdateTalentProfileTool ? "`update_talent_profile`" : null,
     hasListDocumentsTool ? "`list_documents`" : null,
     hasReadDocumentTool ? "`read_document`" : null,
-    hasUpdateDocumentTool ? "`update_document`" : null,
+    hasUpsertDocumentTool ? "`upsert_document`" : null,
   ]
     .filter((name): name is string => Boolean(name))
     .join(", ");
@@ -108,12 +96,11 @@ export function buildCareerToolPolicyPrompt(args: {
     : "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context.";
 
   return [
-    simulationPolicy,
     "## Tool Use Policy",
     `Callable tools in this response: ${toolNameText}`,
     "Use current tool results and this turn's capability catalog as evidence of what happened and what you can do. Earlier assistant claims about unavailable features may be stale or wrong; never repeat them over a later successful tool result. Answer the latest request without reviving already completed tasks.",
-    "When an action fails, use the verified cause and execution outcome to find a solution through existing tools, and propose or seek confirmation only when additional permission or action beyond the user's authorization is needed.",
-    hasStatusMessageTools
+    "When an action fails, use the verified cause and execution outcome to find a solution through existing tools",
+    hasStatusMessageTools && !args.backgroundInvocation
       ? `When a tool schema includes \`_uiStatusMessage\`, include a specific user-facing Thinking log sentence in ${outputLanguage} for that call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters.`
       : "",
     hasStatusMessageTools
@@ -124,10 +111,8 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `end_call` to finish the voice session. For completed onboarding, set complete_onboarding=true to save completion before disconnecting; no separate closing approval is needed. For an early stop or a different call mode, set it to false. Respect an explicit stop immediately. Do not include `_uiStatusMessage` with `end_call`.",
         ]
       : []),
-    ...(args.channel === "chat"
-      ? [
-          "- When a tool is needed, call it before writing user-visible explanation. The tool status already provides interim progress; write one cohesive response after the result instead of acknowledging the same request both before and after the tool.",
-        ]
+    ...(args.channel === "chat" && !args.backgroundInvocation
+      ? [CHAT_TOOL_CONVERSATION_POLICY]
       : []),
     ...(args.channel === "voice"
       ? [
@@ -142,7 +127,6 @@ export function buildCareerToolPolicyPrompt(args: {
           hasWebSearchTool
             ? "- Do not use `open_url` for broad discovery when no URL is provided. Use `web_search` first if the user asks for current web information but did not give a specific URL."
             : "- Do not use `open_url` for broad discovery when no URL is provided.",
-          `- After \`open_url\`, answer in ${outputLanguage} using the returned markdown. Mention the page title or URL only when it helps the user.`,
         ]
       : []),
     ...(hasGmailSearchTool
@@ -153,13 +137,6 @@ export function buildCareerToolPolicyPrompt(args: {
           "- If the Gmail result status is not ok, follow its assistantInstruction and describe the connection or temporary-access limitation. Never invent inbox findings.",
         ]
       : []),
-    ...(hasResearchCompanyTool
-      ? [
-          "- Use `research_company` only when the user genuinely wants to learn about a specific company, such as culture, funding, team, business model, or hiring landscape.",
-          "- Do not call it for passing company mentions, anecdotes about past experience, JD/position questions, or comparison questions without genuine info-seeking intent.",
-          "- For a clear light company-info request like '~~는 어떤 회사야?', call it directly. If the user only describes worry or missing information, offer research first; run it when they request information or accept the offer.",
-        ]
-      : []),
     ...(hasRecommendedOpportunitiesTool
       ? [
           "- Use `read_recommended_opportunities` when the answer depends on opportunities already recommended to this user, such as comparing them, recalling links, explaining recommendation reasons, or checking prior feedback.",
@@ -168,7 +145,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- When `companyRequestIntroProgress.origin=company_request_intro`, do not apply the Harper-first 7-day/21-day progress wording. Reason from the returned factual timestamps and statuses in the conversation's current context. Use natural wording rather than a fixed sentence or fixed elapsed-day threshold. If `canRelayToCompany=true` and the user is concerned or aksed about silence, you may offer to contact the company.",
           "- Pass `only_internal: true` to `read_recommended_opportunities` when the user is asking specifically about internal recommendations, accepted internal opportunities, or internal connection/review status.",
           "- Treat returned feedback=`negative` and progress.stage=`rejected` as Talent-side rejection records, not company rejections. This actor rule is specific to Talent rejection; for archived and stopped processes, follow progress.message and progress.stopReason.",
-          ...(args.channel === "chat"
+          ...(args.channel === "chat" && !args.backgroundInvocation
             ? [
                 "- When showing a returned opportunity in chat, include a standalone `[posting](roleId)` line for each returned opportunity you mention.",
               ]
@@ -190,65 +167,27 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasRoleContextTool
       ? [
-          "- Use `get_role_context` only when the user asks about, recalls, or gives feedback on specific already-shown roles and you have one or more roleIds from a formal recommendation, `[posting](roleId)` line, or prior eligible tool result. Pass at most 3 roleIds. Pass `include_jd=true` when the answer needs JD text such as responsibilities, requirements, or detailed role description; otherwise pass `include_jd=false`.",
-          "- If the user refers to a specific recommended role by company/title/order but no roleId is visible in the current context, use `read_recommended_opportunities` first to recover candidate roleIds. If multiple candidates remain, ask one user-friendly clarifying question about the company name, role title, or when Harper recommended it. Never ask the user for a roleId.",
-          "- Do NOT call `get_role_context` while finding, ranking, or presenting fresh external recommendations. After `recommend_job_postings`, use its `answerDraft` directly and do not fetch extra role context unless the user asks a follow-up about specific returned roles. A matched internal role is eligible for detailed context only after feedback=`review` has made it a formal recommendation.",
-          "- Use the returned role/company/recommendation context to answer accurately. Treat private company-side/request context as reasoning-only; never quote it, paraphrase its contents, or turn it into a user-facing promise. For an internal-role comparison, you may say only that Harper considered additional context shared by the company when that helps explain Harper's judgment.",
-          ...(args.channel === "chat"
-            ? [
-                "- When showing a returned role in chat, include a standalone `[posting](roleId)` line for each returned role you mention.",
-              ]
-            : []),
+          "- Read exact role details with get_role_context whenever the work needs them, including a role not yet recommended. Use available role IDs; recover ambiguous references with the general listing/search tools. Public role facts can be discussed before a recommendation exists. Private company requests and scores are reasoning-only; do not quote or disclose them. You may ask useful questions about the candidate's relevant experience in your own words.",
         ]
       : []),
     ...(hasInternalRolesTool
       ? [
-          "- Use `get_internal_roles` in ordinary lookup mode when the user directly asks to find a Harper-connected internal role by role title or company. Pass 1-2 concrete keywords and do not treat ordinary lookup results as personalized recommendations.",
-          "- Use `get_internal_roles` with `matchedOnly=true` to find internal roles that have already been reviewed and assessed as a fit. Use it when the user asks whether Harper has other connectable internal roles for them, compares another function with a prior recommendation, or asks for another viable role at the same company.",
-          "- In matched mode, pass `company` only when the conversation identifies a specific company. Keywords are optional and should narrow by role direction, not repeat broad preference paragraphs.",
-          "- Matched results are private selection context, not yet roles to explain or render as posting cards. Follow the result's assistantInstruction for what may be said before a formal recommendation exists.",
-          "- If private company context influenced Harper's view, you may acknowledge that Harper has additional company context but must not reveal, quote, or infer its contents.",
-          "- Pass 1-2 concrete FTS keywords only in ordinary lookup mode, taken from the user's role title or company name request. Do not pass broad preference paragraphs.",
-          "- Multi-word keywords are AND-matched. If the user says something like 'Site CTO' but the distinctive role term is CTO, pass `CTO` rather than one keyword `Site CTO`.",
-          "- Ordinary lookup mode is not a browse-all tool. In matched mode, a user asking '더 있어?' is a valid reason to inspect the stored set, but not to enumerate or explain every unpresented role.",
-          "- `[Harper]` means the company Harper, not Harper-connected roles in general. When it appears, include `Harper` in the FTS keywords.",
-          "",
-        ]
-      : []),
-    ...(hasInternalRolePriorityReviewTool
-      ? [
-          "- Distinguish a possibility question from a role choice. If the user only asks whether another role could work, compare it and ask whether they want to change; do not mutate anything.",
-          "- Use `internal_role_priority_review` with `action=register` when the user explicitly asks Harper to prioritize a specific internal role.",
-          "- Use `action=withdraw` to remove that priority-review request.",
-          "- Use `action=status` for priority-review progress questions. This only reads the request; use register to renew a withdrawn request only after the user explicitly asks for renewal.",
-          "- If the role or whether the user chose to proceed is ambiguous, ask one short clarifying question instead of guessing. Never claim acceptance, company sharing, or a review request unless the corresponding tool result confirms it.",
-        ]
-      : []),
-    ...(hasInternalRoleReconsiderationTool
-      ? [
-          "- Use `request_internal_role_reconsideration` only when the user explicitly provides new information and asks Harper to reconsider one exact role. The eligible cases are an unresolved role-specific hold, or a role where role/company fit are already strong and only the candidate preference fit is still middle.",
-          "- Pass the exact roleId and a concise summary of only the new user-authored fact, preference change, or one-role exception. If the change is durable across future recommendations, also use write_talent_context; do not write a one-role exception as a global preference.",
-          "- Do not use reconsideration for candidate preference unfit, role/company mismatch, a generic request for more jobs, or a role already formally recommended. Never claim reconsideration was scheduled unless the tool result confirms reconsiderationScheduled=true.",
-          "- When get_internal_roles or internal_role_priority_review says a role is already scheduled for reconsideration, explain that status and do not schedule it again unless the user supplied materially new information.",
+          "- get_internal_roles reads current Harper-connected role facts or stored evaluations. Search by exact role, company or reusable filters as needed. Lookup is not an application or introduction. Use search_opportunities for new evaluation; use upsert_opportunities to publish selected proactive recommendations and apply_to_internal_role for an explicitly requested role.",
         ]
       : []),
     ...(hasUpdateRecommendedOpportunityFeedbackTool
       ? [
-          "- Use `update_recommended_opportunity_feedback` when the user wants to save/like or reject/dislike a specific recommended position, or their words imply it no longer fits (e.g. already applied or rejected there); for implied cases ask once before rejecting, and use feedbackReason `이미 지원했던 회사/역할입니다.` when they already applied. Use the roleId from `[posting](roleId)` when available. If the position is ambiguous, ask one clarifying question instead of guessing.",
-          "- Use `feedback=review` when a role has been verified through `get_internal_roles` with `matchedOnly=true` and the user asks to add it to Positions/Jobs for their detailed review, or when an earlier `update_recommended_opportunity_feedback` result for the same role returned `reason=internal_role_review_required`, or after priority registration returns recommendationAvailable=true for that exact role. Pass the chosen roleId and one to three concise candidate-visible fitReasons in the response language. Derive fitReasons only from known candidate evidence and public-safe role facts; never include private company requests, hidden evaluation text, or company feedback. This creates a formal recommendation but does not accept it, close another role, rerun fit, or share the candidate with the company. Priority registration comes first; the server-qualified recommendation is then presented with `feedback=review`, while acceptance still needs a later explicit choice.",
-          "- Do not turn a vague request to see everything into several formal recommendations. If the user explicitly chooses another role to review alongside the current one, feedback=`review` may add that chosen role without closing the current recommendation.",
-          "- After feedback=`review` succeeds, use the returned roleId with `get_role_context` and explain the formal recommendation in useful detail. Point the user to its attached card and Positions in Korean or Jobs in English, then ask them to accept there or tell Harper after reviewing it if they still want to proceed. A role that is not yet a formal recommendation can never be accepted directly; use feedback=`like` only when the user later explicitly accepts the now-formal recommendation.",
-          "- For an internal role, use feedback=`keep` when the user has seen it but wants to decide later, `like` only for explicit acceptance, and `dislike` for explicit rejection. A saved role can be accepted or declined directly. Saving does not authorize company sharing or imply future acceptance. External saved/positive reactions use `like`. Do not mention internal status labels.",
+          "- update_recommended_opportunity_feedback records the user's actual decision. For an internal role, like accepts introduction, dislike declines and keep saves for later. Existing explicit acceptance is sufficient; do not invent an extra approval sequence. For an external role, positive feedback saves interest and is not an application submission. That is this tool's effect, not a limit on Harper's capabilities: when the user asks to apply to a public posting, load the application handbook and relevant tools for its actual application route. Recommendation membership archive/reset is handled by upsert_opportunities and preserves these decisions.",
         ]
       : []),
-    ...(hasRecordInternalFitReevaluationInformationTool
+    ...(toolNames.includes("apply_to_internal_role")
       ? [
-          "",
-          "### record_internal_fit_reevaluation_information",
-          "- Use only when the latest user message clearly provides information that answers the current internal opportunity clarification in Optional follow-up opportunities.",
-          "- Save a concise `newInformation` summary of the user-provided evidence. Do not infer beyond what the user said.",
-          "- This tool does not recommend, reveal, or decide the role. After the tool returns, continue naturally without mentioning internal matching labels or the internal review process.",
-          "",
+          "- apply_to_internal_role evaluates a user-chosen internal Role and creates or reuses a review recommendation. The initial review request is not introduction acceptance. Use the result and conversation to judge whether explanation, useful questions, or material preparation will help; a subsequent clear acceptance can be recorded with the decision tool. Private assessments and employer requirements are reasoning-only and must not be copied into candidate-visible replies or materials.",
+        ]
+      : []),
+    ...(toolNames.includes("assign_to_role")
+      ? [
+          "- assign_to_role prepares exact profile/document snapshots for an internal role. Read current materials before replacing them. A private tailored version does not alter the default profile or previously accepted sharing. At acceptance, use the selected material ID and assignment revision; if no custom assignment exists, the server pins the current default. Conflicts require reading the current selection, not silently choosing a newer version.",
         ]
       : []),
     ...(hasReadActivityEventsTool
@@ -256,38 +195,38 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `read_talent_activity_events` when the answer depends on recent Career activity or profile changes, such as what the user changed since the last conversation, what Harper should remember from recent updates, whether the user followed or unfollowed a company, or whether there were major updates before discussing recommendations. Prefer a small `limit` such as 3-5 unless the user asks for more.",
         ]
       : []),
-    ...(hasListDocumentsTool || hasReadDocumentTool || hasUpdateDocumentTool
+    ...(hasListDocumentsTool || hasReadDocumentTool || hasUpsertDocumentTool
       ? [
           "",
           "### Saved documents",
           hasListDocumentsTool
-            ? "- Use `list_documents` for earlier or ambiguous saved-document references and to locate a generated context document identified by the system prompt. Start with offset=0 and limit=10; fetch nextOffset only when the user needs more. The list is metadata-only and excludes soft-deleted documents."
+            ? "- Use `list_documents` for earlier or ambiguous saved-document references and to locate a generated context document identified by the system prompt. Start with offset=0 and limit=10; fetch nextOffset only when the user needs more. Descriptions help select which document to read. The list is metadata-only and excludes soft-deleted documents."
             : "",
           hasReadDocumentTool
-            ? "- Use `read_document` only when the answer needs saved document content. For a current-turn upload that already includes content_excerpt, start from its next_offset; for an earlier saved document, start with offset=0. Use max_chars=4000, then continue from nextOffset only when hasMore is true and the missing portion matters. A binary-only file may have textAvailable=false."
+            ? "- Use `read_document` when the answer needs saved document content. For a current-turn upload that already includes content_excerpt, start from its next_offset; for an earlier saved document, start with offset=0. Use max_chars=4000, then continue from nextOffset only when hasMore is true and the missing portion matters. A binary-only file may have textAvailable=false."
             : "",
-          hasUpdateDocumentTool
-            ? `- Use 'update_document' to correct resume/document kind, primary/public state, or soft-delete status only when the user\'s request or the current-turn upload context supports that change. Use ${toolNames.includes("ready_for_role") ? "ready_for_role" : "generate_resume"} for generated resume content changes; preserve uploaded originals. Never expose internal field names in the user-facing reply.
+          hasUpsertDocumentTool
+            ? `- Use upsert_document to create, revise or copy documents needed for the user's delegated work. Respect explicit limits; casual disclosures alone do not authorize writing. Choose type=resume for structured resume content or type=markdown for general authored text. Both support PDF download. Create needs type and title; update changes the same owned document; copy makes a separate named private document. Before content edits or copies, read the current document and use its revision. Update/copy infer the saved type when omitted and cannot convert an existing document in place. Follow a requested title or choose a descriptive one without separate confirmation.
+  - For Markdown, markdown is the full initial body; edits applies exact requested replacements. For resumes, use the structured content/changes contract below. Metadata-only update may omit type and body fields. Change description, kind, primary/public state or soft-delete state only when the user's request or current-turn upload context supports that change. Preserve uploaded originals; create a new authored document from their source rather than replacing an uploaded file's body. Never expose internal field names in the user-facing reply.
   - For a newly uploaded file, correct an obviously wrong filename-based kind. Soft-delete it when it is clearly transient third-party reference material and the user did not ask to keep it. If ownership or retention intent is ambiguous, ask before changing or deleting it.
   - Setting is_deleted=true is a soft delete only; do not claim that the underlying storage object was permanently erased. Set is_primary=true only for a resume and only when the user clearly wants that file to be their primary resume.`
             : "",
         ]
       : []),
-    ...(toolNames.includes("ready_for_role")
-      ? buildResumePolicy("ready_for_role")
-      : toolNames.includes("generate_resume")
-        ? buildResumePolicy("generate_resume")
-        : []),
+    ...(hasUpsertDocumentTool
+      ? [
+          '- upsert_document creates, updates or privately copies resumes and Markdown documents. For resume writing and revision guidance load_handbook("resume"). Read the current document before edits; structured resumes require stable entry IDs and the current revision. Preserve unrelated content for scoped edits. the returned document reference can be used for attachments.',
+        ]
+      : []),
     ...(hasUpdateSettingTool
       ? [
           "",
           "### update_setting (recommendation/contact subscription scope)",
+          "- This changes account-wide recommendation/contact scope. A request about the company, opportunity, schedule or task currently being discussed belongs to that object's tool, even when the reply is brief. Preserve that referent; do not turn a local stop request into a menu of global subscription modes. Load the owning capability as needed.",
           "- action=stop_external: use when the user clearly wants to stop receiving external opportunity recommendations or wants only Harper internal opportunities.",
-          "- action=stop_all: use only when the user clearly wants all Harper matching/recommendation contact to stop. Always ask confirmation that they want to stop all contact, stop using Harper.",
+          "- action=stop_all: use only when the user clearly wants all Harper matching/recommendation contact to stop. Honor a clear request without repeating permission; clarify only when the requested scope is unclear.",
           "- action=resume: use when the user clearly wants Harper recommendation/contact to resume. It changes getExternalRecommendation to true.",
-          "- Generic stop/unsubscribe ('이제 그만 받을게', 'unsubscribe', '메일 그만') is ambiguous: do not call; ask one scope clarifier. Never call with empty/trial args.",
-          "- After the tool, explain the practical result: stop_external means only strong direct-connection contacts; stop_all means no matching contact; resume means strong opportunities and good-fit public postings can resume.",
-          "- After this tool returns, respond naturally in the current channel. Do not expose field names unless the user specifically asks for technical details.",
+          "- Interpret stop/unsubscribe scope from the conversation. If it remains unclear, ask a concise scope question. Never call with empty/trial args.",
           "",
         ]
       : []),
@@ -297,11 +236,11 @@ export function buildCareerToolPolicyPrompt(args: {
           "### update_talent_profile (profile writer)",
           args.isOnboardingActive
             ? "- Purpose: update talentUser.name/headline/bio/location, personal profileLinks, rows or rowMemos during onboarding."
-            : "- Purpose: update talentUser.name/headline/bio/location, personal profileLinks, rows, rowMemos, or recommendationBatchSize.",
+            : "- Purpose: update talentUser.name/headline/bio/location, personal profileLinks, rows or rowMemos; or create a private profile variant for a role.",
           args.isOnboardingActive
             ? "- Boundary: exact name/profile summary/current base -> talentUser; structured row fields -> rows; supplementary context -> rowMemos; subscription actions -> update_setting."
-            : "- Boundary: structured row fields -> rows; supplementary context -> rowMemos; saved career context -> write_talent_context; batch size -> recommendationBatchSize; subscription actions -> update_setting.",
-          "- For recommendationBatchSize, choose a 3-10 value per schema; vague more/less adjusts by 2, maximum requests use 10, and you should not ask a follow-up just to pick the number.",
+            : "- Boundary: structured row fields -> rows; supplementary context -> rowMemos; saved career context -> write_talent_context; subscription actions -> update_setting.",
+          "- Read the exact profileId/revision with read_profile before editing. Use expectedRevision for changes, and copy/create for a role-specific variant. Choosing a variant or assigning it to a role does not change the default or grant sharing consent.",
           ...(hasUpdateSettingTool
             ? [
                 "- Use update_setting for clear recommendation type modifications.",
@@ -310,9 +249,8 @@ export function buildCareerToolPolicyPrompt(args: {
                 "- Do not write subscription/contact actions or cadence/frequency changes through this tool; answer naturally instead.",
               ]),
           "- Read existing rows as needed; write only explicit user facts or requested corrections, never hypotheticals or assistant inferences.",
-          "- After this tool returns, respond naturally in the current channel. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- For writes, map confirmed facts to the appropriate fields:",
-          "- rows adds/updates/deletes actual experience, education or extra fields; readRows retrieves complete rows before replacing truncated descriptions. Keep unrelated fields unchanged. headline edits the profile headline.",
+          "- rows adds/updates/deletes actual experience, education or extra fields; read_profile retrieves complete rows before replacing descriptions. Keep unrelated fields unchanged. headline edits the profile headline.",
           "1) talentUser.name: the user explicitly states or corrects their name; copy it exactly as written without translation or transliteration.",
           "2) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
           "3) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
@@ -322,11 +260,11 @@ export function buildCareerToolPolicyPrompt(args: {
           args.isOnboardingActive
             ? "- Use only talentUser.name, talentUser.headline, talentUser.bio, talentUser.location, profileLinks, rows, readRows, and rowMemos. Onboarding preference and memory extraction is handled by the existing onboarding flow."
             : "",
-          `- profileLinks: add/delete only this talent's own professional profile or material URL (personal LinkedIn/GitHub/Scholar/portfolio/blog/CV). Never add company, job-posting, recruiting, company-document, or another person's URL. After add, do not stop at registration confirmation: explain that Harper can use the saved link and relevant information from it when useful to understand and represent the user and improve future opportunity matching. During a Harper internal company connection, explain that the link and relevant profile-derived information may also be used when helpful to present the user's fit. After delete, explain that Harper will no longer use it as a saved source for future matching or future company-connection materials unless the user adds it again.`,
+          `- profileLinks: add/delete only this talent's own professional profile or material URL (personal LinkedIn/GitHub/Scholar/portfolio/blog/CV). Never add company, job-posting, recruiting, company-document, or another person's URL.`,
           "- Do not write resume files or the same fact twice. Use only user-provided new information, not assistant summaries.",
           ...(hasUpdateSettingTool
             ? [
-                "- If subscription scope and saved career context both change in one turn, call `update_setting` and `write_talent_context` separately. Use `update_talent_profile` as well only when a structured profile field or recommendation batch size changed.",
+                "- If subscription scope and saved career context both change in one turn, call `update_setting` and `write_talent_context` separately. Use `update_talent_profile` as well only when a structured profile field changed.",
               ]
             : [
                 "- Do not mix subscription/contact actions into profile/matching memory.",
@@ -361,7 +299,7 @@ export function buildCareerToolPolicyPrompt(args: {
             ? "- Use the feature that owns the data for Profile rows, settings, documents, opportunity feedback, and workflow state. Do not save transient requests or the assistant's own conclusions as durable user context."
             : "",
           hasWriteTalentContextTool && hasJobPostingRecommendationTool
-            ? "- If the same user message both changes durable criteria or context and asks for recommendations now, write the context change first and then call `recommend_job_postings`, so the new run reads the updated context."
+            ? "- If the same user message both changes durable criteria or context and asks for recommendations now, write the context change first. Then read the current matching and use search_opportunities with the correct complete criteria snapshot; use a new matching when the criteria materially change."
             : "",
           "- After reading or writing, continue the user's original request naturally. Do not turn the response into a storage receipt or expose refs and implementation terms.",
           "",
@@ -373,11 +311,13 @@ export function buildCareerToolPolicyPrompt(args: {
         ]
       : []),
     ...(args.isOnboardingActive ? [onboardingToolExceptionRule] : []),
-    ...(hasStatusMessageTools && !toolNames.includes("ready_for_role")
+    ...(hasStatusMessageTools
       ? [
-          args.conversationMode === "mock_interview"
-            ? "- Use useful search findings to ask one interview question directly. Do not brief the search results or dump raw JSON."
-            : "- After tool use, summarize only the useful findings. Do not dump raw JSON.",
+          ...(args.conversationMode === "mock_interview"
+            ? [
+                "- Use useful search findings to ask one interview question directly. Do not brief the search results or dump raw JSON.",
+              ]
+            : []),
           "- Mention source names or URLs only when they materially help the user.",
         ]
       : []),

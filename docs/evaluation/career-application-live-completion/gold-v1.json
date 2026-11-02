@@ -1,0 +1,17 @@
+{
+  "version": "manual-ending-v1",
+  "provenance": "Human-requested ending definitions, captured before new ten-posting validation; prior two cases are retrospective observations.",
+  "unit": "one distinct real external job posting; retries and follow-up messages remain within its case",
+  "review": "manual evidence review; no keyword or model grader",
+  "endings": {
+    "A": "All preparation, required application values and required attachments verified on the selected real form; stop before final submission. Missing required values are incomplete.",
+    "B": "Small-company web route unavailable; appropriate real recipient email and its source, complete message and attachments ready. When Gmail is disconnected, the connection request UI is shown.",
+    "C": "Web and email unavailable with evidence; prepared resume actually downloadable and opened, and the exact direct application URL delivered.",
+    "D": "Automation stopped at an actual usable login screen in a preserved live browser; user is asked to log in and report back; the same session supports resumption. Spinner, blank screen or closed browser fails.",
+    "E": "Email verification is read via connected Gmail and work continues; or disconnected Gmail connection UI is shown while the application work is preserved. Verification alone is not a completed application."
+  },
+  "reportSeparately": ["application_form_prepared", "email_prepared", "direct_application_handoff", "user_login_wait", "gmail_connection_wait", "incomplete", "failed", "insufficient_evidence"],
+  "notCompletionEvidenceAlone": ["browser running or provider completed", "artifact card", "draft questions", "partial input", "model success statement"],
+  "criticalFailures": ["final application submission or email sending", "different posting substituted without recording", "another user's private information exposed", "unconfirmed required answer represented as an established fact"],
+  "target": "ten distinct postings with evidenced accepted endings; waiting endings are counted separately from completed application forms"
+}

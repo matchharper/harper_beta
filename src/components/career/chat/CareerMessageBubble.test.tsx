@@ -3,8 +3,13 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime";
 import type { NextRouter } from "next/router";
+import { JSDOM } from "jsdom";
 
 import { MessagesProvider } from "@/i18n/useMessage";
+import { toUiMessage } from "@/hooks/career/careerHelpers";
+import type { CareerMessage } from "@/components/career/types";
+import { appendCareerOpportunityMentionMetadata } from "@/lib/career/opportunityMentionText";
+import { toTalentMessageResponse } from "@/lib/talentOnboarding/models";
 import CareerMessageBubble from "./CareerMessageBubble";
 
 const router: NextRouter = {
@@ -26,6 +31,70 @@ const router: NextRouter = {
   isLocaleDomain: false,
   events: { on() {}, off() {}, emit() {} },
 };
+
+test("saved form artifact reaches the assistant bubble with its editable initial content", () => {
+  const message = toUiMessage(toTalentMessageResponse({
+    id: 404, conversation_id: "conversation", user_id: "user", role: "assistant", content: "", message_type: "career_form", created_at: "2026-10-29T00:00:00Z",
+    payload: { formId: 404, revision: 3, kind: "form", title: "지원 내용 확인", items: [{ id: "answer", label: "관련 경험", type: "textarea", content: { value: "저장된 초기 답변" } }], positive: { id: "continue", label: "이 내용으로 진행", message: "이 내용으로 진행해줘." } },
+  }));
+  const html = renderToStaticMarkup(<RouterContext.Provider value={router}><MessagesProvider locale="ko"><CareerMessageBubble isUser={false} message={message} /></MessagesProvider></RouterContext.Provider>);
+  const dom = new JSDOM(html);
+  assert.equal(dom.window.document.querySelector("textarea")?.value, "저장된 초기 답변");
+  assert.equal(dom.window.document.querySelector("[data-career-form-revision]")?.getAttribute("data-career-form-revision"), "3");
+  assert.match(dom.window.document.body.textContent ?? "", /이 내용으로 진행/);
+  dom.window.close();
+});
+
+test("user opportunity mentions keep text-action in immediate and restored messages", () => {
+  const opportunityMentions = [
+    { label: "Example · AI Research Engineer", roleId: "role-short" },
+    { label: "Example · AI Research Engineer (Search & Agent) (경력) 채용", roleId: "role-long" },
+    { label: "Other · Platform Engineer", roleId: "role-other" },
+  ];
+  const content = `${opportunityMentions[1].label}에 하퍼와 함께 지원하고 싶어. 지원 준비를 시작해줘.\n${opportunityMentions[2].label}와 ${opportunityMentions[1].label}도 비교해줘. https://example.com`;
+  const immediate: CareerMessage = {
+    id: "temp-user-mention",
+    role: "user",
+    content,
+    opportunityMentions,
+    messageType: "chat",
+    createdAt: "2026-10-29T00:00:00.000Z",
+  };
+  const restored = toUiMessage(toTalentMessageResponse({
+    id: 123,
+    conversation_id: "conversation",
+    user_id: "user",
+    role: "user",
+    content: appendCareerOpportunityMentionMetadata(content, opportunityMentions),
+    message_type: "chat",
+    created_at: immediate.createdAt,
+  }));
+  assert.deepEqual(restored.opportunityMentions, opportunityMentions);
+
+  for (const message of [immediate, restored, { ...immediate, opportunityMentions: undefined }]) {
+    const html = renderToStaticMarkup(
+      <RouterContext.Provider value={router}>
+        <MessagesProvider locale="ko">
+          <CareerMessageBubble isUser message={message} />
+        </MessagesProvider>
+      </RouterContext.Provider>
+    );
+    const dom = new JSDOM(html);
+    try {
+      assert.deepEqual(
+        [...dom.window.document.querySelectorAll("span.text-action")].map((node) => node.textContent),
+        message.opportunityMentions
+          ? [opportunityMentions[1].label, opportunityMentions[2].label, opportunityMentions[1].label]
+          : []
+      );
+      assert.ok(dom.window.document.body.textContent?.includes("에 하퍼와 함께 지원하고 싶어. 지원 준비를 시작해줘."));
+      assert.ok(dom.window.document.querySelector('a[href="https://example.com"]'));
+      assert.doesNotMatch(dom.window.document.body.textContent ?? "", /HARPER_OPPORTUNITY_MENTIONS|role-short|role-long|role-other/);
+    } finally {
+      dom.window.close();
+    }
+  }
+});
 
 test("renders completed markdown spans while an assistant message is streaming", () => {
   const html = renderToStaticMarkup(

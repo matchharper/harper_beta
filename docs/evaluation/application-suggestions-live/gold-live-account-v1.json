@@ -1,0 +1,124 @@
+{
+  "datasetVersion": "live-account-v1",
+  "goldVersion": "v1",
+  "status": "frozen-before-model-output; assistant-authored semantic expectations",
+  "provenance": "Prepared by an independent Codex subagent from a user-authorized read-only production snapshot of one account and six external roles. No model-generated suggestion outputs were reviewed while writing these expectations. Personal and employer identities, exact dates, URLs, record IDs and exact resume/source quotations remain only in private artifacts.",
+  "sharedExpectations": [
+    "Both selected resumes are real previously generated stored documents; neither is an uploaded original. They are the text to improve, not an independent source for new personal claims.",
+    "Confirmed source facts include end-to-end planning and implementation of an agentic recruiting/search product; prior voice-AI product work; from-scratch audio diffusion modeling, architecture, audio-data pipelines and training stabilization; resolving latency during a customer proof of concept and contributing to paid conversion; image-model research with hypothesis, baseline and ablation experiments; an earlier no-code product; a startup cohort; a recorded competition award; and comfortable English technical/product work.",
+    "The earlier resume already includes the main agent-building, voice-product, audio-model/pipeline/stabilization, latency-to-customer-conversion, no-code product, degree and award evidence. Do not present these as wholly absent, or ask whether the person has ever done them.",
+    "The earlier resume omits recruiting/search product context and the confirmed image-research experimental method. Work-language capability and startup-cohort participation are also absent; use them only if materially relevant, not as compulsory additions.",
+    "The enriched resume additionally includes the image-research experimental method and repeats the main model, product and customer-impact evidence. Its small remaining optional gaps do not justify a large batch of rewrites.",
+    "Published papers, patents and conference presentations are explicitly absent in current confirmed context. Do not ask the person to supply such outputs as if unknown, or invent them. A technical report or authentic portfolio is a distinct unknown.",
+    "Deleted records about specific missing technologies are excluded. The absence of a technology from current supplied evidence is unknown, not a confirmed lack of experience.",
+    "Private search preferences, compensation, interview/rejection history, work-life preferences and unneeded immigration facts are contextual boundaries, not resume achievements. Incidental location differences alone do not justify a warning or question.",
+    "No minimum or maximum suggestion count is a semantic target. Reward complete useful coverage and restraint; coherent facts may be combined in a single finished change. Do not add source-specific rules or these case identities to the production prompt."
+  ],
+  "cases": [
+    {
+      "id": "ASL01",
+      "slice": "earlier_resume_model_research",
+      "sourceAdequacy": "earlier",
+      "materialOpportunities": [
+        "Add the confirmed hypothesis/baseline/ablation work to the existing image-model research entry; the role explicitly values experimental design and conclusions.",
+        "Keep the already substantial audio-model, data-pipeline, training-stability and customer-deployment evidence intact. Further refinement must add information or improve clear prioritization, not merely prepend an emphasis word."
+      ],
+      "usefulUnknowns": [
+        "A concrete research hypothesis, experiment design/selection rationale and observed outcome, anchored in the already known experiment experience; the job explicitly requests this kind of problem-solving account.",
+        "Relevant audio-data construction/quality choices and how their effect was evaluated, without equating sound generation with unconfirmed speech-recognition or speech-synthesis model experience.",
+        "A technical report may exist even though publications do not; only raise this optional material if its potential role is clear, without inventing an attachment or treating it as required."
+      ],
+      "criticalDistinctions": [
+        "Do not recast audio diffusion training as established LLM or named speech-model fine-tuning.",
+        "Do not promise quantified research improvements or dataset scale absent from sources."
+      ]
+    },
+    {
+      "id": "ASL02",
+      "slice": "earlier_resume_voice_agent_product",
+      "sourceAdequacy": "earlier",
+      "materialOpportunities": [
+        "Make the recruiting/search product context clear in the generic agentic-product entry, preserving established planning-to-implementation ownership.",
+        "Consider an accurate language capability statement because the role explicitly values Korean/English collaboration. Preserve the real scope of comfortable technical/product meetings and documentation; do not invent certification or native-level English.",
+        "Retain the known voice-AI product, model-learning and customer-impact evidence without duplicating it."
+      ],
+      "usefulUnknowns": [
+        "What the person actually built or evaluated in the voice product, with an implementation/evaluation example relevant to voice-agent integration.",
+        "Concrete production backend, RAG/tool-calling, language or cloud experience only where the missing detail would materially clarify suitability; current sources do not establish Python or particular platforms."
+      ],
+      "criticalDistinctions": [
+        "Voice-AI product work does not prove STT/TTS training or evaluation methods.",
+        "Avoid generic requests to restate all existing agent, voice and model experience."
+      ]
+    },
+    {
+      "id": "ASL03",
+      "slice": "earlier_resume_agent_ml_evaluation",
+      "sourceAdequacy": "earlier",
+      "materialOpportunities": [
+        "Clarify the concrete recruiting/search product behind the generic agentic-service entry.",
+        "Surface the confirmed image-research experimental method, which provides real evidence of hypothesis-driven evaluation without claiming a specific production LLM evaluation stack.",
+        "Preserve model architecture, training pipeline, stabilization and customer-latency facts already in the resume."
+      ],
+      "usefulUnknowns": [
+        "A real agent-system example showing the applicant's own responsibility, tools/memory/workflow decisions or evaluation process, choosing a coherent focus rather than interrogating every job keyword.",
+        "The actual serving or backend techniques used to diagnose and address the known latency issue, if that information strengthens a relevant passage."
+      ],
+      "criticalDistinctions": [
+        "Do not infer a named agent framework, cloud, Kubernetes, vLLM, observability tool, medical-domain background or explicit go/no-go authority.",
+        "A preference for model-release decisions is not evidence of prior decision authority."
+      ]
+    },
+    {
+      "id": "ASL04",
+      "slice": "earlier_resume_end_to_end_ai_product",
+      "sourceAdequacy": "earlier",
+      "materialOpportunities": [
+        "Clarify the real product/use case in the generic agentic-service entry to support the job's end-to-end problem-to-product emphasis.",
+        "Retain the actual customer proof-of-concept conversion contribution and earlier no-code product. Do not relabel existing work as unconfirmed frontend/backend/database/deployment ownership."
+      ],
+      "usefulUnknowns": [
+        "Ask for an existing authentic portfolio or usable work sample/link because the role explicitly requires it; distinguish a portfolio from ordinary profile/blog links and do not fabricate a deliverable.",
+        "A specific problem, product decision and implemented workflow or real delivery/operating scope for the agentic product, if not already documented."
+      ],
+      "criticalDistinctions": [
+        "The current evidence does not establish commerce/SKU/inventory expertise, named commerce integrations, a complete full-stack toolchain, customer adoption numbers or business metrics.",
+        "A confirmed paid-conversion contribution is useful without claiming sole revenue ownership or adding an amount."
+      ]
+    },
+    {
+      "id": "ASL05",
+      "slice": "enriched_resume_audio_data",
+      "sourceAdequacy": "already_enriched",
+      "materialOpportunities": [
+        "Treat the existing audio diffusion, data pipeline and training-stability passages as substantial already-visible evidence. Few or zero changes may be best before more facts are known.",
+        "Keep the existing experimental-method evidence; do not manufacture a new source gap to justify restating it."
+      ],
+      "usefulUnknowns": [
+        "Specific audio-data collection, filtering/cleaning or model-problem experiments the person actually owned, and whether the data were speech or other sounds.",
+        "Actual implementation framework or data scale only if a focused answer materially improves a concrete passage; do not require a number merely for style."
+      ],
+      "criticalDistinctions": [
+        "Sound generation is not automatically speech-text data processing, speaker separation, codec or speech-to-speech modeling.",
+        "No publication request despite known absence; no redundant change to add 'directly' or an equally empty responsibility label."
+      ]
+    },
+    {
+      "id": "ASL06",
+      "slice": "enriched_resume_model_optimization",
+      "sourceAdequacy": "already_enriched",
+      "materialOpportunities": [
+        "The selected resume already states real latency troubleshooting, customer conversion, architecture and experiment design. Preserve these and avoid a cosmetic rewrite presented as missing evidence.",
+        "Few or zero changes are appropriate unless a genuine improvement in relevant presentation is identified."
+      ],
+      "usefulUnknowns": [
+        "What caused the known latency problem, what the applicant changed and how the improvement was assessed; this can materially sharpen optimization evidence.",
+        "Any actual static-graph conversion, quantization, model deployment-toolchain or target-device work, scoped to consequential role requirements rather than a checklist of every tool."
+      ],
+      "criticalDistinctions": [
+        "Do not transform generic model-latency work into established quantization, ONNX/OpenVINO, NPU or on-device expertise.",
+        "Do not infer specific quantitative improvements, training frameworks or customer-communication ownership from a broad technical contribution."
+      ]
+    }
+  ]
+}

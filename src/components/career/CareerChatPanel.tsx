@@ -1,6 +1,7 @@
+import { CareerSuggestionProvider } from "./chat/CareerSuggestionComposer";
 import { InternalCallAnswersProvider } from "./chat/InternalCallAnswers";
 import {
-  ApplicationPreparationProvider,
+  ApplicationHistoryProvider,
 } from "./chat/ApplicationPreparationContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -263,7 +264,8 @@ const CareerChatPanelContent = ({
     <CareerWelcomeScreen />
   ) : (
     <div
-      className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+      data-career-chat-layout
+      className="relative isolate flex min-h-0 flex-1 flex-col overflow-clip [transform:translate(0)]"
       style={chatLayoutStyle}
     >
       <CareerTimelineSection
@@ -312,13 +314,14 @@ const CareerChatPanelContent = ({
 function CareerChatPanel(
   props: React.ComponentProps<typeof CareerChatPanelContent>
 ) {
-  const { conversationId } = useCareerChatPanelContext();
   return (
-    <ApplicationPreparationProvider key={conversationId ?? "none"}>
+    <ApplicationHistoryProvider>
       <InternalCallAnswersProvider>
-        <CareerChatPanelContent {...props} />
+        <CareerSuggestionProvider>
+          <CareerChatPanelContent {...props} />
+        </CareerSuggestionProvider>
       </InternalCallAnswersProvider>
-    </ApplicationPreparationProvider>
+    </ApplicationHistoryProvider>
   );
 }
 export default React.memo(CareerChatPanel);

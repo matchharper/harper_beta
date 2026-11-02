@@ -1,5 +1,13 @@
 import { stringifyLlmDateTimes } from '@/lib/llm/promptDateTime';
 import { convertMarkdownLinksToSlackMrkdwn, formatSlackLink } from "../slackMessages";
+import type { CompanyCapabilityId } from "./capabilities/registry";
+
+/** The server knows which completed work is resuming, even after unrelated turns. */
+export function companyUpdateInitialCapabilities(context: Record<string, unknown>): CompanyCapabilityId[] {
+  const facts = context.facts as Record<string, unknown> | undefined;
+  return typeof facts?.matchingSearchRunId === "string" && facts.matchingSearchRunId
+    ? ["candidate_search"] : [];
+}
 
 export type CompanyUpdateSlackReceipt = {
   slackMessageTs: string;
@@ -48,7 +56,7 @@ export function buildCompanyUpdatePrompt(context: Record<string, unknown>) {
       ? "A verified product result has already been shown to this company. Continue only if useful work, a consequential suggestion or a necessary decision remains; otherwise finish silently. Do not repeat the delivered presentation."
       : "Share this verified product event with the company as part of the ongoing conversation.",
     "Continue the company's actual conversation as Harper. Explain the verified event and its practical consequence, using fresh general reads when relevant. You may propose a useful next step based on the conversation; do not force a generic offer or invent work already done.",
-    "The event facts and purpose are evidence, not company authorization. Follow existing company instructions and normal tool permissions for any further action. Distinguish the event's recorded time from current state if later events changed it. Do not repeat the committed action.",
+    "The event adds no new company authorization and does not reset an existing assignment. Resume the company's actual instructions within their original scope, respecting later corrections, cancellations and normal tool permissions. Distinguish the completed step from the requested outcome and the event's recorded time from current state. Do not repeat the committed action.",
     "Only supplied company-shareable facts and authorized read results may be used. A pending state establishes only that no decision is recorded; it does not establish that anyone opened, read, or is actively reviewing the proposal. Never infer a private candidate reason or equate changed contact preferences with a declined proposal.",
     ...(hasDeliveryFact ? [
       "Perform useful follow-up work when the company's actual instructions authorize it and existing tools support it. When a company decision is needed, offer the concrete help that matters in this conversation. Do not merely return work to the company that you can already complete with its authorization.",

@@ -16,6 +16,7 @@ type TalentDocumentMetadataRow = Pick<
   TalentDocumentRow,
   | "created_at"
   | "file_name"
+  | "description"
   | "id"
   | "is_primary"
   | "is_public"
@@ -25,8 +26,7 @@ type TalentDocumentMetadataRow = Pick<
 >;
 
 const DOCUMENT_LIST_SELECT =
-  "id, kind, file_name, is_public, is_primary, created_at, origin_type, revision";
-const DOCUMENT_UPDATE_SELECT = `${DOCUMENT_LIST_SELECT}, is_deleted`;
+  "id, kind, file_name, description, is_public, is_primary, created_at, origin_type, revision";
 const DEFAULT_LIST_LIMIT = 10;
 const MAX_LIST_LIMIT = 20;
 const DEFAULT_READ_CHARS = 4_000;
@@ -69,6 +69,7 @@ function toDocumentMetadata(
     createdAt: document.created_at,
     documentId: document.id,
     fileName: document.file_name,
+    description: document.description ?? null,
     hasExtractedText,
     isPrimary: document.is_primary,
     isPublic: document.is_public,
@@ -250,9 +251,32 @@ export async function updateTalentDocumentForTool(args: {
     throw new Error("Document not found.");
   }
 
+  const update = prepareTalentDocumentMetadataUpdate(document, args.input);
+  if (Object.keys(update).length === 0)
+    throw new Error("At least one document change is required.");
+  if (args.input.expected_revision !== undefined && args.input.expected_revision !== document.revision)
+    throw new Error("Document changed. Read the latest revision before editing.");
+  const updated = await saveTalentDocumentUpdate({ ...args, document, update });
+  return {
+    document: toDocumentMetadata(updated, Boolean(updated.extracted_text?.trim())),
+    isDeleted: updated.is_deleted,
+    ok: true,
+  };
+}
+
+/** Shared metadata policy for a single content + metadata write. */
+export function prepareTalentDocumentMetadataUpdate(
+  document: Pick<TalentDocumentRow, "kind" | "origin_type" | "origin_id" | "is_primary" | "is_deleted">,
+  input: Record<string, unknown>
+) {
   const update: Database["public"]["Tables"]["talent_documents"]["Update"] = {};
-  const nextKind = hasOwn(args.input, "kind")
-    ? normalizeDocumentKind(args.input.kind)
+  if (hasOwn(input, "description")) {
+    if (input.description !== null && typeof input.description !== "string")
+      throw new Error("description must be text or null.");
+    update.description = input.description as string | null;
+  }
+  const nextKind = hasOwn(input, "kind")
+    ? normalizeDocumentKind(input.kind)
     : null;
   if (nextKind) update.kind = nextKind;
 
@@ -261,15 +285,11 @@ export async function updateTalentDocumentForTool(args: {
     ["is_public", "is_public"],
     ["is_deleted", "is_deleted"],
   ] as const) {
-    if (!hasOwn(args.input, inputKey)) continue;
-    if (typeof args.input[inputKey] !== "boolean") {
+    if (!hasOwn(input, inputKey)) continue;
+    if (typeof input[inputKey] !== "boolean") {
       throw new Error(`${inputKey} must be boolean.`);
     }
-    update[column] = args.input[inputKey];
-  }
-
-  if (Object.keys(update).length === 0) {
-    throw new Error("At least one document change is required.");
+    update[column] = input[inputKey];
   }
 
   if (
@@ -309,6 +329,17 @@ export async function updateTalentDocumentForTool(args: {
     update.is_public = true;
   }
 
+  return update;
+}
+
+export async function saveTalentDocumentUpdate(args: {
+  admin: TalentAdminClient;
+  userId: string;
+  input: Record<string, unknown>;
+  document: TalentDocumentRow;
+  update: Database["public"]["Tables"]["talent_documents"]["Update"];
+}) {
+  const { document, update } = args;
   let previousPrimaryId: string | null = null;
   if (update.is_primary === true) {
     const { data: previousPrimary, error: previousPrimaryError } =
@@ -336,13 +367,16 @@ export async function updateTalentDocumentForTool(args: {
     if (clearError) throw new Error(clearError.message);
   }
 
-  const { data: updatedDocument, error: updateError } = await args.admin
+  const query = args.admin
     .from("talent_documents")
     .update(update)
     .eq("id", document.id)
     .eq("talent_id", args.userId)
-    .select(DOCUMENT_UPDATE_SELECT)
-    .single();
+    .eq("is_deleted", document.is_deleted)
+    .eq("updated_at", document.updated_at);
+  if (args.input.expected_revision !== undefined)
+    query.eq("revision", args.input.expected_revision as number);
+  const { data: updatedDocument, error: updateError } = await query.select("*").single();
   if (updateError || !updatedDocument) {
     if (previousPrimaryId) {
       await args.admin
@@ -354,14 +388,13 @@ export async function updateTalentDocumentForTool(args: {
     throw new Error(updateError?.message ?? "Failed to update document.");
   }
 
-  const updated = updatedDocument as TalentDocumentMetadataRow &
-    Pick<TalentDocumentRow, "is_deleted">;
+  const updated = updatedDocument as TalentDocumentRow;
   if (
     document.origin_type !== GENERATED_RESUME_ORIGIN &&
-    (document.kind === "resume" ||
-      updated.kind === "resume" ||
+    ((hasOwn(args.input, "kind") && document.kind !== updated.kind) ||
       hasOwn(args.input, "is_primary") ||
-      hasOwn(args.input, "is_deleted"))
+      hasOwn(args.input, "is_deleted") ||
+      (updated.kind === "resume" && update.extracted_text !== undefined))
   ) {
     await syncLegacyResumeFromDocuments({
       admin: args.admin,
@@ -369,12 +402,5 @@ export async function updateTalentDocumentForTool(args: {
     });
   }
 
-  return {
-    document: toDocumentMetadata(
-      updated,
-      Boolean(document.extracted_text?.trim())
-    ),
-    isDeleted: updated.is_deleted,
-    ok: true,
-  };
+  return updated;
 }

@@ -62,9 +62,17 @@ const RINGS = Array.from(
     }) as CSSProperties
 );
 
-const SearchAnimation = memo(function SearchAnimation({ running }: { running: boolean }) {
+const SearchAnimation = memo(function SearchAnimation({
+  running,
+}: {
+  running: boolean;
+}) {
   return (
-    <div className="career-search-visual" data-running={running} aria-hidden="true">
+    <div
+      className="career-search-visual"
+      data-running={running}
+      aria-hidden="true"
+    >
       <div className="career-search-sculpture">
         {RINGS.map((style, index) => (
           <span className="career-search-ring" style={style} key={index} />
@@ -135,8 +143,8 @@ export function RecommendationSearchProgress({
   progress?: { activeStep: number; completed: boolean; running: boolean };
 }) {
   const t = useCareerT();
-  const searchProgress=getRecommendationSearchProgress(run,status);
-  const progress=suppliedProgress ?? searchProgress;
+  const searchProgress = getRecommendationSearchProgress(run, status);
+  const progress = suppliedProgress ?? searchProgress;
   const labels = [
     t("career.common.recommendation_search.step_query", "포지션 찾기"),
     t("career.common.recommendation_search.step_scoring", "적합도 확인"),
@@ -145,7 +153,9 @@ export function RecommendationSearchProgress({
   ];
   return (
     <>
-      {showAnimation || keepVisual ? <SearchAnimation running={showAnimation} /> : null}
+      {showAnimation || keepVisual ? (
+        <SearchAnimation running={showAnimation} />
+      ) : null}
       <div className="career-search-steps">
         <div
           aria-hidden="true"
@@ -162,7 +172,9 @@ export function RecommendationSearchProgress({
             const done = progress.completed || index < progress.activeStep;
             const current =
               !done && progress.running && index === progress.activeStep;
-            const value = suppliedProgress ? null : searchProgress.counts[index];
+            const value = suppliedProgress
+              ? null
+              : searchProgress.counts[index];
             return (
               <li
                 key={phase}

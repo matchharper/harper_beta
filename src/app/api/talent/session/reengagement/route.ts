@@ -25,7 +25,7 @@ import {
 } from "@/lib/career/reengagementHistory.server";
 import { resolveCareerReengagementActionKeys } from "@/lib/career/reengagementActions";
 import { createCareerPendingActionRef } from "@/lib/career/pendingActionRef.server";
-import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { CLAUDE_HAIKU_MODEL } from "@/lib/llm/modelConfig";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 import { careerT } from "@/lib/career/translatedCareerMessage";
@@ -56,22 +56,15 @@ const createSseHeaders = () => ({
 
 type ReengagementBody = {
   conversationId?: string | null;
-  devDeleteLatestMessage?: boolean;
+  devDeleteRecentMessages?: boolean;
   devForce?: boolean;
   timeZone?: string | null;
   userInitiated?: boolean;
 };
 
-type DeletedTalentMessage = {
-  id: number;
-  message_type: string | null;
-  role: string;
-};
-
 async function finalizeSessionReengagement(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
   conversation: TalentConversationRow;
-  deletedMessage: DeletedTalentMessage | null;
   isReengagementAnchorCurrent: () => Promise<boolean>;
   isMobile?: boolean | null;
   now: string;
@@ -82,7 +75,6 @@ async function finalizeSessionReengagement(args: {
   const {
     admin,
     conversation,
-    deletedMessage,
     isReengagementAnchorCurrent,
     isMobile,
     now,
@@ -130,7 +122,6 @@ async function finalizeSessionReengagement(args: {
     ok: true,
     assistantMessage: result.assistantMessage,
     assistantMessages: result.assistantMessages,
-    deletedMessage,
     noMessage: result.noMessage,
     opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
     opportunityRun: result.opportunityRun,
@@ -171,10 +162,10 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as ReengagementBody;
     const promptTimeZone = resolveCareerRequestTimeZone(req, body.timeZone);
     const conversationId = String(body?.conversationId ?? "").trim();
-    const devDeleteLatestMessage = body?.devDeleteLatestMessage === true;
+    const devDeleteRecentMessages = body?.devDeleteRecentMessages === true;
     const devForce = body?.devForce === true;
     const userInitiated = body?.userInitiated === true;
-    const isDevTestRequest = devDeleteLatestMessage || devForce;
+    const isDevTestRequest = devDeleteRecentMessages || devForce;
     if (
       isDevTestRequest &&
       !canRunDevSessionReengagementTest(user.email ?? null)
@@ -214,44 +205,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, skipped: true });
     }
 
-    let deletedMessage: DeletedTalentMessage | null = null;
-    if (devDeleteLatestMessage) {
-      const { data: latestMessage, error: latestMessageError } = await admin
+    if (devDeleteRecentMessages) {
+      const { data: recentMessages, error: recentMessagesError } = await admin
         .from("talent_messages")
-        .select("id, role, message_type")
+        .select("id")
         .eq("conversation_id", conversation.id)
         .eq("user_id", user.id)
         .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(6);
 
-      if (latestMessageError) {
+      if (recentMessagesError) {
         throw new Error(
-          latestMessageError.message ?? "Failed to read latest talent_message"
+          recentMessagesError.message ?? "Failed to read recent talent_messages"
         );
       }
 
-      if (latestMessage) {
-        const { error: deleteMessageError } = await admin
+      const deletedMessageIds = (recentMessages ?? []).map(
+        (message) => message.id
+      );
+      if (deletedMessageIds.length > 0) {
+        const { error: deleteMessagesError } = await admin
           .from("talent_messages")
           .delete()
-          .eq("id", latestMessage.id)
+          .in("id", deletedMessageIds)
           .eq("conversation_id", conversation.id)
           .eq("user_id", user.id);
 
-        if (deleteMessageError) {
+        if (deleteMessagesError) {
           throw new Error(
-            deleteMessageError.message ??
-              "Failed to delete latest talent_message"
+            deleteMessagesError.message ??
+              "Failed to delete recent talent_messages"
           );
         }
-
-        deletedMessage = {
-          id: latestMessage.id,
-          message_type: latestMessage.message_type ?? null,
-          role: latestMessage.role,
-        };
       }
+
+      return NextResponse.json({ ok: true, deletedMessageIds });
     }
 
     const [latestChatResult, latestReengagementSkipResult, talentSetting] =
@@ -325,19 +313,26 @@ export async function POST(req: NextRequest) {
     if (effectiveIdleMs < REENGAGEMENT_IDLE_MS) {
       return NextResponse.json({
         ok: true,
-        deletedMessage,
         skipped: true,
       });
     }
 
+    // Progress messages from this turn must not look like a newer conversation.
+    const turnMessageIds = new Set<number>();
+    const rememberTurnMessage = (message: { id: number }) => {
+      turnMessageIds.add(message.id);
+    };
     const isReengagementAnchorCurrent = async () => {
+      let latestChatQuery = admin
+        .from("talent_messages")
+        .select("id, created_at")
+        .eq("conversation_id", conversation.id)
+        .eq("message_type", "chat");
+      if (turnMessageIds.size) {
+        latestChatQuery = latestChatQuery.not("id", "in", `(${[...turnMessageIds].join(",")})`);
+      }
       const [latestChatAfterResult, latestSkipAfterResult] = await Promise.all([
-        admin
-          .from("talent_messages")
-          .select("id, created_at")
-          .eq("conversation_id", conversation.id)
-          .eq("message_type", "chat")
-          .order("id", { ascending: false })
+        latestChatQuery.order("id", { ascending: false })
           .limit(1)
           .maybeSingle(),
         admin
@@ -452,20 +447,29 @@ export async function POST(req: NextRequest) {
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
           const send = (event: string, data: unknown) => {
-            controller.enqueue(encoder.encode(createSseMessage(event, data)));
+            if (req.signal.aborted) return;
+            try {
+              controller.enqueue(encoder.encode(createSseMessage(event, data)));
+            } catch {
+              // A disconnected reader must not turn a saved message into a model failure.
+            }
           };
 
           try {
             const result = await runCareerChatTurn({
-              allowedToolNames: [],
               admin,
-              assistantModel: GPT_6_LUNA_MODEL,
+              assistantModel: CLAUDE_HAIKU_MODEL,
               assistantMessagePayload: CAREER_REENGAGEMENT_MESSAGE_PAYLOAD,
               assistantMessagePrefix,
               assistantTemperature: REENGAGEMENT_TEMPERATURE,
               conversationId: conversation.id,
               isMobile,
               noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
+              onTextDelta: (delta) => send("text_delta", { delta }),
+              onArtifactMessage: (message) => {
+                rememberTurnMessage(message);
+                send("assistant_message", { message });
+              },
               onRecommendationStatus: (status) => {
                 send("recommendation_search_status", status);
               },
@@ -482,7 +486,6 @@ export async function POST(req: NextRequest) {
             const payload = await finalizeSessionReengagement({
               admin,
               conversation,
-              deletedMessage,
               isReengagementAnchorCurrent,
               isMobile,
               now,
@@ -499,7 +502,7 @@ export async function POST(req: NextRequest) {
                 : "Failed to run session re-engagement";
             send("error", { error: message });
           } finally {
-            controller.close();
+            try { controller.close(); } catch { /* Reader already disconnected. */ }
           }
         },
       });
@@ -510,15 +513,15 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await runCareerChatTurn({
-      allowedToolNames: [],
       admin,
-      assistantModel: GPT_6_LUNA_MODEL,
+      assistantModel: CLAUDE_HAIKU_MODEL,
       assistantMessagePayload: CAREER_REENGAGEMENT_MESSAGE_PAYLOAD,
       assistantMessagePrefix,
       assistantTemperature: REENGAGEMENT_TEMPERATURE,
       conversationId: conversation.id,
       isMobile,
       noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
+      onArtifactMessage: rememberTurnMessage,
       proactiveContext,
       shouldInsertAssistantMessage: isReengagementAnchorCurrent,
       transformAssistantTextBeforeInsert,
@@ -529,7 +532,6 @@ export async function POST(req: NextRequest) {
     const payload = await finalizeSessionReengagement({
       admin,
       conversation,
-      deletedMessage,
       isReengagementAnchorCurrent,
       isMobile,
       now,

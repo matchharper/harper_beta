@@ -6,6 +6,7 @@ import {
   getCareerKickoffFallback,
 } from "@/lib/career/prompts";
 import { runCareerKickoff } from "@/lib/career/llm";
+import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
 import type {
   TalentConversationRow,
   TalentMessageRow,
@@ -137,6 +138,7 @@ function describeTalentPreferences(
 }
 
 export async function generateTalentKickoff(args: {
+  textChatModel?: CareerTextChatModelId;
   displayName: string;
   links: string[];
   preferredLocale?: string | null;
@@ -145,6 +147,7 @@ export async function generateTalentKickoff(args: {
   resumeText?: string | null;
 }) {
   const llmPromise = runCareerKickoff({
+    textChatModel: args.textChatModel,
     messages: [
       {
         role: "system",
@@ -189,6 +192,7 @@ export async function generateTalentKickoff(args: {
 }
 
 export async function autoStartClaimedTalentConversation(args: {
+  textChatModel?: CareerTextChatModelId;
   admin: AdminClient;
   conversation: TalentConversationRow;
   isMobile?: boolean | null;
@@ -269,6 +273,7 @@ export async function autoStartClaimedTalentConversation(args: {
     .filter(Boolean)
     .join("\n\n");
   const kickoff = await generateTalentKickoff({
+    textChatModel: args.textChatModel,
     displayName: toTalentDisplayName(user),
     links,
     preferredLocale: talentSetting?.preferred_locale ?? null,

@@ -37,6 +37,7 @@ import { buildCareerInsightExtractionOnlyPrompt } from "@/lib/career/prompts";
 import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
 import { getCareerRealtimeToolCandidates } from "@/lib/career/llmTools";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
+import { resolveCareerRequestTextChatModel } from "@/lib/career/requestTextChatModel";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
@@ -917,6 +918,7 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
       });
     try {
       const result = await runCareerChatTurn({
+        textChatModel: resolveCareerRequestTextChatModel(request, user).model,
         scheduleAfter: runtime.scheduleAfter,
         admin: supabase,
         allowedToolNames: internalCallRequest

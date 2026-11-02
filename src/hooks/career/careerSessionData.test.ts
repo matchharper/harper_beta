@@ -48,6 +48,22 @@ test("negative feedback remains archived even if a stale hidden stage exists", (
   });
 
   assert.equal(getHistoryOpportunityBucket(archived), "archived");
+  assert.equal(deriveHistoryOpportunityCounts([archived]).saved, 0);
+  assert.equal(deriveHistoryOpportunityCounts([archived]).archived, 1);
+});
+
+test("list membership can restore a rejected role while preserving saved progress separately", () => {
+  const restored = createOpportunity({ feedback: "negative", listPosition: "current" });
+  const priorSaved = createOpportunity({ feedback: "positive", savedStage: "applied", listPosition: "previous" });
+  assert.equal(getHistoryOpportunityBucket(restored), "new");
+  assert.equal(getHistoryOpportunityBucket(priorSaved), "archived");
+  const counts = deriveHistoryOpportunityCounts([restored, priorSaved]);
+  assert.equal(counts.new, 1);
+  assert.equal(counts.newInternal, 0);
+  assert.equal(counts.archived, 1);
+  assert.equal(counts.saved, 1);
+  assert.equal(counts.savedStages.applied, 1);
+  assert.equal(counts.total, 2);
 });
 
 test("ended roles are rendered as past postings", () => {
@@ -76,3 +92,15 @@ test("counts only unread new external jobs, independently from Harper positions"
   assert.equal(counts.newInternal, 1);
   assert.equal(counts.newExternalUnread, 1);
 });
+
+for (const feedback of ["positive", "keep"] as const) {
+  test(`current membership with ${feedback} belongs only to saved`, () => {
+    const saved = createOpportunity({ feedback, savedStage: "saved", listPosition: "current" });
+    assert.equal(getHistoryOpportunityBucket(saved), "saved");
+    const counts = deriveHistoryOpportunityCounts([saved]);
+    assert.equal(counts.new, 0);
+    assert.equal(counts.newExternalUnread, 0);
+    assert.equal(counts.saved, 1);
+    assert.equal(counts.savedStages.saved, 1);
+  });
+}

@@ -118,7 +118,7 @@ function buildStopEvent(
       ...(stopReason ? { stopReason } : {}),
       tag: "내부:프로세스중단",
     },
-    text: "연결 대기에서 프로세스 중단으로 옮겼습니다.",
+    text: "연결 수락할 후보에서 프로세스 중단으로 옮겼습니다.",
   };
 }
 
@@ -515,4 +515,32 @@ test("stage counts include legacy internal closure and every API page", async ()
   const counts = await fetchTalentOpportunityHistoryCounts({ admin, userId: "fixture" });
   assert.deepEqual(counts.savedStages, { saved: 1, applied: 0, connected: 0, closed: 1, hidden: 1 });
   assert.deepEqual(offsets, [0, 1, 2]);
+});
+
+test("new opportunity list and counts send filters excluding saved decisions", async () => {
+  const { createClient } = await import("@supabase/supabase-js");
+  const urls: URL[] = [];
+  const admin = createClient("http://fixture.invalid", "fixture", {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: async (input, init) => {
+      const url = new URL(String(input));
+      urls.push(url);
+      const totalQuery = init?.method === "HEAD" && !url.searchParams.has("list_position") && !url.searchParams.has("or");
+      return new Response(init?.method === "HEAD" ? null : JSON.stringify(url.pathname.includes("/rpc/") ? 0 : []), {
+        status: 200,
+        headers: { "content-type": "application/json", "content-range": totalQuery ? "*/5" : "*/0" },
+      });
+    } },
+  });
+  const page = await fetchTalentOpportunityHistoryPage({ admin: admin as never, historyTab: "new", userId: "fixture", limit: 10 });
+  assert.equal(page.counts.total, 5, "total includes saved cards without double counting archived saved cards");
+  const newQueries = urls.filter(url => url.searchParams.get("list_position") === "eq.current");
+  assert.ok(newQueries.length >= 4, "both the list and three new counts must be filtered");
+  for (const url of newQueries) {
+    assert.equal(url.searchParams.get("talent_id"), "eq.fixture");
+    assert.deepEqual(url.searchParams.getAll("or"), [
+      "(feedback.is.null,feedback.eq.dislike)",
+      "(saved_stage.is.null,saved_stage.neq.hidden)",
+    ]);
+  }
 });

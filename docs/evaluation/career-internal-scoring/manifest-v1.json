@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "created": "2026-11-02",
+  "provenance": "Synthetic source written for the beta port; no production data",
+  "runner": "scripts/smokeCareerInternalScoring.ts",
+  "model": "gpt-6-luna",
+  "endpoint": "https://api.openai.com/v1/decisions",
+  "promptVersion": "company_requested_decisions_v61",
+  "inputContract": "worker_behavior_v1",
+  "timeoutSeconds": 90,
+  "attempts": 3,
+  "stages": [
+    1,
+    2
+  ],
+  "reasoningOverride": null,
+  "temperatureOverride": null,
+  "referenceDate": "2026-11-02T15:30:00Z",
+  "privacy": "Only synthetic input is sent to the same provider; raw receipts are ignored and owner-only",
+  "fixtureSha256": "eb65b437fc7c1554e46a8475414105390d7a0bbc7ba4142a85f1e22072a44e85",
+  "workerSourceSha256": {
+    "opp/matching/company_requested_decisions.py": "c8798fa1133bb228a415d9406bb144bce28cab7c3dd6c0419805ee9a9cbfb24e",
+    "opp/matching/company_requested.py": "a8d8b97cb6005b956e8711054360e963e4a44a1eca94cafd5cc00efd31cb14d3",
+    "opp/matching/career_requested.py": "4bbfd2057ec6a44bdfc80c78e30b0a5689b84cf82db7adec7d6a33db9379ab6e",
+    "opp/matching/worker_inputs.py": "eff305d85182283ad4ca87506a550dd9b758b2943e77dafd9be7b15e66da00bb",
+    "opp/matching/company_requested_repository.py": "b20115400841077e2e832666b1be8c3fbb2fe829a7e3a5b368ce5b06d0c889f2",
+    "opp/utils/llm_input_text.py": "f6ec8380e26bddfe45dd5dab37b854c558c16b5053752cb9f591c7eede122c5e",
+    "opp/matching/text.py": "83a521cdfd11c09bdde169ca46d4b8416ba142682355ba2ff4cbfb7f0a84b04c"
+  }
+}

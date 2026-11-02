@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { client } from "@/lib/llm/llm";
 import {
-  resolveInspectionLink,
+  runInspectionAgent,
   runResolvedInspectionDebug,
   roleSearchText,
   candidatesText,
@@ -45,247 +45,300 @@ const form = (
   },
 });
 
-test("an observed login barrier ends discovery without another search", async () => {
-  let searches = 0;
-  const result = await runResolvedInspectionDebug(role, new AbortController().signal, () => {}, {
-    resolve: async () => { searches++; return { query: "Fixture careers Engineer", candidates: [], selectedUrl: "https://ats.example/job", reason: "Official JD", costUsd: 0, durationMs: 1 }; },
-    save: async () => {},
-    inspect: async () => ({ ...form("unavailable", "https://ats.example/job"), submission: { status: "unsupported", reason: "Login required" } }),
-  });
-  assert.equal(searches, 1);
-  assert.equal(result.resolution?.attempts.length, 1);
-  assert.equal(result.form.submission?.status, "unsupported");
-});
-
-for (const status of ["read", "partial", "unavailable"] as const) {
-  test(`official URL pipeline searches once and saves before browsing: ${status}`, async () => {
-    const sequence: string[] = [],
-      events: InspectionStreamEvent[] = [];
-    let searches = 0,
-      inspections = 0;
-    const result = await runResolvedInspectionDebug(
-      role,
-      new AbortController().signal,
-      (e) => events.push(e),
-      {
-        resolve: async ({ previous, onEvent }) => {
-          assert.equal(previous.attempts.length, searches);
-          searches++;
-          sequence.push("search");
-          onEvent({ at: "now", kind: "search_start", message: "search" });
-          onEvent({
-            at: "now",
-            kind: "search_result",
-            message: "result",
-            data: { costUsd: 0.01 },
-          });
-          onEvent({
-            at: "now",
-            kind: "usage",
-            message: "pending",
-            data: { receipts: [{ id: `pending-${searches}` }] },
-          });
-          onEvent({
-            at: "now",
-            kind: "resolver_receipt",
-            message: "receipt",
-            data: {
-              requestId: `pending-${searches}`,
-              id: `resolver-${searches}`,
-              model: "gpt-6-luna",
-              usage: { input_tokens: 100, output_tokens: 10 },
-            },
-          });
-          return {
-            query: "Fixture Engineer careers",
-            candidates: [],
-            selectedUrl: `https://ats.example/job/${searches}`,
-            reason: "Observed official role",
-            costUsd: 0.01,
-            durationMs: 10,
-          };
-        },
-        save: async (savedRole, previous, url) => {
-          assert.equal(savedRole.id, role.id);
-          assert.equal(
-            previous,
-            role.originalUrl
-          );
-          assert.equal(url, `https://ats.example/job/${searches}`);
-          sequence.push("save");
-        },
-        inspect: async (url, _signal, deps) => {
-          sequence.push("inspect");
-          deps?.onEvent?.({
-            at: "now",
-            kind: "usage",
-            message: "browser",
-            data: {
-              receipts: [
-                {
-                  id: `browser-${inspections}`,
-                  model: "gpt-6-luna",
-                  usage: { input_tokens: 100, output_tokens: 10 },
-                },
-              ],
-              requestsStarted: 2,
-            },
-          });
-          inspections++;
-          return form(status, String(url));
-        },
-      }
-    );
-    assert.equal(searches, 1);
-    assert.equal(inspections, 1);
-    assert.deepEqual(sequence, ["search", "save", "inspect"]);
-    assert.equal(result.resolution?.savedUrl, "https://ats.example/job/1");
-    assert.equal(result.usage.requests, 3);
-    assert.equal(result.usage.unpricedRequests, 1); // Each browser has one request without a receipt.
-    assert.equal(result.usage.searchCostUsd, 0.01);
-    assert.equal(events.at(-1)?.type, "completed");
-  });
-}
-
-test("no candidate searches once without DB writes or browser startup", async () => {
-  let calls = 0;
-  const result = await runResolvedInspectionDebug(
-    role,
-    new AbortController().signal,
-    () => {},
-    {
-      resolve: async () => {
-        calls++;
-        return {
-          query: "Fixture Engineer careers",
-          candidates: [],
-          selectedUrl: null,
-          reason: "No matching official result",
-          durationMs: 1,
-          costUsd: null,
-        };
-      },
-      save: async () => {
-        assert.fail("must not write");
-      },
-      inspect: async () => {
-        assert.fail("must not browse");
-      },
-    }
-  );
-  assert.equal(calls, 1);
-  assert.equal(result.form.status, "unavailable");
-  assert.equal(result.resolution?.savedUrl, role.originalUrl);
-});
-
-test("DB conflict and disconnect stop before a browser or another Exa call", async () => {
-  const abort = new AbortController();
-  let calls = 0;
-  const resolve: typeof resolveInspectionLink = async () => {
-    calls++;
-    return {
-      query: "query",
-      candidates: [],
-      selectedUrl: "https://ats.example/job",
-      reason: "match",
-      durationMs: 1,
-      costUsd: null,
-    };
-  };
-  await assert.rejects(
-    runResolvedInspectionDebug(role, abort.signal, () => {}, {
-      resolve,
-      save: async () => {
-        throw Error("conflict");
-      },
-      inspect: async () => assert.fail(),
-    }),
-    /conflict/
-  );
-  assert.equal(calls, 1);
-  abort.abort();
-  await assert.rejects(
-    runResolvedInspectionDebug(role, abort.signal, () => {}, { resolve }),
-    /abort/i
-  );
-  assert.equal(calls, 1);
-});
-
-test("actual provider request receives text projections and selects only a returned URL", async (t) => {
+test("one agent run searches and extracts again after a login barrier; provider receives text evidence", async (t) => {
   const key = process.env.EXA_API_KEY;
   process.env.EXA_API_KEY = "fixture";
-  const exactRole = { ...role, company: "Fixture Robotics", name: "Senior Research Engineer—Generative AI / World Model" };
-  const exactQuery = `${exactRole.company} ${exactRole.name} careers`;
-  let exaCalls = 0;
-  const inputs: Record<string, unknown>[] = [];
-  let count = 0;
+  t.after(() => {
+    if (key === undefined) delete process.env.EXA_API_KEY;
+    else process.env.EXA_API_KEY = key;
+  });
+  const exactRole = {
+    ...role,
+    name: "Senior Research Engineer—Generative AI / World Model",
+  };
+  const requests: Record<string, any>[] = [];
+  const steps = [
+    ["web_search", { query: `${exactRole.company} ${exactRole.name} careers` }],
+    ["extract_to_ready", { url: "https://platform.example/job" }],
+    [
+      "web_search",
+      { query: `${exactRole.company} ${exactRole.name} official ATS` },
+    ],
+    ["extract_to_ready", { url: "https://ats.example/job" }],
+  ] as const;
   t.mock.method(
     client.responses,
     "create",
-    async (request: Record<string, unknown>) => {
-      inputs.push(request);
-      count++;
+    async (request: Record<string, any>) => {
+      requests.push(structuredClone(request));
+      const index = requests.length - 1;
       return {
         status: "completed",
-        id: `response-${count}`,
+        id: `response-${index}`,
         model: "gpt-6-luna",
         usage: { input_tokens: 100, output_tokens: 10 },
-        output_text: JSON.stringify(
-          count === 1
-            ? { query: exactQuery }
-            : { candidateId: 2, reason: "공식 채용 공고" }
-        ),
+        output:
+          index < steps.length
+            ? [
+                {
+                  type: "reasoning",
+                  id: `reason-${index}`,
+                  summary: [],
+                  encrypted_content: `encrypted-${index}`,
+                },
+                {
+                  type: "function_call",
+                  call_id: `call-${index}`,
+                  name: steps[index][0],
+                  arguments: JSON.stringify(steps[index][1]),
+                },
+              ]
+            : [],
+        output_text:
+          index < steps.length
+            ? ""
+            : JSON.stringify({
+                attemptId: 2,
+                reason: "ATS에서 지원 항목 확인",
+              }),
       };
     }
   );
+  let exaCalls = 0;
   t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
     assert.equal(url, "https://api.exa.ai/search");
-    exaCalls++;
     assert.equal(JSON.parse(String(init.body)).numResults, 10);
-    assert.equal(JSON.parse(String(init.body)).query, exactQuery);
     assert.ok(init.signal);
+    exaCalls++;
     return Response.json({
       results: [
-        { title: "Mirror", url: "https://mirror.example/job" },
         {
           title: "Official",
-          url: "https://ats.example/job",
-          highlights: ["Fixture is hiring an Engineer"],
+          url:
+            exaCalls === 1
+              ? "https://platform.example/job"
+              : "https://ats.example/job",
+          highlights: ["Fixture is hiring the exact role"],
         },
       ],
       costDollars: { total: 0.02 },
     });
   });
-  try {
-    const result = await resolveInspectionLink({
-      role: { ...exactRole, evidence: `Hiring company: ${exactRole.company}. Job: ${exactRole.name}.` },
-      previous: empty(),
-      signal: new AbortController().signal,
-      onEvent: () => {},
-    });
-    assert.equal(result.selectedUrl, "https://ats.example/job");
-    assert.equal(result.costUsd, 0.02);
-    assert.equal(exaCalls, 1);
-    assert.ok(String(inputs[0].input).includes(`Role: ${exactRole.name}`));
-    assert.ok(String(inputs[0].instructions).includes("exact company name and the full role title"));
-    assert.match(String(inputs[0].input), /Company: Fixture/);
-    assert.match(
-      String(inputs[0].input),
-      /Source page evidence:\nHiring company: Fixture/
-    );
-    assert.match(
-      String(inputs[1].input),
-      /Candidate 2: Official\nURL: https:\/\/ats.example\/job\nEvidence: Fixture/
-    );
-    assert.doesNotMatch(String(inputs[1].input), /"highlights"|"originalUrl"/);
-    assert.equal(
-      (inputs[0].text as { format: { strict: boolean } }).format.strict,
-      true
-    );
-  } finally {
-    if (key === undefined) delete process.env.EXA_API_KEY;
-    else process.env.EXA_API_KEY = key;
-  }
+  const sequence: string[] = [];
+  const observed = {
+    ...form("read", "https://ats.example/application"),
+    checkedAt: "2026-10-29T01:02:03.456Z",
+    text: "Upload your resume",
+  };
+  const result = await runResolvedInspectionDebug(
+    exactRole,
+    new AbortController().signal,
+    () => {},
+    {
+      inspect: async (url) => {
+        sequence.push(String(url));
+        return String(url).includes("platform")
+          ? {
+              ...form("unavailable", String(url)),
+              limitations: ["Login required"],
+              submission: { status: "unsupported" },
+            }
+          : observed;
+      },
+      save: async (savedRole, previous, url) => {
+        assert.equal(savedRole.id, role.id);
+        assert.equal(previous, role.originalUrl);
+        sequence.push(`save:${url}`);
+      },
+    }
+  );
+  assert.deepEqual(sequence, [
+    "https://platform.example/job",
+    "https://ats.example/job",
+    "save:https://ats.example/application",
+  ]);
+  assert.equal(result.form, observed);
+  assert.equal(result.resolution?.attempts.length, 2);
+  assert.equal(
+    result.resolution?.searches[1].selectedUrl,
+    "https://ats.example/job"
+  );
+  assert.equal(exaCalls, 2);
+  assert.equal(requests.length, 5);
+  assert.equal(result.usage.requests, 5);
+  assert.equal(result.usage.searchCostUsd, 0.04);
+  assert.equal(result.usage.unpricedRequests, 0);
+  assert.match(
+    requests[0].input[0].content,
+    new RegExp(`Role: ${exactRole.name}`)
+  );
+  assert.deepEqual(
+    requests[0].tools.map((tool: any) => tool.name),
+    ["web_search", "extract_to_ready"]
+  );
+  assert.match(
+    requests[0].instructions,
+    /web_search at most 2 times TOTAL and extract_to_ready at most 2 times TOTAL/
+  );
+  assert.match(
+    requests[0].instructions,
+    /Ashby, Greenhouse, Greeting, Ninehire/
+  );
+  assert.equal(requests[0].parallel_tool_calls, false);
+  assert.equal(requests[0].text.format.strict, true);
+  assert.deepEqual(requests[0].include, ["reasoning.encrypted_content"]);
+  const finalInput = requests[4].input;
+  assert.ok(
+    finalInput.some((item: any) => item.encrypted_content === "encrypted-0")
+  );
+  const outputs = finalInput
+    .filter((item: any) => item.type === "function_call_output")
+    .map((item: any) => item.output);
+  assert.match(
+    outputs[0],
+    /Candidate 1: Official\nURL: https:\/\/platform.example\/job/
+  );
+  assert.match(outputs[1], /Assisted submission access: unsupported/);
+  assert.match(outputs[1], /Login required/);
+  assert.match(outputs[3], /attemptId: 2/);
+  assert.match(outputs[3], /checkedAt: 2026-10-29 10:02/);
+  assert.match(outputs[3], /web_search 2\/2; extract_to_ready 2\/2/);
+  assert.doesNotMatch(
+    outputs.join("\n"),
+    /"highlights"|"submission"|2026-10-29T/
+  );
+});
+
+test("agent can inspect directly and select an earlier observation after a worse result", async () => {
+  const first = form("read", "https://ats.example/first");
+  const result = await runResolvedInspectionDebug(
+    role,
+    new AbortController().signal,
+    () => {},
+    {
+      agent: async ({ extract }) => {
+        const chosen = await extract("https://ats.example/first");
+        await extract("https://ats.example/second");
+        return { attemptId: chosen.attemptId, reason: "첫 관찰 선택" };
+      },
+      inspect: async (url) =>
+        url === first.url ? first : form("unavailable", String(url)),
+      search: async () => assert.fail("search is optional"),
+      save: async (_role, _previous, url) => assert.equal(url, first.url),
+    }
+  );
+  assert.equal(result.form, first);
+  assert.equal(result.resolution?.searches.length, 0);
+});
+
+test("failed extraction is returned as text and counted so the agent can choose another URL", async (t) => {
+  const requests: Record<string, any>[] = [];
+  t.mock.method(
+    client.responses,
+    "create",
+    async (request: Record<string, any>) => {
+      requests.push(structuredClone(request));
+      const index = requests.length;
+      return {
+        status: "completed",
+        id: `r${index}`,
+        model: "gpt-6-luna",
+        output:
+          index < 3
+            ? [
+                {
+                  type: "function_call",
+                  name: "extract_to_ready",
+                  call_id: `c${index}`,
+                  arguments: JSON.stringify({
+                    url: `https://ats.example/${index}`,
+                  }),
+                },
+              ]
+            : [],
+        output_text:
+          index === 3
+            ? JSON.stringify({ attemptId: 1, reason: "대체 링크" })
+            : "",
+      };
+    }
+  );
+  const result = await runResolvedInspectionDebug(
+    role,
+    new AbortController().signal,
+    () => {},
+    {
+      inspect: async (url) => {
+        if (String(url).endsWith("/1"))
+          throw Error("Browser service unavailable");
+        return form("read", String(url));
+      },
+      save: async () => {},
+    }
+  );
+  assert.equal(result.form.url, "https://ats.example/2");
+  const errorOutput = requests[1].input.find(
+    (item: any) => item.type === "function_call_output"
+  ).output;
+  assert.match(
+    errorOutput,
+    /Tool failed; no result was obtained. Browser service unavailable/
+  );
+  assert.match(errorOutput, /extract_to_ready 1\/2/);
+});
+
+test("no observation or invented attempt ID cannot mutate the role URL", async () => {
+  const deps = {
+    inspect: async () => assert.fail("must not browse"),
+    save: async () => assert.fail("must not write"),
+  };
+  const result = await runResolvedInspectionDebug(
+    role,
+    new AbortController().signal,
+    () => {},
+    {
+      ...deps,
+      agent: async () => ({ attemptId: null, reason: "공식 공고 없음" }),
+    }
+  );
+  assert.equal(result.form.status, "unavailable");
+  assert.deepEqual(result.form.limitations, ["공식 공고 없음"]);
+  await assert.rejects(
+    runResolvedInspectionDebug(role, new AbortController().signal, () => {}, {
+      ...deps,
+      agent: async () => ({ attemptId: 99, reason: "invalid" }),
+    }),
+    /attemptId/
+  );
+});
+
+test("URL conflict propagates and cancellation prevents subsequent work and saving", async () => {
+  const abort = new AbortController();
+  const agent: typeof runInspectionAgent = async ({ extract }) => ({
+    attemptId: (await extract("https://ats.example/job")).attemptId,
+    reason: "match",
+  });
+  await assert.rejects(
+    runResolvedInspectionDebug(role, abort.signal, () => {}, {
+      agent,
+      inspect: async (url) => form("read", String(url)),
+      save: async () => {
+        throw Error("conflict");
+      },
+    }),
+    /conflict/
+  );
+  await assert.rejects(
+    runResolvedInspectionDebug(role, abort.signal, () => {}, {
+      agent,
+      inspect: async (url) => {
+        abort.abort();
+        return form("read", String(url));
+      },
+      save: async () => assert.fail("must not save after cancellation"),
+    }),
+    /abort/i
+  );
 });
 
 test("save uses exact role, external source and previous URL conditions; missing row is a conflict", async (t) => {
@@ -412,7 +465,7 @@ for (const matches of [0, 1, 2]) {
         (e) => events.push(e),
         {
           loadSource: loadInspectionSource,
-          resolve: async ({ role: source, previous }) => {
+          agent: async ({ role: source, previous, extract }) => {
             assert.equal(source.id, matches === 1 ? role.id : null);
             if (matches !== 1) {
               assert.match(
@@ -421,12 +474,8 @@ for (const matches of [0, 1, 2]) {
               );
             }
             return {
-              query: "Fixture Engineer careers",
-              candidates: [],
-              selectedUrl: "https://ats.example/job",
+              attemptId: (await extract("https://ats.example/job")).attemptId,
               reason: "Official job",
-              durationMs: 1,
-              costUsd: null,
             };
           },
           save: async (savedRole, expected) => {
@@ -473,3 +522,24 @@ for (const matches of [0, 1, 2]) {
     }
   });
 }
+
+test("a blocked route does not replace the original public job URL", async () => {
+  const result = await runResolvedInspectionDebug(
+    role,
+    new AbortController().signal,
+    () => {},
+    {
+      agent: async ({ extract }) => ({
+        attemptId: (await extract("https://company.example/careers")).attemptId,
+        reason: "login barrier",
+      }),
+      inspect: async () => ({
+        ...form("unavailable", "https://company.example/login"),
+        submission: { status: "unsupported" },
+      }),
+      save: async () =>
+        assert.fail("must not save a listing or login as the job URL"),
+    }
+  );
+  assert.equal(result.resolution?.savedUrl, role.originalUrl);
+});

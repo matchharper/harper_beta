@@ -1,0 +1,18 @@
+{
+  "goldVersion": "session-return-gold-v1",
+  "datasetVersion": "session-return-v1",
+  "review": [
+    "재방문한 사람에게 먼저 대화를 여는 말로 자연스러운가. 고정 인사 문구나 문장 수는 요구하지 않는다.",
+    "최근 대화를 현재 요청으로 오인하여 다시 답하거나 이미 끝난 문장을 이어 쓰지 않는가.",
+    "없는 새 작업 결과를 찾거나 내부 처리 상태를 보고하지 않는가.",
+    "현재 희망과 탐색 단계에 맞고 지원·공유를 임의로 진행했다고 주장하지 않는가.",
+    "미팅 항목이 있으면 현재 기다리는 요청을 활용할 수 있으며, 없으면 회사 요청을 만들어내지 않는가.",
+    "버튼을 생성하면 본문과 의미가 맞으며 정확한 제공 actionKey를 사용하는가."
+  ],
+  "caseIds": [
+    "no-pending-assistant-last",
+    "no-pending-user-last",
+    "meeting-assistant-last",
+    "meeting-user-last"
+  ]
+}

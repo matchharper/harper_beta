@@ -56,7 +56,7 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
     return {outcome:"completed_silent" as const,progressMessageId:null,terminalMessageId:null};
   }
   const context=await buildOrgAgentPromptContext({admin,user:args.user,conversation:args.conversation,
-    beforeMessageId:args.anchorMessageId,currentUserMessageId:args.anchorMessageId,includeSharedConversation:true,
+    includeLatestConversation:true,currentUserMessageId:args.anchorMessageId,includeSharedConversation:true,
     readAudience:"company_safe",scopeKey:`scheduled:${roleId}`});
   const role=context.roles.find(row=>row.roleId===roleId);
   if(!role) throw new Error("Scheduled Role not accessible");

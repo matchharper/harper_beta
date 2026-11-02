@@ -1,3 +1,4 @@
+import type { OpportunitySearchItem } from "@/lib/career/opportunitySearch";
 import {
   getEstimatedAnnualSalary,
   type EstimatedSalaryFields,
@@ -32,6 +33,8 @@ type RawCompanyDataRow = {
 };
 
 type RawRecommendationRow = {
+  list_position?: "current" | "previous";
+  list_explanation?: string | null;
   updated_at?: string | null;
   clicked_at: string | null;
   created_at: string;
@@ -178,6 +181,8 @@ type RawTalentProgressRow = {
 
 const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   id,
+  list_position,
+  list_explanation,
   updated_at,
   kind,
   role_id,
@@ -410,12 +415,13 @@ export type TalentOpportunityCompanyData = {
 };
 
 export type TalentOpportunityUpcomingMeeting = {
-  endAt: string;
+  endAt: string | null;
   startAt: string;
   title: string | null;
 };
 
 export type TalentOpportunityMeeting = TalentOpportunityUpcomingMeeting & {
+  endAt: string;
   confirmedAt: string | null;
   id: string;
 };
@@ -443,6 +449,8 @@ export type TalentCompanyRequestIntroProgressFacts = {
 };
 
 export type TalentOpportunityHistoryItem = {
+  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
+  listPosition?: "current" | "previous";
   estimatedAnnualSalary?: EstimatedAnnualSalary | null;
   updatedAt?: string | null;
   activityTimelineLoaded?: boolean;
@@ -1271,15 +1279,15 @@ function buildTalentOpportunityHistoryQuery(args: {
   }
 
   if (args.historyTab === "new") {
-    query = query
-      .is("feedback", null)
+    query = query.eq("list_position", "current")
+      .or("feedback.is.null,feedback.eq.dislike")
       .or("saved_stage.is.null,saved_stage.neq.hidden");
   } else if (args.historyTab === "saved") {
     query = query.or(
       "feedback.eq.like,feedback.eq.keep,and(feedback.is.null,saved_stage.eq.hidden)"
     );
   } else if (args.historyTab === "archived") {
-    query = query.eq("feedback", "dislike");
+    query = query.eq("list_position", "previous");
   } else if ("feedback" in args) {
     query =
       args.feedback === null
@@ -1506,7 +1514,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
 
 async function countTalentOpportunityRecommendations(args: {
   admin: AdminClient;
-  historyTab: TalentOpportunityHistoryTab;
+  historyTab?: TalentOpportunityHistoryTab;
   savedStage?: TalentOpportunitySavedStage;
   sourceType?: TalentOpportunitySourceType;
   unreadOnly?: boolean;
@@ -1524,15 +1532,15 @@ async function countTalentOpportunityRecommendations(args: {
     .eq("talent_id", args.userId) as any;
 
   if (args.historyTab === "new") {
-    query = query
-      .is("feedback", null)
+    query = query.eq("list_position", "current")
+      .or("feedback.is.null,feedback.eq.dislike")
       .or("saved_stage.is.null,saved_stage.neq.hidden");
   } else if (args.historyTab === "saved") {
     query = query.or(
       "feedback.eq.like,feedback.eq.keep,and(feedback.is.null,saved_stage.eq.hidden)"
     );
-  } else {
-    query = query.eq("feedback", "dislike");
+  } else if (args.historyTab === "archived") {
+    query = query.eq("list_position", "previous");
   }
 
   if (args.savedStage) {
@@ -1541,6 +1549,7 @@ async function countTalentOpportunityRecommendations(args: {
 
   if (args.sourceType) {
     query = query.eq("company_role.source_type", args.sourceType);
+    if (args.historyTab === "new" && args.sourceType === "internal") query=query.is("feedback",null);
   }
 
   if (args.unreadOnly) {
@@ -1608,6 +1617,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
     savedCount,
     archivedCount,
     savedStageCounts,
+    totalCount,
   ] = await Promise.all([
     countTalentOpportunityRecommendations({
       admin: args.admin,
@@ -1638,6 +1648,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
       userId: args.userId,
     }),
     fetchSavedHistoryStageCounts(args),
+    countTalentOpportunityRecommendations({ admin: args.admin, userId: args.userId }),
   ]);
 
   const counts = createEmptyHistoryCounts();
@@ -1646,7 +1657,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
   counts.newExternalUnread = newExternalUnreadCount;
   counts.saved = savedCount;
   counts.archived = archivedCount;
-  counts.total = newCount + savedCount + archivedCount;
+  counts.total = totalCount;
   counts.savedStages = savedStageCounts;
 
   return counts;
@@ -1756,6 +1767,7 @@ function mapRecommendationRow(
   const companyData = mapCompanyDataRow(workspace.company_data);
 
   return {
+    listPosition: row.list_position,
     clickedAt: row.clicked_at ?? null,
     companyData,
     companyFoundedYear: workspace.company_db?.founded_year ?? null,
@@ -1814,7 +1826,7 @@ function mapRecommendationRow(
         ? row.score
         : null,
     recommendationSummary:
-      getLocalizedRoleSummaryContent(role.summary, locale) ??
+      (row.list_explanation || getLocalizedRoleSummaryContent(role.summary, locale)) ??
       row.fit_summary ??
       role.description_summary ??
       null,
@@ -2071,58 +2083,41 @@ async function fetchUpcomingMeetingsForHistoryItems(args: {
   items: TalentOpportunityHistoryItem[];
   userId: string;
 }) {
-  const recommendationIds = Array.from(
-    new Set(args.items.map((item) => item.id).filter(Boolean))
-  );
-  const meetingsByRecommendationId = new Map<
-    string,
-    TalentOpportunityUpcomingMeeting
-  >();
-  if (recommendationIds.length === 0) return meetingsByRecommendationId;
-
-  const { data, error } = await ((
+  const roleIds = [
+    ...new Set(args.items.map((item) => item.roleId).filter(Boolean)),
+  ];
+  const result = new Map<string, TalentOpportunityUpcomingMeeting>();
+  if (!roleIds.length) return result;
+  const { data, error } = await (
     args.admin.from("meeting_schedules" as any) as any
   )
-    .select("recommendation_id,title,confirmed_start_at,confirmed_end_at")
+    .select("role_id,title,confirmed_start_at,confirmed_end_at")
     .eq("talent_id", args.userId)
     .eq("status", "confirmed")
-    .in("recommendation_id", recommendationIds)
+    .in("role_id", roleIds)
     .gte("confirmed_start_at", new Date().toISOString())
-    .order("confirmed_start_at", { ascending: true }) as any);
-
+    .order("confirmed_start_at", { ascending: true });
   if (error) {
     console.warn("[TalentOpportunity] failed to load upcoming meetings", {
-      error: error.message ?? "Unknown error",
+      error: error.message,
       userId: args.userId,
     });
-    return meetingsByRecommendationId;
+    return result;
   }
-
-  for (const row of coerceJsonArray<{
-    confirmed_end_at: string | null;
-    confirmed_start_at: string | null;
-    recommendation_id: string | null;
-    title: string | null;
-  }>(data)) {
-    const recommendationId = String(row.recommendation_id ?? "").trim();
-    const startAt = String(row.confirmed_start_at ?? "").trim();
-    const endAt = String(row.confirmed_end_at ?? "").trim();
-    if (
-      !recommendationId ||
-      !startAt ||
-      !endAt ||
-      meetingsByRecommendationId.has(recommendationId)
-    ) {
-      continue;
+  const byRole = new Map<string, TalentOpportunityUpcomingMeeting>();
+  for (const row of data ?? [])
+    if (row.role_id && row.confirmed_start_at && !byRole.has(row.role_id)) {
+      byRole.set(row.role_id, {
+        startAt: row.confirmed_start_at,
+        endAt: row.confirmed_end_at,
+        title: row.title,
+      });
     }
-    meetingsByRecommendationId.set(recommendationId, {
-      endAt,
-      startAt,
-      title: String(row.title ?? "").trim() || null,
-    });
+  for (const item of args.items) {
+    const meeting = byRole.get(item.roleId);
+    if (meeting) result.set(item.id, meeting);
   }
-
-  return meetingsByRecommendationId;
+  return result;
 }
 
 async function fetchConfirmedMeetingsForHistoryItems(args: {
@@ -2497,6 +2492,12 @@ async function enrichTalentOpportunityHistoryItems(args: {
 }) {
   if (args.items.length === 0) return args.items;
 
+  const internalRoleIds = [...new Set(args.items.filter(item => item.sourceType === "internal").map(item => item.roleId))];
+  const materialResult = internalRoleIds.length ? await (args.admin.from("talent_current_role_materials_v1" as any) as any)
+    .select("role_id,id,revision,action").eq("talent_id",args.userId).in("role_id",internalRoleIds) : {data:[],error:null};
+  if (materialResult.error) throw materialResult.error;
+  const materials = new Map<string,{id:string;revision:number;action:string}>((materialResult.data??[]).map((row:any)=>[row.role_id,row]));
+
   const [
     tagsByRoleId,
     eventsByRoleId,
@@ -2521,6 +2522,10 @@ async function enrichTalentOpportunityHistoryItems(args: {
 
   return args.items.map((item) => ({
     ...item,
+    ...(item.sourceType === "internal" ? {acceptanceMaterial: {
+      materialId: materials.get(item.roleId)?.action === "set" ? materials.get(item.roleId)!.id : null,
+      assignmentRevision: materials.get(item.roleId)?.revision ?? 0,
+    }} : {}),
     savedStage: resolveHistorySavedStage(item, tagsByRoleId.get(item.roleId) ?? []),
     activityTimelineLoaded: Boolean(args.includeActivityTimeline),
     confirmedMeetings: confirmedMeetingsByRecommendationId.get(item.id) ?? [],
@@ -2538,6 +2543,41 @@ async function enrichTalentOpportunityHistoryItems(args: {
     talentMemo: latestMemoByRoleId.get(item.roleId) ?? null,
     upcomingMeeting: meetingsByRecommendationId.get(item.id) ?? null,
   }));
+}
+
+/** Read the complete owned collection, beyond the Data API's per-request row limit.
+ * Search does not hydrate action details or change recommendation state.
+ */
+export async function fetchTalentOpportunitySearchItems(args: {
+  admin: AdminClient;
+  locale?: string | null;
+  userId: string;
+}): Promise<OpportunitySearchItem[]> {
+  const items: OpportunitySearchItem[] = [];
+  const pageSize = 100; // Same request size as the history reader.
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await buildTalentOpportunityHistoryQuery(args)
+      .or("list_position.eq.previous,feedback.eq.like,feedback.eq.keep,and(feedback.is.null,saved_stage.eq.hidden)")
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message ?? "Failed to search opportunities");
+    const rows = coerceJsonArray<RawRecommendationRow>(data);
+    const page = rows.map((row) => mapRecommendationRow(row, args.locale))
+      .filter((item): item is TalentOpportunityHistoryItem => item !== null);
+    const [memos, tags] = await Promise.all([
+      fetchLatestTalentRoleMemos({ ...args, items: page }),
+      fetchInternalProgressTagsForHistoryItems({ ...args, items: page }),
+    ]);
+    for (const item of page) {
+      const { id, roleId, companyName, companyLogoUrl, title, location,
+        description, feedback, listPosition, sourceType, opportunityType } = item;
+      items.push({ id, roleId, companyName, companyLogoUrl, title, location,
+        description, feedback, listPosition, sourceType, opportunityType,
+        savedStage: resolveHistorySavedStage(item, tags.get(roleId) ?? []),
+        talentMemo: memos.get(roleId) ?? null });
+    }
+    if (rows.length < pageSize) break;
+  }
+  return items;
 }
 
 export async function fetchTalentOpportunityHistory(args: {
@@ -3100,6 +3140,7 @@ export async function assertCurrentTalentRecommendation(args: {
 }
 
 async function acceptInternalRoleRecommendation(args: {
+  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
   admin: AdminClient;
   clearEmailAcceptanceConfirmation?: boolean;
   emailAcceptanceConfirmation?: Json | null;
@@ -3141,7 +3182,7 @@ async function acceptInternalRoleRecommendation(args: {
   const { data, error } = await (args.admin.rpc as any)(
     "accept_talent_internal_role_recommendation_v2",
     {
-      p_context: {},
+      p_context: args.acceptanceMaterial ?? {},
       p_email_acceptance_confirmation: emailAcceptanceConfirmation,
       p_feedback_reason:
         String(args.feedbackReason ?? "")
@@ -3174,6 +3215,7 @@ async function acceptInternalRoleRecommendation(args: {
 }
 
 export async function updateTalentOpportunityHistoryItem(args: {
+  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
   action: "feedback" | "saved_stage" | "view" | "click" | "memo";
   admin: AdminClient;
   clearEmailAcceptanceConfirmation?: boolean;
@@ -3268,6 +3310,7 @@ export async function updateTalentOpportunityHistoryItem(args: {
         recommendationType?.opportunity_type === OpportunityType.IntroRequest
       ) {
         const decision = await decideTalentCompanyIntro({
+          acceptanceMaterial: args.acceptanceMaterial,
           decision: args.feedback === "positive" ? "accept" : "decline",
           emailAcceptanceConfirmation:
             args.emailAcceptanceConfirmation ?? null,
@@ -3284,6 +3327,7 @@ export async function updateTalentOpportunityHistoryItem(args: {
     }
     const acceptance = args.feedback === "positive" && isInternalRecommendation
       ? await acceptInternalRoleRecommendation({
+          acceptanceMaterial: args.acceptanceMaterial,
         admin: args.admin,
         clearEmailAcceptanceConfirmation: args.clearEmailAcceptanceConfirmation,
         emailAcceptanceConfirmation: args.emailAcceptanceConfirmation,

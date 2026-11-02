@@ -19,7 +19,7 @@ export function parseReadTalentProfileView(input: Record<string, unknown>) {
   return input.profileView;
 }
 
-const PROFILE_SECTIONS = ["bio", "experience", "education", "extras"] as const;
+const PROFILE_SECTIONS = ["bio", "experience", "education", "extras", "documents"] as const;
 type ProfileSection = typeof PROFILE_SECTIONS[number];
 
 export function parseReadTalentProfileSections(input: Record<string, unknown>): ProfileSection[] | undefined {
@@ -32,7 +32,11 @@ export function parseReadTalentProfileSections(input: Record<string, unknown>): 
 }
 
 /** Project only already-authorized profile data; original prose stays available. */
-export function projectReadTalentProfile<T extends { profile?: unknown }>(item: T, view: "outline" | "full" | undefined, sections?: ProfileSection[]): T {
+export function projectReadTalentProfile<T extends { profile?: unknown; roleProfiles?: unknown }>(item: T, view: "outline" | "full" | undefined, sections?: ProfileSection[]): T {
+  if (Array.isArray(item.roleProfiles)) {
+    item = { ...item, roleProfiles: item.roleProfiles.map(row => row && typeof row === "object"
+      ? projectReadTalentProfile(row as { profile?: unknown }, view, sections) : row) };
+  }
   if ((view !== "outline" && sections === undefined) || !item.profile || typeof item.profile !== "object" || Array.isArray(item.profile)) return item;
   const profile = item.profile as Record<string, unknown>;
   const metadata = (rows: unknown) => Array.isArray(rows) ? rows.map(row => {
@@ -43,7 +47,7 @@ export function projectReadTalentProfile<T extends { profile?: unknown }>(item: 
   const projected = { ...profile };
   if (view === "outline") {
     delete projected.bio;
-    for (const key of ["experiences", "education", "extras"]) projected[key] = metadata(profile[key]);
+    for (const key of ["experiences", "education", "extras", "documents"]) projected[key] = metadata(profile[key]);
   }
   if (sections !== undefined) {
     for (const section of PROFILE_SECTIONS) {

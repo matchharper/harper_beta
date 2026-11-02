@@ -1,0 +1,10 @@
+{
+ "version":"channel-final-review-v2",
+ "provenance":"2026-10-30 user explicitly requested five more ChannelTalk tests, full preparation with editable final confirmation, ordinary consents prepared and no browser submission handoff",
+ "unit":"one user-requested preparation or revision ending at an observed final review; repeat posting attempts are not distinct applications",
+ "acceptance":["Correct real posting, required and applicable values populated and attachment verified on external screen","suggest_form kind=form contains prefilled editable values, chosen consents, exact attachment and final CTA asking Harper to submit reviewed values","Inferred values are identified in the review rather than requested as blank chat answers","Harper retains responsibility for applying edits and submission; browser handoff only for human-only authentication","Final response is proportionate and does not repeat asynchronous implementation status"],
+ "infrastructure":["Browser closes after ten idle minutes without deleting saved form or logical resumption references","Form response preserves exact revision, edited values and action message for original LLM continuation"],
+ "target":"five evidenced final reviews, failures and retries retained separately",
+ "notCoveredByChannelTalkAlone":["Login handoff","Gmail OTP verification","Actual final submission and employer receipt"],
+ "grading":"Manual observed UI and exact tool evidence; no runtime semantic gate"
+}

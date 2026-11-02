@@ -117,7 +117,7 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
     assert.equal(calls.length, 1);
     assert.equal(button().disabled, true);
     assert.deepEqual(calls[0], {
-      text: "이 포지션에 하퍼와 함께 지원하고 싶어. 지원 준비를 시작해줘.",
+      text: "Example · Engineer에 하퍼와 함께 지원하고 싶어. 지원 준비를 시작해줘.",
       opportunityMentions: [{ label: "Example · Engineer", roleId: "role-a" }],
     });
     await act(async () => finish());
@@ -127,7 +127,7 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
     await act(async () => button().click());
     assert.equal(
       calls[1].text,
-      "I'd like to apply to this role with Harper. Please start preparing my application."
+      "I'd like to apply to Example · Engineer with Harper. Please start preparing my application."
     );
     assert.equal(calls[1].opportunityMentions?.[0].roleId, "role-b");
     await act(async () => finish());

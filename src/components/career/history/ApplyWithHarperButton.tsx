@@ -48,7 +48,8 @@ export default function ApplyWithHarperButton({
     item.savedStage === "closed" ||
     item.status === "ended" ||
     item.status === "deleted"
-  ) return null;
+  )
+    return null;
 
   const start = async () => {
     if (disabled || sendingRef.current) return;
@@ -61,17 +62,17 @@ export default function ApplyWithHarperButton({
     setSending(true);
     try {
       if (onBeforeStart && (await onBeforeStart()) !== true) return;
+      const opportunity = {
+        label: `${item.companyName} · ${item.title}`,
+        roleId: item.roleId,
+      };
       const sent = chat.onSendChatMessage({
         text: t(
-          "career.history.apply_with_harper.request",
-          "이 포지션에 하퍼와 함께 지원하고 싶어. 지원 준비를 시작해줘."
+          "career.history.apply_with_harper.mention_request",
+          "{opportunity}에 지원해줘.",
+          { values: { opportunity: opportunity.label } }
         ),
-        opportunityMentions: [
-          {
-            label: `${item.companyName} · ${item.title}`,
-            roleId: item.roleId,
-          },
-        ],
+        opportunityMentions: [opportunity],
       });
       // Show the chat as soon as the request starts, while the reply streams.
       onOpenChat?.();

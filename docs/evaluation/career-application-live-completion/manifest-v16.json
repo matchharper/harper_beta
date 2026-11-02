@@ -1,0 +1,55 @@
+{
+  "runVersion": "browser-dock-v16",
+  "input": "input-contract-v4.md",
+  "gold": "Manual UI criteria in input-contract-v4.md; application-completion gold unchanged",
+  "capturedAt": "2026-10-30T05:40:28.321645+00:00",
+  "sourceHashes": {
+    "src/app/api/talent/forms/route.ts": "5769f1be86858441095cb3a31384b5f4b6425681274b4e30258b85cc8e72f260",
+    "src/app/api/talent/browser/route.ts": "845e4caf0ffc06f86943a1fe3f9f271d851c452d83b7ee6580fc849e466cfca5",
+    "src/components/career/BrowserSessionCard.tsx": "23dce62b9d1d5ca029155b1a44e4a69a4ad1401938ca1128d99b3e64fb4f2c84",
+    "src/components/career/BrowserSessionDock.tsx": "c484e9bb61bfc37bba82c0ba6600ac3d5cded05873ef85e43da1f3e4b3e7b9b5",
+    "src/components/career/CareerChatPanelContext.tsx": "5ef7134f58bd5a05bc0645d0985a4d4efa48c123318a4d412a10d3b1a4633d28",
+    "src/components/career/chat/CareerFormCard.tsx": "004efa09939fba9ee2026c9bcbb30b3f2fcd6869587ce12a1bbf293a2a2fd59d",
+    "src/components/career/chat/CareerComposerSection.tsx": "43163f11d2ff63ce5630dd8f7dc6c96d33b20f43ebf3e1e6bd6fbaa253961fb4",
+    "src/components/career/chat/CareerMessageBubble.tsx": "47e3565dd65228d9e62f404c52edd70cafe94fb47ff6e6b06e61ec23f816dc50",
+    "src/components/career/chat/CareerTimelineSection.tsx": "efb895126aa23e504de7eadf06a159bf6272a19b0e4651fbb943e84ced96f9f5",
+    "src/lib/career/browser/marker.ts": "433501852066d74ef58faece8007899ab6590d5a99e92e51f539c6e730a29db3",
+    "src/lib/career/browser/tool.ts": "63c201e68718bd256b44da2e5485dcde51bae07a28deefd87db10f175b58c85e",
+    "src/lib/career/forms/integrationMarker.ts": "ea92730696445c14775f5de51559c581ccc6c085cd17ca80a46951869603bafe",
+    "src/lib/career/forms/server.ts": "3e73a552d5cc5eec06eb57dd9675443d83fb9a5e2a0fbaf844ed6a903be19420",
+    "src/components/career/useLiveBrowserViewport.ts": "a0cce555bbfe05fc4884db95b27498f4fbcd81f4fa42fad6f7565a8c490f2212",
+    "src/components/career/chat/ApplicationBrowserPreview.tsx": "6a3f15dc906f1bb1e10ae8e9601e69d8710baefeddd6b5909385f0a1730318a6"
+  },
+  "runner": "User Chrome \u2192 local Career UI \u2192 existing product API and reply/browser workers",
+  "privateArtifacts": "runs/browser-dock-v16/",
+  "configuration": {
+    "conversationDefault": "gpt-6.1-sol",
+    "reasoning": "high",
+    "deployment": "local only"
+  },
+  "observedResult": {
+    "uiRequests": 7,
+    "formResponses": 2,
+    "independentForms": 2,
+    "browserRuns": 12,
+    "maxSimultaneouslyObservedBrowsers": 2,
+    "formResponseSaveGapSeconds": 0.309239,
+    "formResponseToAssistantSeconds": [
+      13.55307,
+      329.088912
+    ],
+    "targetedChecksPassed": 19,
+    "submissions": 0,
+    "emailsSent": 0,
+    "initialIframeLoad": "unresolved; reproduced after refresh"
+  },
+  "limitations": [
+    "Live conversation and website are not frozen; adaptive UI debugging, not a model benchmark.",
+    "Only form negative CTAs were clicked; editing concurrency and same-click idempotency were verified with component tests.",
+    "Second form response continuation arrived after 329 seconds; this run does not establish a response-latency improvement.",
+    "UI/browser-opening checks are not additional completed applications.",
+    "Initial iframe load remains unresolved: final refresh reproduced a blank viewer; a successful intermediate screenshot does not establish stable loading.",
+    "No login, OTP or real submission tested in this run.",
+    "No database schema change or deployment."
+  ]
+}

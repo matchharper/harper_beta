@@ -1,0 +1,60 @@
+import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { enqueueCareerAgentReply, type CareerAgentReplyJob } from "./agentReplyQueue";
+import type { CareerReplyCheckpoint } from "./capabilities/runtime";
+
+export async function careerCheckpointIsReady(admin: TalentAdminClient, userId: string, checkpoint: CareerReplyCheckpoint) {
+  for (const work of checkpoint.waitFor ?? []) {
+    const table = work.kind === "external_evaluation" ? "external_recommendation_runs"
+      : work.kind === "email_delivery" ? "talent_opportunity_delivery" : "opportunity_discovery_run";
+    const { data, error } = await (admin.from as any)(table).select("status")
+      .eq("id", work.id).eq("talent_id", userId).maybeSingle();
+    if (error) throw error;
+    // A missing/deleted run is also a completed wait. The agent reads that fact
+    // and decides what to do; silently waiting forever would lose the request.
+    if (data && ["queued", "running", "pending", "retry", "handed_off", "sending"].includes(data.status)) return false;
+  }
+  return true;
+}
+
+export async function dispatchCareerCheckpoint(args: {
+  admin: TalentAdminClient; userId: string; conversationId: string; checkpoint: CareerReplyCheckpoint;
+  publish?: (job: CareerAgentReplyJob) => Promise<unknown>;
+}) {
+  if (!await careerCheckpointIsReady(args.admin, args.userId, args.checkpoint)) return { waiting: true };
+  const source = args.checkpoint.continuation;
+  if (source?.emailReplyJobId) {
+    const { data, error } = await args.admin.from("email_reply_jobs").update({ status: "queued", queue_dispatched_at: null })
+      .eq("id", source.emailReplyJobId).eq("talent_id", args.userId).eq("conversation_id", args.conversationId)
+      .eq("status", "waiting_career").select("id").maybeSingle();
+    if (error) throw error;
+    if (data) {
+      const { publishEmailRuntimeJob } = await import("@/lib/email/runtime/queue");
+      await publishEmailRuntimeJob({ version: 1, kind: "reply", jobId: data.id }, args.checkpoint.checkpointId);
+    }
+    return { waiting: false };
+  }
+  const job: CareerAgentReplyJob = {
+    userId: args.userId, conversationId: args.conversationId, replyId: args.checkpoint.replyId,
+    checkpointKey: args.checkpoint.checkpointId,
+    ...(source?.assistantModel ? { assistantModel: source.assistantModel } : {}),
+    ...(source?.textChatModel ? { textChatModel: source.textChatModel } : {}),
+    ...(source?.sourceMessageId ? { sourceMessageId: source.sourceMessageId } : {}),
+    ...(source?.backgroundRunId ? { backgroundRunId: source.backgroundRunId } : {}),
+    ...(source?.runtimeInstruction ? { proactiveContext: source.runtimeInstruction } : {}),
+    ...(source?.noMessageMarker ? { noMessageMarker: source.noMessageMarker } : {}),
+  };
+  await (args.publish ?? enqueueCareerAgentReply)(job);
+  return { waiting: false };
+}
+
+/** Called after durable child completion; checkpoint-first and child-first are both safe. */
+export async function resumeCareerAgentAfterWork(args: {
+  admin: TalentAdminClient; userId: string; conversationId: string; replyId: string;
+}) {
+  const { data, error } = await (args.admin.from as any)("talent_agent_runtime").select("state")
+    .eq("conversation_id", args.conversationId).eq("user_id", args.userId).maybeSingle();
+  if (error) throw error;
+  const checkpoint = data?.state?.checkpoints?.[args.replyId] as CareerReplyCheckpoint | undefined;
+  if (!checkpoint || data.state.completedReplyIds?.[args.replyId] !== undefined) return;
+  await dispatchCareerCheckpoint({ ...args, checkpoint });
+}

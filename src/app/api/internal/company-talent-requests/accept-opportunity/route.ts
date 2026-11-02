@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
 
     const result = await updateTalentOpportunityHistoryItem({
       action: "feedback",
+      acceptanceMaterial: body.acceptanceMaterial && typeof body.acceptanceMaterial === "object" ? body.acceptanceMaterial as { materialId:string|null; assignmentRevision:number } : undefined,
       admin,
       emailAcceptanceConfirmation: confirmation as Json,
       feedback: decision === "decline" ? "negative" : "positive",

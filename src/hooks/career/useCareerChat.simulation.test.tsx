@@ -171,6 +171,7 @@ test("browser resume acknowledgement without userMessage removes optimistic mess
     await act(async () => { root.render(<MessagesProvider locale="ko"><Harness /></MessagesProvider>); });
     await act(async () => { api.setStage("chat"); });
     await act(async () => { await api.sendChatMessage({ text: "", applicationInputSubmission: {batchId:"batch", sessionMessageId:1, expectedRevision:2} }); });
+    await act(async () => { await api.sendChatMessage({ text: "", applicationPreparationContinuation: {sessionMessageId:1, continuationId:"follow-up"} }); });
     assert.equal(api.chatPending, false);
     assert.deepEqual(api.messages, []);
     assert.deepEqual(committed, []);

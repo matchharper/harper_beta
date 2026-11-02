@@ -7,7 +7,7 @@ import {
 } from "@/lib/talentOnboarding/models";
 
 const TALENT_DOCUMENT_SELECT =
-  "id, talent_id, kind, file_name, storage_path, content_type, size_bytes, content_sha256, extracted_text, is_public, is_primary, is_deleted, created_at, updated_at, origin_type, origin_id, structured_content, revision";
+  "id, talent_id, kind, file_name, description, storage_path, content_type, size_bytes, content_sha256, extracted_text, is_public, is_primary, is_deleted, created_at, updated_at, origin_type, origin_id, structured_content, revision";
 
 export async function fetchTalentDocuments(args: {
   admin: TalentAdminClient;
@@ -149,6 +149,7 @@ export async function serializeTalentDocuments(args: {
         id: document.id,
         kind: document.kind,
         fileName: document.file_name,
+        description: document.description ?? null,
         storagePath: document.storage_path,
         contentType: document.content_type,
         sizeBytes: document.size_bytes,

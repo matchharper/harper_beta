@@ -59,6 +59,7 @@ test("external application choices persist distinct stages, retry failed saves a
     onSendChatMessage: (
       args: Parameters<CareerChatPanelContextValue["onSendChatMessage"]>[0]
     ) => {
+      assert.equal(args.text, "Example · Engineer에 하퍼와 함께 지원하고 싶어. 지원 준비를 시작해줘.");
       assert.deepEqual(args.opportunityMentions, [
         { label: "Example · Engineer", roleId: "external-role" },
       ]);
@@ -115,7 +116,7 @@ test("external application choices persist distinct stages, retry failed saves a
   };
   try {
     await render("direct");
-    assert.ok(button("직접 지원하기").classList.contains("w-full"));
+    assert.ok(button("사이트에서 직접 지원하기").classList.contains("w-full"));
     assert.ok(button("Harper와 지원하기").classList.contains("w-full"));
     let finishSave: (result: boolean) => void = () => {};
     save = () =>
@@ -123,11 +124,11 @@ test("external application choices persist distinct stages, retry failed saves a
         finishSave = resolve;
       });
     await act(async () => {
-      button("직접 지원하기").click();
-      button("직접 지원하기").click();
+      button("사이트에서 직접 지원하기").click();
+      button("사이트에서 직접 지원하기").click();
     });
     assert.deepEqual(events, ["posting", "save:applied"]);
-    assert.equal(button("직접 지원하기").disabled, true);
+    assert.equal(button("사이트에서 직접 지원하기").disabled, true);
     assert.equal(button("Harper와 지원하기").disabled, true);
     await act(async () => finishSave(true));
     assert.deepEqual(events, [
@@ -167,14 +168,14 @@ test("external application choices persist distinct stages, retry failed saves a
     events.length = 0;
     await render("failed-direct");
     save = async () => false;
-    await act(async () => button("직접 지원하기").click());
+    await act(async () => button("사이트에서 직접 지원하기").click());
     assert.deepEqual(events, ["posting", "save:applied"]);
 
     events.length = 0;
     await render("pending", "en", true);
-    assert.equal(button("Apply directly").disabled, true);
+    assert.equal(button("Apply directly on the website").disabled, true);
     assert.equal(button("Apply with Harper").disabled, true);
-    await act(async () => button("Apply directly").click());
+    await act(async () => button("Apply directly on the website").click());
     assert.deepEqual(events, []);
   } finally {
     await act(async () => {

@@ -96,7 +96,7 @@ export function SimulationNextActionCard({
   return (
     <section className="max-w-[740px] rounded-xl border border-neutral-1000-a10 bg-bg-floating p-4 text-neutral-primary">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <strong>{t("career.apply.title", "Harper와 준비하기")}</strong>
+        <strong>{t("career.apply.prepare_title", "Harper와 준비하기")}</strong>
         <ResponsiveLightTooltip
           className="w-auto"
           mobileAriaLabel={t(

@@ -20,6 +20,18 @@ type CareerTLike = (key: string, koSource: string) => string;
 
 const fallbackCareerT: CareerTLike = (_key, koSource) => koSource;
 
+export const getMyOpportunityTab = (status: SavedOpportunityManagementStatus) => {
+  if (status === "applied" || status === "connected") return "applied";
+  if (status === "closed" || status === "hidden") return "hidden";
+  return "saved";
+};
+
+export const getMyOpportunityTabs = (t: CareerTLike) => [
+  { id: "saved" as const, label: t("career.common.career_history_panel.saved_positions_tab", "저장함") },
+  { id: "applied" as const, label: t("career.common.career_history_panel.0y27adb", "진행중") },
+  { id: "hidden" as const, label: t("career.common.career_history_panel.hidden_tab", "종료/보관") },
+];
+
 type SavedOpportunityStatusOptionsConfig = {
   hiddenLabel?: string;
   includeAll?: boolean;

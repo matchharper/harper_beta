@@ -7,6 +7,15 @@ import {
 } from "@/lib/talentOnboarding/profileStore";
 import type { TalentUserProfileRow } from "@/lib/talentOnboarding/models";
 
+test("supplies stored contact facts in the profile text used by the career agent", () => {
+  const profile = { email: "candidate@example.com", phone_number: "+82 10 1234 5678" } as TalentUserProfileRow;
+  const context = buildTalentProfileContext({ profile });
+  assert.match(context, /- Email: candidate@example\.com/);
+  assert.match(context, /- Phone: \+82 10 1234 5678/);
+  const unknown = buildTalentProfileContext({ profile: { email: null, phone_number: null } as TalentUserProfileRow });
+  assert.doesNotMatch(unknown, /- (Email|Phone):/);
+});
+
 test("appends new row memo text after the existing memo", () => {
   assert.equal(
     applyRowMemoOperation({
@@ -146,7 +155,7 @@ test("does not split a styled Unicode character in profile context", () => {
   assert.doesNotMatch(JSON.stringify(context), /\\ud835/i);
 });
 
-test("missing end dates reach the LLM as missing data, without asserting ongoing work", () => {
+test("profile context preserves null and dated employment endings", () => {
   const context = buildTalentProfileContext({
     profile: null,
     structuredProfile: {
@@ -159,7 +168,7 @@ test("missing end dates reach the LLM as missing data, without asserting ongoing
       talentExtras: [],
     },
   });
-  assert.match(context, /2022-01 ~ \(end date not recorded\)/);
+  assert.match(context, /2022-01 ~ null/);
   assert.match(context, /2020-01 ~ 2021-12/);
-  assert.doesNotMatch(context, /Present/);
+
 });

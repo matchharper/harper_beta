@@ -179,6 +179,9 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
                       >
                         <div className="flex flex-row items-center justify-start gap-1.5">
                           <span>{job.roleTitle}</span>
+                          {/* Slide Blur Swap (슬라이드 블러 스왑): 기존 아이콘은 오른쪽으로 흐려지며 퇴장,
+                              새 아이콘은 왼쪽에서 선명해지며 등장. 500ms / 6px / blur 3px.
+                              공통 사용 기준: src/styles/Design.md의 Slide Blur Swap. */}
                           <span
                             aria-hidden="true"
                             className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center"

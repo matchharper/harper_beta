@@ -1,0 +1,45 @@
+{
+  "version": "v1",
+  "unit": "One complete initial suggestion batch, reviewed against the selected resume, all supplied confirmed evidence and the target job",
+  "reviewMethod": "Independent Codex semantic review of full inputs and outputs; no keyword matching, suggestion-count quota, automatic semantic grader or production validation rule. Gold expectations are frozen before observing new model outputs. This is assistant-authored review, not independent human ground truth.",
+  "dimensions": [
+    {
+      "id": "factual_fidelity",
+      "points": 25,
+      "fullCredit": "Every proposed personal claim is supported by user-confirmed/profile evidence, attribution and scope are preserved, generated documents are not treated as new evidence, source conflicts and consequential unknowns remain uncertain, and private search/interview history stays private.",
+      "deductions": "Deduct in proportion to consequence for altered scope, unsupported credentials, invented metrics or methods, changed ownership, stale/deleted facts, unjustified current-status assertions, or disclosure of unrelated private context. A critical factual fabrication is also recorded separately."
+    },
+    {
+      "id": "important_evidence_use",
+      "points": 25,
+      "fullCredit": "The batch identifies the important role-relevant evidence absent or poorly conveyed in this selected resume and uses it where it materially improves the document. It recognizes facts already present and protects their useful detail. An already sufficient resume can earn full credit with few or no changes.",
+      "deductions": "Deduct for missing a substantial available evidence gap, generic rephrasing instead of a useful supported addition, or claiming an existing fact is absent. Do not count each subfact in one coherent improvement as a mandatory separate suggestion."
+    },
+    {
+      "id": "edit_selection_and_completeness",
+      "points": 20,
+      "fullCredit": "Edits have a meaningful purpose, identify an understandable target and provide finished insertable/replacement wording in the resume language. Each preserves valuable unaffected content and handles the whole intended change without duplication. The amount of editing is proportionate to actual deficiencies.",
+      "deductions": "Deduct for trivial emphasis or cosmetic churn, unsupported self-promotion, fragments or instructions in place of actual resume wording, fragmented duplicates, or weakening useful evidence. Do not penalize a justified zero-change result."
+    },
+    {
+      "id": "question_selection",
+      "points": 15,
+      "fullCredit": "Questions address consequential unknowns whose answers would improve a concrete resume passage or explicitly requested application material. They build on known facts, have a clear answerable focus and do not demand numbers where qualitative evidence can suffice.",
+      "deductions": "Deduct for reasking known facts, asking every desirable skill indiscriminately, demanding already confirmed missing publications, mixing unrelated decisions in one question, or omitting an important required authentic-material gap. There is no mandatory question count."
+    },
+    {
+      "id": "titles_and_reasons",
+      "points": 15,
+      "fullCredit": "Titles identify the substantive improvement or question in plain language. Reasons accurately explain the selected-resume gap and role benefit, or how a missing answer will be used. They are specific, readable and proportionate.",
+      "deductions": "Deduct for misleading omission claims, generic claims of competitiveness, internal browser/process commentary, inflated causal explanations or titles that merely restate a button or editing action."
+    }
+  ],
+  "criticalFailures": [
+    "Invented or materially overstated personal experience, qualification, ownership, measured result or sensitive fact",
+    "Exposing private career-search, rejection or interview-history context as resume material without authorization",
+    "Treating deleted evidence as current or a previous generated statement as independent confirmation of a personal fact",
+    "Unauthorized database write, contact, upload or application submission during this isolated evaluation"
+  ],
+  "reviewOutput": "Record each dimension score, total /100, concrete strengths, concrete failures with suggestion references, missed important opportunities, any critical failure and limitations. Score semantics and usefulness, not exact words or number of suggestions.",
+  "releaseGate": "Quality acceptance must be decided from the full manual review and critical failures separately; the parent task will document its numerical gate. This single-account challenge does not establish production-wide quality."
+}

@@ -1,0 +1,161 @@
+// Synthetic PostgreSQL fixture adapted from profiles/profileVersions.database.test.ts.
+// Production profile/material migrations and executors run unchanged; legacy acceptance is stubbed, no delivery.
+import { readFile } from "node:fs/promises";
+import { PGlite } from "@electric-sql/pglite";
+export const owner = "00000000-0000-4000-8000-000000000001",
+  other = "00000000-0000-4000-8000-000000000002",
+  role = "00000000-0000-4000-8000-000000000003",
+  rec = "00000000-0000-4000-8000-000000000004",
+  doc = "00000000-0000-4000-8000-000000000005";
+export async function database() {
+  const db = new PGlite();
+  await db.exec(`
+ create role anon; create role authenticated; create role service_role;
+ create table talent_users(user_id uuid primary key,deleted_at timestamptz,name text,headline text,bio text,location text,current_location text,email text,phone_number text,profile_picture text,resume_links text[] default '{}',resume_file_name text,resume_storage_path text,resume_text text,updated_at timestamptz default now());
+ create table talent_experiences(id bigserial primary key,talent_id uuid references talent_users(user_id),company_id text,company_link text,company_location text,company_logo text,company_name text,description text,employment_type text,start_date date,end_date date,memo text,months integer,role text,created_at timestamptz default now());
+ create table talent_educations(id bigserial primary key,talent_id uuid references talent_users(user_id),degree text,description text,end_date date,field text,memo text,school text,start_date date,url text,created_at timestamptz default now());
+ create table talent_extras(talent_id uuid primary key references talent_users(user_id),content jsonb);
+ create table company_workspace(company_workspace_id uuid primary key,company_name text,published_name text);
+ create table company_roles(role_id uuid primary key,source_type text,status text,is_expired boolean,expires_at timestamptz,information jsonb,company_workspace_id uuid);
+ create table talent_setting(user_id uuid primary key,is_onboarding_done boolean,profile_visibility text,blocked_companies text[]);
+ create table talent_documents(id uuid primary key,talent_id uuid,revision bigint default 1,file_name text,kind text,is_deleted boolean default false,is_public boolean default false,is_primary boolean default false,storage_path text,extracted_text text,structured_content jsonb);
+ create table opportunity_discovery_run(id uuid primary key,talent_id uuid,coverage jsonb default '{}');
+ create table talent_opportunity_recommendation(id uuid primary key default gen_random_uuid(),talent_id uuid,role_id uuid,feedback text,saved_stage text,created_at timestamptz default now(),recommended_at timestamptz default now(),opportunity_type text,kind text,evidence jsonb,fit_reasons jsonb,preference_fit jsonb,tradeoffs jsonb,discovery_run_id uuid);
+ create table company_intro_candidates(id uuid primary key,talent_id uuid,role_id uuid,recommendation_id uuid);
+ create table company_role_candidate_evaluations(id uuid primary key,talent_id uuid,role_id uuid,stage integer);
+ create table talent_opportunity_tag(talent_id uuid,opportunity_id uuid,tag text);
+ create table talent_progress(talent_id uuid,role_id uuid,recommendation_id uuid,user_id uuid,kind text,text text,metadata jsonb,open_to_company boolean);
+ create function accept_talent_internal_role_recommendation_v1(uuid,uuid,uuid,text,jsonb,jsonb) returns jsonb language sql as $$select '{"status":"accepted"}'::jsonb$$;
+ create function decide_company_intro_request_v1(uuid,uuid,text,text,jsonb) returns jsonb language sql as $$select '{"status":"accepted"}'::jsonb$$;
+ `);
+  await db.exec(
+    await readFile(
+      "supabase/migrations/20261029182857_career_profile_versions_and_role_materials.sql",
+      "utf8"
+    )
+  );
+  await db.query(
+    "insert into talent_users(user_id,name) values ($1,$2),($3,$4)",
+    [owner, "Owner", other, "Other"]
+  );
+  await db.query(
+    "insert into company_roles(role_id,source_type,status) values($1,'internal','active')",
+    [role]
+  );
+  await db.query(
+    "insert into talent_opportunity_recommendation(id,talent_id,role_id) values($1,$2,$3)",
+    [rec, owner, role]
+  );
+  return db;
+}
+export async function profile(db: PGlite, id?: string, revision?: number) {
+  const result = await db.query<{ result: any }>(
+    "select read_talent_profile_v1($1,$2,$3) result",
+    [owner, id ?? null, revision ?? null]
+  );
+  return result.rows[0].result;
+}
+export async function write(
+  db: PGlite,
+  action: string,
+  p: any,
+  snapshot: any,
+  operation: string
+) {
+  return (
+    await db.query<{ result: any }>(
+      "select write_talent_profile_v1($1,$2,$3,$4,$5,$6,null,$7) result",
+      [
+        owner,
+        action,
+        p.profileId,
+        p.revision,
+        snapshot,
+        "Role version",
+        operation,
+      ]
+    )
+  ).rows[0].result;
+}
+
+export function toolContext(db: PGlite, request = "tool-request") {
+  return {
+    userId: owner,
+    resumeRequestId: request,
+    admin: {
+      async rpc(name: string, parameters: Record<string, unknown>) {
+        try {
+          const result = await db.query<{ result: unknown }>(
+            `select ${name}(${Object.keys(parameters)
+              .map((key, index) => `${key} => $${index + 1}`)
+              .join(",")}) result`,
+            Object.values(parameters)
+          );
+          return { data: result.rows[0].result, error: null };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+      from(table: string) {
+        let fields = "*",
+          max: number | undefined;
+        const values: unknown[] = [],
+          filters: string[] = [],
+          orders: string[] = [];
+        const predicate = (key: string, op: string, value: unknown) => {
+          values.push(value);
+          filters.push(`${key} ${op} $${values.length}`);
+          return query;
+        };
+        const execute = async (single = false) => {
+          try {
+            const result = await db.query(
+              `select ${fields} from ${table}${filters.length ? ` where ${filters.join(" and ")}` : ""}${orders.length ? ` order by ${orders.join(",")}` : ""}${max === undefined ? "" : ` limit ${max}`}`,
+              values
+            );
+            return {
+              data: single ? (result.rows[0] ?? null) : result.rows,
+              error: null,
+            };
+          } catch (error) {
+            return { data: null, error };
+          }
+        };
+        const query: any = {
+          select: (selected: string) => {
+            fields = selected;
+            return query;
+          },
+          eq: (key: string, value: unknown) => predicate(key, "=", value),
+          lt: (key: string, value: unknown) => predicate(key, "<", value),
+          gt: (key: string, value: unknown) => predicate(key, ">", value),
+          ilike: (key: string, value: unknown) =>
+            predicate(key, "ilike", value),
+          is: (key: string) => {
+            filters.push(`${key} is null`);
+            return query;
+          },
+          not: (key: string) => {
+            filters.push(`${key} is not null`);
+            return query;
+          },
+          order: (key: string, options?: { ascending: boolean }) => {
+            orders.push(
+              `${key} ${options?.ascending === false ? "desc" : "asc"}`
+            );
+            return query;
+          },
+          limit: (value: number) => {
+            max = value;
+            return query;
+          },
+          single: () => execute(true),
+          maybeSingle: () => execute(true),
+          then: (resolve: any, reject: any) => execute().then(resolve, reject),
+        };
+        return query;
+      },
+    },
+  };
+}
+

@@ -427,6 +427,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
+      acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
       action?:
         | "feedback"
         | "saved_stage"
@@ -517,7 +518,7 @@ export async function PATCH(req: NextRequest) {
 
     const admin = getTalentSupabaseAdmin();
     const talentSetting =
-      action === "feedback" || action === "internal_decision_change"
+      (action === "feedback" && body.conversationId) || action === "internal_decision_change"
         ? await fetchTalentSetting({
             admin,
             userId: user.id,
@@ -571,10 +572,7 @@ export async function PATCH(req: NextRequest) {
       action === "feedback" &&
       previousOpportunity.feedback !== null &&
       (previousOpportunity.feedback !== "keep" || body.feedback === null) &&
-      !(
-        previousOpportunity.opportunityType === OpportunityType.IntroRequest &&
-        previousOpportunity.feedback === body.feedback
-      )
+      previousOpportunity.feedback !== body.feedback
     ) {
       return NextResponse.json(
         { error: "Internal role status cannot be changed." },
@@ -795,6 +793,7 @@ export async function PATCH(req: NextRequest) {
       previousOpportunity.feedback === null;
 
     const result = await updateTalentOpportunityHistoryItem({
+      acceptanceMaterial: body.acceptanceMaterial ?? previousOpportunity?.acceptanceMaterial,
       action,
       admin,
       clearEmailAcceptanceConfirmation:
@@ -811,14 +810,15 @@ export async function PATCH(req: NextRequest) {
       admin,
       ids: [result.opportunityId ?? opportunityId],
       includeActivityTimeline:
-        action === "memo" || action === "saved_stage" || action === "feedback",
+        action === "memo" || action === "saved_stage" ||
+        (action === "feedback" && Boolean(body.conversationId)),
       locale: responseLocale,
       userId: user.id,
     });
     let historyCounts: Awaited<
       ReturnType<typeof fetchTalentOpportunityHistoryCounts>
     > | null = null;
-    if (action === "feedback" && body.feedback) {
+    if (action === "feedback" && body.feedback && body.interactionSource === POSITION_TAB_INTERACTION_SOURCE) {
       try {
         historyCounts = await fetchTalentOpportunityHistoryCounts({
           admin,
@@ -852,7 +852,6 @@ export async function PATCH(req: NextRequest) {
       null;
     let feedbackFollowUpDelayMs: number | null = null;
     let feedbackFollowUpOpportunityId: string | null = null;
-    let shouldCreateInternalCallRequestOnFollowUp = false;
     if (
       action === "feedback" &&
       (body.feedback === "positive" || body.feedback === "negative") &&
@@ -901,31 +900,15 @@ export async function PATCH(req: NextRequest) {
         }
         shouldScheduleDelayedFollowUp =
           activityInserted && opportunity?.sourceType === "external";
-        if (
-          opportunity?.sourceType === "internal" &&
-          body.feedback === "positive" &&
-          opportunity.opportunityType !== OpportunityType.IntroRequest
-        ) {
-          shouldCreateInternalCallRequestOnFollowUp = !("companyShared" in result && result.companyShared === true);
-        }
-
         const isInternalAcceptance =
-          opportunity?.sourceType === "internal" &&
-          body.feedback === "positive" &&
-          opportunity.opportunityType !== OpportunityType.IntroRequest;
-        const isCompanyIntroDecision =
-          opportunity?.opportunityType === OpportunityType.IntroRequest;
-        feedbackFollowUpTrigger = isCompanyIntroDecision
-          ? null
-          : isInternalAcceptance
-            ? FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
-            : shouldPromptAfterClearedPositionTab
-              ? FEEDBACK_FOLLOW_UP_TRIGGER.AllRecommendedOpportunitiesCleared
-              : opportunity?.sourceType === "internal"
-                ? FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
-                : shouldScheduleDelayedFollowUp
-                  ? FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback
-                  : null;
+          opportunity?.sourceType === "internal" && body.feedback === "positive";
+        feedbackFollowUpTrigger = opportunity?.sourceType === "internal"
+          ? FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
+          : shouldPromptAfterClearedPositionTab
+            ? FEEDBACK_FOLLOW_UP_TRIGGER.AllRecommendedOpportunitiesCleared
+            : shouldScheduleDelayedFollowUp
+              ? FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback
+              : null;
         feedbackFollowUpDelayMs = feedbackFollowUpTrigger
           ? feedbackFollowUpTrigger ===
             FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback
@@ -989,8 +972,7 @@ export async function PATCH(req: NextRequest) {
           feedbackFollowUpTrigger !==
             FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback,
         opportunityId: feedbackFollowUpOpportunityId,
-        shouldCreateInternalCallRequest:
-          shouldCreateInternalCallRequestOnFollowUp,
+        shouldCreateInternalCallRequest: false,
         trigger: feedbackFollowUpTrigger,
       },
       followUpRunId: null,
@@ -1001,6 +983,9 @@ export async function PATCH(req: NextRequest) {
       userMessage,
     });
   } catch (error) {
+    if (error instanceof Error && error.message.includes("role_assignment_revision_conflict")) {
+      return NextResponse.json({ error: careerT(responseLocale,"career.api.opportunities.materials_changed","소개할 자료가 변경됐어요. 현재 자료를 확인한 뒤 다시 수락해 주세요."),historyShouldRefresh:true },{status:409});
+    }
     if (error instanceof InternalRoleAcceptanceError && error.reason === "internal_recommendation_superseded") {
       return NextResponse.json({
         error: careerT(responseLocale, "career.api.opportunities.superseded", "회사에서 새 Intro 요청을 보냈습니다. 최신 요청에서 응답해 주세요."),

@@ -1,12 +1,3 @@
-import { withUiStatusMessageParameter } from "@/lib/talentOnboarding/tools";
-import { applyToRoleTool } from "./simulation/applicationBrowser";
-import { manageApplicationSuggestionsTool } from "./simulation/suggestions";
-import { readyForRoleTool } from "./simulation/readyForRole";
-import {
-  SIMULATION_TOOL_NAMES,
-  simulationSessionTool,
-  applicationPreparationSessionTool,
-} from "./simulation/sessionTool";
 import {
   getOpenAIChatTools,
   getRealtimeTools,
@@ -17,7 +8,7 @@ import {
 } from "@/lib/talentOnboarding/tools";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import { scopeCareerChatToolForOnboarding } from "@/lib/career/onboardingToolSchema";
-import { shouldExposeConnectedGmailTool } from "@/lib/career/gmailToolSelection";
+import { shouldExposeConnectedGmailTool, withCareerGmailConnectionDescription } from "@/lib/career/gmailToolSelection";
 
 export type CareerOpenAIChatTool = ReturnType<
   typeof getOpenAIChatTools
@@ -25,6 +16,7 @@ export type CareerOpenAIChatTool = ReturnType<
 export type CareerRealtimeTool = ReturnType<typeof getRealtimeTools>[number];
 
 export type CareerChatToolSelectionArgs = {
+  background?: boolean;
   simulationActive?: boolean;
   simulationPreparation?: boolean;
   allowedToolNames?: readonly string[] | null;
@@ -62,17 +54,18 @@ export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.WEB_SEARCH,
   // 온보딩 중 사용자가 말한 프로필 row memo 같은 저장 가능한 정보 기록.
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
-  TALENT_TOOL_NAMES.GENERATE_RESUME,
-  TALENT_TOOL_NAMES.WRITE_DOCUMENT,
+  TALENT_TOOL_NAMES.UPSERT_DOCUMENT,
   TALENT_TOOL_NAMES.SAVE_JOB_POSTING,
   TALENT_TOOL_NAMES.LIST_DOCUMENTS,
   TALENT_TOOL_NAMES.READ_DOCUMENT,
-  TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
   // 온보딩 텍스트 채팅에서 사용자가 URL을 줬을 때만 페이지 본문 확인.
   TALENT_TOOL_NAMES.OPEN_URL,
   // 온보딩 중이라도 특정 internal role 연결/우선 검토의 등록·철회를 명시적으로 요청하면 처리.
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
-  TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
+  TALENT_TOOL_NAMES.APPLY_TO_INTERNAL_ROLE,
+  TALENT_TOOL_NAMES.ASSIGN_TO_ROLE,
+  TALENT_TOOL_NAMES.LIST_PROFILES,
+  TALENT_TOOL_NAMES.READ_PROFILE,
   // 실제 회사 연락에 대한 답변·후속 전달은 온보딩 상태와 무관하게 처리한다.
   TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS,
   TALENT_TOOL_NAMES.CONTACT_COMPANY,
@@ -86,19 +79,32 @@ export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
 
 // 온보딩 완료 후 텍스트 채팅에서 노출할 tool allowlist.
 export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
-  TALENT_TOOL_NAMES.MANAGE_SIMULATION_SESSION,
   TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   // 최신/외부 웹 정보가 필요한 질문용. 예: 최근 투자, 최신 뉴스.
   TALENT_TOOL_NAMES.WEB_SEARCH,
   // 사용자가 특정 URL을 주고 읽어달라고 할 때.
   TALENT_TOOL_NAMES.OPEN_URL,
   // 새 추천 공고를 찾아 저장할 때. 예: "미국 AI PM 공고 찾아줘".
-  TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
+  TALENT_TOOL_NAMES.LIST_MATCHINGS,
+  TALENT_TOOL_NAMES.READ_MATCHING,
+  TALENT_TOOL_NAMES.UPSERT_MATCHING,
+  TALENT_TOOL_NAMES.SEARCH_OPPORTUNITIES,
+  TALENT_TOOL_NAMES.UPSERT_OPPORTUNITIES,
+  TALENT_TOOL_NAMES.SEARCH_COMPANIES,
+  TALENT_TOOL_NAMES.FOLLOW_COMPANY,
+  TALENT_TOOL_NAMES.LIST_SCHEDULES,
+  TALENT_TOOL_NAMES.READ_SCHEDULE,
+  TALENT_TOOL_NAMES.UPSERT_SCHEDULE,
+  TALENT_TOOL_NAMES.READ_TALENT_SCHEDULES,
+  TALENT_TOOL_NAMES.UPSERT_TALENT_SCHEDULES,
+  TALENT_TOOL_NAMES.LIST_PROFILES,
+  TALENT_TOOL_NAMES.READ_PROFILE,
+  TALENT_TOOL_NAMES.ASSIGN_TO_ROLE,
   TALENT_TOOL_NAMES.SAVE_JOB_POSTING,
   // 내부 Harper-connected role을 role title/company keyword로 직접 조회할 때.
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
   // 특정 internal role에 대한 후보자의 우선 검토/연결 요청을 등록하거나 철회할 때.
-  TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
+  TALENT_TOOL_NAMES.APPLY_TO_INTERNAL_ROLE,
   // 이미 추천/저장된 opportunity 이력을 읽을 때.
   // 예: "지난번 추천한 토스 공고 링크 뭐였지?"
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
@@ -106,8 +112,6 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
   // 추천된 특정 포지션을 저장함/제외됨으로 보낼 때.
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
-  // 특정 회사 자체를 조사할 때. 예: "A 회사 어떤 회사야?"
-  TALENT_TOOL_NAMES.RESEARCH_COMPANY,
   // 최근 프로필/선호 변경, follow/unfollow 등 Career activity를 읽을 때.
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
   // 온보딩 후에도 사용자가 "3일마다", "외부 공고 빼줘"처럼 추천 발송 설정을 말할 때.
@@ -117,16 +121,16 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   // 기본 context에 없는 사용자 기억을 더 읽거나 현재 탐색 기준/기억을 저장할 때.
   TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
-  TALENT_TOOL_NAMES.GENERATE_RESUME,
-  TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
-  TALENT_TOOL_NAMES.WRITE_DOCUMENT,
+  TALENT_TOOL_NAMES.USE_BROWSER,
+  TALENT_TOOL_NAMES.SUGGEST_FORM,
+  TALENT_TOOL_NAMES.WRITE_EMAIL,
+  TALENT_TOOL_NAMES.UPSERT_DOCUMENT,
   TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST,
   // Eligible after onboarding; the capability resolver may defer this schema.
   // Its prompt keeps ordinary chat as the default without an intent classifier.
   TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY,
   TALENT_TOOL_NAMES.LIST_DOCUMENTS,
   TALENT_TOOL_NAMES.READ_DOCUMENT,
-  TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
   // 회사가 이전에 보낸 연락을 찾고, 첫 답변 이후에도 같은 연결로 전달할 때.
   TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS,
   TALENT_TOOL_NAMES.CONTACT_COMPANY,
@@ -147,6 +151,15 @@ export const CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES = [
   // 채팅으로 돌려보내지 않고 같은 공통 writer로 바로 반영한다.
   TALENT_TOOL_NAMES.UPDATE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+  TALENT_TOOL_NAMES.LIST_PROFILES,
+  TALENT_TOOL_NAMES.READ_PROFILE,
+  TALENT_TOOL_NAMES.SEARCH_COMPANIES,
+  TALENT_TOOL_NAMES.FOLLOW_COMPANY,
+  TALENT_TOOL_NAMES.LIST_SCHEDULES,
+  TALENT_TOOL_NAMES.READ_SCHEDULE,
+  TALENT_TOOL_NAMES.UPSERT_SCHEDULE,
+  TALENT_TOOL_NAMES.READ_TALENT_SCHEDULES,
+  TALENT_TOOL_NAMES.UPSERT_TALENT_SCHEDULES,
   // 통화 중 최신 외부 정보가 꼭 필요할 때.
   TALENT_TOOL_NAMES.WEB_SEARCH,
   // 통화 중 이미 추천된 opportunity를 짧게 확인할 때.
@@ -191,8 +204,10 @@ function shouldExposeCareerChatTool(
   args: CareerChatToolSelectionArgs
 ) {
   const channel = args.channel === "voice" ? "voice" : "chat";
+  if (channel !== "chat" && (toolName === TALENT_TOOL_NAMES.USE_BROWSER || toolName === TALENT_TOOL_NAMES.SUGGEST_FORM)) return false;
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
-  if([TALENT_TOOL_NAMES.SIMULATE_APPLICATION, TALENT_TOOL_NAMES.MANAGE_SIMULATION_SESSION].some(name => name === toolName) && channel!=="chat") return false;
+
+  if (toolName === TALENT_TOOL_NAMES.DELIVER_CAREER_EMAIL) return args.background === true;
 
   if (
     toolName === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING &&
@@ -200,6 +215,8 @@ function shouldExposeCareerChatTool(
   ) {
     return false;
   }
+
+  if (toolName === TALENT_TOOL_NAMES.WRITE_EMAIL) return !isOnboardingActive && channel === "chat";
 
   if (toolName === TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL) {
     return shouldExposeConnectedGmailTool(args);
@@ -216,34 +233,11 @@ function shouldExposeCareerChatTool(
     return isListedToolName(CAREER_CHAT_ONBOARDING_TOOL_NAMES, toolName);
   }
 
-  if (
-    toolName === TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
-  ) {
-    return args.activeInternalFitHoldQuestion === true;
-  }
-
   return isListedToolName(CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES, toolName);
 }
 
 export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
-  if (args.simulationActive && args.channel !== "voice" && args.isOnboardingDone) {
-    const tools = applyAllowedToolNames([
-      ...getOpenAIChatTools("chat", {
-        responseLocale: args.responseLocale,
-      }).filter((t) => SIMULATION_TOOL_NAMES.includes(t.function.name) && t.function.name !== TALENT_TOOL_NAMES.MANAGE_SIMULATION_SESSION && (args.simulationPreparation === false || t.function.name !== TALENT_TOOL_NAMES.GENERATE_RESUME)),
-      args.simulationPreparation === false ? simulationSessionTool : applicationPreparationSessionTool,
-      manageApplicationSuggestionsTool,
-      readyForRoleTool,
-      applyToRoleTool,
-    ].map(tool=>({...tool,function:{...tool.function,parameters:withUiStatusMessageParameter(tool.function.parameters)}})), getOpenAIChatToolName, args.allowedToolNames);
-    return {
-      tools,
-      toolNames: tools.map((t) => t.function.name),
-      // Yield only when the tool reports pending work; existing outcomes need a reply.
-      stopAfterToolNames: [] as string[],
-    };
-  }
   const selectedTools = applyAllowedToolNames(
     getOpenAIChatTools("chat", {
       responseLocale: args.responseLocale,
@@ -252,7 +246,10 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
         shouldExposeCareerChatTool(getOpenAIChatToolName(tool), args)
       )
       .map((tool) =>
-        scopeCareerChatToolForOnboarding(tool, isOnboardingActive)
+        withCareerGmailConnectionDescription(
+          scopeCareerChatToolForOnboarding(tool, isOnboardingActive),
+          args.hasActiveGmailIntegration
+        )
       ),
     getOpenAIChatToolName,
     args.allowedToolNames
@@ -270,9 +267,9 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
   };
 }
 
-/** Start is authorized by the ordinary-chat capability, before mode-only tools replace it. */
+/** Compatibility for old entry points; new requests use ordinary Career tools. */
 export function canStartApplication(args: CareerChatToolSelectionArgs) {
-  return resolveCareerChatTools({...args, simulationActive:false}).toolNames.includes(TALENT_TOOL_NAMES.SIMULATE_APPLICATION);
+  return resolveCareerChatTools(args).toolNames.includes(TALENT_TOOL_NAMES.USE_BROWSER);
 }
 
 export function getCareerRealtimeToolCandidates(

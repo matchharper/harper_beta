@@ -1,0 +1,13 @@
+{
+  "talentId": "synthetic-candidate",
+  "profile": {
+    "profile": {"name": "가상 후보", "headline": "제품 소프트웨어 엔지니어", "bio": "6년간 B2B 제품을 개발했습니다.", "location": "서울", "current_location": null},
+    "experiences": [{"company_name": "가상 제품회사", "role": "Software Engineer", "start_date": "2020-01-01", "end_date": "2026-10-01", "description": "TypeScript와 Python으로 고객 요청을 분석하고 제품 기능을 설계·구현했습니다. 고객 현장에서 요구사항을 확인하고 배포까지 담당했습니다."}],
+    "educations": [], "extra": []
+  },
+  "searchBrief": [{"label": "방향", "content": "B2B 제품을 직접 개발하고 고객과 협업하는 역할을 찾고 있습니다. 서울 근무가 가능합니다.", "revision": 1, "ref": 1, "updated_at": "2026-11-01T00:00:00+00:00"}],
+  "behaviorContext": "아직 반복 행동을 통한 해석 근거가 없습니다.", "behaviorContextVersion": 1,
+  "inputContractVersion": "worker_behavior_v1",
+  "role": {"role_id": "synthetic-role", "name": "Forward Deployed Engineer", "description": "고객과 협업하며 B2B 제품을 개발합니다.", "location_text": "서울", "work_mode": "hybrid", "salary_min": 80000000, "salary_max": 100000000, "salary_currency": "KRW", "salary_period": "year", "request": "B2B 제품 개발 경력 4년 이상과 TypeScript 또는 Python 구현 경험을 갖춘 엔지니어를 찾습니다. 고객 현장에서 요구사항을 이해하고 구현과 배포를 수행하는 역할입니다.", "criteria": [{"name": "제품 구현", "criteria": "필수: TypeScript 또는 Python으로 실제 제품 기능을 구현하고 배포한 경험"}, {"name": "고객 협업", "criteria": "우대: 고객 현장에서 요구사항을 확인하고 해결한 경험"}], "company_name": "가상 협업제품회사", "company_description": "기업 고객의 업무를 지원하는 B2B 소프트웨어를 만듭니다."},
+  "companyMemory": [], "sourceProfileId": "synthetic-profile", "sourceProfileRevision": 1, "evidenceScope": "default"
+}

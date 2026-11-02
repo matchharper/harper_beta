@@ -1,3 +1,6 @@
+import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { resolveRoleSharedMaterials } from "@/lib/career/roleMaterials/store";
+import { exportRoleMaterialDocument } from "@/lib/career/roleMaterials/export";
 import type { NextRequest } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { readOrgSharedGeneratedResume, OrgHttpError } from "@/lib/org/server";
@@ -10,6 +13,7 @@ export const maxDuration = 60;
 const headers = { "Cache-Control": "private, no-store" };
 const params = (req: NextRequest) => ({
   documentId: req.nextUrl.searchParams.get("documentId") ?? "",
+  roleId: req.nextUrl.searchParams.get("roleId") ?? undefined,
   talentId: req.nextUrl.searchParams.get("talentId") ?? "",
   workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",
 });
@@ -53,11 +57,16 @@ export async function POST(req: NextRequest) {
         { error: "Revision required" },
         { status: 400, headers }
       );
-    const artifact = await exportResume({
+    const scope = params(req);
+    const row = await readOrgSharedGeneratedResume({ ...scope, user });
+    const material = scope.roleId ? await resolveRoleSharedMaterials({ admin: getSupabaseAdmin(), userId: scope.talentId, roleId: scope.roleId, workspaceId: scope.workspaceId }) : null;
+    const snapshotArtifact = material ? await exportRoleMaterialDocument({ admin: getSupabaseAdmin(), material, documentId: row.id }) : null;
+    const artifact = snapshotArtifact ? { pdf: snapshotArtifact.bytes, fileName: snapshotArtifact.fileName } : await exportResume({
       expectedRevision: body.expected_revision,
       renderVersion: body.render_version,
       read: () => readOrgSharedGeneratedResume({ ...params(req), user }),
     });
+    if (snapshotArtifact) await readOrgSharedGeneratedResume({ ...scope, user });
     const name = encodeURIComponent(resumeFileName(artifact.fileName)).replace(
       /['()*]/g,
       (c) => `%${c.charCodeAt(0).toString(16)}`

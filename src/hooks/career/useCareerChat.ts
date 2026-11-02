@@ -1,3 +1,4 @@
+import { createCareerMessageMerger } from "./careerMessageMerge";
 import type { InternalCallChatSubmission } from "@/lib/career/internalCallAnswers";
 import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -30,14 +31,16 @@ import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionTe
 import type { CareerPendingActionReference } from "@/lib/career/pendingActions";
 import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
 import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
+import { useCareerPromptVariantStore } from "@/store/useCareerPromptVariantStore";
 import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 
 type SendChatArgs = {
+  formResponseMessageId?: number;
   internalCallAnswerSubmission?: InternalCallChatSubmission;
+  applicationPreparationContinuation?: {sessionMessageId:number; continuationId:string};
   applicationInputSubmission?: {batchId:string; sessionMessageId:number; expectedRevision:number};
   simulationAction?:SimulationCardRequest;
-  allowedToolNames?: readonly string[];
   files?: File[];
   channel?: "chat" | "voice";
   coachingActivityAction?: {
@@ -95,61 +98,6 @@ type UseCareerChatArgs = {
   onMessagesChanged?: (
     messages: CareerMessagePayload[]
   ) => void | Promise<void>;
-};
-
-const mergeMessages = (
-  persistedMessages: CareerMessage[],
-  localMessages: CareerMessage[]
-) => {
-  if (localMessages.length === 0) return persistedMessages;
-
-  const merged = [...persistedMessages];
-  const persistedIndexById = new Map<string, number>();
-  const rebuildIndex = () => {
-    persistedIndexById.clear();
-    for (let index = 0; index < merged.length; index += 1) {
-      persistedIndexById.set(String(merged[index].id), index);
-    }
-  };
-
-  rebuildIndex();
-
-  let nextLocalInsertIndex = merged.length;
-
-  for (const message of localMessages) {
-    const id = String(message.id);
-    const existingIndex = persistedIndexById.get(id);
-    if (typeof existingIndex === "number") {
-      const persisted = merged[existingIndex];
-      // History refreshes can contain only an application activity reference.
-      // Keep the streamed card mounted until a newer hydrated result arrives.
-      const hasNewerSimulation =
-        message.simulation &&
-        (!persisted.simulation ||
-          Date.parse(message.simulation.updatedAt) >
-            Date.parse(persisted.simulation.updatedAt));
-      if (
-        hasNewerSimulation ||
-        message.typing ||
-        (message.thinkingLogs?.length ?? 0) > 0
-      ) {
-        merged[existingIndex] = {
-          ...persisted,
-          ...message,
-        };
-      }
-      nextLocalInsertIndex = existingIndex + 1;
-      rebuildIndex();
-      continue;
-    }
-
-    const insertIndex = Math.min(nextLocalInsertIndex, merged.length);
-    merged.splice(insertIndex, 0, message);
-    nextLocalInsertIndex = insertIndex + 1;
-    rebuildIndex();
-  }
-
-  return merged;
 };
 
 const replaceMessageById = (
@@ -281,9 +229,11 @@ export const useCareerChat = ({
   const tCareer = useCareerMessageFormatter();
   const { locale, setLocale } = useMessages();
   const textChatModel = useCareerTextChatModelStore((state) => state.model);
+  const promptVariant = useCareerPromptVariantStore((state) => state.variant);
   const [stage, setStage] = useState<CareerStage>("profile");
   const [localMessages, setLocalMessages] = useState<CareerMessage[]>([]);
   const [chatPending, setChatPending] = useState(false);
+  const [continuationMessageId, setContinuationMessageId] = useState<number | null>(null);
   const [chatError, setChatError] = useState("");
   const [assistantTyping, setAssistantTyping] = useState(false);
   const [toolStatusMessage, setToolStatusMessage] = useState("");
@@ -307,17 +257,23 @@ export const useCareerChat = ({
   const activeStreamAssistantIdRef = useRef<string | null>(null);
   const activeStreamAssistantRef = useRef<CareerMessage | null>(null);
   const activeUserMessageRef = useRef<CareerMessagePayload | null>(null);
+  const activeClientRequestIdRef = useRef<string | null>(null);
+  const activeOptimisticMessageIdRef = useRef<string | null>(null);
   const cancellationSavePendingRef = useRef(false);
   const cancelRequestedRef = useRef(false);
   const typingQueueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       abortControllerRef.current?.abort();
     };
   }, []);
+
+  const continuationPending = continuationMessageId !== null && !persistedMessages.some(message =>
+    Number(message.id) === continuationMessageId && (message.turnStopped || message.turnPending === false));
 
   const syncPreferredLocale = useCallback(
     (value: unknown) => {
@@ -424,35 +380,31 @@ export const useCareerChat = ({
     []
   );
 
-  const markActiveRecommendationSearchStopped = useCallback(() => {
+  const markActiveChatStopped = useCallback(() => {
+    const optimisticId = activeOptimisticMessageIdRef.current;
     const activeStreamAssistant = activeStreamAssistantRef.current;
     const latestLogs =
       activeStreamAssistant?.thinkingLogs ?? activeThinkingLogsRef.current;
-    const stoppedStatus: CareerRecommendationSearchStatus = {
-      ...splitRecommendJobPostingStatusLogs(latestLogs).latestStatus,
-      state: "stopped",
-    };
+    const previousStatus = splitRecommendJobPostingStatusLogs(latestLogs).latestStatus;
+    const stoppedStatus: CareerRecommendationSearchStatus | null = previousStatus
+      ? { ...previousStatus, state: "stopped" } : null;
     const streamAssistantId = activeStreamAssistantIdRef.current;
     const activeUserMessage = activeUserMessageRef.current;
-    const logs = upsertRecommendJobPostingStatusLog(
-      latestLogs,
-      stoppedStatus
-    );
+    const logs = stoppedStatus ? upsertRecommendJobPostingStatusLog(latestLogs, stoppedStatus) : latestLogs;
     activeThinkingLogsRef.current = logs;
     setActiveThinkingLogs(logs);
     setActiveRecommendationSearchStatus(stoppedStatus);
     const stoppedUserMessage = activeUserMessage
       ? {
           ...activeUserMessage,
-          thinkingLogs: upsertRecommendJobPostingStatusLog(
-            activeUserMessage.thinkingLogs,
-            stoppedStatus
-          ),
+          turnStopped: true,
+          thinkingLogs: stoppedStatus ? upsertRecommendJobPostingStatusLog(activeUserMessage.thinkingLogs, stoppedStatus) : activeUserMessage.thinkingLogs,
         }
       : null;
     const stoppedAssistantMessage = activeStreamAssistant
       ? {
           ...activeStreamAssistant,
+          turnStopped: true,
           thinkingLogs: logs,
           typing: false,
         }
@@ -481,6 +433,8 @@ export const useCareerChat = ({
 
     activeStreamAssistantIdRef.current = null;
     activeStreamAssistantRef.current = null;
+    setLocalMessages(messages => messages.map(message =>
+      String(message.id) === optimisticId ? { ...message, turnStopped: true } : message));
     setAssistantTyping(false);
     setOnboardingWrapupPending(false);
     setScrollTick((t) => t + 1);
@@ -490,101 +444,77 @@ export const useCareerChat = ({
     };
   }, []);
 
-  const cancelActiveRecommendationSearch = useCallback(() => {
-    if (cancelRequestedRef.current) return;
-    cancelRequestedRef.current = true;
+  const cancelActiveChat = useCallback(() => {
+    if (cancelRequestedRef.current || cancellationSavePendingRef.current) return;
+    const sourceMessage = activeUserMessageRef.current;
+    const assistantSnapshot = activeStreamAssistantRef.current;
+    const assistantSnapshotId = activeStreamAssistantIdRef.current;
+    const requestId = activeClientRequestIdRef.current;
+    const optimisticId = activeOptimisticMessageIdRef.current;
+    const activeController = abortControllerRef.current;
+    if (!conversationId || (!sourceMessage && !requestId)) return;
+
     cancellationSavePendingRef.current = true;
-    const stoppedAssistantMessageId = activeStreamAssistantIdRef.current;
-    const stoppedMessages = markActiveRecommendationSearchStopped();
-    const stoppedUserMessage = stoppedMessages.userMessage;
-    abortControllerRef.current?.abort();
-
-    if (!conversationId || !stoppedUserMessage) {
-      cancellationSavePendingRef.current = false;
-      setChatPending(false);
-      return;
-    }
-
+    setChatError("");
     void (async () => {
+      let confirmed = false;
       try {
         const response = await fetchWithAuth("/api/talent/chat/stop", {
           method: "POST",
           body: JSON.stringify({
             conversationId,
-            assistantMessage: stoppedMessages.assistantMessage
-              ? {
-                  content: stoppedMessages.assistantMessage.content,
-                  recommendationStatusAfterCharCount:
-                    stoppedMessages.assistantMessage
-                      .recommendationStatusAfterCharCount,
-                  thinkingLogs: stoppedMessages.assistantMessage.thinkingLogs,
-                }
-              : undefined,
-            userMessageId: stoppedUserMessage.id,
+            clientRequestId: requestId,
+            assistantMessage: assistantSnapshot ? {
+              content: assistantSnapshot.content,
+              recommendationStatusAfterCharCount: assistantSnapshot.recommendationStatusAfterCharCount,
+              thinkingLogs: assistantSnapshot.thinkingLogs,
+            } : undefined,
+            userMessageId: sourceMessage?.id,
           }),
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(
-            getErrorMessage(payload, tCareer(H.messageSendFailed))
-          );
-        }
-        const updatedUserMessage = isRecord(payload)
-          ? toStreamMessagePayload(payload.userMessage)
-          : null;
-        if (!updatedUserMessage) {
-          throw new Error(tCareer(H.messageSendFailed));
-        }
+        if (!response.ok) throw new Error(getErrorMessage(payload, tCareer(H.messageSendFailed)));
+        confirmed = true;
+        if (!mountedRef.current || activeClientRequestIdRef.current !== requestId) return;
 
-        const updatedAssistantMessage = isRecord(payload)
-          ? toStreamMessagePayload(payload.assistantMessage)
-          : null;
-        activeUserMessageRef.current = updatedUserMessage;
+        // Only the persisted Stop may detach the stream or mark it stopped.
+        // A failed request leaves the original execution attached and retryable.
+        cancelRequestedRef.current = true;
+        setContinuationMessageId(null);
+        markActiveChatStopped();
+        const updatedUserMessage = isRecord(payload) ? toStreamMessagePayload(payload.userMessage) : null;
+        if (!updatedUserMessage) return;
+        const updatedAssistantMessage = isRecord(payload) ? toStreamMessagePayload(payload.assistantMessage) : null;
         setLocalMessages((prev) => {
-          const withoutStoppedPlaceholder =
-            updatedAssistantMessage && stoppedAssistantMessageId
-              ? prev.filter(
-                  (item) => String(item.id) !== stoppedAssistantMessageId
-                )
-              : prev;
-          const withStoppedUser = replaceMessageById(
-            withoutStoppedPlaceholder,
-            updatedUserMessage.id,
-            toUiMessage(updatedUserMessage)
-          );
+          const withoutPlaceholder = updatedAssistantMessage && assistantSnapshotId
+            ? prev.filter(item => String(item.id) !== assistantSnapshotId) : prev;
+          const withUser = replaceMessageById(withoutPlaceholder,
+            sourceMessage?.id ?? optimisticId ?? updatedUserMessage.id, toUiMessage(updatedUserMessage));
           return updatedAssistantMessage
-            ? replaceMessageById(
-                withStoppedUser,
-                updatedAssistantMessage.id,
-                toUiMessage(updatedAssistantMessage)
-              )
-            : withStoppedUser;
+            ? replaceMessageById(withUser, updatedAssistantMessage.id, toUiMessage(updatedAssistantMessage)) : withUser;
         });
-        await Promise.resolve(
-          onMessagesChanged?.([
-            updatedUserMessage,
-            ...(updatedAssistantMessage ? [updatedAssistantMessage] : []),
-          ])
-        ).catch(() => undefined);
+        await Promise.resolve(onMessagesChanged?.([
+          updatedUserMessage, ...(updatedAssistantMessage ? [updatedAssistantMessage] : []),
+        ])).catch(() => undefined);
       } catch (error) {
-        setChatError(
-          error instanceof Error
-            ? error.message
-            : tCareer(H.messageSendUnexpected)
-        );
+        if (mountedRef.current && activeClientRequestIdRef.current === requestId)
+          setChatError(error instanceof Error ? error.message : tCareer(H.messageSendUnexpected));
       } finally {
-        cancellationSavePendingRef.current = false;
-        activeUserMessageRef.current = null;
-        setChatPending(false);
+        if (confirmed) activeController?.abort();
+        if (activeClientRequestIdRef.current === requestId) {
+          cancellationSavePendingRef.current = false;
+          if (confirmed) {
+            activeClientRequestIdRef.current = null;
+            activeOptimisticMessageIdRef.current = null;
+            activeUserMessageRef.current = null;
+            setChatPending(false);
+          } else if (abortControllerRef.current !== activeController) {
+            setChatPending(false);
+          }
+        }
       }
     })();
-  }, [
-    conversationId,
-    fetchWithAuth,
-    markActiveRecommendationSearchStopped,
-    onMessagesChanged,
-    tCareer,
-  ]);
+  }, [conversationId, fetchWithAuth, markActiveChatStopped, onMessagesChanged, tCareer]);
 
   const attachThinkingLogsToMessage = useCallback(
     (messageId: string | number) => {
@@ -605,7 +535,10 @@ export const useCareerChat = ({
     activeStreamAssistantIdRef.current = null;
     activeStreamAssistantRef.current = null;
     activeUserMessageRef.current = null;
+    activeClientRequestIdRef.current = null;
+    activeOptimisticMessageIdRef.current = null;
     cancellationSavePendingRef.current = false;
+    setContinuationMessageId(null);
     activeThinkingLogsRef.current = [];
     setActiveThinkingLogs([]);
     setActiveRecommendationSearchStatus(null);
@@ -714,16 +647,18 @@ export const useCareerChat = ({
         sessionPending ||
         stage === "profile" ||
         options?.profilePending ||
+        cancellationSavePendingRef.current ||
         chatPending ||
         assistantTyping
       ) {
+        args.onError?.();
         return;
       }
 
       const text = args.text.trim();
       const link = (args.link ?? "").trim();
       const files = (args.files ?? []).slice(0, 5);
-      if (!text && files.length === 0 && !args.applicationInputSubmission && !args.internalCallAnswerSubmission) return;
+      if (!text && files.length === 0 && !args.formResponseMessageId && !args.internalCallAnswerSubmission) return;
 
       const explicitConversationStarterId = args.conversationStarterId;
       if (
@@ -748,25 +683,31 @@ export const useCareerChat = ({
         ? `${visibleText}\n\n${tCareer(H.referenceLink, { link })}`
         : visibleText;
       const messageType = args.messageType ?? "chat";
-      const tempId = `temp-user-${Date.now()}`;
+      const tempId = args.formResponseMessageId ? String(args.formResponseMessageId) : `temp-user-${Date.now()}`;
       const clientRequestId = crypto.randomUUID();
+      activeClientRequestIdRef.current = clientRequestId;
+      activeOptimisticMessageIdRef.current = tempId;
+      const isCurrentRequest = () => activeClientRequestIdRef.current === clientRequestId;
       const nowIso = new Date().toISOString();
 
       setChatError("");
       resetActiveThinkingLogs();
       cancelRequestedRef.current = false;
+      setContinuationMessageId(null);
       cancellationSavePendingRef.current = false;
       activeUserMessageRef.current = null;
       activeStreamAssistantIdRef.current = null;
       activeStreamAssistantRef.current = null;
       setChatPending(true);
-      if (!args.applicationInputSubmission && !args.internalCallAnswerSubmission) setLocalMessages((prev) => [
+      if (!args.formResponseMessageId && !args.internalCallAnswerSubmission) setLocalMessages((prev) => [
         ...prev,
         {
           attachments: optimisticAttachments,
           id: tempId,
+          clientRequestId,
           role: "user",
           content: composed,
+          opportunityMentions: args.opportunityMentions,
           messageType,
           createdAt: nowIso,
         },
@@ -796,6 +737,7 @@ export const useCareerChat = ({
           uploadedDocumentIds.push(documentId.trim());
         }
 
+        if (!isCurrentRequest()) return;
         const response = await fetchWithAuth("/api/talent/chat", {
           method: "POST",
           headers: {
@@ -803,10 +745,8 @@ export const useCareerChat = ({
           },
           signal: abortController.signal,
           body: JSON.stringify({
-            allowedToolNames: args.allowedToolNames,
             channel: args.channel ?? "chat",
-            simulationAction: args.simulationAction,
-            applicationInputSubmission: args.applicationInputSubmission,
+            formResponseMessageId: args.formResponseMessageId,
             internalCallAnswerSubmission: args.internalCallAnswerSubmission,
             coachingActivityAction: args.coachingActivityAction,
             conversationStarterId: activeConversationStarterId,
@@ -818,6 +758,7 @@ export const useCareerChat = ({
             opportunityMentions: args.opportunityMentions,
             pendingAction: args.pendingAction,
             textChatModel,
+            promptVariant,
             timeZone: getCareerBrowserTimeZone(),
             uploadedDocumentIds,
             link,
@@ -847,6 +788,7 @@ export const useCareerChat = ({
           const ensureStreamAssistant = () => {
             if (streamAssistantVisible) return;
             streamAssistantVisible = true;
+            pendingAssistantMessageId = streamAssistantId;
             activeStreamAssistantIdRef.current = streamAssistantId;
             const streamAssistant: CareerMessage = {
               id: streamAssistantId,
@@ -942,7 +884,7 @@ export const useCareerChat = ({
                 ),
               withoutStreamPlaceholder
             );
-            if(payloads.some(p=>p.applicationActivity||p.applicationDraft||p.simulation||p.simulationSession||p.simulationAction||p.applicationStartOffer)){
+            if(payloads.some(p=>p.careerForm||p.applicationActivity||p.applicationDraft||p.simulation||p.simulationSession||p.simulationAction||p.applicationStartOffer)){
               return merged.sort((a,b)=>Number.isFinite(Number(a.id))&&Number.isFinite(Number(b.id))?Number(a.id)-Number(b.id):0);
             }
             return merged;
@@ -999,6 +941,7 @@ export const useCareerChat = ({
             data,
             event,
           }: CareerChatStreamEvent) => {
+            if (!isCurrentRequest() || cancelRequestedRef.current) return;
             if (event === "user_message") {
               const payload = isRecord(data)
                 ? toStreamMessagePayload(data.message)
@@ -1012,13 +955,13 @@ export const useCareerChat = ({
               return;
             }
 
-            if ((event === "application_mode" || event === "simulation_message") && isRecord(data) && data.suppressRolePreviews === true) {
+            if ((event === "application_mode" || event === "artifact_message") && isRecord(data) && data.suppressRolePreviews === true) {
               suppressRolePreviews=true;
               if(activeStreamAssistantRef.current) activeStreamAssistantRef.current={...activeStreamAssistantRef.current,suppressRolePreviews:true};
               setLocalMessages(prev=>prev.map(item=>String(item.id)===streamAssistantId?{...item,suppressRolePreviews:true}:item));
               if(event === "application_mode")return;
             }
-            if (event === "simulation_message") {
+            if (event === "artifact_message") {
               const payload = isRecord(data) ? toStreamMessagePayload(data.message) : null;
               if (!payload) return;
               setLocalMessages((prev) => replaceMessageById(prev, payload.id, toUiMessage(payload)));
@@ -1190,9 +1133,11 @@ export const useCareerChat = ({
               attachThinkingLogsToMessage(payload.id);
               resetActiveThinkingLogs();
               settleAssistantMessage(payload);
-              commitStreamMessages([payload]);
-              activeUserMessageRef.current = null;
-              setChatPending(false);
+              commitStreamMessages([...assistantPayloads, payload]);
+              if (!(isRecord(data) && data.continuing === true)) {
+                activeUserMessageRef.current = null;
+                setChatPending(false);
+              }
               return;
             }
 
@@ -1292,6 +1237,13 @@ export const useCareerChat = ({
             }
 
             if (event === "done") {
+              if (isRecord(data) && data.stopped === true) {
+                cancelRequestedRef.current = true;
+                setContinuationMessageId(null);
+                markActiveChatStopped();
+              }
+              if (isRecord(data) && data.continuationQueued === true && activeUserMessageRef.current)
+                setContinuationMessageId(activeUserMessageRef.current.id);
               streamDone = true;
               resetActiveThinkingLogs();
               setOnboardingWrapupPending(false);
@@ -1313,6 +1265,11 @@ export const useCareerChat = ({
 
           while (true) {
             const { done, value } = await reader.read();
+            if (!isCurrentRequest() || cancelRequestedRef.current) {
+              // The Stop request owns persistence of the visible partial reply.
+              await reader.cancel();
+              return;
+            }
             if (done) break;
 
             buffer += decoder
@@ -1342,11 +1299,16 @@ export const useCareerChat = ({
             throw new Error(tCareer(H.messageStreamEndedEarly));
           }
 
-          args.onSuccess?.();
+          if (!cancelRequestedRef.current) args.onSuccess?.();
           return;
         }
 
         const payload = await response.json().catch(() => ({}));
+        if (!isCurrentRequest()) return;
+        if (cancelRequestedRef.current || (isRecord(payload) && payload.stopped === true)) {
+          markActiveChatStopped();
+          return;
+        }
         if (payload?.opportunityRun) {
           onOpportunityRunChanged?.(
             payload.opportunityRun as CareerOpportunityRun
@@ -1444,12 +1406,13 @@ export const useCareerChat = ({
         }
         args.onSuccess?.();
       } catch (error) {
+        if (!isCurrentRequest()) return;
         const wasCancelled =
           cancelRequestedRef.current ||
           abortController.signal.aborted ||
           isAbortLikeError(error);
         if (wasCancelled) {
-          markActiveRecommendationSearchStopped();
+          markActiveChatStopped();
           return;
         }
 
@@ -1461,38 +1424,41 @@ export const useCareerChat = ({
         setLocalMessages((prev) =>
           prev.filter(
             (item) =>
-              item.id !== tempId &&
+              (Boolean(args.formResponseMessageId) || item.id !== tempId) &&
               (!pendingAssistantMessageId ||
                 String(item.id) !== pendingAssistantMessageId)
           )
         );
         activeStreamAssistantIdRef.current = null;
         activeStreamAssistantRef.current = null;
+        setAssistantTyping(false);
         setChatError(message);
         args.onError?.();
       } finally {
         if (abortControllerRef.current === abortController) {
           abortControllerRef.current = null;
         }
-        if (
-          !explicitConversationStarterId &&
-          activeConversationStarterId &&
-          activeConversationStarterId !== "career_coaching" &&
-          activeConversationStarterRef.current?.starterId ===
-            activeConversationStarterId
-        ) {
-          const remainingFollowUpTurns =
-            activeConversationStarterRef.current.remainingFollowUpTurns - 1;
-          activeConversationStarterRef.current =
-            remainingFollowUpTurns > 0
-              ? {
-                  ...activeConversationStarterRef.current,
-                  remainingFollowUpTurns,
-                }
-              : null;
-        }
-        if (!cancellationSavePendingRef.current) {
-          setChatPending(false);
+        if (isCurrentRequest()) {
+          if (
+            !explicitConversationStarterId &&
+            activeConversationStarterId &&
+            activeConversationStarterId !== "career_coaching" &&
+            activeConversationStarterRef.current?.starterId ===
+              activeConversationStarterId
+          ) {
+            const remainingFollowUpTurns =
+              activeConversationStarterRef.current.remainingFollowUpTurns - 1;
+            activeConversationStarterRef.current =
+              remainingFollowUpTurns > 0
+                ? {
+                    ...activeConversationStarterRef.current,
+                    remainingFollowUpTurns,
+                  }
+                : null;
+          }
+          if (!cancellationSavePendingRef.current) {
+            setChatPending(false);
+          }
         }
       }
     },
@@ -1506,7 +1472,7 @@ export const useCareerChat = ({
       enqueueAssistantTypewriter,
       fetchWithAuth,
       locale,
-      markActiveRecommendationSearchStopped,
+      markActiveChatStopped,
       sessionPending,
       stage,
       syncPreferredLocale,
@@ -1523,15 +1489,19 @@ export const useCareerChat = ({
       resetActiveThinkingLogs,
       tCareer,
       textChatModel,
+      promptVariant,
     ]
   );
 
+  const [mergeMessages] = useState(createCareerMessageMerger);
   const messages = useMemo(
     () => mergeMessages(persistedMessages, localMessages),
-    [localMessages, persistedMessages]
+    [localMessages, persistedMessages, mergeMessages]
   );
 
   const resetChatState = useCallback(() => {
+    activeClientRequestIdRef.current = null;
+    activeOptimisticMessageIdRef.current = null;
     activeUserMessageRef.current = null;
     activeStreamAssistantIdRef.current = null;
     activeStreamAssistantRef.current = null;
@@ -1540,6 +1510,7 @@ export const useCareerChat = ({
     setStage("profile");
     setLocalMessages([]);
     setChatPending(false);
+    setContinuationMessageId(null);
     setChatError("");
     setAssistantTyping(false);
     setOnboardingWrapupPending(false);
@@ -1555,6 +1526,7 @@ export const useCareerChat = ({
     appendMessage,
     removeMessages,
     chatPending,
+    canStopChat: chatPending || continuationPending,
     toolStatusMessage,
     activeThinkingLogs,
     activeRecommendationSearchStatus,
@@ -1565,7 +1537,8 @@ export const useCareerChat = ({
     assistantTyping,
     enqueueAssistantTypewriter,
     applySessionConversation,
-    cancelActiveRecommendationSearch,
+    cancelActiveRecommendationSearch: cancelActiveChat,
+    cancelActiveChat,
     sendChatMessage,
     regenerateOnboardingWrapup,
     resetChatState,

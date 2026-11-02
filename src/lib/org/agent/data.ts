@@ -1,3 +1,4 @@
+import { resolveRoleSharedMaterials, projectRoleMaterialDocuments } from "@/lib/career/roleMaterials/store";
 import { projectCompanyPublicExtras, projectCompanyPublicProfile, projectCompanyPublicProfileFromDetail } from "../publicProfile";
 import { readOrgCandidateDetail } from "../candidatePreview.server";
 import { isOrgCandidateProfilePreview } from "../candidatePreview";
@@ -1664,6 +1665,16 @@ async function readOrgAgentTalentFromPairs(args: {
     });
   }
 
+  const roleProfiles = args.includeProfile ? await Promise.all(visibleRoleIds.map(async roleId => {
+    const material = await resolveRoleSharedMaterials({ admin: args.admin, userId: talentId, roleId, workspaceId: args.workspaceId });
+    if (!material?.profile_snapshot) return { roleId, materialId: null, profile };
+    const snapshot = material.profile_snapshot;
+    return { roleId, materialId: material.id, profileId: material.profile_id, revision: material.profile_revision,
+      profile: { ...projectCompanyPublicProfile({ bio: snapshot.talentUser?.bio, location: snapshot.talentUser?.location ?? snapshot.talentUser?.current_location,
+        experiences: snapshot.talentExperiences, education: snapshot.talentEducations, extras: snapshot.talentExtras }), documents: projectRoleMaterialDocuments(material) } };
+  })) : [];
+  if (roleProfiles.length === 1) profile = roleProfiles[0].profile;
+  else if (roleProfiles.some(item => item.materialId)) profile = null;
   const candidateName = talent.name ?? talent.email ?? talentId;
   return {
     candidate: {
@@ -1714,6 +1725,7 @@ async function readOrgAgentTalentFromPairs(args: {
       ];
     })],
     profile,
+    roleProfiles: roleProfiles.some(item => item.materialId) ? roleProfiles : [],
     profileIncluded: Boolean(args.includeProfile),
     responseGuide: buildReadTalentResponseGuide({
       name: candidateName,

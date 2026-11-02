@@ -1,3 +1,4 @@
+import CareerProfileVersions from "./CareerProfileVersions";
 import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Loader2 } from "lucide-react";
@@ -273,6 +274,7 @@ const CareerProfileWorkspace = ({
           showEngagementTypes={false}
           showLastUpdated={false}
         />
+        <div className="mb-3 flex justify-end"><CareerProfileVersions /></div>
         <CareerTalentProfilePanel />
       </>
     );

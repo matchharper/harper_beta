@@ -7822,17 +7822,23 @@ export type Database = {
       }
       meeting_schedules: {
         Row: {
+          scheduling_source: string
+          content: string
+          timezone: string
+          source_refs: Json
+          source_key: string | null
+
           active_round_id: string | null
           company_attendees: Json
-          company_workspace_id: string
+          company_workspace_id: string | null
           confirmed_end_at: string | null
           confirmed_start_at: string | null
-          duration_minutes: number
+          duration_minutes: number | null
           id: string
           idempotency_key: string
-          organizer_company_user_id: string
-          recommendation_id: string
-          role_id: string
+          organizer_company_user_id: string | null
+          recommendation_id: string | null
+          role_id: string | null
           status: string
           talent_id: string
           title: string
@@ -7840,17 +7846,23 @@ export type Database = {
           version: number
         }
         Insert: {
+          scheduling_source?: string
+          content?: string
+          timezone?: string
+          source_refs?: Json
+          source_key?: string | null
+
           active_round_id?: string | null
           company_attendees?: Json
-          company_workspace_id: string
+          company_workspace_id?: string | null
           confirmed_end_at?: string | null
           confirmed_start_at?: string | null
-          duration_minutes?: number
+          duration_minutes?: number | null
           id?: string
           idempotency_key: string
-          organizer_company_user_id: string
-          recommendation_id: string
-          role_id: string
+          organizer_company_user_id?: string | null
+          recommendation_id?: string | null
+          role_id?: string | null
           status?: string
           talent_id: string
           title: string
@@ -7858,17 +7870,23 @@ export type Database = {
           version?: number
         }
         Update: {
+          scheduling_source?: string
+          content?: string
+          timezone?: string
+          source_refs?: Json
+          source_key?: string | null
+
           active_round_id?: string | null
           company_attendees?: Json
-          company_workspace_id?: string
+          company_workspace_id?: string | null
           confirmed_end_at?: string | null
           confirmed_start_at?: string | null
-          duration_minutes?: number
+          duration_minutes?: number | null
           id?: string
           idempotency_key?: string
-          organizer_company_user_id?: string
-          recommendation_id?: string
-          role_id?: string
+          organizer_company_user_id?: string | null
+          recommendation_id?: string | null
+          role_id?: string | null
           status?: string
           talent_id?: string
           title?: string
@@ -9045,6 +9063,27 @@ export type Database = {
           },
         ]
       }
+      role_application_inspections: {
+        Row: {
+          id: string
+          role_ref: string
+          checked_at: string
+          payload: Json
+        }
+        Insert: {
+          id: string
+          role_ref: string
+          checked_at: string
+          payload: Json
+        }
+        Update: {
+          id?: string
+          role_ref?: string
+          checked_at?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       run_variants: {
         Row: {
           created_at: string
@@ -10183,6 +10222,7 @@ export type Database = {
           content_sha256: string | null
           content_type: string | null
           created_at: string
+          description: string | null
           extracted_text: string | null
           file_name: string
           id: string
@@ -10203,6 +10243,7 @@ export type Database = {
           content_sha256?: string | null
           content_type?: string | null
           created_at?: string
+          description?: string | null
           extracted_text?: string | null
           file_name: string
           id?: string
@@ -10223,6 +10264,7 @@ export type Database = {
           content_sha256?: string | null
           content_type?: string | null
           created_at?: string
+          description?: string | null
           extracted_text?: string | null
           file_name?: string
           id?: string
@@ -13131,6 +13173,15 @@ export type Database = {
       }
     }
     Functions: {
+      write_talent_meeting_schedule: {
+        Args: {
+          p_user_id: string
+          p_conversation_id: string | null
+          p_request_id: string
+          p_input: Json
+        }
+        Returns: Json
+      }
       delete_company_workspace_v1: {
         Args: {
           p_workspace: string

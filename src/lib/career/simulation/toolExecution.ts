@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { manageApplicationSuggestions, applicationSuggestionsResult, MANAGE_APPLICATION_SUGGESTIONS } from "./suggestions";
+import { saveApplication, SAVE_APPLICATION } from "./saveApplication";
 import { readyForRole, READY_FOR_ROLE } from "./readyForRole";
 import { saveSession, type SessionRecord, type SessionStoreArgs } from "./sessionStore";
 import { pendingApplicationBatch } from "./applicationInput";
@@ -27,15 +28,22 @@ export async function executeApplicationPreparationTool(args: {
       inspectionStatus: saved.state.applicationInspection?.status,
       applicationForm: applicationFormText(saved.state.applicationForm),
       applicationUrl: saved.state.applicationUrl,
-      assistantInstruction: "These are the current observed application requirements and access limits. Reconcile them with existing answers and materials, then save any authorized resume edits. Call ready_for_role again before an authorized application to pin the current file. Unknown access is inconclusive; unsupported access describes an observed barrier. This inspection did not submit anything. Do not repeat an unchanged inspection in this turn.",
+      assistantInstruction: "These are the current observed application requirements and access limits. Reconcile them with existing answers and materials using save_application after resume delivery. Reinspection does not invalidate the saved resume. Unknown access is inconclusive; unsupported access describes an observed barrier. This inspection did not submit anything. Do not repeat an unchanged inspection in this turn.",
     };
     return { record: saved, result: { ...result, modelOutput: formatPromptText(result) } };
   }
   if (name === MANAGE_APPLICATION_SUGGESTIONS) {
     const key = `suggestions:${submittedBatchId ?? messageId}:${JSON.stringify(input)}`;
     const state = manageApplicationSuggestions(record.state, input, key, messageId, submittedBatchId);
+    const question = state.activity?.batches.at(-1);
+    if (state.applicationReview && question && !record.state.activity?.batches.some(batch => batch.id === question.id))
+      question.applicationReviewMessageId = record.messageId;
     const saved = await saveSession(store, record, state, key);
     return { record: saved, result: applicationSuggestionsResult(saved.state, record.state) };
+  }
+  if (name === SAVE_APPLICATION) {
+    const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+    return saveApplication(store, record, input, `application:${submittedBatchId ?? messageId}:${hash}`);
   }
   if (name === READY_FOR_ROLE) {
     const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");

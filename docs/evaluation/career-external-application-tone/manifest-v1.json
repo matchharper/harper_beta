@@ -1,0 +1,14 @@
+{
+  "datasetVersion": "v1",
+  "goldVersion": "v1",
+  "createdOn": "2026-10-30",
+  "provenance": "Entirely synthetic author-created inputs frozen before model execution; no production records or actual user resume text.",
+  "labelReviewHistory": [{ "version": "v1", "review": "Initial task-scoped criteria authored before model output." }],
+  "runner": "scripts/evalCareerExternalApplicationTone.ts",
+  "runtime": "runCareerChatAssistant / buildCareerConversationPromptPlan / resume and application handbooks",
+  "model": "CLAUDE_HAIKU_MODEL runtime constant",
+  "runsPerCase": 1,
+  "networkBoundary": "Only api.anthropic.com/v1/messages; no database or external tool execution.",
+  "privateArtifacts": "runs/<run-id>/; owner-only permissions; request bodies only, never headers or credentials.",
+  "releaseGate": "Manual review of both cases; no unsupported action claims. Narrow prompt evidence only, not deployment authorization."
+}

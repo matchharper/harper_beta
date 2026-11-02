@@ -189,6 +189,54 @@ test("preparation refreshes background work without polling idle sessions or cha
     await tick(30_000);
     assert.equal(getCount, beforeRemount + 1, "hydration does not start polling settled activity during chat");
 
+    // A second chat turn starts only after the first reply is delivered AND
+    // public inspection is settled, regardless of which one completed first.
+    for (const inspectionFirst of [true, false]) {
+      serverRecord = structuredClone(serverRecord!);
+      const prepared = serverRecord.state;
+      prepared.revision++;
+      prepared.browser = undefined;
+      prepared.activity!.batches = [];
+      prepared.preparation!.finalDocumentId = "cv";
+      prepared.preparation!.finalDocumentFingerprint = "cv-rev-1";
+      prepared.preparation!.resumeDelivery = { documentId: "cv", fingerprint: "cv-rev-1", messageId: 40 };
+      prepared.preparation!.applicationFollowUp = { id: `next-${inspectionFirst}`, status: "pending" };
+      prepared.applicationInspection = { status: inspectionFirst ? "completed" : "running", runId: "public" };
+      let sends = 0;
+      let finishTurn!: () => void;
+      panel = { ...panel, chatPending: true, onSendChatMessage: async args => {
+        sends++;
+        assert.equal(args.text, "");
+        assert.equal(args.applicationPreparationContinuation?.continuationId, `next-${inspectionFirst}`);
+        serverRecord!.state.preparation!.applicationFollowUp!.status = "running";
+        serverRecord!.state.revision++;
+        await new Promise<void>(resolve => { finishTurn = resolve; });
+        serverRecord!.state.preparation!.applicationFollowUp!.status = "done";
+        serverRecord!.state.revision++;
+      } };
+      providerKey++;
+      await render();
+      assert.equal(sends, 0, "never interrupt the resume reply's stream");
+      panel = { ...panel, chatPending: false, assistantTyping: true };
+      await render();
+      assert.equal(sends, 0, "wait until the delivered response finishes rendering");
+      panel = { ...panel, assistantTyping: false };
+      await render();
+      if (!inspectionFirst) {
+        assert.equal(sends, 0, "wait for inspection after delivering the resume");
+        serverRecord!.state.applicationInspection!.status = "completed";
+        serverRecord!.state.revision++;
+        await tick(3000);
+      }
+      assert.equal(sends, 1);
+      await tick(9000);
+      assert.equal(sends, 1, "polls cannot launch another conversation turn");
+      await act(async () => { finishTurn(); });
+      providerKey++;
+      await render();
+      assert.equal(sends, 1, "a completed follow-up survives a responsive remount");
+    }
+
     serverRecord = null;
     await refreshFromChat();
     const withoutSession = getCount;

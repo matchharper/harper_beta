@@ -1,3 +1,5 @@
+import { formatLlmDateTime, PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
+
 function optionalToolString(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
   return text || null;
@@ -28,7 +30,7 @@ function formatRoleContextList(value: unknown): string | null {
 }
 
 export function formatRoleContextForModel(roles: readonly Record<string, unknown>[]) {
-  return roles
+  const text = roles
     .map((item) => {
       const roleId = optionalToolString(item.roleId) ?? "unknown";
       if (item.found !== true) return `Role ${roleId}: unavailable for this user.`;
@@ -43,23 +45,23 @@ export function formatRoleContextForModel(roles: readonly Record<string, unknown
         role?.status ? `Status: ${role.status}` : null,
         role?.locationText ? `Location: ${role.locationText}` : null,
         role?.workMode ? `Work mode: ${role.workMode}` : null,
-        role?.type ? `Employment type: ${formatRoleContextList(role.type)}` : null,
+        detailLine("Employment type", role?.type),
         role?.seniorityLevel ? `Seniority: ${role.seniorityLevel}` : null,
         role?.salaryRange ? `Salary: ${role.salaryRange}` : null,
         role?.externalJdUrl ? `Job posting: ${role.externalJdUrl}` : null,
-        role?.postedAt ? `Posted: ${role.postedAt}` : null,
-        role?.expiresAt ? `Expires: ${role.expiresAt}` : null,
+        role?.postedAt ? `Posted: ${formatLlmDateTime(role.postedAt)}` : null,
+        role?.expiresAt ? `Expires: ${formatLlmDateTime(role.expiresAt)}` : null,
         role?.description ? `Job description: ${role.description}` : null,
         company?.shortDescription ? `Company summary: ${company.shortDescription}` : null,
         company?.description ? `Company detail: ${company.description}` : null,
         company?.hqLocation ? `Company HQ: ${company.hqLocation}` : null,
-        company?.employeeCountRange ? `Company size: ${company.employeeCountRange}` : null,
+        detailLine("Company size", employeeCountRangeText(company?.employeeCountRange)),
         role?.internalRequest ? `Private company request (reasoning only): ${role.internalRequest}` : null,
-        recommendation?.recommendedAt ? `Recommended: ${recommendation.recommendedAt}` : null,
+        recommendation?.recommendedAt ? `Recommended: ${formatLlmDateTime(recommendation.recommendedAt)}` : null,
         recommendation?.fitSummary ? `Recommendation: ${recommendation.fitSummary}` : null,
-        recommendation?.fitReasons ? `Fit reasons: ${formatRoleContextList(recommendation.fitReasons)}` : null,
-        recommendation?.tradeoffs ? `Tradeoffs: ${formatRoleContextList(recommendation.tradeoffs)}` : null,
-        recommendation?.preferenceFit ? `Preference fit: ${formatRoleContextList(recommendation.preferenceFit)}` : null,
+        detailLine("Fit reasons", recommendation?.fitReasons),
+        detailLine("Tradeoffs", recommendation?.tradeoffs),
+        detailLine("Preference fit", recommendation?.preferenceFit),
         recommendation?.feedback ? `Your feedback: ${recommendation.feedback}` : null,
         recommendation?.feedbackReason ? `Your feedback reason: ${recommendation.feedbackReason}` : null,
         recommendation?.savedStage ? `Saved stage: ${recommendation.savedStage}` : null,
@@ -73,4 +75,19 @@ export function formatRoleContextForModel(roles: readonly Record<string, unknown
       return lines.filter(Boolean).join("\n");
     })
     .join("\n\n");
+  return text ? `Role context (times: ${PROMPT_TIME_ZONE}).\n${text}` : text;
+}
+function detailLine(label: string, value: unknown) {
+  const text = formatRoleContextList(value);
+  return text ? `${label}: ${text}` : null;
+}
+
+function employeeCountRangeText(value: unknown) {
+  const range = asToolRecord(value);
+  const start = formatRoleContextList(range?.start);
+  const end = formatRoleContextList(range?.end);
+  if (start && end) return `${start}–${end} team members`;
+  if (start) return `${start}+ team members`;
+  if (end) return `up to ${end} team members`;
+  return formatRoleContextList(value);
 }

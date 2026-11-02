@@ -6,6 +6,8 @@ import { pendingApplicationBatch } from "./applicationInput";
 import type { SimulationSession } from "./session";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { CAREER_TEXT_CHAT_MODEL_IDS } from "../textChatModelConfig";
+import { inspectionMemoryStore } from "./sharedApplicationInspection.testSupport";
+import { hydrateApplicationInspections } from "./sharedApplicationInspection";
 
 function fixture(mode: "suggestions" | "empty" | "failure" = "suggestions") {
   let state: SimulationSession | undefined,
@@ -13,6 +15,7 @@ function fixture(mode: "suggestions" | "empty" | "failure" = "suggestions") {
     writes = 0,
     inspections = 0;
   const messages: any[] = [];
+  const inspectionStore = inspectionMemoryStore();
   const document = {
     id: "resume",
     kind: "resume",
@@ -22,6 +25,7 @@ function fixture(mode: "suggestions" | "empty" | "failure" = "suggestions") {
   };
   const admin = {
     from(table: string) {
+      if (table === "role_application_inspections") return inspectionStore.from(table);
       const filters: Record<string, unknown> = {};
       let insert: any;
       const read = async () => {
@@ -65,10 +69,10 @@ function fixture(mode: "suggestions" | "empty" | "failure" = "suggestions") {
         };
       if (args.p_operation !== "begin" && args.p_revision !== state!.revision)
         return { data: null, error: { message: "Session revision conflict" } };
-      state = {
+      state = await hydrateApplicationInspections(admin, {
         ...structuredClone(args.p_payload),
         revision: (state?.revision ?? 0) + 1,
-      };
+      }) as SimulationSession;
       writes++;
       return {
         data: {
@@ -118,7 +122,7 @@ function fixture(mode: "suggestions" | "empty" | "failure" = "suggestions") {
       assert.match(input.resume, /Original resume/);
       assert.match(input.candidate, /alex@example.test/);
       assert.match(input.role, /Saved JD/);
-      assert.match(input.application, /pending/);
+      assert.equal(input.application, undefined);
       if (mode === "failure") throw new Error("Provider unavailable");
       return mode === "empty"
         ? []
@@ -310,8 +314,8 @@ test("email defers durably, reads live JD and form before suggestions, and resum
     },
     writeApplicationSuggestions: async (input: any) => {
       order.push("suggestions"); assert.match(input.role, /Live role requirement/);
-      for (const evidence of ["example.test/apply", "Applicant login required", "Motivation", "Explain interest in this role", "1200", ".pdf"]) assert.ok(input.application.includes(evidence));
-      assert.doesNotMatch(input.application, /pending/); assert.throws(() => JSON.parse(input.application)); return [];
+      for (const evidence of ["Motivation", "Explain interest in this role", "1200", ".pdf"]) assert.ok(input.application.includes(evidence));
+      assert.doesNotMatch(input.application, /pending|Applicant login required|example\.test\/apply/); assert.throws(() => JSON.parse(input.application)); return [];
     },
   } as unknown as typeof f.dependencies;
   const args = { ...f.args, startOfferId: undefined, emailSourceMessageId: 1 };

@@ -98,8 +98,8 @@ export default function TalentRoleActivityTimeline({
   };
 
   return (
-    <section className="mt-12">
-      <div className="flex items-center gap-2 text-[14px] font-medium leading-5 text-neutral-primary">
+    <section className="mt-6">
+      <div className="flex items-center gap-2 text-[13px] font-normal leading-5 text-neutral-primary">
         <StickyNote className="h-4 w-4" />
         <span>
           {t("career.history.talent_role_activity_timeline.title", "내 활동")}
@@ -205,7 +205,7 @@ export default function TalentRoleActivityTimeline({
                     </span>
                     <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-[13px] font-medium leading-5 text-neutral-primary">
+                        <div className="text-[13px] font-normal leading-5 text-neutral-primary">
                           {meetingTitle}
                         </div>
                         {meetingDateTime ? (
@@ -278,7 +278,7 @@ export default function TalentRoleActivityTimeline({
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 text-[13px] font-medium leading-5 text-neutral-primary">
+                      <span className="shrink-0 text-[13px] font-normal leading-5 text-neutral-primary">
                         {activityLabel}
                       </span>
                       {isStageChange && savedStage ? (

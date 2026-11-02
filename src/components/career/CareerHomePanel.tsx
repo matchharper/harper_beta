@@ -15,7 +15,7 @@ import {
   useCareerProfileContext,
   useCareerSidebarContext,
 } from "./CareerSidebarContext";
-import { useCareerChatPanelContext } from "./CareerChatPanelContext";
+import { useCareerChatActivityContext } from "./CareerChatPanelContext";
 import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSection";
 import type { CareerOpportunitySavedStageFilter } from "./types";
 import React from "react";
@@ -202,7 +202,7 @@ const CareerHomePanel = (props: CareerHomePanelProps) => {
     onboardingWrapupPending,
     opportunityFeedbackFollowUpPending,
     onForceCompleteOnboarding,
-  } = useCareerChatPanelContext();
+  } = useCareerChatActivityContext();
   const { historyOpportunityCounts } = useCareerHistoryContext();
   const {
     talentProfile,

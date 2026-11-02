@@ -1,3 +1,4 @@
+import { applicationResumeDelivered } from "./applicationFollowUp";
 import { suggestionAction, applicationSuggestionContext } from "./suggestionSchema";
 import { applicationReviewSchema, applicationReviewText } from "./applicationReview";
 import { applicationFormText } from "./applicationFormText";
@@ -70,6 +71,7 @@ export const sessionSchema = z.object({
   browser: browserStateSchema.optional(),
   applicationUrl: z.string().optional(),
   applicationForm: applicationFormSchema.optional(),
+  applicationFormId: z.string().uuid().optional(),
   applicationReview: applicationReviewSchema.optional(),
   applicationInspection: applicationInspectionSchema.optional(),
   activity: z
@@ -98,6 +100,7 @@ export const sessionSchema = z.object({
           introduction: z.string().optional(),
           review: z.object({ id: z.string(), version: z.number().int().positive(), markdown: z.string() }).optional(),
           introMessageId: z.number().optional(),
+          applicationReviewMessageId: z.number().optional(),
           itemIds: z.array(z.string()),
           items: z.array(actionSchema).optional(),
           status: z.enum(["waiting", "submitted", "cancelled"]),
@@ -395,7 +398,10 @@ export function mutateSimulationSession(
     if (input.reconsiderResponse) delete p.responses[item.id];
     p.inputRevision++;
     p.approvedVersion = null;
-    p.finalDocumentId = null;
+    if (item.inputKind === "change" || item.documentPurpose === "final_resume") {
+      p.finalDocumentId = null;
+      p.finalDocumentFingerprint = null;
+    }
     p.currentItemId = item.id;
     p.showInputs = true;
   }
@@ -411,7 +417,6 @@ export function mutateSimulationSession(
       throw new Error("Draft generation is running");
     next.preparation.inputRevision++;
     next.preparation.approvedVersion = null;
-    next.preparation.finalDocumentId = null;
   }
   const action = next.actions.find((a) => a.id === input.actionId);
   if (
@@ -511,6 +516,7 @@ export function mutateSimulationSession(
 // Project current activity state; immutable question snapshots own recorded responses.
 export function simulationSessionContext(s: SimulationSession, toolNames?: readonly string[]) {
   return {
+    resumeDelivered: applicationResumeDelivered(s),
     preparation: s.preparation ? { responses: unbatchedApplicationResponses(s), applicationMethod: s.preparation.applicationMethod, finalDocumentId: s.preparation.finalDocumentId } : undefined,
     application: applicationExecutionFacts(s),
     // Settled buttons already appear as authoritative current actions. Keep the user's
@@ -525,14 +531,14 @@ export function simulationSessionContext(s: SimulationSession, toolNames?: reado
       documentId: s.documentId,
       source: s.documentOriginType ?? "uploaded_or_unknown",
       // Enable only when an actual content editor is integrated and exposed in this mode.
-      directEditingAvailable: toolNames?.some(name => name === "ready_for_role" || name === "generate_resume"),
+      directEditingAvailable: toolNames?.some(name => name === "ready_for_role" || name === "upsert_document"),
     },
     status: s.status,
     endReason: s.endReason,
     analysisStatus: s.analysisStatus,
     requirements: s.requirements,
-    applicationForm: applicationFormText(s.applicationForm),
-    applicationReview: s.applicationReview ? applicationReviewText(s.applicationReview) : undefined,
+    applicationForm: applicationResumeDelivered(s) ? applicationFormText(s.applicationForm) : undefined,
+    applicationReview: applicationResumeDelivered(s) && s.applicationReview ? applicationReviewText(s.applicationReview) : undefined,
     applicationInspection: s.applicationInspection?.status,
     applicationUrl: s.applicationUrl,
     suggestionRounds: s.activity?.batches.filter(b => b.purpose === "suggestions").length ?? 0,

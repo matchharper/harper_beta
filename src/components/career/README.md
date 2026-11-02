@@ -170,7 +170,9 @@ UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 
 - `CareerHistoryPanel.tsx`
   - history 탭 표시.
   - 데스크톱의 새 기회는 새 포지션 목록만 표시하고 상단 탭을 숨깁니다.
-  - 내 기회는 상단의 저장한 포지션·보관함 탭과 숨긴 포지션 버튼을 유지합니다.
+  - 내 기회는 저장함·진행중 탭을 표시하고, 종료/보관 탭과 숨긴 포지션 버튼은 데스크톱 상단 오른쪽에 둡니다. 저장함에서만 `SavedOpportunityViews`의 카드뷰 1·카드뷰 2·테이블을 선택하며 선택은 로컬 UI 설정에 저장합니다. 진행중은 지원함·진행중, 종료/보관은 진행 종료·보관한 항목을 합칩니다.
+  - 데스크톱·모바일의 저장 단계 목록은 같은 로더를 사용합니다. 진행중의 `applied`·`connected`는 기존 `savedStages` API로 함께 조회하고, 각 단계의 서버 `nextOffset`으로 추가 로딩과 완료를 판단합니다. 저장한 지원 이력은 `listPosition: previous`여도 해당 단계에 포함하며, 조회 실패 후 재시도와 캐시 누락 시 복구를 지원합니다.
+  - 진행중 목록은 `ProgressOpportunityRow`로 다음 일정을 강조하고, 상세는 일정·준비 내용·진행 이력을 먼저 보여준 뒤 공고 상세 정보를 기본으로 접습니다. `AppointmentCreateButton`은 인증된 `POST /api/talent/meeting-schedules`를 통해 기존 `write_talent_meeting_schedule`에 외부 일정을 저장합니다. 공고 소유 범위를 확인하고 재시도는 같은 요청 ID를 사용합니다. 저장 후 목록과 일정 쿼리를 갱신하며 회사 초대나 캘린더 생성은 실행하지 않습니다.
 
 - `CareerInPageTabs.tsx`
   - profile 탭 내부 상단 탭.

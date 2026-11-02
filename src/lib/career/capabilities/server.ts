@@ -31,7 +31,14 @@ import {
 import {
   CareerCapabilityRuntime,
   type CareerCapabilityPromptArgs,
+  type CareerAgentRuntimeState,
+  type CareerReplyCheckpoint,
 } from "./runtime";
+import { selectCareerPreloads, type CareerPreloadSelection, type CareerSelectorInput } from "./decisions";
+import { normalizeCareerHandbookLeases, type CareerHandbookLease } from "../handbooks/registry";
+import type { CareerCapabilityTurnRecord } from "./lease";
+import { withLlmUsageContext } from "@/lib/llm/usageContext";
+import { readCareerPromptExperiment } from "../prompts/promptExperiment";
 
 export function isCareerCapabilityTurn(args: {
   applicationStartRequested?: boolean;
@@ -113,17 +120,29 @@ export async function createCareerCapabilityTurn(args: {
   eligibleTools: readonly TalentChatTool[];
   getEligibleTools?: () => readonly TalentChatTool[];
   promptArgs: CareerCapabilityPromptArgs;
+  adaptPromptBlocks?: ConstructorParameters<typeof CareerCapabilityRuntime>[0]["adaptPromptBlocks"];
   getPromptArgs?: () => CareerCapabilityPromptArgs;
   preloads?: readonly CareerCapabilityId[];
   origin?: "web" | "server";
+  replyId?: string;
+  agentState?: CareerAgentRuntimeState;
+  selectorInput?: CareerSelectorInput;
+  selectionSnapshot?: CareerPreloadSelection;
+  abortSignal?: AbortSignal;
+  checkCancellation?: () => Promise<void>;
+  deadlineAt?: number;
+  allowLoaders?: boolean;
+  resume?: CareerReplyCheckpoint;
+  continuation?: CareerReplyCheckpoint["continuation"];
+  checkpoint?: (checkpoint: CareerReplyCheckpoint) => Promise<void>;
+  persistCompletion?: (record: CareerCapabilityTurnRecord, handbooks: CareerHandbookLease[]) => Promise<void>;
 }) {
   const { admin, userId, conversationId, sourceMessage } = args;
   if (
     sourceMessage &&
     (sourceMessage.user_id !== userId ||
       sourceMessage.conversation_id !== conversationId ||
-      sourceMessage.role !== "user" ||
-      !parseCareerCapabilityTurn(sourceMessage.payload))
+      sourceMessage.role !== "user")
   )
     throw new Error("Invalid Career capability source message");
   const scope = () =>
@@ -133,17 +152,9 @@ export async function createCareerCapabilityTurn(args: {
       .eq("user_id", userId)
       .eq("conversation_id", conversationId)
       .eq("role", "user");
-  const remembered =
-    sourceMessage && args.mode === "progressive"
-      ? await readCareerCapabilityLeases({
-          admin,
-          userId,
-          conversationId,
-          beforeId: sourceMessage.id,
-          currentCreatedAt: sourceMessage.created_at,
-        })
-      : new Set<CareerCapabilityId>();
   const promptArgs = { ...args.promptArgs };
+  const promptExperiment = promptArgs.channel === "chat" && promptArgs.isOnboardingDone && !promptArgs.backgroundInvocation
+    ? readCareerPromptExperiment(sourceMessage?.payload) : undefined;
   let refreshedUserContext: Partial<CareerCapabilityPromptArgs> = {};
   let coachingRefreshed = false;
   const readCoaching = async () => {
@@ -164,15 +175,28 @@ export async function createCareerCapabilityTurn(args: {
     !Object.prototype.hasOwnProperty.call(promptArgs, "careerCoachingActivity")
   )
     await readCoaching();
-  const preloads = [...(args.preloads ?? [])];
-  if (promptArgs.careerCoachingActivity?.status === "active")
-    preloads.push("career_coaching");
+  const replyId = args.replyId ?? (sourceMessage ? `message:${sourceMessage.id}` : crypto.randomUUID());
+  const requestId = crypto.randomUUID();
+  const usageContext = { requestId, careerChannel: "chat" as const, careerOrigin: args.origin, userId, conversationId,
+    ...(sourceMessage ? { sourceMessageId: sourceMessage.id } : {}) };
+  const handbooks = normalizeCareerHandbookLeases(args.agentState?.handbooks);
+  const selection = args.selectionSnapshot ?? (args.resume ? {
+    capabilityIds: args.resume.capabilityIds, handbookIds: [], status: "selected" as const, elapsedMs: 0,
+  } : await withLlmUsageContext(usageContext, () => selectCareerPreloads({
+    eligibleNames: new Set(args.eligibleTools.map(tool => tool.function.name)),
+    input: args.selectorInput ?? { messages: sourceMessage ? [{ role: "user", content: sourceMessage.content }] : [] },
+    activeHandbooks: handbooks, signal: args.abortSignal,
+    promptExperiment,
+  })));
   const runtime = new CareerCapabilityRuntime({
     mode: args.mode,
     eligibleTools: args.eligibleTools,
+    adaptPromptBlocks: args.adaptPromptBlocks,
     getEligibleTools: args.getEligibleTools,
     promptArgs: () => {
-      const current = { ...promptArgs, ...args.getPromptArgs?.(), ...refreshedUserContext };
+      const current = { ...promptArgs, ...args.getPromptArgs?.(), ...refreshedUserContext,
+        ...(promptExperiment ? { promptExperiment } : {}),
+      };
       if (coachingRefreshed) {
         current.careerCoachingActivity = promptArgs.careerCoachingActivity;
         if (current.simulationSession?.status !== "active")
@@ -181,15 +205,13 @@ export async function createCareerCapabilityTurn(args: {
       }
       return current;
     },
-    remembered,
-    preloads,
-    usageContext: {
-      careerChannel: "chat",
-      careerOrigin: args.origin,
-      userId,
-      conversationId,
-      ...(sourceMessage ? { sourceMessageId: sourceMessage.id } : {}),
-    },
+    // Structural caller preloads are available only as a failure fallback.
+    preloads: selection.status === "unavailable" ? args.preloads : [],
+    replyId, requestId, handbooks, selection, allowLoaders: args.allowLoaders,
+    abortSignal: args.abortSignal, checkCancellation: args.checkCancellation,
+    deadlineAt: args.deadlineAt, resume: args.resume, checkpoint: args.checkpoint,
+    continuation: args.continuation,
+    usageContext,
     refreshAfterTool: async (name, result) => {
       if (name === "manage_career_coaching_activity") {
         coachingRefreshed = true;
@@ -285,8 +307,13 @@ export async function createCareerCapabilityTurn(args: {
       }),
   });
   let completed = false;
-  const complete = async () => {
-    if (completed || !sourceMessage) return;
+  const complete = async (outcome: { delivered?: boolean } = {}) => {
+    if (completed) return;
+    const completionRecord = runtime.completedRecord();
+    await args.persistCompletion?.(completionRecord, outcome.delivered === false
+      ? runtime.handbooks.snapshot() : runtime.handbooks.afterDeliveredReply());
+    completed = true;
+    if (!sourceMessage) return;
     // Compare-and-swap preserves concurrent writers' unrelated payload fields.
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -295,14 +322,10 @@ export async function createCareerCapabilityTurn(args: {
           .maybeSingle();
         if (error || !row) throw error ?? new Error("Source message missing");
         const record = parseCareerCapabilityTurn(row.payload);
-        if (!record || record.mode !== args.mode) return;
-        if (record.status === "completed") {
-          completed = true;
-          return;
-        }
+        if (record?.status === "completed" && record.replyId === replyId) return;
         const payload = {
           ...(row.payload as Record<string, unknown>),
-          [CAREER_CAPABILITY_PAYLOAD_KEY]: runtime.completedRecord(),
+          [CAREER_CAPABILITY_PAYLOAD_KEY]: completionRecord,
         };
         const { data, error: updateError } = await admin
           .from("talent_messages")
@@ -322,10 +345,10 @@ export async function createCareerCapabilityTurn(args: {
       throw new Error("Concurrent message payload changes");
     } catch {
       console.warn(
-        "[career-capabilities] completion record failed; next turn starts cold",
+        "[career-capabilities] completion trace unavailable; conversation handbook state is authoritative",
         { sourceMessageId: sourceMessage.id }
       );
     }
   };
-  return { runtime, complete };
+  return { runtime, complete, selection };
 }

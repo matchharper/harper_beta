@@ -14,7 +14,8 @@ import {
 } from "@/lib/talentOpportunity";
 import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
 import { hydrateOpportunityRunsForMessages } from "@/lib/opportunityDiscovery/store";
-import { canUseCareerDevControls } from "@/lib/internalAccess";
+import { hideCareerForm } from "@/lib/career/forms/server";
+import { parseCareerForm } from "@/lib/career/forms/schema";
 
 const parsePositiveIntegerParam = (
   value: string | null,
@@ -104,7 +105,8 @@ export async function GET(req: NextRequest) {
       limit: messageLimit,
     });
     const visibleMessages = messages.filter(
-      (message) => !(message.message_type ?? "").startsWith("mock_interview")
+      (message) => !(message.message_type ?? "").startsWith("mock_interview") &&
+        !(message.payload && typeof message.payload === "object" && !Array.isArray(message.payload) && message.payload.hidden === true)
     );
     const messageIds = visibleMessages
       .map((message) => message.id)
@@ -249,9 +251,6 @@ export async function DELETE(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (!canUseCareerDevControls(user.email)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
     const body = (await req.json().catch(() => ({}))) as {
       conversationId?: unknown;
@@ -269,7 +268,7 @@ export async function DELETE(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     const { data: message, error: messageError } = await admin
       .from("talent_messages")
-      .select("id")
+      .select("id,message_type,payload")
       .eq("id", messageId)
       .eq("conversation_id", conversationId)
       .eq("user_id", user.id)
@@ -279,6 +278,15 @@ export async function DELETE(req: NextRequest) {
     }
     if (!message) {
       return NextResponse.json({ error: "Message not found" }, { status: 404 });
+    }
+
+    if (["career_form", "career_form_presentation", "career_form_response"].includes(message.message_type ?? "")) {
+      const payload = message.payload && typeof message.payload === "object" && !Array.isArray(message.payload) ? message.payload : null;
+      const formId = parseCareerForm(payload)?.formId ?? (typeof payload?.formId === "number" ? payload.formId : null);
+      if (formId) {
+        await hideCareerForm({ admin, userId: user.id, conversationId, formId });
+        return NextResponse.json({ ok: true, deletedMessageId: messageId, hiddenFormId: formId });
+      }
     }
 
     const cleanupResults = await Promise.all([
@@ -323,7 +331,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ ok: true, deletedMessageId: messageId });
   } catch (error) {
-    console.error("[career] Failed to delete dev message", error);
+    console.error("[career] Failed to delete message", error);
     return NextResponse.json(
       { error: "Failed to delete message" },
       { status: 500 }

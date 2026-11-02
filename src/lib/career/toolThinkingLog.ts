@@ -33,7 +33,7 @@ export function getCareerToolStartThinkingLog(
         "career.chat.tool.read_document.start",
         "문서 내용을 확인하고 있습니다."
       );
-    case "update_document":
+    case "upsert_document":
       return careerT(
         locale,
         "career.chat.tool.update_document.start",
@@ -44,12 +44,6 @@ export function getCareerToolStartThinkingLog(
         locale,
         "career.chat.tool.open_url.start",
         "공유된 링크 내용을 확인하고 있습니다."
-      );
-    case "research_company":
-      return careerT(
-        locale,
-        "career.chat.tool.research_company.start",
-        "회사 정보를 확인하고 있습니다."
       );
     case "internal_role_priority_review":
       return careerT(

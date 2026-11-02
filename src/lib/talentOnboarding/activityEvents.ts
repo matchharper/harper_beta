@@ -5,11 +5,10 @@ import type {
   TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
 import {
-  findOperationalOpportunityFeedbackKindsInText,
   type OperationalOpportunityFeedbackKind,
 } from "@/lib/career/opportunityFeedbackSignals";
 import { getTalentEngagementLabels } from "@/lib/talentNetworkOptions";
-import { logger } from "@/utils/logger";
+import { formatLlmDateTime, PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
 
 export type TalentActivityImpactLevel = "low" | "medium" | "high";
 
@@ -682,10 +681,7 @@ function toOpportunityFeedbackActivityItem(
     createdAt: row.created_at,
     eventId: row.id,
     hasFeedbackReason: /\bFeedback reason:/i.test(row.summary ?? ""),
-    operationalFeedbackKinds: findOperationalOpportunityFeedbackKindsInText(
-      row.summary ?? ""
-    ),
-    summary: clampText(row.summary ?? "", 1200),
+    summary: row.summary ?? "",
   };
 }
 
@@ -745,69 +741,13 @@ export function formatOpportunityFeedbackPromptContext(
 ) {
   if (items.length === 0) return "";
 
-  const positiveCount = items.filter(
-    (item) => item.action === "positive"
-  ).length;
-  const negativeCount = items.filter(
-    (item) => item.action === "negative"
-  ).length;
-  const missingReasonCount = items.filter(
-    (item) =>
-      item.hasFeedbackReason === false ||
-      (item.hasFeedbackReason === undefined &&
-        !/\bFeedback reason:/i.test(item.summary))
-  ).length;
-  const operationalFeedbackKinds = Array.from(
-    new Set(
-      items.flatMap((item) =>
-        item.operationalFeedbackKinds?.length
-          ? item.operationalFeedbackKinds
-          : findOperationalOpportunityFeedbackKindsInText(item.summary)
-      )
-    )
-  );
-
-  const lines = items.slice(0, 8).map((item, index) => {
-    return [
-      `- ${index + 1}. ${item.createdAt}: ${item.summary}`,
-      item.fitSummary
-        ? `  Role fit summary (opportunity context only): ${clampText(item.fitSummary, 700)}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
-  });
-  const operationalGuidance =
-    operationalFeedbackKinds.length > 0
-      ? [
-          "Operational feedback exception (applies only to the explicitly marked items above):",
-          ...(operationalFeedbackKinds.includes("already_applied")
-            ? [
-                "- '이미 지원했던 회사/역할입니다.' only reports that the user already applied. It is neither positive nor negative preference evidence.",
-                "- Never tell the user to apply again to an item explicitly marked already applied, and never group that item into generic direct-application guidance for other external roles. You may optionally acknowledge it with one light sentence such as saying no repeat application is needed. Do not turn that sentence into a broad or permanent future-filtering promise.",
-              ]
-            : []),
-          ...(operationalFeedbackKinds.includes("expired_posting")
-            ? [
-                "- '만료된 공고에요.' only reports posting availability. It is not negative preference evidence about the company or role.",
-              ]
-            : []),
-          "- If the same item contains another reason or custom comment, that other content remains valid preference evidence.",
-        ]
-      : [];
-  logger.log(
-    "\n\n\n## Pending opportunity feedback since Harper last replied\n\n\n"
-  );
-
   return [
-    "## Pending opportunity feedback since Harper last replied",
-    "Use this live context in the next answer. Incorporate it briefly before or inside the answer unless doing so would be incoherent. If the user's latest message is related to recommendations, acknowledge the pattern and ask at most one concrete calibration question. Do not mention logs, timers, implementation details, or the exact timestamps below.",
-    "A feedback click is a recommendation-ranking signal, not proof that a persistent hard preference or filter was saved. Never claim that a company, role, domain, or condition was saved to settings, blocked, permanently excluded, or will be automatically filtered unless the current persisted profile/settings context explicitly says so or a tool successfully persisted it in this turn.",
-    "For a replacement search, avoid the exact reviewed posting or role as needed, but do not broaden that into excluding the whole company unless the user's explicit reason/comment unambiguously targets the company itself, its business, or its culture, or persisted blocked-company context already contains it.",
-    "A role fit summary describes the opportunity; it is not evidence that the user liked or disliked any particular aspect of it.",
-    `Total=${items.length}; liked=${positiveCount}; disliked=${negativeCount}; noReason=${missingReasonCount}.`,
-    ...operationalGuidance,
-    ...lines,
+    "## Saved opportunity feedback since Harper last replied",
+    `Times: ${PROMPT_TIME_ZONE}.`,
+    ...items.map(item => [
+      `- Event ${item.eventId}; ${formatLlmDateTime(item.createdAt)}; decision=${item.action}: ${item.summary}`,
+      item.fitSummary ? `  Opportunity context: ${item.fitSummary}` : "",
+    ].filter(Boolean).join("\n")),
   ].join("\n");
 }
 
@@ -854,7 +794,7 @@ export async function fetchRecentTalentActivitySummaries(args: {
       ? data
           .map((row) => ({
             created_at: row.created_at,
-            summary: clampText(row.summary ?? "", 1200),
+            summary: row.summary ?? "",
           }))
           .filter(
             (row) =>

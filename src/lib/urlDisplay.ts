@@ -1,4 +1,4 @@
-const DEFAULT_COMPACT_URL_MAX_LENGTH = 30;
+const DEFAULT_COMPACT_URL_MAX_LENGTH = 80;
 const URL_TEXT_PATTERN = /^(https?:\/\/|mailto:|www\.)\S+$/i;
 const HARPER_OWNED_DOMAIN = "matchharper.com";
 const UUID_PATTERN =
@@ -74,8 +74,5 @@ export function compactUrlLabel(
     return truncateLabel(raw.slice("mailto:".length), maxLength);
   }
 
-  return truncateLabel(
-    trimTrailingSlash(raw.replace(/^https:\/\//i, "")),
-    maxLength
-  );
+  return truncateLabel(trimTrailingSlash(raw), maxLength);
 }

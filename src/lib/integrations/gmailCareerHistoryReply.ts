@@ -1,7 +1,7 @@
 import "server-only";
 
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
-import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
+import { CLAUDE_HAIKU_MODEL } from "@/lib/llm/modelConfig";
 import { buildGmailCareerHistoryFollowUpInstruction } from "@/lib/integrations/gmailCareerHistoryReplyCore";
 import type { GmailCareerMemoryEntry } from "@/lib/integrations/gmailCareerHistoryCore";
 import {
@@ -64,12 +64,10 @@ export async function createGmailCareerHistoryFollowUpReply(args: {
   if (existing) return toTalentMessageResponse(existing);
 
   const result = await runCareerChatTurn({
+    assistantModel: CLAUDE_HAIKU_MODEL,
     admin: args.admin,
     allowedToolNames: [],
     assistantMessageType: GMAIL_CAREER_HISTORY_FOLLOW_UP_MESSAGE_TYPE,
-    assistantModel: CAREER_LLM_CONFIG.chat.gmailCareerHistoryFollowUp.model,
-    assistantOpenAIResponsesReasoningEffort:
-      CAREER_LLM_CONFIG.chat.gmailCareerHistoryFollowUp.reasoningEffort,
     assistantTemperature: 0.3,
     conversationId: conversation.id,
     pendingOpportunityFeedbackContext: "",

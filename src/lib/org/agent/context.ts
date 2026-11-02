@@ -579,6 +579,7 @@ export function formatOrgAgentContactSummary(
 export async function buildOrgAgentPromptContext(args: {
   admin: OrgAgentAdminClient;
   beforeMessageId?: number | null;
+  includeLatestConversation?: boolean;
   conversation: OrgAgentConversationRow;
   currentUserMessageId?: number | null;
   initialDataKinds?: readonly OrgAgentMoreDataKind[];
@@ -654,7 +655,7 @@ export async function buildOrgAgentPromptContext(args: {
       task: () =>
         fetchRecentOrgAgentPromptMessages({
           admin: args.admin,
-          beforeMessageId: currentUserMessageId,
+          beforeMessageId: args.includeLatestConversation ? undefined : currentUserMessageId,
           conversationId: args.conversation.id,
           limit: RECENT_CONVERSATION_MESSAGE_LIMIT,
           scope,

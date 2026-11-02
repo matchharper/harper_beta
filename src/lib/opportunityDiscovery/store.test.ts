@@ -70,7 +70,7 @@ test("uses the active conversation-completed run as the waiting-period boundary"
     {
       field: "status",
       operation: "in",
-      value: ["queued", "running"],
+      value: ["queued", "running", "handed_off"],
     },
   ]);
 });
@@ -129,7 +129,7 @@ test("only queued work or a recent heartbeat can sustain initial-search waiting 
   }
 });
 
-test("stores an explicit run recommendation target without the user-setting clamp", async () => {
+test("routes legacy initial requests to the original agent without a recommendation quota", async () => {
   let insertedPayload: Record<string, unknown> | null = null;
   const admin = {
     from(table: string) {
@@ -187,15 +187,17 @@ test("stores an explicit run recommendation target without the user-setting clam
 
   const savedPayload = insertedPayload as Record<string, unknown> | null;
   assert.ok(savedPayload);
-  assert.equal(savedPayload.target_recommendation_count, 15);
+  assert.equal(savedPayload.target_recommendation_count, 0);
+  assert.equal((savedPayload.trigger_payload as any).runContract, "career_agent_v1");
+  assert.equal((savedPayload.trigger_payload as any).locksConversationInput, false);
   assert.deepEqual(savedPayload.settings_snapshot, {
     getExternalRecommendation: true,
     profileVisibility: "exceptional_only",
-    recommendationBatchSize: 15,
+    recommendationBatchSize: 3,
   });
 });
 
-test("does not add a target column to runs without an explicit target", async () => {
+test("new invocations leave recommendation quantity to the original agent", async () => {
   let insertedPayload: Record<string, unknown> | null = null;
   const admin = {
     from(table: string) {
@@ -247,7 +249,8 @@ test("does not add a target column to runs without an explicit target", async ()
 
   const savedPayload = insertedPayload as Record<string, unknown> | null;
   assert.ok(savedPayload);
-  assert.equal("target_recommendation_count" in savedPayload, false);
+  assert.equal(savedPayload.target_recommendation_count, 0);
+  assert.equal((savedPayload.trigger_payload as any).runContract, "career_agent_v1");
   assert.equal(
     (savedPayload.settings_snapshot as Record<string, unknown>)
       .recommendationBatchSize,

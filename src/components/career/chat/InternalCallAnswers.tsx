@@ -1,6 +1,8 @@
 import {
   createContext,
   useContext,
+  useCallback,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -54,7 +56,7 @@ export function InternalCallAnswersProvider({
   const [submitting, setSubmitting] = useState(false);
   const lock = useRef(false);
   const current = useRef(0);
-  const open = async (callId: string) => {
+  const open = useCallback(async (callId: string) => {
     if (lock.current || !conversationId) return;
     const request = ++current.current;
     setLoadingId(callId);
@@ -83,8 +85,8 @@ export function InternalCallAnswersProvider({
     } finally {
       if (request === current.current) setLoadingId(null);
     }
-  };
-  const save = async (responses: InternalCallAnswer[]) => {
+  }, [conversationId, fetchWithAuth, t]);
+  const save = useCallback(async (responses: InternalCallAnswer[]) => {
     if (!call || !conversationId || lock.current) return false;
     lock.current = true;
     setSubmitting(true);
@@ -122,26 +124,20 @@ export function InternalCallAnswersProvider({
       lock.current = false;
       setSubmitting(false);
     }
-  };
+  }, [call, conversationId, onSendChatMessage, queryClient, t]);
+  const close = useCallback(() => {
+    if (!lock.current) {
+      ++current.current;
+      setCall(null);
+      setError("");
+    }
+  }, []);
+  const value = useMemo(
+    () => ({ call, completed, loadingId, error, open, save, submitting, close }),
+    [call, completed, loadingId, error, open, save, submitting, close]
+  );
   return (
-    <Context.Provider
-      value={{
-        call,
-        completed,
-        loadingId,
-        error,
-        open,
-        save,
-        submitting,
-        close: () => {
-          if (!lock.current) {
-            ++current.current;
-            setCall(null);
-            setError("");
-          }
-        },
-      }}
-    >
+    <Context.Provider value={value}>
       {children}
     </Context.Provider>
   );

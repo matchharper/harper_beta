@@ -1,6 +1,6 @@
 import { ChevronRight, Loader2 } from "lucide-react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import { useCareerChatPanelContext } from "./CareerChatPanelContext";
+import { useCareerChatActivityContext } from "./CareerChatPanelContext";
 import { CompanyLogo } from "./watchlist/CompanyLogo";
 import {
   useDailyExternalRecommendations,
@@ -10,7 +10,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 
 function useSnapshot() {
   const { user, isOnboardingDone, stage } = useCareerSidebarContext();
-  const { tasksOverride, pendingActionsOverride } = useCareerChatPanelContext();
+  const { tasksOverride, pendingActionsOverride } = useCareerChatActivityContext();
   return useDailyExternalRecommendations(
     user?.id,
     tasksOverride === undefined &&

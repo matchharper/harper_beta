@@ -313,7 +313,7 @@ export const ORG_AGENT_TOOLS = [
             description: "Includes the authorized profile. outline returns current location and complete work/education/extras metadata, including all employers, roles and dates, but omits bio and descriptive bodies. Use it for broad lists and career-path comparisons when those facts suffice. full returns the original bio and all descriptive evidence for substantive work, achievements or detailed fit explanations. Expand only the candidates needing that evidence; no batch-size limit. Omit includeProfile or set it true when specifying this field.",
           },
           profileSections: {
-            type: "array", items: { type: "string", enum: ["bio", "experience", "education", "extras"] },
+            type: "array", items: { type: "string", enum: ["bio", "experience", "education", "extras", "documents"] },
             description: "Select the source sections needed for this question before reading many profiles. For example, experience returns every work-history row and its full descriptive evidence without unrelated biography, education or extras. Omit for all sections; [] returns current location only. Identity and company relationship facts always remain. Combine with profileView=outline for metadata only, or full/omitted for original prose. Sections left out are not evidence of absence and can be read later. No candidate-count or prose-length limit.",
           },
           progressLimit: {

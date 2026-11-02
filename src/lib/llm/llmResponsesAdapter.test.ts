@@ -7,6 +7,24 @@ import {
 } from "./responsesChatAdapter";
 import { buildLlmImageMessageContent } from "./imageInput";
 
+test("does not silently cap agent reasoning and output when the caller omits a limit", () => {
+  const request = buildOpenAIResponsesRequest({
+    model: "gpt-6-luna",
+    reasoningEffort: "high",
+    requestBody: { messages: [{ content: "Continue delegated work", role: "user" }] },
+  });
+  assert.equal(Object.hasOwn(request, "max_output_tokens"), false);
+});
+
+test("preserves an explicit completion budget over the legacy token field", () => {
+  const request = buildOpenAIResponsesRequest({
+    model: "gpt-6-luna",
+    reasoningEffort: "high",
+    requestBody: { messages: [], max_completion_tokens: 32000, max_tokens: 4000 },
+  });
+  assert.equal(request.max_output_tokens, 32000);
+});
+
 test("builds a stateless high-reasoning Responses request", () => {
   const request = buildOpenAIResponsesRequest({
     model: "gpt-6-luna",

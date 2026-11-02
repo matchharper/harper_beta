@@ -1,4 +1,6 @@
 import type { SessionRecord } from "./sessionStore";
+import { applicationSubmissionState } from "./applicationExecution";
+import { applicationReviewMatchesForm } from "./applicationReview";
 import {
   applicationQuestionItems,
   pendingApplicationBatch,
@@ -13,7 +15,15 @@ export function applicationReviewView(record: SessionRecord) {
     revision: s.revision,
     status: s.status,
     roleName: s.roleName,
+    roleId: s.activity?.roleId ?? (s.roleRef.startsWith("role:") ? s.roleRef.slice(5) : undefined),
+    analysisStatus: s.analysisStatus,
+    inspectionStatus: s.applicationInspection?.status,
+    submissionAccess: s.applicationForm?.submission?.status ?? "unknown",
+    submissionState: applicationSubmissionState(s),
+    workingResumeDocumentId: s.preparation?.workingResume?.documentId ?? null,
     review: s.applicationReview ?? null,
+    reviewCurrent: applicationReviewMatchesForm(s),
+    preparationPending: Boolean(batch && !batch.browser) || Boolean(s.preparation?.applicationFollowUp && s.preparation.applicationFollowUp.status !== "done"),
     ready: Boolean(s.preparation?.finalDocumentId),
     applicationUrl: s.applicationUrl,
     resumeDocumentId:

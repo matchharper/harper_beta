@@ -9,7 +9,7 @@ test("recommend_job_postings exposes instant and bulk search kinds", () => {
     "[TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS]",
     registryStart
   );
-  const end = source.indexOf("[TALENT_TOOL_NAMES.RESEARCH_COMPANY]", start);
+  const end = source.indexOf("[TALENT_TOOL_NAMES.GENERATE_RESUME]", start);
   const implementation = source.slice(start, end);
 
   assert.match(implementation, /enum: \["instant", "bulk"\]/);
@@ -24,7 +24,7 @@ test("instant is pinned to legacy while only bulk reaches async enqueue", () => 
     "[TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS]",
     registryStart
   );
-  const end = source.indexOf("[TALENT_TOOL_NAMES.RESEARCH_COMPANY]", start);
+  const end = source.indexOf("[TALENT_TOOL_NAMES.GENERATE_RESUME]", start);
   const implementation = source.slice(start, end);
 
   assert.match(implementation, /if \(kind === "bulk"\)/);

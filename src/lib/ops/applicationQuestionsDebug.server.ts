@@ -1,8 +1,12 @@
 import { z } from "zod";
+import type { ApplicationForm } from "@/lib/career/simulation/applicationForm";
 import { inspectApplicationQuestions } from "./applicationQuestions.server";
 import { inspectManagedQuestions } from "./applicationQuestionsAgents.server";
 import { runResolvedInspectionDebug } from "./applicationLinkResolution.server";
-import type { InspectionRole } from "./applicationFormInspection";
+import type {
+  InspectionRole,
+  InspectionTarget,
+} from "./applicationFormInspection";
 import type {
   ApplicationQuestions,
   QuestionProvider,
@@ -12,13 +16,21 @@ async function inspectProvider(
   url: string,
   provider: QuestionProvider,
   model: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  target?: InspectionTarget
 ): Promise<ApplicationQuestions> {
   if (provider !== "current")
-    return inspectManagedQuestions(url, provider, model, signal);
+    return inspectManagedQuestions(
+      url,
+      provider,
+      model,
+      signal,
+      undefined,
+      target
+    );
   const started = Date.now();
   return {
-    ...(await inspectApplicationQuestions(url, signal)),
+    ...(await inspectApplicationQuestions(url, signal, undefined, target)),
     execution: {
       provider,
       model: "gpt-6-luna",
@@ -55,24 +67,25 @@ export async function runQuestionsDebug(
   const attempts: NonNullable<
     ApplicationQuestions["linkResolution"]
   >["attempts"] = [];
-  let last: ApplicationQuestions | undefined;
-  // Reuse the existing source lookup, Exa search, URL save and single-search policy.
+  const observations = new Map<ApplicationForm, ApplicationQuestions>();
+  // Reuse discovery while preserving the selected provider for each extraction.
   const resolved = await runResolvedInspectionDebug(
     input.source,
     signal,
     () => {},
     {
       ...deps.resolution,
-      inspect: async (value, browserSignal) => {
+      inspect: async (value, browserSignal, options) => {
         const url = z.string().parse(value);
-        last = await inspect(
+        const last = await inspect(
           url,
           input.provider,
           input.model,
-          browserSignal ?? signal
+          browserSignal ?? signal,
+          options?.target
         );
         attempts.push({ url, status: last.status, execution: last.execution });
-        return {
+        const form: ApplicationForm = {
           status: last.status,
           url: last.url,
           checkedAt: new Date().toISOString(),
@@ -82,11 +95,13 @@ export async function runQuestionsDebug(
             maxLength: null,
           })),
         };
+        observations.set(form, last);
+        return form;
       },
     }
   );
   return {
-    ...(last ?? {
+    ...(observations.get(resolved.form) ?? {
       status: "unavailable",
       url: resolved.form.url,
       questions: [],

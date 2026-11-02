@@ -192,7 +192,7 @@ export function ChatComposerPickerItemContent({
       >
         <span
           className={cn(
-            "min-w-0 truncate text-[12px] font-normal leading-4",
+            "min-w-0 truncate text-[13px] font-normal",
             tone === "critical"
               ? "text-critical"
               : tone === "muted"

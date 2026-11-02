@@ -4,6 +4,7 @@ import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import {
   getComposioAccountStatus,
   getComposioGmailReadAccess,
+  getComposioGmailWriteAccess,
   getComposioConnectedAccount,
   isOwnedComposioGmailAccount,
 } from "@/lib/integrations/composio";
@@ -14,6 +15,7 @@ export const maxDuration = 300;
 
 type CompleteBody = {
   connectedAccountId?: string;
+  capability?: "write";
 };
 
 export async function POST(req: NextRequest) {
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const access = getComposioGmailReadAccess(account);
+    const access = body.capability === "write" ? getComposioGmailWriteAccess(account) : getComposioGmailReadAccess(account);
     if (access === "unknown") {
       return NextResponse.json(
         { error: "Unable to verify Gmail permissions" },
@@ -64,6 +66,7 @@ export async function POST(req: NextRequest) {
       connected: access === "granted",
       ok: true,
       status: access === "granted" ? "active" : "permissions_required",
+      capabilities: {read:getComposioGmailReadAccess(account),compose:getComposioGmailWriteAccess(account),send:getComposioGmailWriteAccess(account,"send")},
     });
   } catch {
     return NextResponse.json(

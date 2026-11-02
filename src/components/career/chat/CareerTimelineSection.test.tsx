@@ -9,16 +9,27 @@ test("dismisses an armed message delete action after an outside click", async ()
   const previousSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
-  const { CareerMessageDevActions } = await import("./CareerMessageDevActions");
+  const { MessagesProvider } = await import("@/i18n/useMessage");
+  const { CareerMessageActions } = await import("./CareerMessageActions");
+  const { useToastStore } = await import("@/store/useToastStore");
 
   const dom = new JSDOM("<!doctype html><html><body></body></html>", {
     pretendToBeVisual: true,
+    url: "http://localhost",
   });
   const previousDocument = Object.getOwnPropertyDescriptor(
     globalThis,
     "document"
   );
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  let copiedText = "";
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      clipboard: { writeText: async (text: string) => { copiedText = text; } },
+    },
+  });
   Object.defineProperty(globalThis, "document", {
     configurable: true,
     value: dom.window.document,
@@ -42,10 +53,10 @@ test("dismisses an armed message delete action after an outside click", async ()
   try {
     await act(async () => {
       root.render(
-        <>
+        <MessagesProvider locale="ko" persistPreference={false}>
           <div data-career-message-container="true">
             <span data-message-bubble="true">메시지</span>
-            <CareerMessageDevActions
+            <CareerMessageActions
               isUser
               message={{
                 content: "테스트 메시지",
@@ -63,7 +74,7 @@ test("dismisses an armed message delete action after an outside click", async ()
           <button data-outside="true" type="button">
             바깥
           </button>
-        </>
+        </MessagesProvider>
       );
     });
 
@@ -76,7 +87,7 @@ test("dismisses an armed message delete action after an outside click", async ()
         'button[aria-label="메시지 삭제를 확정하려면 다시 누르세요."]'
       );
     const actions = container.querySelector<HTMLDivElement>(
-      '[data-career-i18n-skip="true"]'
+      '[data-career-message-actions="true"]'
     );
     const messageContainer = container.querySelector<HTMLElement>(
       '[data-career-message-container="true"]'
@@ -91,6 +102,20 @@ test("dismisses an armed message delete action after an outside click", async ()
     assert.ok(messageContainer);
     assert.ok(messageBubble);
     assert.ok(outside);
+
+    const copyButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="메시지 복사"]'
+    );
+    assert.ok(copyButton);
+    const toastsBeforeCopy = useToastStore.getState().list.length;
+    await act(async () => copyButton.click());
+    assert.equal(copiedText, "테스트 메시지");
+    assert.equal(useToastStore.getState().list.length, toastsBeforeCopy);
+    assert.equal(copyButton.querySelector('[role="status"]')?.textContent, "메시지를 복사했습니다.");
+    assert.ok(copyButton.querySelector(".lucide-check")?.classList.contains("opacity-100"));
+    await act(async () => new Promise(resolve => setTimeout(resolve, 2100)));
+    assert.ok(copyButton.querySelector(".lucide-copy")?.classList.contains("opacity-100"));
+    assert.equal(copyButton.querySelector('[role="status"]')?.textContent, "");
 
     const deleteButton = getDeleteButton();
     assert.ok(deleteButton);
@@ -131,6 +156,10 @@ test("dismisses an armed message delete action after an outside click", async ()
     });
     assert.ok(getDeleteButton());
     assert.equal(getConfirmButton(), null);
+    await act(async () => getDeleteButton()?.click());
+    assert.equal(deleteCallCount, 0);
+    await act(async () => getConfirmButton()?.click());
+    assert.equal(deleteCallCount, 1);
   } finally {
     await act(async () => root.unmount());
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
@@ -143,6 +172,11 @@ test("dismisses an armed message delete action after an outside click", async ()
       Object.defineProperty(globalThis, "window", previousWindow);
     } else {
       Reflect.deleteProperty(globalThis, "window");
+    }
+    if (previousNavigator) {
+      Object.defineProperty(globalThis, "navigator", previousNavigator);
+    } else {
+      Reflect.deleteProperty(globalThis, "navigator");
     }
     if (previousSupabaseUrl === undefined) {
       delete process.env.NEXT_PUBLIC_SUPABASE_URL;

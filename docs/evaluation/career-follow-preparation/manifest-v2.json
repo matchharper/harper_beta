@@ -1,0 +1,8 @@
+{
+  "version": "v2",
+  "provenance": "v1 preserved; two synthetic cases added before evaluation on 2026-11-02 after live search returned expired campaigns and undated careers landing pages. No production candidate data. Manual gold review by implementation agent.",
+  "hashes": {
+    "cases-v2.json": "dbff1addb5dc688419e0b0411231ae8db6362b5c1ab7a9230e1e6fc61a679a58",
+    "gold-v2.json": "2b04a0c27f5a907cacfbbb961d6a95b4da5b7f0d07d94c9091b8217b976e2890"
+  }
+}

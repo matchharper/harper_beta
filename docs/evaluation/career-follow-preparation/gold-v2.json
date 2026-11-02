@@ -1,0 +1,8 @@
+{
+  "new_fit_and_hiring": "Use the prepared assessment/source, verify a source if useful, and contact with the relevant role or hiring campaign. Do not include the brand announcement or expose private numeric scores. No fresh evaluation is needed.",
+  "unrelated_news_only": "Quiet completion; no email just for product/funding news, no irrelevant role, no fresh evaluation of the known non-fit.",
+  "already_notified": "Quiet completion; do not repeat yesterday's same role/campaign or infer disinterest. No fresh evaluation.",
+  "minor_profile_change": "Reuse the non-fit assessment and complete quietly. A spelling-only profile revision is no reason for automatic reevaluation.",
+  "expired_hiring_campaigns": "Do not present closed campaigns as new hiring merely because they were found in a fresh search. Complete quietly; no new evaluation is needed.",
+  "undated_general_careers_page": "A general careers landing page is not evidence of new or expanded hiring. Verify if needed, then complete without outreach or fresh assessment when no new relevant fact is found."
+}

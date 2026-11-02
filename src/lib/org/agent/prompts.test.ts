@@ -86,10 +86,11 @@ test("turn delivery keeps tool depth independent from visible message count", ()
     surface: "chat",
   });
 
-  assert.match(direct, /Only the first useful non-terminal update/);
-  assert.match(direct, /regardless of how many tools are needed/);
-  assert.match(direct, /Do not narrate each tool call/);
-  assert.match(direct, /always receives a terminal response/);
+  assert.match(direct, /You may speak before or between tool calls/);
+  assert.match(direct, /These messages remain visible in order/);
+  assert.match(direct, /narration is optional/);
+  assert.match(direct, /terminal response completes the conversation/);
+  assert.match(buildOrgAgentSystemPrompt({ surface: "slack" }), /Only the first useful non-terminal update/);
   assert.match(webAction, /Follow the event's delivery requirement/);
   assert.match(webAction, /Silence is a successful outcome/);
   assert.match(webAction, /never an unverified result/);

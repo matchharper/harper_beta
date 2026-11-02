@@ -1,0 +1,40 @@
+{
+  "version": "v3",
+  "chain_new": {
+    "status": "confirmed",
+    "startsAt": "2030-01-07T00:00:00.000Z",
+    "minEmails": 1,
+    "rubric": "Save one confirmed appointment and useful work from the full source; inspect actual output."
+  },
+  "chain_rescheduled": {
+    "status": "confirmed",
+    "startsAt": "2030-01-08T06:00:00.000Z",
+    "minEmails": 1,
+    "rubric": "Keep the exact appointment from the preceding run. Update reminders to the revised time; never use the old time as current."
+  },
+  "chain_reminder": {
+    "status": "confirmed",
+    "startsAt": "2030-01-08T06:00:00.000Z",
+    "minEmails": 1,
+    "requireFutureWork": false,
+    "rubric": "Consume a real previously saved work reservation, inspect the exact source thread even when discovery is empty, and send a useful current-time reminder. No duplicate appointment."
+  },
+  "chain_cancelled": {
+    "status": "cancelled",
+    "minEmails": 1,
+    "rubric": "Keep the same appointment, cancel pending reminder work, and accurately communicate the late cancellation. No company/Calendar claims."
+  },
+  "mixed_unlinked_timezone": {
+    "status": "confirmed",
+    "startsAt": "2030-01-08T00:00:00.000Z",
+    "unlinked": true,
+    "unknownEnd": true,
+    "rubric": "Cedar confirmed at 16:00 America/Los_Angeles equals next day 09:00 Korea. No invented end time or wrong Atlas/Beacon Role. Beacon availability remains unconfirmed."
+  },
+  "gmail_unavailable": {
+    "status": "confirmed",
+    "startsAt": "2030-01-07T00:00:00.000Z",
+    "version": 1,
+    "rubric": "Keep the last known saved appointment, make no unsupported change, and never claim the failed mailbox/thread check succeeded. Any user-visible reminder must distinguish saved facts from verification failure."
+  }
+}

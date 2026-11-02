@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -149,6 +150,15 @@ export const useCareerProfile = ({
     },
     []
   );
+
+  useEffect(() => {
+    const handleProfileVersion = (event: Event) => {
+      const snapshot = (event as CustomEvent<SessionResponse["talentProfile"]>).detail;
+      if (snapshot) applyTalentProfileSnapshot(snapshot);
+    };
+    window.addEventListener("career-profile-updated", handleProfileVersion);
+    return () => window.removeEventListener("career-profile-updated", handleProfileVersion);
+  }, [applyTalentProfileSnapshot]);
 
   const uploadResumeFile = useCallback(
     async (file: File, resumeRequestToken?: string | null) => {

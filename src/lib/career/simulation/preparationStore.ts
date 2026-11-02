@@ -20,6 +20,9 @@ export function expirePreparation(s: SimulationSession, now = Date.now()) {
     if (batch.continuation === "running" && now - Date.parse(batch.continuationStartedAt ?? next.lastActivityAt) > 10 * 60_000)
       batch.continuation = "failed";
   }
+  const followUp = next.preparation?.applicationFollowUp;
+  if (followUp?.status === "running" && now - Date.parse(followUp.startedAt ?? next.lastActivityAt) > 10 * 60_000)
+    followUp.status = "failed";
   const generation = next.preparation?.generation;
   if (generation?.status === "running") {
     if (now - Date.parse(generation.startedAt ?? "") > 10 * 60_000) {

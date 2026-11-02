@@ -27,6 +27,17 @@ test("returns null for an invalid meeting timestamp", () => {
   );
 });
 
+test("appointments crossing midnight show the end date", () => {
+  assert.equal(
+    formatCareerMeetingDateTimeRange({
+      startAt: "2030-01-07T14:30:00Z",
+      endAt: "2030-01-07T15:30:00Z",
+      locale: "ko",
+    }),
+    "1월 7일 (월) 오후 11:30–1월 8일 (화) 오전 12:30 KST"
+  );
+});
+
 test("uses compact relative time for talent role activities from today", () => {
   assert.equal(
     formatCareerActivityRelativeTime(

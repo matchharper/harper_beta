@@ -241,6 +241,14 @@ test("composer collects decisions without chat turns, restores answers, and sepa
       dom.window.document.body.textContent!,
       /PRIVATE|진행하기/
     );
+    // Unnumbered decisions are operated by their visible buttons. Hidden global
+    // numeric/arrow shortcuts must not accept a resume edit in the background.
+    await act(async () => {
+      for (const key of ["1", "2", "ArrowDown", "Enter"])
+        dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 200));
+    });
+    assert.equal(commands.length, 0);
     await act(async () => button("적용").click());
     assert.equal(commands.length,0);
     assert.equal(dom.window.document.querySelector("[data-response-flash]")?.getAttribute("data-response-flash"),"accept");
@@ -726,7 +734,7 @@ test("review questions remain closed until the matching chat review has rendered
   assert.doesNotMatch(html,/Review this before deciding/);
 });
 
-test("saved answers show inspection waiting, then a recoverable continuation without a duplicate composer", async () => {
+test("resume answer continuation is independent of inspection; only delivered resumes wait for application details", async () => {
   const { renderToStaticMarkup } = await import("react-dom/server");
   const { ApplicationPreparationContext } = await import("./ApplicationPreparationContext");
   const { ApplicationPreparationComposerSlot } = await import("./ApplicationPreparationComposer");
@@ -737,13 +745,13 @@ test("saved answers show inspection waiting, then a recoverable continuation wit
   state.activity = { version: 1, offerId: 1, outputs: {}, batches: [{ id: "saved", key: "saved", purpose: "suggestions", itemIds: [], status: "submitted", continuation: "pending", responses: {}, createdAt: new Date().toISOString() }] };
   state.applicationInspection = { status: "running", runId: "inspection" };
   const render = (pending = false) => renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationPreparationContext.Provider value={{ record: { state, messageId: 1 }, drafts: [], pending, error: "", command: async () => true }}><ApplicationPreparationComposerSlot><span>Ordinary input</span></ApplicationPreparationComposerSlot></ApplicationPreparationContext.Provider></MessagesProvider>);
-  assert.match(render(true), /Your answers are saved/);
-  assert.doesNotMatch(render(true), /Continue with saved answers|data-preparation-questions/);
+  assert.doesNotMatch(render(true), /Your answers are saved|data-preparation-questions/);
+  assert.match(render(), />Continue<\/button>/);
   state.applicationInspection.status = "completed";
   assert.doesNotMatch(render(), /Your answers are saved/);
-  assert.match(render(), /Continue with saved answers/);
+  assert.match(render(), />Continue<\/button>/);
   state.activity.batches[0].continuation = "done";
-  assert.doesNotMatch(render(), /Continue with saved answers/);
+  assert.doesNotMatch(render(), />Continue<\/button>/);
 });
 
 test("decisions are unnumbered with mobile Apply on the right; other choices stay numbered", async () => {
@@ -772,10 +780,7 @@ test("decisions are unnumbered with mobile Apply on the right; other choices sta
       assert.equal(buttons.length,item.kind === "material" && item.documentId && !item.documentPurpose ? 3 : 2);
       if (item.kind === "change") {
         assert.ok(group.classList.contains("grid-cols-2"));
-        assert.ok(group.classList.contains("sm:grid-cols-1"));
-        assert.deepEqual(buttons.map(button => button.textContent), ["Apply", "Don't apply"]);
-        assert.ok(buttons[1].classList.contains("-order-1"));
-        assert.ok(buttons[1].classList.contains("sm:order-none"));
+        assert.deepEqual(buttons.map(button => button.textContent), ["Don't apply", "Apply"]);
         buttons.forEach(button => assert.equal(button.firstElementChild, null));
       } else {
         buttons.forEach((button,index)=>{assert.equal(button.firstElementChild?.textContent,String(index+1));buttonClasses.push(button.className);});

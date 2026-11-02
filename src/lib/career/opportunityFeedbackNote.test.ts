@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatTalentMessageContentForLlmPrompt } from "./opportunityFeedbackNote";
+import { formatTalentMessageContentForLlmPrompt, formatTalentMessageReferenceForLlm } from "./opportunityFeedbackNote";
+
+test("browser cards remain visible to the model without passing viewer credentials", () => {
+  const formatted = formatTalentMessageReferenceForLlm({
+    content: "", message_type: "browser_session",
+    payload: { session_id: "session-for-this-conversation", requestId: "internal-request" },
+  });
+  assert.match(formatted, /Browser session: session-for-this-conversation/);
+  assert.doesNotMatch(formatted, /internal-request/);
+});
 
 test("strips opportunity run metadata before adding a message to an LLM prompt", () => {
   const formatted = formatTalentMessageContentForLlmPrompt({

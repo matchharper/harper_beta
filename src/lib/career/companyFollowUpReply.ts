@@ -1,4 +1,5 @@
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
+import { CLAUDE_HAIKU_MODEL } from "@/lib/llm/modelConfig";
 import {
   fetchTalentCompanyWatchlistDetail,
   type TalentCompanyWatchlistItem,
@@ -34,7 +35,7 @@ function buildCompanyFollowUpInstruction(args: {
     "Do not mention triggers, timers, events, logs, systems, or implementation details.",
     "Do not open with a long explanation of Watchlist mechanics.",
     "Keep it to 1-2 natural sentences.",
-    "Acknowledge the saved interest and say Harper will remember this direction when tracking relevant company changes or future matching.",
+    "Acknowledge the saved company interest for future matching.",
     "Ask no question unless one very specific missing preference would materially improve future matching.",
   ]
     .filter((line) => line.trim().length > 0)
@@ -68,6 +69,7 @@ export async function createTalentCompanyFollowFollowUpReply(args: {
   if (!item?.following) return null;
 
   const result = await runCareerChatTurn({
+    assistantModel: CLAUDE_HAIKU_MODEL,
     admin: args.admin,
     allowedToolNames: [],
     assistantMessageType: TALENT_MESSAGE_TYPE_COMPANY_FOLLOW_UP,

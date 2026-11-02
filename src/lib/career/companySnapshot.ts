@@ -1,3 +1,4 @@
+import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { serializeToolResultForModel } from "@/lib/llm/toolError";
 import { executeToolCall } from "@/lib/llm/toolExecution";
 import { formatToolError } from "@/lib/llm/toolError";
@@ -364,7 +365,7 @@ const COMPANY_SEARCH_TOOL = {
   function: {
     name: "search_company_web",
     description:
-      "Search the public web with Exa for company evidence. Choose the query, search mode, source filters, date range, and returned content needed for the current report.",
+      TOOL_DESCRIPTIONS.search_company_web,
     parameters: {
       type: "object",
       properties: {

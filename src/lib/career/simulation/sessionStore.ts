@@ -29,16 +29,40 @@ export async function saveSession(
   state: SimulationSession,
   key: string
 ) {
-  const result = await sessionOperation({
-    ...args,
-    operation: "save",
-    record,
-    state,
-    key,
-  });
-  if (!result) throw new Error("Simulation session disappeared");
-  return result;
+  let base = record;
+  let next = state;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const result = await sessionOperation({ ...args, operation: "save", record: base, state: next, key });
+      if (!result) throw new Error("Simulation session disappeared");
+      return result;
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "Session revision conflict" || attempt >= 3) throw error;
+      // Inspection may finish during a resume save or an answer submission. Only
+      // merge that independent observation; a changed answer/document/browser
+      // still requires the caller to reread, so no user work is overwritten.
+      const latest = await sessionOperation({ ...args, operation: "read", messageId: record.messageId });
+      if (!latest) throw error;
+      const merged = mergeConcurrentInspection(base.state, next, latest.state);
+      if (!merged) throw error;
+      base = latest;
+      next = merged;
+    }
+  }
 }
+export function mergeConcurrentInspection(before: SimulationSession, desired: SimulationSession, current: SimulationSession): SimulationSession | null {
+  const observation = (s: SimulationSession) => ({ form: s.applicationForm, formId: s.applicationFormId, inspection: s.applicationInspection, url: s.applicationUrl });
+  const rest = (s: SimulationSession) => {
+    const { applicationForm: _form, applicationFormId: _formId, applicationInspection: _inspection, applicationUrl: _url, revision: _revision, lastActivityAt: _time, ...value } = s;
+    return value;
+  };
+  if (JSON.stringify(rest(before)) !== JSON.stringify(rest(current)) ||
+      JSON.stringify(observation(before)) !== JSON.stringify(observation(desired))) return null;
+  return { ...desired, revision: current.revision, lastActivityAt: current.lastActivityAt,
+    applicationForm: current.applicationForm, applicationFormId: current.applicationFormId,
+    applicationInspection: current.applicationInspection, applicationUrl: current.applicationUrl };
+}
+
 export async function persistSimulationProposal(
   args: SessionStoreArgs,
   record: SessionRecord,

@@ -1,3 +1,5 @@
+import { isCareerTurnStopped } from "@/lib/career/turnCancellation";
+import { parseCareerForm, parseCareerFormResponse, type CareerForm, type CareerFormResponse } from "@/lib/career/forms/schema";
 import { parseApplicationDraft, type ApplicationDraft } from "@/lib/career/simulation/preparation";
 import {parseApplicationStartOffer,type ApplicationStartOffer} from "@/lib/career/simulation/startOffer";
 import { parseSimulationSession, parseSimulationCard, type SimulationSession, type SimulationCardRef } from "@/lib/career/simulation/session";
@@ -5,7 +7,11 @@ import { parseApplicationSimulation, SIMULATION_MESSAGE_TYPE, type ApplicationSi
 import type { MockInterviewOffer } from "@/lib/career/mockInterviewOffers";
 import type { Database } from "@/types/database.types";
 import type { TalentNetworkEngagementOptionId } from "@/lib/talentNetworkOptions";
-import { stripCareerOpportunityMentionMetadata } from "@/lib/career/opportunityMentionText";
+import {
+  extractCareerOpportunityMentions,
+  stripCareerOpportunityMentionMetadata,
+  type CareerOpportunityMention,
+} from "@/lib/career/opportunityMentionText";
 import {
   extractCareerMessageAttachments,
   stripCareerMessageAttachmentMetadata,
@@ -53,7 +59,7 @@ export type TalentExperienceRow =
 export type TalentEducationRow =
   Database["public"]["Tables"]["talent_educations"]["Row"];
 export type TalentDocumentRow =
-  Omit<Database["public"]["Tables"]["talent_documents"]["Row"], "structured_content" | "revision"> & { structured_content?: Database["public"]["Tables"]["talent_documents"]["Row"]["structured_content"]; revision?: number };
+  Omit<Database["public"]["Tables"]["talent_documents"]["Row"], "structured_content" | "revision" | "description"> & { description?: string | null; structured_content?: Database["public"]["Tables"]["talent_documents"]["Row"]["structured_content"]; revision?: number };
 export type TalentExtraRow =
   Database["public"]["Tables"]["talent_extras"]["Row"];
 
@@ -61,6 +67,7 @@ export type TalentDocumentResponse = {
   id: string;
   kind: string;
   fileName: string;
+  description?: string | null;
   storagePath: string | null;
   contentType: string | null;
   sizeBytes: number | null;
@@ -114,6 +121,9 @@ export type TalentMessageRow = {
 };
 
 export type TalentMessageResponse = {
+  careerForm?: CareerForm;
+  formResponse?: CareerFormResponse;
+  browserSession?: { sessionId: string };
   applicationReviewMessageId?: number;
   suppressRolePreviews?:boolean;
   applicationStartOffer?:ApplicationStartOffer;
@@ -124,6 +134,7 @@ export type TalentMessageResponse = {
   simulation?: ApplicationSimulation;
   mockInterviewOffers?: MockInterviewOffer[];
   attachments?: CareerMessageAttachment[];
+  opportunityMentions?: CareerOpportunityMention[];
   id: number;
   role: "user" | "assistant";
   content: string;
@@ -131,6 +142,9 @@ export type TalentMessageResponse = {
   coachingActivity?: CareerCoachingActivity;
   createdAt: string;
   thinkingLogs: string[];
+  turnStopped?: boolean;
+  turnPending?: boolean;
+  clientRequestId?: string;
 };
 
 export function normalizeTalentMessageThinkingLogs(value: unknown): string[] {
@@ -157,13 +171,20 @@ export function toTalentMessageResponse(
   // Reference rows are hydrated from the activity store, not independent prose.
   const visibleContent = activityRef?.view === "questions" ? "" : item.content;
   const attachments = extractCareerMessageAttachments(visibleContent);
+  const opportunityMentions = item.role === "user"
+    ? extractCareerOpportunityMentions(visibleContent)
+    : [];
   return {
+    ...(["career_form", "career_form_presentation"].includes(item.message_type ?? "") ? { careerForm: parseCareerForm(item.payload) } : {}),
+    ...(item.message_type === "career_form_response" ? { formResponse: parseCareerFormResponse(item.payload) } : {}),
+    ...(item.message_type === "browser_session" && item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && typeof item.payload.session_id === "string" ? { browserSession: { sessionId: item.payload.session_id } } : {}),
     ...(activityRef ? {applicationActivity:activityRef} : {}),
     ...(item.message_type === "application_start_offer" ? {applicationStartOffer:parseApplicationStartOffer(item.payload)} : {}),
     ...(item.message_type === "application_draft" ? {applicationDraft:parseApplicationDraft(item.payload)} : {}),
     ...(item.message_type === "simulation_session" ? {simulationSession:parseSimulationSession(item.payload)} : {}),
     ...(item.message_type === "simulation_action" ? {simulationAction:parseSimulationCard(item.payload)} : {}),
     ...(attachments.length > 0 ? { attachments } : {}),
+    ...(opportunityMentions.length > 0 ? { opportunityMentions } : {}),
     ...(coachingActivity ? { coachingActivity } : {}),
     ...(item.message_type === SIMULATION_MESSAGE_TYPE ? { simulation: parseApplicationSimulation(item.payload) } : {}),
     applicationReviewMessageId: item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && typeof item.payload.applicationReviewMessageId === "number" ? item.payload.applicationReviewMessageId : undefined,
@@ -175,7 +196,10 @@ export function toTalentMessageResponse(
     ),
     messageType: item.message_type ?? "chat",
     createdAt: item.created_at,
+    turnPending: !isCareerTurnStopped(item.payload) && item.role === "user" && !!item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && !!item.payload.careerCapabilityTurn && typeof item.payload.careerCapabilityTurn === "object" && !Array.isArray(item.payload.careerCapabilityTurn) && item.payload.careerCapabilityTurn.status === "in_progress",
     thinkingLogs: normalizeTalentMessageThinkingLogs(item.thinking_logs),
+    clientRequestId: item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && typeof item.payload.clientRequestId === "string" ? item.payload.clientRequestId : undefined,
+    turnStopped: isCareerTurnStopped(item.payload),
   };
 }
 

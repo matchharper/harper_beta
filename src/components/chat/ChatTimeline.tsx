@@ -7,7 +7,7 @@ import RichText, { type RichTextVariant } from "@/components/ui/rich-text";
 import { cn } from "@/lib/utils";
 
 export const CHAT_USER_BUBBLE_CLASS =
-  "mt-1 ml-auto w-fit max-w-[min(820px,92%)] self-end rounded-[14px] bg-black px-3 py-1.5 text-neutral-00";
+  "mt-1 ml-auto w-fit max-w-[min(820px,92%)] self-end rounded-[16px] rounded-br-sm bg-black px-3 py-1.5 text-neutral-00";
 
 export const CHAT_ASSISTANT_BUBBLE_CLASS =
   "w-fit max-w-[min(920px,100%)] self-start text-neutral-primary";
@@ -69,7 +69,7 @@ export function ChatDateDivider({
     >
       <span
         className={cn(
-          "rounded-full bg-bg-weak px-2.5 py-0.5 font-light text-neutral-soft",
+          "rounded-full bg-bg-weak px-2.5 py-0.5 text-xs font-normal text-neutral-600",
           className
         )}
       >
@@ -182,6 +182,7 @@ export function ChatMessageBubbleFrame({
 }) {
   return (
     <article
+      data-chat-message-bubble="true"
       className={cn(
         animateEntrance && "chat-message-enter",
         !unstyled && "transition-colors duration-300",

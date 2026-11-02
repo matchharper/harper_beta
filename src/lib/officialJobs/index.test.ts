@@ -39,6 +39,32 @@ test("official job login href preserves company identity", () => {
   assert.equal(loginUrl.searchParams.get("job_company"), "[Harper]");
 });
 
+test("Talk to Harper carries the exact linked role through login", () => {
+  const roleId = "11111111-1111-4111-8111-111111111111";
+  const careerHref = buildOfficialJobsCareerHref({ ...JOB, roleId });
+  const careerUrl = new URL(careerHref, "https://matchharper.com");
+  const loginUrl = new URL(
+    buildOfficialJobsLoginHref(null, careerHref),
+    careerUrl.origin
+  );
+
+  assert.equal(careerUrl.searchParams.get("job_role_id"), roleId);
+  assert.equal(loginUrl.searchParams.get("job_role_id"), roleId);
+  assert.equal(loginUrl.searchParams.get("next"), careerHref);
+  assert.equal(
+    new URL(loginUrl.searchParams.get("next")!, careerUrl.origin).searchParams.get(
+      "job_role_id"
+    ),
+    roleId
+  );
+  assert.equal(
+    new URL(buildOfficialJobsCareerHref(JOB), careerUrl.origin).searchParams.has(
+      "job_role_id"
+    ),
+    false
+  );
+});
+
 test("Korean official job chat draft asks to prioritize the selected role", () => {
   const draft = buildOfficialJobsInitialChatDraft(
     JOB.roleTitle,

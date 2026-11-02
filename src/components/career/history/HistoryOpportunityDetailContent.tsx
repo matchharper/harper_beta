@@ -1,4 +1,4 @@
-import { ApplicationReviewEntry } from "../chat/ApplicationReviewPanel";
+import ApplicationPreparationSteps from "./ApplicationPreparationSteps";
 import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
 import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
 import React, { ReactNode } from "react";
@@ -54,12 +54,13 @@ import {
   getCareerOpportunityManagementStatusOptions,
   type CareerOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
-import UpcomingMeetingStrip from "./UpcomingMeetingStrip";
+import UpcomingAppointments from "../UpcomingAppointments";
 import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
 import NewOpportunityCompanyRoleSwitcher from "./NewOpportunityCompanyRoleSwitcher";
 import HistoryOpportunityRoleActions from "./HistoryOpportunityRoleActions";
 import OpportunityCard from "./OpportunityCard";
 import HistoryOpportunityDetailActions from "./HistoryOpportunityDetailActions";
+import { CompanyLogo } from "../watchlist/CompanyLogo";
 
 export { getKnownCompanyDataText, parseFundingStageLabel };
 
@@ -618,6 +619,15 @@ export const HistoryOpportunityInlinePage = ({
 }) => {
   const t = useCareerT();
   const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
+  const inProgress = savedStatus === "applied" || savedStatus === "connected";
+  const opportunityCard = <OpportunityCard
+    key={item.id}
+    item={item}
+    showUnreadIndicator={false}
+    onOpenCompanyInfo={onOpenCompanyInfo}
+    onOpenLink={(_, url) => onOpenLink(url)}
+    actions={<HistoryOpportunityDetailActions item={item} pending={pending} onApply={onApply} onSavedStatusChange={onSavedStatusChange} onKeepDecision={onKeepDecision} onInternalDecisionAction={onInternalDecisionAction} />}
+  />;
 
   return (
     <section className={cn("min-w-0 pb-8 text-neutral-primary", className)}>
@@ -650,26 +660,24 @@ export const HistoryOpportunityInlinePage = ({
         ) : null}
       </div>
 
-      <UpcomingMeetingStrip meeting={item.upcomingMeeting} className="mb-4" />
+      {inProgress ? <>
+        <div className="flex items-start gap-2.5 py-2">
+          <CompanyLogo logoUrl={item.companyLogoUrl} name={item.companyName} size="sm" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[12px] text-neutral-muted">{item.companyName}</p>
+            <h1 className="mt-0.5 wrap-break-word text-[18px] font-normal leading-6">{item.title}</h1>
+            <span className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-normal text-action-strong"><span className="size-1 rounded-full bg-action" />{getCareerOpportunityManagementStatusLabel(savedStatus, t)}</span>
+          </div>
+        </div>
+        <UpcomingAppointments roleId={item.roleId} position={{ title: item.title, companyName: item.companyName }} fallbackMeeting={item.upcomingMeeting} />
+        {item.talentMemo && <section className="mb-3 space-y-1.5">
+          <h2 className="text-[13px] font-normal text-neutral-muted">{t("career.meetings.notes", "준비할 내용 · 메모")}</h2>
+          <RichText variant="career" typography="body-compact">{item.talentMemo}</RichText>
+        </section>}
+        <HistoryOpportunityRoleActions key={item.id} className="mb-4" item={item} onOpenChat={onOpenChat} onStartMockInterview={onStartMockInterview} visibleActions={["company_overview", "mock_interview"]} />
+      </> : opportunityCard}
 
-      <OpportunityCard
-        key={item.id}
-        item={item}
-        onOpenCompanyInfo={onOpenCompanyInfo}
-        onOpenLink={(_, url) => onOpenLink(url)}
-        actions={
-          <HistoryOpportunityDetailActions
-            item={item}
-            pending={pending}
-            onApply={onApply}
-            onSavedStatusChange={onSavedStatusChange}
-            onKeepDecision={onKeepDecision}
-            onInternalDecisionAction={onInternalDecisionAction}
-          />
-        }
-      />
-
-      {!item.isInternal && <ApplicationReviewEntry roleId={item.roleId} />}
+      <ApplicationPreparationSteps key={item.roleId} item={item} onOpenChat={onOpenChat} onOpenLink={onOpenLink} />
 
       <TalentRoleActivityTimeline
         item={item}
@@ -677,13 +685,19 @@ export const HistoryOpportunityInlinePage = ({
         onAddTalentMemo={onUpdateTalentMemo}
       />
 
-      <HistoryOpportunityRoleActions
+      {inProgress ? <details key={`jd-${item.id}`} className="group/jd mt-5 border-t border-neutral-1000-a05 pt-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-normal text-neutral-muted [&::-webkit-details-marker]:hidden">
+          <span className="flex items-center gap-2"><FileText className="size-4" />{t("career.history.progress.job_details", "공고 상세 정보")}</span>
+          <ChevronDown className="size-4 transition-transform group-open/jd:rotate-180" />
+        </summary>
+        <div className="mt-4">{opportunityCard}</div>
+      </details> : <HistoryOpportunityRoleActions
         key={item.id}
         className={cn("mt-10", !roleActionsOnDesktop && "md:hidden")}
         item={item}
         onOpenChat={onOpenChat}
         onStartMockInterview={onStartMockInterview}
-      />
+      />}
     </section>
   );
 };

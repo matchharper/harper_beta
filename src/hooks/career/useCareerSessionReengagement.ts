@@ -8,6 +8,7 @@ import {
   type SetStateAction,
 } from "react";
 import type {
+  CareerMessage,
   CareerMessagePayload,
   CareerOpportunityRun,
   CareerRecommendationSearchStatus,
@@ -15,16 +16,13 @@ import type {
 } from "@/components/career/types";
 import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
 import { useCareerT } from "@/i18n/useCareerT";
+import { visibleReengagementStreamText } from "@/lib/career/reengagementStreamText";
 import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 
 export type SessionReengagementPayload = {
   assistantMessage?: CareerMessagePayload | null;
   assistantMessages?: CareerMessagePayload[];
-  deletedMessage?: {
-    id?: number | string | null;
-    message_type?: string | null;
-    role?: string | null;
-  } | null;
+  deletedMessageIds?: number[];
   insightUpdatedAt?: unknown;
   hiddenExpiredExternalOpportunityCount?: unknown;
   opportunityRun?: CareerOpportunityRun | null;
@@ -100,7 +98,14 @@ export type CareerSessionReengagementState = {
   appendThinkingLog: (message: string) => void;
   automaticRunRef: MutableRefObject<string | null>;
   clearAction: () => void;
+  clearStream: () => void;
   pending: boolean;
+  streamMessage: CareerMessage | null;
+  readResponse: (
+    response: Response,
+    onMessages: (messages: CareerMessagePayload[]) => void,
+    isActive?: () => boolean
+  ) => Promise<SessionReengagementPayload>;
   recommendationStatus: CareerRecommendationSearchStatus | null;
   setActionMessageId: Dispatch<SetStateAction<string | null>>;
   setPending: Dispatch<SetStateAction<boolean>>;
@@ -113,21 +118,30 @@ export type CareerSessionReengagementState = {
 
 export const useCareerSessionReengagementState =
   (): CareerSessionReengagementState => {
+    const t = useCareerT();
     const automaticRunRef = useRef<string | null>(null);
     const actionVersionRef = useRef(0);
     const [actionMessageId, setActionMessageId] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
+    const [streamMessage, setStreamMessage] = useState<CareerMessage | null>(
+      null
+    );
     const [thinkingLogs, setThinkingLogs] = useState<string[]>([]);
     const [recommendationStatus, setRecommendationStatus] =
       useState<CareerRecommendationSearchStatus | null>(null);
 
-    const clearAction = useCallback(() => {
+    const clearStream = useCallback(() => {
       actionVersionRef.current += 1;
       setPending(false);
+      setStreamMessage(null);
       setThinkingLogs([]);
       setRecommendationStatus(null);
-      setActionMessageId(null);
     }, []);
+
+    const clearAction = useCallback(() => {
+      clearStream();
+      setActionMessageId(null);
+    }, [clearStream]);
 
     const appendThinkingLog = useCallback((message: string) => {
       const normalized = message.replace(/\s+/g, " ").trim();
@@ -140,13 +154,166 @@ export const useCareerSessionReengagementState =
       );
     }, []);
 
+    const readResponse = useCallback(
+      async (
+        response: Response,
+        onMessages: (messages: CareerMessagePayload[]) => void,
+        isActive: () => boolean = () => true
+      ): Promise<SessionReengagementPayload> => {
+        const version = actionVersionRef.current;
+        const active = () => isActive() && version === actionVersionRef.current;
+        const commit = (messages: CareerMessagePayload[]) => {
+          if (!active()) return;
+          setStreamMessage(null);
+          onMessages(messages);
+        };
+        if (
+          !response.ok ||
+          !response.body ||
+          !response.headers.get("content-type")?.includes("text/event-stream")
+        ) {
+          const payload = await response.json().catch(() => ({}));
+          if (response.ok && !payload.skipped) {
+            commit(
+              payload.assistantMessages ??
+                (payload.assistantMessage ? [payload.assistantMessage] : [])
+            );
+          }
+          return payload;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let streamDone = false;
+        let result: SessionReengagementPayload | undefined;
+        let rawText = "";
+
+        const handleStreamEvent = async ({ data, event }: CareerSseEvent) => {
+          if (!active()) return;
+          if (event === "text_delta") {
+            if (!isRecord(data) || typeof data.delta !== "string") return;
+            rawText += data.delta;
+            const content = visibleReengagementStreamText(rawText);
+            if (content)
+              setStreamMessage((current) => ({
+                ...(current ?? {
+                  id: `reengagement-stream:${crypto.randomUUID()}`,
+                  role: "assistant" as const,
+                  messageType: "chat",
+                  createdAt: new Date().toISOString(),
+                }),
+                content,
+                typing: true,
+                typingMode: "stream",
+              }));
+            return;
+          }
+          if (event === "assistant_message") {
+            if (isRecord(data) && isRecord(data.message)) {
+              commit([data.message as CareerMessagePayload]);
+              rawText = "";
+              setThinkingLogs([]);
+            }
+            return;
+          }
+          if (event === "tool_status") {
+            const message =
+              isRecord(data) && typeof data.message === "string"
+                ? data.message
+                : "";
+            appendThinkingLog(message);
+            return;
+          }
+
+          if (event === "recommendation_search_status") {
+            const status = toRecommendationSearchStatus(data);
+            if (status) {
+              setRecommendationStatus(status);
+            }
+            return;
+          }
+
+          if (event === "reengagement_result") {
+            result = data as SessionReengagementPayload;
+            commit(
+              result.assistantMessages ??
+                (result.assistantMessage ? [result.assistantMessage] : [])
+            );
+            return;
+          }
+
+          if (event === "error") {
+            throw new Error(
+              isRecord(data) && typeof data.error === "string"
+                ? data.error
+                : t(
+                    "career.common.career_flow_provider.0750gye",
+                    "12시간 인사 생성에 실패했습니다."
+                  )
+            );
+          }
+
+          if (event === "done") {
+            streamDone = true;
+          }
+        };
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder
+              .decode(value, { stream: true })
+              .replace(/\r\n/g, "\n");
+            let boundaryIndex = buffer.indexOf("\n\n");
+            while (boundaryIndex >= 0) {
+              const rawEvent = buffer.slice(0, boundaryIndex);
+              buffer = buffer.slice(boundaryIndex + 2);
+              const parsedEvent = parseCareerSseEvent(rawEvent);
+              if (parsedEvent) {
+                await handleStreamEvent(parsedEvent);
+              }
+              boundaryIndex = buffer.indexOf("\n\n");
+            }
+          }
+
+          const tail = buffer.trim();
+          if (tail) {
+            const parsedEvent = parseCareerSseEvent(tail);
+            if (parsedEvent) {
+              await handleStreamEvent(parsedEvent);
+            }
+          }
+
+          if (active() && (!streamDone || !result)) {
+            throw new Error(
+              t(
+                "career.common.career_flow_provider.06f4hcx",
+                "12시간 인사 스트림이 완료되기 전에 종료되었습니다."
+              )
+            );
+          }
+          return result ?? { skipped: true };
+        } finally {
+          reader.releaseLock();
+          if (active()) setStreamMessage(null);
+        }
+      },
+      [appendThinkingLog, t]
+    );
+
     return {
       actionMessageId,
       actionVersionRef,
       appendThinkingLog,
       automaticRunRef,
       clearAction,
+      clearStream,
       pending,
+      readResponse,
+      streamMessage,
       recommendationStatus,
       setActionMessageId,
       setPending,
@@ -158,7 +325,7 @@ export const useCareerSessionReengagementState =
 
 export const useCareerAutomaticSessionReengagement = ({
   conversationId,
-  enqueueAssistantMessages,
+  appendAssistantMessages,
   fetchWithAuth,
   onOpportunityRunChanged,
   onHistoryOpportunitiesChanged,
@@ -171,7 +338,7 @@ export const useCareerAutomaticSessionReengagement = ({
   userId,
 }: {
   conversationId: string | null;
-  enqueueAssistantMessages: (rawMessages: unknown[]) => Promise<void>;
+  appendAssistantMessages: (messages: CareerMessagePayload[]) => void;
   fetchWithAuth: FetchWithAuth;
   onOpportunityRunChanged: (run: CareerOpportunityRun | null) => void;
   onHistoryOpportunitiesChanged: () => void | Promise<void>;
@@ -190,12 +357,12 @@ export const useCareerAutomaticSessionReengagement = ({
   state: CareerSessionReengagementState;
   userId: string | null;
 }) => {
-  const t = useCareerT();
   const {
     actionVersionRef,
-    appendThinkingLog,
+    readResponse,
     automaticRunRef,
     clearAction,
+    clearStream,
     setActionMessageId,
     setPending,
     setRecommendationStatus,
@@ -212,6 +379,8 @@ export const useCareerAutomaticSessionReengagement = ({
     automaticRunRef.current = reengagementKey;
     clearAction();
     const reengagementActionVersion = actionVersionRef.current;
+    const isCurrentAction = () =>
+      actionVersionRef.current === reengagementActionVersion;
 
     let cancelled = false;
     let pendingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -219,7 +388,12 @@ export const useCareerAutomaticSessionReengagement = ({
     const applyReengagementPayload = async (
       payload: SessionReengagementPayload
     ) => {
-      if (cancelled || payload.skipped) return;
+      if (
+        cancelled ||
+        actionVersionRef.current !== reengagementActionVersion ||
+        payload.skipped
+      )
+        return;
 
       if (payload.opportunityRun) {
         onOpportunityRunChanged(payload.opportunityRun);
@@ -258,12 +432,14 @@ export const useCareerAutomaticSessionReengagement = ({
           : [];
 
       if (assistantMessages.length > 0) {
-        if (!cancelled) {
+        if (
+          !cancelled &&
+          actionVersionRef.current === reengagementActionVersion
+        ) {
           setPending(false);
           setThinkingLogs([]);
           setRecommendationStatus(null);
         }
-        await enqueueAssistantMessages(assistantMessages);
         if (
           !cancelled &&
           actionVersionRef.current === reengagementActionVersion
@@ -272,90 +448,6 @@ export const useCareerAutomaticSessionReengagement = ({
             assistantMessages[assistantMessages.length - 1];
           setActionMessageId(String(lastAssistantMessage.id));
         }
-      }
-    };
-
-    const consumeReengagementStream = async (response: Response) => {
-      if (!response.body) return;
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let streamDone = false;
-
-      const handleStreamEvent = async ({ data, event }: CareerSseEvent) => {
-        if (event === "tool_status") {
-          const message =
-            isRecord(data) && typeof data.message === "string"
-              ? data.message
-              : "";
-          appendThinkingLog(message);
-          return;
-        }
-
-        if (event === "recommendation_search_status") {
-          const status = toRecommendationSearchStatus(data);
-          if (status) {
-            setRecommendationStatus(status);
-          }
-          return;
-        }
-
-        if (event === "reengagement_result") {
-          await applyReengagementPayload(data as SessionReengagementPayload);
-          return;
-        }
-
-        if (event === "error") {
-          throw new Error(
-            isRecord(data) && typeof data.error === "string"
-              ? data.error
-              : t(
-                  "career.common.career_flow_provider.0750gye",
-                  "12시간 인사 생성에 실패했습니다."
-                )
-          );
-        }
-
-        if (event === "done") {
-          streamDone = true;
-        }
-      };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder
-          .decode(value, { stream: true })
-          .replace(/\r\n/g, "\n");
-        let boundaryIndex = buffer.indexOf("\n\n");
-        while (boundaryIndex >= 0) {
-          const rawEvent = buffer.slice(0, boundaryIndex);
-          buffer = buffer.slice(boundaryIndex + 2);
-          const parsedEvent = parseCareerSseEvent(rawEvent);
-          if (parsedEvent) {
-            await handleStreamEvent(parsedEvent);
-          }
-          boundaryIndex = buffer.indexOf("\n\n");
-        }
-      }
-
-      const tail = buffer.trim();
-      if (tail) {
-        const parsedEvent = parseCareerSseEvent(tail);
-        if (parsedEvent) {
-          await handleStreamEvent(parsedEvent);
-        }
-      }
-
-      if (!streamDone) {
-        throw new Error(
-          t(
-            "career.common.career_flow_provider.06f4hcx",
-            "12시간 인사 스트림이 완료되기 전에 종료되었습니다."
-          )
-        );
       }
     };
 
@@ -384,19 +476,12 @@ export const useCareerAutomaticSessionReengagement = ({
           }
         );
 
-        const contentType = response.headers.get("content-type") ?? "";
-        if (
-          response.ok &&
-          response.body &&
-          contentType.includes("text/event-stream")
-        ) {
-          await consumeReengagementStream(response);
-          return;
-        }
-
-        const payload = (await response
-          .json()
-          .catch(() => ({}))) as SessionReengagementPayload;
+        const payload = await readResponse(
+          response,
+          appendAssistantMessages,
+          () =>
+            !cancelled && actionVersionRef.current === reengagementActionVersion
+        );
 
         if (!response.ok || cancelled || payload.skipped) return;
         await applyReengagementPayload(payload);
@@ -408,7 +493,10 @@ export const useCareerAutomaticSessionReengagement = ({
         if (pendingTimer) {
           clearTimeout(pendingTimer);
         }
-        if (!cancelled) {
+        if (
+          !cancelled &&
+          actionVersionRef.current === reengagementActionVersion
+        ) {
           setPending(false);
           setThinkingLogs([]);
           setRecommendationStatus(null);
@@ -423,17 +511,16 @@ export const useCareerAutomaticSessionReengagement = ({
       if (pendingTimer) {
         clearTimeout(pendingTimer);
       }
-      setPending(false);
-      setThinkingLogs([]);
-      setRecommendationStatus(null);
+      if (isCurrentAction()) clearStream();
     };
   }, [
     actionVersionRef,
-    appendThinkingLog,
+    readResponse,
     automaticRunRef,
     clearAction,
+    clearStream,
     conversationId,
-    enqueueAssistantMessages,
+    appendAssistantMessages,
     fetchWithAuth,
     onOpportunityRunChanged,
     onHistoryOpportunitiesChanged,
@@ -446,7 +533,6 @@ export const useCareerAutomaticSessionReengagement = ({
     setRecommendationStatus,
     setThinkingLogs,
     stage,
-    t,
     userId,
   ]);
 };

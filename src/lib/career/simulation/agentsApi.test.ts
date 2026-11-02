@@ -1,3 +1,5 @@
+import { inspectionMemoryStore } from "./sharedApplicationInspection.testSupport";
+import { hydrateApplicationInspections } from "./sharedApplicationInspection";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -41,8 +43,11 @@ function fixture() {
     "first"
   );
   let conflict: (() => void) | undefined;
+  const inspections = inspectionMemoryStore();
   const admin = {
+    from: inspections.from,
     rpc: async (_: string, args: any) => {
+      const nextPayload = args.p_payload ? await hydrateApplicationInspections(admin, args.p_payload) as typeof state : null;
       assert.equal(args.p_user_id, "owner");
       assert.equal(args.p_conversation_id, "conversation");
       if (args.p_operation !== "read") {
@@ -58,7 +63,7 @@ function fixture() {
             error: { message: "Session revision conflict" },
           };
         state = {
-          ...structuredClone(args.p_payload),
+          ...nextPayload!,
           revision: state.revision + 1,
         };
       }

@@ -1,7 +1,8 @@
 import type { InternalCallChatSubmission } from "@/lib/career/internalCallAnswers";
 import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import type { User } from "@supabase/supabase-js";
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useMemo, useState } from "react";
+import { BrowserSessionProvider } from "./BrowserSessionDock";
 import type {
   CallLiveTranscriptPlacement,
   CallTranscriptEntry,
@@ -62,6 +63,8 @@ export type CareerChatPanelContextValue = {
   activeThinkingLogs: string[];
   activeRecommendationSearchStatus: CareerRecommendationSearchStatus | null;
   onCancelActiveRecommendationSearch?: () => void;
+  onCancelChat?: () => void;
+  canStopChat?: boolean;
   initialChatDraft?: string;
   initialChatDraftKey?: string;
   initialChatOpportunityMention?: CareerOpportunityMention;
@@ -101,9 +104,10 @@ export type CareerChatPanelContextValue = {
   onProfileSubmit: () => void | Promise<void>;
 
   onSendChatMessage: (args: {
+    formResponseMessageId?: number;
     internalCallAnswerSubmission?: InternalCallChatSubmission;
+    applicationPreparationContinuation?: {sessionMessageId:number; continuationId:string};
     applicationInputSubmission?: {batchId:string; sessionMessageId:number; expectedRevision:number};
-    allowedToolNames?: readonly string[];
     files?: File[];
     channel?: "chat" | "voice";
     conversationStarterId?: CareerConversationStarterId;
@@ -207,6 +211,25 @@ const CareerChatPanelContext =
   createContext<CareerChatPanelCoreContextValue | null>(null);
 const CareerCallContext = createContext<CareerCallContextValue | null>(null);
 
+type CareerChatActivityContextValue = Pick<
+  CareerChatPanelCoreContextValue,
+  | "inputMode"
+  | "chatPending"
+  | "assistantTyping"
+  | "sessionPending"
+  | "onboardingWrapupPending"
+  | "opportunityFeedbackFollowUpPending"
+  | "callWrapUpPending"
+  | "pendingActionsOverride"
+  | "tasksOverride"
+  | "forceCompletePending"
+  | "interviewProgress"
+  | "onForceCompleteOnboarding"
+>;
+
+const CareerChatActivityContext =
+  createContext<CareerChatActivityContextValue | null>(null);
+
 type CareerChatPanelProviderProps =
   | {
       callValue: CareerCallContextValue;
@@ -224,16 +247,98 @@ export const CareerChatPanelProvider = ({
   value,
   children,
 }: CareerChatPanelProviderProps) => {
+  const userId = value.user?.id ?? null;
+  const [scope, setScope] = useState({
+    userId,
+    conversationId: value.conversationId,
+    key: 0,
+  });
+  // Resolving the initial ID must not remount the composer and erase its draft.
+  // Keep the reset boundary for account changes and actual conversation switches.
+  if (
+    scope.userId !== userId ||
+    (scope.conversationId && value.conversationId &&
+      scope.conversationId !== value.conversationId)
+  ) {
+    setScope({ userId, conversationId: value.conversationId, key: scope.key + 1 });
+  } else if (!scope.conversationId && value.conversationId) {
+    setScope({ ...scope, conversationId: value.conversationId });
+  }
   const compatibilityValue = value as CareerChatPanelContextValue;
   const resolvedCallValue = callValue ?? compatibilityValue;
+  const {
+    inputMode,
+    chatPending,
+    assistantTyping,
+    sessionPending,
+    onboardingWrapupPending,
+    opportunityFeedbackFollowUpPending,
+    callWrapUpPending,
+    pendingActionsOverride,
+    tasksOverride,
+    forceCompletePending,
+    interviewProgress,
+    onForceCompleteOnboarding,
+  } = value;
+  const activityValue = useMemo(
+    () => ({
+      inputMode,
+      chatPending,
+      assistantTyping,
+      sessionPending,
+      onboardingWrapupPending,
+      opportunityFeedbackFollowUpPending,
+      callWrapUpPending,
+      pendingActionsOverride,
+      tasksOverride,
+      forceCompletePending,
+      interviewProgress,
+      onForceCompleteOnboarding,
+    }),
+    [
+      inputMode,
+      chatPending,
+      assistantTyping,
+      sessionPending,
+      onboardingWrapupPending,
+      opportunityFeedbackFollowUpPending,
+      callWrapUpPending,
+      pendingActionsOverride,
+      tasksOverride,
+      forceCompletePending,
+      interviewProgress,
+      onForceCompleteOnboarding,
+    ]
+  );
 
   return (
     <CareerChatPanelContext.Provider value={value}>
-      <CareerCallContext.Provider value={resolvedCallValue}>
-        {children}
-      </CareerCallContext.Provider>
+      <CareerChatActivityContext.Provider value={activityValue}>
+        <CareerCallContext.Provider value={resolvedCallValue}>
+          <BrowserSessionProvider
+            key={scope.key}
+            conversationId={value.conversationId}
+            enabled={Boolean(value.user)}
+            messages={value.messages}
+          >
+            {children}
+          </BrowserSessionProvider>
+        </CareerCallContext.Provider>
+      </CareerChatActivityContext.Provider>
     </CareerChatPanelContext.Provider>
   );
+};
+
+export const useOptionalCareerChatPanelContext = () => useContext(CareerChatPanelContext);
+
+export const useCareerChatActivityContext = () => {
+  const context = useContext(CareerChatActivityContext);
+  if (!context) {
+    throw new Error(
+      "useCareerChatActivityContext must be used inside CareerChatPanelProvider"
+    );
+  }
+  return context;
 };
 
 export const useCareerChatPanelContext = () => {

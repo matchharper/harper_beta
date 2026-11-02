@@ -105,6 +105,8 @@ export default function OpportunityCard({
   onOpenCompanyInfo,
   onOpenLink,
   collapsedActions,
+  titleAdornment,
+  showUnreadIndicator = true,
   actions,
 }: {
   item: CareerHistoryOpportunity;
@@ -113,6 +115,8 @@ export default function OpportunityCard({
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenLink?: (item: CareerHistoryOpportunity, url: string) => void;
   collapsedActions?: ReactNode;
+  titleAdornment?: ReactNode;
+  showUnreadIndicator?: boolean;
   actions?: ReactNode;
 }) {
   const t = useCareerT();
@@ -201,7 +205,7 @@ export default function OpportunityCard({
         </span>
         <div className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5">
-            {!item.viewedAt ? (
+            {showUnreadIndicator && !item.viewedAt ? (
               <span
                 aria-hidden
                 className="pointer-events-none size-1.5 shrink-0 rounded-full bg-action"
@@ -210,6 +214,7 @@ export default function OpportunityCard({
             <span className="block truncate text-[14px] font-normal md:font-medium leading-6 text-neutral-primary sm:text-[15px]">
               {item.title}
             </span>
+            {titleAdornment}
           </span>
           <div className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-1 text-[12px] font-normal leading-5 text-neutral-muted sm:text-[13px]">
             {canOpenCompany ? (

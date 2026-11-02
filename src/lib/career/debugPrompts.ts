@@ -13,7 +13,10 @@ import {
   resolveCareerChatTools,
   resolveCareerRealtimeTools,
 } from "@/lib/career/llmTools";
-import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import {
+  formatTalentMessageContentForLlmPrompt,
+  formatTalentConversationReferencesForLlm,
+} from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
   fetchTalentContextPromptSnapshot,
@@ -339,8 +342,16 @@ export async function buildCareerTextChatDebugPrompt(args: {
     ? getCareerConversationStarter(conversationStarterId, responseLocale)
     : null;
 
+  const recentMessages = await fetchRecentMessagesWithSummary({
+    admin,
+    conversationId,
+    recentLimit: 16,
+    userId,
+  });
+
   const promptArgs: Parameters<typeof buildCareerConversationPromptPlan>[0] = {
     careerCoachingActivity,
+    runtimeInstruction: formatTalentConversationReferencesForLlm(recentMessages, { preferredLocale: responseLocale, timeZone: args.timeZone }),
     gmailCapability: activeGmailIntegration ? toolSelection.toolNames.includes(TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL) ? "available" : "connected_but_unavailable_this_turn" : "not_connected",
     activeInternalFitHoldQuestion,
     channel: "chat",
@@ -368,12 +379,6 @@ export async function buildCareerTextChatDebugPrompt(args: {
     : undefined;
   const promptBlocks = capabilityStep?.systemBlocks ?? buildCareerConversationPromptPlan(promptArgs).promptBlocks;
 
-  const recentMessages = await fetchRecentMessagesWithSummary({
-    admin,
-    conversationId,
-    recentLimit: 16,
-    userId,
-  });
   const messages = recentMessages
     .filter(
       (item) =>

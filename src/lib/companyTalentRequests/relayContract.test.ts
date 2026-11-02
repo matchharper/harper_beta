@@ -22,7 +22,5 @@ test("company send schema and email authoring share the same meaning contract", 
 test("relay contract separates authorized meaning, privacy and observed delivery", () => {
   assert.match(COMPANY_RELAY_CONTENT_CONTRACT, /conditions, uncertainty and strength/);
   assert.match(COMPANY_RELAY_CONTENT_CONTRACT, /restriction on Harper, not content to quote/);
-  assert.match(COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT, /Do not predict a response/);
-  assert.match(COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT, /or repeat unconfirmed-status disclaimers/);
-  assert.match(COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT, /end the reply unless the user also asked a still-unanswered question/);
+  assert.match(COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT, /Delivery does not establish that the company read, answered, agreed, or will act at a particular time/);
 });

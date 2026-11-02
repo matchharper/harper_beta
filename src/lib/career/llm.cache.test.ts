@@ -10,14 +10,14 @@ const sse = (events: unknown[]) => new Response(
 
 for (const streaming of [false, true])
 for (const hasMemory of [false, true])
-for (const hasInitialPolicy of [false, true]) {
-  test(`native cache prefix survives policy ${hasInitialPolicy ? "replacement" : "insertion"} (stream=${streaming}, memory=${hasMemory})`, async () => {
+for (const hasToolNames of [false, true]) {
+  test(`normal Career contract survives native tool continuation (stream=${streaming}, memory=${hasMemory}, toolNames=${hasToolNames})`, async () => {
     const originalFetch = globalThis.fetch;
     const keys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"];
     const previous = keys.map((key) => process.env[key]);
     keys.forEach((key) => { process.env[key] = "test-key"; });
     const requests: any[] = [];
-    const tools = [CAREER_CAPABILITY_LOADER, "read_document", "generate_resume"].map((name) => ({
+    const tools = [CAREER_CAPABILITY_LOADER, "read_document", "upsert_document"].map((name) => ({
       type: "function" as const,
       function: { name, description: name, parameters: { type: "object" } },
     }));
@@ -26,7 +26,7 @@ for (const hasInitialPolicy of [false, true]) {
       structuredProfileText: "Complete confirmed profile.",
       talentContextSection: hasMemory ? "Search Brief\n[1] Remote\nRelevant memories\n[2] Confirmed project." : "",
       simulationAvailability: "inactive", gmailCapability: "available",
-      toolNames: hasInitialPolicy ? tools.map((tool) => tool.function.name) : [],
+      toolNames: hasToolNames ? tools.map((tool) => tool.function.name) : [],
     });
     globalThis.fetch = async (url, init) => {
       if (String(url).includes("/rest/v1/")) return Response.json([]);
@@ -74,8 +74,13 @@ for (const hasInitialPolicy of [false, true]) {
         return request.system.slice(0, indices.at(-1)! + 1);
       };
       assert.deepEqual(cachedPrefix(requests[0]), cachedPrefix(requests[1]));
-      assert.ok(requests[1].system.some((block: any) => block.text.includes("Tools executed in this user turn")));
-      for (const block of plan.promptBlocks.filter((b) => b.key !== "tool_policy")) {
+      assert.ok(plan.promptBlocks.some((block) => block.key === "career_main"));
+      assert.ok(!plan.promptBlocks.some((block) => block.key === "tool_policy"));
+      for (const request of requests) {
+        assert.ok(!request.system.some((block: any) => block.text.includes("Tools executed in this user turn")));
+        assert.ok(!request.system.some((block: any) => block.text.includes("## Tool Use Policy")));
+      }
+      for (const block of plan.promptBlocks) {
         for (const request of requests) {
           assert.equal(request.system.filter((b: any) => b.text === block.text).length, 1, block.key);
         }

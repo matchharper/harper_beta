@@ -3,8 +3,6 @@ import { test } from "node:test";
 import { buildCareerConversationPromptPlan } from "@/lib/career/prompts";
 import { CAREER_HARPER_LINK_OUTPUT_RULE } from "@/lib/career/prompts/rawPrompts";
 import { adaptEmailPromptBlocks, EMAIL_CHANNEL_RULES } from "./prompt";
-import { buildPreparationPrompt } from "@/lib/career/simulation/preparationPrompt";
-import { createSimulationSession } from "@/lib/career/simulation/session";
 
 test("email adapts channel instructions without mutating the web prompt or its data", () => {
   const args = {
@@ -13,6 +11,7 @@ test("email adapts channel instructions without mutating the web prompt or its d
     structuredProfileText: "RowID: x\nProfile facts preserved",
     talentContextSection: "[1] 근무 지역: 서울 또는 원격",
     isOnboardingDone: true,
+    gmailCapability: "not_connected" as const,
     currentPreferences: { preferredLocale: "ko" },
     toolNames: ["write_talent_context", "contact_company"],
   };
@@ -27,7 +26,7 @@ test("email adapts channel instructions without mutating the web prompt or its d
   const text = email.map((b) => b.text).join("\n");
   assert.match(text, /communicating through Email/);
   assert.equal(text.split(EMAIL_CHANNEL_RULES).length - 1, 1);
-  assert.doesNotMatch(text, /CAREER_CHOICE_BUTTONS/);
+  assert.doesNotMatch(text, /CAREER_CHOICE_BUTTONS|\[\[integration:gmail\]\]|Text Chat display contract/);
   assert.ok(!text.includes(CAREER_HARPER_LINK_OUTPUT_RULE));
   assert.ok(!email.some((b) => b.key === "mock_interview_offer"));
   for (const key of ["future_matching_insights", "tool_policy"]) {
@@ -42,35 +41,58 @@ test("email adapts channel instructions without mutating the web prompt or its d
 
 test("outbound email uses the supplied clock and one channel contract", () => {
   const plan = buildCareerConversationPromptPlan({
-    channel: "chat", profile: null, structuredProfileText: "Recipient: test candidate",
-    talentContextSection: "", isOnboardingDone: true,
-    currentPreferences: { preferredLocale: "ko" }, timeZone: "Asia/Seoul",
+    channel: "chat",
+    profile: null,
+    structuredProfileText: "Recipient: test candidate",
+    talentContextSection: "",
+    isOnboardingDone: true,
+    gmailCapability: "not_connected" as const,
+    currentPreferences: { preferredLocale: "ko" },
+    timeZone: "Asia/Seoul",
     requestTime: new Date("2026-10-23T15:10:00Z"),
   });
-  const email = adaptEmailPromptBlocks(plan.promptBlocks,
-    { subject: "", thread: "Historical conversation", attachments: [] }, "", { mode: "outbound" });
-  const dynamic = email.find(b => b.key === "dynamic_state")!.text;
+  const email = adaptEmailPromptBlocks(
+    plan.promptBlocks,
+    { subject: "", thread: "Historical conversation", attachments: [] },
+    "",
+    { mode: "outbound" }
+  );
+  const dynamic = email.find((b) => b.key === "dynamic_state")!.text;
   assert.match(dynamic, /현재 시각: 10월 24일 00:10/);
-  const channel = email.find(b => b.key === "email_output_contract")!.text;
-  assert.equal(email.map(b => b.text).join("\n").split(channel).length - 1, 1);
+  const channel = email.find((b) => b.key === "email_output_contract")!.text;
+  assert.equal(
+    email
+      .map((b) => b.text)
+      .join("\n")
+      .split(channel).length - 1,
+    1
+  );
   assert.ok(!channel.includes(EMAIL_CHANNEL_RULES));
-  assert.ok(email.some(b => b.text.includes("Historical conversation")));
+  assert.ok(email.some((b) => b.text.includes("Historical conversation")));
 });
 
-test("email application instructions use one current text context and leave web presentation unchanged", () => {
-  const session = createSimulationSession({ roleRef: "role:1", roleName: "Engineer", documentId: "resume", documentName: "Resume" });
-  const web = buildPreparationPrompt(session);
-  const before = JSON.stringify(web);
-  const email = adaptEmailPromptBlocks(buildPreparationPrompt(session, ["ready_for_role"], "email"),
-    { subject: "Apply", thread: "", attachments: [] }, "Verified current email application facts");
-  assert.ok(!email.some(b => b.key === "application_preparation_context"));
-  const text = email.map(b => b.text).join("\n");
-  assert.match(text, /choose the resume yourself/);
-  assert.match(text, /수정 1\./);
-  assert.match(text, /질문 1\./);
-  assert.doesNotMatch(text, /its start card precedes/);
-  assert.equal(JSON.stringify(web), before);
-  assert.doesNotMatch(before, /수정 1\.|질문 1\./);
+test("email keeps loaded handbook guidance and explains email interaction boundaries without legacy application phases", () => {
+  const blocks = [
+    { key: "handbook:resume", text: "Role-relevant resume guidance" },
+    { key: "application_preparation_context", text: "Legacy forced phase" },
+  ];
+  const before = JSON.stringify(blocks);
+  const email = adaptEmailPromptBlocks(blocks, {
+    subject: "Apply",
+    thread: "",
+    attachments: [],
+  });
+  const text = email.map((block) => block.text).join("\n");
+  assert.match(text, /Role-relevant resume guidance/);
+  assert.match(
+    text,
+    /Browser work continues on the server/
+  );
+  assert.doesNotMatch(
+    text,
+    /Legacy forced phase|simulate_application|ready_for_role/
+  );
+  assert.equal(JSON.stringify(blocks), before);
 });
 
 test("email projects setting labels and omits generic enrichment without losing role clarification or facts", () => {

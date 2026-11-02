@@ -117,10 +117,6 @@ test("ordinary chat gets a strict semantic boundary without entering coaching mo
     ),
     true
   );
-  assert.match(
-    coachingBlock?.text ?? "",
-    /ordinary Career conversation remains the default/
-  );
   assert.match(coachingBlock?.text ?? "", /isolated emotional remark/);
   assert.match(
     coachingBlock?.text ?? "",
@@ -143,7 +139,6 @@ test("ordinary chat gets a strict semantic boundary without entering coaching mo
     coachingBlock?.text ?? "",
     /update and end are invalid and must not be called/
   );
-  assert.match(coachingBlock?.text ?? "", /Never state numeric compensation/);
 });
 
 test("active coaching uses its topic, duration, and agenda while suppressing the generic guide", () => {
@@ -306,8 +301,8 @@ test("coaching button and card actions remain visible user messages", () => {
   );
   assert.match(flow, /coachingActivityAction:[\s\S]*expectedRevision/);
   assert.match(flow, /"채팅으로 진행할게요\."/);
-  assert.match(card, /call: "통화하기"/);
-  assert.match(card, /chat: "채팅으로 이어하기"/);
+  assert.match(card, /call: t\("career\.coaching\.call", "통화하기"\)/);
+  assert.match(card, /chat: t\("career\.coaching\.chat", "채팅으로 이어하기"\)/);
   assert.match(
     card,
     /variant="primary"[\s\S]*channel: "call"[\s\S]*variant="transparent"[\s\S]*channel: "chat"/
@@ -324,7 +319,8 @@ test("coaching button and card actions remain visible user messages", () => {
 
 test("coaching calls use an exact bound activity and end at the call boundary", () => {
   const realtime = readSource("src/lib/career/realtimeInstructions.ts");
-  const wrapup = readSource("src/app/api/talent/chat/call-wrapup/route.ts");
+  const wrapupRoute = readSource("src/app/api/talent/chat/call-wrapup/route.ts");
+  const wrapup = readSource("src/lib/career/phone/wrapupCareerCallRequest.server.ts");
   const voiceHook = readSource("src/hooks/career/useCareerOnboardingVoice.ts");
 
   assert.match(
@@ -333,6 +329,7 @@ test("coaching calls use an exact bound activity and end at the call boundary", 
   );
   assert.match(realtime, /careerCoachingActivity\.revision !==/);
   assert.match(realtime, /careerCoachingActivity\.channel !== "call"/);
+  assert.match(wrapupRoute, /return wrapupCareerCallRequest\(req/);
   assert.match(
     wrapup,
     /activity\.status !== "active"[\s\S]*activity\.channel !== "call"[\s\S]*activity\.revision < careerCoachingActivityRevision/

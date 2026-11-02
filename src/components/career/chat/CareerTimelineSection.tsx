@@ -1,10 +1,7 @@
-import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
-import { browserPresentationPhase } from "@/lib/career/simulation/browserPresentation";
 import { ApplicationQuestionHistoryRow } from "./ApplicationQuestionHistoryRow";
-import { applicationQuestionMessages } from "@/lib/career/simulation/questionHistory";
-import { attachSavedApplicationReview, orderApplicationMessages } from "@/lib/career/simulation/presentation";
-import { useApplicationTimelineLayout } from "./useApplicationTimelineLayout";
-import { useApplicationPreparation } from "./ApplicationPreparationContext";
+import { ApplicationReviewEntry } from "./ApplicationReviewPanel";
+import { orderApplicationMessages } from "@/lib/career/simulation/presentation";
+import { useApplicationHistory } from "./ApplicationPreparationContext";
 import { latestChoiceMessageIndex } from "@/lib/career/latestChoiceMessage";
 import { ApplicationSimulationCard } from "./elements/ApplicationSimulationCard";
 import { ApplicationStartCard } from "./ApplicationStartCard";
@@ -27,8 +24,6 @@ import {
   ChatDateDivider,
   ChatLoadOlderButton,
   getChatMessageDateKey,
-  getChatTurnStartedAt,
-  getPreviousChatMessageDateKey,
 } from "@/components/chat/ChatTimeline";
 import {
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
@@ -69,7 +64,8 @@ import CareerMessageBubble, {
   type CareerAssistantChoiceSelection,
   type CareerReengagementActionSelection,
 } from "./CareerMessageBubble";
-import { CareerMessageDevActions } from "./CareerMessageDevActions";
+import { BrowserSessionAnchor } from "../BrowserSessionDock";
+import { CareerMessageActions } from "./CareerMessageActions";
 import { useRouter } from "next/router";
 import React from "react";
 import {
@@ -94,8 +90,6 @@ import Face from "@/components/common/Face";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { showToast } from "@/components/toast/toast";
 import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
-import { canUseCareerDevControls } from "@/lib/internalAccess";
-import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 
 const BOTTOM_THRESHOLD_PX = 120;
 const TIMELINE_SCROLL_STYLE: React.CSSProperties = {
@@ -165,13 +159,7 @@ const TimelineDateDivider = ({
 }: {
   ariaPrefix: string;
   label: string;
-}) => (
-  <ChatDateDivider
-    ariaLabel={`${ariaPrefix} ${label}`}
-    className={careerTimelineMetaTextClassName}
-    label={label}
-  />
-);
+}) => <ChatDateDivider ariaLabel={`${ariaPrefix} ${label}`} label={label} />;
 
 const getRecommendationStatusAnchor = (
   message: CareerMessage,
@@ -249,24 +237,7 @@ type StartConversationStarterHandler = (args: {
   starterId: CareerConversationStarterId;
 }) => boolean | Promise<boolean>;
 
-const TimelineMessageList = memo(function TimelineMessageList({
-  messages,
-  assistantTyping,
-  thinkingLogsByMessageId,
-  onOpenOpportunity,
-  onRegenerateOnboardingWrapup,
-  onCancelActiveRecommendationSearch,
-  onboardingWrapupPending,
-  onStartCallMode,
-  isStartingCall,
-  assistantChoiceActionsDisabled,
-  onSelectAssistantChoice,
-  onSelectReengagementAction,
-  onUpdateCareerCoachingActivity,
-  onSimulationAction,
-  onDeleteMessage,
-  showDevMessageActions,
-}: {
+type TimelineMessageListProps = {
   messages: CareerMessage[];
   assistantTyping: boolean;
   thinkingLogsByMessageId: Record<string, string[]>;
@@ -295,329 +266,468 @@ const TimelineMessageList = memo(function TimelineMessageList({
   ) => boolean | Promise<boolean>;
   onStartConversationStarter?: StartConversationStarterHandler;
   sessionReengagementActionMessageId?: string | null;
-  showDevMessageActions: boolean;
   onOpenOpportunity: (opportunity: CareerHistoryOpportunity) => void;
-}) {
+};
+
+const EMPTY_THINKING_LOGS: string[] = [];
+
+type TimelineMessageRowProps = Omit<
+  TimelineMessageListProps,
+  | "messages"
+  | "thinkingLogsByMessageId"
+  | "onStartConversationStarter"
+  | "sessionReengagementActionMessageId"
+> & {
+  message: CareerMessage;
+  followingAssistantThinkingLogs?: string[];
+  thinkingLogs: string[];
+  isLatestAssistantMessage: boolean;
+  isChoiceMessage: boolean;
+  isSimulationMode: boolean;
+  suppressRolePreviews: boolean;
+  turnStartedAt?: string;
+  showTurnStopped: boolean;
+  dateLabel: string;
+  dateAriaPrefix: string;
+  simulationSession?: CareerMessage["simulationSession"];
+  simulationSessionMessage?: CareerMessage;
+};
+
+const TimelineMessageRow = memo(function TimelineMessageRow({
+  message,
+  followingAssistantThinkingLogs,
+  thinkingLogs,
+  isLatestAssistantMessage,
+  isChoiceMessage,
+  isSimulationMode,
+  suppressRolePreviews,
+  turnStartedAt,
+  showTurnStopped,
+  dateLabel,
+  dateAriaPrefix,
+  simulationSession,
+  simulationSessionMessage,
+  assistantTyping,
+  onOpenOpportunity,
+  onRegenerateOnboardingWrapup,
+  onCancelActiveRecommendationSearch,
+  onboardingWrapupPending,
+  onStartCallMode,
+  isStartingCall,
+  assistantChoiceActionsDisabled,
+  onSelectAssistantChoice,
+  onSelectReengagementAction,
+  onUpdateCareerCoachingActivity,
+  onSimulationAction,
+  onDeleteMessage,
+}: TimelineMessageRowProps) {
+  const t = useCareerT();
+  const isUser = message.role === "user";
+  const { latestStatus, textLogs } = useMemo(
+    () => splitRecommendJobPostingStatusLogs(thinkingLogs),
+    [thinkingLogs]
+  );
+  const followingAssistantHasStoppedStatus =
+    isUser &&
+    splitRecommendJobPostingStatusLogs(
+      followingAssistantThinkingLogs ?? EMPTY_THINKING_LOGS
+    ).latestStatus?.state === "stopped";
+  const isRunningRecommendationSearch = latestStatus?.state === "running";
+  const recommendationSearchRun = !isUser
+    ? (message.recommendationSearchRun ?? null)
+    : null;
+  const isOnboardingCompletionNotice =
+    message.messageType === TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE;
+  const isOnboardingCompletionWrapup =
+    message.messageType === TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP;
+  const isAssistantStreamActive = isLatestAssistantMessage && assistantTyping;
+  const disableAssistantChoiceActions =
+    assistantChoiceActionsDisabled ||
+    !isChoiceMessage ||
+    isAssistantStreamActive;
+  const shouldRenderChatBubble =
+    isUser ||
+    Boolean(message.typing) ||
+    Boolean(message.careerForm) ||
+    message.content.trim().length > 0;
+  const recommendationStatusAnchor =
+    !isUser && !isOnboardingCompletionWrapup && !isOnboardingCompletionNotice
+      ? getRecommendationStatusAnchor(message, latestStatus)
+      : null;
+  const recommendationSearchPreambleContent =
+    recommendationStatusAnchor === null
+      ? ""
+      : message.content.slice(0, recommendationStatusAnchor).trim();
+  const recommendationSearchResultContent =
+    recommendationStatusAnchor === null
+      ? ""
+      : message.content.slice(recommendationStatusAnchor).trim();
+  const shouldRenderSplitRecommendationSearch =
+    !isUser &&
+    !recommendationSearchRun &&
+    Boolean(latestStatus) &&
+    recommendationStatusAnchor !== null &&
+    recommendationSearchPreambleContent.length > 0 &&
+    shouldRenderChatBubble;
+  const recommendationSearchPreambleMessage: CareerMessage =
+    shouldRenderSplitRecommendationSearch
+      ? {
+          ...message,
+          content: recommendationSearchPreambleContent,
+          typing: false,
+        }
+      : message;
+  const recommendationSearchResultMessage: CareerMessage =
+    shouldRenderSplitRecommendationSearch
+      ? {
+          ...message,
+          content: recommendationSearchResultContent,
+          typing: message.typing,
+        }
+      : message;
+
+  const messageNode = (
+    <div
+      data-career-message-container="true"
+      data-career-message-role={message.role}
+      className={cn("group relative flex flex-col gap-2", !isUser && "mt-1")}
+    >
+      {!isUser && textLogs.length > 0 && (
+        <ThinkingLogPanel
+          active={
+            isAssistantStreamActive ||
+            (isOnboardingCompletionWrapup && onboardingWrapupPending)
+          }
+          completedAt={message.createdAt}
+          logs={textLogs}
+          startedAt={turnStartedAt}
+        />
+      )}
+      {!isUser &&
+        !recommendationSearchRun &&
+        latestStatus &&
+        !isRunningRecommendationSearch &&
+        !shouldRenderSplitRecommendationSearch && (
+          <RecommendationSearchStatusPanel
+            active={isAssistantStreamActive}
+            status={latestStatus}
+          />
+        )}
+      {message.browserSession ? (
+        <BrowserSessionAnchor sessionId={message.browserSession.sessionId} />
+      ) : message.applicationQuestions ? (
+        <>
+          <ApplicationQuestionHistoryRow batch={message.applicationQuestions} />
+          {message.applicationReviewMessageId && (
+            <ApplicationReviewEntry
+              messageId={message.applicationReviewMessageId}
+              inline
+            />
+          )}
+        </>
+      ) : message.applicationActivity?.view ===
+        "questions" ? null : message.applicationStartOffer ? (
+        <ApplicationStartCard
+          offer={message.applicationStartOffer}
+          messageId={Number(message.id)}
+          disabled={assistantChoiceActionsDisabled}
+          onAction={onSimulationAction}
+        />
+      ) : message.messageType ===
+        "application_draft_progress" ? null : message.applicationDraft ? (
+        <div className="whitespace-pre-wrap">
+          {message.applicationDraft.content.resume}
+          {message.applicationDraft.content.materials
+            .map((m) => `\n\n${m.title}\n${m.content}`)
+            .join("")}
+        </div>
+      ) : message.simulationSession ? null : message.simulationAction ? (
+        <SimulationNextActionCard
+          card={message.simulationAction}
+          session={simulationSession}
+          disabled={assistantChoiceActionsDisabled}
+          onAction={onSimulationAction}
+        />
+      ) : message.simulation ? (
+        <ApplicationSimulationCard
+          messageId={message.id}
+          simulation={message.simulation}
+          sessionMessage={simulationSessionMessage}
+          disabled={assistantChoiceActionsDisabled}
+          onAction={onSimulationAction}
+        />
+      ) : message.coachingActivity ? (
+        <CareerCoachingActivityCard
+          activity={message.coachingActivity}
+          disabled={assistantChoiceActionsDisabled}
+          onAction={
+            onUpdateCareerCoachingActivity
+              ? (action) =>
+                  onUpdateCareerCoachingActivity({
+                    action,
+                    activity: message.coachingActivity!,
+                  })
+              : undefined
+          }
+        />
+      ) : shouldRenderSplitRecommendationSearch && latestStatus ? (
+        <>
+          <CareerMessageBubble
+            message={recommendationSearchPreambleMessage}
+            isUser={false}
+            choiceActionsDisabled={disableAssistantChoiceActions}
+            hideAssistantChoices={isSimulationMode}
+            isCallStartPending={isStartingCall}
+            onSelectAssistantChoice={onSelectAssistantChoice}
+            onSelectReengagementAction={onSelectReengagementAction}
+            onStartCallMode={onStartCallMode}
+          />
+          <RecommendationSearchStatusPanel
+            active={isAssistantStreamActive}
+            onCancel={
+              isRunningRecommendationSearch
+                ? onCancelActiveRecommendationSearch
+                : undefined
+            }
+            status={latestStatus}
+          />
+          {recommendationSearchResultContent.length > 0 && (
+            <CareerMessageBubble
+              message={recommendationSearchResultMessage}
+              isUser={false}
+              choiceActionsDisabled={disableAssistantChoiceActions}
+              hideAssistantChoices={isSimulationMode}
+              isCallStartPending={isStartingCall}
+              onSelectAssistantChoice={onSelectAssistantChoice}
+              onSelectReengagementAction={onSelectReengagementAction}
+              onStartCallMode={onStartCallMode}
+            />
+          )}
+        </>
+      ) : isOnboardingCompletionWrapup ? (
+        <OnboardingCompletionWrapup
+          content={message.content}
+          onRegenerate={onRegenerateOnboardingWrapup}
+          regenerating={onboardingWrapupPending}
+        />
+      ) : isOnboardingCompletionNotice ? (
+        <OnboardingCompletionNotice content={message.content} />
+      ) : shouldRenderChatBubble ? (
+        <CareerMessageBubble
+          message={message}
+          isUser={isUser}
+          choiceActionsDisabled={disableAssistantChoiceActions}
+          hideAssistantChoices={isSimulationMode}
+          isCallStartPending={isStartingCall}
+          onSelectAssistantChoice={onSelectAssistantChoice}
+          onSelectReengagementAction={onSelectReengagementAction}
+          onStartCallMode={onStartCallMode}
+        />
+      ) : null}
+      {isUser &&
+        latestStatus?.state === "stopped" &&
+        !followingAssistantHasStoppedStatus && (
+          <RecommendationSearchStatusPanel
+            active={false}
+            status={latestStatus}
+          />
+        )}
+      {!isUser && recommendationSearchRun && (
+        <RecommendationSearchStatusPanel
+          active={recommendationSearchRun.active}
+          relation={message.recommendationSearchRelation}
+          run={recommendationSearchRun}
+        />
+      )}
+      {!isUser &&
+        !recommendationSearchRun &&
+        latestStatus &&
+        isRunningRecommendationSearch &&
+        !shouldRenderSplitRecommendationSearch && (
+          <RecommendationSearchStatusPanel
+            active={isAssistantStreamActive}
+            onCancel={onCancelActiveRecommendationSearch}
+            status={latestStatus}
+          />
+        )}
+      {!isUser &&
+        !suppressRolePreviews &&
+        (message.opportunityPreview?.length ?? 0) > 0 && (
+          <OpportunityPreviewCards
+            items={message.opportunityPreview ?? []}
+            onOpenOpportunity={onOpenOpportunity}
+          />
+        )}
+      {!message.browserSession && (
+        <CareerMessageActions
+          isUser={isUser}
+          message={message}
+          onDeleteMessage={onDeleteMessage}
+        />
+      )}
+    </div>
+  );
+
+  return (
+    <Fragment key={String(message.id)}>
+      {dateLabel && (
+        <TimelineDateDivider ariaPrefix={dateAriaPrefix} label={dateLabel} />
+      )}
+      {messageNode}
+      {showTurnStopped && (
+        <div role="status" className="text-[12px] text-neutral-muted">
+          {t("career.chat.stopped", "중단됨")}
+        </div>
+      )}
+    </Fragment>
+  );
+});
+
+export const TimelineMessageList = memo(function TimelineMessageList({
+  messages,
+  assistantTyping,
+  thinkingLogsByMessageId,
+  onOpenOpportunity,
+  onRegenerateOnboardingWrapup,
+  onCancelActiveRecommendationSearch,
+  onboardingWrapupPending,
+  onStartCallMode,
+  isStartingCall,
+  assistantChoiceActionsDisabled,
+  onSelectAssistantChoice,
+  onSelectReengagementAction,
+  onUpdateCareerCoachingActivity,
+  onSimulationAction,
+  onDeleteMessage,
+}: TimelineMessageListProps) {
   const t = useCareerT();
   const { locale } = useMessages();
   const dateAriaPrefix = t(
     "career.chat.career_timeline_section.17u6jy7",
     "대화 날짜"
   );
-
   const choiceMessageIndex = latestChoiceMessageIndex(messages);
   const isSimulationMode = messages.some(
     (m) => m.simulationSession?.status === "active"
   );
-  return (
-    <>
-      {messages.map((message, index) => {
-        const isUser = message.role === "user";
-        let turnStart = index;
-        let turnEnd = index + 1;
-        while (turnStart > 0 && messages[turnStart - 1].role !== "user")
-          turnStart--;
-        while (turnEnd < messages.length && messages[turnEnd].role !== "user")
-          turnEnd++;
-        const suppressRolePreviews = Boolean(
-          message.suppressRolePreviews ||
-          messages
-            .slice(turnStart, turnEnd)
-            .some(
-              (m) =>
-                m.applicationStartOffer ||
-                m.simulation ||
-                m.simulationAction ||
-                m.suppressRolePreviews
-            )
-        );
-        const thinkingLogs = message.thinkingLogs?.length
-          ? message.thinkingLogs
-          : isUser
-            ? []
-            : (thinkingLogsByMessageId[String(message.id)] ?? []);
-        const { latestStatus, textLogs } =
-          splitRecommendJobPostingStatusLogs(thinkingLogs);
-        const followingMessage = messages[index + 1];
-        const followingAssistantHasStoppedStatus =
-          isUser &&
-          followingMessage?.role === "assistant" &&
-          splitRecommendJobPostingStatusLogs(
-            followingMessage.thinkingLogs ?? []
-          ).latestStatus?.state === "stopped";
-        const isRunningRecommendationSearch = latestStatus?.state === "running";
-        const turnStartedAt = isUser
-          ? undefined
-          : getChatTurnStartedAt(messages, index);
-        const recommendationSearchRun = !isUser
-          ? (message.recommendationSearchRun ?? null)
-          : null;
-        const messageDateKey = getChatMessageDateKey(message.createdAt);
-        const previousMessageDateKey = getPreviousChatMessageDateKey(
-          messages,
-          index
-        );
-        const dateLabel =
-          messageDateKey !== previousMessageDateKey
-            ? formatMessageDateLabel(message.createdAt, locale)
-            : "";
-        const isOnboardingCompletionNotice =
-          message.messageType ===
-          TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE;
-        const isOnboardingCompletionWrapup =
-          message.messageType ===
-          TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP;
-        const isLatestAssistantMessage =
-          !isUser && index === messages.length - 1;
-        const isAssistantStreamActive =
-          isLatestAssistantMessage && assistantTyping;
-        const disableAssistantChoiceActions =
-          assistantChoiceActionsDisabled ||
-          index !== choiceMessageIndex ||
-          isAssistantStreamActive;
-        const shouldRenderChatBubble =
-          isUser ||
-          Boolean(message.typing) ||
-          message.content.trim().length > 0;
-        const recommendationStatusAnchor =
-          !isUser &&
-          !isOnboardingCompletionWrapup &&
-          !isOnboardingCompletionNotice
-            ? getRecommendationStatusAnchor(message, latestStatus)
-            : null;
-        const recommendationSearchPreambleContent =
-          recommendationStatusAnchor === null
-            ? ""
-            : message.content.slice(0, recommendationStatusAnchor).trim();
-        const recommendationSearchResultContent =
-          recommendationStatusAnchor === null
-            ? ""
-            : message.content.slice(recommendationStatusAnchor).trim();
-        const shouldRenderSplitRecommendationSearch =
-          !isUser &&
-          !recommendationSearchRun &&
-          Boolean(latestStatus) &&
-          recommendationStatusAnchor !== null &&
-          recommendationSearchPreambleContent.length > 0 &&
-          shouldRenderChatBubble;
-        const recommendationSearchPreambleMessage: CareerMessage = {
-          ...message,
-          content: recommendationSearchPreambleContent,
-          typing: false,
-        };
-        const recommendationSearchResultMessage: CareerMessage = {
-          ...message,
-          content: recommendationSearchResultContent,
-          typing: message.typing,
-        };
-
-        const messageNode = (
-          <div
-            data-career-message-container="true"
-            data-career-message-role={message.role}
-            className={cn("group flex flex-col gap-2", !isUser && "mt-1")}
-          >
-            {!isUser && textLogs.length > 0 && (
-              <ThinkingLogPanel
-                active={
-                  isAssistantStreamActive ||
-                  (isOnboardingCompletionWrapup && onboardingWrapupPending)
-                }
-                completedAt={message.createdAt}
-                logs={textLogs}
-                startedAt={turnStartedAt}
-              />
-            )}
-            {!isUser &&
-              !recommendationSearchRun &&
-              latestStatus &&
-              !isRunningRecommendationSearch &&
-              !shouldRenderSplitRecommendationSearch && (
-                <RecommendationSearchStatusPanel
-                  active={isAssistantStreamActive}
-                  status={latestStatus}
-                />
-              )}
-            {message.applicationQuestions ? (
-              <ApplicationQuestionHistoryRow batch={message.applicationQuestions} />
-            ) : message.applicationActivity?.view === "questions" ? null : message.applicationStartOffer ? (
-              <ApplicationStartCard
-                offer={message.applicationStartOffer}
-                messageId={Number(message.id)}
-                disabled={assistantChoiceActionsDisabled}
-                onAction={onSimulationAction}
-              />
-            ) : message.messageType === "application_draft_progress" ? null : message.applicationDraft ? (
-              <div className="whitespace-pre-wrap">{message.applicationDraft.content.resume}{message.applicationDraft.content.materials.map(m => `\n\n${m.title}\n${m.content}`).join("")}</div>
-            ) : message.simulationSession ? null : message.simulationAction ? (
-              <SimulationNextActionCard
-                card={message.simulationAction}
-                session={
-                  messages.find(
-                    (m) =>
-                      Number(m.id) ===
-                      message.simulationAction!.sessionMessageId
-                  )?.simulationSession
-                }
-                disabled={assistantChoiceActionsDisabled}
-                onAction={onSimulationAction}
-              />
-            ) : message.simulation ? (
-              <ApplicationSimulationCard
-                messageId={message.id}
-                simulation={message.simulation}
-                sessionMessage={messages.find(
-                  (m) =>
-                    m.simulationSession?.analysisMessageId ===
-                    Number(message.id)
-                )}
-                disabled={assistantChoiceActionsDisabled}
-                onAction={onSimulationAction}
-              />
-            ) : message.coachingActivity ? (
-              <CareerCoachingActivityCard
-                activity={message.coachingActivity}
-                disabled={assistantChoiceActionsDisabled}
-                onAction={
-                  onUpdateCareerCoachingActivity
-                    ? (action) =>
-                        onUpdateCareerCoachingActivity({
-                          action,
-                          activity: message.coachingActivity!,
-                        })
-                    : undefined
-                }
-              />
-            ) : shouldRenderSplitRecommendationSearch && latestStatus ? (
-              <>
-                <CareerMessageBubble
-                  message={recommendationSearchPreambleMessage}
-                  isUser={false}
-                  choiceActionsDisabled={disableAssistantChoiceActions}
-                  hideAssistantChoices={isSimulationMode}
-                  isCallStartPending={isStartingCall}
-                  onSelectAssistantChoice={onSelectAssistantChoice}
-                  onSelectReengagementAction={onSelectReengagementAction}
-                  onStartCallMode={
-                    onStartCallMode
-                      ? (openingText) => {
-                          return onStartCallMode(openingText);
-                        }
-                      : undefined
-                  }
-                />
-                <RecommendationSearchStatusPanel
-                  active={isAssistantStreamActive}
-                  onCancel={
-                    isRunningRecommendationSearch
-                      ? onCancelActiveRecommendationSearch
-                      : undefined
-                  }
-                  status={latestStatus}
-                />
-                {recommendationSearchResultContent.length > 0 && (
-                  <CareerMessageBubble
-                    message={recommendationSearchResultMessage}
-                    isUser={false}
-                    choiceActionsDisabled={disableAssistantChoiceActions}
-                    hideAssistantChoices={isSimulationMode}
-                    isCallStartPending={isStartingCall}
-                    onSelectAssistantChoice={onSelectAssistantChoice}
-                    onSelectReengagementAction={onSelectReengagementAction}
-                    onStartCallMode={
-                      onStartCallMode
-                        ? (openingText) => {
-                            return onStartCallMode(openingText);
-                          }
-                        : undefined
-                    }
-                  />
-                )}
-              </>
-            ) : isOnboardingCompletionWrapup ? (
-              <OnboardingCompletionWrapup
-                content={message.content}
-                onRegenerate={onRegenerateOnboardingWrapup}
-                regenerating={onboardingWrapupPending}
-              />
-            ) : isOnboardingCompletionNotice ? (
-              <OnboardingCompletionNotice content={message.content} />
-            ) : shouldRenderChatBubble ? (
-              <CareerMessageBubble
-                message={message}
-                isUser={isUser}
-                choiceActionsDisabled={disableAssistantChoiceActions}
-                hideAssistantChoices={isSimulationMode}
-                isCallStartPending={isStartingCall}
-                onSelectAssistantChoice={onSelectAssistantChoice}
-                onSelectReengagementAction={onSelectReengagementAction}
-                onStartCallMode={
-                  onStartCallMode
-                    ? (openingText) => {
-                        return onStartCallMode(openingText);
-                      }
-                    : undefined
-                }
-              />
-            ) : null}
-            {isUser &&
-              latestStatus?.state === "stopped" &&
-              !followingAssistantHasStoppedStatus && (
-                <RecommendationSearchStatusPanel
-                  active={false}
-                  status={latestStatus}
-                />
-              )}
-            {!isUser && recommendationSearchRun && (
-              <RecommendationSearchStatusPanel
-                active={recommendationSearchRun.active}
-                relation={message.recommendationSearchRelation}
-                run={recommendationSearchRun}
-              />
-            )}
-            {!isUser &&
-              !recommendationSearchRun &&
-              latestStatus &&
-              isRunningRecommendationSearch &&
-              !shouldRenderSplitRecommendationSearch && (
-                <RecommendationSearchStatusPanel
-                  active={isAssistantStreamActive}
-                  onCancel={onCancelActiveRecommendationSearch}
-                  status={latestStatus}
-                />
-              )}
-            {!isUser &&
-              !suppressRolePreviews &&
-              (message.opportunityPreview?.length ?? 0) > 0 && (
-                <OpportunityPreviewCards
-                  items={message.opportunityPreview ?? []}
-                  onOpenOpportunity={onOpenOpportunity}
-                />
-              )}
-            {showDevMessageActions && onDeleteMessage ? (
-              <CareerMessageDevActions
-                isUser={isUser}
-                message={message}
-                onDeleteMessage={onDeleteMessage}
-              />
-            ) : null}
-          </div>
-        );
-
-        return (
-          <Fragment key={String(message.id)}>
-            {dateLabel && (
-              <TimelineDateDivider
-                ariaPrefix={dateAriaPrefix}
-                label={dateLabel}
-              />
-            )}
-            {messageNode}
-          </Fragment>
-        );
-      })}
-    </>
-  );
+  const sessionsByMessageId = new Map<
+    number,
+    CareerMessage["simulationSession"]
+  >();
+  const sessionsByAnalysisId = new Map<number, CareerMessage>();
+  const previewSuppressionCounts = [0];
+  const turnEnds: number[] = [];
+  let nextUserIndex = messages.length;
+  for (let index = messages.length - 1; index >= 0; index--) {
+    turnEnds[index] = nextUserIndex;
+    if (messages[index].role === "user") nextUserIndex = index;
+  }
+  for (const message of messages) {
+    const id = Number(message.id);
+    if (!sessionsByMessageId.has(id))
+      sessionsByMessageId.set(id, message.simulationSession);
+    const analysisId = message.simulationSession?.analysisMessageId;
+    if (analysisId != null && !sessionsByAnalysisId.has(analysisId)) {
+      sessionsByAnalysisId.set(analysisId, message);
+    }
+    previewSuppressionCounts.push(
+      previewSuppressionCounts[previewSuppressionCounts.length - 1] +
+        Number(
+          Boolean(
+            message.applicationStartOffer ||
+            message.simulation ||
+            message.simulationAction ||
+            message.suppressRolePreviews
+          )
+        )
+    );
+  }
+  let turnStart = 0;
+  let previousDateKey = "";
+  let lastUserCreatedAt: string | undefined;
+  let turnStopped = false;
+  let turnHasStoppedSearch = false;
+  const rows: React.ReactNode[] = [];
+  for (let index = 0; index < messages.length; index++) {
+    const message = messages[index];
+    if (message.role === "user") {
+      turnStopped = false;
+      turnHasStoppedSearch = false;
+    }
+    turnStopped ||= Boolean(message.turnStopped);
+    turnHasStoppedSearch ||=
+      splitRecommendJobPostingStatusLogs(
+        message.thinkingLogs ?? EMPTY_THINKING_LOGS
+      ).latestStatus?.state === "stopped";
+    if (index > 0 && messages[index - 1].role === "user") turnStart = index;
+    const messageDateKey = getChatMessageDateKey(message.createdAt);
+    const dateLabel =
+      messageDateKey !== previousDateKey
+        ? formatMessageDateLabel(message.createdAt, locale)
+        : "";
+    if (messageDateKey) previousDateKey = messageDateKey;
+    const turnStartedAt =
+      message.role === "user" ? undefined : lastUserCreatedAt;
+    if (message.role === "user") lastUserCreatedAt = message.createdAt;
+    rows.push(
+      <TimelineMessageRow
+        key={String(message.id)}
+        message={message}
+        followingAssistantThinkingLogs={
+          messages[index + 1]?.role === "assistant"
+            ? messages[index + 1].thinkingLogs
+            : undefined
+        }
+        thinkingLogs={
+          message.thinkingLogs?.length
+            ? message.thinkingLogs
+            : message.role === "user"
+              ? EMPTY_THINKING_LOGS
+              : (thinkingLogsByMessageId[String(message.id)] ??
+                EMPTY_THINKING_LOGS)
+        }
+        assistantTyping={index === messages.length - 1 && assistantTyping}
+        isLatestAssistantMessage={
+          message.role !== "user" && index === messages.length - 1
+        }
+        isChoiceMessage={index === choiceMessageIndex}
+        isSimulationMode={isSimulationMode}
+        suppressRolePreviews={
+          previewSuppressionCounts[turnEnds[index]] >
+          previewSuppressionCounts[turnStart]
+        }
+        turnStartedAt={turnStartedAt}
+        showTurnStopped={
+          turnStopped && !turnHasStoppedSearch && index + 1 === turnEnds[index]
+        }
+        dateLabel={dateLabel}
+        dateAriaPrefix={dateAriaPrefix}
+        simulationSession={
+          message.simulationAction
+            ? sessionsByMessageId.get(message.simulationAction.sessionMessageId)
+            : undefined
+        }
+        simulationSessionMessage={
+          message.simulation
+            ? sessionsByAnalysisId.get(Number(message.id))
+            : undefined
+        }
+        onOpenOpportunity={onOpenOpportunity}
+        onRegenerateOnboardingWrapup={onRegenerateOnboardingWrapup}
+        onCancelActiveRecommendationSearch={onCancelActiveRecommendationSearch}
+        onboardingWrapupPending={onboardingWrapupPending}
+        onStartCallMode={onStartCallMode}
+        isStartingCall={isStartingCall}
+        assistantChoiceActionsDisabled={assistantChoiceActionsDisabled}
+        onSelectAssistantChoice={onSelectAssistantChoice}
+        onSelectReengagementAction={onSelectReengagementAction}
+        onUpdateCareerCoachingActivity={onUpdateCareerCoachingActivity}
+        onSimulationAction={onSimulationAction}
+        onDeleteMessage={onDeleteMessage}
+      />
+    );
+  }
+  return <>{rows}</>;
 });
 
 type CareerTimelineSectionProps = {
@@ -714,58 +824,35 @@ const CareerTimelineSection = ({
     onContinueOnboardingConversation,
     inputMode,
   } = useCareerChatPanelContext();
-  const preparation = useApplicationPreparation();
+  const preparation = useApplicationHistory();
   const messages = useMemo(() => {
     const merged = new Map(historyMessages.map((m) => [String(m.id), m]));
     for (const output of preparation.drafts) {
-      const previous=merged.get(String(output.id));
-      if (previous?.applicationActivity && output.applicationActivity && previous.applicationActivity.revision>output.applicationActivity.revision) continue;
-      if (previous?.simulation && output.simulation && Date.parse(previous.simulation.updatedAt)>Date.parse(output.simulation.updatedAt)) continue;
-      merged.set(String(output.id),output);
+      const previous = merged.get(String(output.id));
+      if (
+        previous?.applicationActivity &&
+        output.applicationActivity &&
+        previous.applicationActivity.revision >
+          output.applicationActivity.revision
+      )
+        continue;
+      if (
+        previous?.simulation &&
+        output.simulation &&
+        Date.parse(previous.simulation.updatedAt) >
+          Date.parse(output.simulation.updatedAt)
+      )
+        continue;
+      merged.set(String(output.id), output);
     }
-    if (preparation.record) {
-      const r = preparation.record;
-      for (const question of applicationQuestionMessages(r.state)) merged.set(String(question.id), question);
-      merged.set(String(r.messageId), {
-        id: r.messageId,
-        role: "assistant",
-        content: "",
-        createdAt: r.state.startedAt,
-        messageType: "simulation_session",
-        simulationSession: r.state,
-      });
-    }
-    const ordered = orderApplicationMessages([...merged.values()]);
-    const review = preparation.record?.state.applicationReview;
-    return attachSavedApplicationReview(ordered, preparation.record && review ? {
-      messageId: preparation.record.messageId,
-      resumeDocumentId: review.resumeDocumentId,
-      startedAt: preparation.record.state.startedAt,
-    } : null);
-  }, [historyMessages, preparation.drafts, preparation.record]);
-  const browserPhase = browserPresentationPhase(preparation.record?.state, messages);
-  const applicationBrowser = preparation.record?.state.browser;
-  const showBrowserWork = applicationBrowser &&
-    !messages.some(message => String(message.id) === String(applicationBrowser.resultMessageId));
-  const devMessageActionsVisible = useCareerWorkspaceUiStore(
-    (state) => state.devMessageActionsVisible
-  );
-  const showDevMessageActions =
-    canUseCareerDevControls(user?.email) && devMessageActionsVisible;
+    return orderApplicationMessages([...merged.values()]);
+  }, [historyMessages, preparation.drafts]);
 
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [showLoadOlderButton, setShowLoadOlderButton] = useState(false);
   const [stickToBottom, setStickToBottom] = useState(true);
-  const applicationActive = preparation.record?.state.status === "active";
-  const applicationTarget = useApplicationTimelineLayout(applicationActive, scrollRef, stickToBottom);
-  const latestUserId = messages.findLast(m => m.role === "user")?.id;
-  useEffect(() => {
-    if (!applicationActive) return;
-    const frame = requestAnimationFrame(() => setStickToBottom(true));
-    return () => cancelAnimationFrame(frame);
-  }, [latestUserId, applicationActive]);
   const [interestSelectionState, setInterestSelectionState] = useState<{
     messageKey: string;
     options: TalentOnboardingInterestOptionId[];
@@ -856,9 +943,9 @@ const CareerTimelineSection = ({
     (behavior: ScrollBehavior = "smooth") => {
       const el = scrollRef.current;
       if (!el) return;
-      el.scrollTo({ top: applicationTarget() ?? el.scrollHeight, behavior });
+      el.scrollTo({ top: el.scrollHeight, behavior });
     },
-    [scrollRef, applicationTarget]
+    [scrollRef]
   );
 
   const syncScrollState = useCallback(() => {
@@ -868,16 +955,16 @@ const CareerTimelineSection = ({
     setShowLoadOlderButton((prev) =>
       prev === nextShowLoadOlderButton ? prev : nextShowLoadOlderButton
     );
-    const distanceToBottom = (applicationTarget() ?? (el.scrollHeight - el.clientHeight)) - el.scrollTop;
+    const distanceToBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
     const nextStickToBottom = distanceToBottom <= BOTTOM_THRESHOLD_PX;
     setStickToBottom((prev) =>
       prev === nextStickToBottom ? prev : nextStickToBottom
     );
-  }, [scrollRef, applicationTarget]);
+  }, [scrollRef]);
 
   useEffect(() => {
-    if (!applicationActive || !stickToBottom) syncScrollState();
-  }, [messages.length, syncScrollState, applicationActive, stickToBottom]);
+    syncScrollState();
+  }, [messages.length, syncScrollState]);
 
   const handleTimelineScroll = useCallback(() => {
     syncScrollState();
@@ -996,8 +1083,6 @@ const CareerTimelineSection = ({
     hasTimelineMessages,
     inputMode,
     latestTimelineMessageKey,
-    preparation.record?.state.preparation?.generation.status,
-    preparation.record?.state.preparation?.generation.runId,
     scrollToBottom,
     showOpportunityFeedbackFollowUpPending,
     showSessionReengagementPending,
@@ -1252,11 +1337,12 @@ const CareerTimelineSection = ({
   return (
     <div
       ref={scrollRef}
+      data-career-timeline
       onScroll={handleTimelineScroll}
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 pt-4 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
       style={TIMELINE_SCROLL_STYLE}
     >
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
+      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-[18px] px-5 py-1">
         {showLoadOlderButton && hasOlderMessages && (
           <div className="sticky top-0 z-10 flex justify-center pb-2">
             <ChatLoadOlderButton
@@ -1310,7 +1396,6 @@ const CareerTimelineSection = ({
             }
             isStartingCall={isStartingCall}
             onOpenOpportunity={handleOpenOpportunity}
-            showDevMessageActions={showDevMessageActions}
           />
         ) : null}
 
@@ -1371,34 +1456,11 @@ const CareerTimelineSection = ({
           />
         )}
 
-        {showBrowserWork && (
-          <ChatThinkingLogPanel
-            key={applicationBrowser.id}
-            active={browserPhase !== null}
-            hasToolWork
-            startedAt={applicationBrowser.startedAt}
-            completedAt={browserPhase ? undefined : applicationBrowser.updatedAt}
-            statusLabel={applicationBrowser.status === "waiting"
-              ? t("career.application.questions.waiting", "답변을 기다리고 있어요")
-              : undefined}
-            logs={applicationBrowser.progress?.length
-              ? applicationBrowser.progress.map(entry => ({id: entry.id, label: entry.text}))
-              : [t("career.application.browser.running", "지원 사이트에서 진행하고 있어요…")]}
-            typographyClassName={careerTimelineBodyTextClassName}
-          />
-        )}
         {!sessionPending &&
           stage !== "profile" &&
           !onboardingWrapupPending &&
           !callWrapUpPending &&
           chatPending &&
-          !browserPhase &&
-          !(preparation.record?.state.status === "active" && (
-            preparation.record.state.analysisStatus === "running" ||
-            ["queued", "running"].includes(preparation.record.state.browser?.status ?? "") ||
-            preparation.record.state.preparation?.generation.status === "running" ||
-            preparation.record.state.activity?.batches.some(b=>b.status === "waiting")
-          )) &&
           !assistantTyping &&
           (activeRecommendationSearchStatus ? (
             <RecommendationSearchStatusPanel
@@ -1662,8 +1724,6 @@ const CareerTimelineSection = ({
             </div>
           </div>
         )}
-
-
 
         {showInterestSelector && (
           <div className="max-w-[900px]">

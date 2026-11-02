@@ -599,13 +599,15 @@ test("an old request is archived in Inbox without becoming a rejection or a rene
   assert.equal(admin.progress.length, 1);
 });
 
-test("focused-mode tool results omit generic verbose receipts but preserve tool-specific facts and instructions", async () => {
-  const { withTalentToolAssistantInstruction } = await talentToolsPromise;
+test("tool results can omit common guidance while preserving tool-specific facts and instructions", async () => {
+  const { withTalentToolAssistantInstruction, TALENT_TOOL_COMMON_ASSISTANT_INSTRUCTION } = await talentToolsPromise;
   const result = withTalentToolAssistantInstruction({ ok: true, document: "Resume", assistantInstruction: "The requested source is unavailable." }, false);
   assert.equal(result.document, "Resume");
   assert.equal(result.assistantInstruction, "The requested source is unavailable.");
-  assert.doesNotMatch(String(result.assistantInstruction), /longer and more detailed/);
-  assert.match(String(withTalentToolAssistantInstruction({ ok: true }).assistantInstruction), /longer and more detailed/);
+  for (const input of [{ ok: true }, { ok: true, assistantInstruction: null }, { ok: true, assistantInstruction: "  " }, "done"]) {
+    assert.equal("assistantInstruction" in withTalentToolAssistantInstruction(input), false);
+  }
+  assert.equal(withTalentToolAssistantInstruction({ ok: true }, true).assistantInstruction, TALENT_TOOL_COMMON_ASSISTANT_INSTRUCTION);
 });
 
 for (const decision of [null, "company_first", "no_action", "candidate_first", "both"]) {

@@ -1,20 +1,19 @@
-import { formatPromptText } from "@/lib/llm/promptText";
 import { runApplicationInspection } from "./applicationInspection";
 import { inspectCareerApplicationForm as inspectApplicationForm } from "./applicationInspection";
-import { applicationFormText } from "./applicationFormText";
+import { applicationRequirementsText } from "./applicationFormText";
 import { createPreparation } from "./preparation";
 import { askApplicationInput } from "./applicationInput";
 import { writeApplicationSuggestions } from "./suggestionWriter";
+import { buildApplicationSuggestionInput } from "./suggestionInput";
 import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
 import {
   fetchTalentContextPromptSnapshot,
-  renderTalentContextPrompt,
 } from "@/lib/talentOnboarding/talentContexts";
 import {
   executeSharedWebSearch,
   executeSharedOpenUrl,
 } from "@/lib/agentTools/web";
-import { readSimulationJdSource, buildSimulationRoleInput } from "./jdSource";
+import { readSimulationJdSource } from "./jdSource";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
   createSimulationSession,
@@ -483,16 +482,6 @@ export async function executeApplicationSimulation(
       }),
       fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
     ]);
-    const candidate = [
-      simulationProfileSnapshot(profile),
-      formatPromptText({
-        name: userProfile?.name,
-        email: userProfile?.email,
-        phone: userProfile?.phone_number,
-        links: userProfile?.resume_links,
-      }),
-      renderTalentContextPrompt(memorySnapshot),
-    ].join("\n\n");
     signal.throwIfAborted();
     await progress("role");
     const savedRole = await (args.loadSavedRole ?? (async () => args.role))();
@@ -529,15 +518,20 @@ export async function executeApplicationSimulation(
             reason: "Company not identified",
           }),
     ]);
-    let role = await buildSimulationRoleInput(
-      args.roleName,
+    const suggestionInput = await buildApplicationSuggestionInput({
+      profile,
+      contact: userProfile,
+      context: memorySnapshot,
+      resume,
+      roleName: args.roleName,
+      savedRole,
+      language: getCareerPromptLanguageName(args.locale),
       jdSource,
-      async () => savedRole
-    );
+      companySources: "results" in research ? research.results : undefined,
+      includeCurrentPosting: Boolean(email),
+    });
     if (email) {
       // Read the live JD and inventory before proposing any changes in email.
-      if (jdSource.status === "read")
-        role += "\nLive JD:\n" + formatPromptText(jdSource);
       if (!current.state.applicationInspection) {
         current = await saveSession(
           store,
@@ -609,18 +603,8 @@ export async function executeApplicationSimulation(
     state.suggestions = await writeApplicationSuggestions({
       admin: args.admin,
       userId: args.userId,
-      candidate,
-      resume,
-      role: role + "\nCompany research:\n" + formatPromptText(research),
-      application: email
-        ? applicationFormText(current.state.applicationForm)
-        : formatPromptText({
-            status: "pending",
-            url: current.state.applicationUrl,
-            instruction:
-              "Application requirements are being inspected separately. Focus this first batch on meaningful resume improvements and important role-related experience gaps. Do not ask about application fields or draft additional materials before they are observed.",
-          }),
-      language: getCareerPromptLanguageName(args.locale),
+      ...suggestionInput,
+      ...(email ? { application: applicationRequirementsText(current.state.applicationForm) } : {}),
       model: args.textChatModel,
       signal,
     });

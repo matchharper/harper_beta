@@ -784,6 +784,7 @@ const CareerWorkspacePreviewLanding = ({
       historyUpdateError: "",
       onLoadMoreHistoryOpportunities: () => undefined,
       isHistoryOpportunityPageFilterLoading: () => false,
+      getHistoryOpportunityPageFilterState: () => ({ loading: false, nextOffset: null }),
       onLoadSavedStageHistoryOpportunityPages: () => undefined,
       onLoadHistoryOpportunityByRoleId: (roleId) =>
         historyOpportunities.find((item) => item.roleId === roleId) ?? null,

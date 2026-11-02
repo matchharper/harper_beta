@@ -1,3 +1,4 @@
+import type { InspectionTarget } from "@/lib/ops/applicationFormInspection";
 import { inspectManagedApplicationForm } from "@/lib/ops/applicationQuestionsAgents.server";
 import {
   FORM_INSPECTION_TIMEOUT_MS,
@@ -85,11 +86,6 @@ export async function refreshApplicationInspection(
       throw new Error("Finish or stop the application browser before rechecking requirements");
     if (isApplicationInspectionPending(s)) return false;
     s.applicationInspection = { status: "queued", runId, resolveOfficialLink: false };
-    if (s.preparation) {
-      s.preparation.inputRevision++;
-      s.preparation.finalDocumentId = null;
-      s.preparation.finalDocumentFingerprint = null;
-    }
     return true;
   });
   if (!queued || queued.state.status !== "active")
@@ -113,13 +109,14 @@ export async function runApplicationInspection(
     (record) => {
       if (!needsApplicationInspection(record)) return false;
       if (record.state.applicationInspection?.resolveOfficialLink && record.state.applicationInspection.status === "running") {
-        // A lost worker must not silently restart the entire single-search budget.
+        // A lost worker must not silently restart the entire discovery tool budget.
         record.state.applicationInspection.status = "failed";
         record.state.applicationInspection.finishedAt = new Date().toISOString();
+        delete record.state.applicationFormId;
         record.state.applicationForm = {
           status: "unavailable", url: record.state.applicationUrl ?? "", checkedAt: new Date().toISOString(),
-          fields: [], limitations: ["The application inspection was interrupted before its result was saved."],
-          submission: { status: "unknown", reason: "Application access could not be verified." },
+          fields: [], limitations: ["The application inspection was interrupted before its result was saved; application access could not be verified."],
+          submission: { status: "unknown" },
         };
         return true;
       }
@@ -128,6 +125,7 @@ export async function runApplicationInspection(
         status: "running",
         runId: token,
         startedAt: new Date().toISOString(),
+        browserUseSessionId: undefined,
       };
       return true;
     }
@@ -137,14 +135,27 @@ export async function runApplicationInspection(
   const started = Date.now();
   let form: ApplicationForm;
   try {
+    const inspectWithPreview = inspect === inspectCareerApplicationForm
+      ? async (url: unknown, signal = AbortSignal.timeout(FORM_INSPECTION_TIMEOUT_MS), options?: { target?: InspectionTarget }) => {
+          const { inspectionHttpsUrl } = await import("@/lib/ops/applicationLinkResolution.server");
+          if (typeof url !== "string") throw new Error("Application URL is required");
+          return inspectManagedApplicationForm(inspectionHttpsUrl(url), signal, undefined, async (sessionId) => {
+            await mutateInspection(store, messageId, `inspection:browser:${token}:${sessionId}`, (record) => {
+              if (record.state.applicationInspection?.runId !== token) return false;
+              record.state.applicationInspection.browserUseSessionId = sessionId;
+              return true;
+            });
+          }, options?.target);
+        }
+      : inspect;
     // Browser lifetime belongs to the persisted job, not to a chat connection.
     if (claimed.state.applicationInspection?.resolveOfficialLink && claimed.state.applicationUrl && inspect === inspectCareerApplicationForm) {
-      // Use the same single-search resolver exercised in Ops, including its
+      // Use the same tool-using discovery agent exercised in Ops, including its
       // conditional company_roles URL update. No extra search/retry layer.
       const { runResolvedInspectionDebug } = await import("@/lib/ops/applicationLinkResolution.server");
-      const result = await runResolvedInspectionDebug(claimed.state.applicationUrl, AbortSignal.timeout(240_000), () => {}, { inspect });
+      const result = await runResolvedInspectionDebug(claimed.state.applicationUrl, AbortSignal.timeout(240_000), () => {}, { inspect: inspectWithPreview });
       form = result.form;
-    } else form = await inspect(claimed.state.applicationUrl, AbortSignal.timeout(FORM_INSPECTION_TIMEOUT_MS));
+    } else form = await inspectWithPreview(claimed.state.applicationUrl, AbortSignal.timeout(FORM_INSPECTION_TIMEOUT_MS));
   } catch (error) {
     console.error(
       "[application-inspection] failed",
@@ -160,10 +171,9 @@ export async function runApplicationInspection(
       url: claimed.state.applicationUrl ?? "",
       checkedAt: new Date().toISOString(),
       fields: [],
-      limitations: ["The application requirements could not be verified."],
+      limitations: ["The application requirements and public application access could not be verified."],
       submission: {
         status: "unknown",
-        reason: "Public application access could not be verified.",
       },
     };
   }
@@ -173,6 +183,7 @@ export async function runApplicationInspection(
     `inspection:result:${token}`,
     (record) => {
       if (record.state.applicationInspection?.runId !== token) return false;
+      delete record.state.applicationFormId;
       record.state.applicationForm = form;
       if (form.url) record.state.applicationUrl = form.url;
       record.state.applicationInspection = {

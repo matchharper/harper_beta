@@ -81,7 +81,8 @@ test("uploaded original is downloaded unchanged; no PDF fallback after render fa
 test("mode advertises real resume capability and reopens source-specific writing", () => {
   const s = createSimulationSession({roleRef: "role:test", roleName: "Engineer", documentId: "resume", documentName: "Resume"});
   s.preparation = createPreparation();
-  assert.ok(SIMULATION_TOOL_NAMES.includes("generate_resume"));
+  assert.ok(SIMULATION_TOOL_NAMES.includes("upsert_document"));
+  assert.ok(!SIMULATION_TOOL_NAMES.includes("generate_resume"));
   assert.equal(simulationSessionContext(s, SIMULATION_TOOL_NAMES).selectedResume.directEditingAvailable, true);
   assert.equal(simulationSessionContext(s, []).selectedResume.directEditingAvailable, false);
   const prompt = buildPreparationPrompt(s, SIMULATION_TOOL_NAMES).map(b => b.text).join("\n");

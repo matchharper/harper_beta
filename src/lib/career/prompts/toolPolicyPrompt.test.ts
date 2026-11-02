@@ -16,10 +16,7 @@ test("limits profileLinks writes to the talent's own materials", () => {
     /personal LinkedIn\/GitHub\/Scholar\/portfolio\/blog\/CV/
   );
   assert.match(prompt, /Never add company, job-posting, recruiting/);
-  assert.match(prompt, /do not stop at registration confirmation/);
-  assert.match(prompt, /improve future opportunity matching/);
-  assert.doesNotMatch(prompt, /consent/i);
-  assert.match(prompt, /will no longer use it as a saved source/);
+  assert.match(prompt, /does not change the default or grant sharing consent/);
 });
 
 test("routes explicit name corrections to the profile without rewriting them", () => {
@@ -49,7 +46,7 @@ test("keeps language setting tool policy minimal", () => {
   assert.doesNotMatch(prompt, /### update_language_setting/);
 });
 
-test("chat tools produce one cohesive response after the result", () => {
+test("chat allows useful findings while keeping execution instructions in tool calls", () => {
   const prompt = buildCareerToolPolicyPrompt({
     channel: "chat",
     isOnboardingActive: false,
@@ -57,10 +54,13 @@ test("chat tools produce one cohesive response after the result", () => {
     toolNames: ["write_talent_context"],
   });
 
-  assert.match(prompt, /call it before writing user-visible explanation/);
-  assert.match(prompt, /one cohesive response after the result/);
-  assert.match(prompt, /entire final response consistently in Korean/);
+  assert.match(prompt, /may speak before or between tool calls/);
+  assert.match(prompt, /without repeating acknowledgements/);
+  assert.match(prompt, /Execution instructions and safeguards belong in the tool call/);
+  assert.match(prompt, /Continue delegated work and ask when an essential answer is needed/);
+  assert.match(prompt, /conversation and explanations to the candidate in Korean/);
   assert.match(prompt, /Thinking log sentence in Korean/);
+  assert.doesNotMatch(prompt, /call it before writing user-visible explanation/);
   assert.doesNotMatch(prompt, /specific English user-facing Thinking log/);
   assert.doesNotMatch(prompt, /start with brief acknowledgement/);
 });
@@ -86,55 +86,19 @@ test("writes changed criteria before starting a recommendation run", () => {
     channel: "chat",
     isOnboardingActive: false,
     preferredLocale: "ko",
-    toolNames: ["write_talent_context", "recommend_job_postings"],
+    toolNames: ["write_talent_context", "search_opportunities"],
   });
 
   assert.match(prompt, /write the context change first/);
-  assert.match(prompt, /then call `recommend_job_postings`/);
+  assert.match(prompt, /correct complete criteria snapshot/);
 });
 
-test("matched internal role policy describes already-reviewed fit roles", () => {
-  const prompt = buildCareerToolPolicyPrompt({
-    channel: "chat",
-    isOnboardingActive: false,
-    preferredLocale: "ko",
-    toolNames: [
-      "get_internal_roles",
-      "get_role_context",
-      "internal_role_priority_review",
-      "update_recommended_opportunity_feedback",
-    ],
-  });
-
-  assert.match(prompt, /matchedOnly=true/);
-  assert.match(prompt, /already been reviewed and assessed as a fit/);
-  assert.match(prompt, /private selection context/);
-  assert.match(prompt, /not yet roles to explain or render as posting cards/);
-  assert.match(prompt, /feedback=`review`/);
-  assert.match(prompt, /review alongside the current one/);
-  assert.match(prompt, /does not accept it, close another role, rerun fit/);
-  assert.doesNotMatch(prompt, /sourceRoleId|replacesRoleId/);
-  assert.match(
-    prompt,
-    /use feedback=`like` only when the user later explicitly accepts/
-  );
-  assert.match(prompt, /one to three concise candidate-visible fitReasons/);
-  assert.match(prompt, /reason=internal_role_review_required/);
-  assert.match(prompt, /never include private company requests/);
-  assert.match(prompt, /records the user's priority-review request/);
-  assert.match(prompt, /even when the role also has stored fit/);
-  assert.match(prompt, /asks to add it to Positions\/Jobs/);
-  assert.match(prompt, /prioritize a role is not `feedback=review`/);
-  assert.match(prompt, /asking '더 있어\?'/);
-  assert.match(prompt, /not to enumerate or explain every unpresented role/);
-  assert.match(
-    prompt,
-    /only after feedback=`review` has made it a formal recommendation/
-  );
-  assert.doesNotMatch(
-    prompt,
-    /If user wants listing all, say it's not possible/
-  );
+test("internal role discovery, review publication and introduction consent stay separate", () => {
+  const prompt = buildCareerToolPolicyPrompt({ channel: "chat", toolNames: ["get_internal_roles", "get_role_context", "apply_to_internal_role", "update_recommended_opportunity_feedback"] });
+  assert.match(prompt, /apply_to_internal_role/);
+  assert.match(prompt, /Existing explicit acceptance is sufficient/);
+  assert.match(prompt, /assigning materials do not create consent/);
+  assert.doesNotMatch(prompt, /internal_role_priority_review|feedback=`review`|not yet roles to explain/);
 });
 
 test("document tools use paginated metadata, bounded reads, and soft delete", () => {
@@ -142,7 +106,7 @@ test("document tools use paginated metadata, bounded reads, and soft delete", ()
     channel: "chat",
     isOnboardingActive: false,
     preferredLocale: "ko",
-    toolNames: ["list_documents", "read_document", "update_document"],
+    toolNames: ["list_documents", "read_document", "upsert_document"],
   });
 
   assert.match(prompt, /offset=0 and limit=10/);
@@ -154,6 +118,37 @@ test("document tools use paginated metadata, bounded reads, and soft delete", ()
   assert.match(prompt, /binary-only file may have textAvailable=false/);
   assert.match(prompt, /is_deleted=true is a soft delete only/);
   assert.match(prompt, /transient third-party reference material/);
+});
+
+test("unified document policy includes native actions and loads resume guidance on demand", () => {
+  const prompt = buildCareerToolPolicyPrompt({
+    channel: "chat",
+    toolNames: ["list_documents", "read_document", "upsert_document"],
+  });
+  assert.match(prompt, /type=resume.*type=markdown/);
+  assert.match(prompt, /Create needs type and title/);
+  assert.match(prompt, /copy makes a separate named private document/);
+  assert.match(prompt, /Metadata-only update may omit type and body fields/);
+  assert.match(prompt, /cannot convert an existing document in place/);
+  assert.match(prompt, /load_handbook\("resume"\)/);
+  assert.match(prompt, /Read the current document before edits/);
+  assert.match(prompt, /stable entry IDs and the current revision/);
+  assert.match(prompt, /Preserve unrelated content for scoped edits/);
+  assert.match(prompt, /Saved content is not a generated PDF or an external submission/);
+  assert.match(prompt, /document reference can be used for attachments/);
+  assert.doesNotMatch(prompt, /generate_resume/);
+});
+
+test("legacy application flags do not change the general document writer or restore phase tools", () => {
+  const toolNames = ["list_documents", "read_document", "upsert_document"];
+  const prompt = buildCareerToolPolicyPrompt({
+    channel: "chat",
+    applicationPreparation: true,
+    toolNames,
+  });
+  assert.equal(prompt, buildCareerToolPolicyPrompt({ channel: "chat", toolNames }));
+  assert.match(prompt, /upsert_document creates, updates or privately copies resumes and Markdown documents/);
+  assert.doesNotMatch(prompt, /ready_for_role|Application resume commands|generate_resume|### Resume creation and revision/);
 });
 
 test("adds Gmail truthfulness rules only when the Gmail tool is present", () => {

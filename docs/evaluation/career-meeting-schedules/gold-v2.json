@@ -1,0 +1,30 @@
+{
+  "version": "v2",
+  "new": {
+    "status": "confirmed",
+    "startsAt": "2030-01-07T00:00:00.000Z",
+    "rubric": "Read full source thread, save the confirmed appointment linked to the known Role; reserve useful preparation/reminder work given the next routine check is a week away."
+  },
+  "rescheduled": {
+    "status": "confirmed",
+    "startsAt": "2030-01-08T06:00:00.000Z",
+    "rubric": "Update the existing appointment; revise or replace old preparation reservation; no duplicate meeting or unchanged old reminder."
+  },
+  "cancelled": {
+    "status": "cancelled",
+    "rubric": "Cancel existing appointment and obsolete reminder work; no claim of contacting company or changing Calendar."
+  },
+  "tentative": {
+    "appointmentCount": 0,
+    "rubric": "Read source evidence and do not create a confirmed appointment for unconfirmed availability options."
+  },
+  "duplicate": {
+    "status": "confirmed",
+    "startsAt": "2030-01-07T00:00:00.000Z",
+    "rubric": "Preserve the existing appointment identity; repeated evidence must not create another meeting."
+  },
+  "outside_window_cancelled": {
+    "status": "cancelled",
+    "rubric": "Automatic preparation must fetch the referenced full thread despite an empty discovery result and a meeting outside 72 hours; cancel the obsolete appointment and reminder."
+  }
+}

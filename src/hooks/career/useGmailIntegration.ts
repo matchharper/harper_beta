@@ -37,6 +37,7 @@ type GmailIntegrationStatusPayload = {
     updatedAt: string | null;
   };
   connected: boolean;
+  writeConnected?: boolean;
   status: Exclude<ClientGmailIntegrationStatus, "loading" | "error">;
 };
 
@@ -146,7 +147,7 @@ export function useGmailIntegration(
   }, [enabled, refresh, userId]);
 
   const connect = useCallback(
-    async (options?: { resumeImport?: boolean }) => {
+    async (options?: { resumeImport?: boolean; capability?: "write" }) => {
       setPendingAction("connect");
       try {
         const payload = await fetchWithInternalAuth<GmailConnectPayload>(
@@ -156,6 +157,8 @@ export function useGmailIntegration(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               resumeImport: options?.resumeImport === true,
+              ...(options?.capability ? { capability: options.capability } : {}),
+              ...(options?.capability === "write" ? { returnTo: window.location.pathname + window.location.search } : {}),
             }),
           }
         );
@@ -166,6 +169,7 @@ export function useGmailIntegration(
             analysis: payload.analysis ??
               current?.analysis ?? { status: "not_started", updatedAt: null },
             connected: true,
+            writeConnected: options?.capability === "write" || current?.writeConnected === true,
             status: payload.status,
           });
           notifyGmailIntegrationChanged();
@@ -293,5 +297,6 @@ export function useGmailIntegration(
     pendingAction,
     refresh,
     status,
+    writeConnected: status === "active" && statusQuery.data?.writeConnected === true,
   };
 }

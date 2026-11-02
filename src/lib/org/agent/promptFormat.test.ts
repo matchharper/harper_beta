@@ -1844,6 +1844,34 @@ test("skipped scheduled search tells the provider no new search started", () => 
   assert.doesNotMatch(text,/is now queued or already running/);
 });
 
+test("interactive search receipt separates worker scope from the original company request", () => {
+  const text = serializeOrgAgentToolResult("request_matching_search", {
+    status: "queued", effect: "evaluation_only", runId: "run-1", briefVersion: "brief-2",
+    options: { scope: "all", startStage: 1, limit: 5000, recommendCount: 0,
+      recommendationTarget: 10, sourceMessageId: 42, talentIds: ["person-1"], reason: "변경된 조건 적용" },
+  });
+  assert.match(text, /run-1/);
+  assert.match(text, /brief-2/);
+  assert.match(text, /message_id=42/);
+  assert.match(text, /person-1/);
+  assert.match(text, /후보 선정·추천 목록 등록·후보자 연락은 아직 수행하지 않았다/);
+  assert.doesNotMatch(text, /recommendCount/);
+});
+
+test("reused search receipt identifies the actual original request and no new work", () => {
+  for (const status of ["already_running", "already_queued"]) {
+    const text = serializeOrgAgentToolResult("request_matching_search", {
+      status, effect: "evaluation_only", runId: "existing-run", briefVersion: "same-brief", sourceMessageId: 42,
+      options: { scope: "all", startStage: 1, limit: 5000, sourceMessageId: 99 },
+    });
+    assert.match(text, /existing-run/);
+    assert.match(text, /message_id=42/);
+    assert.doesNotMatch(text, /message_id=99/);
+    assert.match(text, /No new search was created/);
+    assert.match(text, /Continue from that run and its completion/);
+  }
+});
+
 test("role calibration returns only compact user-facing outcome fields", () => {
   const compact = serializeOrgAgentToolResult("calibrate_role_hiring_brief", {
     failedReferenceUrls: [],

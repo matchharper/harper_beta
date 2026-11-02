@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { TalentDocumentRow } from "@/lib/talentOnboarding/models";
 import { fetchTalentDocument } from "@/lib/talentOnboarding/documentStore";
+import { prepareTalentDocumentMetadataUpdate } from "@/lib/talentOnboarding/documentTool";
 import {
   formatCareerDocumentLink,
   getCareerDocumentHref,
@@ -32,6 +33,8 @@ export async function generateResume(args: {
   userMessageId: string | number;
   requestId?: string;
   input: unknown;
+  // The unified writer saves authorized metadata in the same content write.
+  metadata?: Record<string, unknown>;
   // Application preparation supplies a canonical role name. Allocate its suffix
   // only after the idempotency read, so retries keep the already saved name.
   deduplicateName?: boolean;
@@ -40,7 +43,13 @@ export async function generateResume(args: {
   const input = parseResumeInput(args.input);
   const db = args.admin as unknown as SupabaseClient;
   const requestKey = hash(
-    JSON.stringify([
+    JSON.stringify(args.metadata !== undefined ? [
+      "upsert_document", args.requestId ?? args.userMessageId, input.action,
+      input.document_id ?? null, input.expected_revision ?? null,
+      input.document_name ?? null, input.content ?? null, input.changes ?? null,
+      input.target_role ?? null, input.source_document_ids ?? null, input.source_refs ?? null,
+      args.metadata,
+    ] : [
       args.requestId ?? args.userMessageId,
       input.action,
       input.document_id ?? null,
@@ -67,19 +76,19 @@ export async function generateResume(args: {
       includeDeleted: true,
     });
   const result = (document: TalentDocumentRow) => {
-    if (document.is_deleted || document.origin_type !== GENERATED_RESUME_ORIGIN)
+    if ((document.is_deleted && args.metadata?.is_deleted !== true) || document.origin_type !== GENERATED_RESUME_ORIGIN)
       throw new Error("The generated document is no longer available.");
     return {
       ok: true,
       documentId: document.id,
       fileName: document.file_name,
       revision: document.revision,
-      href: getCareerDocumentHref(document.id),
-      documentLink: formatCareerDocumentLink({
-        id: document.id,
-        title: document.file_name,
-      }),
+      ...(!document.is_deleted ? {
+        href: getCareerDocumentHref(document.id),
+        documentLink: formatCareerDocumentLink({ id: document.id, title: document.file_name }),
+      } : {}),
       isPrivate: !document.is_public,
+      ...(args.metadata ? { description: document.description ?? null, isDeleted: document.is_deleted, isPrimary: document.is_primary } : {}),
     };
   };
   const original = await readCurrent();
@@ -101,14 +110,15 @@ export async function generateResume(args: {
       );
   }
   if (input.action === "update") {
+    if (original?.origin_type === GENERATED_RESUME_ORIGIN && original.origin_id === requestKey)
+      return result(original);
     if (
       !original ||
-      original.is_deleted ||
+      (original.is_deleted && args.metadata?.is_deleted !== false) ||
       original.origin_type !== GENERATED_RESUME_ORIGIN
     )
       throw new Error("Generated resume not found.");
     // Existing origin_id records the last committed edit, so a lost response can be retried.
-    if (original.origin_id === requestKey) return result(original);
     if (original.revision !== input.expected_revision)
       throw new Error(
         "Resume changed. Read its current JSON and revision before updating."
@@ -124,6 +134,13 @@ export async function generateResume(args: {
   if (previous && previous.schema_version !== 1)
     throw new Error("Unsupported resume schema version.");
   const structured = structureResume(input, previous ?? undefined);
+  const metadata = prepareTalentDocumentMetadataUpdate(
+    input.action === "update" ? original! : {
+      kind: "resume", origin_type: GENERATED_RESUME_ORIGIN, origin_id: null,
+      is_primary: false, is_deleted: false,
+    },
+    args.metadata ?? {},
+  );
   let fileName = input.document_name
     ? resumeFileName(input.document_name)
     : original!.file_name;
@@ -211,6 +228,7 @@ export async function generateResume(args: {
   };
   try {
     const fields = {
+      ...(input.action === "copy" && source?.description != null ? { description: source.description } : {}),
       file_name: fileName,
       storage_path: null,
       content_type: null,
@@ -221,6 +239,7 @@ export async function generateResume(args: {
       origin_id: requestKey,
       is_public: input.action === "update" ? original!.is_public : false,
       is_primary: false,
+      ...metadata,
     };
     // One SQL statement publishes every field. The existing primary key arbitrates creates;
     // revision + owner + deletion predicates arbitrate edits, including concurrent deletion.
@@ -240,7 +259,7 @@ export async function generateResume(args: {
             .eq("id", documentId)
             .eq("talent_id", args.userId)
             .eq("origin_type", GENERATED_RESUME_ORIGIN)
-            .eq("is_deleted", false)
+            .eq("is_deleted", original!.is_deleted)
             .eq("revision", input.expected_revision!);
     const { data: saved, error: saveError } = await query
       .select("*")
@@ -249,7 +268,7 @@ export async function generateResume(args: {
       const current = await readCurrent();
       if (
         current &&
-        !current.is_deleted &&
+        (!current.is_deleted || args.metadata?.is_deleted === true) &&
         current.origin_type === GENERATED_RESUME_ORIGIN &&
         (input.action !== "update" || current.origin_id === requestKey)
       ) {
@@ -274,7 +293,7 @@ export async function generateResume(args: {
     const current = await readCurrent().catch(() => null);
     if (
       current &&
-      !current.is_deleted &&
+      (!current.is_deleted || args.metadata?.is_deleted === true) &&
       current.origin_type === GENERATED_RESUME_ORIGIN &&
       current.origin_id === requestKey
     )

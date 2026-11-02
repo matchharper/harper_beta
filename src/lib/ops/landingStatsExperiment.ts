@@ -116,6 +116,8 @@ export function buildLandingStatsExperiment({
   ): OpsAbTestVariant => {
     const group = groups.filter((visitor) => visitor.variant === id);
     const mature = group.filter((visitor) => visitor.mature);
+    const signupCount = group.filter((visitor) => visitor.signedUp).length;
+    const submissionCount = group.filter((visitor) => visitor.submitted).length;
     return {
       id,
       label,
@@ -130,20 +132,16 @@ export function buildLandingStatsExperiment({
         {
           format: "rate",
           label: "진입 대비 회원가입 비율",
-          value: makeOpsAbTestRate(
-            group.filter((visitor) => visitor.signedUp).length,
-            group.length
-          ).rate,
+          value: makeOpsAbTestRate(signupCount, group.length).rate,
+          detail: `${signupCount.toLocaleString()} / ${group.length.toLocaleString()} 브라우저`,
           description:
             "현재까지 수집된 홈 진입 브라우저 중 진입 후 24시간 내 신규 가입한 비율. 관찰 중인 진입도 포함하며 이후 전환에 따라 갱신됩니다.",
         },
         {
           format: "rate",
           label: "진입 대비 제출 완료 비율",
-          value: makeOpsAbTestRate(
-            group.filter((visitor) => visitor.submitted).length,
-            group.length
-          ).rate,
+          value: makeOpsAbTestRate(submissionCount, group.length).rate,
+          detail: `${submissionCount.toLocaleString()} / ${group.length.toLocaleString()} 브라우저`,
           description:
             "현재까지 수집된 홈 진입 브라우저 중 진입 후 24시간 내 신규 가입과 온보딩 제출을 완료한 비율. 관찰 중인 진입도 포함하며 회원가입 비율과 같은 분모를 사용합니다.",
         },

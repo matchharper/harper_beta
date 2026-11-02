@@ -207,14 +207,14 @@ export function buildOpenAIResponsesRequest(args: {
           ttl: "30m" as const,
         }
       : null;
+  const maxOutputTokens =
+    args.requestBody.max_completion_tokens ?? args.requestBody.max_tokens;
   return {
     include: ["reasoning.encrypted_content"],
     input: toOpenAIResponsesInput(args.requestBody.messages),
-    max_output_tokens: Number(
-      args.requestBody.max_completion_tokens ??
-        args.requestBody.max_tokens ??
-        4_000
-    ),
+    ...(maxOutputTokens == null
+      ? {}
+      : { max_output_tokens: Number(maxOutputTokens) }),
     model: args.model,
     reasoning: { effort: args.reasoningEffort },
     store: false,

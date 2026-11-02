@@ -13,14 +13,21 @@ export const getDefaultSavedStage = (item: CareerHistoryOpportunity) =>
 export type CareerHistoryOpportunityBucket = "new" | "saved" | "archived";
 
 export const getHistoryOpportunityBucket = (
-  item: Pick<CareerHistoryOpportunity, "feedback" | "savedStage">
+  item: Pick<CareerHistoryOpportunity, "feedback" | "savedStage" | "listPosition">
 ): CareerHistoryOpportunityBucket => {
+  if (item.listPosition === "previous") return "archived";
+  if (item.listPosition === "current") {
+    return isSavedHistoryOpportunity(item) ? "saved" : "new";
+  }
   if (item.feedback === "negative") return "archived";
   if (item.feedback === "positive" || item.feedback === "keep" || item.savedStage === "hidden") {
     return "saved";
   }
   return "new";
 };
+
+export const isSavedHistoryOpportunity = (item: Pick<CareerHistoryOpportunity, "feedback" | "savedStage">) =>
+  item.feedback === "positive" || item.feedback === "keep" || (item.feedback === null && item.savedStage === "hidden");
 
 const SAVED_STAGES: CareerOpportunitySavedStage[] = [
   "saved",
@@ -79,7 +86,7 @@ export const normalizeHistoryOpportunityCounts = (
   }
 
   if (counts.total === 0) {
-    counts.total = counts.new + counts.saved + counts.archived;
+    counts.total = Math.max(counts.new + counts.archived, counts.saved);
   }
 
   return counts;
@@ -94,11 +101,11 @@ export const deriveHistoryOpportunityCounts = (
     counts.total += 1;
     const bucket = getHistoryOpportunityBucket(item);
 
-    if (bucket === "saved") {
+    if (isSavedHistoryOpportunity(item)) {
       const stage = item.savedStage ?? getDefaultSavedStage(item);
       counts.saved += 1;
       counts.savedStages[stage] += 1;
-      continue;
+      if (bucket === "saved") continue;
     }
 
     if (bucket === "archived") {
@@ -107,9 +114,9 @@ export const deriveHistoryOpportunityCounts = (
     }
 
     counts.new += 1;
-    if (item.sourceType === "internal" || item.isInternal) {
+    if ((item.sourceType === "internal" || item.isInternal) && item.feedback === null) {
       counts.newInternal += 1;
-    } else if (!item.viewedAt) {
+    } else if (item.sourceType !== "internal" && !item.isInternal && !item.viewedAt) {
       counts.newExternalUnread += 1;
     }
   }

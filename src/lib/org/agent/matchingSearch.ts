@@ -113,7 +113,7 @@ export async function enqueueOrgAgenticMatchingSearch(args: {
   if (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || typeof recommendCount !== 'number' || !Number.isSafeInteger(recommendCount) || recommendCount < 0) throw new OrgAgentToolInputError('Invalid search or recommendation count');
   if (input.talentIds !== undefined && (!Array.isArray(input.talentIds) || !input.talentIds.length || !input.talentIds.every(id => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)))) throw new OrgAgentToolInputError('talentIds needs exact identifiers');
   // Search produces evidence. Only an explicit publication command changes cards.
-  const options = { scope, startStage, limit, recommendCount: 0, recommendationTarget: recommendCount || 10, ...(args.sourceMessageId !== undefined ? {sourceMessageId:args.sourceMessageId} : {}), ...(input.talentIds ? { talentIds: input.talentIds } : {}), ...(typeof input.reason === 'string' ? { reason: input.reason } : {}) };
+  const options = { scope, startStage, limit, recommendCount: 0, recommendationTarget: recommendCount || 10, ...(args.sourceMessageId !== undefined ? {sourceMessageId:args.sourceMessageId} : {}), ...(input.talentIds ? { talentIds: [...new Set(input.talentIds as string[])].sort() } : {}), ...(typeof input.reason === 'string' ? { reason: input.reason } : {}) };
   const { data, error } = await (args.admin.rpc as any)('enqueue_company_agentic_search_v1', {
     p_company_workspace_id: args.workspaceId, p_company_user_id: args.userId, p_role_id: args.roleId, p_options: options, p_request_id: args.requestId,
   });

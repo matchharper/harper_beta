@@ -1,0 +1,10 @@
+{
+  "version": "v1",
+  "reviewedAt": "2026-10-29",
+  "reviewer": "Codex independent public-source review before agent execution",
+  "cases": {
+    "liner-security": { "officialJobUrl": "https://liner.com/ko/careers/jobs/228090", "job": "Security Engineer", "expected": "Same job's active public application form; preserve any identity verification requirement as a limitation." },
+    "liner-performance": { "officialJobUrl": "https://liner.com/ko/careers/jobs/241074", "job": "Performance Marketer", "expected": "Same job's active public application form; preserve any identity verification requirement as a limitation." },
+    "channel-pr": { "officialJobUrl": "https://channel.io/kr/careers/e74ccb68-403b-49fb-b7e8-d6cde7b10cd3", "applicationUrl": "https://jobs.lever.co/zoyi/e74ccb68-403b-49fb-b7e8-d6cde7b10cd3/apply", "job": "PR Manager", "expected": "Lever PR Manager form with resume, contact and portfolio information; no submission." }
+  }
+}

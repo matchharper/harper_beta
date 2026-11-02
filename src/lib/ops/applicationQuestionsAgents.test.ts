@@ -290,24 +290,33 @@ test("cost refresh is a read-only request and keeps all metering components", as
 });
 
 test("Career full inspection uses Browser Use and preserves actual form URL, types and access evidence", async () => {
+  let previewSession: string | undefined;
   const deps = mock([
     { path: "/api/v4/runs", method: "POST", body: { id: run, sessionId: session }, check: init => {
       const body = JSON.parse(String(init.body));
       assert.equal(body.model, "gpt-6-luna");
       assert.equal(body.agentmail, false);
-      assert.ok(body.outputSchema.properties.submission);
+      assert.deepEqual(body.outputSchema.properties.submission, {
+        type: "object",
+        properties: { status: { type: "string", enum: ["supported", "unsupported", "unknown"] } },
+        required: ["status"],
+        additionalProperties: false,
+      });
+      assert.ok(body.task.includes("Include practical submission barriers and their consequences in limitations"));
       assert.match(body.task, /Read-only/);
+      assert.match(body.task, /Company: Example\nRole: Engineer\nLocation: Seoul/);
+      assert.match(body.task, /official careers listing/);
     } },
-    { path: `/api/v4/runs/${run}/status`, body: { status: "completed" } },
+    { path: `/api/v4/runs/${run}/status`, body: { status: "completed" }, check: () => assert.equal(previewSession, session) },
     { path: `/api/v4/runs/${run}`, body: { sessionId: session, output: {
       ...report, questions: report.questions.map(q => ({ ...q, maxLength: 1000 })),
       formUrl: "https://official.example/form", text: "Resume must be PDF",
-      submission: { status: "supported", reason: "Public form was read" },
+      submission: { status: "supported" },
     } } },
     { path: `/api/v4/browsers?agentSessionId=${session}&pageSize=100&pageNumber=1`, body: { items: [], totalItems: 0 } },
     { path: `/api/v4/sessions/${session}/cost`, body: costs },
   ]);
-  const form = await inspectManagedApplicationForm("https://official.example/job", new AbortController().signal, deps);
+  const form = await inspectManagedApplicationForm("https://official.example/job", new AbortController().signal, deps, async (id) => { previewSession = id; }, { company: "Example", name: "Engineer", location: "Seoul" });
   assert.equal(form.url, "https://official.example/form");
   assert.equal(form.fields[0].type, "textarea");
   assert.equal(form.fields[0].maxLength, 1000);
@@ -319,14 +328,14 @@ test("Career full inspection uses Browser Use and preserves actual form URL, typ
 test("a closed posting without a form URL retains its barrier in the Career review and model context", async () => {
   const sourceUrl = "https://official.example/job";
   const reason = "공고 페이지에서 ‘마감된 공고’ 버튼이 비활성화된 상태로 표시되어 지원할 수 없습니다.";
-  const limitations = ["지원 폼이나 지원 링크가 없어 지원서 질문과 실제 지원 URL을 확인할 수 없습니다."];
+  const limitations = ["지원 폼이나 지원 링크가 없어 지원서 질문과 실제 지원 URL을 확인할 수 없습니다.", reason];
   for (const formUrl of ["", null]) {
     const deps = mock([
       { path: "/api/v4/runs", method: "POST", body: { id: run, sessionId: session } },
       { path: `/api/v4/runs/${run}/status`, body: { status: "completed" } },
       { path: `/api/v4/runs/${run}`, body: { sessionId: session, output: {
         status: "unavailable", questions: [], limitations, formUrl, text: "",
-        submission: { status: "unsupported", reason },
+        submission: { status: "unsupported" },
       } } },
       { path: `/api/v4/browsers?agentSessionId=${session}&pageSize=100&pageNumber=1`, body: { items: [], totalItems: 0 } },
       { path: `/api/v4/sessions/${session}/cost`, body: costs },
@@ -342,11 +351,12 @@ test("a closed posting without a form URL retains its barrier in the Career revi
     const view = applicationReviewView({ messageId: 10, state });
     assert.equal(view.applicationUrl, sourceUrl);
     assert.equal(view.review?.form.status, "unavailable");
-    assert.deepEqual(view.review?.form.submission, { status: "unsupported", reason });
+    assert.deepEqual(view.review?.form.submission, { status: "unsupported" });
     assert.deepEqual(view.review?.form.limitations, limitations);
     assert.deepEqual(view.review?.fields, []);
     const context = applicationFormText(form);
-    assert.ok(context.includes(`Assisted submission access: unsupported. ${reason}`));
+    assert.ok(context.includes("Assisted submission access: unsupported."));
+    assert.ok(context.includes(`Inspection limitation: ${reason}`));
     assert.ok(context.includes(`Inspection limitation: ${limitations[0]}`));
     deps.done();
   }

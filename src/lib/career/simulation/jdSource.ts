@@ -1,3 +1,6 @@
+import { formatPromptText } from "@/lib/llm/promptText";
+import { applicationFormText } from "./applicationFormText";
+
 // Uses the same reader as open_url, without exposing arbitrary web tools to the session.
 export async function readSimulationJdSource(
   url: unknown,
@@ -48,11 +51,49 @@ export async function buildSimulationRoleInput(
   const hasSavedJd = typeof savedRole.description === "string" && savedRole.description.trim();
   if (!hasSavedJd && jdPage.status !== "read")
     throw new Error("Neither the JD page nor the saved role description is readable.");
-  const text = JSON.stringify(savedRole);
-  return JSON.stringify({
-    roleName,
-    savedJd: hasSavedJd ? (text.length <= 40000 ? text : text.slice(0, 40000) + "\n[Saved source truncated; omitted information is unknown.]") : undefined,
-    jdPage: hasSavedJd ? undefined : jdPage,
-    applicationForm,
-  });
+  const company = savedRole.company && typeof savedRole.company === "object"
+    ? savedRole.company as Record<string, unknown>
+    : {};
+  const teamSize = company.employeeCountRange;
+  const teamRange = teamSize && typeof teamSize === "object" && !Array.isArray(teamSize)
+    ? teamSize as Record<string, unknown>
+    : null;
+  const detail = (label: string, value: unknown) =>
+    value !== null && value !== undefined && value !== ""
+      ? `${label}: ${formatPromptText(value)}`
+      : "";
+  const roleFacts = [
+    detail("Role reference", savedRole.roleId),
+    detail("Title", savedRole.name),
+    detail("Company", typeof savedRole.company === "string" ? savedRole.company : company.name),
+    detail("Location", savedRole.location),
+    detail("Work arrangement", savedRole.workMode),
+    detail("Seniority", savedRole.seniority),
+    detail("Compensation", savedRole.compensation),
+    detail("Posting URL", savedRole.externalJdUrl),
+  ].filter(Boolean).join("\n");
+  const companyFacts = [
+    detail("Headquarters", company.hqLocation),
+    detail("Founded", company.foundedYear),
+    detail("Team size", teamRange && ("start" in teamRange || "end" in teamRange)
+      ? `${teamRange.start ?? "unknown"}–${teamRange.end ?? "unknown"}`
+      : teamSize),
+    savedRole.companyDescription,
+    company.shortDescription,
+    company.description,
+  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("\n\n");
+  return [
+    `## Target role: ${roleName}`,
+    roleFacts,
+    companyFacts && `## Company context\n\n${companyFacts}`,
+    hasSavedJd
+      ? `## Saved job description\n\n${savedRole.description}`
+      : [
+          "## Job description from the posting",
+          detail("Source", jdPage.url),
+          detail("Page title", jdPage.title),
+          jdPage.markdown,
+        ].filter(Boolean).join("\n\n"),
+    applicationForm && `## Observed application requirements\n\n${applicationFormText(applicationForm)}`,
+  ].filter(Boolean).join("\n\n");
 }

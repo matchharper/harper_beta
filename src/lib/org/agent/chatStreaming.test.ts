@@ -81,7 +81,7 @@ test("web loop emits the first answer token before completion, preserves signatu
   }
 });
 
-test("progress and final bubbles do not duplicate, and unsaved tool prose is cleared", async () => {
+test("successive web messages are committed before each tool and do not duplicate the final bubble", async () => {
   const events: Array<[string, any]> = [];
   const stream = createOrgAgentTextStream((event, data) => events.push([event, data]));
   let step = 0;
@@ -107,12 +107,12 @@ test("progress and final bubbles do not duplicate, and unsaved tool prose is cle
     executeTool: async () => ({ items: [] }),
   });
   stream.replace(result.reply);
-  assert.equal(progress, 1);
+  assert.equal(progress, 2);
   assert.deepEqual(events, [
     ["text_delta", { delta: "확인할게요." }],
     ["assistant_message", { content: "확인할게요." }],
     ["text_delta", { delta: "추가 조회 중" }],
-    ["text_replace", { text: "" }],
+    ["assistant_message", { content: "추가 조회 중" }],
     ["text_delta", { delta: "확인했어요." }],
   ]);
   // Server-authoritative exact presentation replaces the live text atomically.

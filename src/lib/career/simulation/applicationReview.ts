@@ -14,6 +14,7 @@ export const applicationReviewSchema = z.object({
   revision: z.number().int().positive(),
   updatedAt: z.string(),
   form: applicationFormSchema,
+  formId: z.string().uuid().optional(),
   resumeDocumentId: z.string(),
   documents: z.array(z.object({ documentId: z.string(), title: z.string() })).optional(),
   fields: z.array(
@@ -26,20 +27,28 @@ export type ApplicationFieldAnswer = z.infer<
 >;
 export const applicationFieldId = (index: number) => `field-${index + 1}`;
 
+/** Positional field IDs are only valid for the observation that created them. */
+export function applicationReviewMatchesForm(state: SimulationSession) {
+  const review = state.applicationReview, form = state.applicationForm;
+  if (!review || !form) return false;
+  if (review.formId && state.applicationFormId)
+    return review.formId === state.applicationFormId;
+  return review.form.checkedAt === form.checkedAt && review.form.url === form.url;
+}
+
 export function prepareApplicationReview(
   state: SimulationSession,
   resumeDocumentId: string,
   answers: ApplicationFieldAnswer[] = [],
   documents?: ApplicationReview["documents"]
 ): ApplicationReview | undefined {
-  if (!state.applicationForm || state.activity?.channel === "email")
+  if (!state.applicationForm)
     return undefined;
   const form = state.applicationForm;
   const old = state.applicationReview;
   // Reinspection changes field identity. Keep the prior draft until the model
   // explicitly prepares the new observation, rather than remapping by labels.
-  const sameForm =
-    old?.form.checkedAt === form.checkedAt && old.form.url === form.url;
+  const sameForm = applicationReviewMatchesForm(state);
   const ids = new Set(form.fields.map((_, index) => applicationFieldId(index)));
   if (answers.some((answer) => !ids.has(answer.fieldId)))
     throw new Error("Unknown application field");
@@ -49,18 +58,19 @@ export function prepareApplicationReview(
     resumeDocumentId,
     documents: documents ?? old?.documents,
     form: structuredClone(form),
+    formId: state.applicationFormId,
     fields: form.fields.map((_, index) => {
       const fieldId = applicationFieldId(index);
       const previous = sameForm
         ? old?.fields.find((field) => field.fieldId === fieldId)
         : undefined;
-      if (previous?.editedByUser) return previous;
+      const answer = answers.find((answer) => answer.fieldId === fieldId);
       return {
         fieldId,
         value: "",
         ...previous,
-        ...answers.find((answer) => answer.fieldId === fieldId),
-        editedByUser: false,
+        ...answer,
+        editedByUser: answer ? false : (previous?.editedByUser ?? false),
       };
     }),
   };
@@ -99,7 +109,7 @@ export function applicationReviewText(review: ApplicationReview) {
       const field = review.form.fields.find(
         (_, index) => applicationFieldId(index) === answer.fieldId
       );
-      return `${answer.fieldId} | ${field?.label ?? ""}: ${answer.values ? answer.values.join("; ") : (answer.value ?? "")}${answer.editedByUser ? "\nUser-edited: preserve this wording." : ""}${answer.documentId ? `\nAttachment document: ${answer.documentId}` : ""}`;
+      return `${answer.fieldId} | ${field?.label ?? ""}: ${answer.values ? answer.values.join("; ") : (answer.value ?? "")}${answer.editedByUser ? "\nUser-edited: preserve unless the user requests a change." : ""}${answer.documentId ? `\nAttachment document: ${answer.documentId}` : ""}`;
     }),
   ].join("\n");
 }
