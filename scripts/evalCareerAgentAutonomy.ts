@@ -15,9 +15,12 @@ const hash = (value: string | Buffer) => createHash("sha256").update(value).dige
 const option = (name: string, fallback: string) => { const index = process.argv.indexOf(name); return index < 0 ? fallback : process.argv[index + 1]; };
 
 async function main() {
-  const fixture = JSON.parse(readFileSync(`${task}/cases-v1.json`, "utf8"));
-  const frozen = JSON.parse(readFileSync(`${task}/manifest-v1.json`, "utf8"));
+  const dataset = option("--dataset", "v1"); assert.match(dataset, /^v\d+$/);
+  const fixture = JSON.parse(readFileSync(`${task}/cases-${dataset}.json`, "utf8"));
+  const frozen = JSON.parse(readFileSync(`${task}/manifest-${dataset}.json`, "utf8"));
   for (const [name, digest] of Object.entries(frozen.hashes)) assert.equal(hash(readFileSync(`${task}/${name}`)), digest);
+  const revision = option("--guidance-revision", "");
+  const guidance = revision ? await (await import("./evaluation/careerAutonomyGuidance")).loadCareerAutonomyGuidance(revision) : undefined;
   const { createCareerAutonomyFixture } = await import("./evaluation/careerAutonomyFixture");
   const { resolveCareerChatTools } = await import("@/lib/career/llmTools");
   const { resolveCareerTextChatModel } = await import("@/lib/career/textChatModelConfig");
@@ -33,12 +36,28 @@ async function main() {
         const sandbox = createCareerAutonomyFixture(scenario, fixture.requestTime);
         await sandbox.execute({ name: "list_documents", input: {} });
         for (const doc of scenario.documents) await sandbox.execute({ name: "read_document", input: { document_id: doc.id } });
+        for (const doc of scenario.documents.filter((doc: any) => doc.row?.origin_type === "harper_authored_document")) {
+          await sandbox.execute({ name: "upsert_document", input: { action: "update", document_id: doc.id, expected_revision: doc.row.revision, edits: [{ old_text: doc.text, new_text: `${doc.text}\nFixture edit.` }] } });
+          await sandbox.execute({ name: "read_document", input: { document_id: doc.id } });
+        }
         const created: any = await sandbox.execute({ name: "upsert_document", input: { action: "create", type: "markdown", title: "Fixture storage check", markdown: "Original source text." } });
         await sandbox.execute({ name: "read_document", input: { document_id: created.documentId } });
         const resume: any = await sandbox.execute({ name: "upsert_document", input: { action: "create", type: "resume", title: "Fixture resume check", content: { language: "ko", basics: { name: scenario.profile.name ?? "Fixture" } }, source_document_ids: scenario.documents.map((doc: any) => doc.id) } });
         await sandbox.execute({ name: "read_document", input: { document_id: resume.documentId, format: "structured" } });
       }
       console.log(`Validated ${fixture.cases.length} frozen cases; production document read/write fixtures passed.`);
+      if (guidance) {
+        const selected = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, responseLocale: "ko", hasActiveGmailIntegration: false });
+        assert.equal(selected.tools.find(tool => tool.function.name === "write_talent_context")!.function.description, guidance.memoryDescription);
+        const runtime = new CareerCapabilityRuntime({ mode: "progressive", eligibleTools: selected.tools, adaptPromptBlocks: guidance.adaptPromptBlocks,
+          selection: { capabilityIds: [], handbookIds: ["resume", "application", "opportunity_search"], status: "selected", elapsedMs: 0 },
+          promptArgs: () => ({ channel: "chat", isOnboardingDone: true, profile: null, structuredProfileText: "Fixture profile", talentContextSection: "", currentPreferences: { preferredLocale: "ko" } }) });
+        const step = runtime.resolveStep(false);
+        assert.equal(step.systemBlocks.find(block => block.key === "career_main")!.text, guidance.mainText);
+        const { findCareerHandbook } = await import("@/lib/career/handbooks/registry");
+        for (const id of ["resume", "application", "opportunity_search"]) assert.equal(step.systemBlocks.find(block => block.key === `handbook:${id}`)!.text, `## Handbook: ${id}\n${findCareerHandbook(id)!.body}`);
+        console.log(`Source replay verified: ${guidance.commit}; main, handbook bodies/catalog and Memory tool description.`);
+      }
     } finally { globalThis.fetch = originalFetch; }
     return;
   }
@@ -72,8 +91,11 @@ async function main() {
     finally { save("requests", requests); }
   };
   const sourcePaths = ["scripts/evalCareerAgentAutonomy.ts", "scripts/evaluation/careerAutonomyFixture.ts", "src/lib/career/prompts/mainPrompt2.ts", "src/lib/career/prompts/mainPrompts.ts", "src/lib/career/prompts/conversationPlan.ts", "src/lib/career/prompts/conversationSections.ts", "src/lib/career/llmTools.ts", "src/lib/career/llm.ts", "src/lib/talentOnboarding/llm.ts", "src/lib/llm/toolDescriptions.ts", "src/lib/talentOnboarding/tools.ts", "src/lib/documents/authoring.ts", "src/lib/resumes/service.ts", "src/lib/career/textChatModelConfig.ts", ...["capabilities", "handbooks"].flatMap(folder => readdirSync(`src/lib/career/${folder}`).filter(name => name.endsWith(".ts") && !name.endsWith(".test.ts")).map(name => `src/lib/career/${folder}/${name}`))];
+  sourcePaths.push("scripts/evaluation/careerAutonomyGuidance.ts");
   save("sources", Object.fromEntries(sourcePaths.map(path => [path, readFileSync(path, "utf8")])));
-  save("manifest", { runId, datasetVersion: "v1", model, repeat, fixtureHashes: frozen.hashes, selected: cases.map((c: any) => c.id),
+  if (guidance) save("replayed-guidance", guidance);
+  save("manifest", { runId, datasetVersion: dataset, model, repeat, fixtureHashes: frozen.hashes, selected: cases.map((c: any) => c.id),
+    guidanceRevision: guidance?.commit, replayedSourceHashes: guidance && Object.fromEntries(Object.entries(guidance.sources).map(([file, body]) => [file, hash(body)])),
     sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     sources: Object.fromEntries(sourcePaths.map(path => [path, hash(readFileSync(path))])),
     sourceDiff: execFileSync("git", ["diff", "--", "src"], { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 }),
@@ -87,7 +109,7 @@ async function main() {
     const selected = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, responseLocale: "ko", hasActiveGmailIntegration: scenario.gmail });
     const messages = [{ role: "user" as const, content: scenario.message }];
     const preloads = await selectCareerPreloads({ eligibleNames: new Set(selected.toolNames), input: { messages, currentContext: `Gmail: ${scenario.gmail ? "available" : "not_connected"}.\n${sandbox.referencesText()}` }, signal });
-    const runtime = new CareerCapabilityRuntime({ mode: "progressive", eligibleTools: selected.tools, selection: preloads, abortSignal: signal,
+    const runtime = new CareerCapabilityRuntime({ mode: "progressive", eligibleTools: selected.tools, selection: preloads, abortSignal: signal, adaptPromptBlocks: guidance?.adaptPromptBlocks,
       promptArgs: () => ({ channel: "chat", isOnboardingDone: true, profile: null, structuredProfileText: sandbox.profileText(),
         talentContextSection: sandbox.contextText(), runtimeInstruction: sandbox.referencesText(), gmailCapability: scenario.gmail ? "available" : "not_connected",
         currentPreferences: { preferredLocale: "ko", talentSettingStatus: "active", profileVisibility: "private" }, requestTime: new Date(fixture.requestTime), timeZone: "Asia/Seoul" }) });

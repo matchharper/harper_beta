@@ -21,7 +21,7 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
   const rows: Record<string, any[]> = {
     talent_documents: scenario.documents.map((d: any) => ({ id: d.id, talent_id: userId, file_name: d.title,
       kind: "resume", origin_type: "user_upload", revision: 1, extracted_text: d.text, structured_content: null,
-      is_deleted: false, is_primary: false, is_public: false, created_at: requestTime, updated_at: requestTime })),
+      is_deleted: false, is_primary: false, is_public: false, created_at: requestTime, updated_at: requestTime, ...clone(d.row ?? {}) })),
     talent_users: [{ ...scenario.profile, user_id: userId }],
     talent_experiences: scenario.profile.experiences.map((row: any) => ({ ...row, talent_id: userId })),
     talent_educations: [], talent_extras: [], talent_contexts: [],

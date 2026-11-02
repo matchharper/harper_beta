@@ -32,3 +32,18 @@ Report each trial's usefulness, factual grounding, user effort and scope/permiss
 ## Recorded comparison
 
 [2026-11-02 comparison](reports/2026-11-02-comparison.md) records all 16 trials, observed gains, unchanged behavior and remaining failures. Baseline source is `84c52faa` (product baseline `463d83cb`); simplified source is `0967d691`. Raw provider traces and readable full transcripts remain in ignored `runs/`. The comparison is not a deployment or general-reliability gate pass.
+
+## v2 transfer and side-effect comparison (2026-11-03)
+
+`cases-v2.json`, `gold-v2.json` and `manifest-v2.json` add 12 cases frozen before generation: interview preparation, portfolio selection, sufficient-resume review, exact document edit, unknown personal application facts, English recruiter reply, ambiguous employer identity, corrected team metric, one-off overseas exploration, career tradeoff advice, unavailable source and privacy-limited public bio. These were written after inspecting v1, so they are new transfer probes, not an independently sampled blind holdout. Two trials per case per variant produce 48 trials. Product guidance stays frozen; no production source edits are made for v2.
+
+The runner's `--guidance-revision` replays the exact committed main prompt, handbook bodies, catalog metadata and Memory description inside the evaluation process. It uses the existing `adaptPromptBlocks` hook for the main block and installs the committed handbook/catalog values before tool construction. It does not change the checkout. `replayed-guidance.json` preserves the source and effective text, and the run manifest stores its hashes. Selector, model, eligible tools and execution loop remain the same. The helper is `scripts/evaluation/careerAutonomyGuidance.ts`, never imported by product code. Fixture rows now allow frozen document metadata so an existing editable document can exercise real update/revision behavior.
+
+```sh
+NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v2 --guidance-revision 463d83cb --validate-only
+NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v2 --guidance-revision 0967d691 --validate-only
+NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v2 --guidance-revision 463d83cb --repeat 2 --label v2-A
+NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v2 --guidance-revision 0967d691 --repeat 2 --label v2-B
+```
+
+Review both useful completion and unwanted behavior: over-research, cosmetic rewriting, scope expansion, unsupported facts, missing essential questions, language drift, private disclosures, durable preference changes and unreviewed external actions. No runtime quality filter or automatic judge is added. Failed source replay/preflight is infrastructure failure and must be fixed before model generation. Any later fixture failure remains visible in results.
