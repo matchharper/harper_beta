@@ -34,8 +34,8 @@ test("external sourcing is off unless the workspace is listed", () => {
   assert.equal(externalSourcingEnabledFor(undefined, { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" }), false);
 });
 
-test("default limits: one run a day per Role", () => {
-  assert.deepEqual(externalSourcingLimits({}), { roleDaily: 1 });
+test("default limits: five runs a day per Role", () => {
+  assert.deepEqual(externalSourcingLimits({}), { roleDaily: 5 });
 });
 
 test("one active run per Role, a daily limit per Role, and Harper never starts one on its own", () => {
@@ -44,7 +44,8 @@ test("one active run per Role, a daily limit per Role, and Harper never starts o
   assert.deepEqual(decide("company_request"), { allowed: true });
   assert.deepEqual(decide("company_request", quiet, false), { allowed: false, status: "not_queued", reason: "not_enabled" });
   assert.deepEqual(decide("company_request", { ...quiet, activeRunId: "r1" }), { allowed: false, status: "already_running", runId: "r1" });
-  assert.deepEqual(decide("company_request", { ...quiet, roleRunsLast24h: 1 }), { allowed: false, status: "not_queued", reason: "daily_limit" });
+  assert.deepEqual(decide("company_request", { ...quiet, roleRunsLast24h: 4 }), { allowed: true });
+  assert.deepEqual(decide("company_request", { ...quiet, roleRunsLast24h: 5 }), { allowed: false, status: "not_queued", reason: "daily_limit" });
   assert.deepEqual(decide("agent_initiative"), { allowed: false, status: "not_queued", reason: "company_request_only" });
 });
 

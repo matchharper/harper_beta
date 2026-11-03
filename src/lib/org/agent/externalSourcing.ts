@@ -27,7 +27,7 @@ function intEnv(env: Record<string, string | undefined>, name: string, fallback:
 export function externalSourcingLimits(env: Record<string, string | undefined> = process.env) {
   return {
     // runs one Role may start in 24 hours (the company's requests; Harper never starts one on its own)
-    roleDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 1),
+    roleDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 5),
   };
 }
 

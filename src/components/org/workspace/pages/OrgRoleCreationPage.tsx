@@ -348,7 +348,10 @@ function OrgRoleCreationDetails({
   });
   const externalEnabled = Boolean(externalQuery.data?.enabled);
   const externalCount = externalQuery.data?.candidates.length;
-  const requestedTab = router.isReady ? getQueryText(router.query.tab) : "";
+  // Links made while external candidates lived inside the inbox (`tab=inbox&review=external`) open the tab.
+  const requestedTab = router.isReady
+    ? getQueryText(router.query.review) === "external" ? "external" : getQueryText(router.query.tab)
+    : "";
   const requestedView = router.isReady ? getQueryText(router.query.view) : "";
   const resolvedTab = resolveOrgRoleTab({
     isDraft: roleCreation,
