@@ -28,18 +28,21 @@ export function externalSourcingLimits(env: Record<string, string | undefined> =
   return {
     // runs one Role may start in 24 hours (the company's requests; Harper never starts one on its own)
     roleDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 5),
+    // runs one workspace may start in 24 hours across all its Roles: the cost ceiling per company
+    workspaceDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_WORKSPACE_DAILY_LIMIT", 20),
   };
 }
 
 export type ExternalSourcingHistory = {
   activeRunId: string | null;
   roleRunsLast24h: number;
+  workspaceRunsLast24h: number;
 };
 
 export type ExternalSourcingDecision =
   | { allowed: true }
   | { allowed: false; status: "already_running"; runId: string }
-  | { allowed: false; status: "not_queued"; reason: "not_enabled" | "daily_limit" | "company_request_only" };
+  | { allowed: false; status: "not_queued"; reason: "not_enabled" | "daily_limit" | "workspace_daily_limit" | "company_request_only" };
 
 /**
  * Pure gate: the trigger is forced to agent_initiative for Harper-initiated (background) turns by the caller.
@@ -53,6 +56,9 @@ export function decideExternalSourcing(args: {
   if (args.trigger === "agent_initiative") return { allowed: false, status: "not_queued", reason: "company_request_only" };
   if (args.history.activeRunId) return { allowed: false, status: "already_running", runId: args.history.activeRunId };
   if (args.history.roleRunsLast24h >= args.limits.roleDaily) return { allowed: false, status: "not_queued", reason: "daily_limit" };
+  if (args.history.workspaceRunsLast24h >= args.limits.workspaceDaily) {
+    return { allowed: false, status: "not_queued", reason: "workspace_daily_limit" };
+  }
   return { allowed: true };
 }
 
@@ -71,6 +77,7 @@ function cell(value: unknown, max = 300) {
 const UNAVAILABLE_MEANING: Record<string, string> = {
   not_enabled: "External search is not offered to this workspace.",
   daily_limit: "This Role reached its external search limit for the last 24 hours; other Roles keep their own limit.",
+  workspace_daily_limit: "This company reached its external search limit across all Roles for the last 24 hours.",
   company_request_only: "Harper does not start an external search on its own; offer it to the company, which can ask for one.",
 };
 

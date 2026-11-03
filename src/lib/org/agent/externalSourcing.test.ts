@@ -24,7 +24,7 @@ import {
 
 const NOW = new Date("2026-11-02T03:00:00Z");
 const limits = externalSourcingLimits({});
-const quiet: ExternalSourcingHistory = { activeRunId: null, roleRunsLast24h: 0 };
+const quiet: ExternalSourcingHistory = { activeRunId: null, roleRunsLast24h: 0, workspaceRunsLast24h: 0 };
 
 test("external sourcing is off unless the workspace is listed", () => {
   assert.equal(externalSourcingEnabledFor("w1", {}), false);
@@ -34,11 +34,11 @@ test("external sourcing is off unless the workspace is listed", () => {
   assert.equal(externalSourcingEnabledFor(undefined, { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" }), false);
 });
 
-test("default limits: five runs a day per Role", () => {
-  assert.deepEqual(externalSourcingLimits({}), { roleDaily: 5 });
+test("default limits: five runs a day per Role, twenty per company", () => {
+  assert.deepEqual(externalSourcingLimits({}), { roleDaily: 5, workspaceDaily: 20 });
 });
 
-test("one active run per Role, a daily limit per Role, and Harper never starts one on its own", () => {
+test("one active run per Role, daily limits per Role and per company, and Harper never starts one on its own", () => {
   const decide = (trigger: "company_request" | "agent_initiative", history = quiet, enabled = true) =>
     decideExternalSourcing({ enabled, trigger, history, now: NOW, limits });
   assert.deepEqual(decide("company_request"), { allowed: true });
@@ -46,6 +46,9 @@ test("one active run per Role, a daily limit per Role, and Harper never starts o
   assert.deepEqual(decide("company_request", { ...quiet, activeRunId: "r1" }), { allowed: false, status: "already_running", runId: "r1" });
   assert.deepEqual(decide("company_request", { ...quiet, roleRunsLast24h: 4 }), { allowed: true });
   assert.deepEqual(decide("company_request", { ...quiet, roleRunsLast24h: 5 }), { allowed: false, status: "not_queued", reason: "daily_limit" });
+  assert.deepEqual(decide("company_request", { ...quiet, roleRunsLast24h: 1, workspaceRunsLast24h: 20 }),
+    { allowed: false, status: "not_queued", reason: "workspace_daily_limit" });
+  assert.deepEqual(decide("company_request", { ...quiet, roleRunsLast24h: 1, workspaceRunsLast24h: 19 }), { allowed: true });
   assert.deepEqual(decide("agent_initiative"), { allowed: false, status: "not_queued", reason: "company_request_only" });
 });
 
