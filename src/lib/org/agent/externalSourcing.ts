@@ -26,14 +26,14 @@ function intEnv(env: Record<string, string | undefined>, name: string, fallback:
 /** Each run costs about $1 to $4. These limits are enforced in code, whatever the model asks for. */
 export function externalSourcingLimits(env: Record<string, string | undefined> = process.env) {
   return {
-    // runs a workspace may start in 24 hours (the company's requests; Harper never starts one on its own)
-    workspaceDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 1),
+    // runs one Role may start in 24 hours (the company's requests; Harper never starts one on its own)
+    roleDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 1),
   };
 }
 
 export type ExternalSourcingHistory = {
   activeRunId: string | null;
-  workspaceRunsLast24h: number;
+  roleRunsLast24h: number;
 };
 
 export type ExternalSourcingDecision =
@@ -52,7 +52,7 @@ export function decideExternalSourcing(args: {
   if (!args.enabled) return { allowed: false, status: "not_queued", reason: "not_enabled" };
   if (args.trigger === "agent_initiative") return { allowed: false, status: "not_queued", reason: "company_request_only" };
   if (args.history.activeRunId) return { allowed: false, status: "already_running", runId: args.history.activeRunId };
-  if (args.history.workspaceRunsLast24h >= args.limits.workspaceDaily) return { allowed: false, status: "not_queued", reason: "daily_limit" };
+  if (args.history.roleRunsLast24h >= args.limits.roleDaily) return { allowed: false, status: "not_queued", reason: "daily_limit" };
   return { allowed: true };
 }
 
@@ -70,7 +70,7 @@ function cell(value: unknown, max = 300) {
 
 const UNAVAILABLE_MEANING: Record<string, string> = {
   not_enabled: "External search is not offered to this workspace.",
-  daily_limit: "The workspace reached its external search limit for the last 24 hours.",
+  daily_limit: "This Role reached its external search limit for the last 24 hours; other Roles keep their own limit.",
   company_request_only: "Harper does not start an external search on its own; offer it to the company, which can ask for one.",
 };
 

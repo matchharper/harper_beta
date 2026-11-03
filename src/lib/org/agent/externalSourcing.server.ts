@@ -52,13 +52,13 @@ async function loadHistory(admin: OrgAgentAdminClient, workspaceId: string, role
   const runs = () => admin.from("external_sourcing_runs");
   const [active, daily] = await Promise.all([
     runs().select("id").eq("role_id", roleId).in("status", ["queued", "running"]).limit(1),
-    runs().select("id", { count: "exact", head: true }).eq("company_workspace_id", workspaceId)
+    runs().select("id", { count: "exact", head: true }).eq("company_workspace_id", workspaceId).eq("role_id", roleId)
       .neq("trigger", "shadow").gte("created_at", dayAgo),
   ]);
   for (const result of [active, daily]) if (result.error) throw result.error;
   return {
     activeRunId: active.data?.[0]?.id ?? null,
-    workspaceRunsLast24h: daily.count ?? 0,
+    roleRunsLast24h: daily.count ?? 0,
   };
 }
 
@@ -70,7 +70,7 @@ export async function requestExternalSourcing(args: {
   const enabled = externalSourcingEnabledFor(args.workspaceId);
   const history = enabled
     ? await loadHistory(args.admin, args.workspaceId, args.roleId, now)
-    : { activeRunId: null, workspaceRunsLast24h: 0 };
+    : { activeRunId: null, roleRunsLast24h: 0 };
   const decision = decideExternalSourcing({ enabled, trigger: args.trigger, history, now, limits: externalSourcingLimits() });
   const base = { roleName: args.roleName, trigger: args.trigger };
   if (!decision.allowed) {
