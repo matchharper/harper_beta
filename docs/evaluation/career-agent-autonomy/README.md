@@ -1,5 +1,7 @@
 # Career agent autonomy
 
+Current product selection: **C**, by the user's 2026-11-03 decision. See [selection and A rollback](../../agent-guidance/career-guidance-selection.md) for the exact references and scoped rollback patch. The comparison below remains historical evidence; it is not an active production A/B switch.
+
 Compare the current Career agent after making web tools core with a simplified general guidance configuration. The evaluation unit is the first complete assistant turn, including its live capability selector, tool loop, intermediate text, final reply and saved artifacts. Four cases cover sparse experience, empty indexed opportunity results, a blocked application route and sufficient material requiring no extra research.
 
 ## Frozen data and review

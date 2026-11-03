@@ -15,6 +15,7 @@
 | 작업 | 계약·정본 |
 | --- | --- |
 | LLM prompt·context·tool·formatter·schema | [LLM 설계·입력·검증](docs/agent-guidance/llm-engineering.md) |
+| Career 지침 변경·A/B/C 선택·복원 | [현재 선택과 A 복원](docs/agent-guidance/career-guidance-selection.md) |
 | Company-side LLM tool policy·schema·result·loader·기능 목록·기본 context | [도구 정보 설계 가이드](docs/company-side-tool-information-guide-ko.md) |
 | Company-side LLM prompt·context·tool·model·evaluation | [Company-side agent 변경 정본](docs/company-side-agent-engineering-contract-ko.md) |
 | 회사 대화 기반 Role 검색·평가 이력·범위별 Memory | [회사 agentic Role 검색](docs/company/company-agentic-role-search-implementation-ko.md)와 연결된 평가 계약 |
