@@ -3,6 +3,8 @@ import {
   finishCompanyEmailReply,
   processCompanyEmailReply,
 } from "./companyReply";
+import { processExternalCandidateReply } from "./externalReply";
+import { externalCandidateReplyAddresses } from "@/lib/org/agent/externalInvite";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { dispatchCareerCheckpoint } from "@/lib/career/agentContinuation";
 import { emailAssistantModel } from "./model";
@@ -136,6 +138,8 @@ export async function processEmailReply(
   };
   if (companyReplyAddresses(recipients).length || metadata.companyEmail)
     return processCompanyEmailReply({ ...special, fullBody });
+  if (externalCandidateReplyAddresses(recipients).length || metadata.externalCandidateEmail)
+    return processExternalCandidateReply(special);
   if (job.kind === "org_intro_capture") return processIntroCapture(special);
   if (job.kind === "referral_intro") return processReferralIntro(special);
   const identity = opsTest

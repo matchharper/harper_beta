@@ -324,6 +324,9 @@ test("a registered Role's start links open the inbox", async () => {
   assert.equal(resolveOrgRoleTab({ isDraft: false, tab: "start" }), "inbox");
   assert.equal(resolveOrgRoleTab({ isDraft: true, tab: "start" }), "start");
   assert.equal(resolveOrgRoleTab({ isDraft: false, tab: "matching" }), "matching");
+  // The 외부 후보 tab sits beside the inbox of a registered Role; a draft has none.
+  assert.equal(resolveOrgRoleTab({ isDraft: false, tab: "external" }), "external");
+  assert.equal(resolveOrgRoleTab({ isDraft: true, tab: "external" }), "start");
 });
 
 test("people rated 잘 맞음 or better stay in the inbox without the pick, and 맞지 않음 does not (local database only)", async (t) => {

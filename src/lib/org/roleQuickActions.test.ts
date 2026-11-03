@@ -20,7 +20,7 @@ test("role quick actions keep the exact user-facing prompts", () => {
     {
       id: "pending_intros",
       label: "Ready to connect",
-      message: "지금 결정이 필요한 연결 수락할 후보 목록을 알려줘",
+      message: "지금 결정이 필요한 연결 수락한 후보 목록을 알려줘",
     },
   ]);
   assert.equal(

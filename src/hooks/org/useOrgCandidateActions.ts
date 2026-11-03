@@ -428,7 +428,7 @@ export function useOrgCandidateActions(args: {
       if (!changed) return;
       addToast({
         message: c(
-          "연결 수락할 후보로 옮겼습니다.",
+          "연결 수락한 후보로 옮겼습니다.",
           "Moved to Ready to connect."
         ),
         variant: "success",
@@ -439,7 +439,7 @@ export function useOrgCandidateActions(args: {
           error,
           locale,
           c(
-            "연결 수락할 후보로 옮기지 못했습니다.",
+            "연결 수락한 후보로 옮기지 못했습니다.",
             "Couldn't move to Ready to connect. Try again."
           )
         ),

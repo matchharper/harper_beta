@@ -1,4 +1,5 @@
 import { companyReplyAddresses } from "./companyAlias";
+import { externalCandidateReplyAddresses } from "@/lib/org/agent/externalInvite";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import { normalizeAddressList, normalizeEmailAddress } from "@/lib/email/parse";
 import { createReplyToken, hashReplyToken } from "@/lib/email/security";
@@ -130,6 +131,9 @@ export function classifyInboundEmailJob(args: {
 }) {
   const companyAddresses = companyReplyAddresses([...args.toAddresses, ...args.ccAddresses]);
   if (companyAddresses.length) return { kind: "reply", metadata: { companyEmail: true } };
+  // Replies to an external invitation: handled only by the web runtime (routed at insert).
+  if (externalCandidateReplyAddresses([...args.toAddresses, ...args.ccAddresses]).length)
+    return { kind: "reply", metadata: { externalCandidateEmail: true } };
   const orgIntroCaptureAddresses = getMatchedOrgIntroCaptureAddresses(args);
   if (orgIntroCaptureAddresses.length > 0) {
     return {

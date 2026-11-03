@@ -149,6 +149,10 @@
     {
       "path": "/api/internal/email/company-connection",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/external-sourcing/invite-dispatch",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

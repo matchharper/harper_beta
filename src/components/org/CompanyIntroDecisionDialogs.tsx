@@ -5,7 +5,7 @@ import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 
-import { FormEvent, useId, useRef, useState } from "react";
+import { FormEvent, type ReactNode, useId, useRef, useState } from "react";
 import { LoaderCircle, Plus, X } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 
@@ -22,6 +22,7 @@ export function CompanyIntroRequestDialog({
   candidateNames,
   defaultEmail,
   members,
+  note,
   onClose,
   onSubmit,
   open,
@@ -35,6 +36,8 @@ export function CompanyIntroRequestDialog({
   defaultEmail?: string | null;
   /** Teammates to pick from; without them the emails are typed in. */
   members?: Pick<OrgMember, "email" | "name" | "userId">[];
+  /** What sending does when it differs from a member Intro (e.g. an external invitation email). */
+  note?: ReactNode;
   onClose: () => void;
   onSubmit: (value: {
     companyAppeal: string;
@@ -321,6 +324,7 @@ export function CompanyIntroRequestDialog({
               })}
             </div>
           ) : null}
+          {note ? <div className="text-neutral-muted">{note}</div> : null}
           {workspaceId && roleId ? (
             <IntroUsage
               count={count}

@@ -278,6 +278,121 @@ export function getMeetingAvailabilityIntervalsForDate(
   }));
 }
 
+/** Weekly hours open a date by themselves only this many days from today. */
+export const MEETING_WEEKLY_HOURS_DAYS = 7;
+/** How far ahead, from today, a single date can be opened by hand. */
+export const MEETING_SELECTABLE_DAYS = 14;
+const FALLBACK_INTERVAL: MeetingAvailabilityInterval = {
+  end: "19:00",
+  start: "10:00",
+};
+
+export function addDaysToMeetingDateKey(dateKey: string, dayCount: number) {
+  return dateKeyDaysBefore(dateKey, -dayCount);
+}
+
+export function isoWeekdayForMeetingDateKey(dateKey: string): IsoWeekdayKey {
+  const day = new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
+  return String(day === 0 ? 7 : day) as IsoWeekdayKey;
+}
+
+function cloneIntervals(intervals: MeetingAvailabilityInterval[]) {
+  return intervals.map((interval) => ({ ...interval }));
+}
+
+function sameIntervals(
+  left: MeetingAvailabilityInterval[],
+  right: MeetingAvailabilityInterval[]
+) {
+  return (
+    left.length === right.length &&
+    left.every(
+      (interval, index) =>
+        interval.start === right[index]?.start &&
+        interval.end === right[index]?.end
+    )
+  );
+}
+
+/**
+ * The hours a date is open, as candidates see it. A date's own setting
+ * wins; otherwise the weekly hours open it only within
+ * MEETING_WEEKLY_HOURS_DAYS from today, and a later date stays closed until
+ * it is opened by hand.
+ */
+export function getMeetingAvailabilityIntervalsOnDate(
+  availability: MeetingAvailabilityDocument,
+  dateKey: string,
+  todayKey: string
+) {
+  const override = availability.dateOverrides[dateKey];
+  if (override) return cloneIntervals(override);
+  if (
+    dateKey < todayKey ||
+    dateKey > addDaysToMeetingDateKey(todayKey, MEETING_WEEKLY_HOURS_DAYS - 1)
+  ) {
+    return [];
+  }
+  return cloneIntervals(
+    availability.weeklyRules[isoWeekdayForMeetingDateKey(dateKey)]
+  );
+}
+
+/** The hours a date gets when it is opened by hand. */
+export function defaultMeetingIntervalsForNewDate(
+  availability: MeetingAvailabilityDocument,
+  dateKey: string
+) {
+  const own = availability.weeklyRules[isoWeekdayForMeetingDateKey(dateKey)];
+  if (own.length > 0) return cloneIntervals(own);
+  const weekday = ISO_WEEKDAYS.slice(0, 5)
+    .map(({ key }) => availability.weeklyRules[key])
+    .find((intervals) => intervals.length > 0);
+  return cloneIntervals(weekday ?? [FALLBACK_INTERVAL]);
+}
+
+/**
+ * Saves a date's hours, keeping a date setting only where it differs from
+ * what the date gets without one.
+ */
+export function setMeetingDateIntervals(
+  availability: MeetingAvailabilityDocument,
+  dateKey: string,
+  todayKey: string,
+  intervals: MeetingAvailabilityInterval[]
+): MeetingAvailabilityDocument {
+  const withoutDate = { ...availability.dateOverrides };
+  delete withoutDate[dateKey];
+  const byDefault = getMeetingAvailabilityIntervalsOnDate(
+    { ...availability, dateOverrides: withoutDate },
+    dateKey,
+    todayKey
+  );
+  return {
+    ...availability,
+    dateOverrides: sameIntervals(intervals, byDefault)
+      ? withoutDate
+      : { ...withoutDate, [dateKey]: cloneIntervals(intervals) },
+  };
+}
+
+/** Opens a closed date with its default hours, or closes an open one. */
+export function toggleMeetingDate(
+  availability: MeetingAvailabilityDocument,
+  dateKey: string,
+  todayKey: string
+) {
+  const open =
+    getMeetingAvailabilityIntervalsOnDate(availability, dateKey, todayKey)
+      .length > 0;
+  return setMeetingDateIntervals(
+    availability,
+    dateKey,
+    todayKey,
+    open ? [] : defaultMeetingIntervalsForNewDate(availability, dateKey)
+  );
+}
+
 export function hasMeetingStartInTimeRange(args: {
   durationMinutes?: number;
   intervals: MeetingAvailabilityInterval[];

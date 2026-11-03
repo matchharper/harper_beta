@@ -1100,8 +1100,15 @@ export async function notifyCompanyOfMeetingConfirmation(args: {
     .eq("company_workspace_id", args.workspaceId).maybeSingle();
   if (error) throw error;
   // The schedule carries the exact Role even when the original request was workspace-wide.
+  // Rounds and schedules point at each other (schedule_id, and the schedule's
+  // active_round_id), so the embed names the round's own key; without it the
+  // API refuses the read as ambiguous and the company is never told.
   const { data: round, error: roundError } = await (admin.from("meeting_schedule_rounds" as any) as any)
-    .select("schedule:meeting_schedules!inner(role_id,talent_id)").eq("id", args.roundId).maybeSingle();
+    .select(
+      "schedule:meeting_schedules!meeting_schedule_rounds_schedule_id_fkey!inner(role_id,talent_id)"
+    )
+    .eq("id", args.roundId)
+    .maybeSingle();
   if (roundError) throw roundError;
   const schedule = Array.isArray(round?.schedule) ? round.schedule[0] : round?.schedule;
   const roleId = schedule?.role_id ?? source?.role_id;

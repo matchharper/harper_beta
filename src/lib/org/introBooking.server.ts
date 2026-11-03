@@ -7,11 +7,15 @@ import {
 } from "@/lib/meetings/invitationServer";
 import {
   createMeetingScheduleDraft,
+  findUnsentWebMeetingDraft,
   prepareMeetingScheduleDraftForStage,
 } from "@/lib/meetings/scheduleDraftServer";
 import { findConnectionApproval } from "@/lib/org/billing/connections";
 import { OrgHttpError, setOrgCandidateStage } from "@/lib/org/server";
 import { traceStageStep } from "@/lib/org/stageTiming.server";
+
+/** The one web meeting request a first connection makes per candidate. */
+const INTRO_WEB_REQUEST_KEY = "initial-connection";
 
 type StageInput = Omit<
   Parameters<typeof setOrgCandidateStage>[0],
@@ -78,7 +82,7 @@ export async function setOrgCandidateStageWithIntroBooking(args: {
     if (args.booking === "required") {
       throw new OrgHttpError(
         400,
-        "연결 수락할 후보를 선택해 인터뷰를 요청해 주세요."
+        "연결 수락한 후보를 선택해 인터뷰를 요청해 주세요."
       );
     }
     return withoutLink();
@@ -117,13 +121,25 @@ export async function setOrgCandidateStageWithIntroBooking(args: {
     if (args.booking === "if_ready" && prepared.draft?.draftBlocker) {
       return withoutLink();
     }
-    const meeting = await traceStageStep("booking:draft", async () =>
-      createMeetingScheduleDraft({
-        ...prepared,
-        sourceCompanyMessageId: null,
-        webRequestKey: "initial-connection",
-      })
-    );
+    // A retry after a failed attempt continues that attempt's draft and
+    // link, like its saved approval; settings changed since stay unused.
+    const meeting = await traceStageStep("booking:draft", async () => {
+      const unsent = await findUnsentWebMeetingDraft({
+        admin: prepared.admin,
+        recommendationId: prepared.recommendationId,
+        talentId: prepared.talentId,
+        webRequestKey: INTRO_WEB_REQUEST_KEY,
+        workspaceId: prepared.workspaceId,
+      });
+      return (
+        unsent ??
+        createMeetingScheduleDraft({
+          ...prepared,
+          sourceCompanyMessageId: null,
+          webRequestKey: INTRO_WEB_REQUEST_KEY,
+        })
+      );
+    });
     const booking = await traceStageStep("booking:reserve", async () =>
       reserveMeetingInvitationForIntro({
         baseUrl: args.baseUrl,

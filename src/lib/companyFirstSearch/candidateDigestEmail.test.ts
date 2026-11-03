@@ -72,15 +72,15 @@ test("subjects use the fixed templates for each candidate mix and multiple roles
       acceptedCount,
       companyFirstCount,
     });
-  assert.equal(subject(1, 0), "ML Engineer: 연결 수락할 후보 1명");
+  assert.equal(subject(1, 0), "ML Engineer: 연결 수락한 후보 1명");
   assert.equal(subject(0, 2), "ML Engineer: 연결 제안할 후보 2명");
   assert.equal(
     subject(1, 2),
-    "ML Engineer: 연결 수락할 후보 1명 · 연결 제안할 후보 2명"
+    "ML Engineer: 연결 수락한 후보 1명 · 연결 제안할 후보 2명"
   );
   assert.equal(
     subject(1, 2, ["ML Engineer", "Data Engineer", "PM"]),
-    "ML Engineer 외 2개 역할: 연결 수락할 후보 1명 · 연결 제안할 후보 2명"
+    "ML Engineer 외 2개 역할: 연결 수락한 후보 1명 · 연결 제안할 후보 2명"
   );
   assert.equal(
     subject(1, 2, ["ML Engineer"], "en"),
@@ -96,11 +96,11 @@ test("mail greets the recipient, puts Ready to connect first and keeps the Worke
   const email = build();
   assert.equal(
     email.subject,
-    "ML Engineer: 연결 수락할 후보 1명 · 연결 제안할 후보 2명"
+    "ML Engineer: 연결 수락한 후보 1명 · 연결 제안할 후보 2명"
   );
   assert.match(email.text, /^김지수님, Harper가 찾은 후보예요\./);
   const acceptedAt = email.text.indexOf(
-    "✅ 연결 수락할 후보 · 후보가 이미 만나보겠다고 했어요"
+    "✅ 연결 수락한 후보 · 후보가 이미 만나보겠다고 했어요"
   );
   const companyFirstAt = email.text.indexOf("연결 제안할 후보\n");
   assert.ok(acceptedAt > 0 && companyFirstAt > acceptedAt);
@@ -156,7 +156,7 @@ test("reply context keeps the prose but never the one-time button links", () => 
 test("a mail with one kind only has one heading and the matching buttons", () => {
   const email = build({ sections: [companyFirst] });
   assert.equal(email.subject, "ML Engineer: 연결 제안할 후보 2명");
-  assert.doesNotMatch(email.text, /연결 수락할 후보|Accept Intro/);
+  assert.doesNotMatch(email.text, /연결 수락한 후보|Accept Intro/);
   assert.equal(
     (email.html.match(/href="https:\/\/matchharper.com\/email-action\//g) ?? [])
       .length,

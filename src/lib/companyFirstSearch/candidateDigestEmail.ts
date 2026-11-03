@@ -52,10 +52,10 @@ const pick = (locale: OrgLocale, pair: readonly [string, string]) =>
   pair[locale === "ko" ? 0 : 1];
 
 const COPY = {
-  acceptedName: ["연결 수락할 후보", "Ready to connect"],
+  acceptedName: ["연결 수락한 후보", "Ready to connect"],
   companyFirstName: ["연결 제안할 후보", "Suggested candidates"],
   acceptedHeading: [
-    "✅ 연결 수락할 후보 · 후보가 이미 만나보겠다고 했어요",
+    "✅ 연결 수락한 후보 · 후보가 이미 만나보겠다고 했어요",
     "✅ Ready to connect · These candidates already agreed to talk",
   ],
   companyFirstHeading: ["연결 제안할 후보", "Suggested candidates"],

@@ -27,7 +27,7 @@ test("new role Slack guidance explains the actual matching and review flow", () 
     message,
     /\*정기 후보 검색 꺼짐:\* 역할 설정에서 켜면 매주 월·수·금요일 오전 9시\(한국 시간\)/
   );
-  assert.match(message, /후보자가 수락하고 Harper가 최종 확인하면 ‘연결 수락할 후보’/);
+  assert.match(message, /후보자가 수락하고 Harper가 최종 확인하면 ‘연결 수락한 후보’/);
   assert.match(
     message,
     /‘연결 제안할 후보’는 아직 역할을 수락한 분들이 아니에요/

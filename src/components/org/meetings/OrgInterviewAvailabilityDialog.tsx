@@ -1,17 +1,16 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
+import { ArrowLeft, Check, ChevronDown, LoaderCircle, X } from "lucide-react";
 import {
-  ArrowLeft,
-  Check,
-  ChevronDown,
-  LoaderCircle,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { format, getISODay } from "date-fns";
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { addDays, format } from "date-fns";
 import { ko } from "date-fns/locale";
 import Image from "next/image";
 import { useRouter } from "next/router";
@@ -23,7 +22,6 @@ import {
 } from "@/components/meetings/MeetingAvailabilityLayout";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Combobox,
   ComboboxContent,
@@ -43,10 +41,11 @@ import {
 import { Tooltips } from "@/components/ui/tooltip";
 import {
   createDefaultMeetingAvailabilityDocument,
-  getMeetingAvailabilityIntervalsForDate,
+  getMeetingAvailabilityIntervalsOnDate,
   isMeetingTimeRangeAvailable,
+  MEETING_SELECTABLE_DAYS,
+  MEETING_WEEKLY_HOURS_DAYS,
   ISO_WEEKDAYS,
-  type IsoWeekdayKey,
   meetingAvailabilityDocumentsEqual,
   meetingDateKeyInTimezone,
   type MeetingCalendarBusyBlock,
@@ -55,7 +54,9 @@ import {
   type MeetingAvailabilityInterval,
   meetingTimeToMinutes,
   normalizeMeetingAvailabilityInput,
+  setMeetingDateIntervals,
   setMeetingTimeRangeAvailability,
+  toggleMeetingDate,
 } from "@/lib/meetings/availability";
 import {
   calendarBusyBlockOverlapsDate,
@@ -115,10 +116,6 @@ function dateKey(date: Date) {
     .join("-");
 }
 
-function isoWeekdayKey(date: Date) {
-  return String(getISODay(date)) as IsoWeekdayKey;
-}
-
 function calendarDateInTimezone(timezone: string) {
   const [year, month, day] = meetingDateKeyInTimezone(new Date(), timezone)
     .split("-")
@@ -155,29 +152,6 @@ function supportedTimezones(currentTimezone: string) {
     "Asia/Tokyo",
   ];
   return [...new Set([...prioritized, ...values].filter(Boolean))];
-}
-
-function intervalListsEqual(
-  left: MeetingAvailabilityInterval[],
-  right: MeetingAvailabilityInterval[]
-) {
-  return (
-    left.length === right.length &&
-    left.every(
-      (interval, index) =>
-        interval.start === right[index]?.start &&
-        interval.end === right[index]?.end
-    )
-  );
-}
-
-function getDefaultNewInterval(intervals: MeetingAvailabilityInterval[]) {
-  const lastEnd = meetingTimeToMinutes(intervals.at(-1)?.end ?? "09:00", true);
-  const startMinutes = Math.min(lastEnd ?? 9 * 60, 23 * 60);
-  return {
-    end: meetingMinutesToTime(Math.min(startMinutes + 60, 24 * 60)),
-    start: meetingMinutesToTime(startMinutes),
-  };
 }
 
 function TimeSelect({
@@ -227,140 +201,172 @@ function TimeSelect({
   );
 }
 
-function IntervalEditor({
-  intervals,
-  onChange,
-  portalContainer,
-}: {
-  intervals: MeetingAvailabilityInterval[];
-  onChange: (intervals: MeetingAvailabilityInterval[]) => void;
-  portalContainer: HTMLElement | null;
-}) {
-  const { c } = useOrgLocale();
-  const updateInterval = (
-    index: number,
-    field: "end" | "start",
-    value: string
-  ) => {
-    const next = intervals.map((interval) => ({ ...interval }));
-    next[index][field] = value;
-    const startMinutes = meetingTimeToMinutes(next[index].start) ?? 0;
-    const endMinutes = meetingTimeToMinutes(next[index].end, true) ?? 0;
-    if (field === "start" && startMinutes >= endMinutes) {
-      next[index].end = meetingMinutesToTime(
-        Math.min(startMinutes + 60, 24 * 60)
-      );
-    }
-    if (field === "end" && endMinutes <= startMinutes) {
-      next[index].start = meetingMinutesToTime(Math.max(endMinutes - 60, 0));
-    }
-    onChange(next);
-  };
+/** Earliest hour the strips show unless a saved time starts earlier. */
+const STRIP_FIRST_HOUR = 6;
 
+function hourRange(hour: number): MeetingAvailabilityInterval {
+  return {
+    end: meetingMinutesToTime((hour + 1) * 60),
+    start: meetingMinutesToTime(hour * 60),
+  };
+}
+
+/** The hours every strip shows, so the rows line up under one header. */
+function stripHours(rows: MeetingAvailabilityInterval[][]) {
+  const earliest = Math.min(
+    STRIP_FIRST_HOUR,
+    ...rows
+      .flat()
+      .map((interval) =>
+        Math.floor((meetingTimeToMinutes(interval.start) ?? 24 * 60) / 60)
+      )
+  );
+  return Array.from({ length: 24 - earliest }, (_, index) => earliest + index);
+}
+
+function overlapsHour(intervals: MeetingAvailabilityInterval[], hour: number) {
+  return intervals.some((interval) => {
+    const start = meetingTimeToMinutes(interval.start);
+    const end = meetingTimeToMinutes(interval.end, true);
+    return (
+      start !== null &&
+      end !== null &&
+      start < (hour + 1) * 60 &&
+      end > hour * 60
+    );
+  });
+}
+
+/**
+ * While a pointer is held on a cell, the value it paints; null otherwise.
+ * One press can paint across cells and rows.
+ */
+function useHourPaint() {
+  const paint = useRef<boolean | null>(null);
+  useEffect(() => {
+    const stop = () => {
+      paint.current = null;
+    };
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+    return () => {
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+  }, []);
+  return paint;
+}
+
+const STRIP_COLUMNS = "grid grid-flow-col auto-cols-[minmax(16px,1fr)] gap-0.5";
+const STRIP_ROW =
+  "grid items-center gap-2 border-t border-neutral-1000-a05 py-2.5 sm:grid-cols-[104px_minmax(0,1fr)]";
+
+function HourStripHeader({ hours }: { hours: number[] }) {
   return (
-    <div className="grid gap-2">
-      {intervals.map((interval, index) => (
-        <div
-          className="flex min-w-0 items-center gap-1.5"
-          key={`${index}-${interval.start}-${interval.end}`}
-        >
-          <TimeSelect
-            label={c("시작 시간 {p0}", "Start time {p0}", {
-              p0: index + 1,
-            })}
-            onChange={(value) => updateInterval(index, "start", value)}
-            portalContainer={portalContainer}
-            value={interval.start}
-          />
-          <span className="text-[12px] text-neutral-soft">–</span>
-          <TimeSelect
-            endOfDay
-            label={c("종료 시간 {p0}", "End time {p0}", {
-              p0: index + 1,
-            })}
-            onChange={(value) => updateInterval(index, "end", value)}
-            portalContainer={portalContainer}
-            value={interval.end}
-          />
-          <MuteButton
-            aria-label={c(
-              "{p0}부터 {p1} 시간 삭제",
-              "Delete {p1} hours starting at {p0}",
-              {
-                p0: interval.start,
-                p1: interval.end,
-              }
-            )}
-            onClick={() =>
-              onChange(intervals.filter((_, itemIndex) => itemIndex !== index))
-            }
-            size="sm"
-            variant="transparent"
-          >
-            <Trash2 className="size-3.5" />
-          </MuteButton>
-          {index === intervals.length - 1 ? (
-            <MuteButton
-              disabled={
-                intervals.length >= 8 ||
-                meetingTimeToMinutes(interval.end, true) === 24 * 60
-              }
-              onClick={() =>
-                onChange([...intervals, getDefaultNewInterval(intervals)])
-              }
-              size="sm"
-              variant="transparent"
-            >
-              <Plus className="size-3.5" />
-              {c("추가", "Add")}
-            </MuteButton>
-          ) : null}
-        </div>
-      ))}
+    <div
+      aria-hidden="true"
+      className="hidden items-end gap-2 pb-1.5 sm:grid sm:grid-cols-[104px_minmax(0,1fr)]"
+    >
+      <span />
+      <div
+        className={cn(
+          STRIP_COLUMNS,
+          "text-[10px] tabular-nums text-neutral-soft"
+        )}
+      >
+        {hours.map((hour) => (
+          <span key={hour}>{hour % 2 === 0 ? hour : ""}</span>
+        ))}
+      </div>
     </div>
   );
 }
 
-function WeekdayRow({
+/** One day's hours as 1-hour cells; press or drag across them to paint. */
+function HourStrip({
+  busyHours,
+  hours,
   intervals,
   label,
-  onChange,
-  portalContainer,
+  onPaint,
+  paint,
 }: {
+  busyHours?: Set<number>;
+  hours: number[];
   intervals: MeetingAvailabilityInterval[];
   label: string;
-  onChange: (intervals: MeetingAvailabilityInterval[]) => void;
-  portalContainer: HTMLElement | null;
+  onPaint: (hour: number, available: boolean) => void;
+  paint: { current: boolean | null };
 }) {
   const { c } = useOrgLocale();
   return (
-    <div className="grid gap-3 border-t border-neutral-1000-a05 py-3 sm:grid-cols-[112px_minmax(0,1fr)]">
-      <div className="pt-1">
-        <span className="text-[13px] font-medium text-neutral-primary">
-          {label}
-        </span>
+    <div className="overflow-x-auto">
+      <div
+        aria-label={label}
+        className={cn(STRIP_COLUMNS, "touch-none select-none")}
+        role="group"
+      >
+        {hours.map((hour) => {
+          const { end, start } = hourRange(hour);
+          const available = isMeetingTimeRangeAvailable({
+            intervals,
+            rangeEnd: end,
+            rangeStart: start,
+          });
+          const partial = !available && overlapsHour(intervals, hour);
+          const busy = busyHours?.has(hour) ?? false;
+          return (
+            <button
+              aria-label={c("{p0}–{p1} {p2}", "{p0}–{p1} {p2}", {
+                p0: start,
+                p1: end,
+                p2: available
+                  ? c("가능", "available")
+                  : c("불가", "unavailable"),
+              })}
+              aria-pressed={available}
+              className={cn(
+                "relative h-8 rounded-[3px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40",
+                available
+                  ? "bg-primary hover:bg-primary/85"
+                  : partial
+                    ? "bg-primary/35 hover:bg-primary/50"
+                    : "bg-bg-weak hover:bg-primary/20",
+                busy &&
+                  "after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-action after:content-['']"
+              )}
+              key={hour}
+              onClick={(event) => {
+                // Keyboard only: a pointer already painted on press.
+                if (event.detail === 0) onPaint(hour, !available);
+              }}
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                event.preventDefault();
+                // Let the next cells receive the drag on touch screens.
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+                paint.current = !available;
+                onPaint(hour, !available);
+              }}
+              onPointerEnter={() => {
+                if (paint.current !== null) onPaint(hour, paint.current);
+              }}
+              title={
+                busy
+                  ? c(
+                      "{p0}–{p1} · Google Calendar 일정 있음",
+                      "{p0}–{p1} · Busy in Google Calendar",
+                      { p0: start, p1: end }
+                    )
+                  : `${start}–${end}`
+              }
+              type="button"
+            />
+          );
+        })}
       </div>
-      {intervals.length > 0 ? (
-        <IntervalEditor
-          intervals={intervals}
-          onChange={onChange}
-          portalContainer={portalContainer}
-        />
-      ) : (
-        <div className="flex min-h-8 items-center justify-between gap-3">
-          <p className="text-[13px] text-neutral-soft">
-            {c("가능한 시간 없음", "No available times")}
-          </p>
-          <MuteButton
-            onClick={() => onChange([{ end: "19:00", start: "10:00" }])}
-            size="sm"
-            variant="transparent"
-          >
-            <Plus className="size-3.5" />
-            {c("추가", "Add")}
-          </MuteButton>
-        </div>
-      )}
     </div>
   );
 }
@@ -491,6 +497,7 @@ function DateOverridePanel({
   onBack,
   onChange,
   onMakeCalendarBusyBlocksAvailable,
+  todayKey,
 }: {
   availability: MeetingAvailabilityDocument;
   calendarBusyBlocks: MeetingCalendarBusyBlock[];
@@ -501,20 +508,18 @@ function DateOverridePanel({
   onMakeCalendarBusyBlocksAvailable: (
     busyBlocks: MeetingCalendarBusyBlock[]
   ) => void;
+  todayKey: string;
 }) {
   const { c } = useOrgLocale();
   const key = dateKey(date);
-  const weekdayKey = isoWeekdayKey(date);
-  const weekday = ISO_WEEKDAYS.find((item) => item.key === weekdayKey)!;
-  const weeklyIntervals = availability.weeklyRules[weekdayKey];
   const hasOverride = Object.prototype.hasOwnProperty.call(
     availability.dateOverrides,
     key
   );
-  const intervals = getMeetingAvailabilityIntervalsForDate(
+  const intervals = getMeetingAvailabilityIntervalsOnDate(
     availability,
     key,
-    weekdayKey
+    todayKey
   );
   const calendarBusyBlocksForDate = calendarBusyBlocks.filter((busyBlock) =>
     calendarBusyBlockOverlapsDate({
@@ -523,34 +528,10 @@ function DateOverridePanel({
       timezone: availability.timezone,
     })
   );
-  const unavailable = intervals.length === 0;
-  const availableBeforeClosedRef = useRef<MeetingAvailabilityInterval[]>(
-    intervals.length > 0
-      ? intervals.map((interval) => ({ ...interval }))
-      : weeklyIntervals.length > 0
-        ? weeklyIntervals.map((interval) => ({ ...interval }))
-        : [{ end: "18:00", start: "08:00" }]
-  );
-
-  useEffect(() => {
-    if (intervals.length > 0) {
-      availableBeforeClosedRef.current = intervals.map((interval) => ({
-        ...interval,
-      }));
-    }
-  }, [intervals]);
-
-  const setDateIntervals = (nextIntervals: MeetingAvailabilityInterval[]) => {
-    const next = cloneDocument(availability);
-    if (intervalListsEqual(nextIntervals, weeklyIntervals)) {
-      delete next.dateOverrides[key];
-    } else {
-      next.dateOverrides[key] = nextIntervals.map((interval) => ({
-        ...interval,
-      }));
-    }
-    onChange(next);
-  };
+  const setDateIntervals = (nextIntervals: MeetingAvailabilityInterval[]) =>
+    onChange(
+      setMeetingDateIntervals(availability, key, todayKey, nextIntervals)
+    );
 
   return (
     <div className="min-h-full p-5 sm:p-6">
@@ -563,23 +544,7 @@ function DateOverridePanel({
           locale: ko,
         })}
       </h3>
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <Checkbox
-          checked={unavailable}
-          label={c("미팅 불가", "Unavailable for meetings")}
-          onChange={(event) => {
-            if (event.target.checked) {
-              setDateIntervals([]);
-              return;
-            }
-            setDateIntervals(
-              availableBeforeClosedRef.current.map((interval) => ({
-                ...interval,
-              }))
-            );
-          }}
-          size="medium"
-        />
+      <div className="mt-5 flex items-center justify-end gap-3">
         {hasOverride ? (
           <MuteButton
             onClick={() => {
@@ -631,11 +596,15 @@ function DateOverridePanel({
 
 function WeeklyEditor({
   availability,
+  hours,
   onChange,
+  paint,
   portalContainer,
 }: {
   availability: MeetingAvailabilityDocument;
-  onChange: (availability: MeetingAvailabilityDocument) => void;
+  hours: number[];
+  onChange: Dispatch<SetStateAction<MeetingAvailabilityDocument>>;
+  paint: { current: boolean | null };
   portalContainer: HTMLElement | null;
 }) {
   const { c } = useOrgLocale();
@@ -664,21 +633,17 @@ function WeeklyEditor({
   };
 
   return (
-    <div className="min-h-full p-5 sm:p-6">
+    <section>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-[16px] font-medium text-neutral-primary">
-            {c("가능한 일정", "Interview availability")}
+            {c("요일별 기본 시간", "Default hours by weekday")}
           </h3>
           <p className="mt-1 text-[12px] font-light leading-4 text-neutral-muted">
             {c(
-              "미팅 스케줄링을 허용할 요일과 시간을 설정하세요.",
-              "Set days and times when meetings can be scheduled."
-            )}
-            <br />
-            {c(
-              "날짜를 선택하면 그날의 일정만 조정할 수 있어요.",
-              "Selecting a date adjusts only that day's schedule."
+              "오늘부터 {p0}일은 이 시간으로 열려요. 달력에서 날짜를 새로 열 때도 이 시간을 써요.",
+              "These hours open the next {p0} days, and any date you open on the calendar.",
+              { p0: MEETING_WEEKLY_HOURS_DAYS }
             )}
           </p>
         </div>
@@ -793,22 +758,170 @@ function WeeklyEditor({
         </Popover.Root>
       </div>
 
-      <div className="mt-5 border-b border-neutral-1000-a05">
-        {ISO_WEEKDAYS.map(({ key, label }) => (
-          <WeekdayRow
-            intervals={availability.weeklyRules[key]}
-            key={key}
-            label={sourceT(label)}
-            onChange={(intervals) => {
-              const next = cloneDocument(availability);
-              next.weeklyRules[key] = intervals;
-              onChange(next);
-            }}
-            portalContainer={portalContainer}
-          />
-        ))}
+      <div className="mt-4">
+        <HourStripHeader hours={hours} />
+        <div className="border-b border-neutral-1000-a05">
+          {ISO_WEEKDAYS.map(({ key, label }) => (
+            <div className={STRIP_ROW} key={key}>
+              <span className="text-[13px] font-medium text-neutral-primary">
+                {sourceT(label)}
+              </span>
+              <HourStrip
+                hours={hours}
+                intervals={availability.weeklyRules[key]}
+                label={sourceT(label)}
+                onPaint={(hour, available) =>
+                  onChange((current) => {
+                    const { end, start } = hourRange(hour);
+                    const next = cloneDocument(current);
+                    next.weeklyRules[key] = setMeetingTimeRangeAvailability({
+                      available,
+                      intervals: current.weeklyRules[key],
+                      rangeEnd: end,
+                      rangeStart: start,
+                    });
+                    return next;
+                  })
+                }
+                paint={paint}
+              />
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </section>
+  );
+}
+
+/** The dates a candidate can pick from, each with its own hours. */
+function OpenDatesEditor({
+  availability,
+  calendarBusyBlocks,
+  hours,
+  onChange,
+  onShowDate,
+  paint,
+  today,
+  todayKey,
+}: {
+  availability: MeetingAvailabilityDocument;
+  calendarBusyBlocks: MeetingCalendarBusyBlock[];
+  hours: number[];
+  onChange: Dispatch<SetStateAction<MeetingAvailabilityDocument>>;
+  onShowDate: (date: Date) => void;
+  paint: { current: boolean | null };
+  today: Date;
+  todayKey: string;
+}) {
+  const { c, locale } = useOrgLocale();
+  const openDates = Array.from(
+    { length: MEETING_SELECTABLE_DAYS },
+    (_, index) => addDays(today, index)
+  ).flatMap((date) => {
+    const key = dateKey(date);
+    const intervals = getMeetingAvailabilityIntervalsOnDate(
+      availability,
+      key,
+      todayKey
+    );
+    if (intervals.length === 0) return [];
+    // Hours a Google Calendar event takes; candidates are not offered them.
+    const busyHours = new Set(
+      hours.filter((hour) => {
+        const { end, start } = hourRange(hour);
+        return calendarBusyBlocks.some(
+          (busyBlock) =>
+            busyBlock.isBlocking &&
+            calendarBusyBlockOverlapsTimeRange({
+              busyBlock,
+              dateKey: key,
+              rangeEnd: end,
+              rangeStart: start,
+              timezone: availability.timezone,
+            })
+        );
+      })
+    );
+    return [{ busyHours, date, intervals, key }];
+  });
+  const anyBusy = openDates.some(({ busyHours }) => busyHours.size > 0);
+
+  return (
+    <section>
+      <h3 className="text-[16px] font-medium text-neutral-primary">
+        {c("열린 날짜", "Open dates")}
+      </h3>
+      <p className="mt-1 text-[12px] font-light leading-4 text-neutral-muted">
+        {c(
+          "후보는 이 날짜에서 시간을 골라요. 달력에서 날짜를 누르면 열리고, 다시 누르면 닫혀요.",
+          "Candidates pick a time on these dates. Select a date on the calendar to open it, and again to close it."
+        )}
+      </p>
+      {anyBusy ? (
+        <p className="mt-2 flex items-center gap-1.5 text-[12px] text-neutral-muted">
+          <span className="size-1.5 shrink-0 rounded-full bg-action" />
+          {c(
+            "Google Calendar 일정이 있는 시간은 후보에게 보이지 않아요.",
+            "Times with a Google Calendar event aren't offered to candidates."
+          )}
+        </p>
+      ) : null}
+      {openDates.length === 0 ? (
+        <p className="mt-4 text-[13px] text-neutral-soft">
+          {c("열린 날짜가 없어요.", "No dates are open.")}
+        </p>
+      ) : (
+        <div className="mt-4">
+          <HourStripHeader hours={hours} />
+          <div className="border-b border-neutral-1000-a05">
+            {openDates.map(({ busyHours, date, intervals, key }) => {
+              const label = format(date, c("M월 d일 (EEE)", "EEE, MMM d"), {
+                locale: locale === "en" ? undefined : ko,
+              });
+              return (
+                <div className={STRIP_ROW} key={key}>
+                  <button
+                    className="text-left text-[13px] font-medium text-neutral-primary underline-offset-2 hover:underline"
+                    onClick={() => onShowDate(date)}
+                    title={c("그날 시간표 보기", "Show that day's hours")}
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                  <HourStrip
+                    busyHours={busyHours}
+                    hours={hours}
+                    intervals={intervals}
+                    label={label}
+                    onPaint={(hour, available) =>
+                      onChange((current) => {
+                        const { end, start } = hourRange(hour);
+                        return setMeetingDateIntervals(
+                          current,
+                          key,
+                          todayKey,
+                          setMeetingTimeRangeAvailability({
+                            available,
+                            intervals: getMeetingAvailabilityIntervalsOnDate(
+                              current,
+                              key,
+                              todayKey
+                            ),
+                            rangeEnd: end,
+                            rangeStart: start,
+                          })
+                        );
+                      })
+                    }
+                    paint={paint}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -854,6 +967,7 @@ export function OrgInterviewAvailabilityDialog({
     null
   );
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const paint = useHourPaint();
   const timezoneOptions = useMemo(
     () => supportedTimezones(draft.timezone),
     [draft.timezone]
@@ -1045,19 +1159,25 @@ export function OrgInterviewAvailabilityDialog({
 
   const selectedDateKey = selectedDate ? dateKey(selectedDate) : null;
   const today = calendarDateInTimezone(draft.timezone);
+  const todayKey = dateKey(today);
+  // Candidates choose within this reach, so later dates cannot be opened.
+  const lastSelectableDate = addDays(today, MEETING_SELECTABLE_DAYS - 1);
   const isPastDate = (date: Date) => date.getTime() < today.getTime();
   const isAvailableDate = (date: Date) =>
     !isPastDate(date) &&
-    getMeetingAvailabilityIntervalsForDate(
-      draft,
-      dateKey(date),
-      isoWeekdayKey(date)
-    ).length > 0;
-  const isOverrideDate = (date: Date) =>
-    !isPastDate(date) &&
-    Object.prototype.hasOwnProperty.call(draft.dateOverrides, dateKey(date));
-  const isClosedOverrideDate = (date: Date) =>
-    isOverrideDate(date) && draft.dateOverrides[dateKey(date)].length === 0;
+    getMeetingAvailabilityIntervalsOnDate(draft, dateKey(date), todayKey)
+      .length > 0;
+  const openDates = Array.from(
+    { length: MEETING_SELECTABLE_DAYS },
+    (_, index) => addDays(today, index)
+  ).filter(isAvailableDate);
+  const calendarBusyBlocks = availabilityQuery.data?.calendarBusyBlocks ?? [];
+  const hours = stripHours([
+    ...openDates.map((date) =>
+      getMeetingAvailabilityIntervalsOnDate(draft, dateKey(date), todayKey)
+    ),
+    ...ISO_WEEKDAYS.map(({ key }) => draft.weeklyRules[key]),
+  ]);
   const isCalendarBusyDate = (date: Date) =>
     !isPastDate(date) &&
     (availabilityQuery.data?.calendarBusyBlocks ?? []).some(
@@ -1078,10 +1198,12 @@ export function OrgInterviewAvailabilityDialog({
         }}
         open={open}
       >
+        {/* The accept-intro modal (TalentCareerModal, z-80) also opens this
+            editor, so it sits above that layer, not at Dialog's z-50. */}
         <DialogContent
           hideCloseButton
-          className="!inset-0 m-auto h-[100svh] w-screen max-w-none !translate-x-0 !translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none p-0 data-[state=closed]:animate-none data-[state=open]:animate-none sm:h-[min(760px,calc(100svh-2rem))] sm:w-[calc(100vw-2rem)] sm:max-w-[1120px] sm:rounded-2xl"
-          overlayClassName="data-[state=closed]:animate-none data-[state=open]:animate-none"
+          className="z-[90] !inset-0 m-auto h-[100svh] w-screen max-w-none !translate-x-0 !translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none p-0 data-[state=closed]:animate-none data-[state=open]:animate-none sm:h-[min(760px,calc(100svh-2rem))] sm:w-[calc(100vw-2rem)] sm:max-w-[1120px] sm:rounded-2xl"
+          overlayClassName="z-[90] data-[state=closed]:animate-none data-[state=open]:animate-none"
           ref={setPortalContainer}
         >
           <header className="flex min-h-[60px] items-center justify-between gap-4 border-b border-neutral-1000-a05 px-5 py-3 sm:px-6">
@@ -1132,25 +1254,33 @@ export function OrgInterviewAvailabilityDialog({
               calendar={
                 <>
                   <MeetingAvailabilityCalendar
-                    disabled={{ before: today }}
-                    locale={ko}
-                    mode="single"
+                    disabled={[
+                      { before: today },
+                      { after: lastSelectableDate },
+                    ]}
+                    locale={locale === "en" ? undefined : ko}
+                    // Every open date is selected: a click opens a closed
+                    // date with its default hours or closes an open one.
+                    mode="multiple"
                     modifiers={{
                       available: isAvailableDate,
                       calendarBusy: isCalendarBusyDate,
-                      closedOverride: isClosedOverrideDate,
-                      override: isOverrideDate,
                     }}
                     modifiersClassNames={{
                       calendarBusy:
                         "[&>button]:relative [&>button]:after:absolute [&>button]:after:bottom-1.5 [&>button]:after:left-1/2 [&>button]:after:size-1 [&>button]:after:-translate-x-1/2 [&>button]:after:rounded-full [&>button]:after:bg-action [&>button]:after:content-['']",
-                      closedOverride:
-                        "[&>button]:rounded-md [&>button]:bg-bg-weak [&>button]:text-neutral-disabled [&>button]:hover:bg-bg-weak [&>button[data-selected-single=true]]:bg-primary [&>button[data-selected-single=true]]:text-neutral-00",
-                      override:
-                        "[&>button]:ring-1 [&>button]:ring-inset [&>button]:ring-primary/50",
                     }}
-                    onSelect={(date) => date && setSelectedDate(date)}
-                    selected={selectedDate ?? undefined}
+                    onSelect={(_dates, triggerDate) => {
+                      if (!triggerDate || isPastDate(triggerDate)) return;
+                      setDraft((current) =>
+                        toggleMeetingDate(
+                          current,
+                          dateKey(triggerDate),
+                          todayKey
+                        )
+                      );
+                    }}
+                    selected={openDates}
                   />
 
                   <div className="mt-5 border-t border-neutral-1000-a05 pt-4">
@@ -1204,6 +1334,7 @@ export function OrgInterviewAvailabilityDialog({
             >
               {selectedDate && selectedDateKey ? (
                 <DateOverridePanel
+                  todayKey={todayKey}
                   availability={draft}
                   calendarBusyBlocks={
                     availabilityQuery.data?.calendarBusyBlocks ?? []
@@ -1218,11 +1349,25 @@ export function OrgInterviewAvailabilityDialog({
                   }
                 />
               ) : (
-                <WeeklyEditor
-                  availability={draft}
-                  onChange={setDraft}
-                  portalContainer={portalContainer}
-                />
+                <div className="min-h-full space-y-8 p-5 sm:p-6">
+                  <OpenDatesEditor
+                    availability={draft}
+                    calendarBusyBlocks={calendarBusyBlocks}
+                    hours={hours}
+                    onChange={setDraft}
+                    onShowDate={setSelectedDate}
+                    paint={paint}
+                    today={today}
+                    todayKey={todayKey}
+                  />
+                  <WeeklyEditor
+                    availability={draft}
+                    hours={hours}
+                    onChange={setDraft}
+                    paint={paint}
+                    portalContainer={portalContainer}
+                  />
+                </div>
               )}
             </MeetingAvailabilitySplitLayout>
           )}
@@ -1302,6 +1447,8 @@ export function OrgInterviewAvailabilityDialog({
       <TalentCareerModal
         open={discardOpen}
         onClose={() => setDiscardOpen(false)}
+        backdropClassName="z-[100]"
+        overlayClassName="z-[100]"
         mobileBottomSheet
         title={<>{c("저장하지 않고 닫을까요?", "Close without saving?")}</>}
         description={

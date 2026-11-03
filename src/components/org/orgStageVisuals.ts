@@ -38,7 +38,7 @@ export function orgStageName(
     connected: c("연결됨", "Connected"),
     final_offer: c("최종 오퍼", "Final offer"),
     intro_requested: c("연결 제안한 후보", "Intro requested"),
-    pending_connection: c("연결 수락할 후보", "Ready to connect"),
+    pending_connection: c("연결 수락한 후보", "Ready to connect"),
     process_stopped: c("프로세스 중단", "Process ended"),
   };
   if (fixed[stage]) return fixed[stage];

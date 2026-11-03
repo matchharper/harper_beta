@@ -72,6 +72,14 @@ import type { OrgAgentToolName } from "@/lib/org/agent/tools";
 import { formatMatchingRunHistory } from "@/lib/org/agent/promptFormat";
 import { resolveOrgAgentUpdateDataMode } from "@/lib/org/agent/updateDataMode";
 import { enqueueOrgAgenticMatchingSearch, matchingSearchUnavailableReason } from "@/lib/org/agent/matchingSearch";
+import { externalSourcingEnabledFor, formatExternalIntroRequestResult, parseExternalSourcingTrigger } from "@/lib/org/agent/externalSourcing";
+import {
+  loadShownExternalCandidate,
+  readExternalCandidates,
+  requestExternalIntro,
+  requestExternalEmailLookup,
+  requestExternalSourcing,
+} from "@/lib/org/agent/externalSourcing.server";
 import { publishRoleRecommendations } from '@/lib/companyFirstSearch/publication/server';
 import {
   assertOrgAgentToolAvailable,
@@ -521,6 +529,9 @@ export function getOrgAgentToolStatusLabel(args: {
     ],
     publish_role_recommendations: ["후보 설명 작성 및 추천 목록 갱신 중", "추천 목록 갱신 완료", "추천 목록을 갱신하지 못했습니다"],
     recommend_talents: ["추천 선정 접수 중", "추천 선정 접수", "추천 선정 접수 실패"],
+    request_external_search: ["외부 후보 검색을 요청하는 중", "외부 후보 검색 요청 완료", "외부 후보 검색을 요청하지 못했습니다"],
+    read_external_candidates: ["외부 후보를 읽는 중", "외부 후보 확인 완료", "외부 후보를 읽지 못했습니다"],
+    contact_external_candidate: ["외부 후보 연락 준비 중", "외부 후보 연락 준비 완료", "외부 후보 연락을 준비하지 못했습니다"],
     request_matching_search: [
       "새 후보자 검색을 요청하는 중",
       "새 후보자 검색 요청 완료",
@@ -1064,6 +1075,110 @@ async function executeRequestMatchingSearch(args: {
   return {
     ...queued, requestedRoleName: role.name,
   };
+}
+
+async function executeExternalSourcing(args: {
+  actorId: string;
+  admin: OrgAgentAdminClient;
+  callId: string;
+  conversation: OrgAgentConversationRow;
+  currentUserMessageId: number;
+  harperInitiated: boolean;
+  input: Record<string, unknown>;
+  name: "request_external_search" | "read_external_candidates" | "contact_external_candidate";
+  slackThreadId: string | null;
+  source: "chat" | "slack";
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  await assertOrgWorkspacePermission({admin:args.admin,user:args.user,workspaceId:args.workspaceId,permission:"manage_candidates"});
+  const role = roleOrThrow(args.state, args.input.roleId);
+  await assertOrgTeamRoleAccess({ admin: args.admin, user: args.user, workspaceId: args.workspaceId, roleId: role.roleId });
+  args.state.preferredRoleId = role.roleId;
+  if (args.name === "contact_external_candidate") {
+    if (!externalSourcingEnabledFor(args.workspaceId)) throw new OrgAgentToolInputError("External search is not available for this workspace");
+    if (args.input.action === "request_intro") return executeExternalIntroRequest({ ...args, roleId: role.roleId, roleName: role.name });
+    if (args.input.action !== "find_email") throw new OrgAgentToolInputError("Unsupported contact action");
+    if (has(args.input, "companyAppeal") || has(args.input, "introRecipientEmails")) {
+      throw new OrgAgentToolInputError("companyAppeal and introRecipientEmails can only be used with request_intro");
+    }
+    const candidateRef = requiredText(args.input.candidateRef, "candidateRef", 100);
+    const result = await requestExternalEmailLookup({admin:args.admin,workspaceId:args.workspaceId,roleId:role.roleId,
+      userId:args.user.id,candidateRef});
+    recordResult(args.state, {callId:args.callId,name:args.name,status:result.status === "queued" ? "success" : "unchanged",
+      summary:result.status === "queued" ? `${role.name} 외부 후보 이메일 찾기 대기` : `${role.name} 외부 후보 이메일 상태 확인`});
+    return result;
+  }
+  if (args.name === "read_external_candidates") {
+    const result = await readExternalCandidates({admin:args.admin,workspaceId:args.workspaceId,roleId:role.roleId,
+      roleName:role.name,runId:typeof args.input.runId === "string" ? args.input.runId.trim() || null : null});
+    recordResult(args.state, {callId:args.callId,name:args.name,status:"success",summary:`${role.name} 외부 후보 ${result.shown}명 확인`});
+    return result;
+  }
+  if (!externalSourcingEnabledFor(args.workspaceId)) throw new OrgAgentToolInputError("External search is not available for this workspace");
+  const trigger = parseExternalSourcingTrigger(args.input.trigger, args.harperInitiated);
+  const result = await requestExternalSourcing({admin:args.admin,workspaceId:args.workspaceId,roleId:role.roleId,
+    roleName:role.name,userId:args.user.id,trigger,reason:typeof args.input.reason === "string" ? args.input.reason : ""});
+  recordResult(args.state, {callId:args.callId,name:args.name,status:result.status === "queued" ? "success" : "unchanged",
+    summary:result.status === "queued" ? `${role.name} 외부 후보 검색 대기` : result.status === "already_running"
+      ? `${role.name} 외부 후보 검색 진행 중` : `${role.name} 외부 후보 검색 시작 안 함`});
+  return result;
+}
+
+/** The company's connection request for an external person, confirmed exactly like a company-first Intro request. */
+async function executeExternalIntroRequest(args: Parameters<typeof executeExternalSourcing>[0] & { roleId: string; roleName: string }) {
+  const candidateRef = requiredText(args.input.candidateRef, "candidateRef", 100);
+  const candidate = await loadShownExternalCandidate({admin:args.admin,workspaceId:args.workspaceId,roleId:args.roleId,candidateRef});
+  if (!candidate) throw new OrgAgentToolInputError("External candidate not found in this Role");
+  const name = text(candidate.name) || "외부 후보";
+  const base = { candidateRef: candidate.id, name, roleName: args.roleName };
+  type IntroResult = Omit<Parameters<typeof formatExternalIntroRequestResult>[0], keyof typeof base>;
+  const respond = (result: IntroResult) => {
+    const full = { ...base, ...result };
+    return { ...full, modelOutput: formatExternalIntroRequestResult(full) };
+  };
+  if (candidate.intro) {
+    recordResult(args.state, {callId:args.callId,name:args.name,status:"unchanged",summary:`${name} 외부 후보 연결 요청 이미 있음`});
+    return respond({ status: "already_requested", intro: candidate.intro });
+  }
+  if (candidate.contact?.status === "not_found") {
+    recordResult(args.state, {callId:args.callId,name:args.name,status:"unchanged",summary:`${name} 외부 후보 이메일 없음`});
+    return respond({ status: "no_email" });
+  }
+  const appealInput = nullableTextField(args.input, "companyAppeal", 2_000);
+  const suppliedRecipientEmails = has(args.input, "introRecipientEmails") ? emailArray(args.input.introRecipientEmails, 10) : null;
+  // Same adjacency check as decide_company_intro; the external person is keyed as external:<ref>.
+  const confirmationKey = `external:${candidate.id}`;
+  const confirmed = await immediatelyPresentedCompanyIntroDecision({
+    actorId: args.actorId, admin: args.admin, companyAppeal: appealInput.present ? appealInput.value : undefined,
+    conversationId: args.conversation.id, currentUserMessageId: args.currentUserMessageId, decision: "request_intro",
+    introRecipientEmails: suppliedRecipientEmails, nextStageId: undefined, roleId: args.roleId,
+    slackThreadId: args.slackThreadId, source: args.source, talentId: confirmationKey,
+  });
+  if (!confirmed) {
+    const requesterEmail = text(args.user.email).toLowerCase();
+    const introRecipientEmails = suppliedRecipientEmails?.length ? suppliedRecipientEmails : requesterEmail ? [requesterEmail] : [];
+    const companyAppeal = appealInput.present ? appealInput.value : null;
+    const missingInputs = [...(!companyAppeal ? ["company_appeal"] : []), ...(introRecipientEmails.length ? [] : ["intro_recipient_emails"])];
+    recordResult(args.state, {callId:args.callId,name:args.name,status:"unchanged",
+      summary: missingInputs.length ? `${name} 외부 후보 연결 요청 정보 필요` : `${name} 외부 후보 연결 요청 재확인 필요`});
+    if (missingInputs.length) return respond({ status: "details_required", companyAppeal, introRecipientEmails, missingInputs });
+    stageCompanyIntroDecisionContext({ actorId: args.actorId, companyAppeal, decision: "request_intro",
+      introCandidateId: candidate.id, introRecipientEmails, nextStageId: null, roleId: args.roleId,
+      slackThreadId: args.slackThreadId, state: args.state, talentId: confirmationKey });
+    return respond({ status: "confirmation_required", companyAppeal, introRecipientEmails });
+  }
+  if (confirmed.introCandidateId !== candidate.id || !confirmed.companyAppeal || confirmed.introRecipientEmails.length === 0) {
+    throw new OrgAgentToolInputError("The immediately confirmed connection request is incomplete");
+  }
+  const recorded = await requestExternalIntro({ admin: args.admin, workspaceId: args.workspaceId, roleId: args.roleId,
+    userId: args.user.id, candidate, companyAppeal: confirmed.companyAppeal,
+    introRecipientEmails: confirmed.introRecipientEmails });
+  recordResult(args.state, {callId:args.callId,name:args.name,status:recorded.status === "requested" ? "success" : "unchanged",
+    summary:recorded.status === "requested" ? `${name} 외부 후보 연결 요청 기록` : `${name} 외부 후보 연결 요청 이미 있음`});
+  return respond({ status: recorded.status, intro: recorded.intro, companyAppeal: confirmed.companyAppeal,
+    introRecipientEmails: confirmed.introRecipientEmails, emailLookup: recorded.emailLookup });
 }
 
 async function executeReadConversationHistory(args: {
@@ -4938,7 +5053,7 @@ async function readCandidateDecisionTarget(args: {
   if (matchingPositions.length === 0) {
     throw new OrgAgentToolInputError(
       args.decision === "accept"
-        ? "후보자가 현재 이 역할의 연결 수락할 후보 또는 프로세스 종료 상태가 아니라 연결을 시작할 수 없어요."
+        ? "후보자가 현재 이 역할의 연결 수락한 후보 또는 프로세스 종료 상태가 아니라 연결을 시작할 수 없어요."
         : "후보자가 현재 이 역할에서 종료할 수 있는 회사 측 진행 상태가 아니에요."
     );
   }
@@ -6414,6 +6529,8 @@ export async function executeOrgAgentTool(args: {
   companySideContext?: string;
   conversation: OrgAgentConversationRow;
   currentUserMessageId: number;
+  /** Harper-initiated turn (assignment or event), not a live company message. */
+  harperInitiated?: boolean;
   input: unknown;
   name: OrgAgentToolName;
   onToolProgress?: (label: string) => void;
@@ -6744,6 +6861,13 @@ export async function executeOrgAgentTool(args: {
       state: args.state,
       user: args.user,
       workspaceId,
+    });
+  } else if (args.name === "request_external_search" || args.name === "read_external_candidates" || args.name === "contact_external_candidate") {
+    return executeExternalSourcing({
+      actorId: args.actorId, admin: args.admin, callId: args.callId, conversation: args.conversation,
+      currentUserMessageId: args.currentUserMessageId, harperInitiated: args.harperInitiated === true,
+      input, name: args.name, slackThreadId: args.slackThreadId, source: args.source, state: args.state,
+      user: args.user, workspaceId,
     });
   } else if (args.name === "request_matching_search" || args.name === "publish_role_recommendations") {
     return executeRequestMatchingSearch({

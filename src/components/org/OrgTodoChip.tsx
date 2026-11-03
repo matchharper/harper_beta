@@ -58,7 +58,7 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
         : c("연락", "message");
   switch (item.kind) {
     case "pending_connection":
-      return c("연결 수락할 후보 {n}명", "{n} ready to connect", { n });
+      return c("연결 수락한 후보 {n}명", "{n} ready to connect", { n });
     case "company_intro":
       return c("연결 제안할 후보 {n}명", "{n} suggested candidates", { n });
     case "contact_draft":

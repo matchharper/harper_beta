@@ -6,6 +6,7 @@ import { loadCompanyCapabilities } from "./loader";
 import { continuationCapabilities, resolveCompanyCapabilities } from "./resolver";
 import type { OrgAgentConversationInput } from "../conversationInput";
 import { getEnabledOrgAgentTools } from "../tools";
+import { EXTERNAL_SOURCING_TOOL_NAMES } from "../externalSourcing";
 import { buildCompanySystemInput } from "../input";
 
 test("each domain tool has exactly one base or capability owner", () => {
@@ -20,7 +21,8 @@ test("initial request includes core communication, deferring heavy schemas AND d
   assert.deepEqual([...resolved.offeredToolNames].sort(), [...COMPANY_BASE_TOOLS, "list_contacts", "read_contact", "contact_talent", "load_capabilities"].sort());
   assert.deepEqual(resolved.policyIds, ["candidate_contact"]);
   const system = buildCompanySystemInput({ resolved, surface: "slack" });
-  for (const c of COMPANY_CAPABILITIES) assert.ok(system.includes(c.id));
+  // external_sourcing is offered only to workspaces that have it turned on (tested below).
+  for (const c of COMPANY_CAPABILITIES) if (c.id !== "external_sourcing") assert.ok(system.includes(c.id));
   assert.ok(!system.includes("<hiring_brief_authoring_contract>"));
   assert.ok(!JSON.stringify(resolved.tools).includes('"update_data"'));
 });
@@ -56,5 +58,26 @@ test("surface gates and full compatibility mode do not expose unsupported tools"
   assert.ok(!web.offeredToolNames.has("start_role_creation"));
   const full = resolveCompanyCapabilities({ surface: "chat", mode: "full", loaded: new Set() });
   assert.ok(!full.offeredToolNames.has("load_capabilities"));
-  assert.deepEqual([...full.offeredToolNames].sort(), getEnabledOrgAgentTools("chat").map((t) => t.function.name).sort());
+  assert.deepEqual([...full.offeredToolNames].sort(), getEnabledOrgAgentTools("chat").map((t) => t.function.name)
+    .filter((name) => !(EXTERNAL_SOURCING_TOOL_NAMES as readonly string[]).includes(name)).sort());
+});
+
+test("external sourcing is offered only to listed workspaces, and loading cannot broaden that", () => {
+  const previous = process.env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS;
+  process.env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS = "w-on";
+  try {
+    const on = resolveCompanyCapabilities({ surface: "slack", mode: "full", loaded: new Set(), workspaceId: "w-on" });
+    const off = resolveCompanyCapabilities({ surface: "slack", mode: "full", loaded: new Set(), workspaceId: "w-off" });
+    assert.ok(on.offeredToolNames.has("request_external_search") && on.catalogText.includes("external_sourcing"));
+    assert.ok(!off.offeredToolNames.has("request_external_search") && !off.catalogText.includes("external_sourcing"));
+    assert.equal(loadCompanyCapabilities({ capabilityIds: ["external_sourcing"] }, new Set(), "slack", "w-off").ok, false);
+    const loaded = new Set<CompanyCapabilityId>();
+    assert.equal(loadCompanyCapabilities({ capabilityIds: ["external_sourcing"] }, loaded, "slack", "w-on").ok, true);
+    const progressive = resolveCompanyCapabilities({ surface: "slack", mode: "progressive", loaded, workspaceId: "w-on" });
+    assert.deepEqual(progressive.policyIds.filter((id) => id === "external_sourcing"), ["external_sourcing"]);
+    assert.ok(progressive.policyText.includes("not Harper members"));
+  } finally {
+    if (previous === undefined) delete process.env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS;
+    else process.env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS = previous;
+  }
 });

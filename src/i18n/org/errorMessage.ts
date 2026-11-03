@@ -17,7 +17,7 @@ const ENGLISH_CONNECTION_ERRORS = new Map([
 ]);
 
 const ENGLISH_MEETING_ERRORS = new Map([
-  ["연결 수락할 후보를 선택해 인터뷰를 요청해 주세요.", "Select a candidate awaiting connection to request an interview."],
+  ["연결 수락한 후보를 선택해 인터뷰를 요청해 주세요.", "Select a candidate awaiting connection to request an interview."],
   ["이미 인터뷰 요청이 시작되었어요. 후보자의 현재 진행 상황을 확인해 주세요.", "An interview has already been requested. Check the candidate's current progress."],
   ["후보자 연결은 완료했지만 인터뷰 요청 메일의 발송 상태를 확인하지 못했어요. Harper 채팅에서 이 후보자의 인터뷰 요청 상태를 확인해 주세요.", "The candidate is connected, but we couldn't confirm the interview email status. Ask Harper in chat to check this candidate's interview request before trying again."],
   ["일정 담당자의 Google Calendar를 연결해 주세요. 후보자에게는 아직 연락하지 않았어요.", "Connect the organizer's Google Calendar first. The candidate hasn't been contacted."],

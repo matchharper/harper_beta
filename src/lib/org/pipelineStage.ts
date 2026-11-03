@@ -76,7 +76,7 @@ const STAGE_LABELS: Record<string, string> = {
   connected: "연결됨",
   final_offer: "최종 오퍼 단계",
   intro_requested: "연결 제안한 후보",
-  pending_connection: "연결 수락할 후보",
+  pending_connection: "연결 수락한 후보",
   process_stopped: "프로세스 종료",
 };
 

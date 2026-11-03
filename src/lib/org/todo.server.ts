@@ -34,7 +34,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const KST_MS = 9 * 60 * 60 * 1000;
 const MEETING_SOON_MS = 72 * 60 * 60 * 1000;
 const ALL_LIMIT = 200;
-/** Names shown under a grouped item such as "연결 수락할 후보 5명". */
+/** Names shown under a grouped item such as "연결 수락한 후보 5명". */
 const PEOPLE_SHOWN = 3;
 /** A connection with no interview arranged through Harper after this long. */
 const INTERVIEW_NUDGE_DAYS = 3;
@@ -96,7 +96,7 @@ async function readActivity(args: {
 
 /**
  * Feed events by section. 알림 holds what candidates did that needs nothing
- * from the team. A new 연결 수락할 후보 needs the team's decision, so it is
+ * from the team. A new 연결 수락한 후보 needs the team's decision, so it is
  * counted under 할 일 only, never also as an update. What the team or Harper
  * sent goes to 한 일 once the wait for the answer is over; while it lasts,
  * the waiting line under 진행 중 says it.

@@ -109,7 +109,7 @@ test("capacity facts stop candidate outreach while preserving company review and
       { roleId: "other-role", pendingCount: 99, maxPendingTalents: 9 },
     ],
   });
-  assert.match(result, /연결 수락할 후보 14명/);
+  assert.match(result, /연결 수락한 후보 14명/);
   assert.match(result, /상한 10명/);
   assert.match(result, /회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다/);
   assert.match(result, /회사가 새 검색을 직접 요청한 결과는 아니다/);
