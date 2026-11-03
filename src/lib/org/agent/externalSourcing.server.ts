@@ -157,7 +157,7 @@ export async function recordExternalIntroRequest(args: {
 
 /**
  * The company's confirmed connection request, from chat or the Role page. With invitations on, an address
- * lookup starts now when none exists (the daily lookup limit still applies); the invitation follows by cron.
+ * lookup starts now when none exists (a failed one is retried once per person); the invitation follows by cron.
  */
 export async function requestExternalIntro(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidate: ShownExternalCandidate;
@@ -176,7 +176,7 @@ export async function requestExternalIntro(args: {
     const lookup = await requestExternalEmailLookup({ admin: args.admin, workspaceId: args.workspaceId, roleId: args.roleId,
       userId: args.userId, candidateRef: args.candidate.id });
     emailLookup = lookup.status === "queued" ? "queued (about $0.12)"
-      : lookup.status === "not_queued" ? `not started now (${lookup.reason ?? "limit"}); retried automatically` : "already exists";
+      : lookup.status === "not_queued" ? `not started (${lookup.reason ?? "unknown"}); without an address the invitation will not go out` : "already exists";
   }
   return { ...recorded, emailLookup };
 }
@@ -219,7 +219,10 @@ export async function loadShownExternalCandidate(args: {
   return data?.[0] ? shown(data[0]) : null;
 }
 
-/** Queue one email lookup for a shown person (about $0.12). Repeats return the existing state. */
+/**
+ * Queue one email lookup for a shown person (about $0.12). Repeats return the existing state. A failed
+ * lookup can be retried once per person (the retry is marked in result, which the Worker never rewrites).
+ */
 export async function requestExternalEmailLookup(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidateRef: string; now?: Date;
 }) {
@@ -230,16 +233,19 @@ export async function requestExternalEmailLookup(args: {
   const respond = (result: { status: string; contact?: ExternalContactRow | null; reason?: string }) =>
     ({ ...base, ...result, modelOutput: formatExternalContactRequestResult({ ...base, ...result }) });
   if (existing && existing.status !== "failed") return respond({ status: "existing", contact: existing });
-  const dayAgo = new Date((args.now ?? new Date()).getTime() - 86_400_000).toISOString();
-  const { count, error: countError } = await args.admin.from("external_candidate_contacts")
-    .select("id", { count: "exact", head: true }).eq("company_workspace_id", args.workspaceId).gte("created_at", dayAgo);
-  if (countError) throw countError;
-  if ((count ?? 0) >= externalSourcingLimits().emailDaily) return respond({ status: "not_queued", reason: "daily_limit", contact: existing });
+  if (existing) {
+    const { data: previous, error: previousError } = await args.admin.from("external_candidate_contacts")
+      .select("result").eq("external_candidate_id", candidate.id).maybeSingle();
+    if (previousError) throw previousError;
+    const marked = previous?.result && typeof previous.result === "object" && !Array.isArray(previous.result)
+      ? (previous.result as { retriedAt?: unknown }).retriedAt : null;
+    if (marked) return respond({ status: "not_queued", reason: "retry_used", contact: existing });
+  }
   const now = new Date().toISOString();
   const row = {
     external_candidate_id: candidate.id, company_workspace_id: args.workspaceId, role_id: candidate.role_id,
     requested_by: args.userId, status: "queued", available_at: now, attempt_count: 0, error_code: null,
-    error_message: null, result: {}, updated_at: now,
+    error_message: null, result: existing ? { retriedAt: now } : {}, updated_at: now,
   };
   // A failed lookup is retried on the same record; otherwise one record per person (unique index).
   const { error } = existing

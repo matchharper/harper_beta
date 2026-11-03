@@ -31,9 +31,12 @@ export function externalInviteRecipientAllowed(email: string, env: Record<string
   return !allowed || allowed.has(normalizeEmailAddress(email) ?? email.trim().toLowerCase());
 }
 
-/** All invitations Harper may send in 24 hours, across workspaces (a safety cap, not a quota). */
+/**
+ * All invitations Harper may send in 24 hours, across workspaces: a cap that keeps cold mail from
+ * matchharper.com from being flagged as spam, not a quota.
+ */
 export function externalInviteDailyLimit(env: Record<string, string | undefined> = process.env) {
-  return intEnv(env, "ORG_EXTERNAL_INVITE_DAILY_LIMIT", 20);
+  return intEnv(env, "ORG_EXTERNAL_INVITE_DAILY_LIMIT", 200);
 }
 
 /** Cold invitations go out 09:00-20:00 Korea time only. */

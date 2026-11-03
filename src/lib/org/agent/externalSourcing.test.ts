@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import Module from "node:module";
+import test, { type TestContext } from "node:test";
 import {
   decideExternalSourcing,
   externalContactNoticeFacts,
@@ -33,7 +34,7 @@ test("external sourcing is off unless the workspace is listed", () => {
 });
 
 test("default limits: one run a day", () => {
-  assert.deepEqual(externalSourcingLimits({}), { workspaceDaily: 1, emailDaily: 10 });
+  assert.deepEqual(externalSourcingLimits({}), { workspaceDaily: 1 });
 });
 
 test("one active run per Role, a daily workspace limit, and Harper never starts one on its own", () => {
@@ -194,3 +195,48 @@ test("a person whose lookup found no address cannot be asked for", () => {
   assert.match(text, /status=no_email/);
   assert.match(text, /Nothing was recorded or sent/);
 });
+
+function serverModules(t: TestContext, env: Record<string, string> = {}) {
+  const nodeModule = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown };
+  const load = nodeModule._load;
+  for (const [key, value] of Object.entries({ NEXT_PUBLIC_SUPABASE_URL: "https://fixture.invalid",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "fixture-key", SUPABASE_SERVICE_ROLE_KEY: "fixture-key", OPENAI_API_KEY: "unused-fixture-key", ...env })) {
+    const before = process.env[key];
+    process.env[key] = key in env ? value : before ?? value;
+    t.after(() => { if (before === undefined) delete process.env[key]; else process.env[key] = before; });
+  }
+  t.mock.method(nodeModule, "_load", function (this: unknown, name: string, ...args: unknown[]) {
+    return name === "server-only" ? {} : load.call(this, name, ...args);
+  });
+}
+
+test("a failed email lookup can be retried once per person; there is no daily lookup count", async (t) => {
+  serverModules(t, { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" });
+  const { requestExternalEmailLookup } = await import("./externalSourcing.server");
+  const run = async (contactResult: Record<string, unknown>) => {
+    const calls: Array<{ table: string; op: string; patch?: Record<string, unknown> }> = [];
+    const row = { id: "c1", name: "Ada Kim", role_id: "r1", run: { trigger: "company_request" }, company_decision: null,
+      contact: { status: "failed", email_kind: null, source_kind: null, finished_at: "2026-11-03T00:00:00Z" }, intro: null };
+    const admin = { from: (table: string) => {
+      const call: { table: string; op: string; patch?: Record<string, unknown> } = { table, op: "select" };
+      const builder: object = new Proxy({}, { get(_t, key) {
+        if (key === "then") return (resolve: (v: unknown) => unknown) => { calls.push(call); return Promise.resolve({ data: [row], error: null }).then(resolve); };
+        if (key === "maybeSingle" || key === "single") return () => { calls.push(call);
+          return Promise.resolve({ data: table === "external_candidate_contacts" ? { result: contactResult } : row, error: null }); };
+        return (...args: unknown[]) => { if (key === "update" || key === "insert") { call.op = String(key); call.patch = args[0] as Record<string, unknown>; } return builder; };
+      } });
+      return builder;
+    } } as never;
+    const result = await requestExternalEmailLookup({ admin, workspaceId: "w1", roleId: "r1", userId: "u1", candidateRef: "c1" });
+    return { result, update: calls.find((call) => call.op === "update") };
+  };
+  const first = await run({});
+  assert.equal(first.result.status, "queued");
+  assert.ok((first.update?.patch?.result as { retriedAt?: string }).retriedAt);
+  const second = await run({ retriedAt: "2026-11-03T01:00:00Z" });
+  assert.equal(second.result.status, "not_queued");
+  assert.equal(second.result.reason, "retry_used");
+  assert.equal(second.update, undefined);
+  assert.match(second.result.modelOutput, /already failed again after its one retry/);
+});
+

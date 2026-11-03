@@ -127,7 +127,7 @@ async function blocker(admin: Admin, row: ClaimedRequest, ctx: Awaited<ReturnTyp
   const contact = ctx.contact;
   if (!contact || contact.status === "queued" || contact.status === "running") {
     if (now.getTime() - Date.parse(row.created_at) > GIVE_UP_LOOKUP_MS) return "no_email_found";
-    // A lookup the daily limit held back is asked again; one already queued is only awaited.
+    // A request recorded while no lookup started (invitations were off then) gets one now; a queued one is only awaited.
     if (!contact) {
       await requestExternalEmailLookup({ admin, workspaceId: row.company_workspace_id, roleId: row.role_id,
         userId: row.requested_by, candidateRef: row.external_candidate_id, now });

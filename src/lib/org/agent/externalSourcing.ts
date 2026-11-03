@@ -28,8 +28,6 @@ export function externalSourcingLimits(env: Record<string, string | undefined> =
   return {
     // runs a workspace may start in 24 hours (the company's requests; Harper never starts one on its own)
     workspaceDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 1),
-    // email lookups a workspace may start in 24 hours (about $0.12 each)
-    emailDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_EMAIL_DAILY_LIMIT", 10),
   };
 }
 
@@ -210,11 +208,13 @@ export function formatExternalContactRequestResult(result: {
   if (result.status === "queued") {
     lines.push("result_meaning=An email lookup is queued for this person. It takes a few minutes; the outcome is shared when it finishes. Nobody is contacted and the address is never shown.");
   } else if (result.status === "not_queued") {
-    lines.push(`unavailable_reason=${cell(result.reason, 60)}`, "result_meaning=No lookup was started.");
+    lines.push(`unavailable_reason=${cell(result.reason, 60)}`, result.reason === "retry_used"
+      ? "result_meaning=No lookup was started: this person's lookup already failed again after its one retry."
+      : "result_meaning=No lookup was started.");
   } else {
     lines.push("result_meaning=No new lookup was started; this is the existing state.");
   }
-  lines.push("address_visibility=Harper keeps the address for a later, company-approved message; it is not shown to anyone.");
+  lines.push("address_visibility=Harper keeps the address for the invitation and the introduction; it is not shown to anyone.");
   return lines.join("\n");
 }
 export type ExternalRunRow = {
