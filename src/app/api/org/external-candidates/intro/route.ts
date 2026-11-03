@@ -12,7 +12,7 @@ const body = z.object({
 });
 
 /**
- * Role Inbox Send Intro for a person outside Harper: the same inputs as a member Intro request.
+ * Role page Send Intro for a person outside Harper: the same inputs as a member Intro request.
  * Only for a person with a found address. Records the request; with invitations on, Harper emails one invitation.
  */
 export async function POST(req: NextRequest) {

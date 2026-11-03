@@ -6,8 +6,8 @@ import {
   formatExternalCandidatesResult,
   formatExternalContactRequestResult,
   formatExternalSearchRequestResult,
-  kstMonthStart,
   type ExternalCandidateRow,
+  type ExternalCandidateStatusRow,
   type ExternalContactRow,
   type ExternalIntroRow,
   type ExternalRunRow,
@@ -22,7 +22,7 @@ import { externalInviteSendingEnabled } from "./externalInvite";
 const CANDIDATE_COLUMNS = "id,name,headline,current_company,location,linkedin_url,career_lines,evidence,verdict,rank,"
   + "company_decision,role_id,run_id,created_at,run:external_sourcing_runs!inner(trigger),"
   + "contact:external_candidate_contacts(status,email_kind,source_kind,finished_at),"
-  + "intro:external_intro_requests(status,created_at,intro_recipient_emails,invited_at,opened_at,last_reply_at,reply_type,error_code)";
+  + "intro:external_intro_requests(status,created_at,intro_recipient_emails,invited_at,opened_at,last_reply_at,reply_type,error_code,accepted_at,connected_at)";
 const RUN_COLUMNS = "id,status,trigger,error_code,created_at,finished_at,counts";
 const FINISHED = ["succeeded", "skipped", "failed"];
 
@@ -50,21 +50,18 @@ function selectCandidates(admin: OrgAgentAdminClient) {
 async function loadHistory(admin: OrgAgentAdminClient, workspaceId: string, roleId: string, now: Date): Promise<ExternalSourcingHistory> {
   const dayAgo = new Date(now.getTime() - 86_400_000).toISOString();
   const runs = () => admin.from("external_sourcing_runs");
-  const [active, daily, monthly, last] = await Promise.all([
+  const [active, roleDaily, workspaceDaily] = await Promise.all([
     runs().select("id").eq("role_id", roleId).in("status", ["queued", "running"]).limit(1),
-    runs().select("id", { count: "exact", head: true }).eq("company_workspace_id", workspaceId)
+    runs().select("id", { count: "exact", head: true }).eq("company_workspace_id", workspaceId).eq("role_id", roleId)
       .neq("trigger", "shadow").gte("created_at", dayAgo),
     runs().select("id", { count: "exact", head: true }).eq("company_workspace_id", workspaceId)
-      .eq("trigger", "agent_initiative").gte("created_at", kstMonthStart(now)),
-    runs().select("created_at").eq("role_id", roleId).neq("trigger", "shadow")
-      .order("created_at", { ascending: false }).limit(1),
+      .neq("trigger", "shadow").gte("created_at", dayAgo),
   ]);
-  for (const result of [active, daily, monthly, last]) if (result.error) throw result.error;
+  for (const result of [active, roleDaily, workspaceDaily]) if (result.error) throw result.error;
   return {
     activeRunId: active.data?.[0]?.id ?? null,
-    workspaceRunsLast24h: daily.count ?? 0,
-    agentRunsThisMonth: monthly.count ?? 0,
-    lastRoleRunAt: last.data?.[0]?.created_at ?? null,
+    roleRunsLast24h: roleDaily.count ?? 0,
+    workspaceRunsLast24h: workspaceDaily.count ?? 0,
   };
 }
 
@@ -76,13 +73,13 @@ export async function requestExternalSourcing(args: {
   const enabled = externalSourcingEnabledFor(args.workspaceId);
   const history = enabled
     ? await loadHistory(args.admin, args.workspaceId, args.roleId, now)
-    : { activeRunId: null, workspaceRunsLast24h: 0, agentRunsThisMonth: 0, lastRoleRunAt: null };
+    : { activeRunId: null, roleRunsLast24h: 0, workspaceRunsLast24h: 0 };
   const decision = decideExternalSourcing({ enabled, trigger: args.trigger, history, now, limits: externalSourcingLimits() });
   const base = { roleName: args.roleName, trigger: args.trigger };
   if (!decision.allowed) {
     const result = decision.status === "already_running"
       ? { ...base, status: "already_running", runId: decision.runId }
-      : { ...base, status: "not_queued", reason: decision.reason, retryAfter: decision.retryAfter };
+      : { ...base, status: "not_queued", reason: decision.reason };
     return { ...result, modelOutput: formatExternalSearchRequestResult(result) };
   }
   const { data, error } = await args.admin.from("external_sourcing_runs").insert({
@@ -139,6 +136,30 @@ export async function listShownExternalCandidates(args: {
   return { latestRun: latest?.[0] ?? null, candidates: (candidates ?? []).map(shown) };
 }
 
+const STATUS_COLUMNS = "id,name,headline,current_company,company_decision,company_decided_at,created_at,"
+  + "run:external_sourcing_runs!inner(trigger),"
+  + "contact:external_candidate_contacts(status,email_kind,source_kind,finished_at),"
+  + "intro:external_intro_requests(status,created_at,invited_at,opened_at,last_reply_at,reply_type,error_code,accepted_at,connected_at)";
+
+type StatusQueryRow = Omit<ExternalCandidateStatusRow, "contact" | "intro"> & {
+  contact: ExternalContactRow | ExternalContactRow[] | null;
+  intro: ExternalIntroRow | ExternalIntroRow[] | null;
+  run: { trigger: string } | null;
+};
+
+/** Everyone shown for a Role, passed people included, with the company's decision; newest first. */
+export async function listExternalCandidateStatuses(args: {
+  admin: OrgAgentAdminClient; workspaceId: string; roleId: string; limit?: number;
+}) {
+  const { data, error, count } = await args.admin.from("external_candidates").select(STATUS_COLUMNS, { count: "exact" })
+    .neq("run.trigger", "shadow").eq("company_workspace_id", args.workspaceId).eq("role_id", args.roleId)
+    .eq("delivered", true).order("created_at", { ascending: false }).order("rank", { ascending: true })
+    .limit(args.limit ?? 20).returns<StatusQueryRow[]>();
+  if (error) throw error;
+  const people = (data ?? []).map(({ run: _run, ...row }) => ({ ...row, contact: one(row.contact), intro: one(row.intro) }));
+  return { total: count ?? people.length, people };
+}
+
 /** Record the company's confirmed connection request for one shown person. Contacts nobody. */
 export async function recordExternalIntroRequest(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidateRef: string;
@@ -163,8 +184,8 @@ export async function recordExternalIntroRequest(args: {
 }
 
 /**
- * The company's confirmed connection request, from chat or the Role Inbox. With invitations on, an address
- * lookup starts now when none exists (the daily lookup limit still applies); the invitation follows by cron.
+ * The company's confirmed connection request, from chat or the Role page. With invitations on, an address
+ * lookup starts now when none exists (a failed one is retried once per person); the invitation follows by cron.
  */
 export async function requestExternalIntro(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidate: ShownExternalCandidate;
@@ -183,12 +204,12 @@ export async function requestExternalIntro(args: {
     const lookup = await requestExternalEmailLookup({ admin: args.admin, workspaceId: args.workspaceId, roleId: args.roleId,
       userId: args.userId, candidateRef: args.candidate.id });
     emailLookup = lookup.status === "queued" ? "queued (about $0.12)"
-      : lookup.status === "not_queued" ? `not started now (${lookup.reason ?? "limit"}); retried automatically` : "already exists";
+      : lookup.status === "not_queued" ? `not started (${lookup.reason ?? "unknown"}); without an address the invitation will not go out` : "already exists";
   }
   return { ...recorded, emailLookup };
 }
 
-/** The company's Pass from the Role Inbox: only an undecided shown person; the reason is kept. */
+/** The company's Pass from the Role page: only an undecided shown person; the reason is kept. */
 export async function passExternalCandidate(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidateRef: string; reason: string;
 }): Promise<{ status: "passed" | "unchanged" | "not_found"; inviteCancelled?: boolean }> {
@@ -226,7 +247,10 @@ export async function loadShownExternalCandidate(args: {
   return data?.[0] ? shown(data[0]) : null;
 }
 
-/** Queue one email lookup for a shown person (about $0.12). Repeats return the existing state. */
+/**
+ * Queue one email lookup for a shown person (about $0.12). Repeats return the existing state. A failed
+ * lookup can be retried once per person (the retry is marked in result, which the Worker never rewrites).
+ */
 export async function requestExternalEmailLookup(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidateRef: string; now?: Date;
 }) {
@@ -237,16 +261,19 @@ export async function requestExternalEmailLookup(args: {
   const respond = (result: { status: string; contact?: ExternalContactRow | null; reason?: string }) =>
     ({ ...base, ...result, modelOutput: formatExternalContactRequestResult({ ...base, ...result }) });
   if (existing && existing.status !== "failed") return respond({ status: "existing", contact: existing });
-  const dayAgo = new Date((args.now ?? new Date()).getTime() - 86_400_000).toISOString();
-  const { count, error: countError } = await args.admin.from("external_candidate_contacts")
-    .select("id", { count: "exact", head: true }).eq("company_workspace_id", args.workspaceId).gte("created_at", dayAgo);
-  if (countError) throw countError;
-  if ((count ?? 0) >= externalSourcingLimits().emailDaily) return respond({ status: "not_queued", reason: "daily_limit", contact: existing });
+  if (existing) {
+    const { data: previous, error: previousError } = await args.admin.from("external_candidate_contacts")
+      .select("result").eq("external_candidate_id", candidate.id).maybeSingle();
+    if (previousError) throw previousError;
+    const marked = previous?.result && typeof previous.result === "object" && !Array.isArray(previous.result)
+      ? (previous.result as { retriedAt?: unknown }).retriedAt : null;
+    if (marked) return respond({ status: "not_queued", reason: "retry_used", contact: existing });
+  }
   const now = new Date().toISOString();
   const row = {
     external_candidate_id: candidate.id, company_workspace_id: args.workspaceId, role_id: candidate.role_id,
     requested_by: args.userId, status: "queued", available_at: now, attempt_count: 0, error_code: null,
-    error_message: null, result: {}, updated_at: now,
+    error_message: null, result: existing ? { retriedAt: now } : {}, updated_at: now,
   };
   // A failed lookup is retried on the same record; otherwise one record per person (unique index).
   const { error } = existing

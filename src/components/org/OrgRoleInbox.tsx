@@ -30,8 +30,6 @@ import {
 } from "@/lib/org/candidateBoardSort";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 import { OrgSearchHistory } from "./OrgSearchHistory";
-import { OrgExternalCandidates } from "./OrgExternalCandidates";
-import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
 import { OrgRoleTalentBoard } from "./OrgRoleTalentBoard";
 import { OrgInboxListTable } from "./OrgInboxListTable";
 import { OrgErrorState } from "./workspace/OrgErrorState";
@@ -79,10 +77,6 @@ export function OrgRoleInbox() {
     },
   });
   const savedReview = router.query.review === "saved";
-  const externalReview = router.query.review === "external";
-  const externalQuery = useOrgExternalCandidates({ workspaceId, roleId: activeRole?.roleId });
-  const externalCount = externalQuery.data?.candidates.length ?? 0;
-  const showExternalTab = externalReview || Boolean(externalQuery.data?.enabled);
   const stage =
     router.query.inboxStage === "company_intro" ||
     router.query.inboxStage === "pending_connection"
@@ -205,7 +199,6 @@ export function OrgRoleInbox() {
         "recommendationId",
         "detailRoleId",
         "detailWorkspaceId",
-        "externalCandidateId",
       ])
         delete query[key];
     // Saved stays open across sort and view changes; another tab leaves it.
@@ -218,7 +211,6 @@ export function OrgRoleInbox() {
   useEffect(() => {
     if (
       card &&
-      !externalReview &&
       // Resolve the Role's default inbox before selecting its first candidate.
       !(detailTalentId && !detailRecommendationId) &&
       !savedReview &&
@@ -311,7 +303,7 @@ export function OrgRoleInbox() {
       <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2 pt-3 md:pt-4">
         <>
             <Tabs
-              activeValue={externalReview ? "external" : savedReview ? "saved" : stage}
+              activeValue={savedReview ? "saved" : stage}
               variant="borderless"
               size="small"
               className="
@@ -369,122 +361,103 @@ export function OrgRoleInbox() {
                     </span>
                   ),
                 },
-                ...(showExternalTab
-                  ? [
-                      {
-                        value: "external",
-                        label: (
-                          <span className="inline-flex items-center gap-2 text-sm">
-                            {c("외부 후보", "Outside Harper")}
-                            <span className="ml-0.5 flex items-center justify-center text-xs text-neutral-800">
-                              {externalCount}
-                            </span>
-                          </span>
-                        ),
-                      },
-                    ]
-                  : []),
               ]}
               onValueChange={(value) =>
-                value === "saved" || value === "external"
-                  ? change({ review: value })
+                value === "saved"
+                  ? change({ review: "saved" })
                   : change({ inboxStage: value })
               }
             />
-            {externalReview ? null : (
-              <>
-                {!savedReview && selectedCount >= 2 ? (
-                  <Badge radius="full" size="md" variant="outline">
-                    {c("다중 선택 켜짐", "Multi-select on")}
-                  </Badge>
-                ) : null}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <MuteButton
-                      aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-                      title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-                      variant="transparent"
-                    >
-                      <ArrowDownWideNarrow className="size-4" strokeWidth={1.4} />
-                    </MuteButton>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuRadioGroup
-                      value={sort}
-                      onValueChange={(sort) => change({ sort })}
-                    >
-                      <DropdownMenuRadioItem value="latest">
-                        {c("최신순", "Newest first")}
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="recommended">
-                        {c("추천순", "Recommended")}
-                      </DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <MuteButton
-                      aria-label={c("보기 방식", "View options")}
-                      title={c("보기 방식", "View options")}
-                      size="sm"
-                      variant="transparent"
-                    >
-                      {card ? (
-                        <LayoutPanelLeft className="size-4" strokeWidth={1.4} />
-                      ) : view === "grid" ? (
-                        <LayoutGrid className="size-4" strokeWidth={1.4} />
-                      ) : view === "board" ? (
-                        <StickyNote className="size-4" strokeWidth={1.4} />
-                      ) : (
-                        <List className="size-4" strokeWidth={1.4} />
-                      )}
-                    </MuteButton>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40" sideOffset={2}>
-                    <DropdownMenuItem
-                      onSelect={() => change({ inboxView: "grid" }, false)}
-                      selected={view === "grid"}
-                      variant="sm"
-                    >
-                      <LayoutGrid strokeWidth={1.4} />
-                      {c("그리드", "Grid")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => change({ inboxView: "list" }, false)}
-                      selected={view === "list"}
-                      variant="sm"
-                    >
-                      <List strokeWidth={1.4} />
-                      {c("리스트", "List")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => change({ inboxView: "card" }, true)}
-                      selected={view === "card"}
-                      variant="sm"
-                    >
-                      <LayoutPanelLeft strokeWidth={1.4} />
-                      {c("카드", "Card")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => change({ inboxView: "board" }, false)}
-                      selected={view === "board"}
-                      variant="sm"
-                    >
-                      <StickyNote strokeWidth={1.4} />
-                      {c("포스트잇", "Board")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            )}
+            {!savedReview && selectedCount >= 2 ? (
+              <Badge radius="full" size="md" variant="outline">
+                {c("다중 선택 켜짐", "Multi-select on")}
+              </Badge>
+            ) : null}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <MuteButton
+                  aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
+                  title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
+                  variant="transparent"
+                >
+                  <ArrowDownWideNarrow className="size-4" strokeWidth={1.4} />
+                </MuteButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup
+                  value={sort}
+                  onValueChange={(sort) => change({ sort })}
+                >
+                  <DropdownMenuRadioItem value="latest">
+                    {c("최신순", "Newest first")}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="recommended">
+                    {c("추천순", "Recommended")}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <MuteButton
+                  aria-label={c("보기 방식", "View options")}
+                  title={c("보기 방식", "View options")}
+                  size="sm"
+                  variant="transparent"
+                >
+                  {card ? (
+                    <LayoutPanelLeft className="size-4" strokeWidth={1.4} />
+                  ) : view === "grid" ? (
+                    <LayoutGrid className="size-4" strokeWidth={1.4} />
+                  ) : view === "board" ? (
+                    <StickyNote className="size-4" strokeWidth={1.4} />
+                  ) : (
+                    <List className="size-4" strokeWidth={1.4} />
+                  )}
+                </MuteButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40" sideOffset={2}>
+                <DropdownMenuItem
+                  onSelect={() => change({ inboxView: "grid" }, false)}
+                  selected={view === "grid"}
+                  variant="sm"
+                >
+                  <LayoutGrid strokeWidth={1.4} />
+                  {c("그리드", "Grid")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => change({ inboxView: "list" }, false)}
+                  selected={view === "list"}
+                  variant="sm"
+                >
+                  <List strokeWidth={1.4} />
+                  {c("리스트", "List")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => change({ inboxView: "card" }, true)}
+                  selected={view === "card"}
+                  variant="sm"
+                >
+                  <LayoutPanelLeft strokeWidth={1.4} />
+                  {c("카드", "Card")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => change({ inboxView: "board" }, false)}
+                  selected={view === "board"}
+                  variant="sm"
+                >
+                  <StickyNote strokeWidth={1.4} />
+                  {c("포스트잇", "Board")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
         </>
         <OrgSearchHistory
           workspaceId={workspaceId}
           roleId={activeRole?.roleId}
         />
       </div>
-      {!savedReview && !externalReview && activeRole ? (
+      {!savedReview && activeRole ? (
         <OrgCriteriaReviewPanel
           items={items}
           key={`${activeRole.roleId}:${stage}`}
@@ -494,17 +467,14 @@ export function OrgRoleInbox() {
           workspaceId={workspaceId}
         />
       ) : null}
-      {!externalReview &&
-        boardQuery.error &&
+      {boardQuery.error &&
         !isOrgQueryBlockingError(boardQuery.error, boardQuery.data) && (
           <OrgErrorState
             message={boardQuery.error.message}
             onRetry={() => void (inboxQuery?.isFetchNextPageError ? reviewing ? loadNextReviewPage() : inboxQuery.fetchNextPage() : boardQuery.refetch())}
           />
         )}
-      {externalReview && activeRole ? (
-        <OrgExternalCandidates workspaceId={workspaceId} roleId={activeRole.roleId} />
-      ) : isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ? (
+      {isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ? (
         <OrgErrorState
           message={boardQuery.error!.message}
           onRetry={() => void boardQuery.refetch()}
@@ -587,7 +557,7 @@ export function OrgRoleInbox() {
           )}
         </>
       )}
-      {hasNextPage && !pageError && !reviewing && !externalReview && (
+      {hasNextPage && !pageError && !reviewing && (
         <div ref={loadMoreRef} className="flex justify-center py-4">
           <MuteButton
             size="sm"

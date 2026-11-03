@@ -384,6 +384,7 @@ function TalentExperienceList({ item }: { item: OrgBoardItem }) {
 export function OrgRoleTalentBoardCard({
   acceptSlot,
   canManageCandidates = false,
+  fillHeight = false,
   footer,
   internalOpsAccess = false,
   item,
@@ -400,6 +401,8 @@ export function OrgRoleTalentBoardCard({
   /** Replaces Send Intro (null leaves the place empty), e.g. an external person's connection state. */
   acceptSlot?: ReactNode;
   canManageCandidates?: boolean;
+  /** Fills its grid cell so every card in the grid has the same height; the bottom banner and buttons line up. */
+  fillHeight?: boolean;
   /** Extra status line below the history, e.g. an external person's invitation state. */
   footer?: ReactNode;
   internalOpsAccess?: boolean;
@@ -428,7 +431,12 @@ export function OrgRoleTalentBoardCard({
   const latestExperience = item.talent.recentCompanies[0] ?? null;
 
   return (
-    <article className="@container/talent-card relative isolate min-w-0 overflow-hidden rounded-lg">
+    <article
+      className={cn(
+        "@container/talent-card relative isolate min-w-0 overflow-hidden rounded-lg",
+        fillHeight && "h-full"
+      )}
+    >
       <CardButton
         aria-label={c("{p0} 후보자 상세 보기", "View {p0}'s details", {
           p0: name,
@@ -447,7 +455,12 @@ export function OrgRoleTalentBoardCard({
           })}
         </span>
       </CardButton>
-      <div className="pointer-events-none relative z-10 p-4 sm:p-5">
+      <div
+        className={cn(
+          "pointer-events-none relative z-10 p-4 sm:p-5",
+          fillHeight && "flex h-full flex-col"
+        )}
+      >
         <header className="flex items-start gap-3">
           {onSelectedChange ? (
             <Checkbox
@@ -541,6 +554,8 @@ export function OrgRoleTalentBoardCard({
             {sourceT(humanizeOrgCompanyIntroStatus(item.companyIntro))}
           </p>
         ) : null}
+
+        {fillHeight ? <div aria-hidden className="flex-1" /> : null}
 
         {item.processClosureNoticeUnresolved ? (
           <div className="-mx-4 mt-5 bg-critical px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:px-5">
@@ -896,6 +911,8 @@ export function OrgRoleTalentBoard({
   const renderCard = (item: OrgBoardItem) => (
     <OrgRoleTalentBoardCard
       canManageCandidates={permissions.canManageCandidates}
+      // Inbox grid only; the board canvas places cards freely.
+      fillHeight={section === "inbox" && layout === "grid"}
       internalOpsAccess={internalOpsAccess}
       item={item}
       key={item.recommendationId}
@@ -1116,7 +1133,9 @@ export function OrgRoleTalentBoard({
       ) : (
         <div
           className={cn(
-            "relative isolate grid grid-cols-1 items-start gap-4 @min-[640px]/talent-board:grid-cols-2",
+            "relative isolate grid grid-cols-1 gap-4 @min-[640px]/talent-board:grid-cols-2",
+            // Every inbox card has the same size (rows as tall as the tallest card); elsewhere each keeps its own.
+            section === "inbox" ? "auto-rows-fr items-stretch" : "items-start",
             !inboxItems && "mt-4",
             selectedStage?.id === "accepted" && "overflow-hidden"
           )}
