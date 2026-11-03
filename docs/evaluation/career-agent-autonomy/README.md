@@ -64,3 +64,5 @@ Live verification is deliberately limited to **two trials total**, one on each p
 NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v2 --only ambiguous_employer --repeat 1 --label retained-c-ambiguity
 NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v1 --only blocked_application --repeat 1 --label retained-c-application
 ```
+
+[C retained-guidance report](reports/2026-11-03-retained-guidance.md) records the restoration/deletion diff and the two completed trials. Both initial attempts failed before model output because of connection errors; those artifacts are preserved. After connectivity recovered, the same two cases were each executed once with unchanged product guidance and data. The completed runs did not repeat B's unnecessary file creation or email-language error. The Atlas case still asked for company identification without web research, so this does not establish improved research autonomy.
