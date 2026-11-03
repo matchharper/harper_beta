@@ -405,6 +405,37 @@ export function formatExternalCandidatesResult(result: {
   return lines.join("\n");
 }
 
+export type ExternalCandidateStatusRow = Pick<ExternalCandidateRow,
+  "id" | "name" | "headline" | "current_company" | "company_decision" | "contact" | "intro"> & {
+  company_decided_at: string | null; created_at: string;
+};
+
+/**
+ * The Role's shown external people and where each one stands now, for the company-side LLM's default
+ * context. Decisions made on the Role page leave no chat message, so this is how a Pass or a connection
+ * request reaches every later turn, including notices.
+ */
+export function formatExternalCandidateStatuses(args: { people: ExternalCandidateStatusRow[]; total: number }) {
+  if (!args.total) return null;
+  const listed = args.total > args.people.length ? ` (newest ${args.people.length} listed)` : "";
+  const lines = [
+    `external_candidates_for_this_role=${args.total} shown${listed}. People outside Harper that external searches showed on this Role's page; the state below is current. read_external_candidates has their profiles and evidence.`,
+  ];
+  for (const person of args.people) {
+    const about = person.headline || person.current_company;
+    const who = `${person.name ? cell(person.name, 80) : "(no name)"}${about ? `, ${cell(about, 120)}` : ""}`;
+    const state = person.company_decision === "passed"
+      ? `the company passed (decided not to proceed) ${formatLlmDateTime(person.company_decided_at)}; Harper sends this person nothing more`
+      : person.company_decision === "intro_requested"
+        ? externalIntroStatus(person.intro)
+        : person.company_decision
+          ? `company decision: ${cell(person.company_decision, 40)}`
+          : `no company decision yet; ${externalContactStatus(person.contact)}`;
+    lines.push(`- ${who} (ref ${person.id}; shown ${formatLlmDateTime(person.created_at)}): ${state}`);
+  }
+  return lines.join("\n");
+}
+
 /** Facts for the company-side LLM when a run finishes (enqueueCompanyUpdate); no wording is prescribed. */
 export function externalSearchNoticeFacts(args: { run: ExternalRunRow; roleName: string; candidates: ExternalCandidateRow[] }) {
   return {

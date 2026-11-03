@@ -7,6 +7,7 @@ import {
   formatExternalContactRequestResult,
   formatExternalSearchRequestResult,
   type ExternalCandidateRow,
+  type ExternalCandidateStatusRow,
   type ExternalContactRow,
   type ExternalIntroRow,
   type ExternalRunRow,
@@ -130,6 +131,30 @@ export async function listShownExternalCandidates(args: {
   if (error) throw error;
   if (latestError) throw latestError;
   return { latestRun: latest?.[0] ?? null, candidates: (candidates ?? []).map(shown) };
+}
+
+const STATUS_COLUMNS = "id,name,headline,current_company,company_decision,company_decided_at,created_at,"
+  + "run:external_sourcing_runs!inner(trigger),"
+  + "contact:external_candidate_contacts(status,email_kind,source_kind,finished_at),"
+  + "intro:external_intro_requests(status,created_at,invited_at,opened_at,last_reply_at,reply_type,error_code,accepted_at,connected_at)";
+
+type StatusQueryRow = Omit<ExternalCandidateStatusRow, "contact" | "intro"> & {
+  contact: ExternalContactRow | ExternalContactRow[] | null;
+  intro: ExternalIntroRow | ExternalIntroRow[] | null;
+  run: { trigger: string } | null;
+};
+
+/** Everyone shown for a Role, passed people included, with the company's decision; newest first. */
+export async function listExternalCandidateStatuses(args: {
+  admin: OrgAgentAdminClient; workspaceId: string; roleId: string; limit?: number;
+}) {
+  const { data, error, count } = await args.admin.from("external_candidates").select(STATUS_COLUMNS, { count: "exact" })
+    .neq("run.trigger", "shadow").eq("company_workspace_id", args.workspaceId).eq("role_id", args.roleId)
+    .eq("delivered", true).order("created_at", { ascending: false }).order("rank", { ascending: true })
+    .limit(args.limit ?? 20).returns<StatusQueryRow[]>();
+  if (error) throw error;
+  const people = (data ?? []).map(({ run: _run, ...row }) => ({ ...row, contact: one(row.contact), intro: one(row.intro) }));
+  return { total: count ?? people.length, people };
 }
 
 /** Record the company's confirmed connection request for one shown person. Contacts nobody. */

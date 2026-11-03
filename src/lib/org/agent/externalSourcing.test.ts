@@ -13,6 +13,7 @@ import {
   externalSourcingEnabledFor,
   externalSourcingLimits,
   formatExternalCandidatesResult,
+  formatExternalCandidateStatuses,
   formatExternalSearchRequestResult,
   parseExternalCareerLines,
   parseExternalSourcingTrigger,
@@ -240,3 +241,19 @@ test("a failed email lookup can be retried once per person; there is no daily lo
   assert.match(second.result.modelOutput, /already failed again after its one retry/);
 });
 
+
+test("the Role's default context lists every shown person with the company's current decision, passed people included", () => {
+  const base = { headline: null, current_company: null, contact: null, intro: null, company_decided_at: null, created_at: "2026-11-03T07:43:00Z" };
+  const text = formatExternalCandidateStatuses({ total: 4, people: [
+    { ...base, id: "p1", name: "Seo Kim", headline: "Vision engineer", company_decision: "passed", company_decided_at: "2026-11-03T08:05:08Z" },
+    { ...base, id: "p2", name: "Ada Lee", company_decision: "intro_requested",
+      intro: { status: "invited", created_at: "2026-11-03T06:00:00Z", invited_at: "2026-11-03T06:25:00Z" } },
+    { ...base, id: "p3", name: "Min Park", company_decision: null,
+      contact: { status: "found", email_kind: "work", source_kind: "unverified", finished_at: "2026-11-03T07:43:00Z" } },
+  ] }) ?? "";
+  assert.match(text, /external_candidates_for_this_role=4 shown \(newest 3 listed\)/);
+  assert.match(text, /- Seo Kim, Vision engineer \(ref p1; shown 2026-11-03 16:43\): the company passed \(decided not to proceed\) 2026-11-03 17:05; Harper sends this person nothing more/);
+  assert.match(text, /- Ada Lee \(ref p2;[^\n]*connection requested 2026-11-03 15:00; invitation emailed 2026-11-03 15:25; no reply yet/);
+  assert.match(text, /- Min Park \(ref p3;[^\n]*no company decision yet; email found \(work address\)/);
+  assert.equal(formatExternalCandidateStatuses({ total: 0, people: [] }), null);
+});
