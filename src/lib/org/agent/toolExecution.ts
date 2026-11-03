@@ -74,6 +74,7 @@ import { resolveOrgAgentUpdateDataMode } from "@/lib/org/agent/updateDataMode";
 import { enqueueOrgAgenticMatchingSearch, matchingSearchUnavailableReason } from "@/lib/org/agent/matchingSearch";
 import { externalSourcingEnabledFor, formatExternalIntroRequestResult, parseExternalSourcingTrigger } from "@/lib/org/agent/externalSourcing";
 import {
+  externalRoleActive,
   loadShownExternalCandidate,
   readExternalCandidates,
   requestExternalIntro,
@@ -1146,6 +1147,11 @@ async function executeExternalIntroRequest(args: Parameters<typeof executeExtern
     recordResult(args.state, {callId:args.callId,name:args.name,status:"unchanged",summary:`${name} 외부 후보 이메일 없음`});
     return respond({ status: "no_email" });
   }
+  // Checked before asking for confirmation: a paused or ended Role sends no invitation.
+  if (!(await externalRoleActive(args.admin, args.roleId))) {
+    recordResult(args.state, {callId:args.callId,name:args.name,status:"unchanged",summary:`${name} 외부 후보 연결 요청 안 함 (역할 진행 중 아님)`});
+    return respond({ status: "role_not_active" });
+  }
   const appealInput = nullableTextField(args.input, "companyAppeal", 2_000);
   const suppliedRecipientEmails = has(args.input, "introRecipientEmails") ? emailArray(args.input.introRecipientEmails, 10) : null;
   // Same adjacency check as decide_company_intro; the external person is keyed as external:<ref>.
@@ -1176,7 +1182,9 @@ async function executeExternalIntroRequest(args: Parameters<typeof executeExtern
     userId: args.user.id, candidate, companyAppeal: confirmed.companyAppeal,
     introRecipientEmails: confirmed.introRecipientEmails });
   recordResult(args.state, {callId:args.callId,name:args.name,status:recorded.status === "requested" ? "success" : "unchanged",
-    summary:recorded.status === "requested" ? `${name} 외부 후보 연결 요청 기록` : `${name} 외부 후보 연결 요청 이미 있음`});
+    summary:recorded.status === "requested" ? `${name} 외부 후보 연결 요청 기록`
+      : recorded.status === "role_not_active" ? `${name} 외부 후보 연결 요청 안 함 (역할 진행 중 아님)`
+      : recorded.status === "no_email" ? `${name} 외부 후보 이메일 없음` : `${name} 외부 후보 연결 요청 이미 있음`});
   return respond({ status: recorded.status, intro: recorded.intro, companyAppeal: confirmed.companyAppeal,
     introRecipientEmails: confirmed.introRecipientEmails, emailLookup: recorded.emailLookup });
 }

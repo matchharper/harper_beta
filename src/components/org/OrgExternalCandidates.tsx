@@ -75,16 +75,22 @@ function introStatus(intro: NonNullable<ExternalCandidateView["intro"]>, c: Copy
   }
 }
 
-/** The connection state, or "no email" for a person Harper cannot contact; null while Send Intro applies. */
-function externalStatus(person: ExternalCandidateView, c: Copy): ExternalStatus | null {
+/**
+ * The connection state, "no email" for a person Harper cannot contact, or why Send Intro waits (a paused or
+ * ended Role sends no invitation); null while Send Intro applies.
+ */
+function externalStatus(person: ExternalCandidateView, c: Copy, roleActive = true): ExternalStatus | null {
   if (person.intro) return introStatus(person.intro, c);
-  return externalCandidateWithoutEmail(person) ? { label: c("이메일을 찾지 못했어요", "No email found"), at: null } : null;
+  if (externalCandidateWithoutEmail(person)) return { label: c("이메일을 찾지 못했어요", "No email found"), at: null };
+  return roleActive ? null : { label: c("역할이 진행 중일 때 보낼 수 있어요", "Available while the role is active"), at: null };
 }
 
 /** The state in Send Intro's place: shaped like the button, not clickable. */
-function ExternalStatusButton({ person, className }: { person: ExternalCandidateView; className: string }) {
+function ExternalStatusButton({ person, className, roleActive }: {
+  person: ExternalCandidateView; className: string; roleActive: boolean;
+}) {
   const { c, locale } = useOrgLocale();
-  const status = externalStatus(person, c);
+  const status = externalStatus(person, c, roleActive);
   if (!status) return null;
   return (
     // aria-disabled neutral is the design system's non-clickable state; the muted text marks it as a status.
@@ -105,10 +111,12 @@ function ExternalStatusButton({ person, className }: { person: ExternalCandidate
  * Send Intro's place: the person's LinkedIn profile when Harper found no email for them (the company can
  * reach out there), otherwise the connection state.
  */
-function ExternalSendIntroSlot({ person, className }: { person: ExternalCandidateView; className: string }) {
+function ExternalSendIntroSlot({ person, className, roleActive }: {
+  person: ExternalCandidateView; className: string; roleActive: boolean;
+}) {
   const { c } = useOrgLocale();
   if (!externalCandidateWithoutEmail(person) || !person.linkedinUrl) {
-    return <ExternalStatusButton person={person} className={className} />;
+    return <ExternalStatusButton person={person} className={className} roleActive={roleActive} />;
   }
   return (
     <MuteButton asChild className={className} size="md" variant="default">
@@ -168,6 +176,8 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
   const selectedKey = selected?.id ?? null;
   const canManage = Boolean(actions?.canManage);
   const pending = Boolean(actions?.pending);
+  const roleActive = data.roleActive !== false;
+  const canSendIntro = (person: ExternalCandidateView) => roleActive && externalCandidateCanSendIntro(person);
   const scroller = () => rootRef.current?.closest<HTMLElement>("[data-org-review-scroll]") ?? document.scrollingElement;
 
   // The detail opens at the top; Back restores the list position.
@@ -216,7 +226,6 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
   ) : null;
 
   if (selected) {
-    const canSendIntro = externalCandidateCanSendIntro(selected);
     return (
       <div ref={rootRef} className="pb-10">
         <header className="sticky top-0 z-20 flex min-w-0 items-center gap-2 bg-bg-default px-2 py-3 md:gap-3 md:px-4">
@@ -240,7 +249,7 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
                 pending={pending}
                 shortcut={false}
               />
-              {canSendIntro ? (
+              {canSendIntro(selected) ? (
                 <MuteButton
                   className="border-none px-3 py-1.5 text-[15px]"
                   disabled={pending}
@@ -250,7 +259,7 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
                   {c("Send Intro", "Send Intro")}
                 </MuteButton>
               ) : (
-                <ExternalSendIntroSlot person={selected} className="px-3 py-1.5 text-[15px]" />
+                <ExternalSendIntroSlot person={selected} className="px-3 py-1.5 text-[15px]" roleActive={roleActive} />
               )}
             </div>
           ) : null}
@@ -293,7 +302,8 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
           <div className="relative isolate grid auto-rows-fr grid-cols-1 items-stretch gap-4 @min-[640px]/talent-board:grid-cols-2">
             {candidates.map((person) => (
               <OrgRoleTalentBoardCard
-                acceptSlot={externalCandidateCanSendIntro(person) ? undefined : <ExternalSendIntroSlot person={person} className="w-full py-2" />}
+                acceptSlot={canSendIntro(person) ? undefined
+                  : <ExternalSendIntroSlot person={person} className="w-full py-2" roleActive={roleActive} />}
                 canManageCandidates={canManage}
                 fillHeight
                 key={person.id}

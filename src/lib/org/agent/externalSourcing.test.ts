@@ -209,6 +209,12 @@ test("a person whose lookup found no address cannot be asked for", () => {
   assert.match(text, /Nothing was recorded or sent/);
 });
 
+test("a paused or ended Role records no connection request and says why", () => {
+  const text = formatExternalIntroRequestResult({ status: "role_not_active", candidateRef: "c-1", name: "Ada Kim", roleName: "Product Engineer" });
+  assert.match(text, /status=role_not_active/);
+  assert.match(text, /Nothing was recorded or sent\. This Role is paused or ended/);
+});
+
 function serverModules(t: TestContext, env: Record<string, string> = {}) {
   const nodeModule = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown };
   const load = nodeModule._load;
@@ -253,6 +259,34 @@ test("a failed email lookup can be retried once per person; there is no daily lo
   assert.match(second.result.modelOutput, /already failed again after its one retry/);
 });
 
+test("a connection request on a paused or ended Role is not recorded; an active Role records it", async (t) => {
+  serverModules(t, { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" });
+  const { requestExternalIntro } = await import("./externalSourcing.server");
+  const run = async (role: { status: string; is_expired: boolean }) => {
+    const writes: string[] = [];
+    const admin = { from: (table: string) => {
+      const builder: object = new Proxy({}, { get(_t, key) {
+        if (key === "maybeSingle") return () => Promise.resolve({ data: table === "company_roles" ? role : null, error: null });
+        if (key === "single") return () => Promise.resolve({ data: { status: "requested", created_at: "2026-11-03T10:00:00Z", intro_recipient_emails: ["a@x.com"] }, error: null });
+        if (key === "then") return (resolve: (v: unknown) => unknown) => Promise.resolve({ data: null, error: null }).then(resolve);
+        return (..._args: unknown[]) => { if (key === "insert" || key === "update") writes.push(`${table}.${String(key)}`); return builder; };
+      } });
+      return builder;
+    } } as never;
+    const candidate = { id: "c1", name: "Ada Kim", contact: { status: "found" }, intro: null } as never;
+    const result = await requestExternalIntro({ admin, workspaceId: "w1", roleId: "r1", userId: "u1", candidate,
+      companyAppeal: "Strong fit", introRecipientEmails: ["a@x.com"] });
+    return { result, writes };
+  };
+  for (const role of [{ status: "ended", is_expired: false }, { status: "paused", is_expired: false }, { status: "active", is_expired: true }]) {
+    const { result, writes } = await run(role);
+    assert.equal(result.status, "role_not_active", role.status);
+    assert.deepEqual(writes, []);
+  }
+  const active = await run({ status: "active", is_expired: false });
+  assert.equal(active.result.status, "requested");
+  assert.deepEqual(active.writes, ["external_intro_requests.insert", "external_candidates.update"]);
+});
 
 test("the Role's default context lists every shown person with the company's current decision, passed people included", () => {
   const base = { headline: null, current_company: null, contact: null, intro: null, company_decided_at: null, created_at: "2026-11-03T07:43:00Z" };
