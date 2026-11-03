@@ -109,6 +109,35 @@ function PersonalSettingsContent({
         variant: "error",
       }),
   });
+  // The member's own LinkedIn: saved on blur, account-wide like the email preference.
+  const [linkedinDraft, setLinkedinDraft] = useState<string | null>(null);
+  const linkedinValue = linkedinDraft ?? settings.data?.linkedinUrl ?? "";
+  const updateLinkedin = useMutation({
+    mutationFn: (linkedinUrl: string) =>
+      fetchWithInternalAuth<Pick<OrgPersonalSettings, "linkedinUrl">>(
+        "/api/org/personal-settings",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workspaceId: workspace.workspaceId, linkedinUrl }),
+        }
+      ),
+    onSuccess: (saved) => {
+      queryClient.setQueriesData<OrgPersonalSettings>(
+        { queryKey: ["org", "personal-settings", user.id] },
+        (previous) => (previous ? { ...previous, ...saved } : previous)
+      );
+      setLinkedinDraft(null);
+    },
+    onError: () =>
+      addToast({
+        message: c(
+          "LinkedIn 주소를 저장하지 못했어요. 주소를 확인해 주세요.",
+          "Couldn't save the LinkedIn address. Check the address."
+        ),
+        variant: "error",
+      }),
+  });
   const myTeamIds = new Set(
     currentUser?.teamIds ?? (currentUser?.teamId ? [currentUser.teamId] : [])
   );
@@ -230,6 +259,31 @@ function PersonalSettingsContent({
               {currentUserEmail || "—"}
             </span>
           </SettingsRow>
+          <SettingsRow label="LinkedIn" htmlFor="org-personal-linkedin">
+            <Input
+              id="org-personal-linkedin"
+              type="url"
+              inputMode="url"
+              autoComplete="url"
+              placeholder="https://www.linkedin.com/in/..."
+              value={linkedinValue}
+              disabled={!settings.data || updateLinkedin.isPending}
+              onChange={(event) => setLinkedinDraft(event.target.value)}
+              onBlur={() => {
+                if (
+                  linkedinDraft !== null &&
+                  linkedinDraft.trim() !== (settings.data?.linkedinUrl ?? "")
+                )
+                  updateLinkedin.mutate(linkedinDraft);
+              }}
+            />
+          </SettingsRow>
+          <p className="text-right text-xs text-neutral-muted">
+            {c(
+              "외부 후보가 연결을 확인하면, 소개 메일에 함께 보여요.",
+              "Shown in the introduction email when an external candidate confirms a connection."
+            )}
+          </p>
         </div>
         {(!profile.name.trim() || !profile.role.trim()) && (
           <p role="alert" className="mt-2 text-right text-xs text-critical">

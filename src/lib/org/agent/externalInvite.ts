@@ -99,9 +99,9 @@ export function renderExternalInvite(args: {
       `${who} ${role} 포지션으로 ${name ? `${name}님과` : "함께"} 이야기를 나눠 보고 싶어 해서 연락드려요. 공개된 프로필과 활동을 보고 연락드렸어요.`,
       `${company ? `${company}에서` : "회사에서"} 전한 말이에요.`,
       appeal,
-      `이야기를 나눠 보고 싶으시면 아래 링크에서 확인해 주세요. Harper가 ${company ? `${company} 담당자` : "회사 담당자"}와 ${name ? `${name}님을 ` : ""}이메일로 바로 연결해 드려요.`,
+      `궁금한 점이 있거나 이야기를 나눠 보고 싶으시면 아래 연결하기를 눌러 주세요. Harper가 ${company ? `${company} 담당자` : "회사 담당자"}와 ${name ? `${name}님을 ` : ""}이메일로 바로 연결해 드리고, 질문은 그 메일에서 담당자에게 직접 하시면 돼요.`,
       `[연결하기](${args.connectUrl})`,
-      "궁금한 점은 이 메일에 답장으로 물어보셔도 돼요. 회사에 전해 드릴게요. 관심이 없으시면 답하지 않으셔도 괜찮아요.",
+      "관심이 없으시면 답하지 않으셔도 괜찮아요.",
       "Harper 드림",
       `${source ? `이 메일 주소는 ${source}에서, 경력 정보는 공개된 프로필에서 확인했어요.` : "이 메일 주소는 웹 검색으로 찾았고, 경력 정보는 공개된 프로필에서 확인했어요."} 앞으로 이런 연락을 받지 않으려면 여기를 눌러 주세요: ${args.unsubscribeUrl}`,
     ].join("\n\n");
@@ -114,9 +114,9 @@ export function renderExternalInvite(args: {
     `This is Harper, a hiring match service. ${who}${company ? "" : " we work with"} would like to talk with you about the ${role} role. We reached out after seeing your public profile and work.`,
     `In ${company ? `${company}'s` : "the company's"} words:`,
     appeal,
-    `If you would like to talk, confirm with the link below and Harper will introduce you to ${company ? `${company}'s` : "the company's"} hiring team by email.`,
+    `If you have questions or would like to talk, use Connect below. Harper will introduce you to ${company ? `${company}'s` : "the company's"} hiring team by email, and you can ask them directly there.`,
     `[Connect](${args.connectUrl})`,
-    "Questions are welcome too: reply to this email and we will pass them on to the company. If you are not interested, there is no need to reply.",
+    "If you are not interested, there is no need to reply.",
     "Best,\nHarper",
     `We found this email address ${source ? `on ${source}` : "through a web search"} and your career details on your public profile. To stop receiving messages like this: ${args.unsubscribeUrl}`,
   ].join("\n\n");
@@ -133,7 +133,8 @@ export function renderExternalInvite(args: {
 export function renderExternalConnectEmail(args: {
   language: InviteLanguage; personName: string | null; companyName: string | null; roleName: string;
   companyAppeal: string; linkedinUrl: string | null;
-  company?: { linkedinUrl: string | null; homepageUrl: string | null; contactName: string | null; contactTitle: string | null } | null;
+  company?: { linkedinUrl: string | null; homepageUrl: string | null; contactName: string | null; contactTitle: string | null;
+    contactLinkedinUrl?: string | null } | null;
 }) {
   const name = line(args.personName, 80);
   const company = line(args.companyName, 120);
@@ -144,7 +145,9 @@ export function renderExternalConnectEmail(args: {
   const pages = [about?.linkedinUrl, about?.homepageUrl].map((url) => line(url, 300)).filter(Boolean);
   const contactName = line(about?.contactName, 80);
   const contactTitle = line(about?.contactTitle, 80);
-  const contact = contactName ? `${contactName}${contactTitle ? ` (${contactTitle})` : ""}` : "";
+  // The requester's own LinkedIn appears only when they entered it in personal settings.
+  const contactLinkedin = line(about?.contactLinkedinUrl, 300);
+  const contact = contactName ? `${contactName}${contactTitle ? ` (${contactTitle})` : ""}${contactLinkedin ? ` · ${contactLinkedin}` : ""}` : "";
   if (args.language === "ko") {
     const person = name ? `${name}님` : "후보자님";
     const team = company ? `${company} 담당자님` : "담당자님";
@@ -194,7 +197,7 @@ export function renderExternalConnectLinkReply(args: {
       `${person ? `${person}, ` : ""}답장 고마워요.`,
       `${company ? `${company} 담당자` : "회사 담당자"}와 직접 이야기를 나눠 보고 싶으시면 아래 링크에서 확인해 주세요. 확인하시면 Harper가 담당자와 ${person ? `${person}을 ` : ""}한 메일로 연결해 드려요. 이때 담당자에게 이메일 주소가 전달돼요.`,
       `[연결하기](${args.connectUrl})`,
-      "궁금한 점은 이 메일에 답장해 주시면 회사에 전해 드릴게요.",
+      "궁금한 점도 연결된 메일에서 담당자에게 직접 물어보시면 돼요.",
       "Harper 드림",
     ].join("\n\n");
   }
@@ -202,7 +205,7 @@ export function renderExternalConnectLinkReply(args: {
     `Hi${name ? ` ${name}` : ""}, thanks for your reply.`,
     `If you would like to talk with ${company ? `${company}'s` : "the company's"} hiring team directly, confirm with the link below. Harper will then introduce you to them in one email, which shares your email address with them.`,
     `[Connect](${args.connectUrl})`,
-    "For questions, just reply to this email and we will pass them on to the company.",
+    "You can ask them your questions directly in that email.",
     "Best,\nHarper",
   ].join("\n\n");
 }

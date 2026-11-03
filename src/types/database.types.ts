@@ -3256,6 +3256,7 @@ export type Database = {
           email_preferences: Json
           is_authenticated: boolean
           is_custom: boolean
+          linkedin_url: string | null
           locale: string | null
           location: string | null
           name: string | null
@@ -3272,6 +3273,7 @@ export type Database = {
           email_preferences?: Json
           is_authenticated?: boolean
           is_custom?: boolean
+          linkedin_url?: string | null
           locale?: string | null
           location?: string | null
           name?: string | null
@@ -3288,6 +3290,7 @@ export type Database = {
           email_preferences?: Json
           is_authenticated?: boolean
           is_custom?: boolean
+          linkedin_url?: string | null
           locale?: string | null
           location?: string | null
           name?: string | null

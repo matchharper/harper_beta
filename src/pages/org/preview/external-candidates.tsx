@@ -207,7 +207,7 @@ export async function getServerSideProps() {
   emails.push({ key: "link-reply", title: "하퍼 답장 · 관심 답장에 1번 (연결 링크)", subject: "Re: Acme Product Engineer 포지션 관련해서 연락드려요",
     to: "person@example.com", replyTo: "candidate+preview-token-000000@reply.matchharper.com", html: wrapEmailHtml(renderEmailBodyHtml(linkReply)) });
   const company = { linkedinUrl: "https://www.linkedin.com/company/acme-example", homepageUrl: "https://acme.example",
-    contactName: "이하늘", contactTitle: "Head of Talent" };
+    contactName: "이하늘", contactTitle: "Head of Talent", contactLinkedinUrl: "https://www.linkedin.com/in/example-haneul" };
   for (const variant of [
     { key: "connect-ko", title: "소개 메일 · 한국어 (본인이 연결 확인 뒤)", language: "ko" as const, personName: "박민지", companyName: "Acme" },
     { key: "connect-en", title: "Introduction · English", language: "en" as const, personName: "Ethan Park", companyName: "Acme" },
