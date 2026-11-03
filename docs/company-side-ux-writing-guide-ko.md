@@ -274,9 +274,10 @@ Inbox의 `Intro 요청 전달됨`은 회사가 Intro 요청을 확정한 상태�
 종료되면 `프로세스 종료` / `Process ended`로 표시한다. 후보자가 Intro를 거절한 경우에는
 `Intro 거절됨` / `Intro declined`로 구분한다.
 
-Role 인박스의 `외부 후보` / `Outside Harper` 탭은 Harper 회원이 아닌, 공개 프로필에서 찾은 사람을 보여준다.
-카드와 상세의 버튼은 `Pass`와 `Send Intro`다. Send Intro를 쓸 수 없는 사람은 그 자리에 누를 수 없는 상태를
-같은 모양으로 표시한다: `이메일을 찾지 못했어요` / `No email found`, `연결 요청함` / `Connection requested`
+Role 화면의 `외부 후보` / `Outside Harper` 탭(인박스 옆, 켠 workspace에만)은 Harper 회원이 아닌, 공개 프로필에서 찾은 사람을 보여준다.
+카드와 상세의 버튼은 `Pass`와 `Send Intro`다. 이메일을 찾지 못한 사람은 Send Intro 자리에 `LinkedIn에서 보기` /
+`View on LinkedIn`(새 탭으로 그 사람의 LinkedIn 프로필)을 둔다. 그 밖에 Send Intro를 쓸 수 없는 사람은 그 자리에 누를 수 없는 상태를
+같은 모양으로 표시한다: `이메일을 찾지 못했어요` / `No email found`(LinkedIn 주소도 없을 때), `연결 요청함` / `Connection requested`
 (요청 기록·발송 대기·초대 메일 발송을 함께 뜻함), `연결 요청 읽음` / `Request read`(초대 메일을 처음 연 것으로,
 열람 추적이라 근사치), 답장 뒤에는 `관심 있다고 답함`, `질문으로 답함`, `답장 옴`, `거절함`, `연락 거부`,
 `메일 전달 안 됨`, `초대 메일 못 보냄`. 이 사람들에게 회원 후보의 연결 상태 이름(`Intro 요청 전달됨`, `연결됨` 등)을 쓰지 않는다.

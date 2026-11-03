@@ -163,7 +163,7 @@ export async function recordExternalIntroRequest(args: {
 }
 
 /**
- * The company's confirmed connection request, from chat or the Role Inbox. With invitations on, an address
+ * The company's confirmed connection request, from chat or the Role page. With invitations on, an address
  * lookup starts now when none exists (the daily lookup limit still applies); the invitation follows by cron.
  */
 export async function requestExternalIntro(args: {
@@ -188,7 +188,7 @@ export async function requestExternalIntro(args: {
   return { ...recorded, emailLookup };
 }
 
-/** The company's Pass from the Role Inbox: only an undecided shown person; the reason is kept. */
+/** The company's Pass from the Role page: only an undecided shown person; the reason is kept. */
 export async function passExternalCandidate(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidateRef: string; reason: string;
 }): Promise<{ status: "passed" | "unchanged" | "not_found"; inviteCancelled?: boolean }> {

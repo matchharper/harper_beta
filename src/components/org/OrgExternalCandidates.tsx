@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { ArrowLeft, Inbox } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Inbox } from "lucide-react";
+import { LinkedinLogo } from "@/components/common/BrandLogos";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import { Loading } from "@/components/ui/loading";
@@ -89,6 +90,26 @@ function ExternalStatusButton({ person, className }: { person: ExternalCandidate
   );
 }
 
+/**
+ * Send Intro's place: the person's LinkedIn profile when Harper found no email for them (the company can
+ * reach out there), otherwise the connection state.
+ */
+function ExternalSendIntroSlot({ person, className }: { person: ExternalCandidateView; className: string }) {
+  const { c } = useOrgLocale();
+  if (!externalCandidateWithoutEmail(person) || !person.linkedinUrl) {
+    return <ExternalStatusButton person={person} className={className} />;
+  }
+  return (
+    <MuteButton asChild className={className} size="md" variant="default">
+      <a href={person.linkedinUrl} rel="noopener noreferrer" target="_blank">
+        <LinkedinLogo className="size-4" />
+        {c("LinkedIn에서 보기", "View on LinkedIn")}
+        <ArrowUpRight aria-hidden className="size-4 text-neutral-muted" />
+      </a>
+    </MuteButton>
+  );
+}
+
 /** For members who cannot decide (no buttons): the same state as a badge. */
 function ExternalStatusBadge({ person }: { person: ExternalCandidateView }) {
   const { c, locale } = useOrgLocale();
@@ -117,7 +138,7 @@ export type ExternalCandidateActions = {
 };
 
 /**
- * Role Inbox "외부 후보": the shared candidate card, decision buttons and profile body for people outside
+ * The Role's "외부 후보" tab: the shared candidate card, decision buttons and profile body for people outside
  * Harper. The selected person is kept in the URL (externalCandidateId).
  */
 export function OrgExternalCandidatesView({ data, roleId, actions }: {
@@ -218,7 +239,7 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
                   {c("Send Intro", "Send Intro")}
                 </MuteButton>
               ) : (
-                <ExternalStatusButton person={selected} className="px-3 py-1.5 text-[15px]" />
+                <ExternalSendIntroSlot person={selected} className="px-3 py-1.5 text-[15px]" />
               )}
             </div>
           ) : null}
@@ -258,11 +279,12 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
       ) : null}
       {candidates.length ? (
         <section className="@container/talent-board min-w-0">
-          <div className="relative isolate grid grid-cols-1 items-start gap-4 @min-[640px]/talent-board:grid-cols-2">
+          <div className="relative isolate grid auto-rows-fr grid-cols-1 items-stretch gap-4 @min-[640px]/talent-board:grid-cols-2">
             {candidates.map((person) => (
               <OrgRoleTalentBoardCard
-                acceptSlot={externalCandidateCanSendIntro(person) ? undefined : <ExternalStatusButton person={person} className="w-full py-2" />}
+                acceptSlot={externalCandidateCanSendIntro(person) ? undefined : <ExternalSendIntroSlot person={person} className="w-full py-2" />}
                 canManageCandidates={canManage}
+                fillHeight
                 key={person.id}
                 item={externalBoardItem(person, roleId)}
                 onAccept={() => setIntroFor(person)}
@@ -289,7 +311,7 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
   );
 }
 
-/** Data container for the Role Inbox tab. */
+/** Data container for the Role's "외부 후보" tab. */
 export function OrgExternalCandidates({ workspaceId, roleId }: { workspaceId: string; roleId: string }) {
   const query = useOrgExternalCandidates({ workspaceId, roleId });
   const { bootstrap, currentUserEmail, permissions } = useOrgWorkspace();

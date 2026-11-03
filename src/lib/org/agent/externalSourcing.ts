@@ -205,9 +205,11 @@ export function externalContactStatus(contact: ExternalContactRow | null | undef
   if (contact.status === "not_found") return "no email found that a source ties to this person";
   if (contact.status === "failed") return "email lookup failed";
   if (contact.status !== "found") return `email lookup ${contact.status}`;
-  const source = contact.source_kind === "self_published" ? "published by the person (address and identity confirmed on the page)"
-    : contact.source_kind === "data_vendor" ? "from a contact-data site, not confirmed" : "source found, not fully confirmed";
-  return `email found (${contact.email_kind || "unknown"} address; ${source})`;
+  // Found is not confirmed: only the person's own page showing the address confirms it (self_published).
+  const found = `email found (${contact.email_kind || "unknown"} address)`;
+  if (contact.source_kind === "self_published") return `${found}; the person's own page shows it, so the address and identity are confirmed`;
+  if (contact.source_kind === "data_vendor") return `${found} on a contact-data site; not confirmed as this person's`;
+  return `${found}; source unconfirmed: no page Harper read shows this address`;
 }
 
 export function formatExternalContactRequestResult(result: {
@@ -405,7 +407,7 @@ export function formatExternalCandidatesResult(result: {
       `outside_evidence:\n${p.evidenceLinks.map((line) => `- ${line}`).join("\n") || "- (none)"}`,
       `contact: ${p.contact}`,
       `connection: ${p.connection}`,
-      ...(p.companyDecision === "passed" ? ["company_decision: passed by the company in the Role Inbox"] : []),
+      ...(p.companyDecision === "passed" ? ["company_decision: passed by the company on the Role page"] : []),
     );
   });
   return lines.join("\n");

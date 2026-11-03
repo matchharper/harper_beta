@@ -63,7 +63,11 @@ test("the invitation names the company unless the Role hides it, quotes the comp
   // Every invitation says where the address and the profile came from, right above the opt-out link.
   assert.match(ko.body, /이 메일 주소는 people-data\.example에서, 경력 정보는 공개된 프로필에서 확인했어요\. 앞으로 이런 연락을 받지 않으려면/);
   assert.match(en.body, /We found this email address on people-data\.example and your career details on your public profile\. To stop/);
-  assert.match(renderExternalInvite({ ...base, language: "ko", companyName: null, addressSource: null }).body, /이 메일 주소는 공개된 자료에서/);
+  // No page confirmed the address: the invitation says it was found through a web search, naming no site.
+  assert.match(renderExternalInvite({ ...base, language: "ko", companyName: null, addressSource: null }).body,
+    /이 메일 주소는 웹 검색으로 찾았고, 경력 정보는 공개된 프로필에서 확인했어요\. 앞으로/);
+  assert.match(renderExternalInvite({ ...base, language: "en", companyName: null, addressSource: null }).body,
+    /We found this email address through a web search and your career details/);
 });
 
 test("reply classification: fixed types, no addresses or numbers in the summary", () => {
@@ -249,4 +253,35 @@ test("in test mode a real person's invitation is not sent, even with its payload
   assert.deepEqual(result, { outcomes: { not_sendable: 1 } });
   const release = fake.calls.filter((call) => call.table === "external_intro_requests" && call.op === "update").at(-1);
   assert.equal(release?.patch?.error_code, "test_recipients_only");
+});
+
+test("the invitation names the address's site only when that page showed the address", async (t) => {
+  serverModules(t, { ORG_EXTERNAL_INVITE_SENDING: "on", ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" });
+  const { dispatchExternalInvites } = await import("./externalInvite.server");
+  const sendWith = async (contact: Record<string, unknown>) => {
+    const claimed = { id: "q1", status: "sending", attempt_count: 1, external_candidate_id: "c1", company_workspace_id: "w1",
+      role_id: "r1", requested_by: "u1", company_appeal: "x", created_at: "2026-11-02T00:00:00Z", result: {} };
+    const fake = fakeAdmin((call) => {
+      // The due list is read with .or(...); the 14-day "recently invited" read finds nobody.
+      if (call.table === "external_intro_requests" && call.op === "select") {
+        return call.filters.some(([key]) => key === "or") ? [{ id: "q1", status: "requested", attempt_count: 0, company_workspace_id: "w1" }] : [];
+      }
+      if (call.table === "external_intro_requests" && call.op === "update") return call.patch?.status === "sending" ? claimed : { id: "q1" };
+      if (call.table === "external_candidates") return { id: "c1", name: "Ada Kim", location: null, linkedin_url: null, company_decision: "intro_requested" };
+      if (call.table === "external_candidate_contacts") return { status: "found", email: "ada@example.com", ...contact };
+      if (call.table === "company_roles") return { name: "Product Engineer", status: "active", is_expired: false };
+      return null;
+    });
+    const sent: { text: string }[] = [];
+    await dispatchExternalInvites({ admin: fake.admin, now: new Date("2026-11-02T01:00:00Z"),
+      send: (async (delivery: { text: string }) => { sent.push(delivery); return { id: "em_1" }; }) as never });
+    assert.equal(sent.length, 1);
+    return sent[0].text;
+  };
+  // A contact record keyed to a LinkedIn profile, the address not on that page: no site is named.
+  const unconfirmed = await sendWith({ source_url: "https://www.linkedin.com/in/ada", source_kind: "unverified" });
+  assert.match(unconfirmed, /We found this email address through a web search and your career details/);
+  assert.doesNotMatch(unconfirmed, /linkedin/i);
+  const published = await sendWith({ source_url: "https://www.ada.dev/about", source_kind: "self_published" });
+  assert.match(published, /We found this email address on ada\.dev and your career details/);
 });

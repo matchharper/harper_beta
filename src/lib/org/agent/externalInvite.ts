@@ -77,8 +77,8 @@ function quoted(value: string, max: number) {
  * The invitation in the recipient's language: who Harper is, which company and Role, the company's
  * reason in its own words, how to answer, where the address and profile came from, how to opt out.
  * Fixed text so the wording can be reviewed; the company name is left out when the Role hides it.
- * addressSource: the site the address was found on (host only); every invitation names it, also for
- * addresses Harper could not confirm on a page of the person's own.
+ * addressSource: the site (host only) whose page showed the address next to the person, or null; without
+ * one the invitation says the address was found through a web search.
  */
 export function renderExternalInvite(args: {
   language: InviteLanguage; personName: string | null; companyName: string | null; roleName: string;
@@ -99,7 +99,7 @@ export function renderExternalInvite(args: {
       appeal,
       "관심이 있으시면 이 메일에 편하게 답장해 주세요. 궁금한 점을 물어보셔도 좋아요. 답장 주시면 다음 단계를 안내해 드릴게요. 관심이 없으시면 답하지 않으셔도 괜찮아요.",
       "Harper 드림",
-      `이 메일 주소는 ${source || "공개된 자료"}에서, 경력 정보는 공개된 프로필에서 확인했어요. 앞으로 이런 연락을 받지 않으려면 여기를 눌러 주세요: ${args.unsubscribeUrl}`,
+      `${source ? `이 메일 주소는 ${source}에서, 경력 정보는 공개된 프로필에서 확인했어요.` : "이 메일 주소는 웹 검색으로 찾았고, 경력 정보는 공개된 프로필에서 확인했어요."} 앞으로 이런 연락을 받지 않으려면 여기를 눌러 주세요: ${args.unsubscribeUrl}`,
     ].join("\n\n");
     return { subject, body };
   }
@@ -112,7 +112,7 @@ export function renderExternalInvite(args: {
     appeal,
     "If you are interested, just reply to this email. Questions are welcome too. Once you reply, we will tell you the next steps. If you are not interested, there is no need to reply.",
     "Best,\nHarper",
-    `We found this email address on ${source || "public sources"} and your career details on your public profile. To stop receiving messages like this: ${args.unsubscribeUrl}`,
+    `We found this email address ${source ? `on ${source}` : "through a web search"} and your career details on your public profile. To stop receiving messages like this: ${args.unsubscribeUrl}`,
   ].join("\n\n");
   return { subject, body };
 }

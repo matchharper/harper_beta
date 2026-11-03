@@ -107,9 +107,12 @@ test("contact status never carries the address and says how far it was confirmed
   assert.equal(externalContactStatus(null), "email not looked up");
   assert.equal(externalContactStatus({ status: "running", email_kind: null, source_kind: null, finished_at: null }), "email lookup in progress");
   assert.match(externalContactStatus({ status: "found", email_kind: "work", source_kind: "self_published", finished_at: "x" }),
-    /work address; published by the person/);
+    /work address\); the person's own page shows it, so the address and identity are confirmed/);
   assert.match(externalContactStatus({ status: "found", email_kind: "personal", source_kind: "data_vendor", finished_at: "x" }),
-    /contact-data site, not confirmed/);
+    /contact-data site; not confirmed as this person's/);
+  // B's real people (11/3): a contact record keyed to the LinkedIn profile, the address on no page that was read.
+  assert.match(externalContactStatus({ status: "found", email_kind: "work", source_kind: "unverified", finished_at: "x" }),
+    /^email found \(work address\); source unconfirmed: no page Harper read shows this address$/);
   const text = formatExternalContactRequestResult({ status: "queued", candidateRef: "c-1", name: "Ada Kim" });
   assert.match(text, /status=queued/);
   assert.match(text, /never shown/);

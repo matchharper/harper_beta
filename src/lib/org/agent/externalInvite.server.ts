@@ -92,7 +92,7 @@ async function notifyOutcome(args: { row: ClaimedRequest; roleName: string; pers
 async function loadContext(admin: Admin, row: ClaimedRequest) {
   const [candidate, contact, role, internal, workspace] = await Promise.all([
     admin.from("external_candidates").select("id,name,location,linkedin_url,company_decision").eq("id", row.external_candidate_id).maybeSingle(),
-    admin.from("external_candidate_contacts").select("status,email,source_url").eq("external_candidate_id", row.external_candidate_id).maybeSingle(),
+    admin.from("external_candidate_contacts").select("status,email,source_url,source_kind").eq("external_candidate_id", row.external_candidate_id).maybeSingle(),
     admin.from("company_roles").select("name,status,is_expired").eq("role_id", row.role_id).maybeSingle(),
     admin.from("company_internal_roles").select("is_anonymous").eq("role_id", row.role_id).maybeSingle(),
     admin.from("company_workspace").select("company_name,published_name").eq("company_workspace_id", row.company_workspace_id).maybeSingle(),
@@ -152,7 +152,8 @@ function buildDelivery(args: { row: ClaimedRequest; ctx: Awaited<ReturnType<type
     language: inviteLanguage({ name: ctx.candidate?.name, location: ctx.candidate?.location }),
     personName: ctx.candidate?.name ?? null, companyName: ctx.anonymous ? null : ctx.companyName,
     roleName: ctx.role?.name ?? "", companyAppeal: row.company_appeal, unsubscribeUrl,
-    addressSource: sourceHost(ctx.contact?.source_url),
+    // Only a page where the Worker itself found the address next to the person (self_published) is named.
+    addressSource: ctx.contact?.source_kind === "self_published" ? sourceHost(ctx.contact.source_url) : null,
   });
   return {
     from: EXTERNAL_INVITE_FROM, to: args.email, subject: rendered.subject,

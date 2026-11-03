@@ -6,6 +6,7 @@ import {
   ChevronsRightLeft,
   Columns3,
   Flag,
+  Globe,
   Inbox,
   LoaderCircle,
   Menu,
@@ -22,6 +23,7 @@ import { useRouter } from "next/router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
+import { OrgExternalCandidates } from "@/components/org/OrgExternalCandidates";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
 import { OrgRoleDetailsContent } from "@/components/org/role-overview/OrgRoleDetailsContent";
@@ -51,6 +53,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
+import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
 import { useOrgInboxCounts } from "@/hooks/org/useOrgRoleInbox";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useResizableSplitPanel } from "@/hooks/useResizableSplitPanel";
@@ -129,6 +132,14 @@ const INBOX_TAB = {
   icon: <Inbox className="size-3.5" strokeWidth={1.65} />,
   label: "인박스",
   value: "inbox",
+} as const;
+
+// Shown only where external sourcing is on.
+const EXTERNAL_TAB = {
+  icon: <Globe className="size-3.5" strokeWidth={1.65} />,
+  label: "외부 후보",
+  labelEn: "Outside Harper",
+  value: "external",
 } as const;
 
 const CHAT_TAB = {
@@ -331,20 +342,39 @@ function OrgRoleCreationDetails({
   const inboxCount = inboxBoardQuery.data
     ? inboxBoardQuery.data.counts.pending_connection + inboxBoardQuery.data.counts.company_intro
     : undefined;
+  const externalQuery = useOrgExternalCandidates({
+    roleId: role && !roleCreation ? role.roleId : null,
+    workspaceId: workspace.workspaceId,
+  });
+  const externalEnabled = Boolean(externalQuery.data?.enabled);
+  const externalCount = externalQuery.data?.candidates.length;
   const requestedTab = router.isReady ? getQueryText(router.query.tab) : "";
   const requestedView = router.isReady ? getQueryText(router.query.view) : "";
-  const activeTab = resolveOrgRoleTab({
+  const resolvedTab = resolveOrgRoleTab({
     isDraft: roleCreation,
     tab: requestedTab,
   });
+  // A workspace without external sourcing has no such tab: its link opens the inbox.
+  const activeTab =
+    resolvedTab === "external" && externalQuery.data && !externalEnabled
+      ? "inbox"
+      : resolvedTab;
   const pipelineDisplay: RolePipelineDisplay =
     mobile || requestedView === "board" ? "board" : "pipeline";
   const detailTabs = [
     ...(expanded ? [CHAT_TAB] : []),
     ...(roleCreation
       ? [START_TAB, ...DETAIL_TABS]
-      : [INBOX_TAB, PIPELINE_TAB, ...DETAIL_TABS]),
+      : [
+          INBOX_TAB,
+          ...(externalEnabled || activeTab === "external" ? [EXTERNAL_TAB] : []),
+          PIPELINE_TAB,
+          ...DETAIL_TABS,
+        ]),
   ];
+  // The inbox and the external list scroll inside their own panel.
+  const panelScrolls =
+    !companyInfoOpen && (activeTab === "inbox" || activeTab === "external");
   const roleStatus = role ? getOrgRoleStatusPresentation(role.status) : null;
   const setActiveTab = (tab: RoleCreationTab) => {
     const nextQuery = { ...router.query };
@@ -353,6 +383,7 @@ function OrgRoleCreationDetails({
       "recommendationId",
       "detailRoleId",
       "detailWorkspaceId",
+      "externalCandidateId",
       // Opening the inbox from its tab shows the inbox, not Saved.
       "review",
     ])
@@ -483,13 +514,20 @@ function OrgRoleCreationDetails({
                   type="button"
                 >
                   {tab.icon}
-                  <span className="truncate">{sourceT(tab.label)}</span>
+                  <span className="truncate">
+                    {"labelEn" in tab ? c(tab.label, tab.labelEn) : sourceT(tab.label)}
+                  </span>
                   {tab.value === "inbox" && inboxCount !== undefined ? (
                     <Badge
                       size="xs"
                       variant="count"
                     >
                       {String(inboxCount)}
+                    </Badge>
+                  ) : null}
+                  {tab.value === "external" && externalCount ? (
+                    <Badge size="xs" variant="count">
+                      {String(externalCount)}
                     </Badge>
                   ) : null}
                 </button>
@@ -535,10 +573,10 @@ function OrgRoleCreationDetails({
         </div>
         <div
           hidden={chatActive && !companyInfoOpen}
-          className={`min-h-0 flex-1 ${!companyInfoOpen && activeTab === "inbox" ? "overflow-hidden" : "overflow-y-auto pt-5 md:pt-6"} overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 ${
+          className={`min-h-0 flex-1 ${panelScrolls ? "overflow-hidden" : "overflow-y-auto pt-5 md:pt-6"} overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 ${
             !companyInfoOpen && activeTab === "pipeline"
               ? "bg-neutral-50 px-0 pb-0"
-              : !companyInfoOpen && activeTab === "inbox"
+              : panelScrolls
                 ? "bg-bg-default px-4 md:px-5 pb-4"
                 : `bg-bg-default px-4 md:px-5 ${mobile ? "pb-16" : "pb-48"}`
           }`}
@@ -589,6 +627,29 @@ function OrgRoleCreationDetails({
                   tab="inbox"
                 />
               </>
+            ) : null}
+          </div>
+          <div
+            aria-label={c("외부 후보 탭 내용", "Outside Harper tab content")}
+            aria-labelledby="role-creation-external-tab"
+            className={activeTab === "external" ? "h-full min-h-0" : undefined}
+            hidden={companyInfoOpen || activeTab !== "external"}
+            id="role-creation-external-panel"
+            role="tabpanel"
+          >
+            {!companyInfoOpen &&
+            activeTab === "external" &&
+            role &&
+            !roleCreation ? (
+              <section
+                className="h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain pt-5 md:pt-6"
+                data-org-review-scroll
+              >
+                <OrgExternalCandidates
+                  roleId={role.roleId}
+                  workspaceId={workspace.workspaceId}
+                />
+              </section>
             ) : null}
           </div>
           <div

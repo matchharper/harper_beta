@@ -1,6 +1,5 @@
 import Head from "next/head";
 import { useState } from "react";
-import { Tabs } from "@/components/ui/tabs";
 import { MuteButton } from "@/components/ui/button";
 import { OrgExternalCandidatesView } from "@/components/org/OrgExternalCandidates";
 import { OrgLocaleScope } from "@/i18n/org/OrgLocaleProvider";
@@ -14,7 +13,7 @@ import { renderExternalInvite } from "@/lib/org/agent/externalInvite";
 import { renderEmailBodyHtml } from "@/lib/email/bodyFormat";
 import { wrapEmailHtml } from "@/lib/email/runtime/format";
 
-// Local-only playground for the Role Inbox "외부 후보" tab and the invitation email.
+// Local-only playground for the Role's "외부 후보" tab and the invitation email.
 // Fictional people and companies; no API, database or email is touched. 404 in production.
 
 const ROLE_ID = "00000000-0000-4000-8000-0000000000a1";
@@ -161,28 +160,6 @@ export default function ExternalCandidatesPlayground({ candidates, emails }: {
             </MuteButton>
           </div>
 
-          <Tabs
-            activeValue="external"
-            variant="borderless"
-            size="small"
-            className="mb-4 w-fit gap-1.5 bg-white [&_[role=tab]]:h-8 [&_[role=tab]]:px-3 [&_[role=tab]]:bg-white [&_[role=tab][aria-selected=true]]:bg-neutral-200"
-            aria-label="Inbox type"
-            items={[
-              { value: "pending_connection", label: <span className="text-sm">{locale === "ko" ? "연결 수락한 후보" : "Ready to connect"}</span>, disabled: true },
-              { value: "company_intro", label: <span className="text-sm">{locale === "ko" ? "연결 제안할 후보" : "Suggested candidates"}</span>, disabled: true },
-              { value: "saved", label: <span className="text-sm">{locale === "ko" ? "저장함" : "Saved"}</span>, disabled: true },
-              {
-                value: "external",
-                label: (
-                  <span className="inline-flex items-center gap-2 text-sm">
-                    {locale === "ko" ? "외부 후보" : "Outside Harper"}
-                    <span className="ml-0.5 text-xs text-neutral-800">{data.candidates.length}</span>
-                  </span>
-                ),
-              },
-            ]}
-          />
-
           <OrgExternalCandidatesView data={data} roleId={ROLE_ID} actions={actions} />
 
           <section className="mt-16 border-t border-neutral-1000-a05 pt-8">
@@ -215,14 +192,13 @@ export async function getServerSideProps() {
   const appeal = "에이전트를 고객사에 직접 붙여 본 경험이 인상적이었어요. 저희 팀의 첫 프로덕트 엔지니어로 함께 제품 방향을 정하고 싶어요.";
   const unsubscribeUrl = "http://127.0.0.1:3100/api/email/external-unsubscribe?t=preview-token";
   const variants = [
-    { key: "ko", title: "한국어 · 회사명 공개", language: "ko" as const, personName: "김서연", companyName: "Acme" },
-    { key: "ko-hidden", title: "한국어 · 회사명 비공개 Role", language: "ko" as const, personName: "이준호", companyName: null },
-    { key: "en", title: "English · 회사명 공개", language: "en" as const, personName: "Ethan Park", companyName: "Acme" },
-    { key: "en-hidden", title: "English · 회사명 비공개 Role", language: "en" as const, personName: "Ethan Park", companyName: null },
+    { key: "ko", title: "한국어 · 회사명 공개", language: "ko" as const, personName: "김서연", companyName: "Acme", addressSource: "people-data.example" },
+    { key: "ko-hidden", title: "한국어 · 회사명 비공개 Role · 이메일 출처 미확인", language: "ko" as const, personName: "이준호", companyName: null, addressSource: null },
+    { key: "en", title: "English · 회사명 공개", language: "en" as const, personName: "Ethan Park", companyName: "Acme", addressSource: "people-data.example" },
+    { key: "en-hidden", title: "English · 회사명 비공개 Role · 이메일 출처 미확인", language: "en" as const, personName: "Ethan Park", companyName: null, addressSource: null },
   ];
   const emails: EmailPreview[] = variants.map((variant) => {
-    const { subject, body } = renderExternalInvite({ ...variant, roleName: "Product Engineer", companyAppeal: appeal, unsubscribeUrl,
-      addressSource: "people-data.example" });
+    const { subject, body } = renderExternalInvite({ ...variant, roleName: "Product Engineer", companyAppeal: appeal, unsubscribeUrl });
     return { key: variant.key, title: variant.title, subject, to: "person@example.com",
       replyTo: "candidate+preview-token-000000@reply.matchharper.com", html: wrapEmailHtml(renderEmailBodyHtml(body)) };
   });
