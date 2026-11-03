@@ -1,5 +1,7 @@
 import { companyReplyAddresses } from "../companyAlias";
 import { finishCompanyEmailReply, processCompanyEmailReply } from "./companyReply";
+import { processExternalCandidateReply } from "./externalReply";
+import { externalCandidateReplyAddresses } from "@/lib/org/agent/externalInvite";
 import { buildPreparationPrompt } from "@/lib/career/simulation/preparationPrompt";
 import { continueEmailApplication, emailApplicationContext, assertEmailApplicationReadyToReply } from "./application";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
@@ -130,6 +132,8 @@ export async function processEmailReply(
   };
   if (companyReplyAddresses(recipients).length || metadata.companyEmail)
     return processCompanyEmailReply({ ...special, fullBody });
+  if (externalCandidateReplyAddresses(recipients).length || metadata.externalCandidateEmail)
+    return processExternalCandidateReply(special);
   if (job.kind === "org_intro_capture") return processIntroCapture(special);
   if (job.kind === "referral_intro") return processReferralIntro(special);
   const identity = opsTest ? {

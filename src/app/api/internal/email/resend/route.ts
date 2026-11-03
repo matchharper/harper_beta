@@ -13,9 +13,30 @@ import {
   type ResendDeliveryEventPayload,
 } from "@/lib/contentsEngine/resendDelivery";
 import { verifyResendWebhookSignature } from "@/lib/email/security";
+import {
+  ingestExternalInviteDeliveryEvent,
+  ingestExternalInviteOpenedEvent,
+} from "@/lib/org/agent/externalInvite.server";
+import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { dispatchInboundEmailReply } from "@/lib/email/runtime/queue";
 
 export const runtime = "nodejs";
+
+/**
+ * External-invitation events first. A failure there (for example before its migration is applied)
+ * is logged and the event falls through, so career open tracking and GTM delivery keep working.
+ */
+async function handledAsExternalInvite(ingest: () => Promise<{ handled: boolean }>, svixId: string | null) {
+  try {
+    return (await ingest()).handled;
+  } catch (error) {
+    console.error("[email-webhook] external invite event failed", {
+      error: error instanceof Error ? error.message : String(error),
+      svixId,
+    });
+    return false;
+  }
+}
 
 export async function POST(req: Request) {
   const payload = await req.text();
@@ -67,6 +88,13 @@ export async function POST(req: Request) {
 
   const eventType = (event as { type?: unknown }).type;
   if (eventType === "email.opened") {
+    // External invitations share Harper's sender; match them by provider email ID first.
+    if (await handledAsExternalInvite(() => ingestExternalInviteOpenedEvent({
+      admin: getSupabaseAdmin(),
+      event: event as ResendEmailOpenedEventPayload,
+    }), svixId)) {
+      return NextResponse.json({ ok: true, external: true }, { status: 200 });
+    }
     try {
       const result = await recordResendEmailOpenedEvent({
         event: event as ResendEmailOpenedEventPayload,
@@ -84,6 +112,12 @@ export async function POST(req: Request) {
   }
 
   if (isGtmResendDeliveryEventType(eventType)) {
+    if (await handledAsExternalInvite(() => ingestExternalInviteDeliveryEvent({
+      admin: getSupabaseAdmin(),
+      event: event as ResendDeliveryEventPayload,
+    }), svixId)) {
+      return NextResponse.json({ ok: true, external: true }, { status: 200 });
+    }
     try {
       const result = await ingestGtmResendDeliveryEvent({
         event: event as ResendDeliveryEventPayload,

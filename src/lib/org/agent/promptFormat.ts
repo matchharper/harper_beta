@@ -2323,6 +2323,10 @@ export function formatOrgAgentToolResult(
   if (name === "recommend_talents") {
     return formatPromptText(projectLlmDateTimes(result));
   }
+  if (name === "request_external_search" || name === "read_external_candidates" || name === "contact_external_candidate") {
+    // Purpose-built projections from externalSourcing.ts; the transport object is never serialized.
+    return typeof result.modelOutput === "string" ? result.modelOutput : formatPromptText(result);
+  }
   if (name === "request_matching_search") {
     return [
       `status=${formatPromptCell(result.status, 40)}`,
