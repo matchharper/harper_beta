@@ -436,13 +436,28 @@ export function formatExternalCandidateStatuses(args: { people: ExternalCandidat
   return lines.join("\n");
 }
 
+/**
+ * How much new ground a run covered. The Worker skips people already shown to this company or already judged for this
+ * Role, so few new people with many skipped means this brief has little left to find on public profiles.
+ */
+function externalSearchReach(counts: unknown) {
+  const c = asRecord(counts);
+  if (typeof c.pool !== "number") return undefined;
+  const skipped = (typeof c.skippedShown === "number" ? c.skippedShown : 0) + (typeof c.skippedJudged === "number" ? c.skippedJudged : 0);
+  return skipped
+    ? `${c.pool} people new to this Role were reviewed; ${skipped} people already shown to this company or already judged for this Role were skipped`
+    : `${c.pool} people were reviewed`;
+}
+
 /** Facts for the company-side LLM when a run finishes (enqueueCompanyUpdate); no wording is prescribed. */
 export function externalSearchNoticeFacts(args: { run: ExternalRunRow; roleName: string; candidates: ExternalCandidateRow[] }) {
+  const reach = externalSearchReach(args.run.counts);
   return {
     externalSearch: {
       runId: args.run.id, roleName: args.roleName, status: args.run.status, failure: args.run.error_code,
       startedBy: args.run.trigger === "agent_initiative" ? "harper" : "company",
       shown: args.candidates.length,
+      ...(reach ? { reach } : {}),
     },
     externalCandidates: projectExternalCandidates(args.candidates),
     candidateState: {

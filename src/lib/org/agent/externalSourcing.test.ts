@@ -93,6 +93,14 @@ test("notice facts carry verified state, never wording or quotes", () => {
   assert.equal(facts.candidateState.contacted, false);
   assert.equal(facts.externalCandidates.people[0].linkedinUrl, "https://www.linkedin.com/in/ada-1");
   assert.doesNotMatch(JSON.stringify(facts), /not for the company model/);
+  // How much new ground the run covered, from the Worker's counts; absent for runs without counts.
+  const reached = externalSearchNoticeFacts({ run: { ...run, counts: { pool: 40, skippedShown: 3, skippedJudged: 9 } },
+    roleName: "Product Engineer", candidates: [] });
+  assert.equal(reached.externalSearch.reach,
+    "40 people new to this Role were reviewed; 12 people already shown to this company or already judged for this Role were skipped");
+  assert.equal(externalSearchNoticeFacts({ run: { ...run, counts: { pool: 40 } }, roleName: "x", candidates: [] }).externalSearch.reach,
+    "40 people were reviewed");
+  assert.equal("reach" in externalSearchNoticeFacts({ run: { ...run, counts: {} }, roleName: "x", candidates: [] }).externalSearch, false);
 });
 
 test("contact status never carries the address and says how far it was confirmed", () => {
