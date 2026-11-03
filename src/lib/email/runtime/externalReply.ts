@@ -13,9 +13,10 @@ import {
   suppressAfterReply,
   type ExternalReplyType,
 } from "@/lib/org/agent/externalInvite";
-import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
+import { externalEmailHash, sendConnectLinkReply } from "@/lib/org/agent/externalInvite.server";
 import { externalSourcingEnabledFor } from "@/lib/org/agent/externalSourcing";
 import { updateEmailJob } from "./store";
+import { replyHeaders } from "./transport";
 import { EmailPermanentError, nowIso, type EmailAdmin, type EmailRow, type ReceivedEmail } from "./types";
 
 type ExternalReplyContext = {
@@ -63,18 +64,20 @@ async function skip(ctx: ExternalReplyContext, reason: string) {
 
 /**
  * A reply to an external invitation (candidate+<token>@reply domain). Recorded, classified in isolation,
- * and handed to the company conversation as facts. Harper does not answer the person automatically.
+ * and handed to the company conversation as facts. Harper's only answer is one fixed reply with the
+ * person's connect link to an interested reply; it never writes anything else to the person.
  * Each step is idempotent so a retried job never records or announces a reply twice.
  */
 export async function processExternalCandidateReply(ctx: ExternalReplyContext,
-  dependencies: { classify?: typeof classifyExternalReply; notify?: typeof enqueueCompanyUpdate } = {}) {
+  dependencies: { classify?: typeof classifyExternalReply; notify?: typeof enqueueCompanyUpdate;
+    sendLinkReply?: typeof sendConnectLinkReply } = {}) {
   const addresses = externalCandidateReplyAddresses(ctx.recipients);
   if (addresses.length !== 1) throw new EmailPermanentError(addresses.length ? "ambiguous_external_reply_alias" : "external_reply_alias_required");
   const token = externalReplyToken(addresses[0]);
   if (!token) throw new EmailPermanentError("invalid_external_reply_alias");
   const admin = ctx.admin;
   const { data: request, error } = await admin.from("external_intro_requests")
-    .select("id,status,recipient_email,external_candidate_id,company_workspace_id,role_id,result")
+    .select("id,status,recipient_email,external_candidate_id,company_workspace_id,role_id,result,accept_token_hash")
     .eq("reply_token_hash", hashReplyToken(token)).maybeSingle();
   if (error) throw error;
   if (!request) return skip(ctx, "external_reply_alias_not_found");
@@ -120,7 +123,13 @@ export async function processExternalCandidateReply(ctx: ExternalReplyContext,
     if (suppressError) throw suppressError;
   }
   const nextStatus = fromInvitedAddress ? statusAfterReply(type) : "replied";
-  if (!["declined", "unsubscribed"].includes(request.status) || nextStatus !== "replied") {
+  if (["accepted", "connecting", "connected"].includes(request.status)) {
+    // Already connected (or connecting) by the person's own confirmation: the reply is kept, the state stays.
+    const { error: statusError } = await admin.from("external_intro_requests").update({
+      reply_type: type, last_reply_at: reply.created_at, updated_at: nowIso(),
+    }).eq("id", request.id);
+    if (statusError) throw statusError;
+  } else if (!["declined", "unsubscribed"].includes(request.status) || nextStatus !== "replied") {
     const { error: statusError } = await admin.from("external_intro_requests").update({
       status: nextStatus, reply_type: type, last_reply_at: reply.created_at, updated_at: nowIso(),
     }).eq("id", request.id);
@@ -140,13 +149,27 @@ export async function processExternalCandidateReply(ctx: ExternalReplyContext,
     if (noticeError) throw noticeError;
     return skip(ctx, "external_candidate_reply_recorded");
   }
+  // An interested answer from the invited address gets the connect link once; a failure here only means
+  // the company is told that no link reply went out.
+  let harperSentConnectLink = false;
+  if (fromInvitedAddress && type === "interested") {
+    try {
+      const outcome = await (dependencies.sendLinkReply ?? sendConnectLinkReply)({
+        admin, requestId: request.id, headers: replyHeaders(ctx.received, ""),
+      });
+      harperSentConnectLink = outcome === "sent" || outcome === "already_sent";
+    } catch (linkError) {
+      console.error("[external-reply] connect link reply failed", { requestId: request.id, error: String(linkError).slice(0, 300) });
+    }
+  }
   const { jobId } = await (dependencies.notify ?? enqueueCompanyUpdate)({
     workspaceId: request.company_workspace_id, roleId: request.role_id, eventKey: `external_reply:${reply.id}`,
-    purpose: "Tell the company, in its hiring conversation, how the external person it asked to meet answered Harper's invitation, and propose the concrete next step the company can decide.",
+    purpose: "Tell the company, in its hiring conversation, how the external person it asked to meet answered Harper's invitation and what happens next. Propose a next step only when one is real.",
     facts: externalReplyNoticeFacts({
       replyId: reply.id, roleName: role.data?.name ?? "", receivedAt: reply.created_at, type: type || "unclassified", summary,
       fromInvitedAddress, person: { ref: request.external_candidate_id, name: candidate.data?.name ?? null,
         linkedinUrl: candidate.data?.linkedin_url ?? null },
+      connectLinkSent: Boolean(request.accept_token_hash), harperSentConnectLink,
     }),
   });
   const { error: noticeError } = await admin.from("external_candidate_replies")

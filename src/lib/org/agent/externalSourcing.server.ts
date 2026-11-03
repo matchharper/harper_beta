@@ -22,7 +22,7 @@ import { externalInviteSendingEnabled } from "./externalInvite";
 const CANDIDATE_COLUMNS = "id,name,headline,current_company,location,linkedin_url,career_lines,evidence,verdict,rank,"
   + "company_decision,role_id,run_id,created_at,run:external_sourcing_runs!inner(trigger),"
   + "contact:external_candidate_contacts(status,email_kind,source_kind,finished_at),"
-  + "intro:external_intro_requests(status,created_at,intro_recipient_emails,invited_at,opened_at,last_reply_at,reply_type,error_code)";
+  + "intro:external_intro_requests(status,created_at,intro_recipient_emails,invited_at,opened_at,last_reply_at,reply_type,error_code,accepted_at,connected_at)";
 const RUN_COLUMNS = "id,status,trigger,error_code,created_at,finished_at,counts";
 const FINISHED = ["succeeded", "skipped", "failed"];
 

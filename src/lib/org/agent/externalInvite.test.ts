@@ -10,6 +10,8 @@ import {
   inExternalInviteWindow,
   inviteLanguage,
   normalizeExternalReplyClassification,
+  renderExternalConnectEmail,
+  renderExternalConnectLinkReply,
   renderExternalInvite,
   statusAfterReply,
   suppressAfterReply,
@@ -45,7 +47,8 @@ test("language follows the public profile", () => {
 
 test("the invitation names the company unless the Role hides it, quotes the company's reason and has the opt-out link", () => {
   const base = { personName: "Ada Kim", roleName: "Product Engineer", companyAppeal: "Agent infra experience\nwe liked your talk",
-    unsubscribeUrl: "https://matchharper.com/api/email/external-unsubscribe?t=tok", addressSource: "people-data.example" };
+    unsubscribeUrl: "https://matchharper.com/api/email/external-unsubscribe?t=tok", addressSource: "people-data.example",
+    connectUrl: "https://matchharper.com/api/email/external-connect?t=acc" };
   const ko = renderExternalInvite({ ...base, language: "ko", companyName: "Acme" });
   assert.equal(ko.subject, "Acme Product Engineer 포지션 관련해서 연락드려요");
   assert.match(ko.body, /^Ada Kim님, 안녕하세요\. 채용 매칭 서비스 Harper입니다\./);
@@ -83,10 +86,15 @@ test("reply classification: fixed types, no addresses or numbers in the summary"
 
 test("reply notice facts carry the reading, never the text or address", () => {
   const facts = externalReplyNoticeFacts({ replyId: "r1", roleName: "Product Engineer", receivedAt: "2026-11-02T08:00:00Z", type: "question",
-    summary: "Asks about remote work", fromInvitedAddress: false, person: { ref: "c-1", name: "Ada Kim", linkedinUrl: null } });
+    summary: "Asks about remote work", fromInvitedAddress: false, person: { ref: "c-1", name: "Ada Kim", linkedinUrl: null },
+    connectLinkSent: true });
   assert.equal(facts.externalReply.type, "question");
   assert.equal(facts.candidateState.replyFromAnotherAddress, true);
   assert.equal(facts.candidateState.harperAnsweredThePerson, false);
+  // Only the person connects, from the invitation's link; neither a reply nor the company can.
+  assert.match(facts.candidateState.connection, /^not connected\. Only the person can connect, by confirming the link in Harper's invitation/);
+  // C (11/3) asked about salary and Harper offered to relay the company's answer: it cannot.
+  assert.match(facts.candidateState.messagesToThePerson, /^Harper cannot pass the company's answers or any other message to the person/);
   assert.doesNotMatch(JSON.stringify(facts), /@/);
 });
 
@@ -285,3 +293,142 @@ test("the invitation names the address's site only when that page showed the add
   const published = await sendWith({ source_url: "https://www.ada.dev/about", source_kind: "self_published" });
   assert.match(published, /We found this email address on ada\.dev and your career details/);
 });
+
+test("the invitation carries the person's own connect link; the introduction names the company only when the Role does", () => {
+  const invite = { personName: "김에이다", companyName: "Acme", roleName: "Product Engineer", companyAppeal: "Agent infra",
+    unsubscribeUrl: "https://u.example", connectUrl: "https://matchharper.com/api/email/external-connect?t=acc", addressSource: null };
+  const ko = renderExternalInvite({ ...invite, language: "ko" });
+  assert.match(ko.body, /Harper가 Acme 담당자와 김에이다님을 이메일로 바로 연결해 드려요\.\n\n\[연결하기\]\(https:\/\/matchharper\.com\/api\/email\/external-connect\?t=acc\)/);
+  // A reply only reaches the company; the old promise of "next steps" from Harper is gone.
+  assert.doesNotMatch(ko.body, /다음 단계를 안내해 드릴게요/);
+  assert.match(ko.body, /회사에 전해 드릴게요/);
+  assert.match(renderExternalInvite({ ...invite, language: "en", personName: "Ada Kim" }).body, /\[Connect\]\(https:\/\/matchharper\.com/);
+
+  const intro = { language: "ko" as const, personName: "김에이다", companyName: "Acme", roleName: "Product Engineer",
+    companyAppeal: "Agent infra", linkedinUrl: "https://www.linkedin.com/in/ada",
+    company: { linkedinUrl: "https://www.linkedin.com/company/acme", homepageUrl: "https://acme.example", contactName: "이하늘", contactTitle: "Head of Talent" } };
+  const shown = renderExternalConnectEmail(intro);
+  assert.equal(shown.subject, "김에이다님과 Acme Product Engineer 담당자를 연결해 드려요");
+  assert.match(shown.body, /> Agent infra/);
+  assert.match(shown.body, /김에이다님의 공개 프로필: https:\/\/www\.linkedin\.com\/in\/ada/);
+  assert.match(shown.body, /Acme 소개: https:\/\/www\.linkedin\.com\/company\/acme · https:\/\/acme\.example/);
+  assert.match(shown.body, /Acme 담당자: 이하늘 \(Head of Talent\)/);
+  const hidden = renderExternalConnectEmail({ ...intro, companyName: null });
+  assert.doesNotMatch(hidden.subject + hidden.body, /Acme|acme|이하늘/);
+  assert.match(renderExternalConnectEmail({ ...intro, language: "en", personName: "Ada Kim" }).body, /Acme contact: 이하늘 \(Head of Talent\)/);
+
+  const reply = renderExternalConnectLinkReply({ language: "ko", personName: "김에이다", companyName: "Acme", connectUrl: "https://c.example/x" });
+  assert.match(reply, /\[연결하기\]\(https:\/\/c\.example\/x\)/);
+  assert.match(reply, /담당자에게 이메일 주소가 전달돼요/);
+});
+
+const CONNECT_NOW = new Date("2026-11-03T06:00:00Z");
+const CONNECT_TOKEN = "accepttoken0001";
+
+/** One external_intro_requests row that updates follow (conditional on status), plus the rows around it. */
+function connectFixture(setup: { row?: Record<string, unknown>; decision?: string | null; roleStatus?: string; anonymous?: boolean } = {}) {
+  const row: Record<string, unknown> = {
+    id: "q1", status: "invited", attempt_count: 1, external_candidate_id: "c1", company_workspace_id: "w1", role_id: "r1",
+    requested_by: "u1", company_appeal: "Agent infra", created_at: "2026-11-02T00:00:00Z",
+    result: { delivery: { subject: "Acme Product Engineer 포지션 관련해서 연락드려요", replyTo: "candidate+tok000000000@reply.matchharper.com" },
+      connectUrl: "https://matchharper.com/api/email/external-connect?t=acc" },
+    intro_recipient_emails: ["cto@acme.example", "ME@acme.example"], recipient_email: "ada@example.com",
+    invited_at: "2026-11-02T01:00:00Z", accepted_at: null, connected_at: null, lease_expires_at: null, ...setup.row,
+  };
+  const fake = fakeAdmin((call) => {
+    if (call.table === "external_intro_requests") {
+      if (call.op === "update") {
+        const status = call.filters.find(([key, column]) => key === "eq" && column === "status");
+        if (status && status[2] !== row.status) return null;
+        Object.assign(row, call.patch);
+      }
+      return { ...row };
+    }
+    if (call.table === "external_candidates") return { id: "c1", name: "김에이다", location: "Seoul, South Korea",
+      linkedin_url: "https://www.linkedin.com/in/ada", company_decision: setup.decision ?? "intro_requested" };
+    if (call.table === "external_candidate_contacts") return { status: "found", email: "ada@example.com", source_url: null, source_kind: "unverified" };
+    if (call.table === "company_roles") return { name: "Product Engineer", status: setup.roleStatus ?? "active", is_expired: false };
+    if (call.table === "company_internal_roles") return { is_anonymous: setup.anonymous === true };
+    if (call.table === "company_workspace") return { company_name: "Acme", published_name: null,
+      linkedin_url: "https://www.linkedin.com/company/acme", homepage_url: null };
+    if (call.table === "company_users") return { name: "이하늘", email: "me@acme.example", role: "Head of Talent" };
+    return null;
+  });
+  return { ...fake, row };
+}
+
+test("the person's confirmation connects them once: To the person, CC the requester and the chosen recipients", async (t) => {
+  serverModules(t, { ORG_EXTERNAL_INVITE_ALLOWED_RECIPIENTS: "" });
+  const { acceptExternalInvite, getExternalConnectView } = await import("./externalInvite.server");
+  const fixture = connectFixture();
+  const view = await getExternalConnectView({ admin: fixture.admin, token: CONNECT_TOKEN, now: CONNECT_NOW });
+  assert.deepEqual(view, { state: "ready", language: "ko", personName: "김에이다", companyName: "Acme", roleName: "Product Engineer" });
+  // Opening the page (or a mail scanner following the link) records nothing.
+  assert.equal(fixture.calls.filter((call) => call.op === "update").length, 0);
+
+  const sent: Array<Record<string, unknown>> = [];
+  const notices: Array<Record<string, unknown>> = [];
+  const deps = {
+    send: (async (delivery: Record<string, unknown>) => { sent.push(delivery); return { id: "em_intro" }; }) as never,
+    notify: (async (input: Record<string, unknown>) => { notices.push(input); return { jobId: "n1" }; }) as never,
+  };
+  const result = await acceptExternalInvite({ admin: fixture.admin, token: CONNECT_TOKEN, now: CONNECT_NOW, ...deps });
+  assert.equal(result.state, "connected");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, "ada@example.com");
+  assert.deepEqual(sent[0].cc, ["me@acme.example", "cto@acme.example"]);
+  assert.deepEqual(sent[0].replyTo, ["ada@example.com", "me@acme.example", "cto@acme.example"]);
+  assert.equal(sent[0].idempotencyKey, "external-intro-connect/q1");
+  assert.match(String(sent[0].text), /Acme 담당자: 이하늘 \(Head of Talent\)/);
+  assert.equal(fixture.row.status, "connected");
+  assert.equal(fixture.row.connect_email_id, "em_intro");
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].eventKey, "external_invite:q1:connected");
+  const facts = notices[0].facts as { candidateState: { introductionSent: boolean }; externalConnection: { companyRecipients: string[] } };
+  assert.equal(facts.candidateState.introductionSent, true);
+  assert.deepEqual(facts.externalConnection.companyRecipients, ["me@acme.example", "cto@acme.example"]);
+
+  // A second click (or a refresh of the form) introduces nobody again.
+  const again = await acceptExternalInvite({ admin: fixture.admin, token: CONNECT_TOKEN, now: CONNECT_NOW, ...deps });
+  assert.equal(again.state, "connected");
+  assert.equal(sent.length, 1);
+});
+
+test("nobody is connected after a Pass, a paused Role, an opt-out or 30 days", async (t) => {
+  serverModules(t, { ORG_EXTERNAL_INVITE_ALLOWED_RECIPIENTS: "" });
+  const { acceptExternalInvite } = await import("./externalInvite.server");
+  const fail = (async () => { throw new Error("must not send"); }) as never;
+  for (const [label, setup] of [
+    ["company passed", { decision: "passed" }],
+    ["role paused", { roleStatus: "paused" }],
+    ["opted out", { row: { status: "unsubscribed" } }],
+    ["link expired", { row: { invited_at: "2026-09-01T00:00:00Z" } }],
+  ] as const) {
+    const fixture = connectFixture(setup);
+    const view = await acceptExternalInvite({ admin: fixture.admin, token: CONNECT_TOKEN, now: CONNECT_NOW, send: fail, notify: fail });
+    assert.equal(view.state, "closed", label);
+    assert.equal(fixture.calls.filter((call) => call.op === "update").length, 0, label);
+  }
+  assert.deepEqual(await acceptExternalInvite({ admin: fakeAdmin(() => null).admin, token: CONNECT_TOKEN, now: CONNECT_NOW, send: fail, notify: fail }),
+    { state: "not_found" });
+});
+
+test("an interested reply gets the connect link once, in the invitation's thread", async (t) => {
+  serverModules(t, { ORG_EXTERNAL_INVITE_ALLOWED_RECIPIENTS: "" });
+  const { sendConnectLinkReply } = await import("./externalInvite.server");
+  const fixture = connectFixture({ row: { status: "replied" } });
+  const sent: Array<Record<string, unknown>> = [];
+  const send = (async (delivery: Record<string, unknown>) => { sent.push(delivery); return { id: "em_reply" }; }) as never;
+  const args = { admin: fixture.admin, requestId: "q1", headers: { "In-Reply-To": "<m1@mail>" }, now: CONNECT_NOW, send };
+  assert.equal(await sendConnectLinkReply(args), "sent");
+  assert.equal(sent[0].subject, "Re: Acme Product Engineer 포지션 관련해서 연락드려요");
+  assert.equal(sent[0].replyTo, "candidate+tok000000000@reply.matchharper.com");
+  assert.deepEqual(sent[0].headers, { "In-Reply-To": "<m1@mail>" });
+  assert.match(String(sent[0].text), /연결하기 \(https:\/\/matchharper\.com\/api\/email\/external-connect\?t=acc\)/);
+  assert.equal(await sendConnectLinkReply(args), "already_sent");
+  assert.equal(sent.length, 1);
+  // Nothing goes out once the company passed.
+  const passed = connectFixture({ row: { status: "replied" }, decision: "passed" });
+  assert.equal(await sendConnectLinkReply({ ...args, admin: passed.admin }), "not_connectable");
+});
+

@@ -50,6 +50,12 @@ function introStatus(intro: NonNullable<ExternalCandidateView["intro"]>, c: Copy
           : c("답장 옴", "Replied"),
         at: null,
       };
+    case "accepted":
+    case "connecting":
+      return { label: c("연결 중", "Connecting"), at: null };
+    case "connected":
+      // The person confirmed and Harper introduced them by email (CC the company recipients).
+      return { label: c("연결됨", "Connected"), at: intro.connectedAt ?? null };
     case "declined":
       return { label: c("거절함", "Declined"), at: null };
     case "unsubscribed":
@@ -58,7 +64,12 @@ function introStatus(intro: NonNullable<ExternalCandidateView["intro"]>, c: Copy
       return { label: c("메일 전달 안 됨", "Not delivered"), at: null };
     case "not_sendable":
     case "failed":
-      return { label: c("초대 메일 못 보냄", "Invitation not sent"), at: null };
+      // A failed introduction (after the person confirmed) is told apart from a failed invitation.
+      return intro.acceptedAt
+        ? { label: c("연결 메일 못 보냄", "Introduction not sent"), at: null }
+        : { label: c("초대 메일 못 보냄", "Invitation not sent"), at: null };
+    case "cancelled":
+      return { label: c("연결 요청 취소됨", "Request cancelled"), at: null };
     default:
       return { label: c("연결 요청함", "Connection requested"), at: intro.requestedAt };
   }
@@ -185,8 +196,8 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
       members={actions.members}
       note={data.inviteSending
         ? c(
-            "Harper가 이 분께 초대 메일을 한 통 보내요. 위 관심 이유와 Role이 들어가요. 메일을 읽으면 카드에 표시되고, 답장이 오면 알려드릴게요.",
-            "Harper emails this person one invitation with the reason above and the Role. The card shows when they read it, and you’ll hear when they reply."
+            "Harper가 이 분께 위 관심 이유와 Role을 담은 초대 메일을 한 통 보내요. 이 분이 메일에서 연결을 확인하면, Harper가 이 분과 요청하신 분, 위에서 고른 이메일을 한 메일로 연결해요. 답장이 오면 알려드릴게요.",
+            "Harper emails this person one invitation with the reason above and the Role. If they confirm the connection from that email, Harper introduces them to you and the emails chosen above in one email. You’ll hear when they reply."
           )
         : c(
             "지금은 연결 요청만 기록되고, 이 분께 메일은 나가지 않아요.",

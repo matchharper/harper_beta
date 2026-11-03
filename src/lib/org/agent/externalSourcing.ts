@@ -116,6 +116,7 @@ export type ExternalContactRow = {
 export type ExternalIntroRow = {
   status: string; created_at: string; intro_recipient_emails?: string[] | null; invited_at?: string | null;
   opened_at?: string | null; last_reply_at?: string | null; reply_type?: string | null; error_code?: string | null;
+  accepted_at?: string | null; connected_at?: string | null;
 };
 export type ExternalCandidateRow = {
   id: string; name: string | null; headline: string | null; current_company: string | null; location: string | null;
@@ -159,8 +160,15 @@ export function externalIntroStatus(intro: ExternalIntroRow | null | undefined, 
       return `${requested}; the invitation was not delivered (${intro.error_code ?? "bounced"}); Harper will not email this address again`;
     case "not_sendable":
       return `${requested}; no invitation was sent: ${NOT_SENDABLE_MEANING[intro.error_code ?? ""] ?? intro.error_code ?? "unknown reason"}`;
+    case "accepted":
+    case "connecting":
+      return `${requested}; the person confirmed the connection ${formatLlmDateTime(intro.accepted_at)} from the invitation's link; Harper is sending the introduction email (To the person, CC the company recipients)`;
+    case "connected":
+      return `${requested}; connected ${formatLlmDateTime(intro.connected_at)}: the person confirmed and Harper introduced them by email (To the person, CC the company recipients); they continue directly in that thread`;
     case "failed":
-      return `${requested}; sending the invitation failed; nothing was delivered`;
+      return intro.error_code?.startsWith("connect_")
+        ? `${requested}; the person confirmed the connection, but the introduction email could not be sent; nobody received it`
+        : `${requested}; sending the invitation failed; nothing was delivered`;
     case "cancelled":
       return `${requested}; cancelled before sending because the company passed; nothing was sent`;
     default:
@@ -315,7 +323,8 @@ export type ExternalCandidateView = {
   contact: "none" | "looking" | "found" | "not_found" | "failed";
   contactConfirmed: boolean;
   /** openedAt: first open of the invitation email (approximate; image blocking hides opens). */
-  intro: { status: string; requestedAt: string; invitedAt: string | null; openedAt: string | null; replyType: string | null } | null;
+  intro: { status: string; requestedAt: string; invitedAt: string | null; openedAt: string | null; replyType: string | null;
+    acceptedAt?: string | null; connectedAt?: string | null } | null;
   /** intro_requested | passed; null while the company has not decided. */
   companyDecision: string | null;
   shownAt: string;
@@ -369,6 +378,7 @@ export function externalCandidatesForCompany(rows: (ExternalCandidateRow & { cre
       contactConfirmed: contact?.status === "found" && contact.source_kind === "self_published",
       intro: row.intro ? { status: row.intro.status, requestedAt: row.intro.created_at,
         invitedAt: row.intro.invited_at ?? null, openedAt: row.intro.opened_at ?? null,
+        acceptedAt: row.intro.accepted_at ?? null, connectedAt: row.intro.connected_at ?? null,
         replyType: row.intro.reply_type ?? null } : null,
       companyDecision: row.company_decision,
       shownAt: row.created_at,

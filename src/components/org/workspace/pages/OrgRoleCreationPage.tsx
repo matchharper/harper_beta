@@ -367,9 +367,10 @@ function OrgRoleCreationDetails({
       ? [START_TAB, ...DETAIL_TABS]
       : [
           INBOX_TAB,
-          ...(externalEnabled || activeTab === "external" ? [EXTERNAL_TAB] : []),
           PIPELINE_TAB,
           ...DETAIL_TABS,
+          // Last, after 설정, only where external sourcing is on.
+          ...(externalEnabled || activeTab === "external" ? [EXTERNAL_TAB] : []),
         ]),
   ];
   // The inbox and the external list scroll inside their own panel.

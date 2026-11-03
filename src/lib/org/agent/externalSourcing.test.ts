@@ -156,7 +156,8 @@ test("the /org screen gets public facts and states only: page quotes and address
   assert.deepEqual(view.educations, [{ school: "KAIST", degree: "BS", start: null, end: null }]);
   assert.equal(view.contact, "found");
   assert.equal(view.contactConfirmed, true);
-  assert.deepEqual(view.intro, { status: "requested", requestedAt: "2026-11-02T08:00:00Z", invitedAt: null, openedAt: null, replyType: null });
+  assert.deepEqual(view.intro, { status: "requested", requestedAt: "2026-11-02T08:00:00Z", invitedAt: null, openedAt: null, replyType: null,
+    acceptedAt: null, connectedAt: null });
   assert.doesNotMatch(JSON.stringify(view), /not for the company model|"quote"|@/);
   const [plain] = externalCandidatesForCompany([{ ...person, created_at: "x", contact: { status: "running", email_kind: null, source_kind: null, finished_at: null } }]);
   assert.equal(plain.linkedinUrl, "https://www.linkedin.com/in/ada-1");
