@@ -53,3 +53,14 @@ Review both useful completion and unwanted behavior: over-research, cosmetic rew
 During v2 review, two cases inherited the generic profile helper's company/contact values while their documents named different employers and emails. The model correctly noticed these contradictions, so those extra questions cannot be counted as unnecessary questioning. `v3` corrects only these profile facts in `sufficient_resume_review` and `missing_personal_fields`, keeps messages/pages/gold criteria unchanged, and repeats both A/B twice (8 additional trials). All v2 data and outputs remain unchanged. Use the v2 commands with `--dataset v3` and labels `v3-A` / `v3-B`. No product-guidance changes follow the observed outputs.
 
 [2026-11-03 transfer and side-effect report](reports/2026-11-03-transfer-and-side-effects.md) records the exact prompt additions, 48 v2 trials, 8 declared fixture-correction trials, unnecessary document creation, preserved boundaries and tool-contract errors. It revises the earlier broad B-is-better interpretation. Product guidance remains unchanged.
+
+## C: retain useful A guidance (2026-11-03)
+
+The user's follow-up asks for less aggressive shortening: keep web tools core and the two public-context/independent-work sentences, restore useful A guidance, and remove harmful B instructions without scenario-specific additions. C restores A's focused-question and substantive-edit criteria, full language contract, existing-decision handling, introduction preparation judgment, schedule/follow constraints and matching stewardship detail. It removes B's blanket document-saving instruction and restores the resume catalog's requested-document scope. No model, tool schema, fixture or gold changes are made.
+
+Live verification is deliberately limited to **two trials total**, one on each previously failing scenario: v2 `ambiguous_employer` (unnecessary document saving) and v1 `blocked_application` (external-content language). This is a targeted check, not a repeat of the 56-trial comparison or an assessment of final resumes after user answers.
+
+```sh
+NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v2 --only ambiguous_employer --repeat 1 --label retained-c-ambiguity
+NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v1 --only blocked_application --repeat 1 --label retained-c-application
+```
