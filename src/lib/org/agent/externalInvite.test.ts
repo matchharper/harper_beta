@@ -308,17 +308,13 @@ test("the invitation carries the person's own connect link; the introduction nam
 
   const intro = { language: "ko" as const, personName: "김에이다", companyName: "Acme", roleName: "Product Engineer",
     companyAppeal: "Agent infra", linkedinUrl: "https://www.linkedin.com/in/ada",
-    company: { linkedinUrl: "https://www.linkedin.com/company/acme", homepageUrl: "https://acme.example", contactName: "이하늘", contactTitle: "Head of Talent",
-      contactLinkedinUrl: null as string | null } };
+    company: { linkedinUrl: "https://www.linkedin.com/company/acme", homepageUrl: "https://acme.example", contactName: "이하늘", contactTitle: "Head of Talent" } };
   const shown = renderExternalConnectEmail(intro);
   assert.equal(shown.subject, "김에이다님과 Acme Product Engineer 담당자를 연결해 드려요");
   assert.match(shown.body, /> Agent infra/);
   assert.match(shown.body, /김에이다님의 공개 프로필: https:\/\/www\.linkedin\.com\/in\/ada/);
   assert.match(shown.body, /Acme 소개: https:\/\/www\.linkedin\.com\/company\/acme · https:\/\/acme\.example/);
   assert.match(shown.body, /Acme 담당자: 이하늘 \(Head of Talent\)\n/);
-  // The requester's own LinkedIn only when entered in personal settings.
-  assert.match(renderExternalConnectEmail({ ...intro, company: { ...intro.company, contactLinkedinUrl: "https://www.linkedin.com/in/haneul" } }).body,
-    /Acme 담당자: 이하늘 \(Head of Talent\) · https:\/\/www\.linkedin\.com\/in\/haneul/);
   const hidden = renderExternalConnectEmail({ ...intro, companyName: null });
   assert.doesNotMatch(hidden.subject + hidden.body, /Acme|acme|이하늘/);
   assert.match(renderExternalConnectEmail({ ...intro, language: "en", personName: "Ada Kim" }).body, /Acme contact: 이하늘 \(Head of Talent\)/);
@@ -357,7 +353,7 @@ function connectFixture(setup: { row?: Record<string, unknown>; decision?: strin
     if (call.table === "company_internal_roles") return { is_anonymous: setup.anonymous === true };
     if (call.table === "company_workspace") return { company_name: "Acme", published_name: null,
       linkedin_url: "https://www.linkedin.com/company/acme", homepage_url: null };
-    if (call.table === "company_users") return { name: "이하늘", email: "me@acme.example", linkedin_url: "https://www.linkedin.com/in/haneul" };
+    if (call.table === "company_users") return { name: "이하늘", email: "me@acme.example" };
     if (call.table === "company_user_workspace") return { role: "Head of Talent" };
     return null;
   });
@@ -386,7 +382,7 @@ test("the person's confirmation connects them once: To the person, CC the reques
   assert.deepEqual(sent[0].cc, ["me@acme.example", "cto@acme.example"]);
   assert.deepEqual(sent[0].replyTo, ["ada@example.com", "me@acme.example", "cto@acme.example"]);
   assert.equal(sent[0].idempotencyKey, "external-intro-connect/q1");
-  assert.match(String(sent[0].text), /Acme 담당자: 이하늘 \(Head of Talent\) · https:\/\/www\.linkedin\.com\/in\/haneul/);
+  assert.match(String(sent[0].text), /Acme 담당자: 이하늘 \(Head of Talent\)\n/);
   assert.equal(fixture.row.status, "connected");
   assert.equal(fixture.row.connect_email_id, "em_intro");
   assert.equal(notices.length, 1);

@@ -136,8 +136,7 @@ export function renderExternalInvite(args: {
 export function renderExternalConnectEmail(args: {
   language: InviteLanguage; personName: string | null; companyName: string | null; roleName: string;
   companyAppeal: string; linkedinUrl: string | null;
-  company?: { linkedinUrl: string | null; homepageUrl: string | null; contactName: string | null; contactTitle: string | null;
-    contactLinkedinUrl?: string | null } | null;
+  company?: { linkedinUrl: string | null; homepageUrl: string | null; contactName: string | null; contactTitle: string | null } | null;
 }) {
   const name = line(args.personName, 80);
   const company = line(args.companyName, 120);
@@ -148,9 +147,7 @@ export function renderExternalConnectEmail(args: {
   const pages = [about?.linkedinUrl, about?.homepageUrl].map((url) => line(url, 300)).filter(Boolean);
   const contactName = line(about?.contactName, 80);
   const contactTitle = line(about?.contactTitle, 80);
-  // The requester's own LinkedIn appears only when they entered it in personal settings.
-  const contactLinkedin = line(about?.contactLinkedinUrl, 300);
-  const contact = contactName ? `${contactName}${contactTitle ? ` (${contactTitle})` : ""}${contactLinkedin ? ` · ${contactLinkedin}` : ""}` : "";
+  const contact = contactName ? `${contactName}${contactTitle ? ` (${contactTitle})` : ""}` : "";
   if (args.language === "ko") {
     const person = name ? `${name}님` : "후보자님";
     const team = company ? `${company} 담당자님` : "담당자님";

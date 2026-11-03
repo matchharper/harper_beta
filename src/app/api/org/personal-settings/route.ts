@@ -6,7 +6,7 @@ import {
   getSupabaseAdmin,
   requireAuthenticatedUser,
 } from "@/lib/server/candidateAccess";
-import { normalizeOrgLinkedinUrl, type OrgPersonalSettings } from "@/lib/org/personalSettings";
+import type { OrgPersonalSettings } from "@/lib/org/personalSettings";
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError)
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     const [profile, assignments] = await Promise.all([
       admin
         .from("company_users")
-        .select("email_preferences, linkedin_url")
+        .select("email_preferences")
         .eq("user_id", user.id)
         .single(),
       admin
@@ -55,7 +55,6 @@ export async function GET(req: NextRequest) {
         profile.data.email_preferences as Record<string, unknown> | null,
         "all_proactive"
       ),
-      linkedinUrl: profile.data.linkedin_url ?? null,
     };
     return NextResponse.json(payload, {
       headers: { "Cache-Control": "no-store" },
@@ -69,19 +68,6 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const body = await req.json().catch(() => null);
-    // The member's own LinkedIn (account-wide, like the email preference); empty clears it.
-    if (body && typeof body.linkedinUrl === "string") {
-      let linkedinUrl: string | null;
-      try {
-        linkedinUrl = normalizeOrgLinkedinUrl(body.linkedinUrl);
-      } catch {
-        throw new OrgHttpError(400, "LinkedIn 주소를 확인해 주세요.");
-      }
-      const { error } = await getSupabaseAdmin().from("company_users")
-        .update({ linkedin_url: linkedinUrl }).eq("user_id", user.id);
-      if (error) throw error;
-      return NextResponse.json({ linkedinUrl });
-    }
     if (
       !body ||
       typeof body.emailEnabled !== "boolean" ||

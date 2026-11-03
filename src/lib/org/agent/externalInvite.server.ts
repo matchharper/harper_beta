@@ -493,9 +493,9 @@ async function sendConnection(admin: Admin, row: ConnectRow, now: Date, send: Se
     return "cancelled";
   }
   const to = normalizeEmailAddress(row.recipient_email ?? "");
-  // The requester's name, address and own LinkedIn (personal settings); the title is the one set for this workspace.
+  // The requester's name and address; the title is the one set for this workspace.
   const [{ data: requester, error: requesterError }, { data: membership, error: membershipError }] = await Promise.all([
-    admin.from("company_users").select("name,email,linkedin_url").eq("user_id", row.requested_by).maybeSingle(),
+    admin.from("company_users").select("name,email").eq("user_id", row.requested_by).maybeSingle(),
     admin.from("company_user_workspace").select("role").eq("company_user_id", row.requested_by)
       .eq("company_workspace_id", row.company_workspace_id).maybeSingle(),
   ]);
@@ -517,8 +517,7 @@ async function sendConnection(admin: Admin, row: ConnectRow, now: Date, send: Se
     language: inviteLanguage({ name: ctx.candidate?.name, location: ctx.candidate?.location }),
     personName: ctx.candidate?.name ?? null, companyName: ctx.anonymous ? null : ctx.companyName, roleName,
     companyAppeal: row.company_appeal, linkedinUrl: ctx.candidate?.linkedin_url ?? null,
-    company: { ...ctx.companyPages, contactName: requester?.name ?? null, contactTitle: membership?.role ?? null,
-      contactLinkedinUrl: requester?.linkedin_url ?? null },
+    company: { ...ctx.companyPages, contactName: requester?.name ?? null, contactTitle: membership?.role ?? null },
   });
   let emailId: string;
   try {
