@@ -44,7 +44,7 @@ function fakeAdmin(respond: (call: Call) => unknown) {
 }
 
 async function run(t: TestContext, companyDecision: string | null, env: Record<string, string>,
-  options: { requestStatus?: string; linkReply?: string } = {}) {
+  options: { requestStatus?: string; linkReply?: string; replyType?: string; sender?: string } = {}) {
   serverModules(t, env);
   const { processExternalCandidateReply } = await import("./externalReply");
   const { externalReplyDomain } = await import("@/lib/org/agent/externalInvite");
@@ -54,7 +54,7 @@ async function run(t: TestContext, companyDecision: string | null, env: Record<s
         company_workspace_id: "w1", role_id: "r1", result: {}, accept_token_hash: "hash" };
     }
     if (call.table === "external_candidate_replies" && call.op === "select") {
-      return { id: "rep1", reply_type: "interested", summary: "Wants to hear more.", created_at: "2026-11-02T08:00:00Z" };
+      return { id: "rep1", reply_type: options.replyType ?? "interested", summary: "Wants to hear more.", created_at: "2026-11-02T08:00:00Z" };
     }
     if (call.table === "external_candidates") return { name: "Ada Kim", linkedin_url: null, company_decision: companyDecision };
     if (call.table === "company_roles") return { name: "Product Engineer" };
@@ -64,7 +64,7 @@ async function run(t: TestContext, companyDecision: string | null, env: Record<s
   const linkReplies: unknown[] = [];
   await processExternalCandidateReply({
     admin: fake.admin, job: { id: "job1" }, owner: "worker-1", inbound: {}, received: {} as never,
-    body: "Sounds interesting, tell me more.", subject: "Re: Product Engineer", sender: "ada@example.com",
+    body: "Sounds interesting, tell me more.", subject: "Re: Product Engineer", sender: options.sender ?? "ada@example.com",
     recipients: [`candidate+fixturetoken0001@${externalReplyDomain()}`],
   }, {
     notify: (async (input: unknown) => { notices.push(input); return { jobId: "n1" }; }) as never,
@@ -116,5 +116,15 @@ test("a reply after the person connected is kept and does not undo the connectio
   assert.equal(update?.patch?.status, undefined);
   assert.equal(update?.patch?.reply_type, "interested");
   assert.equal(linkReplies.length, 1);
+});
+
+test("a question gets the connect link too, also from another address; a decline does not", async (t) => {
+  const question = await run(t, "intro_requested", { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" }, { replyType: "question" });
+  assert.equal(question.linkReplies.length, 1);
+  const declined = await run(t, "intro_requested", { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" }, { replyType: "not_interested" });
+  assert.equal(declined.linkReplies.length, 0);
+  // C (11/3): Gmail answered the +ext invitation from the base address. The link still goes to the invited address only.
+  const other = await run(t, "intro_requested", { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" }, { replyType: "question", sender: "someone@else.example" });
+  assert.equal(other.linkReplies.length, 1);
 });
 

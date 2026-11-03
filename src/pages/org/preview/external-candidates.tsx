@@ -165,7 +165,7 @@ export default function ExternalCandidatesPlayground({ candidates, emails }: {
           <section className="mt-16 border-t border-neutral-1000-a05 pt-8">
             <h2 className="text-[17px] font-medium">초대 메일 미리보기</h2>
             <p className="mt-1 text-[13px] text-neutral-muted">
-              초대는 연결 요청이 확인되면 1통(ORG_EXTERNAL_INVITE_SENDING=on, 09~20시 KST). 하퍼 답장은 관심 답장에 1번, 소개 메일은 본인이 링크에서 연결을 확인하면 1통.
+              초대는 연결 요청이 확인되면 1통(ORG_EXTERNAL_INVITE_SENDING=on, 09~20시 KST). 하퍼 답장은 관심·질문 답장에 1번, 소개 메일은 본인이 링크에서 연결을 확인하면 1통.
             </p>
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
               {emails.map((email) => (
@@ -204,7 +204,7 @@ export async function getServerSideProps() {
       replyTo: "candidate+preview-token-000000@reply.matchharper.com", html: wrapEmailHtml(renderEmailBodyHtml(body)) };
   });
   const linkReply = renderExternalConnectLinkReply({ language: "ko", personName: "박민지", companyName: "Acme", connectUrl });
-  emails.push({ key: "link-reply", title: "하퍼 답장 · 관심 답장에 1번 (연결 링크)", subject: "Re: Acme Product Engineer 포지션 관련해서 연락드려요",
+  emails.push({ key: "link-reply", title: "하퍼 답장 · 관심·질문 답장에 1번 (연결 링크)", subject: "Re: Acme Product Engineer 포지션 관련해서 연락드려요",
     to: "person@example.com", replyTo: "candidate+preview-token-000000@reply.matchharper.com", html: wrapEmailHtml(renderEmailBodyHtml(linkReply)) });
   const company = { linkedinUrl: "https://www.linkedin.com/company/acme-example", homepageUrl: "https://acme.example",
     contactName: "이하늘", contactTitle: "Head of Talent", contactLinkedinUrl: "https://www.linkedin.com/in/example-haneul" };

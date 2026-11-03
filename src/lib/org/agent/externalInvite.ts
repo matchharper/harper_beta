@@ -183,8 +183,9 @@ export function renderExternalConnectEmail(args: {
 }
 
 /**
- * Harper's one reply to an interested answer: the same connect link, so connecting stays the person's own
- * confirmation (as a member confirms once more before Harper shares their profile). Fixed text.
+ * Harper's one reply to an interested answer or a question: the same connect link, so connecting stays the
+ * person's own confirmation (as a member confirms once more before Harper shares their profile), and a
+ * question is asked of the company directly once connected. Fixed text.
  */
 export function renderExternalConnectLinkReply(args: {
   language: InviteLanguage; personName: string | null; companyName: string | null; connectUrl: string;
@@ -266,7 +267,7 @@ export function externalReplyNoticeFacts(args: {
   type: ExternalReplyType | "unclassified"; summary: string; fromInvitedAddress: boolean; receivedAt: string;
   /** The invitation carried the person's connect link (invitations sent before it existed did not). */
   connectLinkSent: boolean;
-  /** Harper answered this reply with the connect link (interested replies only, once per request). */
+  /** Harper answered with the connect link (an interested reply or a question, once per request). */
   harperSentConnectLink?: boolean;
 }) {
   const closed = args.type === "not_interested" || args.type === "unsubscribe";
@@ -281,7 +282,7 @@ export function externalReplyNoticeFacts(args: {
       meaning: "The person answered Harper's invitation email. The summary is Harper's reading of the reply, not a quote. The reply text and address are not shared with the company.",
       replyFromAnotherAddress: !args.fromInvitedAddress,
       harperAnsweredThePerson: args.harperSentConnectLink === true,
-      messagesToThePerson: "Harper cannot pass the company's answers or any other message to the person. Its only message is one fixed reply with the connect link to an interested reply. Questions are answered by the company itself once they are connected by email.",
+      messagesToThePerson: "Harper cannot pass the company's answers or any other message to the person. Its only message is one fixed reply with the connect link to an interested reply or a question. Questions are answered by the company itself once they are connected by email.",
       introductionSent: false,
       connection: closed ? "closed; the person is excluded from further invitations"
         : args.harperSentConnectLink

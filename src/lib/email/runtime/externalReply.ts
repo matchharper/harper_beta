@@ -65,7 +65,7 @@ async function skip(ctx: ExternalReplyContext, reason: string) {
 /**
  * A reply to an external invitation (candidate+<token>@reply domain). Recorded, classified in isolation,
  * and handed to the company conversation as facts. Harper's only answer is one fixed reply with the
- * person's connect link to an interested reply; it never writes anything else to the person.
+ * person's connect link to an interested reply or a question; it never writes anything else to the person.
  * Each step is idempotent so a retried job never records or announces a reply twice.
  */
 export async function processExternalCandidateReply(ctx: ExternalReplyContext,
@@ -149,10 +149,11 @@ export async function processExternalCandidateReply(ctx: ExternalReplyContext,
     if (noticeError) throw noticeError;
     return skip(ctx, "external_candidate_reply_recorded");
   }
-  // An interested answer from the invited address gets the connect link once; a failure here only means
-  // the company is told that no link reply went out.
+  // An interested answer or a question gets the connect link once (questions are answered by the company once
+  // connected). It always goes to the invited address, so a reply from another address (Gmail answering a
+  // +alias invitation) reaches only the invited inbox. A failure here only means the company hears no link went out.
   let harperSentConnectLink = false;
-  if (fromInvitedAddress && type === "interested") {
+  if (type === "interested" || type === "question") {
     try {
       const outcome = await (dependencies.sendLinkReply ?? sendConnectLinkReply)({
         admin, requestId: request.id, headers: replyHeaders(ctx.received, ""),

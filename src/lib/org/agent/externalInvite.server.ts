@@ -577,7 +577,7 @@ async function dispatchExternalConnections(admin: Admin, now: Date, send: SendEm
 }
 
 /**
- * Step after an interested reply from the invited address: one fixed reply in the same thread with the
+ * Step after an interested reply or a question from the invited address: one fixed reply in the same thread with the
  * connect link. Once per request, and only while the person can still connect. Connecting itself still
  * needs the person's confirmation on the page.
  */
