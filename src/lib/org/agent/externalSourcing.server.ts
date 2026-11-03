@@ -183,6 +183,13 @@ export async function recordExternalIntroRequest(args: {
   return { status: "requested", intro: data };
 }
 
+/** Harper invites a person outside Harper only for an active Role; the invitation cron checks the same. */
+export async function externalRoleActive(admin: OrgAgentAdminClient, roleId: string) {
+  const { data, error } = await admin.from("company_roles").select("status,is_expired").eq("role_id", roleId).maybeSingle();
+  if (error) throw error;
+  return data?.status === "active" && !data.is_expired;
+}
+
 /**
  * The company's confirmed connection request, from chat or the Role page. With invitations on, an address
  * lookup starts now when none exists (a failed one is retried once per person); the invitation follows by cron.
@@ -191,6 +198,10 @@ export async function requestExternalIntro(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidate: ShownExternalCandidate;
   companyAppeal: string; introRecipientEmails: string[];
 }) {
+  // A paused or ended Role: the invitation could never go out, so nothing is recorded (and no lookup is paid for).
+  if (!(await externalRoleActive(args.admin, args.roleId))) {
+    return { status: "role_not_active" as const, intro: null, emailLookup: undefined };
+  }
   // A finished lookup found no address: the person cannot be invited, so nothing is recorded.
   if (args.candidate.contact?.status === "not_found") {
     return { status: "no_email" as const, intro: null, emailLookup: undefined };

@@ -187,6 +187,8 @@ export function formatExternalIntroRequestResult(result: {
       : "result_meaning=The company's connection request is recorded. The person has not been contacted and does not know about it; invitation emails are turned off for now.");
   } else if (result.status === "no_email") {
     lines.push("result_meaning=Nothing was recorded or sent. The email lookup found no address that a source ties to this person, so Harper cannot invite them.");
+  } else if (result.status === "role_not_active") {
+    lines.push("result_meaning=Nothing was recorded or sent. This Role is paused or ended, and Harper invites people outside Harper only for an active Role. Once the company resumes the Role, the request can be made again.");
   } else if (result.status === "already_requested") {
     lines.push(`request_state=${externalIntroStatus(result.intro)}`, "result_meaning=A request already exists for this person; nothing new was recorded.");
   }
@@ -321,6 +323,8 @@ export type ExternalCandidateView = {
 
 export type ExternalCandidatesResponse = {
   enabled: boolean;
+  /** Send Intro applies only while the Role is active (paused or ended Roles send no invitations). */
+  roleActive?: boolean;
   /** Whether a confirmed connection request leads to an invitation email (ORG_EXTERNAL_INVITE_SENDING). */
   inviteSending?: boolean;
   search: { status: string; startedAt: string; finishedAt: string | null } | null;

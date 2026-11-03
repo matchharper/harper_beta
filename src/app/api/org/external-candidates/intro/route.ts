@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
     const result = await requestExternalIntro({ admin, workspaceId, roleId, userId: user.id, candidate, companyAppeal,
       introRecipientEmails: [...new Set(introRecipientEmails)] });
     if (result.status === "no_email") throw new OrgHttpError(409, "No email address was found for this person.");
+    if (result.status === "role_not_active") throw new OrgHttpError(409, "진행 중인 역할에서만 연결을 요청할 수 있어요.");
     return NextResponse.json({ ok: true, status: result.status });
   } catch (error) {
     if (error instanceof OrgHttpError) return NextResponse.json({ error: error.message }, { status: error.status });

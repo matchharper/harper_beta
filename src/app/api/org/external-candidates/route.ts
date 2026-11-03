@@ -7,7 +7,7 @@ import {
   externalSourcingEnabledFor,
   type ExternalCandidatesResponse,
 } from "@/lib/org/agent/externalSourcing";
-import { listShownExternalCandidates } from "@/lib/org/agent/externalSourcing.server";
+import { externalRoleActive, listShownExternalCandidates } from "@/lib/org/agent/externalSourcing.server";
 import { externalInviteSendingEnabled } from "@/lib/org/agent/externalInvite";
 
 const scope = z.object({ workspaceId: z.string().uuid(), roleId: z.string().uuid() });
@@ -25,9 +25,13 @@ export async function GET(req: NextRequest) {
     }
     const admin = getSupabaseAdmin();
     await assertOrgRoleAccess({ workspaceId, roleId, admin, user, permission: "view" });
-    const { latestRun, candidates } = await listShownExternalCandidates({ admin, workspaceId, roleId });
+    const [{ latestRun, candidates }, roleActive] = await Promise.all([
+      listShownExternalCandidates({ admin, workspaceId, roleId }),
+      externalRoleActive(admin, roleId),
+    ]);
     return NextResponse.json<ExternalCandidatesResponse>({
       enabled: true,
+      roleActive,
       inviteSending: externalInviteSendingEnabled(),
       search: latestRun
         ? { status: latestRun.status, startedAt: latestRun.created_at, finishedAt: latestRun.finished_at }
