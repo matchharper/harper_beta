@@ -21,11 +21,16 @@ import {
   externalReplyDomain,
   inExternalInviteWindow,
   inviteLanguage,
+  externalConnectNoticeFacts,
+  renderExternalConnectEmail,
+  renderExternalConnectLinkReply,
   renderExternalInvite,
+  type InviteLanguage,
 } from "./externalInvite";
 
 type Admin = OrgAgentAdminClient;
 type SendEmail = typeof sendResendEmail;
+type Notify = typeof enqueueCompanyUpdate;
 type Delivery = Parameters<SendEmail>[0];
 
 const LEASE_MS = 10 * 60_000;
@@ -42,6 +47,13 @@ function record(value: Json | undefined): { [key: string]: Json | undefined } {
 /** Keyed hash of an address: enough to block it, not to recover it. */
 export function externalEmailHash(email: string) {
   return hashReplyToken(`external-suppression:${normalizeEmailAddress(email) ?? email.trim().toLowerCase()}`);
+}
+
+/** The person's own "connect" link: a confirmation page; only confirming there connects (mail scanners only open it). */
+export function externalConnectUrl(token: string) {
+  const url = new URL("/api/email/external-connect", getConfiguredPublicSiteUrl());
+  url.searchParams.set("t", token);
+  return url.toString();
 }
 
 export function externalUnsubscribeUrl(token: string) {
@@ -79,11 +91,13 @@ async function release(admin: Admin, row: ClaimedRequest, patch: { status: strin
 }
 
 async function notifyOutcome(args: { row: ClaimedRequest; roleName: string; person: { ref: string; name: string | null };
-  outcome: "not_sendable" | "failed" | "bounced" | "unsubscribed"; reason: string }) {
+  outcome: "not_sendable" | "failed" | "bounced" | "unsubscribed" | "connect_failed"; reason: string }) {
   await enqueueCompanyUpdate({
     workspaceId: args.row.company_workspace_id, roleId: args.row.role_id,
     eventKey: `external_invite:${args.row.id}:${args.outcome}`,
-    purpose: "Tell the company, in its hiring conversation, that the invitation for the external person it asked to meet did not go out or was not delivered, and what this means. Propose a next step only when one is real.",
+    purpose: args.outcome === "connect_failed"
+      ? "Tell the company, in its hiring conversation, that the external person it asked to meet confirmed the connection but Harper could not send the introduction email, and what this means. Propose a next step only when one is real."
+      : "Tell the company, in its hiring conversation, that the invitation for the external person it asked to meet did not go out or was not delivered, and what this means. Propose a next step only when one is real.",
     facts: externalInviteOutcomeFacts({ requestId: args.row.id, roleName: args.roleName, person: args.person,
       outcome: args.outcome, reason: args.reason }),
   });
@@ -92,16 +106,17 @@ async function notifyOutcome(args: { row: ClaimedRequest; roleName: string; pers
 async function loadContext(admin: Admin, row: ClaimedRequest) {
   const [candidate, contact, role, internal, workspace] = await Promise.all([
     admin.from("external_candidates").select("id,name,location,linkedin_url,company_decision").eq("id", row.external_candidate_id).maybeSingle(),
-    admin.from("external_candidate_contacts").select("status,email,source_url").eq("external_candidate_id", row.external_candidate_id).maybeSingle(),
+    admin.from("external_candidate_contacts").select("status,email,source_url,source_kind").eq("external_candidate_id", row.external_candidate_id).maybeSingle(),
     admin.from("company_roles").select("name,status,is_expired").eq("role_id", row.role_id).maybeSingle(),
     admin.from("company_internal_roles").select("is_anonymous").eq("role_id", row.role_id).maybeSingle(),
-    admin.from("company_workspace").select("company_name,published_name").eq("company_workspace_id", row.company_workspace_id).maybeSingle(),
+    admin.from("company_workspace").select("company_name,published_name,linkedin_url,homepage_url").eq("company_workspace_id", row.company_workspace_id).maybeSingle(),
   ]);
   for (const result of [candidate, contact, role, internal, workspace]) if (result.error) throw result.error;
   return {
     candidate: candidate.data, contact: contact.data, role: role.data,
     anonymous: internal.data?.is_anonymous === true,
     companyName: workspace.data?.published_name?.trim() || workspace.data?.company_name?.trim() || null,
+    companyPages: { linkedinUrl: workspace.data?.linkedin_url?.trim() || null, homepageUrl: workspace.data?.homepage_url?.trim() || null },
   };
 }
 
@@ -112,7 +127,7 @@ async function blocker(admin: Admin, row: ClaimedRequest, ctx: Awaited<ReturnTyp
   const contact = ctx.contact;
   if (!contact || contact.status === "queued" || contact.status === "running") {
     if (now.getTime() - Date.parse(row.created_at) > GIVE_UP_LOOKUP_MS) return "no_email_found";
-    // A lookup the daily limit held back is asked again; one already queued is only awaited.
+    // A request recorded while no lookup started (invitations were off then) gets one now; a queued one is only awaited.
     if (!contact) {
       await requestExternalEmailLookup({ admin, workspaceId: row.company_workspace_id, roleId: row.role_id,
         userId: row.requested_by, candidateRef: row.external_candidate_id, now });
@@ -145,14 +160,16 @@ function sourceHost(url: string | null | undefined) {
 }
 
 function buildDelivery(args: { row: ClaimedRequest; ctx: Awaited<ReturnType<typeof loadContext>>; email: string;
-  replyToken: string; unsubscribeToken: string }): Delivery {
+  replyToken: string; unsubscribeToken: string; acceptToken: string }): Delivery {
   const { row, ctx } = args;
   const unsubscribeUrl = externalUnsubscribeUrl(args.unsubscribeToken);
   const rendered = renderExternalInvite({
     language: inviteLanguage({ name: ctx.candidate?.name, location: ctx.candidate?.location }),
     personName: ctx.candidate?.name ?? null, companyName: ctx.anonymous ? null : ctx.companyName,
     roleName: ctx.role?.name ?? "", companyAppeal: row.company_appeal, unsubscribeUrl,
-    addressSource: sourceHost(ctx.contact?.source_url),
+    connectUrl: externalConnectUrl(args.acceptToken),
+    // Only a page where the Worker itself found the address next to the person (self_published) is named.
+    addressSource: ctx.contact?.source_kind === "self_published" ? sourceHost(ctx.contact.source_url) : null,
   });
   return {
     from: EXTERNAL_INVITE_FROM, to: args.email, subject: rendered.subject,
@@ -192,11 +209,15 @@ async function processClaimed(admin: Admin, row: ClaimedRequest, now: Date, send
     const email = normalizeEmailAddress(ctx.contact?.email ?? "")!;
     const replyToken = createReplyToken();
     const unsubscribeToken = createReplyToken();
-    delivery = buildDelivery({ row, ctx, email, replyToken, unsubscribeToken });
+    const acceptToken = createReplyToken();
+    delivery = buildDelivery({ row, ctx, email, replyToken, unsubscribeToken, acceptToken });
     // The exact payload (tokens, idempotency key) is fixed before the first send; retries resend it.
     const { data: saved, error } = await admin.from("external_intro_requests").update({
       recipient_email: email, reply_token_hash: hashReplyToken(replyToken), unsubscribe_token_hash: hashReplyToken(unsubscribeToken),
-      result: { ...result, delivery: delivery as unknown as Json, language: inviteLanguage({ name: ctx.candidate?.name, location: ctx.candidate?.location }) },
+      accept_token_hash: hashReplyToken(acceptToken),
+      // connectUrl is kept for Harper's one reply with the same link (the payload already carries it).
+      result: { ...result, delivery: delivery as unknown as Json, language: inviteLanguage({ name: ctx.candidate?.name, location: ctx.candidate?.location }),
+        connectUrl: externalConnectUrl(acceptToken) },
       updated_at: now.toISOString(),
     }).eq("id", row.id).eq("status", "sending").eq("attempt_count", row.attempt_count).select("id").maybeSingle();
     if (error) throw error;
@@ -236,11 +257,17 @@ async function processClaimed(admin: Admin, row: ClaimedRequest, now: Date, send
   return "invited";
 }
 
-/** Cron: send due invitations. Off unless ORG_EXTERNAL_INVITE_SENDING=on; Korean daytime only; global daily cap. */
-export async function dispatchExternalInvites(args: { admin: Admin; now?: Date; limit?: number; send?: SendEmail }) {
+/**
+ * Cron: introductions the invited people confirmed (any time), then due invitations: off unless
+ * ORG_EXTERNAL_INVITE_SENDING=on, Korean daytime only, global daily cap.
+ */
+export async function dispatchExternalInvites(args: { admin: Admin; now?: Date; limit?: number; send?: SendEmail; notify?: Notify }) {
   const now = args.now ?? new Date();
-  if (!externalInviteSendingEnabled() || process.env.EMAIL_REPLY_DRY_RUN === "true") return { disabled: true as const };
-  if (!inExternalInviteWindow(now)) return { outsideWindow: true as const };
+  if (process.env.EMAIL_REPLY_DRY_RUN === "true") return { disabled: true as const };
+  const connected = await dispatchExternalConnections(args.admin, now, args.send ?? sendResendEmail, args.notify ?? enqueueCompanyUpdate);
+  const connections = Object.keys(connected).length ? { connections: connected } : {};
+  if (!externalInviteSendingEnabled()) return { disabled: true as const, ...connections };
+  if (!inExternalInviteWindow(now)) return { outsideWindow: true as const, ...connections };
   const { admin } = args;
   const { count, error: countError } = await admin.from("external_intro_requests").select("id", { count: "exact", head: true })
     .gte("invited_at", new Date(now.getTime() - 86_400_000).toISOString());
@@ -267,7 +294,7 @@ export async function dispatchExternalInvites(args: { admin: Admin; now?: Date; 
     outcomes[outcome] = (outcomes[outcome] ?? 0) + 1;
     if (outcome === "invited") room -= 1;
   }
-  return { outcomes };
+  return { outcomes, ...connections };
 }
 
 /** Resend bounce / complaint / failure for an invitation. Returns handled=false for other emails. */
@@ -344,3 +371,250 @@ export async function unsubscribeExternalInvite(args: { admin: Admin; token: str
   }
   return { ok: true as const };
 }
+
+// ---- the person's own connect: confirmation page, then one CC introduction ------------------
+
+/** The connect link works this long after the invitation went out. */
+const CONNECT_LINK_VALID_MS = 30 * 86_400_000;
+/** Requests whose person may still connect: invited, or answered without closing it. */
+const CONNECTABLE = ["invited", "replied"];
+const CONNECT_COLUMNS = `${REQUEST_COLUMNS},intro_recipient_emails,recipient_email,invited_at,accepted_at,connected_at,lease_expires_at`;
+type ConnectRow = ClaimedRequest & {
+  intro_recipient_emails: string[]; recipient_email: string | null; invited_at: string | null;
+  accepted_at: string | null; connected_at: string | null; lease_expires_at: string | null;
+};
+
+export type ExternalConnectView =
+  | { state: "not_found" }
+  | { state: "ready" | "connecting" | "connected" | "closed"; language: InviteLanguage; personName: string | null;
+      companyName: string | null; roleName: string };
+
+async function findByAcceptToken(admin: Admin, token: string) {
+  const value = token.trim().toLowerCase();
+  if (!/^[a-z0-9_-]{12,}$/.test(value)) return null;
+  const { data, error } = await admin.from("external_intro_requests").select(CONNECT_COLUMNS)
+    .eq("accept_token_hash", hashReplyToken(value)).maybeSingle();
+  if (error) throw error;
+  return data as ConnectRow | null;
+}
+
+async function readConnectRow(admin: Admin, id: string) {
+  const { data, error } = await admin.from("external_intro_requests").select(CONNECT_COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data as ConnectRow | null;
+}
+
+/** Whether the person can still connect: the request, the company's decision and the Role decide. */
+function connectState(row: ConnectRow, ctx: Awaited<ReturnType<typeof loadContext>>, now: Date): Exclude<ExternalConnectView["state"], "not_found"> {
+  if (row.status === "connected") return "connected";
+  if (row.status === "accepted" || row.status === "connecting") return "connecting";
+  if (!CONNECTABLE.includes(row.status) || !row.invited_at) return "closed";
+  if (now.getTime() - Date.parse(row.invited_at) > CONNECT_LINK_VALID_MS) return "closed";
+  if (!ctx.candidate || ctx.candidate.company_decision === "passed") return "closed";
+  if (!ctx.role || ctx.role.status !== "active" || ctx.role.is_expired) return "closed";
+  return "ready";
+}
+
+function connectView(row: ConnectRow, ctx: Awaited<ReturnType<typeof loadContext>>, state: Exclude<ExternalConnectView["state"], "not_found">): ExternalConnectView {
+  return {
+    state, language: inviteLanguage({ name: ctx.candidate?.name, location: ctx.candidate?.location }),
+    personName: ctx.candidate?.name ?? null, companyName: ctx.anonymous ? null : ctx.companyName, roleName: ctx.role?.name ?? "",
+  };
+}
+
+/** The confirmation page: reads state only, so opening the link (or a mail scanner) records nothing. */
+export async function getExternalConnectView(args: { admin: Admin; token: string; now?: Date }): Promise<ExternalConnectView> {
+  const row = await findByAcceptToken(args.admin, args.token);
+  if (!row) return { state: "not_found" };
+  const ctx = await loadContext(args.admin, row);
+  return connectView(row, ctx, connectState(row, ctx, args.now ?? new Date()));
+}
+
+/**
+ * The person confirmed on the page: record it once, then send the introduction right away. A send that
+ * fails here is retried by the invitation cron, so the page can already say the introduction is on its way.
+ */
+export async function acceptExternalInvite(args: { admin: Admin; token: string; now?: Date; send?: SendEmail; notify?: Notify }): Promise<ExternalConnectView> {
+  const { admin } = args;
+  const now = args.now ?? new Date();
+  const row = await findByAcceptToken(admin, args.token);
+  if (!row) return { state: "not_found" };
+  const ctx = await loadContext(admin, row);
+  const state = connectState(row, ctx, now);
+  if (state !== "ready") return connectView(row, ctx, state);
+  const { data: accepted, error } = await admin.from("external_intro_requests").update({
+    status: "accepted", accepted_at: now.toISOString(), available_at: now.toISOString(), attempt_count: 0,
+    lease_expires_at: null, error_code: null, updated_at: now.toISOString(),
+  }).eq("id", row.id).eq("status", row.status).select("id").maybeSingle();
+  if (error) throw error;
+  if (accepted) {
+    try {
+      await connectAccepted(admin, row.id, now, args.send ?? sendResendEmail, args.notify ?? enqueueCompanyUpdate);
+    } catch (connectError) {
+      console.error("[external-invite] connect failed; the cron retries", { requestId: row.id, connectError });
+    }
+  }
+  const latest = await readConnectRow(admin, row.id);
+  return connectView(latest ?? row, ctx, latest?.status === "connected" ? "connected" : "connecting");
+}
+
+async function releaseConnect(admin: Admin, row: ConnectRow, patch: { status: string; available_at?: string; error_code?: string | null }) {
+  const { error } = await admin.from("external_intro_requests")
+    .update({ ...patch, lease_expires_at: null, updated_at: new Date().toISOString() })
+    .eq("id", row.id).eq("status", "connecting").eq("attempt_count", row.attempt_count);
+  if (error) throw error;
+}
+
+/** Claim an accepted request (or one whose sender stopped mid-way) and send its introduction. */
+async function connectAccepted(admin: Admin, id: string, now: Date, send: SendEmail, notify: Notify) {
+  const row = await readConnectRow(admin, id);
+  if (!row) return "missing";
+  if (row.status !== "accepted" && row.status !== "connecting") return row.status;
+  // A connecting row is taken over only when its sender's lease ran out.
+  if (row.status === "connecting" && row.lease_expires_at && Date.parse(row.lease_expires_at) > now.getTime()) return "busy";
+  const { data: claimed, error } = await admin.from("external_intro_requests").update({
+    status: "connecting", attempt_count: row.attempt_count + 1,
+    lease_expires_at: new Date(now.getTime() + LEASE_MS).toISOString(), updated_at: now.toISOString(),
+  }).eq("id", row.id).eq("status", row.status).eq("attempt_count", row.attempt_count)
+    .select(CONNECT_COLUMNS).maybeSingle();
+  if (error) throw error;
+  if (!claimed) return "busy";
+  return sendConnection(admin, claimed as ConnectRow, now, send, notify);
+}
+
+/** One email To the person, CC the requesting member and the company recipients; replies reach all of them. */
+async function sendConnection(admin: Admin, row: ConnectRow, now: Date, send: SendEmail, notify: Notify) {
+  const ctx = await loadContext(admin, row);
+  const roleName = ctx.role?.name ?? "";
+  const person = { ref: row.external_candidate_id, name: ctx.candidate?.name ?? null };
+  // The company passed between the person's click and this send: nobody is introduced.
+  if (ctx.candidate?.company_decision === "passed") {
+    await releaseConnect(admin, row, { status: "cancelled", error_code: "company_passed" });
+    return "cancelled";
+  }
+  const to = normalizeEmailAddress(row.recipient_email ?? "");
+  // The requester's name and address; the title is the one set for this workspace.
+  const [{ data: requester, error: requesterError }, { data: membership, error: membershipError }] = await Promise.all([
+    admin.from("company_users").select("name,email").eq("user_id", row.requested_by).maybeSingle(),
+    admin.from("company_user_workspace").select("role").eq("company_user_id", row.requested_by)
+      .eq("company_workspace_id", row.company_workspace_id).maybeSingle(),
+  ]);
+  if (requesterError) throw requesterError;
+  if (membershipError) throw membershipError;
+  const cc = [...new Set([requester?.email, ...(row.intro_recipient_emails ?? [])]
+    .map((email) => normalizeEmailAddress(email ?? "")).filter((email): email is string => Boolean(email) && email !== to))];
+  if (!to || !cc.length) {
+    await releaseConnect(admin, row, { status: "failed", error_code: "connect_no_recipients" });
+    await notifyOutcome({ row, roleName, person, outcome: "connect_failed", reason: "connect_no_recipients" });
+    return "failed";
+  }
+  // Test mode covers the person's address here too.
+  if (!externalInviteRecipientAllowed(to)) {
+    await releaseConnect(admin, row, { status: "failed", error_code: "connect_test_recipients_only" });
+    return "failed";
+  }
+  const rendered = renderExternalConnectEmail({
+    language: inviteLanguage({ name: ctx.candidate?.name, location: ctx.candidate?.location }),
+    personName: ctx.candidate?.name ?? null, companyName: ctx.anonymous ? null : ctx.companyName, roleName,
+    companyAppeal: row.company_appeal, linkedinUrl: ctx.candidate?.linkedin_url ?? null,
+    company: { ...ctx.companyPages, contactName: requester?.name ?? null, contactTitle: membership?.role ?? null },
+  });
+  let emailId: string;
+  try {
+    const sent = await send({
+      from: EXTERNAL_INVITE_FROM, to, cc, subject: rendered.subject,
+      text: renderEmailBodyText(rendered.body), html: wrapEmailHtml(renderEmailBodyHtml(rendered.body)),
+      replyTo: [to, ...cc], idempotencyKey: `external-intro-connect/${row.id}`,
+    });
+    emailId = String(sent.id ?? "").trim();
+    if (!emailId) throw new Error("Resend did not return an email ID");
+  } catch (error) {
+    if (row.attempt_count >= MAX_ATTEMPTS) {
+      await releaseConnect(admin, row, { status: "failed", error_code: "connect_send_failed" });
+      await notifyOutcome({ row, roleName, person, outcome: "connect_failed", reason: "send_failed" });
+      return "failed";
+    }
+    await releaseConnect(admin, row, { status: "accepted",
+      available_at: new Date(now.getTime() + 5 * 60_000 * 2 ** row.attempt_count).toISOString() });
+    console.error("[external-invite] introduction send failed, will retry", {
+      requestId: row.id, message: error instanceof Error ? error.message.slice(0, 500) : "send failed" });
+    return "retry";
+  }
+  const connectedAt = new Date().toISOString();
+  const { data: connected, error } = await admin.from("external_intro_requests").update({
+    status: "connected", connect_email_id: emailId, connected_at: connectedAt, error_code: null,
+    lease_expires_at: null, updated_at: connectedAt,
+  }).eq("id", row.id).eq("status", "connecting").select("id").maybeSingle();
+  if (error) throw error;
+  if (connected) {
+    await notify({
+      workspaceId: row.company_workspace_id, roleId: row.role_id, eventKey: `external_invite:${row.id}:connected`,
+      purpose: "Tell the company, in its hiring conversation, that the external person it asked to meet confirmed the connection and Harper introduced them by email, so the conversation now continues directly in that email thread.",
+      facts: externalConnectNoticeFacts({ requestId: row.id, roleName, connectedAt, companyRecipients: cc,
+        person: { ...person, linkedinUrl: ctx.candidate?.linkedin_url ?? null } }),
+    });
+  }
+  return "connected";
+}
+
+/** Due introductions: accepted ones, and ones whose sender stopped mid-way. Not held by the daytime window or the daily cap. */
+async function dispatchExternalConnections(admin: Admin, now: Date, send: SendEmail, notify: Notify) {
+  const { data: due, error } = await admin.from("external_intro_requests")
+    .select("id,status,available_at,lease_expires_at,company_workspace_id")
+    .in("status", ["accepted", "connecting"]).order("updated_at", { ascending: true }).limit(10);
+  if (error) throw error;
+  const outcomes: Record<string, number> = {};
+  for (const item of due ?? []) {
+    if (item.status !== "accepted" && item.status !== "connecting") continue;
+    if (!externalSourcingEnabledFor(item.company_workspace_id)) continue;
+    if (item.status === "accepted" && Date.parse(item.available_at) > now.getTime()) continue;
+    if (item.status === "connecting" && item.lease_expires_at && Date.parse(item.lease_expires_at) > now.getTime()) continue;
+    const outcome = await connectAccepted(admin, item.id, now, send, notify);
+    outcomes[outcome] = (outcomes[outcome] ?? 0) + 1;
+  }
+  return outcomes;
+}
+
+/**
+ * Step after an interested reply or a question from the invited address: one fixed reply in the same thread with the
+ * connect link. Once per request, and only while the person can still connect. Connecting itself still
+ * needs the person's confirmation on the page.
+ */
+export async function sendConnectLinkReply(args: { admin: Admin; requestId: string; headers?: Record<string, string>;
+  now?: Date; send?: SendEmail }) {
+  const { admin } = args;
+  const now = args.now ?? new Date();
+  const row = await readConnectRow(admin, args.requestId);
+  if (!row) return "missing";
+  const result = record(row.result);
+  if (result.connectLinkReply) return "already_sent";
+  const connectUrl = typeof result.connectUrl === "string" ? result.connectUrl : null;
+  if (!connectUrl) return "no_link";
+  const ctx = await loadContext(admin, row);
+  if (connectState(row, ctx, now) !== "ready") return "not_connectable";
+  const to = normalizeEmailAddress(row.recipient_email ?? "");
+  if (!to) return "no_address";
+  if (!externalInviteRecipientAllowed(to)) return "test_recipients_only";
+  if (await isSuppressed(admin, to)) return "opted_out";
+  const invitation = record(result.delivery);
+  const subject = String(invitation.subject ?? "").trim();
+  const body = renderExternalConnectLinkReply({
+    language: inviteLanguage({ name: ctx.candidate?.name, location: ctx.candidate?.location }),
+    personName: ctx.candidate?.name ?? null, companyName: ctx.anonymous ? null : ctx.companyName, connectUrl,
+  });
+  const sent = await (args.send ?? sendResendEmail)({
+    from: EXTERNAL_INVITE_FROM, to, subject: /^re:/i.test(subject) ? subject : `Re: ${subject}`,
+    text: renderEmailBodyText(body), html: wrapEmailHtml(renderEmailBodyHtml(body)),
+    // Further replies keep reaching Harper through the invitation's reply address.
+    ...(typeof invitation.replyTo === "string" ? { replyTo: invitation.replyTo } : {}),
+    ...(args.headers ? { headers: args.headers } : {}),
+    idempotencyKey: `external-connect-link-reply/${row.id}`,
+  });
+  const { error } = await admin.from("external_intro_requests").update({
+    result: { ...result, connectLinkReply: { sentAt: now.toISOString(), emailId: String(sent.id ?? "") } },
+    updated_at: now.toISOString(),
+  }).eq("id", row.id);
+  if (error) throw error;
+  return "sent";
+}
+

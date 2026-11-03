@@ -4931,6 +4931,10 @@ export type Database = {
           invite_email_id: string | null
           invited_at: string | null
           opened_at: string | null
+          accept_token_hash: string | null
+          accepted_at: string | null
+          connect_email_id: string | null
+          connected_at: string | null
           last_reply_at: string | null
           reply_type: string | null
           error_code: string | null
@@ -4956,6 +4960,10 @@ export type Database = {
           invite_email_id?: string | null
           invited_at?: string | null
           opened_at?: string | null
+          accept_token_hash?: string | null
+          accepted_at?: string | null
+          connect_email_id?: string | null
+          connected_at?: string | null
           last_reply_at?: string | null
           reply_type?: string | null
           error_code?: string | null
@@ -4981,6 +4989,10 @@ export type Database = {
           invite_email_id?: string | null
           invited_at?: string | null
           opened_at?: string | null
+          accept_token_hash?: string | null
+          accepted_at?: string | null
+          connect_email_id?: string | null
+          connected_at?: string | null
           last_reply_at?: string | null
           reply_type?: string | null
           error_code?: string | null

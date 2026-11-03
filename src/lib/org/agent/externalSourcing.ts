@@ -26,44 +26,38 @@ function intEnv(env: Record<string, string | undefined>, name: string, fallback:
 /** Each run costs about $1 to $4. These limits are enforced in code, whatever the model asks for. */
 export function externalSourcingLimits(env: Record<string, string | undefined> = process.env) {
   return {
-    // runs a workspace may start in 24 hours, any trigger
-    workspaceDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 1),
-    // runs Harper may start on its own per workspace per calendar month (KST); 0 = Harper may only suggest
-    agentMonthly: intEnv(env, "ORG_EXTERNAL_SOURCING_AGENT_MONTHLY_LIMIT", 0),
-    // days before Harper may start another run on its own for the same Role
-    agentRoleIntervalDays: intEnv(env, "ORG_EXTERNAL_SOURCING_AGENT_ROLE_INTERVAL_DAYS", 14),
-    // email lookups a workspace may start in 24 hours (about $0.12 each)
-    emailDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_EMAIL_DAILY_LIMIT", 10),
+    // runs one Role may start in 24 hours (the company's requests; Harper never starts one on its own)
+    roleDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 5),
+    // runs one workspace may start in 24 hours across all its Roles: the cost ceiling per company
+    workspaceDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_WORKSPACE_DAILY_LIMIT", 20),
   };
 }
 
 export type ExternalSourcingHistory = {
   activeRunId: string | null;
+  roleRunsLast24h: number;
   workspaceRunsLast24h: number;
-  agentRunsThisMonth: number;
-  lastRoleRunAt: string | null;
 };
 
 export type ExternalSourcingDecision =
   | { allowed: true }
   | { allowed: false; status: "already_running"; runId: string }
-  | { allowed: false; status: "not_queued"; reason: "not_enabled" | "daily_limit" | "agent_monthly_limit" | "recently_searched"; retryAfter?: string };
+  | { allowed: false; status: "not_queued"; reason: "not_enabled" | "daily_limit" | "workspace_daily_limit" | "company_request_only" };
 
-/** Pure gate: the trigger is forced to agent_initiative for Harper-initiated (background) turns by the caller. */
+/**
+ * Pure gate: the trigger is forced to agent_initiative for Harper-initiated (background) turns by the caller.
+ * Harper never starts a search on its own; it offers one and the company asks for it.
+ */
 export function decideExternalSourcing(args: {
   enabled: boolean; trigger: ExternalSourcingTrigger; history: ExternalSourcingHistory; now: Date;
   limits: ReturnType<typeof externalSourcingLimits>;
 }): ExternalSourcingDecision {
   if (!args.enabled) return { allowed: false, status: "not_queued", reason: "not_enabled" };
+  if (args.trigger === "agent_initiative") return { allowed: false, status: "not_queued", reason: "company_request_only" };
   if (args.history.activeRunId) return { allowed: false, status: "already_running", runId: args.history.activeRunId };
-  if (args.history.workspaceRunsLast24h >= args.limits.workspaceDaily) return { allowed: false, status: "not_queued", reason: "daily_limit" };
-  if (args.trigger === "agent_initiative") {
-    if (args.history.agentRunsThisMonth >= args.limits.agentMonthly) return { allowed: false, status: "not_queued", reason: "agent_monthly_limit" };
-    const last = args.history.lastRoleRunAt ? Date.parse(args.history.lastRoleRunAt) : NaN;
-    const next = last + args.limits.agentRoleIntervalDays * 86_400_000;
-    if (Number.isFinite(last) && next > args.now.getTime()) {
-      return { allowed: false, status: "not_queued", reason: "recently_searched", retryAfter: new Date(next).toISOString() };
-    }
+  if (args.history.roleRunsLast24h >= args.limits.roleDaily) return { allowed: false, status: "not_queued", reason: "daily_limit" };
+  if (args.history.workspaceRunsLast24h >= args.limits.workspaceDaily) {
+    return { allowed: false, status: "not_queued", reason: "workspace_daily_limit" };
   }
   return { allowed: true };
 }
@@ -71,12 +65,6 @@ export function decideExternalSourcing(args: {
 export function parseExternalSourcingTrigger(value: unknown, harperInitiated: boolean): ExternalSourcingTrigger {
   if (harperInitiated) return "agent_initiative";
   return value === "harper_suggestion" ? "harper_suggestion" : "company_request";
-}
-
-/** Start of the current calendar month in Asia/Seoul, as an ISO instant. */
-export function kstMonthStart(now: Date) {
-  const kst = new Date(now.getTime() + 9 * 3_600_000);
-  return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), 1) - 9 * 3_600_000).toISOString();
 }
 
 // ---- model-facing text --------------------------------------------------------------------
@@ -88,13 +76,13 @@ function cell(value: unknown, max = 300) {
 
 const UNAVAILABLE_MEANING: Record<string, string> = {
   not_enabled: "External search is not offered to this workspace.",
-  daily_limit: "The workspace reached its external search limit for the last 24 hours.",
-  agent_monthly_limit: "Harper cannot start another external search on its own this month; the company can still ask for one.",
-  recently_searched: "This Role was searched externally recently; Harper cannot start another one on its own yet.",
+  daily_limit: "This Role reached its external search limit for the last 24 hours; other Roles keep their own limit.",
+  workspace_daily_limit: "This company reached its external search limit across all Roles for the last 24 hours.",
+  company_request_only: "Harper does not start an external search on its own; offer it to the company, which can ask for one.",
 };
 
 export function formatExternalSearchRequestResult(result: {
-  status: string; runId?: string | null; roleName?: string; trigger?: string; reason?: string; retryAfter?: string;
+  status: string; runId?: string | null; roleName?: string; trigger?: string; reason?: string;
 }) {
   const lines = [`status=${cell(result.status, 40)}`, `role=${cell(result.roleName, 200)}`];
   if (result.runId) lines.push(`run_id=${result.runId}`);
@@ -105,7 +93,6 @@ export function formatExternalSearchRequestResult(result: {
     lines.push("result_meaning=An external search for this Role is already queued or running. No new search was started; its outcome is shared when it finishes.");
   } else {
     lines.push(`unavailable_reason=${cell(result.reason, 60)}`, `result_meaning=No search was started. ${UNAVAILABLE_MEANING[result.reason ?? ""] ?? ""}`.trim());
-    if (result.retryAfter) lines.push(`retry_after=${formatLlmDateTime(result.retryAfter)}`);
   }
   return lines.join("\n");
 }
@@ -116,6 +103,7 @@ export type ExternalContactRow = {
 export type ExternalIntroRow = {
   status: string; created_at: string; intro_recipient_emails?: string[] | null; invited_at?: string | null;
   opened_at?: string | null; last_reply_at?: string | null; reply_type?: string | null; error_code?: string | null;
+  accepted_at?: string | null; connected_at?: string | null;
 };
 export type ExternalCandidateRow = {
   id: string; name: string | null; headline: string | null; current_company: string | null; location: string | null;
@@ -159,8 +147,15 @@ export function externalIntroStatus(intro: ExternalIntroRow | null | undefined, 
       return `${requested}; the invitation was not delivered (${intro.error_code ?? "bounced"}); Harper will not email this address again`;
     case "not_sendable":
       return `${requested}; no invitation was sent: ${NOT_SENDABLE_MEANING[intro.error_code ?? ""] ?? intro.error_code ?? "unknown reason"}`;
+    case "accepted":
+    case "connecting":
+      return `${requested}; the person confirmed the connection ${formatLlmDateTime(intro.accepted_at)} from the invitation's link; Harper is sending the introduction email (To the person, CC the company recipients)`;
+    case "connected":
+      return `${requested}; connected ${formatLlmDateTime(intro.connected_at)}: the person confirmed and Harper introduced them by email (To the person, CC the company recipients); they continue directly in that thread`;
     case "failed":
-      return `${requested}; sending the invitation failed; nothing was delivered`;
+      return intro.error_code?.startsWith("connect_")
+        ? `${requested}; the person confirmed the connection, but the introduction email could not be sent; nobody received it`
+        : `${requested}; sending the invitation failed; nothing was delivered`;
     case "cancelled":
       return `${requested}; cancelled before sending because the company passed; nothing was sent`;
     default:
@@ -205,9 +200,11 @@ export function externalContactStatus(contact: ExternalContactRow | null | undef
   if (contact.status === "not_found") return "no email found that a source ties to this person";
   if (contact.status === "failed") return "email lookup failed";
   if (contact.status !== "found") return `email lookup ${contact.status}`;
-  const source = contact.source_kind === "self_published" ? "published by the person (address and identity confirmed on the page)"
-    : contact.source_kind === "data_vendor" ? "from a contact-data site, not confirmed" : "source found, not fully confirmed";
-  return `email found (${contact.email_kind || "unknown"} address; ${source})`;
+  // Found is not confirmed: only the person's own page showing the address confirms it (self_published).
+  const found = `email found (${contact.email_kind || "unknown"} address)`;
+  if (contact.source_kind === "self_published") return `${found}; the person's own page shows it, so the address and identity are confirmed`;
+  if (contact.source_kind === "data_vendor") return `${found} on a contact-data site; not confirmed as this person's`;
+  return `${found}; source unconfirmed: no page Harper read shows this address`;
 }
 
 export function formatExternalContactRequestResult(result: {
@@ -218,11 +215,13 @@ export function formatExternalContactRequestResult(result: {
   if (result.status === "queued") {
     lines.push("result_meaning=An email lookup is queued for this person. It takes a few minutes; the outcome is shared when it finishes. Nobody is contacted and the address is never shown.");
   } else if (result.status === "not_queued") {
-    lines.push(`unavailable_reason=${cell(result.reason, 60)}`, "result_meaning=No lookup was started.");
+    lines.push(`unavailable_reason=${cell(result.reason, 60)}`, result.reason === "retry_used"
+      ? "result_meaning=No lookup was started: this person's lookup already failed again after its one retry."
+      : "result_meaning=No lookup was started.");
   } else {
     lines.push("result_meaning=No new lookup was started; this is the existing state.");
   }
-  lines.push("address_visibility=Harper keeps the address for a later, company-approved message; it is not shown to anyone.");
+  lines.push("address_visibility=Harper keeps the address for the invitation and the introduction; it is not shown to anyone.");
   return lines.join("\n");
 }
 export type ExternalRunRow = {
@@ -313,7 +312,8 @@ export type ExternalCandidateView = {
   contact: "none" | "looking" | "found" | "not_found" | "failed";
   contactConfirmed: boolean;
   /** openedAt: first open of the invitation email (approximate; image blocking hides opens). */
-  intro: { status: string; requestedAt: string; invitedAt: string | null; openedAt: string | null; replyType: string | null } | null;
+  intro: { status: string; requestedAt: string; invitedAt: string | null; openedAt: string | null; replyType: string | null;
+    acceptedAt?: string | null; connectedAt?: string | null } | null;
   /** intro_requested | passed; null while the company has not decided. */
   companyDecision: string | null;
   shownAt: string;
@@ -367,6 +367,7 @@ export function externalCandidatesForCompany(rows: (ExternalCandidateRow & { cre
       contactConfirmed: contact?.status === "found" && contact.source_kind === "self_published",
       intro: row.intro ? { status: row.intro.status, requestedAt: row.intro.created_at,
         invitedAt: row.intro.invited_at ?? null, openedAt: row.intro.opened_at ?? null,
+        acceptedAt: row.intro.accepted_at ?? null, connectedAt: row.intro.connected_at ?? null,
         replyType: row.intro.reply_type ?? null } : null,
       companyDecision: row.company_decision,
       shownAt: row.created_at,
@@ -405,19 +406,65 @@ export function formatExternalCandidatesResult(result: {
       `outside_evidence:\n${p.evidenceLinks.map((line) => `- ${line}`).join("\n") || "- (none)"}`,
       `contact: ${p.contact}`,
       `connection: ${p.connection}`,
-      ...(p.companyDecision === "passed" ? ["company_decision: passed by the company in the Role Inbox"] : []),
+      ...(p.companyDecision === "passed" ? ["company_decision: passed by the company on the Role page"] : []),
     );
   });
   return lines.join("\n");
 }
 
+export type ExternalCandidateStatusRow = Pick<ExternalCandidateRow,
+  "id" | "name" | "headline" | "current_company" | "company_decision" | "contact" | "intro"> & {
+  company_decided_at: string | null; created_at: string;
+};
+
+/**
+ * The Role's shown external people and where each one stands now, for the company-side LLM's default
+ * context. Decisions made on the Role page leave no chat message, so this is how a Pass or a connection
+ * request reaches every later turn, including notices.
+ */
+export function formatExternalCandidateStatuses(args: { people: ExternalCandidateStatusRow[]; total: number }) {
+  if (!args.total) return null;
+  const listed = args.total > args.people.length ? ` (newest ${args.people.length} listed)` : "";
+  const lines = [
+    `external_candidates_for_this_role=${args.total} shown${listed}. People outside Harper that external searches showed on this Role's page; the state below is current. read_external_candidates has their profiles and evidence.`,
+  ];
+  for (const person of args.people) {
+    const about = person.headline || person.current_company;
+    const who = `${person.name ? cell(person.name, 80) : "(no name)"}${about ? `, ${cell(about, 120)}` : ""}`;
+    const state = person.company_decision === "passed"
+      ? `the company passed (decided not to proceed) ${formatLlmDateTime(person.company_decided_at)}; Harper sends this person nothing more`
+      : person.company_decision === "intro_requested"
+        ? externalIntroStatus(person.intro)
+        : person.company_decision
+          ? `company decision: ${cell(person.company_decision, 40)}`
+          : `no company decision yet; ${externalContactStatus(person.contact)}`;
+    lines.push(`- ${who} (ref ${person.id}; shown ${formatLlmDateTime(person.created_at)}): ${state}`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * How much new ground a run covered. The Worker skips people already shown to this company or already judged for this
+ * Role, so few new people with many skipped means this brief has little left to find on public profiles.
+ */
+function externalSearchReach(counts: unknown) {
+  const c = asRecord(counts);
+  if (typeof c.pool !== "number") return undefined;
+  const skipped = (typeof c.skippedShown === "number" ? c.skippedShown : 0) + (typeof c.skippedJudged === "number" ? c.skippedJudged : 0);
+  return skipped
+    ? `${c.pool} people new to this Role were reviewed; ${skipped} people already shown to this company or already judged for this Role were skipped`
+    : `${c.pool} people were reviewed`;
+}
+
 /** Facts for the company-side LLM when a run finishes (enqueueCompanyUpdate); no wording is prescribed. */
 export function externalSearchNoticeFacts(args: { run: ExternalRunRow; roleName: string; candidates: ExternalCandidateRow[] }) {
+  const reach = externalSearchReach(args.run.counts);
   return {
     externalSearch: {
       runId: args.run.id, roleName: args.roleName, status: args.run.status, failure: args.run.error_code,
       startedBy: args.run.trigger === "agent_initiative" ? "harper" : "company",
       shown: args.candidates.length,
+      ...(reach ? { reach } : {}),
     },
     externalCandidates: projectExternalCandidates(args.candidates),
     candidateState: {

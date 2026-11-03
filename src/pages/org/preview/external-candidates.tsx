@@ -1,6 +1,5 @@
 import Head from "next/head";
 import { useState } from "react";
-import { Tabs } from "@/components/ui/tabs";
 import { MuteButton } from "@/components/ui/button";
 import { OrgExternalCandidatesView } from "@/components/org/OrgExternalCandidates";
 import { OrgLocaleScope } from "@/i18n/org/OrgLocaleProvider";
@@ -10,11 +9,11 @@ import {
   type ExternalCandidateRow,
   type ExternalCandidatesResponse,
 } from "@/lib/org/agent/externalSourcing";
-import { renderExternalInvite } from "@/lib/org/agent/externalInvite";
+import { renderExternalConnectEmail, renderExternalConnectLinkReply, renderExternalInvite } from "@/lib/org/agent/externalInvite";
 import { renderEmailBodyHtml } from "@/lib/email/bodyFormat";
 import { wrapEmailHtml } from "@/lib/email/runtime/format";
 
-// Local-only playground for the Role Inbox "외부 후보" tab and the invitation email.
+// Local-only playground for the Role's "외부 후보" tab and the invitation email.
 // Fictional people and companies; no API, database or email is touched. 404 in production.
 
 const ROLE_ID = "00000000-0000-4000-8000-0000000000a1";
@@ -97,12 +96,12 @@ const ROWS: (ExternalCandidateRow & { created_at: string })[] = [
       { 3: "Led the zero-downtime migration of the payments ledger." }),
     rank: 4, company_decision: "intro_requested", created_at: daysAgo(2),
     contact: { status: "found", email_kind: "work", source_kind: "self_published", finished_at: daysAgo(2) },
-    intro: { status: "invited", created_at: daysAgo(1), invited_at: daysAgo(1) },
+    intro: { status: "connected", created_at: daysAgo(1), invited_at: daysAgo(1), accepted_at: daysAgo(0), connected_at: daysAgo(0) },
   },
 ];
 
 type Scene = "results" | "searching" | "empty" | "failed";
-type EmailPreview = { key: string; title: string; subject: string; to: string; replyTo: string; html: string };
+type EmailPreview = { key: string; title: string; subject: string; to: string; cc?: string; replyTo: string; html: string };
 
 export default function ExternalCandidatesPlayground({ candidates, emails }: {
   candidates: ExternalCandidatesResponse["candidates"]; emails: EmailPreview[];
@@ -161,41 +160,19 @@ export default function ExternalCandidatesPlayground({ candidates, emails }: {
             </MuteButton>
           </div>
 
-          <Tabs
-            activeValue="external"
-            variant="borderless"
-            size="small"
-            className="mb-4 w-fit gap-1.5 bg-white [&_[role=tab]]:h-8 [&_[role=tab]]:px-3 [&_[role=tab]]:bg-white [&_[role=tab][aria-selected=true]]:bg-neutral-200"
-            aria-label="Inbox type"
-            items={[
-              { value: "pending_connection", label: <span className="text-sm">{locale === "ko" ? "연결 수락한 후보" : "Ready to connect"}</span>, disabled: true },
-              { value: "company_intro", label: <span className="text-sm">{locale === "ko" ? "연결 제안할 후보" : "Suggested candidates"}</span>, disabled: true },
-              { value: "saved", label: <span className="text-sm">{locale === "ko" ? "저장함" : "Saved"}</span>, disabled: true },
-              {
-                value: "external",
-                label: (
-                  <span className="inline-flex items-center gap-2 text-sm">
-                    {locale === "ko" ? "외부 후보" : "Outside Harper"}
-                    <span className="ml-0.5 text-xs text-neutral-800">{data.candidates.length}</span>
-                  </span>
-                ),
-              },
-            ]}
-          />
-
           <OrgExternalCandidatesView data={data} roleId={ROLE_ID} actions={actions} />
 
           <section className="mt-16 border-t border-neutral-1000-a05 pt-8">
             <h2 className="text-[17px] font-medium">초대 메일 미리보기</h2>
             <p className="mt-1 text-[13px] text-neutral-muted">
-              연결 요청이 확인되면 이 문구로 1통 나가요(ORG_EXTERNAL_INVITE_SENDING=on일 때, 09~20시 KST).
+              초대는 연결 요청이 확인되면 1통(ORG_EXTERNAL_INVITE_SENDING=on, 09~20시 KST). 하퍼 답장은 관심·질문 답장에 1번, 소개 메일은 본인이 링크에서 연결을 확인하면 1통.
             </p>
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
               {emails.map((email) => (
                 <article key={email.key} className="min-w-0 rounded-lg border border-neutral-1000-a05 bg-bg-floating">
                   <header className="space-y-0.5 border-b border-neutral-1000-a05 px-4 py-3 text-[12px] text-neutral-muted">
                     <p className="text-[13px] font-medium text-neutral-primary">{email.title}</p>
-                    <p>From: Harper &lt;harper@matchharper.com&gt; · To: {email.to}</p>
+                    <p>From: Harper &lt;harper@matchharper.com&gt; · To: {email.to}{email.cc ? ` · Cc: ${email.cc}` : ""}</p>
                     <p className="break-all">Reply-To: {email.replyTo}</p>
                     <p className="text-[14px] text-neutral-primary">{email.subject}</p>
                   </header>
@@ -214,17 +191,31 @@ export async function getServerSideProps() {
   if (process.env.NODE_ENV === "production") return { notFound: true };
   const appeal = "에이전트를 고객사에 직접 붙여 본 경험이 인상적이었어요. 저희 팀의 첫 프로덕트 엔지니어로 함께 제품 방향을 정하고 싶어요.";
   const unsubscribeUrl = "http://127.0.0.1:3100/api/email/external-unsubscribe?t=preview-token";
+  const connectUrl = "http://127.0.0.1:3100/api/email/external-connect?t=preview-token";
   const variants = [
-    { key: "ko", title: "한국어 · 회사명 공개", language: "ko" as const, personName: "김서연", companyName: "Acme" },
-    { key: "ko-hidden", title: "한국어 · 회사명 비공개 Role", language: "ko" as const, personName: "이준호", companyName: null },
-    { key: "en", title: "English · 회사명 공개", language: "en" as const, personName: "Ethan Park", companyName: "Acme" },
-    { key: "en-hidden", title: "English · 회사명 비공개 Role", language: "en" as const, personName: "Ethan Park", companyName: null },
+    { key: "ko", title: "한국어 · 회사명 공개", language: "ko" as const, personName: "김서연", companyName: "Acme", addressSource: "people-data.example" },
+    { key: "ko-hidden", title: "한국어 · 회사명 비공개 Role · 이메일 출처 미확인", language: "ko" as const, personName: "이준호", companyName: null, addressSource: null },
+    { key: "en", title: "English · 회사명 공개", language: "en" as const, personName: "Ethan Park", companyName: "Acme", addressSource: "people-data.example" },
+    { key: "en-hidden", title: "English · 회사명 비공개 Role · 이메일 출처 미확인", language: "en" as const, personName: "Ethan Park", companyName: null, addressSource: null },
   ];
   const emails: EmailPreview[] = variants.map((variant) => {
-    const { subject, body } = renderExternalInvite({ ...variant, roleName: "Product Engineer", companyAppeal: appeal, unsubscribeUrl,
-      addressSource: "people-data.example" });
+    const { subject, body } = renderExternalInvite({ ...variant, roleName: "Product Engineer", companyAppeal: appeal, unsubscribeUrl, connectUrl });
     return { key: variant.key, title: variant.title, subject, to: "person@example.com",
       replyTo: "candidate+preview-token-000000@reply.matchharper.com", html: wrapEmailHtml(renderEmailBodyHtml(body)) };
   });
+  const linkReply = renderExternalConnectLinkReply({ language: "ko", personName: "박민지", companyName: "Acme", connectUrl });
+  emails.push({ key: "link-reply", title: "하퍼 답장 · 관심·질문 답장에 1번 (연결 링크)", subject: "Re: Acme Product Engineer 포지션 관련해서 연락드려요",
+    to: "person@example.com", replyTo: "candidate+preview-token-000000@reply.matchharper.com", html: wrapEmailHtml(renderEmailBodyHtml(linkReply)) });
+  const company = { linkedinUrl: "https://www.linkedin.com/company/acme-example", homepageUrl: "https://acme.example",
+    contactName: "이하늘", contactTitle: "Head of Talent" };
+  for (const variant of [
+    { key: "connect-ko", title: "소개 메일 · 한국어 (본인이 연결 확인 뒤)", language: "ko" as const, personName: "박민지", companyName: "Acme" },
+    { key: "connect-en", title: "Introduction · English", language: "en" as const, personName: "Ethan Park", companyName: "Acme" },
+  ]) {
+    const { subject, body } = renderExternalConnectEmail({ ...variant, roleName: "Product Engineer", companyAppeal: appeal,
+      linkedinUrl: "https://www.linkedin.com/in/example-minji-park", company });
+    emails.push({ key: variant.key, title: variant.title, subject, to: "person@example.com", cc: "me@acme.example, cto@acme.example",
+      replyTo: "person@example.com, me@acme.example, cto@acme.example", html: wrapEmailHtml(renderEmailBodyHtml(body)) });
+  }
   return { props: { candidates: externalCandidatesForCompany(ROWS), emails } };
 }

@@ -10,7 +10,7 @@ const body = z.object({
   reason: z.string().trim().max(500).default(""),
 });
 
-/** Role Inbox Pass for a person outside Harper. Contacts nobody; the person leaves the list. */
+/** Role page Pass for a person outside Harper. Contacts nobody; the person leaves the list. */
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);

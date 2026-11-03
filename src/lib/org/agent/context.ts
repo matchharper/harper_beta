@@ -73,6 +73,8 @@ import {
 import { filterOrgAgentMentionCandidates } from "@/lib/org/agent/mentionCandidates";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { formatInProgressSlackRoleCreations } from "@/lib/org/agent/slackRoleCreation";
+import { externalSourcingEnabledFor, formatExternalCandidateStatuses } from "@/lib/org/agent/externalSourcing";
+import { listExternalCandidateStatuses } from "@/lib/org/agent/externalSourcing.server";
 import { conversationCompatibilityText, type OrgAgentConversationInput } from "./conversationInput";
 
 export type OrgAgentPromptContext = {
@@ -625,6 +627,7 @@ export async function buildOrgAgentPromptContext(args: {
     matchingRuns,
     companyMemory,
     hiringBriefHistory,
+    externalCandidates,
     otherSlackAppMessages,
   ] = await Promise.all([
     fetchOrgAgentRoles({ admin: args.admin, user: args.user, workspaceId }),
@@ -696,6 +699,10 @@ export async function buildOrgAgentPromptContext(args: {
     args.conversation.role_id ? optionalContext({fallback:null,label:'hiring_brief_history',
       onError:()=>notes.push('매칭 기준 변경 이력 조회 불가. 이력이 없다고 단정하지 말고 hiring_brief_history로 조회한다.'),
       task:()=>readHiringBriefHistory({admin:args.admin,user:args.user,workspaceId,roleId:args.conversation.role_id!,limit:3})}) : Promise.resolve(null),
+    // Role-page decisions on external people leave no chat message; this keeps them in every turn.
+    args.conversation.role_id && externalSourcingEnabledFor(workspaceId) ? optionalContext({fallback:null,label:"external_candidates",
+      onError:()=>notes.push("external candidate status unavailable; read_external_candidates before suggesting anyone from an earlier external search"),
+      task:()=>listExternalCandidateStatuses({admin:args.admin,workspaceId,roleId:args.conversation.role_id!})}) : Promise.resolve(null),
     // Only a company user's Slack turn can refer to another app's message.
     scope.kind === "slack" && currentUserMessageId
       ? optionalContext({
@@ -790,6 +797,10 @@ export async function buildOrgAgentPromptContext(args: {
   }
 
   const formattedRoles = formatRoles(roles, pipeline?.countsByRoleId ?? null);
+  // Only for a Role this member can see (team-scoped access filters `roles`).
+  const externalCandidatesText = externalCandidates && roles.some((role) => role.roleId === args.conversation.role_id)
+    ? formatExternalCandidateStatuses(externalCandidates)
+    : null;
   const defaultLongTextObservations = buildDefaultOrgAgentLongTextObservations({
     pitch: workspace.pitch,
     roleObservations: formattedRoles.emptyLongTextObservations,
@@ -827,7 +838,7 @@ export async function buildOrgAgentPromptContext(args: {
       workspaceRequestExists: Boolean(text(workspace.request)),
     }),
     completeRoleRequestIds: formattedRoles.completeRoleRequestIds,
-    contextNotesText: [...notes, ...(matchingRuns ? [formatMatchingRunHistory(matchingRuns)] : []), ...(companyMemory ? [formatCompanyMemory(companyMemory, true)] : []), ...(hiringBriefHistory ? [formatHiringBriefHistory(hiringBriefHistory)] : [])].join("\n\n") || "-",
+    contextNotesText: [...notes, ...(matchingRuns ? [formatMatchingRunHistory(matchingRuns)] : []), ...(companyMemory ? [formatCompanyMemory(companyMemory, true)] : []), ...(hiringBriefHistory ? [formatHiringBriefHistory(hiringBriefHistory)] : []), ...(externalCandidatesText ? [externalCandidatesText] : [])].join("\n\n") || "-",
     ...formatOrgAgentConversation(
       messages,
       scope.kind === "slack" ? scope.slackThreadId : null,
