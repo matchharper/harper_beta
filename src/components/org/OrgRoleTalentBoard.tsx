@@ -382,7 +382,9 @@ function TalentExperienceList({ item }: { item: OrgBoardItem }) {
 }
 
 export function OrgRoleTalentBoardCard({
+  acceptSlot,
   canManageCandidates = false,
+  footer,
   internalOpsAccess = false,
   item,
   onAccept,
@@ -395,7 +397,11 @@ export function OrgRoleTalentBoardCard({
   selected = false,
   stages,
 }: {
+  /** Replaces Send Intro (null leaves the place empty), e.g. an external person's connection state. */
+  acceptSlot?: ReactNode;
   canManageCandidates?: boolean;
+  /** Extra status line below the history, e.g. an external person's invitation state. */
+  footer?: ReactNode;
   internalOpsAccess?: boolean;
   item: OrgBoardItem;
   onAccept?: () => void;
@@ -513,6 +519,8 @@ export function OrgRoleTalentBoardCard({
 
         <TalentExperienceList item={item} />
 
+        {footer ? <div className="mt-4">{footer}</div> : null}
+
         {item.companyIntro?.status === "ready" &&
         item.companyIntro.harperRecommendation ? (
           <p className="mt-4 text-[13px] text-neutral-muted">
@@ -568,7 +576,7 @@ export function OrgRoleTalentBoardCard({
                 {CANDIDATE_DECISION_LABELS.reject}
               </MuteButton>
             )}
-            {item.source === "company_intro" ? (
+            {acceptSlot !== undefined ? acceptSlot : item.source === "company_intro" ? (
               <MuteButton
                 className="w-full py-2"
                 disabled={pending}

@@ -1,4 +1,5 @@
 import { getEnabledOrgAgentTools } from "../tools";
+import { EXTERNAL_SOURCING_TOOL_NAMES, externalSourcingEnabledFor } from "../externalSourcing";
 import { COMPANY_BASE_TOOLS, COMPANY_CAPABILITIES, COMPANY_DEFAULT_CAPABILITIES, capabilityForTool, type CompanyCapabilityId } from "./registry";
 import type { OrgAgentConversationInput } from "../conversationInput";
 import { getCompanyPolicy, type CompanyPolicyId } from "./policies";
@@ -22,23 +23,32 @@ export function continuationCapabilities(messages: readonly OrgAgentConversation
   return loaded;
 }
 
-export const LOAD_CAPABILITIES_TOOL = {
-  type: "function" as const,
-  function: {
-    name: "load_capabilities",
-    description: "Load detailed policies and callable tools for one or more catalog capabilities. They become available in the NEXT response, not this batch. Local, idempotent and without external effects; loading neither needs nor grants user approval.",
-    parameters: {
-      type: "object", additionalProperties: false,
-      properties: { capabilityIds: { type: "array", minItems: 1, maxItems: COMPANY_CAPABILITIES.length, items: { type: "string", enum: COMPANY_CAPABILITIES.map((c) => c.id) } } },
-      required: ["capabilityIds"],
+function loadCapabilitiesTool(ids: string[]) {
+  return {
+    type: "function" as const,
+    function: {
+      name: "load_capabilities",
+      description: "Load detailed policies and callable tools for one or more catalog capabilities. They become available in the NEXT response, not this batch. Local, idempotent and without external effects; loading neither needs nor grants user approval.",
+      parameters: {
+        type: "object", additionalProperties: false,
+        properties: { capabilityIds: { type: "array", minItems: 1, maxItems: ids.length, items: { type: "string", enum: ids } } },
+        required: ["capabilityIds"],
+      },
     },
-  },
-};
+  };
+}
 
-export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mode: CompanyCapabilityMode; emailReply?: boolean; loaded: ReadonlySet<CompanyCapabilityId>; allowedToolNames?: ReadonlySet<string> }) {
+// external_sourcing is listed only where it is turned on, so other workspaces keep the same schema as before.
+export const LOAD_CAPABILITIES_TOOL = loadCapabilitiesTool(COMPANY_CAPABILITIES.map((c) => c.id).filter((id) => id !== "external_sourcing"));
+const LOAD_CAPABILITIES_TOOL_WITH_EXTERNAL_SOURCING = loadCapabilitiesTool(COMPANY_CAPABILITIES.map((c) => c.id));
+
+export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mode: CompanyCapabilityMode; emailReply?: boolean; loaded: ReadonlySet<CompanyCapabilityId>; allowedToolNames?: ReadonlySet<string>; workspaceId?: string }) {
   // Trusted caller restriction. Loading a capability can never broaden it.
+  // External sourcing is offered only to workspaces that have it turned on (it costs money per run).
+  const externalSourcing = externalSourcingEnabledFor(args.workspaceId);
   const enabled = getEnabledOrgAgentTools(args.surface, {scheduledMatching: args.allowedToolNames?.has("recommend_talents")}).filter(tool =>
-    (!args.allowedToolNames || args.allowedToolNames.has(tool.function.name)));
+    (!args.allowedToolNames || args.allowedToolNames.has(tool.function.name))
+    && (externalSourcing || !(EXTERNAL_SOURCING_TOOL_NAMES as readonly string[]).includes(tool.function.name)));
   const supported = new Set(enabled.map((tool) => tool.function.name));
   const catalog = COMPANY_CAPABILITIES.filter((c) => c.toolIds.some((id) => supported.has(id)));
   const active = catalog.filter((c) => args.mode === "full" || args.loaded.has(c.id) || (args.emailReply && c.id === "email_preferences") || (COMPANY_DEFAULT_CAPABILITIES as readonly string[]).includes(c.id));
@@ -51,7 +61,9 @@ export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mo
   // Stable global policy order, independent of the order capabilities were loaded.
   const orderedPolicies = [...new Set(COMPANY_CAPABILITIES.flatMap((c) => [...c.policyIds] as CompanyPolicyId[]))].filter((id) => policyIds.has(id));
   const domainTools = enabled.filter((t) => toolNames.has(t.function.name)).sort((a, b) => a.function.name.localeCompare(b.function.name));
-  const tools = args.mode === "progressive" ? [...domainTools, LOAD_CAPABILITIES_TOOL] : domainTools;
+  const tools = args.mode === "progressive"
+    ? [...domainTools, externalSourcing ? LOAD_CAPABILITIES_TOOL_WITH_EXTERNAL_SOURCING : LOAD_CAPABILITIES_TOOL]
+    : domainTools;
   return {
     tools,
     offeredToolNames: new Set(tools.map((t) => t.function.name)),

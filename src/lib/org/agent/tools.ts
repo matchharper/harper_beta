@@ -58,6 +58,9 @@ export const ORG_AGENT_TOOL_NAMES = [
   "decide_company_intro",
   "prepare_candidate_connection",
   "decide_candidate_connection",
+  "request_external_search",
+  "read_external_candidates",
+  "contact_external_candidate",
 ] as const;
 
 export type OrgAgentToolName = (typeof ORG_AGENT_TOOL_NAMES)[number];
@@ -1586,6 +1589,49 @@ Call this once per exact candidate Role change and review the result before anot
         },
         required: ["decision", "roleId", "talentId"],
         type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "request_external_search",
+      description: "Queue one external candidate search for a saved Role: Harper looks for people outside Harper on public profiles (LinkedIn-type profiles and public work evidence) and the final judge passes at most 3. It takes several minutes and costs real money, so the server enforces per-workspace limits. It never contacts anyone and never changes the recommendation list. A queued result is not a finished search; the outcome is shared separately. One search per Role runs at a time.",
+      parameters: {
+        type: "object", additionalProperties: false, required: ["roleId", "trigger", "reason"], properties: {
+          roleId: { type: "string" },
+          trigger: { type: "string", enum: ["company_request", "harper_suggestion"], description: "company_request: the company asked for it. harper_suggestion: the company agreed to Harper's concrete proposal in this conversation." },
+          reason: { type: "string", maxLength: 1000, description: "Short factual purpose grounded in the conversation, kept in the run history." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_external_candidates",
+      description: "Read the people an external search showed for a Role (at most 3 per search): public career facts, the final judge's assessment, outside evidence links and contact status. They are not Harper members and have not been contacted. Omit runId for the latest finished search.",
+      parameters: {
+        type: "object", additionalProperties: false, required: ["roleId"], properties: {
+          roleId: { type: "string" },
+          runId: { type: "string" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "contact_external_candidate",
+      description: "Work toward contacting one person an external search showed (their ref from read_external_candidates). action=request_intro records the company's request to be connected with this person, with the same inputs as a company-first Intro request: the company's reason for wanting to meet them and the company recipients to CC once they accept. The first complete call records nothing and returns confirmation_required; call again only when the immediately previous Harper message presented that exact plan and the current message clearly approves it (the server reuses the presented plan). When invitation emails are on, a confirmed request leads to one invitation email from Harper once an address is found; each result states what was actually sent. Addresses are already looked up for every person a search shows; action=find_email only retries a lookup whose state is failed (paid, about $0.12, a few minutes); GitHub addresses are never used. The address is kept by Harper for a later company-approved message and is never shown to the company or to you; results report status only.",
+      parameters: {
+        type: "object", additionalProperties: false, required: ["roleId", "candidateRef", "action"], properties: {
+          roleId: { type: "string" },
+          candidateRef: { type: "string" },
+          action: { type: "string", enum: ["request_intro", "find_email"] },
+          companyAppeal: { type: "string", minLength: 1, maxLength: 2_000, description: "request_intro only: the company's grounded reason for wanting to meet this person, preserving the user's meaning without invention. Omit on the later short confirmation." },
+          introRecipientEmails: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 10, description: "request_intro only: company recipients to CC once the person accepts. Omit to propose the current requester's company email when available, or on the later short confirmation." },
+        },
       },
     },
   },

@@ -234,6 +234,8 @@ export const queryKeys = {
       roleId?: string | null
     ) =>
       ["org", "matchingSearchStatus", workspaceId ?? "", roleId ?? ""] as const,
+    externalCandidates: (workspaceId?: string | null, roleId?: string | null) =>
+      ["org", "externalCandidates", workspaceId ?? "", roleId ?? ""] as const,
     roleTodo: (workspaceId?: string | null, roleId?: string | null) =>
       ["org", "roleTodo", workspaceId ?? "", roleId ?? ""] as const,
     roleTodoRange: (
