@@ -13,7 +13,6 @@ import {
   externalSourcingLimits,
   formatExternalCandidatesResult,
   formatExternalSearchRequestResult,
-  kstMonthStart,
   parseExternalCareerLines,
   parseExternalSourcingTrigger,
   type ExternalCandidateRow,
@@ -22,8 +21,8 @@ import {
 } from "./externalSourcing";
 
 const NOW = new Date("2026-11-02T03:00:00Z");
-const limits = externalSourcingLimits({ ORG_EXTERNAL_SOURCING_AGENT_MONTHLY_LIMIT: "2" });
-const quiet: ExternalSourcingHistory = { activeRunId: null, workspaceRunsLast24h: 0, agentRunsThisMonth: 0, lastRoleRunAt: null };
+const limits = externalSourcingLimits({});
+const quiet: ExternalSourcingHistory = { activeRunId: null, workspaceRunsLast24h: 0 };
 
 test("external sourcing is off unless the workspace is listed", () => {
   assert.equal(externalSourcingEnabledFor("w1", {}), false);
@@ -33,22 +32,18 @@ test("external sourcing is off unless the workspace is listed", () => {
   assert.equal(externalSourcingEnabledFor(undefined, { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" }), false);
 });
 
-test("default limits: one run a day, Harper may only suggest", () => {
-  assert.deepEqual(externalSourcingLimits({}), { workspaceDaily: 1, agentMonthly: 0, agentRoleIntervalDays: 14, emailDaily: 10 });
+test("default limits: one run a day", () => {
+  assert.deepEqual(externalSourcingLimits({}), { workspaceDaily: 1, emailDaily: 10 });
 });
 
-test("one active run per Role, a daily workspace limit and stricter limits for Harper's own runs", () => {
+test("one active run per Role, a daily workspace limit, and Harper never starts one on its own", () => {
   const decide = (trigger: "company_request" | "agent_initiative", history = quiet, enabled = true) =>
     decideExternalSourcing({ enabled, trigger, history, now: NOW, limits });
   assert.deepEqual(decide("company_request"), { allowed: true });
   assert.deepEqual(decide("company_request", quiet, false), { allowed: false, status: "not_queued", reason: "not_enabled" });
   assert.deepEqual(decide("company_request", { ...quiet, activeRunId: "r1" }), { allowed: false, status: "already_running", runId: "r1" });
-  assert.deepEqual(decide("company_request", { ...quiet, workspaceRunsLast24h: 3 }), { allowed: false, status: "not_queued", reason: "daily_limit" });
-  assert.deepEqual(decide("agent_initiative", { ...quiet, agentRunsThisMonth: 2 }), { allowed: false, status: "not_queued", reason: "agent_monthly_limit" });
-  assert.deepEqual(decide("agent_initiative", { ...quiet, lastRoleRunAt: "2026-10-25T00:00:00Z" }),
-    { allowed: false, status: "not_queued", reason: "recently_searched", retryAfter: "2026-11-08T00:00:00.000Z" });
-  assert.deepEqual(decide("company_request", { ...quiet, lastRoleRunAt: "2026-11-01T00:00:00Z" }), { allowed: true });
-  assert.deepEqual(decide("agent_initiative", { ...quiet, lastRoleRunAt: "2026-10-01T00:00:00Z" }), { allowed: true });
+  assert.deepEqual(decide("company_request", { ...quiet, workspaceRunsLast24h: 1 }), { allowed: false, status: "not_queued", reason: "daily_limit" });
+  assert.deepEqual(decide("agent_initiative"), { allowed: false, status: "not_queued", reason: "company_request_only" });
 });
 
 test("a Harper-initiated turn is always recorded as Harper's own initiative", () => {
@@ -56,11 +51,6 @@ test("a Harper-initiated turn is always recorded as Harper's own initiative", ()
   assert.equal(parseExternalSourcingTrigger("harper_suggestion", false), "harper_suggestion");
   assert.equal(parseExternalSourcingTrigger("agent_initiative", false), "company_request");
   assert.equal(parseExternalSourcingTrigger(undefined, false), "company_request");
-});
-
-test("the month for Harper's limit starts in Korea time", () => {
-  assert.equal(kstMonthStart(new Date("2026-10-31T16:00:00Z")), "2026-10-31T15:00:00.000Z");   // Nov 1, 01:00 KST
-  assert.equal(kstMonthStart(new Date("2026-10-31T14:00:00Z")), "2026-09-30T15:00:00.000Z");   // Oct 31, 23:00 KST
 });
 
 const run: ExternalRunRow = { id: "run-1", status: "succeeded", trigger: "company_request", error_code: null,
@@ -89,9 +79,9 @@ test("candidate results are text: criteria named once, numbered per person, no q
 test("request results explain queued, running and refused searches", () => {
   assert.match(formatExternalSearchRequestResult({ status: "queued", runId: "r", roleName: "Product Engineer" }), /nobody is contacted/);
   assert.match(formatExternalSearchRequestResult({ status: "already_running", runId: "r", roleName: "Product Engineer" }), /No new search was started/);
-  const refused = formatExternalSearchRequestResult({ status: "not_queued", roleName: "Product Engineer", reason: "recently_searched", retryAfter: "2026-11-08T00:00:00.000Z" });
-  assert.match(refused, /unavailable_reason=recently_searched/);
-  assert.match(refused, /retry_after=2026-11-08 09:00/);
+  const refused = formatExternalSearchRequestResult({ status: "not_queued", roleName: "Product Engineer", reason: "company_request_only" });
+  assert.match(refused, /unavailable_reason=company_request_only/);
+  assert.match(refused, /Harper does not start an external search on its own/);
 });
 
 test("notice facts carry verified state, never wording or quotes", () => {

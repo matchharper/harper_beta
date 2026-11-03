@@ -26,12 +26,8 @@ function intEnv(env: Record<string, string | undefined>, name: string, fallback:
 /** Each run costs about $1 to $4. These limits are enforced in code, whatever the model asks for. */
 export function externalSourcingLimits(env: Record<string, string | undefined> = process.env) {
   return {
-    // runs a workspace may start in 24 hours, any trigger
+    // runs a workspace may start in 24 hours (the company's requests; Harper never starts one on its own)
     workspaceDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 1),
-    // runs Harper may start on its own per workspace per calendar month (KST); 0 = Harper may only suggest
-    agentMonthly: intEnv(env, "ORG_EXTERNAL_SOURCING_AGENT_MONTHLY_LIMIT", 0),
-    // days before Harper may start another run on its own for the same Role
-    agentRoleIntervalDays: intEnv(env, "ORG_EXTERNAL_SOURCING_AGENT_ROLE_INTERVAL_DAYS", 14),
     // email lookups a workspace may start in 24 hours (about $0.12 each)
     emailDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_EMAIL_DAILY_LIMIT", 10),
   };
@@ -40,43 +36,31 @@ export function externalSourcingLimits(env: Record<string, string | undefined> =
 export type ExternalSourcingHistory = {
   activeRunId: string | null;
   workspaceRunsLast24h: number;
-  agentRunsThisMonth: number;
-  lastRoleRunAt: string | null;
 };
 
 export type ExternalSourcingDecision =
   | { allowed: true }
   | { allowed: false; status: "already_running"; runId: string }
-  | { allowed: false; status: "not_queued"; reason: "not_enabled" | "daily_limit" | "agent_monthly_limit" | "recently_searched"; retryAfter?: string };
+  | { allowed: false; status: "not_queued"; reason: "not_enabled" | "daily_limit" | "company_request_only" };
 
-/** Pure gate: the trigger is forced to agent_initiative for Harper-initiated (background) turns by the caller. */
+/**
+ * Pure gate: the trigger is forced to agent_initiative for Harper-initiated (background) turns by the caller.
+ * Harper never starts a search on its own; it offers one and the company asks for it.
+ */
 export function decideExternalSourcing(args: {
   enabled: boolean; trigger: ExternalSourcingTrigger; history: ExternalSourcingHistory; now: Date;
   limits: ReturnType<typeof externalSourcingLimits>;
 }): ExternalSourcingDecision {
   if (!args.enabled) return { allowed: false, status: "not_queued", reason: "not_enabled" };
+  if (args.trigger === "agent_initiative") return { allowed: false, status: "not_queued", reason: "company_request_only" };
   if (args.history.activeRunId) return { allowed: false, status: "already_running", runId: args.history.activeRunId };
   if (args.history.workspaceRunsLast24h >= args.limits.workspaceDaily) return { allowed: false, status: "not_queued", reason: "daily_limit" };
-  if (args.trigger === "agent_initiative") {
-    if (args.history.agentRunsThisMonth >= args.limits.agentMonthly) return { allowed: false, status: "not_queued", reason: "agent_monthly_limit" };
-    const last = args.history.lastRoleRunAt ? Date.parse(args.history.lastRoleRunAt) : NaN;
-    const next = last + args.limits.agentRoleIntervalDays * 86_400_000;
-    if (Number.isFinite(last) && next > args.now.getTime()) {
-      return { allowed: false, status: "not_queued", reason: "recently_searched", retryAfter: new Date(next).toISOString() };
-    }
-  }
   return { allowed: true };
 }
 
 export function parseExternalSourcingTrigger(value: unknown, harperInitiated: boolean): ExternalSourcingTrigger {
   if (harperInitiated) return "agent_initiative";
   return value === "harper_suggestion" ? "harper_suggestion" : "company_request";
-}
-
-/** Start of the current calendar month in Asia/Seoul, as an ISO instant. */
-export function kstMonthStart(now: Date) {
-  const kst = new Date(now.getTime() + 9 * 3_600_000);
-  return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), 1) - 9 * 3_600_000).toISOString();
 }
 
 // ---- model-facing text --------------------------------------------------------------------
@@ -89,12 +73,11 @@ function cell(value: unknown, max = 300) {
 const UNAVAILABLE_MEANING: Record<string, string> = {
   not_enabled: "External search is not offered to this workspace.",
   daily_limit: "The workspace reached its external search limit for the last 24 hours.",
-  agent_monthly_limit: "Harper cannot start another external search on its own this month; the company can still ask for one.",
-  recently_searched: "This Role was searched externally recently; Harper cannot start another one on its own yet.",
+  company_request_only: "Harper does not start an external search on its own; offer it to the company, which can ask for one.",
 };
 
 export function formatExternalSearchRequestResult(result: {
-  status: string; runId?: string | null; roleName?: string; trigger?: string; reason?: string; retryAfter?: string;
+  status: string; runId?: string | null; roleName?: string; trigger?: string; reason?: string;
 }) {
   const lines = [`status=${cell(result.status, 40)}`, `role=${cell(result.roleName, 200)}`];
   if (result.runId) lines.push(`run_id=${result.runId}`);
@@ -105,7 +88,6 @@ export function formatExternalSearchRequestResult(result: {
     lines.push("result_meaning=An external search for this Role is already queued or running. No new search was started; its outcome is shared when it finishes.");
   } else {
     lines.push(`unavailable_reason=${cell(result.reason, 60)}`, `result_meaning=No search was started. ${UNAVAILABLE_MEANING[result.reason ?? ""] ?? ""}`.trim());
-    if (result.retryAfter) lines.push(`retry_after=${formatLlmDateTime(result.retryAfter)}`);
   }
   return lines.join("\n");
 }

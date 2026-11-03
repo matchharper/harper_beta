@@ -6,7 +6,6 @@ import {
   formatExternalCandidatesResult,
   formatExternalContactRequestResult,
   formatExternalSearchRequestResult,
-  kstMonthStart,
   type ExternalCandidateRow,
   type ExternalContactRow,
   type ExternalIntroRow,
@@ -50,21 +49,15 @@ function selectCandidates(admin: OrgAgentAdminClient) {
 async function loadHistory(admin: OrgAgentAdminClient, workspaceId: string, roleId: string, now: Date): Promise<ExternalSourcingHistory> {
   const dayAgo = new Date(now.getTime() - 86_400_000).toISOString();
   const runs = () => admin.from("external_sourcing_runs");
-  const [active, daily, monthly, last] = await Promise.all([
+  const [active, daily] = await Promise.all([
     runs().select("id").eq("role_id", roleId).in("status", ["queued", "running"]).limit(1),
     runs().select("id", { count: "exact", head: true }).eq("company_workspace_id", workspaceId)
       .neq("trigger", "shadow").gte("created_at", dayAgo),
-    runs().select("id", { count: "exact", head: true }).eq("company_workspace_id", workspaceId)
-      .eq("trigger", "agent_initiative").gte("created_at", kstMonthStart(now)),
-    runs().select("created_at").eq("role_id", roleId).neq("trigger", "shadow")
-      .order("created_at", { ascending: false }).limit(1),
   ]);
-  for (const result of [active, daily, monthly, last]) if (result.error) throw result.error;
+  for (const result of [active, daily]) if (result.error) throw result.error;
   return {
     activeRunId: active.data?.[0]?.id ?? null,
     workspaceRunsLast24h: daily.count ?? 0,
-    agentRunsThisMonth: monthly.count ?? 0,
-    lastRoleRunAt: last.data?.[0]?.created_at ?? null,
   };
 }
 
@@ -76,13 +69,13 @@ export async function requestExternalSourcing(args: {
   const enabled = externalSourcingEnabledFor(args.workspaceId);
   const history = enabled
     ? await loadHistory(args.admin, args.workspaceId, args.roleId, now)
-    : { activeRunId: null, workspaceRunsLast24h: 0, agentRunsThisMonth: 0, lastRoleRunAt: null };
+    : { activeRunId: null, workspaceRunsLast24h: 0 };
   const decision = decideExternalSourcing({ enabled, trigger: args.trigger, history, now, limits: externalSourcingLimits() });
   const base = { roleName: args.roleName, trigger: args.trigger };
   if (!decision.allowed) {
     const result = decision.status === "already_running"
       ? { ...base, status: "already_running", runId: decision.runId }
-      : { ...base, status: "not_queued", reason: decision.reason, retryAfter: decision.retryAfter };
+      : { ...base, status: "not_queued", reason: decision.reason };
     return { ...result, modelOutput: formatExternalSearchRequestResult(result) };
   }
   const { data, error } = await args.admin.from("external_sourcing_runs").insert({
