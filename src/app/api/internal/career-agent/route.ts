@@ -19,11 +19,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const admin = getTalentSupabaseAdmin();
     if (body.action === "collect_due") {
-      const work = await collectDueCareerWork({ admin });
-      const matching = await recoverCareerMatchingSearches(admin);
-      const internalMatching = await recoverInternalEvaluations();
-      const recovery = await recoverCareerBackgroundRuns(admin);
-      const deliveries = await recoverCareerEmailDeliveries(admin);
+      // These scans have independent durable receipts. Do not spend the
+      // function's 60-second budget waiting for each scan before starting the
+      // next, or abandon the other scans when one fails.
+      const scans = {
+        work: () => collectDueCareerWork({ admin }),
+        matching: () => recoverCareerMatchingSearches(admin),
+        internalMatching: () => recoverInternalEvaluations(),
+        recovery: () => recoverCareerBackgroundRuns(admin),
+        deliveries: () => recoverCareerEmailDeliveries(admin),
+      };
+      const results = await Promise.allSettled(Object.entries(scans).map(async ([name, scan]) => {
+        const startedAt = Date.now();
+        try {
+          return await scan();
+        } finally {
+          console.info("[career-agent] maintenance scan", { name, durationMs: Date.now() - startedAt });
+        }
+      }));
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
+      const [work, matching, internalMatching, recovery, deliveries] = results.map((result) =>
+        result.status === "fulfilled" ? result.value : undefined
+      );
       return NextResponse.json({ work, matching, internalMatching, recovery, deliveries });
     }
     if (["evaluation_complete", "external_follow_evaluation", "external_evaluation_ready"].includes(body.action)) {
