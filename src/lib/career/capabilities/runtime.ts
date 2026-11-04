@@ -203,6 +203,7 @@ export class CareerCapabilityRuntime {
   get abortSignal() { return this.options.abortSignal; }
   get deadlineAt() { return this.options.deadlineAt; }
   get resumedModel() { return this.options.resume?.model; }
+  get resumedTransport() { return this.options.resume?.transport; }
   resumedMessages(transport: CareerReplyCheckpoint["transport"]) {
     const resume = this.options.resume;
     if (resume && resume.transport !== transport) throw new Error("Career continuation transport must match its saved transcript");
