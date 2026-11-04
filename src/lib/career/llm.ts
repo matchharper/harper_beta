@@ -786,7 +786,9 @@ function parseAnthropicToolInput(raw: string): Record<string, unknown> {
   }
 }
 
-function shouldUseAnthropicNativeMessages(model: string) {
+function shouldUseAnthropicNativeMessages(model: string, resumedTransport?: "anthropic" | "chat") {
+  // Saved transcripts retain their wire format across credential/config changes.
+  if (resumedTransport) return resumedTransport === "anthropic";
   return (
     getLlmChatProviderForModel(model) === "anthropic" &&
     Boolean((process.env.ANTHROPIC_API_KEY ?? "").trim())
@@ -1606,7 +1608,7 @@ async function runCareerChatAssistantImpl(args: {
     });
   };
 
-  if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel)) {
+  if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel, args.toolRuntime?.resumedTransport)) {
     return fallbackWithExistingClient();
   }
 
@@ -2180,7 +2182,7 @@ async function runCareerChatAssistantStreamImpl(args: {
       usageLabel,
     });
   };
-  if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel)) {
+  if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel, args.toolRuntime?.resumedTransport)) {
     return streamWithExistingClient();
   }
 

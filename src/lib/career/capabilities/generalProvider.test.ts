@@ -50,6 +50,53 @@ test("provider receives shared connection guidance before opportunity tools load
 
 const sse = (events: unknown[]) => new Response(events.map(event => `data: ${JSON.stringify(event)}\n\n`).join(""), { headers: { "Content-Type": "text/event-stream" } });
 
+test("a saved chat transcript keeps its transport when native Anthropic credentials become available", async () => {
+  const originalFetch = globalThis.fetch;
+  const oldKey = process.env.ANTHROPIC_API_KEY;
+  const oldOpenAI = process.env.OPENAI_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  process.env.OPENAI_API_KEY = "test-key";
+  try {
+    const { runCareerChatAssistant, runCareerChatAssistantStream } = await import("../llm");
+    for (const streaming of [false, true]) {
+      const options = {
+        replyId: "saved-chat", mode: "progressive" as const, eligibleTools: [],
+        promptArgs: () => ({ channel: "chat" as const, isOnboardingDone: true, profile: null, structuredProfileText: "Profile", talentContextSection: "" }),
+      };
+      const original = new CareerCapabilityRuntime(options);
+      const step = original.resolveStep(false);
+      const resume: CareerReplyCheckpoint = {
+        version: 1, checkpointId: "checkpoint", replyId: "saved-chat", transport: "chat", model: "claude-haiku-5-5",
+        messages: [{ role: "user", content: "Continue from the saved transcript." }, { role: "assistant", content: "Previously completed document read" }],
+        systemBlocks: step.systemBlocks, tools: step.tools, capabilityIds: [], handbooks: [], record: { ...original.completedRecord(), status: "in_progress" },
+      };
+      const runtime = new CareerCapabilityRuntime({ ...options, resume });
+      let requests = 0;
+      globalThis.fetch = async (url, init) => {
+        if (String(url).includes("/rest/v1/")) return Response.json([]);
+        requests++;
+        const body = JSON.parse(String(init?.body));
+        assert.equal(body.model, "claude-haiku-5-5");
+        assert.ok(JSON.stringify(body).includes("Previously completed document read"));
+        return body.stream ? sse([
+          { id: "continued", choices: [{ index: 0, delta: { content: "이어 완료했습니다." }, finish_reason: null }] },
+          { id: "continued", choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
+        ]) : Response.json({ id: "continued", model: body.model, choices: [{ message: { role: "assistant", content: "이어 완료했습니다." }, finish_reason: "stop" }], usage: { prompt_tokens: 1, completion_tokens: 1 } });
+      };
+      const args = { primaryModel: "gpt-6.1-sol", toolRuntime: runtime, systemBlocks: step.systemBlocks, tools: step.tools,
+        messages: [{ role: "user" as const, content: "A fresh invocation must not replace the transcript." }],
+        executeTool: async () => { throw new Error("No completed work should repeat"); }, usageLabel: "test:transport-continuation" };
+      const result = streaming ? await runCareerChatAssistantStream({ ...args, onTextDelta: () => {} }) : await runCareerChatAssistant(args);
+      assert.equal(result, "이어 완료했습니다.");
+      assert.equal(requests, 1);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (oldKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = oldKey;
+    if (oldOpenAI === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = oldOpenAI;
+  }
+});
+
 test("provider system prompts use the single application source for new and carried leases", async () => {
   const originalFetch = globalThis.fetch;
   const oldOpenAI = process.env.OPENAI_API_KEY, oldAnthropic = process.env.ANTHROPIC_API_KEY;
