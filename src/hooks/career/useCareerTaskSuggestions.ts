@@ -1,28 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
-import {
-  useCareerProfileContext,
-  useCareerSidebarContext,
-} from "@/components/career/CareerSidebarContext";
+import { useCareerChatActivityContext } from "@/components/career/CareerChatPanelContext";
+import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import type { CareerExternalFeedbackSnapshot } from "@/lib/career/taskItems";
-import {
-  countCareerProfileLinks,
-  getCareerProfileSourceSuggestion,
-} from "@/lib/career/profileSources";
 import { useCareerApi } from "./useCareerApi";
-import { useGmailIntegration } from "./useGmailIntegration";
 
 export const careerExternalFeedbackQueryKey = (userId: string | null) =>
   ["career-task-external-feedback", userId] as const;
 
-// Mounted only inside Tasks. Each suggestion can settle independently of the
+// Mounted only inside Tasks. Feedback suggestions settle independently of the
 // workspace bootstrap, pending actions, and the full opportunity history.
 export function useCareerTaskSuggestions() {
   const { fetchWithAuth } = useCareerApi();
-  const { user, workspaceDataLoading } = useCareerSidebarContext();
-  const { savedProfileLinks } = useCareerProfileContext();
-  const { sessionPending, profilePending, profileError, tasksOverride } =
-    useCareerChatPanelContext();
+  const { user } = useCareerSidebarContext();
+  const { sessionPending, tasksOverride } = useCareerChatActivityContext();
   const overridden = tasksOverride !== undefined;
   const enabled = Boolean(user) && !overridden;
   const externalQuery = useQuery({
@@ -39,26 +29,6 @@ export function useCareerTaskSuggestions() {
     staleTime: 30_000,
   });
 
-  const profileLoading =
-    sessionPending || profilePending || workspaceDataLoading;
-  const needsGmailStatus = countCareerProfileLinks(savedProfileLinks) <= 1;
-  const gmailEnabled =
-    enabled && needsGmailStatus && !profileLoading && !profileError;
-  const gmail = useGmailIntegration(user?.id ?? null, {
-    enabled: gmailEnabled,
-  });
-  const gmailConnected = overridden
-    ? tasksOverride.gmailConnected === true
-    : gmail.status === "active";
-  const sourcesLoading =
-    Boolean(user) &&
-    !overridden &&
-    (profileLoading || (gmailEnabled && gmail.status === "loading"));
-  const sourcesError =
-    Boolean(user) &&
-    !overridden &&
-    (Boolean(profileError) || (gmailEnabled && gmail.status === "error"));
-
   return {
     externalFeedback: overridden
       ? (tasksOverride.externalFeedback ?? [])
@@ -68,11 +38,5 @@ export function useCareerTaskSuggestions() {
     retryExternal: () => {
       void externalQuery.refetch();
     },
-    sourcesLoading,
-    sourcesError,
-    sourceSuggestion:
-      !user || sourcesLoading || sourcesError
-        ? null
-        : getCareerProfileSourceSuggestion(savedProfileLinks, gmailConnected),
   };
 }

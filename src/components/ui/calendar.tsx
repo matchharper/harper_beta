@@ -50,30 +50,30 @@ function Calendar({
           "relative flex flex-col gap-4 md:flex-row",
           defaultClassNames.months
         ),
-        month: cn("flex w-full flex-col gap-4", defaultClassNames.month),
+        month: cn("flex w-full flex-col gap-2", defaultClassNames.month),
         nav: cn(
           "absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1",
           defaultClassNames.nav
         ),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          "h-[--cell-size] w-[--cell-size] select-none p-0 aria-disabled:opacity-50",
+          "size-10 select-none rounded-sm p-0 aria-disabled:opacity-50 [&_svg]:size-5",
           defaultClassNames.button_previous,
           navigationButtonClassName
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          "h-[--cell-size] w-[--cell-size] select-none p-0 aria-disabled:opacity-50",
+          "size-10 select-none rounded-sm p-0 aria-disabled:opacity-50 [&_svg]:size-5",
           defaultClassNames.button_next,
           navigationButtonClassName
         ),
         month_caption: cn(
-          "flex h-[--cell-size] w-full items-center justify-center px-[--cell-size]",
+          "flex h-10 w-full items-center justify-center px-10",
           defaultClassNames.month_caption,
           navigationHeaderClassName
         ),
         dropdowns: cn(
-          "flex h-[--cell-size] w-full items-center justify-center gap-1.5 text-sm font-medium",
+          "flex h-10 w-full items-center justify-center gap-1.5 text-[13px] font-normal",
           defaultClassNames.dropdowns
         ),
         dropdown_root: cn(
@@ -85,21 +85,21 @@ function Calendar({
           defaultClassNames.dropdown
         ),
         caption_label: cn(
-          "select-none font-medium",
+          "select-none font-normal",
           captionLayout === "label"
-            ? "text-sm"
+            ? "text-[13px]"
             : "[&>svg]:text-neutral-muted flex h-8 items-center gap-1 rounded-md pl-2 pr-1 text-sm [&>svg]:size-3.5",
           defaultClassNames.caption_label
         ),
         month_grid: cn("w-full border-collapse", defaultClassNames.month_grid),
         weekdays: cn("flex", defaultClassNames.weekdays),
         weekday: cn(
-          "flex-1 select-none rounded-md text-[0.8rem] font-normal text-neutral-muted",
+          "flex-1 select-none text-[11px] font-normal text-neutral-muted",
           defaultClassNames.weekday
         ),
-        week: cn("mt-2 flex w-full", defaultClassNames.week),
+        week: cn("mt-1 flex w-full", defaultClassNames.week),
         week_number_header: cn(
-          "w-[--cell-size] select-none",
+          "w-(--cell-size) select-none",
           defaultClassNames.week_number_header
         ),
         week_number: cn(
@@ -107,20 +107,20 @@ function Calendar({
           defaultClassNames.week_number
         ),
         day: cn(
-          "group/day relative aspect-square h-full w-full select-none p-0 text-center [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
+          "group/day relative h-(--cell-size) w-full select-none p-0 text-center [&:first-child[data-selected=true]_button]:rounded-l-sm [&:last-child[data-selected=true]_button]:rounded-r-sm",
           defaultClassNames.day
         ),
         range_start: cn(
-          "rounded-l-md bg-sky-100",
+          "rounded-l-sm bg-sky-100",
           defaultClassNames.range_start
         ),
         range_middle: cn(
           "rounded-none bg-sky-100",
           defaultClassNames.range_middle
         ),
-        range_end: cn("rounded-r-md bg-sky-100", defaultClassNames.range_end),
+        range_end: cn("rounded-r-sm bg-sky-100", defaultClassNames.range_end),
         today: cn(
-          "rounded-md bg-action-faded text-positive data-[selected=true]:rounded-none",
+          "rounded-sm bg-action-faded text-positive data-[selected=true]:rounded-none",
           defaultClassNames.today
         ),
         outside: cn(
@@ -169,7 +169,7 @@ function Calendar({
         WeekNumber: ({ children, ...props }) => {
           return (
             <td {...props}>
-              <div className="flex size-[--cell-size] items-center justify-center text-center">
+              <div className="flex size-(--cell-size) items-center justify-center text-center">
                 {children}
               </div>
             </td>
@@ -211,7 +211,7 @@ function CalendarDayButton({
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
       className={cn(
-        "flex aspect-square h-auto w-full min-w-[--cell-size] flex-col gap-1 border-transparent bg-transparent font-normal leading-none hover:bg-bg-weak data-[selected-single=true]:bg-primary data-[selected-single=true]:text-neutral-00 data-[range-middle=true]:bg-info-faded data-[range-middle=true]:text-info data-[range-start=true]:bg-info data-[range-start=true]:text-neutral-00 data-[range-end=true]:bg-info data-[range-end=true]:text-neutral-00 data-[range-end=true]:rounded-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-primary group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-primary/30 [&>span]:text-xs [&>span]:opacity-70",
+        "flex h-(--cell-size) w-full min-w-(--cell-size) flex-col gap-1 rounded-sm border-transparent bg-transparent text-[12px] font-normal leading-none hover:bg-bg-weak data-[selected-single=true]:bg-primary data-[selected-single=true]:text-neutral-00 data-[range-middle=true]:bg-info-faded data-[range-middle=true]:text-info data-[range-start=true]:bg-info data-[range-start=true]:text-neutral-00 data-[range-end=true]:bg-info data-[range-end=true]:text-neutral-00 data-[range-end=true]:rounded-sm data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-sm group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-primary group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-primary/30 [&>span]:text-xs [&>span]:opacity-70",
         defaultClassNames.day,
         className
       )}

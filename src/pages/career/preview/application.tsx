@@ -1,3 +1,4 @@
+// career-i18n-skip-file: Internal developer controls and synthetic preview copy.
 import fixture from "@/lib/career/simulation/fixtures/applicationPreview.json";
 import React, { useEffect, useState } from "react";
 import Head from "next/head";

@@ -90,7 +90,7 @@ export async function inspectAshbyForm(
     }
     return {
       status: "partial",
-      submission: { status: "supported", reason: "A public application form is available; conditional fields and submission still require browser verification." },
+      submission: { status: "supported" },
       url: url.href,
       checkedAt: new Date().toISOString(),
       fields,
@@ -98,7 +98,7 @@ export async function inspectAshbyForm(
         .map((f) => f.label + "\n" + f.instructions)
         .join("\n"),
       limitations: [
-        "Public application form inventory includes basic fields, documents, links and custom questions. The application analysis decides which items need advance preparation. Hidden or answer-dependent fields and browser-only format/length constraints have not been verified.",
+        "Public application form inventory includes basic fields, documents, links and custom questions. The application analysis decides which items need advance preparation. Hidden or answer-dependent fields, browser-only format/length constraints and submission have not been verified.",
       ],
     };
   } catch {

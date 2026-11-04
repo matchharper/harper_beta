@@ -1,25 +1,37 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { GMAIL_DISCONNECTED_TOOL_DESCRIPTION } from "./gmailToolSelection";
 
 import {
   CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES,
   getCareerRealtimeToolCandidates,
   resolveCareerChatTools,
-  canStartApplication,
 } from "./llmTools";
 import {
   executeTalentTool,
   TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
 
-test("authoring tools are eligible in ordinary chat and application research stays inside the mode", () => {
+test("appointments are available to post-onboarding chat, background work and voice", () => {
+  for (const background of [false, true]) {
+    const selection = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, background });
+    for (const name of ["read_talent_schedules", "upsert_talent_schedules"])
+      assert.ok(selection.toolNames.includes(name), name);
+  }
+  const voice = getCareerRealtimeToolCandidates("ko");
+  for (const name of ["read_talent_schedules", "upsert_talent_schedules"])
+    assert.ok(voice.some(tool => tool.name === name), name);
+});
+
+test("ordinary chat exposes general research and authoring regardless of legacy mode hints", () => {
   const ordinary = resolveCareerChatTools({
     isOnboardingDone: true,
     channel: "chat",
   });
   for (const name of [
+    "manage_work",
     "save_job_posting",
-    "write_document",
+    "upsert_document",
     "update_talent_profile",
   ])
     assert.ok(ordinary.toolNames.includes(name));
@@ -29,9 +41,9 @@ test("authoring tools are eligible in ordinary chat and application research sta
     simulationActive: true,
     simulationPreparation: true,
   });
-  for (const name of ["web_search", "open_url", "write_document"])
+  for (const name of ["web_search", "open_url", "upsert_document"])
     assert.ok(application.toolNames.includes(name));
-  assert.ok(!application.toolNames.includes("save_job_posting"));
+  assert.deepEqual(application.toolNames, ordinary.toolNames);
   const bounded = resolveCareerChatTools({
     isOnboardingDone: true,
     channel: "chat",
@@ -39,6 +51,25 @@ test("authoring tools are eligible in ordinary chat and application research sta
     allowedToolNames: ["read_document"],
   });
   assert.deepEqual(bounded.toolNames, ["read_document"]);
+});
+
+test("one document writer is exposed across onboarding, ordinary chat and application modes", () => {
+  for (const mode of [
+    { isOnboardingDone: false },
+    { isOnboardingDone: true },
+    { isOnboardingDone: true, simulationActive: true, simulationPreparation: true },
+    { isOnboardingDone: true, simulationActive: true, simulationPreparation: false },
+  ]) {
+    const selection = resolveCareerChatTools({ channel: "chat", ...mode });
+    assert.ok(selection.toolNames.includes("upsert_document"));
+    assert.ok(!selection.toolNames.includes("generate_resume"));
+    const tool = selection.tools.find(tool => tool.function.name === "upsert_document")!;
+    const properties = tool.function.parameters.properties as Record<string, { enum?: string[] }>;
+    assert.deepEqual(properties.action.enum, ["create", "update", "copy"]);
+    assert.deepEqual(properties.type.enum, ["resume", "markdown"]);
+    for (const field of ["content", "changes", "markdown", "edits", "description"])
+      assert.ok(field in properties, field);
+  }
 });
 
 test("post-onboarding voice can apply confirmed recommendation settings", () => {
@@ -147,71 +178,90 @@ test("exposes the input-free coaching list after onboarding as plain text", asyn
   assert.match(text, /연봉 협상 연습하기/);
 });
 
-test("start-card tool is available after onboarding in text chat only", () => {
-  for (const isOnboardingDone of [false, true]) {
-    const chat = resolveCareerChatTools({ channel: "chat", isOnboardingDone, responseLocale: "ko" });
-    assert.equal(chat.toolNames.includes(TALENT_TOOL_NAMES.SIMULATE_APPLICATION),isOnboardingDone);
+test("general application tools replace the six retired tools only after onboarding in text chat", () => {
+  const retired = ["simulate_application", "manage_simulation_session", "manage_application_suggestions", "ready_for_role", "save_application", "apply_for_role"];
+  for (const isOnboardingDone of [false, true]) for (const channel of ["chat", "voice"] as const) {
+    const selection = resolveCareerChatTools({ channel, isOnboardingDone, hasActiveGmailIntegration: true });
+    for (const name of retired) assert.ok(!selection.toolNames.includes(name), name);
+    for (const name of ["use_browser", "suggest_form", "write_email"])
+      assert.equal(selection.toolNames.includes(name), isOnboardingDone && channel === "chat", `${name}/${channel}/${isOnboardingDone}`);
   }
-  assert.ok(!getCareerRealtimeToolCandidates("ko").some(tool => tool.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION));
+  const voice = getCareerRealtimeToolCandidates("ko");
+  for (const name of [...retired, "use_browser", "suggest_form", "write_email"])
+    assert.ok(!voice.some(tool => tool.name === name), name);
 });
 
-test("application questions are mode-only and are an explicit yield boundary",()=>{
-  const ordinary=resolveCareerChatTools({isOnboardingDone:true,channel:"chat"});
-  assert.ok(!ordinary.toolNames.includes("manage_application_suggestions"));
-  assert.ok(!ordinary.toolNames.includes("apply_for_role"));
-  const active=resolveCareerChatTools({isOnboardingDone:true,channel:"chat",simulationActive:true});
-  assert.ok(active.toolNames.includes("manage_application_suggestions"));
-  assert.ok(active.toolNames.includes("apply_for_role"));
-  assert.ok(!active.stopAfterToolNames.includes("apply_for_role"));
-  assert.ok(!active.stopAfterToolNames.includes("manage_application_suggestions"));
-  assert.ok(active.toolNames.includes("ready_for_role"));
-  assert.ok(ordinary.toolNames.includes("simulate_application"));
-  assert.ok(!active.toolNames.includes("simulate_application"));
-  assert.ok(!active.toolNames.includes("update_document"));
-  assert.ok(!active.toolNames.includes("contact_company"));
+test("caller bounds preserve Gmail tools and annotate missing connections", () => {
+  const base = { channel: "chat" as const, isOnboardingDone: true };
+  assert.deepEqual(resolveCareerChatTools({ ...base, allowedToolNames: [] }).toolNames, []);
+  assert.deepEqual(resolveCareerChatTools({ ...base, allowedToolNames: ["read_document"] }).toolNames, ["read_document"]);
+  const unavailable = resolveCareerChatTools({ ...base, allowedToolNames: ["write_email"], hasActiveGmailIntegration: false });
+  assert.deepEqual(unavailable.toolNames, ["write_email"]);
+  assert.ok(unavailable.tools[0].function.description.endsWith(GMAIL_DISCONNECTED_TOOL_DESCRIPTION));
+  const connected = resolveCareerChatTools({ ...base, allowedToolNames: ["write_email"], hasActiveGmailIntegration: true });
+  assert.deepEqual(connected.toolNames, ["write_email"]);
+  assert.ok(!connected.tools[0].function.description.includes(GMAIL_DISCONNECTED_TOOL_DESCRIPTION));
+  assert.deepEqual(connected.stopAfterToolNames, []);
+  assert.deepEqual(resolveCareerChatTools({ ...base, allowedToolNames: ["simulate_application", "apply_for_role"] }).toolNames, []);
 });
 
-test("Apply with Harper uses one guarded resume writer and a compact lifecycle tool", () => {
-  const names = resolveCareerChatTools({isOnboardingDone:true, channel:"chat", simulationActive:true}).tools.map(t => t.function.name);
-  for (const name of ["ready_for_role", "read_document", "manage_application_suggestions", "apply_for_role"]) assert.ok(names.includes(name), name);
-  assert.ok(!names.includes("generate_resume"));
-  assert.ok(resolveCareerChatTools({isOnboardingDone:true,simulationActive:true,simulationPreparation:false}).toolNames.includes("generate_resume"));
-});
-
-test("application tools stay inside caller bounds and shared context tools remain available", () => {
-  const base = {channel: "chat" as const, isOnboardingDone: true, simulationActive: true};
-  assert.deepEqual(resolveCareerChatTools({...base, allowedToolNames: []}).toolNames, []);
-  assert.deepEqual(resolveCareerChatTools({...base, allowedToolNames: ["read_document"]}).toolNames, ["read_document"]);
-  const active = resolveCareerChatTools(base);
-  for (const name of ["read_talent_context", "write_talent_context", "update_talent_profile"])
-    assert.ok(active.toolNames.includes(name), name);
-  assert.deepEqual(resolveCareerChatTools({...base,allowedToolNames:["manage_application_suggestions"]}).stopAfterToolNames,[]);
-  for (const args of [{...base,channel:"voice" as const}, {...base,isOnboardingDone:false}]) {
-    const names=resolveCareerChatTools(args).toolNames;
-    for(const name of ["apply_for_role","manage_application_suggestions","manage_simulation_session","simulate_application"]) assert.ok(!names.includes(name),name);
-  }
-});
-
-test("Start uses ordinary-chat authorization before switching into preparation tools",()=>{
-  const allowed={isOnboardingDone:true,channel:"chat" as const};
-  assert.equal(canStartApplication(allowed),true);
-  assert.equal(canStartApplication({...allowed,simulationActive:true}),true);
-  assert.equal(canStartApplication({...allowed,isOnboardingDone:false}),false);
-  assert.equal(canStartApplication({...allowed,channel:"voice"}),false);
-  assert.equal(canStartApplication({...allowed,allowedToolNames:[]}),false);
-  assert.equal(canStartApplication({...allowed,allowedToolNames:["simulate_application"]}),true);
-  assert.equal(canStartApplication({...allowed,allowedToolNames:["ready_for_role"]}),false);
-});
-
-test("saved application lifecycle is deferred in ordinary chat and uses the same tool name while active", async () => {
+test("disconnected Gmail remains discoverable and loadable with its connection requirement", async () => {
   const { resolveCareerCapabilities } = await import("./capabilities/resolver");
-  const tools = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true }).tools;
+  for (const connected of [false, true]) {
+    const tools = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, hasActiveGmailIntegration: connected }).tools;
+    for (const mode of ["progressive", "full"] as const) {
+      const cold = resolveCareerCapabilities({ eligibleTools: tools, loaded: new Set(), mode });
+      for (const id of ["connected_inbox", "email_writing"])
+        assert.ok(cold.catalogText.includes(id), `${connected}/${mode}/${id}`);
+      const loaded = resolveCareerCapabilities({ eligibleTools: tools, loaded: new Set(["connected_inbox", "email_writing"]), mode });
+      for (const name of ["search_connected_gmail", "write_email"]) {
+        const tool = loaded.tools.find(tool => tool.function.name === name)!;
+        assert.ok(tool, name);
+        assert.equal(tool.function.description.endsWith(GMAIL_DISCONNECTED_TOOL_DESCRIPTION), !connected);
+      }
+    }
+  }
+});
+
+test("browser and email load independently while forms are available immediately", async () => {
+  const { resolveCareerCapabilities } = await import("./capabilities/resolver");
+  const tools = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, hasActiveGmailIntegration: true }).tools;
   const cold = resolveCareerCapabilities({ eligibleTools: tools, loaded: new Set(), mode: "progressive" });
-  assert.ok(cold.catalogText.includes("list/resume saved preparations"));
-  assert.ok(!cold.offeredNames.has("manage_simulation_session"));
-  const loaded = resolveCareerCapabilities({ eligibleTools: tools, loaded: new Set(["application_support"]), mode: "progressive" });
-  assert.ok(loaded.offeredNames.has("manage_simulation_session"));
-  assert.ok(!loaded.offeredNames.has("apply_for_role"));
-  const active = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, simulationActive: true }).tools;
-  assert.equal(active.filter(t => t.function.name === "manage_simulation_session").length, 1);
+  assert.ok(cold.offeredNames.has("suggest_form"));
+  for (const name of ["use_browser", "write_email"]) assert.ok(!cold.offeredNames.has(name));
+  const loaded = resolveCareerCapabilities({ eligibleTools: tools, loaded: new Set(["browser", "email_writing"]), mode: "progressive" });
+  for (const name of ["use_browser", "suggest_form", "write_email", "load_career_capabilities", "load_handbook"])
+    assert.ok(loaded.offeredNames.has(name), name);
+  assert.ok(!loaded.catalogText.includes("saved preparations"));
+});
+
+test("one document writer exposes description and metadata alongside authored content", () => {
+  for (const isOnboardingDone of [false, true]) {
+    const { tools, toolNames } = resolveCareerChatTools({ isOnboardingDone, channel: "chat" });
+    assert.equal(toolNames.filter(name => name === "upsert_document").length, 1);
+    assert.ok(!toolNames.includes("write_document"));
+    assert.ok(!toolNames.includes("update_document"));
+    const parameters = tools.find(tool => tool.function.name === "upsert_document")!.function.parameters as any;
+    for (const key of ["description", "markdown", "edits", "document_id", "expected_revision", "is_public", "is_primary", "kind", "is_deleted"])
+      assert.ok(parameters.properties[key], key);
+  }
+});
+
+test("company capability and voice expose one follow tool for both listing and changes", async () => {
+  const { resolveCareerCapabilities } = await import("./capabilities/resolver");
+  const eligible = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true }).tools;
+  const loaded = resolveCareerCapabilities({ eligibleTools: eligible, loaded: new Set(["companies"]), mode: "progressive" });
+  assert.ok(loaded.offeredNames.has("follow_company"));
+  assert.ok(!loaded.offeredNames.has("list_company_follows"));
+  assert.ok(!loaded.catalogText.includes("list_company_follows"));
+  for (const tools of [eligible.map(tool => tool.function), getCareerRealtimeToolCandidates("ko")]) {
+    assert.ok(!tools.some(tool => tool.name === "list_company_follows"));
+    const follows = tools.filter(tool => tool.name === "follow_company");
+    assert.equal(follows.length, 1);
+    const schema = follows[0].parameters as { properties: Record<string, { enum?: string[] }>; required: string[] };
+    assert.deepEqual(schema.properties.action.enum, ["list", "read", "follow", "update", "unfollow"]);
+    assert.deepEqual(schema.required, ["action"]);
+    assert.ok(schema.properties.include_unfollowed);
+    assert.ok(schema.properties.offset);
+  }
 });

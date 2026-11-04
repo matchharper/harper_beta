@@ -131,3 +131,48 @@ Cards and panels should default to `bg-bg-floating`; nested metadata boxes and i
 3. Use tokens from `src/styles/Design.md`.
 4. Update this file when component usage changes.
 5. Update callsites to use the shared component instead of local copies.
+
+### Conversation examples
+
+```tsx
+import { ConversationExamples } from "@/components/ui/conversation-examples";
+
+<ConversationExamples
+  examples={[{ id: "intro", messages: [
+    { role: "user", text: "인터뷰 준비를 도와줘" },
+    { role: "assistant", text: "어떤 역할의 인터뷰인가요?" },
+  ] }]}
+  navigationLabel="대화 예시"
+  getPageLabel={(page) => `대화 예시 ${page} 보기`}
+/>
+```
+
+`ConversationExamples` defaults to `bg-neutral-50`. Pass `backgroundClassName`
+for another surface, for example `backgroundClassName="bg-primary-faded"`.
+Messages appear sequentially at `messageIntervalMs={1400}` and hold for
+`loopPauseMs={5000}` after the final message before restarting. Set
+`loopPauseMs={null}` to play once. The full layout height is reserved, and reduced
+motion shows all messages immediately without timers.
+
+### SelectBox
+
+Use this for a visible single-choice list, and `Select` for a dropdown.
+The parent owns the selected value; use `null` for no selection.
+
+```tsx
+import { SelectBox } from "@/components/ui/select-box";
+
+<SelectBox
+  aria-label="공개 범위"
+  name="visibility"
+  options={[
+    { value: "details", title: "Everyday details", description: "What a close friend would mention about you." },
+    { value: "public", title: "Public profile only", description: "Friends get the same as everyone else." },
+  ]}
+  value={visibility}
+  onValueChange={setVisibility}
+/>
+```
+
+Options accept `disabled`; the group accepts fieldset props including `disabled`.
+Use `required` when native form submission must require a selection.

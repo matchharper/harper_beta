@@ -1,0 +1,21 @@
+{
+  "runVersion": "channel-final-review-v11",
+  "input": "input-contract-v3.md",
+  "gold": "gold-v2.json",
+  "capturedAt": "2026-10-30T02:55:25.987504+00:00",
+  "sourceHashes": {
+    "src/lib/career/handbooks/application.ts": "dbac43aedf370b27a66c7162bfeddde435cc5af7feaf33b8144a3619ab28b10b",
+    "src/lib/career/handbooks/registry.ts": "da4bf27cedb4da3db7d4f0281eb85d1adfe83d5bb47e6e8792f94e76025f02d9",
+    "src/lib/career/forms/server.ts": "0327a26330cdc0613088a3936d13728bd1c349731404689a5a0efa044f33c95a",
+    "src/lib/career/capabilities/registry.ts": "9e45c1d92ea73f0e0c7a90e220a528e7de3765fb1652cc2f22264a9633e6fb10",
+    "src/lib/career/browser/tool.ts": "35d0c8b23def6686ac4bb380ccc12747d20a05812dfcfb65665b7f5632704221",
+    "src/lib/talentOnboarding/profileStore.ts": "f76df455c73084e3dc4daee39641281922c5df66954f3d0500a40fd3a886aa1b",
+    "src/lib/career/profiles/tools.ts": "73ad7df6b197eb7224e8288f548f545692a5197e2d752173102858c97eb9c6d7"
+  },
+  "limitations": [
+    "Live website and conversation are not frozen",
+    "Same real posting repeated; not five distinct applications",
+    "Final submit CTA not clicked on behalf of user"
+  ],
+  "privateArtifacts": "runs/channel-final-review-v11/"
+}

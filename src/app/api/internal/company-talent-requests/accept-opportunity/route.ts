@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       admin.from("talent_opportunity_recommendation" as any) as any
     )
       .select(
-        "id, opportunity_type, company_role:company_roles!inner(source_type, status, is_expired, expires_at, information)"
+        "id, role_id, opportunity_type, company_role:company_roles!inner(source_type, status, is_expired, expires_at, information)"
       )
       .eq("id", recommendationId)
       .eq("talent_id", talentId)
@@ -91,8 +91,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if(decision==='accept') {
+      const messageId=Number(confirmation.confirmedUserMessageId ?? confirmation.userMessageId);
+      const conversationId=String(confirmation.conversationId ?? '');
+      if(!Number.isSafeInteger(messageId) || messageId<=0 || !conversationId || confirmation.status!=='confirmed') {
+        return NextResponse.json({error:'verified_candidate_acceptance_source_required'}, {status:400});
+      }
+      const {encodeMaterialSelection}=await import('@/lib/agentContacts/contracts');
+      const reviewed=body.acceptanceMaterial as {materialId?:unknown;assignmentRevision?:unknown}|undefined;
+      const selectionRef=typeof body.selectionRef==='string' ? body.selectionRef
+        : typeof confirmation.selectionRef==='string' ? confirmation.selectionRef
+        : reviewed && typeof reviewed.materialId==='string' && Number.isSafeInteger(reviewed.assignmentRevision)
+          ? encodeMaterialSelection({materialId:reviewed.materialId,assignmentRevision:Number(reviewed.assignmentRevision)}) : undefined;
+      if(reviewed && !selectionRef) return NextResponse.json({error:'reviewed_material_version_required',historyShouldRefresh:true},{status:409});
+      const {sendAgentContact}=await import('@/lib/agentContacts/store');
+      const accepted=await sendAgentContact({source:{kind:'career',talentId,conversationId,messageId},
+        operationKey:`career:${messageId}:contact_company:${recommendationId}`,recommendationId,acceptIntroduction:true,selectionRef,
+        message:`The candidate confirmed an introduction request for this Role.${body.feedbackReason?`\nCandidate's note: ${String(body.feedbackReason)}`:''}`});
+      const {dispatchOrgAgentWebActionJob}=await import('@/lib/org/agent/webActionTurn');
+      if(accepted.message.receiver_job_id) {
+        try {await dispatchOrgAgentWebActionJob({admin:admin as any,jobId:accepted.message.receiver_job_id});}
+        catch(error) {console.error('[agent-contact:legacy-dispatch]',error);}
+      }
+      return NextResponse.json({ok:true,recommendationId,acceptedAt:accepted.message.created_at,
+        companyShared:true,introductionRootId:accepted.message.root_id,agentMessageId:accepted.message.id,humanDelivery:false});
+    }
     const result = await updateTalentOpportunityHistoryItem({
       action: "feedback",
+      acceptanceMaterial: body.acceptanceMaterial && typeof body.acceptanceMaterial === "object" ? body.acceptanceMaterial as { materialId:string|null; assignmentRevision:number } : undefined,
       admin,
       emailAcceptanceConfirmation: confirmation as Json,
       feedback: decision === "decline" ? "negative" : "positive",
@@ -101,7 +127,7 @@ export async function POST(req: NextRequest) {
           .trim()
           .slice(0, 1_000) || null,
       opportunityId: recommendationId,
-      savedStage: decision === "accept" ? "connected" : null,
+      savedStage: null,
       userId: talentId,
     });
     return NextResponse.json({

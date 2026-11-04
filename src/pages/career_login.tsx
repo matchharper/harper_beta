@@ -31,6 +31,7 @@ import { useMessages, type Locale } from "@/i18n/useMessage";
 import {
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+  OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM,
   OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
 } from "@/lib/officialJobs";
 import {
@@ -375,6 +376,9 @@ const CareerLoginContent = () => {
   const officialJobSlugParam = getSingleQueryValue(
     router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM]
   ).trim();
+  const officialJobRoleIdParam = getSingleQueryValue(
+    router.query[OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM]
+  ).trim();
   const officialJobSlugFromNext = useMemo(
     () => officialJobsSlugFromNextPath(nextPath),
     [nextPath]
@@ -444,6 +448,16 @@ const CareerLoginContent = () => {
         emailOnboardingTokenParam
       );
     }
+    if (
+      sourceParam === OFFICIAL_JOBS_LANDING_SOURCE &&
+      officialJobRoleIdParam &&
+      !nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM)
+    ) {
+      nextUrl.searchParams.set(
+        OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM,
+        officialJobRoleIdParam
+      );
+    }
     return `${nextUrl.pathname}${nextUrl.search}`;
   }, [
     abtestTypeParam,
@@ -452,6 +466,7 @@ const CareerLoginContent = () => {
     referralParam,
     localIdParam,
     nextPath,
+    officialJobRoleIdParam,
     officialJobSlugParam,
     officialJobTitleParam,
     sourceParam,

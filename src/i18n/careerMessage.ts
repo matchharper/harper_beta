@@ -2,8 +2,8 @@ import { ko } from "@/lang/ko";
 import type { MessageDictionary } from "@/i18n/useMessage";
 
 const CAREER_SOURCE_TO_KEY = new Map(
-  Object.entries((ko.career ?? {}) as Record<string, string>).map(
-    ([key, value]) => [normalizeCareerMessage(value), key]
+  Object.entries(ko.career ?? {}).flatMap(([key, value]) =>
+    typeof value === "string" ? [[normalizeCareerMessage(value), key] as const] : []
   )
 );
 

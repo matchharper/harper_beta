@@ -1,0 +1,8 @@
+{
+  "version": "v2",
+  "provenance": "Synthetic .invalid candidate and site. V1 retained. V2 fixes fixture-only state advance on inspections, binds observation to user turn and supplies complete review fields/consent. Frozen before v2 model calls; rubric unchanged. Manual reviewer: Codex.",
+  "hashes": {
+    "cases-v2.json": "aeecac5d3766bdda2fbd3f686857aa4c7162924f930e7134ce9c26c383116361",
+    "gold-v1.json": "0f2a4252a78b231196a5c095cba805cc22757b9cdb1a0f7a44d8781cae8186b3"
+  }
+}

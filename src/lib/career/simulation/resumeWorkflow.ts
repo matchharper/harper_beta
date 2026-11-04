@@ -1,4 +1,19 @@
 import type { SimulationSession } from "./session";
+import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { isResumeDocumentWrite } from "@/lib/documents/authoring";
+
+export async function assertApplicationDocumentWrite(
+  session: SimulationSession,
+  args: { name: string; input: Record<string, unknown>; admin: TalentAdminClient; userId: string },
+) {
+  if (session.status !== "active") return;
+  const writesResume = args.name === "generate_resume" ||
+    (args.name === "upsert_document" && await isResumeDocumentWrite(args));
+  if (!writesResume) return;
+  if (session.preparation)
+    throw new Error("Use ready_for_role to preserve the selected source and save the prepared resume");
+  assertApplicationResumeWrite(session);
+}
 
 export function assertApplicationResumeWrite(s: SimulationSession) {
   if (s.analysisStatus !== "completed") throw new Error("Finish the application analysis first");

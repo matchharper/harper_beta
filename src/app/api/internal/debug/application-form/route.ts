@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { applicationDiscoveryCase } from "@/lib/ops/applicationDiscoveryCases";
 import { z } from "zod";
 import {
   requireInternalApiUser,
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
           .object({
             resolveOfficialLink: z.literal(true),
             roleId: z.string().uuid().optional(),
+            presetId: z.string().optional(),
             url: z.string().trim().url().optional(),
           })
           .strict(),
@@ -55,7 +57,9 @@ export async function POST(req: NextRequest) {
           .strict(),
       ])
       .refine(
-        (value) => value.url || (value.resolveOfficialLink && value.roleId)
+        (value) =>
+          value.url ||
+          (value.resolveOfficialLink && (value.roleId || value.presetId))
       )
       .safeParse(await req.json().catch(() => null));
     if (!parsed.success)
@@ -63,8 +67,15 @@ export async function POST(req: NextRequest) {
         { error: "공고를 선택하거나 직접 조사할 URL을 입력해 주세요." },
         { status: 400 }
       );
+    const preset =
+      parsed.data.resolveOfficialLink && parsed.data.presetId
+        ? applicationDiscoveryCase(parsed.data.presetId)
+        : null;
     const role =
-      parsed.data.resolveOfficialLink && parsed.data.roleId && !parsed.data.url
+      !preset &&
+      parsed.data.resolveOfficialLink &&
+      parsed.data.roleId &&
+      !parsed.data.url
         ? await loadInspectionRole(parsed.data.roleId, req.signal)
         : null;
     let url = "";
@@ -97,7 +108,11 @@ export async function POST(req: NextRequest) {
         };
         try {
           if (parsed.data.resolveOfficialLink)
-            await runResolvedInspectionDebug(role ?? url, signal, send);
+            await runResolvedInspectionDebug(
+              preset?.source ?? role ?? url,
+              AbortSignal.any([signal, AbortSignal.timeout(240_000)]),
+              send
+            );
           else await runInspectionDebug(url, signal, send);
         } catch (error) {
           send({

@@ -5,7 +5,7 @@ import { createCandidateEmailPrivacy } from "./candidateEmailPrivacy";
 import { resolveOrgAgentPrivateCandidateEmails } from "../server";
 import { appendToolDiagnosticText, formatToolError, serializeToolResultForModel } from "@/lib/llm/toolError";
 import { runToolCall, unwrapToolCall, prepareToolDeliveryParts } from "@/lib/llm/toolExecution";
-import { buildCompanyUpdatePrompt } from "./companyUpdate";
+import { buildCompanyUpdatePrompt, companyUpdateInitialCapabilities } from "./companyUpdate";
 import { companyConversationReadAdmin } from "./companyReadScope.server";
 import { recordOrgAgentFailure } from "./errorLogging";
 import { buildCompanyContactEventPrompt } from "@/lib/org/agent/contactEventPrompt";
@@ -584,6 +584,8 @@ export type OrgAgentLoopDependencies = {
 export async function runOrgAgentToolLoop(
   args: {
     allowSilentCompletion?: boolean;
+    /** Durable event callers must retain execution failures for queue recovery. */
+    throwOnToolExecutionError?: boolean;
     backgroundOrigin?: "scheduled_review" | "scheduled_matching";
     /** A Harper event or assignment, not a live company message (e.g. a web action event). */
     harperInitiated?: boolean;
@@ -794,7 +796,7 @@ export async function runOrgAgentToolLoop(
     }
 
     const shouldAttemptVisibleProgress = Boolean(
-      assistantText && !visibleProgressPublished && args.onVisibleProgress && !toolCalls.some(call => call.function.name === "send_company_message")
+      assistantText && (args.source === "chat" || !visibleProgressPublished) && args.onVisibleProgress && !toolCalls.some(call => call.function.name === "send_company_message")
     );
     let deliveredThisStep = false;
     if (shouldAttemptVisibleProgress) {
@@ -802,9 +804,8 @@ export async function runOrgAgentToolLoop(
         model: activeModel,
         text: assistantText,
       });
-      // A failed provider delivery does not permit repeated progress attempts
-      // for every later tool call. It only changes what the model may assume
-      // the user has already seen.
+      // Slack delivery keeps its existing single-progress receipt. Web chat
+      // commits each message before continuing the same tool loop.
       visibleProgressPublished = true;
     } else {
       // Tool-step prose which was not accepted as a progress message must not
@@ -1077,6 +1078,8 @@ export async function runOrgAgentToolLoop(
         const isInputError =
           error instanceof OrgAgentToolInputError ||
           (error instanceof OrgHttpError && error.status < 500);
+        if (args.throwOnToolExecutionError && !isInputError && !billingNotice)
+          throw error;
         const errorMessage = billingNotice
           ? "This action is blocked; repeating the same request will not resolve it."
           : error;
@@ -1115,8 +1118,8 @@ export async function runOrgAgentToolLoop(
     if (assistantText) {
       messages.push({
         content: deliveredThisStep
-          ? "The preceding assistant text was accepted by the surface adapter as the single visible progress update for this turn. Do not make the terminal response depend on the user having seen it."
-          : "The preceding assistant text was retained only as internal turn history and was not delivered to the user. Do not assume the user saw it and do not emit another progress update.",
+          ? "The preceding assistant text was delivered to the user. Continue from it without repeating it."
+          : "The preceding assistant text was retained only as internal turn history and was not delivered to the user. Do not assume the user saw it.",
         role: "system",
       });
     }
@@ -1397,7 +1400,7 @@ export async function runOrgAgentWebActionTurn(args: {
   }
   const context = await buildOrgAgentPromptContext({
     admin,
-    beforeMessageId: isCompanyUpdate || isCandidateContact ? undefined : args.anchorMessageId,
+    includeLatestConversation: true,
     includeSharedConversation: true,
     conversation: contextConversation,
     currentUserMessageId: args.anchorMessageId,
@@ -1429,11 +1432,13 @@ export async function runOrgAgentWebActionTurn(args: {
         `action_name=${args.actionName}`,
         `verified_action_context=${eventContext}`,
         "The action above has already committed and records what succeeded at that point in time. Fresh current state and tool results are authoritative if a later action has changed it. Do not repeat the action. Decide whether any useful follow-up work or company-facing message is warranted. It is not a chat command and does not require a reply.",
+        "The conversation may contain another turn's ongoing assignment. Check its recorded effects and current searches before continuing that work; a prior user request is not a fresh request on every event. An existing queued/running search already covers its recorded scope and will report its outcome.",
         "</authenticated_web_action_event>",
       ].join("\n");
 
   const llmResult = await runOrgAgentToolLoop({
     allowSilentCompletion: !isHiringBriefRequest && (!isCompanyUpdate || companyMessageAlreadyDelivered),
+    initialCapabilities: isCompanyUpdate ? companyUpdateInitialCapabilities(args.actionContext) : undefined,
     harperInitiated: true,
     companyMessageAudience,
     slackExecutionContext,
@@ -1872,6 +1877,8 @@ export async function runOrgAgentChat(args: {
           ? undefined
           : async ({ model, text }) => {
               textStream.replace(text);
+              thinkingLogs = thinkingLogs.map(log => log.id === "response" && log.status === "running"
+                ? { ...log, status: "done" as const } : log);
               const progressMessage = await insertOrgAgentMessage({
                 admin,
                 content: text,
@@ -1880,7 +1887,7 @@ export async function runOrgAgentChat(args: {
                   agentTurn: {
                     phase: "progress",
                     runId: directTurnRunId,
-                    sequence: 0,
+                    sequence: assistantMessages.length,
                     trigger: "direct_message",
                   },
                   model,
@@ -1898,6 +1905,7 @@ export async function runOrgAgentChat(args: {
               assistantMessages.push(progressMessage);
               args.emit?.("assistant_message", progressMessage);
               textStream.committed();
+              if (!args.slackThreadId) thinkingLogs = [];
               return args.onAssistantProgress
                 ? args.onAssistantProgress(progressMessage)
                 : true;

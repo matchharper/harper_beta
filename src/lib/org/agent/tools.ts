@@ -1,4 +1,5 @@
 import { COMPANY_EMAIL_PREFERENCE_TOOL } from "@/lib/email/companyPreferencesContract";
+import { READ_AGENT_MESSAGES_TOOL, CONTACT_USER_TOOL, COMPANY_SCHEDULE_TOOL } from "@/lib/agentContacts/toolContracts";
 import { COMPANY_LANGUAGE_SETTING_TOOL } from "@/lib/org/agent/languageSettingContract";
 /**
  * Tool contracts exposed to the organization-wide Harper agent.
@@ -24,6 +25,7 @@ function nullableText(description: string, maxLength: number) {
 }
 
 export const ORG_AGENT_TOOL_NAMES = [
+  "read_agent_messages", "contact_user", "manage_agent_schedule",
   "update_email_preferences",
   "update_language_setting",
   "report_issue",
@@ -66,6 +68,7 @@ export const ORG_AGENT_TOOL_NAMES = [
 export type OrgAgentToolName = (typeof ORG_AGENT_TOOL_NAMES)[number];
 
 export const ORG_AGENT_TOOLS = [
+  READ_AGENT_MESSAGES_TOOL, CONTACT_USER_TOOL, COMPANY_SCHEDULE_TOOL,
   COMPANY_EMAIL_PREFERENCE_TOOL,
   COMPANY_LANGUAGE_SETTING_TOOL,
   {
@@ -316,7 +319,7 @@ export const ORG_AGENT_TOOLS = [
             description: "Includes the authorized profile. outline returns current location and complete work/education/extras metadata, including all employers, roles and dates, but omits bio and descriptive bodies. Use it for broad lists and career-path comparisons when those facts suffice. full returns the original bio and all descriptive evidence for substantive work, achievements or detailed fit explanations. Expand only the candidates needing that evidence; no batch-size limit. Omit includeProfile or set it true when specifying this field.",
           },
           profileSections: {
-            type: "array", items: { type: "string", enum: ["bio", "experience", "education", "extras"] },
+            type: "array", items: { type: "string", enum: ["bio", "experience", "education", "extras", "documents"] },
             description: "Select the source sections needed for this question before reading many profiles. For example, experience returns every work-history row and its full descriptive evidence without unrelated biography, education or extras. Omit for all sections; [] returns current location only. Identity and company relationship facts always remain. Combine with profileView=outline for metadata only, or full/omitted for original prose. Sections left out are not evidence of absence and can be read later. No candidate-count or prose-length limit.",
           },
           progressLimit: {
@@ -557,8 +560,10 @@ export const ORG_AGENT_TOOLS = [
   {
     type: "function", function: {
       name: "publish_role_recommendations",
-      description: "Publish selected company-first candidates for one Role. kind=add takes only the new IDs to add and preserves every existing card; an empty add changes nothing. kind=replace takes the complete desired untouched list, including retained existing IDs; omitted untouched cards retire without rejection, and [] clears that pool. Read matching.view=selection for evidence and current membership. The server manages Brief/pool versions. New candidates need current stage-2 evidence and sharing eligibility. The web API writes descriptions concurrently, one call per selected candidate, using their recorded scores without reranking or topping up. The tool waits for every description and the atomic list save. Existing cards included in add remain unchanged; replace can retain existing cards without current scores. Save/Pass/Accept/Intro progress is preserved. This never contacts candidates or moves them to connection pending. A completed result confirms the saved additions, refreshes, removals and retained candidates; there is no background publication wait.",
-      parameters: {type:"object",additionalProperties:false,required:["roleId","kind","talentIds"],properties:{
+      description: "With introductionRootId and presentation, publish the already candidate-accepted introduction to the Role inbox without score gating or another writer; this saves the presentation and never notifies people or makes a company decision. Without introductionRootId, publish selected company-first candidates for one Role. kind=add takes only the new IDs to add and preserves every existing card; an empty add changes nothing. kind=replace takes the complete desired untouched list, including retained existing IDs; omitted untouched cards retire without rejection, and [] clears that pool. Read matching.view=selection for evidence and current membership. The server manages Brief/pool versions. New candidates need current stage-2 evidence and sharing eligibility. The web API writes descriptions concurrently, one call per selected candidate, using their recorded scores without reranking or topping up. The tool waits for every description and the atomic list save. Existing cards included in add remain unchanged; replace can retain existing cards without current scores. Save/Pass/Accept/Intro progress is preserved. The company-first discovery mode never contacts candidates or moves them to connection pending. A completed result confirms the saved additions, refreshes, removals and retained candidates; there is no background publication wait.",
+      parameters: {type:"object",additionalProperties:false,required:["roleId"],properties:{
+        introductionRootId:{type:"string",description:"For a candidate-accepted introduction: publish that exact shared candidate to the Role inbox, preserving later company decisions. No evaluation score prerequisite. Supply presentation from your own judgment; no separate writer runs. This is independent of contact_user and never sends a human notification."},
+        presentation:{type:"string",description:"Company-facing presentation for introductionRootId, grounded in the shared materials and company context."},
         roleId:{type:"string"},
         kind:{type:"string",enum:["add","replace"],description:"add preserves existing recommendations and adds only talentIds. replace makes talentIds the complete untouched recommendation list."},
         sourceRunId:{type:"string",description:"Optional saved run whose exact evaluation references should be reused without discovery or stage-1/2 scoring. Read selection with that runId first. Its Brief must equal the current saved Brief; prior criteria never become current criteria implicitly. Omit to use latest current-Brief evaluations."},
@@ -937,7 +942,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
     type: "function",
     function: {
       name: "contact_talent",
-      description: "Deliver a message to exact candidate(s), or prepare/revise a reviewable draft, schedule an approved draft, expedite a queued delivery, or cancel. Choose send vs create_draft from conversational authorization under the loaded candidate_contact policy, not the topic. send accepts talentId + roleId + messageContent for an authorized new message, or relayId + messageContent for a continuation. One target or items of up to ten; inspect partial outcomes. This never changes candidate interest, sharing consent, or pipeline stage.",
+      description: "For an agent introduction, action=send_to_agent sends messageContent asynchronously to the candidate agent using introductionRootId or replyToMessageId. This does not directly notify the candidate. For existing legacy contacts, deliver a message to exact candidate(s), or prepare/revise a reviewable draft, schedule an approved draft, expedite a queued delivery, or cancel. Choose send vs create_draft from conversational authorization under the loaded candidate_contact policy, not the topic. send accepts talentId + roleId + messageContent for an authorized new message, or relayId + messageContent for a continuation. One target or items of up to ten; inspect partial outcomes. This never changes candidate interest, sharing consent, or pipeline stage.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -945,6 +950,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
             description:
               "Lifecycle action applied to the singular target or every batch item. add_followup/reschedule_followup/cancel_followup manage stored future contact dates. For these use singular followup references; inspect each result before the next mutation.",
             enum: [
+              "send_to_agent",
               "create_draft",
               "send",
               "revise_draft",
@@ -958,6 +964,8 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
             type: "string",
           },
           contactRef: { description: "For reschedule_followup/cancel_followup: exact followup contactRef from a current read. Only the followup changes, preserving the original request.", type: "string" },
+          introductionRootId: {type:"string",description:"For send_to_agent: exact introduction from read_agent_messages. Delivers messageContent to the candidate's agent asynchronously; it is not an email or evidence of candidate consent. Preserve company-sensitive context within the company."},
+          replyToMessageId: {type:"string",description:"Optional exact agent message being answered."},
           sourceContactRef: { description: "For add_followup: exact sourceContactRef from a current read. Supports contact:<id>, intro_request:<id>, meeting_round:<id>, or interview_request:<meeting id>.", type: "string" },
           scheduledAt: { description: "For add_followup/reschedule_followup: ISO date with timezone from which the candidate-side Harper Agent can follow up. Actual delivery may be later depending on the candidate conversation.", type: "string" },
           contactId: {

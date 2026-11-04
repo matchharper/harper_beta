@@ -1,8 +1,10 @@
+import { resolveRoleSharedMaterials, projectRoleMaterialDocuments } from "@/lib/career/roleMaterials/store";
 import { projectCompanyPublicExtras, projectCompanyPublicProfile, projectCompanyPublicProfileFromDetail } from "../publicProfile";
 import { readOrgCandidateDetail } from "../candidatePreview.server";
 import { isOrgCandidateProfilePreview } from "../candidatePreview";
 import { projectOrgCandidateDetailForAgent } from "./candidatePreviewRead";
 import { isCompanyVisibleRole } from "@/lib/org/roleVisibility";
+import { memoOrgRead, withOrgReadScope } from "../requestScope.server";
 import { readOpsCompatibleContacts } from "@/lib/companyTalentRequests/readOpsCompatible";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import type { User } from "@supabase/supabase-js";
@@ -234,6 +236,7 @@ export async function fetchOrgAgentRoles(args: {
   user: User;
   workspaceId: string;
 }) {
+  return memoOrgRead(args.admin, ["agent-roles", args.workspaceId, args.user.id, args.user.email], async () => {
   const access = await readOrgRoleAccess(args);
   let query = (args.admin.from("company_roles" as any) as any)
     .select(
@@ -377,6 +380,7 @@ export async function fetchOrgAgentRoles(args: {
       const title = left.name.localeCompare(right.name, "ko");
       return title || left.roleId.localeCompare(right.roleId);
     });
+  });
 }
 
 async function assertRoleInWorkspace(args: {
@@ -1550,7 +1554,7 @@ async function readOrgAgentTalentFromPairs(args: {
   const recommendationIds = [...visibleItemByRecommendationId.keys()];
   const visibleRoleIds = unique(visibleItems.map((item) => item.roleId));
 
-  const [{ data: recommendationData, error: recommendationError }, talentById] =
+  const [{ data: recommendationData, error: recommendationError }, talentById, introductionResult] =
     await Promise.all([
       (args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any)
         .select(RECOMMENDATION_FIELDS)
@@ -1562,8 +1566,16 @@ async function readOrgAgentTalentFromPairs(args: {
         includeProfile: Boolean(args.includeProfile),
         talentIds: [talentId],
       }),
+      (args.admin.from("talent_opportunity_recommendation" as any) as any)
+        .select("id, agent_introduction_root_id")
+        .eq("talent_id", talentId)
+        .in("id", recommendationIds),
     ]);
   if (recommendationError) throw recommendationError;
+  if (introductionResult.error) throw introductionResult.error;
+  const introductionByRecommendationId = new Map<string, string | null>(
+    (introductionResult.data ?? []).map((row: any) => [row.id, row.agent_introduction_root_id])
+  );
   const recommendations = (recommendationData ?? []) as RecommendationRow[];
   const talent = talentById.get(talentId);
   if (!talent || recommendations.length === 0) {
@@ -1664,6 +1676,16 @@ async function readOrgAgentTalentFromPairs(args: {
     });
   }
 
+  const roleProfiles = args.includeProfile ? await Promise.all(visibleRoleIds.map(async roleId => {
+    const material = await resolveRoleSharedMaterials({ admin: args.admin, userId: talentId, roleId, workspaceId: args.workspaceId });
+    if (!material?.profile_snapshot) return { roleId, materialId: null, profile };
+    const snapshot = material.profile_snapshot;
+    return { roleId, materialId: material.id, profileId: material.profile_id, revision: material.profile_revision,
+      profile: { ...projectCompanyPublicProfile({ bio: snapshot.talentUser?.bio, location: snapshot.talentUser?.location ?? snapshot.talentUser?.current_location,
+        experiences: snapshot.talentExperiences, education: snapshot.talentEducations, extras: snapshot.talentExtras }), documents: projectRoleMaterialDocuments(material) } };
+  })) : [];
+  if (roleProfiles.length === 1) profile = roleProfiles[0].profile;
+  else if (roleProfiles.some(item => item.materialId)) profile = null;
   const candidateName = talent.name ?? talent.email ?? talentId;
   return {
     candidate: {
@@ -1680,6 +1702,7 @@ async function readOrgAgentTalentFromPairs(args: {
           existingFeedback: row.feedback,
           candidateAcceptedAt: row.feedback === "like" ? row.feedback_at : null,
           recommendationOrigin: row.opportunity_type === "intro_request" ? "company_intro_request" : "harper_recommendation",
+          agentIntroductionRootId: introductionByRecommendationId.get(row.id) ?? null,
           feedbackReason: row.feedback_reason,
           fitReasons: stringList(row.fit_reasons),
           fitSummary: clip(row.fit_summary, 700) || null,
@@ -1714,6 +1737,7 @@ async function readOrgAgentTalentFromPairs(args: {
       ];
     })],
     profile,
+    roleProfiles: roleProfiles.some(item => item.materialId) ? roleProfiles : [],
     profileIncluded: Boolean(args.includeProfile),
     responseGuide: buildReadTalentResponseGuide({
       name: candidateName,
@@ -1755,7 +1779,11 @@ export async function readOrgAgentTalent(args: Parameters<typeof readOrgAgentTal
   }
 }
 
-export async function readOrgAgentTalents(args: {
+export function readOrgAgentTalents(args: Parameters<typeof readOrgAgentTalentBatch>[0]) {
+  return withOrgReadScope(() => readOrgAgentTalentBatch(args));
+}
+
+async function readOrgAgentTalentBatch(args: {
   admin: OrgAgentAdminClient;
   audience?: OrgAgentReadAudience;
   includeProfile?: boolean;

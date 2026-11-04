@@ -47,6 +47,7 @@ export function canUseCareerDevControls(value: string | null | undefined) {
   return (
     process.env.NODE_ENV !== "production" ||
     getEmailDomain(normalized) === INTERNAL_EMAIL_DOMAIN ||
+    normalized === "shaunlimshaunlim@gmail.com" ||
     normalized === "hyunbin.bk@gmail.com" ||
     normalized === "khj605123@gmail.com"
   );
@@ -56,6 +57,7 @@ export function canUseOrgDevControls(value: string | null | undefined) {
   const normalized = normalizeEmail(value);
   return (
     isInternalDomainEmail(normalized) ||
+    normalized === "shaunlimshaunlim@gmail.com" ||
     normalized === "hyunbin.bk@gmail.com" ||
     normalized === "khj605123@gmail.com"
   );

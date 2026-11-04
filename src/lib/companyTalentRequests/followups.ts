@@ -46,8 +46,9 @@ export async function listCompanyFollowups(args: {
   if (error) throw error;
   const rows = data ?? [];
   if (!rows.length) return { items: [], hasMore: false, limit, offset, dateBasis: args.dateBasis ?? "scheduled" };
-  const { data: states, error: stateError } = await args.admin.from("opportunity_scheduler_state")
-    .select("talent_id,next_check_at").in("talent_id", [...new Set(rows.map((row: any) => row.talent_id))]);
+  const { data: states, error: stateError } = await args.admin.rpc("read_career_company_followup_execution", {
+    p_ids: rows.slice(0, limit).map((row: any) => row.id),
+  });
   if (stateError) throw stateError;
   const items = await Promise.all(rows.slice(0, limit).map(async (row: any) => {
     const [{ data: source, error: sourceError }, { data: deliveries, error: deliveryError }] = await Promise.all([
@@ -59,7 +60,8 @@ export async function listCompanyFollowups(args: {
     const email = (deliveries ?? []).find((d: any) => d.channel === "email");
     const chat = (deliveries ?? []).find((d: any) => d.channel === "chat");
     const changeable = row.status === "pending" && !row.delivery_started_at && email?.status !== "sent";
-    const nextCheck = (states ?? []).find((s: any) => s.talent_id === row.talent_id)?.next_check_at ?? null;
+    const execution = (states ?? []).find((s: any) => s.followupId === row.id);
+    const nextCheck = execution?.nextCheckAt ?? null;
     // A talent email can bundle other companies and private career content.
     // Shared history exposes receipts, never the unrestricted whole message.
     const body = null;
@@ -78,7 +80,8 @@ export async function listCompanyFollowups(args: {
       : !source?.active ? "원본 요청 종료 · 후속 연락 불가"
       : !source?.originalSentAt ? "최초 이메일 전달을 기다리는 후속 일정"
       : !row.due_at ? "최초 전달 후 날짜 확정 대기"
-      : new Date(row.due_at).getTime() <= Date.now() ? "예정일 도래 · 후보자 측 Harper Agent가 후속 연락 진행 예정" : "후속 연락 예정";
+      : execution?.reviewOutcome === "no_send" ? nextCheck ? "검토 완료 · 미발송 · 다음 점검 예약됨" : "검토 완료 · 이번 후속 연락 미발송"
+      : new Date(row.due_at).getTime() <= Date.now() ? "예정일 도래 · 후속 연락 아직 미발송" : "후속 연락 예정";
     return {
       contactRef: `followup:${row.id}`, kind: "followup", followupId: row.id, expectedRevision: row.revision,
       sourceContactRef: `${row.source_kind === "intro" ? "intro_request" : row.source_kind === "contact" ? "contact" : "meeting_round"}:${row.source_id}`,
@@ -89,6 +92,7 @@ export async function listCompanyFollowups(args: {
         : args.dateBasis === "created" ? row.created_at : args.dateBasis === "updated" ? row.updated_at : row.due_at,
       initiatedBy: "Harper", state, delayDays: row.delay_days,
       scheduledAt: row.due_at, nextCheckAt: nextCheck, firstEmailSentAt: source?.originalSentAt ?? null,
+      reviewedAt: execution?.reviewedAt ?? null,
       request: source?.requestSummary, status: row.status, history,
       availableActions: changeable ? [...(source?.active ? ["reschedule_followup"] : []), "cancel_followup"] : email?.status === "failed" && row.status === "pending" ? ["cancel_followup"] : [],
       message: { scheduledAt: row.due_at, sentAt: email?.status === "sent" ? email.sent_at : null,

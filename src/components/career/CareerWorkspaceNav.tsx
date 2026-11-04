@@ -1,7 +1,6 @@
 import {
   BriefcaseBusiness,
   Inbox,
-  Files,
   PanelLeft,
   Settings,
   SlidersHorizontal,
@@ -91,10 +90,8 @@ export const getCareerWorkspaceTabFromPath = (path: string) => {
 
 export type CareerDesktopNavTab =
   | "tasks"
-  | "new"
-  | "saved"
+  | "history"
   | "profile"
-  | "documents"
   | "brief";
 
 export function CareerNewOpportunityIcon({ className }: { className?: string }) {
@@ -113,17 +110,9 @@ export const getCareerDesktopNavLabels = (
   t: ReturnType<typeof useCareerT>
 ): Record<CareerDesktopNavTab, string> => ({
   tasks: t("career.tasks.title", "할 일"),
-  new: t("career.workspace.new_opportunities", "새 기회"),
-  saved: t("career.workspace.my_opportunities", "내 기회"),
-  profile: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
-  documents: t(
-    "career.profile.career_profile_workspace.14bifvm",
-    "이력서/링크"
-  ),
-  brief: t(
-    "career.profile.career_profile_workspace.search_brief_tab",
-    "선호 기준"
-  ),
+  history: t("career.workspace.opportunities", "기회"),
+  profile: t("career.workspace.my_information", "내 정보"),
+  brief: t("career.profile.career_profile_workspace.search_brief_tab", "원하는 조건"),
 });
 
 // Match the /org sidebar's row geometry and selection treatment.
@@ -192,9 +181,9 @@ const CareerWorkspaceNav = ({
       count: decisionCount,
     },
     {
-      id: "new",
-      icon: <CareerNewOpportunityIcon />,
-      label: navLabels.new,
+      id: "history",
+      icon: <BriefcaseBusiness className="size-4.5" strokeWidth={1.5} />,
+      label: navLabels.history,
       count:
         pendingInternalRoleFeedbackCount > 0
           ? pendingInternalRoleFeedbackCount
@@ -203,19 +192,9 @@ const CareerWorkspaceNav = ({
         pendingInternalRoleFeedbackCount > 0 ? undefined : "bg-action text-white",
     },
     {
-      id: "saved",
-      icon: <BriefcaseBusiness className="size-4.5" strokeWidth={1.5} />,
-      label: navLabels.saved,
-    },
-    {
       id: "profile",
       icon: <User className="size-4.5" strokeWidth={1.5} />,
       label: navLabels.profile,
-    },
-    {
-      id: "documents",
-      icon: <Files className="size-4.5" strokeWidth={1.5} />,
-      label: navLabels.documents,
     },
     {
       id: "brief",
@@ -297,7 +276,7 @@ const CareerWorkspaceNav = ({
                       <NavCount
                         count={count}
                         className={countClassName}
-                        maxCount={id === "new" ? 99 : undefined}
+                        maxCount={id === "history" ? 99 : undefined}
                       />
                     ) : null}
                   </>
@@ -335,7 +314,6 @@ const CareerWorkspaceNav = ({
             profileImageUrl={profileImageUrl}
             profileName={String(profileName ?? "Candidate")}
             profileEmail={profileEmail}
-            showReferralEntryPoints={showReferralEntryPoints}
             onLogout={onLogout}
             onSuggestUpdate={() => setInquiryOpen(true)}
           />

@@ -1,3 +1,4 @@
+// career-i18n-skip-file: Internal developer controls and synthetic preview copy.
 import { ArrowUp } from "lucide-react";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";

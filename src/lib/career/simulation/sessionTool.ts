@@ -1,3 +1,4 @@
+import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import type { SimulationSession } from "./session";
 export const SIMULATION_SESSION_TOOL = "manage_simulation_session";
 
@@ -43,20 +44,20 @@ export const SIMULATION_TOOL_NAMES: readonly string[] = [
   SIMULATION_SESSION_TOOL,
   "manage_application_suggestions",
   "ready_for_role",
+  "save_application",
   "apply_for_role",
   "get_role_context",
   "get_internal_roles",
   "read_recommended_opportunities",
   "list_documents",
   "read_document",
-  "generate_resume",
-  "write_document",
+  "upsert_document",
   "web_search",
   "open_url",
 ];
 export const savedApplicationSessionTool = {
   name: SIMULATION_SESSION_TOOL,
-  description: "Find saved Apply with Harper preparations with action=list, then resume one on the user's request with action=resume and its sessionMessageId. Returns a compact index, not document bodies. Resuming restores saved answers, suggestions and documents in this conversation; it does not submit or restart a website browser. End an active application first when the user asks to switch. Use before starting a new preparation when the user wants to continue earlier work.",
+  description: TOOL_DESCRIPTIONS.manage_simulation_session_saved,
   parameters: {
     type: "object", additionalProperties: false, required: ["action"],
     properties: {
@@ -71,7 +72,7 @@ export const simulationSessionTool = {
   function: {
     name: SIMULATION_SESSION_TOOL,
     description:
-      "Manage the current application-simulation session: select an action, record progress backed by the conversation, correct session facts, propose one next action, add a user-requested action or end the session. Does not edit documents or save long-term memory. Only use for the current active session. For preparation mode, use respond with actionId and response to save the user’s explicit decision or answer, Use write_document to save ordinary documents and cover letters needed by this delegated application; no extra permission question is needed. Show the saved document UI, not a long draft in chat. web_search/open_url can verify public information within this mode. Use revise_item with newAction to update an existing preparation item by its stable ID or add a user-requested item. Existing answers are retained; reconsiderResponse=true clears only that item’s answer when a correction invalidates it. Documents are checked for ownership. These operations do not submit applications. For propose, supply actionId, title, reason and request. For update_action, supply actionId, status and an evidence-based reason. completed means the action was addressed through a successful edit or useful bullet/direction suggestion; it does not require the user to have applied the suggestion. The reason records the actual edit or concrete suggestion and distinguishes guidance from an applied change. For save_fact, supply text and use factId only when correcting an existing fact. A clear instruction to stop or start another task authorizes end directly; a recorded switch request is optional and needs no separate confirmation. Use request_switch only for a proposed change the user has not chosen; cancel_switch clears it. For end, text may contain a concise evidence-grounded closing summary. Ending preserves the session and documents without submitting. Continue a requested next task using the normal tools in the same turn. After a change, continue the conversation from the returned state.",
+      TOOL_DESCRIPTIONS.manage_simulation_session_active,
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -208,7 +209,7 @@ export const applicationPreparationSessionTool = {
   function: {
     name: SIMULATION_SESSION_TOOL,
     description:
-      "Manage application preparations. list returns a compact index of saved preparations; resume restores an exact sessionMessageId after ending any other active application. inspect checks the current application's live form and access again, including after a failed or stale inspection; it waits for the result, preserves answers and documents, and never fills or submits. Review its requirements and call ready_for_role again before applying. end saves the current preparation and leaves the mode WITHOUT submitting; saved answers, suggestions and documents can be resumed later. It stops an active website browser; resuming preparation does not restart that browser or repeat a submission. A clear request to stop or start another application authorizes end directly, without request_switch or another confirmation. request_switch is only for a proposed change the user has not chosen; cancel_switch keeps this application active. Continue a requested switch in the same turn. save_fact records a confirmed session fact; factId identifies a correction/removal. Use shared Profile/Brief/Memory tools for durable user information, manage_application_suggestions for suggestions and ready_for_role for resume edits.",
+      TOOL_DESCRIPTIONS.manage_simulation_session_preparation,
     parameters: {
       type: "object",
       additionalProperties: false,

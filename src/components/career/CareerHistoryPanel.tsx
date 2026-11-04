@@ -1,12 +1,12 @@
+import ProgressOpportunityList from "./history/ProgressOpportunityList";
+import { useOpportunityStatusChange } from "@/hooks/career/useOpportunityStatusChange";
+import { useEventCallback } from "@/hooks/useEventCallback";
+import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import {
-  Archive,
   ArrowRight,
   BriefcaseBusiness,
-  ChevronDown,
   ClipboardCheck,
-  Columns3,
   FileCheck2,
-  List,
   ListChecks,
   Loader2,
   MapPin,
@@ -27,8 +27,8 @@ import {
   useCareerHistoryContext,
   useCareerSidebarContext,
 } from "./CareerSidebarContext";
-import CareerInPageTabs, { type CareerInPageTabItem } from "./CareerInPageTabs";
-import { PrimaryButton, BareButton } from "@/components/ui/button";
+import CareerOpportunityTabs from "./history/CareerOpportunityTabs";
+import { PrimaryButton, BareButton, MuteButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlinePanel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,6 @@ import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
   type CareerHistoryOpportunityFeedback,
-  type CareerHistoryOpportunityPageFilter,
   type CareerOpportunitySavedStage,
 } from "./types";
 import {
@@ -50,7 +49,6 @@ import {
 } from "./opportunityTypeMeta";
 import {
   compareNewOpportunityHistoryOrder,
-  compareSavedOpportunityHistoryOrder,
 } from "@/lib/opportunityType";
 import {
   HistoryNegativeFeedbackModal,
@@ -59,9 +57,6 @@ import {
   serializeNegativeFeedbackReason,
 } from "./history/FeedbackModal";
 import OpportunityListCard from "./history/OpportunityListCard";
-import SavedOpportunityBoard, {
-  type SavedOpportunityBoardStatus,
-} from "./history/SavedOpportunityBoard";
 import { HistoryOpportunityInlinePage } from "./history/HistoryOpportunityDetailContent";
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import NewOpportunityList from "./history/NewOpportunityList";
@@ -71,14 +66,8 @@ import InternalConnectionAcceptanceModal from "./InternalConnectionAcceptanceMod
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 import {
-  ActionDropdown,
-  ActionDropdownItem,
-} from "@/components/ui/action-dropdown";
-import { Tooltips } from "@/components/ui/tooltip";
-import {
   canChangeCareerOpportunityManagementStatus,
-  getSavedOpportunityStatusOptions,
-  getSavedOpportunityStatusLabel,
+  getMyOpportunityTab,
   getCareerOpportunityManagementStatus,
   getSavedOpportunityManagementStatus,
   getSavedOpportunityStatusFromQuery,
@@ -88,19 +77,18 @@ import {
   type SavedOpportunityManagementStatus,
 } from "./history/savedOpportunityStatus";
 import { useCareerT } from "@/i18n/useCareerT";
-import {
-  useCareerWorkspaceUiStore,
-  type CareerSavedHistoryDisplayMode,
-} from "@/store/useCareerWorkspaceUiStore";
+import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
+import SavedOpportunityList from "./history/SavedOpportunityList";
+import { getJobsTabTotal, useCareerMobileHistoryOpportunities } from "@/hooks/career/useCareerMobileHistoryOpportunities";
 import {
   InternalOpportunityDecisionChangeModal,
   type InternalOpportunityDecisionChangeRequest,
 } from "./history/InternalOpportunityDecisionActions";
-import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
+import { getHistoryOpportunityBucket, isSavedHistoryOpportunity } from "@/hooks/career/careerSessionData";
 import CareerJobLinkImportButton from "./history/CareerJobLinkImportButton";
+import OpportunitySearch from "./history/OpportunitySearch";
 type HistoryTabId = "new" | "saved" | "archived";
-type HistoryDisplayTabId = "new" | "saved" | "hidden" | "archived";
-type SavedHistoryDisplayMode = CareerSavedHistoryDisplayMode;
+type HistoryDisplayTabId = "new" | "saved" | "applied" | "hidden" | "archived";
 
 const HISTORY_TAB_QUERY_KEY = "historyTab";
 const HISTORY_SAVED_STAGE_QUERY_KEY = "savedStage";
@@ -135,42 +123,6 @@ const isCareerHistoryPanelPathname = (path: string) => {
 const getOpportunityUrlRoleId = (item: CareerHistoryOpportunity | null) =>
   String(item?.roleId ?? "").trim();
 
-const getHistoryDisplayTabs = (t: ReturnType<typeof useCareerT>) => [
-  {
-    id: "new" as const,
-    label: t("career.common.career_history_panel.02i826z", "새 포지션"),
-  },
-  {
-    id: "saved" as const,
-    label: t(
-      "career.common.career_history_panel.saved_positions_tab",
-      "저장한 포지션"
-    ),
-  },
-  {
-    id: "hidden" as const,
-    label: t("career.common.career_history_panel.hidden_tab", "보관함"),
-  },
-];
-
-const getSavedDisplayModeOptions = (t: ReturnType<typeof useCareerT>) =>
-  [
-    {
-      icon: List,
-      id: "list",
-      label: t("career.common.career_history_panel.1n5k969", "리스트 보기"),
-    },
-    {
-      icon: Columns3,
-      id: "board",
-      label: t("career.common.career_history_panel.1xfuqgb", "보드 보기"),
-    },
-  ] as const satisfies readonly {
-    icon: typeof List;
-    id: SavedHistoryDisplayMode;
-    label: string;
-  }[];
-
 const compareRecommendedAtDesc = (
   left: CareerHistoryOpportunity,
   right: CareerHistoryOpportunity
@@ -180,7 +132,7 @@ type CareerTHelper = ReturnType<typeof useCareerT>;
 
 const fallbackCareerT: CareerTHelper = (_key, koSource) => koSource;
 
-const formatEmploymentType = (value: string, tArg?: CareerTHelper) => {
+export const formatEmploymentType = (value: string, tArg?: CareerTHelper) => {
   const t = tArg ?? fallbackCareerT;
   const normalized = value.trim().toLowerCase().replaceAll("-", "_");
   if (!normalized) return null;
@@ -196,7 +148,7 @@ const formatEmploymentType = (value: string, tArg?: CareerTHelper) => {
   return value.trim().replaceAll("_", " ");
 };
 
-const formatWorkMode = (value: string | null, tArg?: CareerTHelper) => {
+export const formatWorkMode = (value: string | null, tArg?: CareerTHelper) => {
   const t = tArg ?? fallbackCareerT;
   if (value === "remote")
     return t("career.common.career_history_panel.0gesjui", "원격근무");
@@ -216,8 +168,7 @@ export const getResolvedSavedStage = (item: CareerHistoryOpportunity) =>
 const isNewOpportunity = (item: CareerHistoryOpportunity) =>
   getHistoryOpportunityBucket(item) === "new";
 
-const isSavedOpportunity = (item: CareerHistoryOpportunity) =>
-  getHistoryOpportunityBucket(item) === "saved";
+const isSavedOpportunity = isSavedHistoryOpportunity;
 
 const isArchivedOpportunity = (item: CareerHistoryOpportunity) =>
   getHistoryOpportunityBucket(item) === "archived";
@@ -240,7 +191,7 @@ export const getOpportunityTypeLabel = (
     ? t(
         "career.history.job_link_import.source_label",
         // career-i18n-skip-next-line: localized fallback for exported helper.
-        "직접 추가한 포지션"
+        "직접 추가한 기회"
       )
     : getCareerOpportunityTypeLabel(item.opportunityType, t);
 
@@ -274,7 +225,7 @@ export const getOpportunityStatusLabel = (
   const t = tArg ?? fallbackCareerT;
   if (item.feedback === "negative")
     return t("career.common.career_history_panel.1vrs10j", "숨긴 포지션");
-  if (getHistoryOpportunityBucket(item) === "saved") {
+  if (isSavedHistoryOpportunity(item)) {
     return getSavedStageLabel(getResolvedSavedStage(item), item, t);
   }
   return null;
@@ -325,22 +276,6 @@ export const HistoryFeedbackButton = ({
 );
 
 type HistoryEmptyStateVariant = "onboarding" | "searching" | "matching";
-
-const SAVED_BOARD_MIN_ITEMS_PER_COLUMN = 4;
-const SAVED_LIST_INITIAL_PAGE_SIZE = 10;
-const SAVED_BOARD_COLUMN_STATUSES = [
-  "saved",
-  "applied",
-  "connected",
-  "closed",
-] as const satisfies readonly SavedOpportunityBoardStatus[];
-
-const getSavedBoardColumnFilter = (
-  status: SavedOpportunityBoardStatus
-): CareerHistoryOpportunityPageFilter => ({
-  historyTab: "saved",
-  savedStage: status,
-});
 
 const HistoryEmptyStateDetail = ({
   body,
@@ -601,36 +536,12 @@ const HistoryEmptyStatePanel = ({
   );
 };
 
-type CareerHistoryPanelProps = {
-  navigationMode?: "tabs" | "sidebar";
-};
-
-const CareerHistoryPanel = ({
-  navigationMode = "tabs",
-}: CareerHistoryPanelProps) => {
+const CareerHistoryPanel = () => {
   const t = useCareerT();
-  const historyDisplayTabs = useMemo(
-    () =>
-      getHistoryDisplayTabs(t).filter(
-        ({ id }) => navigationMode !== "sidebar" || id !== "new"
-      ),
-    [navigationMode, t]
-  );
-  const savedDisplayModeOptions = useMemo(
-    () => getSavedDisplayModeOptions(t),
-    [t]
-  );
-  const savedOpportunityStatusOptions = useMemo(
-    () =>
-      getSavedOpportunityStatusOptions(t, {
-        includeAll: true,
-      }),
-    [t]
-  );
-
   const logCareerEvent = useCareerLogEvent();
   const router = useRouter();
   const {
+    user,
     stage,
     isOnboardingDone,
     opportunityRun,
@@ -647,8 +558,8 @@ const CareerHistoryPanel = ({
     historyUpdatingOpportunityIds,
     historyUpdateError,
     onLoadMoreHistoryOpportunities,
-    isHistoryOpportunityPageFilterLoading,
     onLoadSavedStageHistoryOpportunityPages,
+    getHistoryOpportunityPageFilterState,
     onLoadHistoryOpportunityByRoleId,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
@@ -657,19 +568,12 @@ const CareerHistoryPanel = ({
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,
   } = useCareerHistoryContext();
-  const savedDisplayMode = useCareerWorkspaceUiStore(
-    (state) => state.savedHistoryDisplayMode
-  );
-  const setSavedDisplayMode = useCareerWorkspaceUiStore(
-    (state) => state.setSavedHistoryDisplayMode
-  );
   const setDesktopRoleActionOpportunity = useCareerWorkspaceUiStore(
     (state) => state.setDesktopRoleActionOpportunity
   );
   const feedbackRoleQueryIgnoreRef = useRef<string | null>(null);
   const missingRoleIdRef = useRef<string | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
-  const requestedSavedFirstPagesRef = useRef<Set<string>>(new Set());
   const [loadingRoleId, setLoadingRoleId] = useState<string | null>(null);
   const [infoOpportunityType, setInfoOpportunityType] =
     useState<CareerOpportunityType | null>(null);
@@ -699,8 +603,6 @@ const CareerHistoryPanel = ({
   const activeTab: HistoryTabId = isHistoryTabId(requestedHistoryTab)
     ? requestedHistoryTab
     : "new";
-  const showHistoryNavigation =
-    navigationMode !== "sidebar" || activeTab !== "new";
   const activeSavedStatus = getSavedOpportunityStatusFromQuery(
     currentSavedStageQuery
   );
@@ -860,62 +762,8 @@ const CareerHistoryPanel = ({
   );
   const hasKnownHistoryOpportunities =
     sortedOpportunities.length > 0 || historyOpportunityCounts.total > 0;
-  const { archivedItems, newItems, savedItemsByStage } = useMemo(() => {
-    const nextNewItems: CareerHistoryOpportunity[] = [];
-    const nextArchivedItems: CareerHistoryOpportunity[] = [];
-    const nextSavedItemsByStage: Record<
-      CareerOpportunitySavedStage,
-      CareerHistoryOpportunity[]
-    > = {
-      saved: [],
-      applied: [],
-      connected: [],
-      closed: [],
-      hidden: [],
-    };
-
-    for (const item of sortedOpportunities) {
-      if (isNewOpportunity(item)) {
-        nextNewItems.push(item);
-        continue;
-      }
-
-      if (isSavedOpportunity(item)) {
-        const stage = getResolvedSavedStage(item);
-        nextSavedItemsByStage[stage].push(item);
-        continue;
-      }
-
-      if (isArchivedOpportunity(item)) {
-        nextArchivedItems.push(item);
-      }
-    }
-
-    nextNewItems.sort(compareNewOpportunityHistoryOrder);
-
-    return {
-      archivedItems: nextArchivedItems,
-      newItems: nextNewItems,
-      savedItemsByStage: nextSavedItemsByStage,
-    };
-  }, [sortedOpportunities]);
-  const savedItems = useMemo(
-    () =>
-      [
-        ...savedItemsByStage.saved,
-        ...savedItemsByStage.applied,
-        ...savedItemsByStage.connected,
-        ...savedItemsByStage.closed,
-        ...savedItemsByStage.hidden,
-      ].sort(compareSavedOpportunityHistoryOrder),
-    [
-      savedItemsByStage.saved,
-      savedItemsByStage.applied,
-      savedItemsByStage.connected,
-      savedItemsByStage.closed,
-      savedItemsByStage.hidden,
-    ]
-  );
+  const archivedItems = useMemo(() => sortedOpportunities.filter(isArchivedOpportunity), [sortedOpportunities]);
+  const newItems = useMemo(() => sortedOpportunities.filter(isNewOpportunity).sort(compareNewOpportunityHistoryOrder), [sortedOpportunities]);
   const opportunityById = useMemo(
     () => new Map(sortedOpportunities.map((item) => [item.id, item])),
     [sortedOpportunities]
@@ -1092,6 +940,10 @@ const CareerHistoryPanel = ({
       return;
     }
 
+    if (activeTab === "archived" && isArchivedOpportunity(requestedOpportunity)) {
+      return;
+    }
+
     if (isNewOpportunity(requestedOpportunity)) {
       updateHistoryLocation("new", activeSavedStatus, {
         mode: "replace",
@@ -1118,6 +970,7 @@ const CareerHistoryPanel = ({
     }
   }, [
     activeSavedStatus,
+    activeTab,
     clearHistoryRoleId,
     requestedOpportunity,
     requestedRoleId,
@@ -1150,27 +1003,26 @@ const CareerHistoryPanel = ({
     window.open(url, "_blank", "noopener,noreferrer");
   }, []);
 
-  const openHistoryLink = useCallback(
+  const openHistoryLink = useEventCallback(
     (item: CareerHistoryOpportunity, url: string | null | undefined) => {
       if (!url) return;
       logCareerEvent(
         "click_history_open_jd",
-        item.companyDbId != null ? { companyId: item.companyDbId } : undefined
+        item.companyDbId != null ? { companyId: item.companyDbId } : undefined,
       );
       void onMarkHistoryOpportunityClicked(item.id);
       openUrl(url);
     },
-    [logCareerEvent, onMarkHistoryOpportunityClicked, openUrl]
   );
 
-  const openHistoryCompanyInfo = useCallback(
+  const openHistoryCompanyInfo = useEventCallback(
     (item: CareerHistoryOpportunity) => {
       const fallbackUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
       if (!item.companyDbId && !fallbackUrl) return;
 
       logCareerEvent(
         "click_history_open_company",
-        item.companyDbId != null ? { companyId: item.companyDbId } : undefined
+        item.companyDbId != null ? { companyId: item.companyDbId } : undefined,
       );
       void onMarkHistoryOpportunityClicked(item.id);
 
@@ -1182,7 +1034,6 @@ const CareerHistoryPanel = ({
 
       openUrl(fallbackUrl);
     },
-    [logCareerEvent, onMarkHistoryOpportunityClicked, openUrl]
   );
 
   const closeCompanyDetail = useCallback(() => {
@@ -1222,6 +1073,7 @@ const CareerHistoryPanel = ({
         feedbackRoleQueryIgnoreRef.current = getOpportunityUrlRoleId(item);
       }
       return onUpdateHistoryOpportunityFeedback(item.id, feedback, {
+        fallbackOpportunity: item,
         feedbackReason: options?.feedbackReason ?? null,
         interactionSource: "position_tab",
         promptImmediately:
@@ -1243,44 +1095,39 @@ const CareerHistoryPanel = ({
     ]
   );
 
-  const handleSavedStatusChange = useCallback(
+  const handleApplyOpportunity = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      logCareerEvent("click_history_external_apply", {
+        roleId: item.roleId,
+        opportunityId: item.id,
+      });
+      setExternalApplyOpportunity(item);
+    },
+    [logCareerEvent],
+  );
+  const handleKeepOpportunity = useEventCallback(
+    (item: CareerHistoryOpportunity) => {
+      return updateFeedbackForItem(item, "keep");
+    },
+  );
+  const handleInternalDecisionAction = useCallback(
     (
       item: CareerHistoryOpportunity,
-      status: CareerOpportunityManagementStatus
-    ) => {
-      if (!canChangeCareerOpportunityManagementStatus(item)) return;
-      if (getCareerOpportunityManagementStatus(item) === status) return;
-
-      logCareerEvent(`click_history_saved_status_${status}`);
-
-      if (status === "archived") {
-        updateFeedbackForItem(item, "negative");
-        return;
-      }
-
-      const savedStage = getSavedStageForManagementStatus(status);
-      if (!savedStage) return;
-
-      if (
-        item.feedback === "positive" ||
-        (savedStage === "hidden" &&
-          item.sourceType === "external" &&
-          item.feedback === null)
-      ) {
-        void onUpdateHistoryOpportunitySavedStage(item.id, savedStage);
-        return;
-      }
-
-      updateFeedbackForItem(item, "positive", { savedStage });
-    },
-    [
-      logCareerEvent,
-      onUpdateHistoryOpportunitySavedStage,
-      updateFeedbackForItem,
-    ]
+      action: CareerInternalOpportunityDecisionAction,
+    ) => setInternalDecisionChangeRequest({ action, item }),
+    [],
   );
 
-  const handlePositiveAction = useCallback(
+  const handleSavedStatusChange = useOpportunityStatusChange({
+    update: onUpdateHistoryOpportunitySavedStage,
+    navigate: (status, item) => {
+      const target = getMyOpportunityTab(status);
+      updateHistoryLocation("saved", target, {mode: "replace", roleId: target === "applied" && getNormalizedQueryValue(currentRoleQuery) ? item.roleId : null});
+    },
+    openChat: () => openChatTab("click_history_offer"),
+  });
+
+  const handlePositiveAction = useEventCallback(
     (item: CareerHistoryOpportunity) => {
       logCareerEvent("click_history_positive");
       if (item.sourceType === "internal") {
@@ -1289,19 +1136,17 @@ const CareerHistoryPanel = ({
         return;
       }
 
-      updateFeedbackForItem(item, "positive", {
+      return updateFeedbackForItem(item, "positive", {
         savedStage: getDefaultSavedStage(item),
       });
     },
-    [logCareerEvent, updateFeedbackForItem]
   );
 
-  const handleNegativeAction = useCallback(
+  const handleNegativeAction = useEventCallback(
     (item: CareerHistoryOpportunity) => {
       logCareerEvent("click_history_negative");
       requestNegativeFeedback(item);
     },
-    [logCareerEvent, requestNegativeFeedback]
   );
 
   const handleSubmitNegativePrompt = useCallback(() => {
@@ -1341,38 +1186,9 @@ const CareerHistoryPanel = ({
     updateFeedbackForItem,
   ]);
 
-  const tabs = useMemo<CareerInPageTabItem<HistoryDisplayTabId>[]>(
-    () =>
-      historyDisplayTabs.map(({ id, label }) => ({
-        id,
-        label,
-        count: (() => {
-          if (id === "new") return historyOpportunityCounts.new;
-          if (id === "saved") {
-            return (
-              historyOpportunityCounts.savedStages.saved +
-              historyOpportunityCounts.savedStages.applied +
-              historyOpportunityCounts.savedStages.connected +
-              historyOpportunityCounts.savedStages.closed
-            );
-          }
-          return historyOpportunityCounts.savedStages.hidden;
-        })(),
-      })),
-    [
-      historyOpportunityCounts.new,
-      historyOpportunityCounts.savedStages.applied,
-      historyOpportunityCounts.savedStages.closed,
-      historyOpportunityCounts.savedStages.connected,
-      historyOpportunityCounts.savedStages.hidden,
-      historyOpportunityCounts.savedStages.saved,
-      historyDisplayTabs,
-    ]
-  );
-  const activeDisplayTab: HistoryDisplayTabId =
-    activeTab === "saved" && activeSavedStatus === "hidden"
-      ? "hidden"
-      : activeTab;
+  const activeDisplayTab: HistoryDisplayTabId = activeTab === "saved"
+    ? getMyOpportunityTab(activeSavedStatus)
+    : activeTab;
 
   const handleDisplayTabChange = useCallback(
     (nextTab: HistoryDisplayTabId) => {
@@ -1385,7 +1201,11 @@ const CareerHistoryPanel = ({
         return;
       }
       if (nextTab === "saved") {
-        updateHistoryLocation("saved", "all");
+        updateHistoryLocation("saved", "saved");
+        return;
+      }
+      if (nextTab === "applied") {
+        updateHistoryLocation("saved", "applied");
         return;
       }
       if (nextTab === "hidden") {
@@ -1402,7 +1222,7 @@ const CareerHistoryPanel = ({
     ]
   );
 
-  const handleToggleNewOpportunity = useCallback(
+  const handleToggleNewOpportunity = useEventCallback(
     (item: CareerHistoryOpportunity) => {
       logCareerEvent("click_history_toggle_new_opportunity");
       feedbackRoleQueryIgnoreRef.current = null;
@@ -1410,12 +1230,6 @@ const CareerHistoryPanel = ({
         roleId: activeOpportunity?.id === item.id ? null : item.roleId,
       });
     },
-    [
-      activeOpportunity,
-      activeSavedStatus,
-      logCareerEvent,
-      updateHistoryLocation,
-    ]
   );
 
   const loadMoreNewOpportunities = useCallback(() => {
@@ -1427,55 +1241,39 @@ const CareerHistoryPanel = ({
     onLoadMoreHistoryOpportunities,
   ]);
 
-  const openModalForItem = useCallback(
-    (item: CareerHistoryOpportunity) => {
-      logCareerEvent("click_history_open_detail");
-      const roleId = getOpportunityUrlRoleId(item);
+  const openModalForItem = useEventCallback((item: CareerHistoryOpportunity) => {
+    logCareerEvent("click_history_open_detail");
+    const roleId = getOpportunityUrlRoleId(item);
 
-      if (isSavedOpportunity(item)) {
-        updateHistoryLocation(
-          "saved",
-          getSavedOpportunityManagementStatus(item),
-          {
-            mode: "push",
-            roleId,
-          }
-        );
-        return;
-      }
+    if (activeTab === "archived" && isArchivedOpportunity(item)) {
+      updateHistoryLocation("archived", activeSavedStatus, {
+        mode: "push",
+        roleId,
+      });
+      return;
+    }
 
-      if (isArchivedOpportunity(item)) {
-        updateHistoryLocation("archived", activeSavedStatus, {
-          mode: "push",
-          roleId,
-        });
-      }
-    },
-    [activeSavedStatus, logCareerEvent, updateHistoryLocation]
-  );
+    if (isSavedOpportunity(item)) {
+      updateHistoryLocation("saved", getSavedOpportunityManagementStatus(item), {
+        mode: "push",
+        roleId,
+      });
+      return;
+    }
 
-  const openOpportunityInfo = useCallback(
+    if (isArchivedOpportunity(item)) {
+      updateHistoryLocation("archived", activeSavedStatus, {
+        mode: "push",
+        roleId,
+      });
+    }
+  });
+
+  const openOpportunityInfo = useEventCallback(
     (opportunityType: CareerOpportunityType) => {
       logCareerEvent(`click_history_open_opportunity_info_${opportunityType}`);
       setInfoOpportunityType(opportunityType);
     },
-    [logCareerEvent]
-  );
-
-  const handleSavedStatusFilterChange = useCallback(
-    (status: SavedOpportunityManagementStatus) => {
-      logCareerEvent(`click_history_saved_filter_${status}`);
-      updateHistoryLocation("saved", status);
-    },
-    [logCareerEvent, updateHistoryLocation]
-  );
-
-  const handleSavedDisplayModeChange = useCallback(
-    (mode: SavedHistoryDisplayMode) => {
-      logCareerEvent(`click_history_saved_view_${mode}`);
-      setSavedDisplayMode(mode);
-    },
-    [logCareerEvent, setSavedDisplayMode]
   );
 
   const closeOpportunityModal = useCallback(() => {
@@ -1519,235 +1317,28 @@ const CareerHistoryPanel = ({
     [historyUpdatingOpportunityIds]
   );
 
-  const savedManagementCounts: Record<
-    SavedOpportunityManagementStatus,
-    number
-  > = useMemo(
-    () => ({
-      all:
-        historyOpportunityCounts.savedStages.saved +
-        historyOpportunityCounts.savedStages.applied +
-        historyOpportunityCounts.savedStages.connected +
-        historyOpportunityCounts.savedStages.closed,
-      applied: historyOpportunityCounts.savedStages.applied,
-      closed: historyOpportunityCounts.savedStages.closed,
-      connected: historyOpportunityCounts.savedStages.connected,
-      hidden: historyOpportunityCounts.savedStages.hidden,
-      saved: historyOpportunityCounts.savedStages.saved,
-    }),
-    [
-      historyOpportunityCounts.savedStages.applied,
-      historyOpportunityCounts.savedStages.closed,
-      historyOpportunityCounts.savedStages.connected,
-      historyOpportunityCounts.savedStages.hidden,
-      historyOpportunityCounts.savedStages.saved,
-    ]
-  );
-  const savedManagementItems = useMemo(() => {
-    return savedItems.filter((item) => {
-      const status = getSavedOpportunityManagementStatus(item);
-      if (activeSavedStatus === "all") return status !== "hidden";
-      return status === activeSavedStatus;
-    });
-  }, [activeSavedStatus, savedItems]);
-  const savedBoardItems = useMemo(
-    () =>
-      savedItems
-        .filter(
-          (item) => getSavedOpportunityManagementStatus(item) !== "hidden"
-        )
-        .sort(compareSavedOpportunityHistoryOrder),
-    [savedItems]
-  );
-  const savedBoardColumnLoadState = useMemo<
-    Record<
-      SavedOpportunityBoardStatus,
-      {
-        hasMore: boolean;
-        loadedCount: number;
-        loading: boolean;
-        totalCount: number;
-      }
-    >
-  >(
-    () => ({
-      saved: {
-        hasMore: savedItemsByStage.saved.length < savedManagementCounts.saved,
-        loadedCount: savedItemsByStage.saved.length,
-        loading: isHistoryOpportunityPageFilterLoading(
-          getSavedBoardColumnFilter("saved")
-        ),
-        totalCount: savedManagementCounts.saved,
-      },
-      applied: {
-        hasMore:
-          savedItemsByStage.applied.length < savedManagementCounts.applied,
-        loadedCount: savedItemsByStage.applied.length,
-        loading: isHistoryOpportunityPageFilterLoading(
-          getSavedBoardColumnFilter("applied")
-        ),
-        totalCount: savedManagementCounts.applied,
-      },
-      connected: {
-        hasMore:
-          savedItemsByStage.connected.length < savedManagementCounts.connected,
-        loadedCount: savedItemsByStage.connected.length,
-        loading: isHistoryOpportunityPageFilterLoading(
-          getSavedBoardColumnFilter("connected")
-        ),
-        totalCount: savedManagementCounts.connected,
-      },
-      closed: {
-        hasMore: savedItemsByStage.closed.length < savedManagementCounts.closed,
-        loadedCount: savedItemsByStage.closed.length,
-        loading: isHistoryOpportunityPageFilterLoading(
-          getSavedBoardColumnFilter("closed")
-        ),
-        totalCount: savedManagementCounts.closed,
-      },
-    }),
-    [
-      isHistoryOpportunityPageFilterLoading,
-      savedItemsByStage.applied.length,
-      savedItemsByStage.closed.length,
-      savedItemsByStage.connected.length,
-      savedItemsByStage.saved.length,
-      savedManagementCounts.applied,
-      savedManagementCounts.closed,
-      savedManagementCounts.connected,
-      savedManagementCounts.saved,
-    ]
-  );
-  const loadMoreSavedBoardColumn = useCallback(
-    (status: SavedOpportunityBoardStatus) => {
-      const loadState = savedBoardColumnLoadState[status];
-      if (!loadState.hasMore || loadState.loading) return;
-
-      logCareerEvent(`click_history_board_load_more_${status}`);
-      void onLoadMoreHistoryOpportunities(getSavedBoardColumnFilter(status));
-    },
-    [logCareerEvent, onLoadMoreHistoryOpportunities, savedBoardColumnLoadState]
-  );
-  const listItems =
-    activeTab === "saved" ? savedManagementItems : archivedItems;
-  const listTotal =
-    activeTab === "saved"
-      ? savedManagementCounts[activeSavedStatus]
-      : activeTab === "archived"
-        ? historyOpportunityCounts.archived
-        : 0;
-  const hasMoreListItems =
-    (activeTab === "saved" || activeTab === "archived") &&
-    listItems.length < listTotal;
-  const activeListFilter =
-    useMemo<CareerHistoryOpportunityPageFilter | null>(() => {
-      if (activeTab === "archived") {
-        return { historyTab: "archived" };
-      }
-      if (activeTab === "saved") {
-        const savedStage = getSavedStageForManagementStatus(activeSavedStatus);
-        return {
-          historyTab: "saved",
-          savedStage:
-            activeSavedStatus === "all" ? "all" : (savedStage ?? undefined),
-        };
-      }
-      return null;
-    }, [activeSavedStatus, activeTab]);
-  const listInitialLoading =
-    listItems.length === 0 &&
-    (historyLoading ||
-      historyLoadingMore ||
-      (!historyUpdateError && listTotal > 0));
-  const loadMoreListItems = useCallback(() => {
-    if (!activeListFilter || !hasMoreListItems || historyLoadingMore) return;
-    void onLoadMoreHistoryOpportunities(activeListFilter);
-  }, [
-    activeListFilter,
-    hasMoreListItems,
-    historyLoadingMore,
+  const {
+    opportunities: listItems,
+    hasMore: hasMoreListItems,
+    isLoading: listLoading,
+    loadMore: loadMoreListItems,
+  } = useCareerMobileHistoryOpportunities({
+    loadAllProgress: true,
+    historyUpdateError,
+    enabled: activeTab !== "new",
+    activeTab: activeDisplayTab,
+    historyLoading,
+    historyOpportunities,
+    historyOpportunityCounts,
     onLoadMoreHistoryOpportunities,
-  ]);
-
-  useEffect(() => {
-    if (activeTab !== "saved" && activeTab !== "archived") return;
-    if (
-      activeTab === "saved" &&
-      savedDisplayMode === "board" &&
-      activeSavedStatus !== "hidden"
-    ) {
-      return;
-    }
-    const needsSavedFirstPage =
-      activeTab === "saved" &&
-      !requestedSavedFirstPagesRef.current.has(activeSavedStatus);
-    if (
-      !hasMoreListItems ||
-      historyLoadingMore ||
-      (!needsSavedFirstPage &&
-        listItems.length >= Math.min(listTotal, SAVED_LIST_INITIAL_PAGE_SIZE))
-    ) {
-      return;
-    }
-    if (needsSavedFirstPage) {
-      requestedSavedFirstPagesRef.current.add(activeSavedStatus);
-    }
-    loadMoreListItems();
-  }, [
-    activeSavedStatus,
-    activeTab,
-    hasMoreListItems,
-    historyLoadingMore,
-    listItems.length,
-    listTotal,
-    loadMoreListItems,
-    savedDisplayMode,
-  ]);
-
-  useEffect(() => {
-    if (
-      activeTab !== "saved" ||
-      activeSavedStatus === "hidden" ||
-      savedDisplayMode !== "board"
-    ) {
-      return;
-    }
-
-    const statusesToLoad: SavedOpportunityBoardStatus[] = [];
-    for (const status of SAVED_BOARD_COLUMN_STATUSES) {
-      const loadState = savedBoardColumnLoadState[status];
-      const targetCount = Math.min(
-        loadState.totalCount,
-        SAVED_BOARD_MIN_ITEMS_PER_COLUMN
-      );
-      if (
-        targetCount === 0 ||
-        (requestedSavedFirstPagesRef.current.has(status) &&
-          loadState.loadedCount >= targetCount) ||
-        !loadState.hasMore ||
-        loadState.loading
-      ) {
-        continue;
-      }
-
-      requestedSavedFirstPagesRef.current.add(status);
-      statusesToLoad.push(status);
-    }
-
-    if (statusesToLoad.length > 0) {
-      void onLoadSavedStageHistoryOpportunityPages(statusesToLoad);
-    }
-  }, [
-    activeSavedStatus,
-    activeTab,
     onLoadSavedStageHistoryOpportunityPages,
-    savedBoardColumnLoadState,
-    savedDisplayMode,
-  ]);
+    getHistoryOpportunityPageFilterState,
+  });
+  const listInitialLoading = listItems.length === 0 && !historyUpdateError && listLoading;
 
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
-    if (!sentinel || !hasMoreListItems || historyLoadingMore) return;
+    if (!sentinel || !hasMoreListItems || listLoading || historyUpdateError) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -1760,7 +1351,7 @@ const CareerHistoryPanel = ({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMoreListItems, historyLoadingMore, loadMoreListItems]);
+  }, [hasMoreListItems, listLoading, historyUpdateError, loadMoreListItems]);
 
   const isConversationCompleted = stage === "completed";
   const isOpportunitySearchActive =
@@ -1771,23 +1362,56 @@ const CareerHistoryPanel = ({
       ? "matching"
       : "onboarding";
 
-  if (historyLoading) {
+  const historyNavigation = (
+    <CareerOpportunityTabs
+      activeTab={activeDisplayTab}
+      counts={{
+        new: getJobsTabTotal("new", historyOpportunityCounts),
+        applied: getJobsTabTotal("applied", historyOpportunityCounts),
+        saved: getJobsTabTotal("saved", historyOpportunityCounts),
+      }}
+      onChange={handleDisplayTabChange}
+      className="my-4"
+      actions={activeTab !== "new" ? (
+        <OpportunitySearch
+          userId={user?.id}
+          items={historyOpportunities}
+          complete={!historyLoading &&
+            historyOpportunities.filter(isSavedOpportunity).length >= historyOpportunityCounts.saved &&
+            archivedItems.length >= historyOpportunityCounts.archived}
+          onSelect={(item) => {
+            updateHistoryLocation(
+              isSavedHistoryOpportunity(item) ? "saved" : "archived",
+              item.savedStage ?? "all",
+              { roleId: item.roleId }
+            );
+          }}
+        />
+      ) : null}
+    />
+  );
+
+  if (historyLoading && activeTab === "new") {
     return (
-      <section className="px-5 py-6">
-        <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
-          <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
-          {t(
-            "career.common.career_history_panel.0s3czqf",
-            "저장된 정보를 불러오는 중입니다..."
-          )}
-        </div>
-      </section>
+      <div className="flex min-h-full flex-col">
+        {historyNavigation}
+        <section className="px-5 py-6">
+          <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
+            <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
+            {t(
+              "career.common.career_history_panel.0s3czqf",
+              "저장된 정보를 불러오는 중입니다..."
+            )}
+          </div>
+        </section>
+      </div>
     );
   }
 
-  if (!hasKnownHistoryOpportunities) {
+  if (activeTab === "new" && !hasKnownHistoryOpportunities && !historyUpdateError) {
     return (
       <div className="flex min-h-full flex-col">
+        {historyNavigation}
         <div className="my-4 flex justify-end">
           <CareerJobLinkImportButton />
         </div>
@@ -1799,43 +1423,12 @@ const CareerHistoryPanel = ({
     );
   }
 
-  const activeSavedStatusCount = savedManagementCounts[activeSavedStatus];
   const showInlineOpportunityPage =
     activeTab !== "new" && Boolean(modalOpportunity);
 
   return (
     <div className="flex min-h-full flex-col">
-      {showHistoryNavigation && (
-        <div className="my-4 flex items-center justify-between gap-3">
-          <CareerInPageTabs
-            items={tabs}
-            activeId={activeDisplayTab}
-            onChange={handleDisplayTabChange}
-          />
-          <div className="flex items-center gap-2">
-            <Tooltips
-              text={t(
-                "career.common.career_history_panel.archived_tooltip",
-                "숨긴 포지션"
-              )}
-            >
-              <BareButton
-                type="button"
-                aria-label={"숨긴 포지션"}
-                onClick={() => handleDisplayTabChange("archived")}
-                className={cn(
-                  "inline-flex h-7 min-w-7 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a05 px-2 text-[12px] font-medium transition-colors",
-                  activeDisplayTab === "archived"
-                    ? "bg-bg-floating text-neutral-primary"
-                    : "bg-bg-weak/80 text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
-                )}
-              >
-                <Archive className="h-3.5 w-3.5" />
-              </BareButton>
-            </Tooltips>
-          </div>
-        </div>
-      )}
+      {historyNavigation}
 
       <div className="relative flex flex-1 flex-col gap-6">
         <div className="min-w-0 flex-1">
@@ -1852,16 +1445,10 @@ const CareerHistoryPanel = ({
               internalCount={historyOpportunityCounts.newInternal}
               items={newItems}
               loadingMore={historyLoadingMore}
-              onApply={(item) => {
-                logCareerEvent("click_history_external_apply", {
-                  roleId: item.roleId,
-                  opportunityId: item.id,
-                });
-                setExternalApplyOpportunity(item);
-              }}
+              onApply={handleApplyOpportunity}
               onLoadMore={loadMoreNewOpportunities}
               onNegative={handleNegativeAction}
-              onKeep={(item) => void updateFeedbackForItem(item, "keep")}
+              onKeep={handleKeepOpportunity}
               onOpenCompanyInfo={openHistoryCompanyInfo}
               onOpenLink={openHistoryLink}
               onPositive={handlePositiveAction}
@@ -1916,248 +1503,54 @@ const CareerHistoryPanel = ({
             />
           )}
 
-          {activeTab === "saved" && !showInlineOpportunityPage && (
+          {activeTab !== "new" && !showInlineOpportunityPage && (
             <div className="space-y-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                {savedDisplayMode === "list" &&
-                activeSavedStatus !== "hidden" ? (
-                  <div className="min-w-0">
-                    <ActionDropdown
-                      align="start"
-                      contentClassName="min-w-[180px]"
-                      trigger={
-                        <BareButton
-                          type="button"
-                          className="inline-flex h-8 min-w-[160px] items-center justify-between gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-2.5 text-[13px] font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak"
-                        >
-                          <span className="truncate">
-                            {getSavedOpportunityStatusLabel(
-                              activeSavedStatus,
-                              t
-                            )}
-                          </span>
-                          <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                            <span className="min-w-4 text-right text-[11px] font-medium tabular-nums text-neutral-muted">
-                              {activeSavedStatusCount}
-                            </span>
-                            <ChevronDown className="h-4 w-4 text-neutral-muted" />
-                          </span>
-                        </BareButton>
-                      }
-                    >
-                      {savedOpportunityStatusOptions.map((option) => {
-                        const count = savedManagementCounts[option.id];
-                        return (
-                          <ActionDropdownItem
-                            key={option.id}
-                            className="flex min-w-[180px] items-center justify-between gap-4"
-                            selected={option.id === activeSavedStatus}
-                            onSelect={() =>
-                              handleSavedStatusFilterChange(option.id)
-                            }
-                          >
-                            <span className="truncate">{option.label}</span>
-                            <span className="shrink-0 text-right text-[11px] font-medium tabular-nums text-neutral-muted">
-                              {count}
-                            </span>
-                          </ActionDropdownItem>
-                        );
-                      })}
-                    </ActionDropdown>
+              {activeDisplayTab === "saved" ? (
+                <div className="flex justify-end"><CareerJobLinkImportButton /></div>
+              ) : null}
+              {listInitialLoading && activeDisplayTab !== "applied" ? (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3" aria-busy="true">
+                  <Skeleton className="h-36 w-full rounded-lg" />
+                  <Skeleton className="h-36 w-full rounded-lg" />
+                </div>
+              ) : null}
+              {activeDisplayTab === "applied" ? (
+                <ProgressOpportunityList items={listItems} loading={listLoading || hasMoreListItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onStatusChange={handleSavedStatusChange} />
+              ) : listItems.length > 0 ? activeDisplayTab === "saved" ? (
+                <SavedOpportunityList items={listItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onApply={(item) => item.isInternal ? handlePositiveAction(item) : handleApplyOpportunity(item)} />
+              ) : (
+                <div className={cn("grid items-stretch gap-3", "grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))]")}>
+                  {listItems.map((item) => (
+                    <OpportunityListCard
+                      key={item.id}
+                      item={item}
+                      pending={pendingOpportunityIds.has(item.id)}
+                      onOpenOpportunityInfo={openOpportunityInfo}
+                      onOpenCompanyInfo={openHistoryCompanyInfo}
+                      onInternalDecisionAction={handleInternalDecisionAction}
+                      savedStatus={getCareerOpportunityManagementStatus(item)}
+                      onSavedStatusChange={handleSavedStatusChange}
+                      onOpenDetail={openModalForItem}
+                    />
+                  ))}
+                </div>
+              ) : !listInitialLoading && !historyUpdateError ? (
+                <InlinePanel className="px-5 py-5">
+                  <div className="text-[14px] leading-6 text-neutral-muted">
+                    {t("career.common.career_history_panel.0okcy6f", "이 탭에 해당하는 기회가 아직 없습니다.")}
                   </div>
-                ) : (
-                  <div className="hidden md:block" />
-                )}
-
-                {activeSavedStatus !== "hidden" ? (
-                  <div className="flex w-fit items-center gap-2">
-                    <CareerJobLinkImportButton />
-                    <div className="inline-flex h-9 items-center rounded-md border border-neutral-1000-a05 bg-bg-weak p-1">
-                      {savedDisplayModeOptions.map((option) => {
-                        const Icon = option.icon;
-                        const active = option.id === savedDisplayMode;
-                        return (
-                          <BareButton
-                            key={option.id}
-                            type="button"
-                            aria-label={option.label}
-                            title={option.label}
-                            onClick={() =>
-                              handleSavedDisplayModeChange(option.id)
-                            }
-                            className={cn(
-                              "inline-flex h-7 w-8 items-center justify-center rounded text-neutral-primary transition-colors",
-                              active
-                                ? "bg-black text-neutral-00"
-                                : "text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
-                            )}
-                          >
-                            <Icon className="h-4 w-4" />
-                          </BareButton>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              {(savedDisplayMode === "list" ||
-                activeSavedStatus === "hidden") &&
-                listInitialLoading && (
-                  <div className="space-y-3" aria-busy="true">
-                    <Skeleton className="h-24 w-full rounded-lg" />
-                    <Skeleton className="h-24 w-full rounded-lg" />
-                  </div>
-                )}
-
-              {(savedDisplayMode === "list" ||
-                activeSavedStatus === "hidden") &&
-                listItems.length > 0 && (
-                  <div className="space-y-3 overflow-y-auto pr-1">
-                    {listItems.map((item) => {
-                      const savedStatus =
-                        getCareerOpportunityManagementStatus(item);
-                      return (
-                        <OpportunityListCard
-                          key={item.id}
-                          item={item}
-                          pending={pendingOpportunityIds.has(item.id)}
-                          onOpenOpportunityInfo={openOpportunityInfo}
-                          onOpenCompanyInfo={openHistoryCompanyInfo}
-                          onInternalDecisionAction={(action) =>
-                            setInternalDecisionChangeRequest({ action, item })
-                          }
-                          savedStatus={savedStatus}
-                          onSavedStatusChange={(status) =>
-                            handleSavedStatusChange(item, status)
-                          }
-                          onOpenDetail={() => openModalForItem(item)}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-
-              {(savedDisplayMode === "list" ||
-                activeSavedStatus === "hidden") &&
-                listItems.length === 0 &&
-                !listInitialLoading &&
-                !historyUpdateError && (
-                  <InlinePanel className="px-5 py-5">
-                    <div className="text-[14px] leading-6 text-neutral-muted">
-                      {t(
-                        "career.common.career_history_panel.1q435d3",
-                        "이 상태에 해당하는 기회가 아직 없습니다."
-                      )}
-                    </div>
-                  </InlinePanel>
-                )}
-
-              {savedDisplayMode === "board" &&
-                activeSavedStatus !== "hidden" && (
-                  <SavedOpportunityBoard
-                    initialLoading={historyLoading}
-                    loadError={Boolean(historyUpdateError)}
-                    columnLoadState={savedBoardColumnLoadState}
-                    counts={savedManagementCounts}
-                    items={savedBoardItems}
-                    pendingOpportunityIds={pendingOpportunityIds}
-                    onLoadMoreColumn={loadMoreSavedBoardColumn}
-                    onInternalDecisionAction={(item, action) =>
-                      setInternalDecisionChangeRequest({ action, item })
-                    }
-                    onOpenDetail={openModalForItem}
-                    onStatusChange={handleSavedStatusChange}
-                  />
-                )}
-
-              {(savedDisplayMode === "list" ||
-                activeSavedStatus === "hidden") &&
-                hasMoreListItems && (
-                  <div
-                    ref={loadMoreSentinelRef}
-                    className="flex min-h-12 items-center justify-center text-[13px] text-neutral-muted"
-                  >
-                    {historyLoadingMore ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-neutral-muted" />
-                    ) : (
-                      t(
-                        "career.common.career_history_panel.01m9cc2",
-                        "더 불러올 항목이 있습니다."
-                      )
-                    )}
-                  </div>
-                )}
+                </InlinePanel>
+              ) : null}
+              {hasMoreListItems ? (
+                <div ref={loadMoreSentinelRef} className="flex min-h-12 items-center justify-center text-[13px] text-neutral-muted">
+                  {listLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : historyUpdateError ? (
+                    <MuteButton size="sm" onClick={loadMoreListItems}>{t("career.tasks.retry", "다시 불러오기")}</MuteButton>
+                  ) : t("career.common.career_history_panel.01m9cc2", "더 불러올 항목이 있습니다.")}
+                </div>
+              ) : null}
             </div>
           )}
 
-          {activeTab === "archived" &&
-            !showInlineOpportunityPage &&
-            listInitialLoading && (
-              <div className="space-y-3" aria-busy="true">
-                <Skeleton className="h-24 w-full rounded-lg" />
-                <Skeleton className="h-24 w-full rounded-lg" />
-              </div>
-            )}
-
-          {activeTab === "archived" &&
-            !showInlineOpportunityPage &&
-            listItems.length > 0 && (
-              <div className="space-y-3 overflow-y-auto pr-1">
-                {listItems.map((item) => (
-                  <OpportunityListCard
-                    key={item.id}
-                    item={item}
-                    pending={pendingOpportunityIds.has(item.id)}
-                    onOpenOpportunityInfo={openOpportunityInfo}
-                    onOpenCompanyInfo={openHistoryCompanyInfo}
-                    onInternalDecisionAction={(action) =>
-                      setInternalDecisionChangeRequest({ action, item })
-                    }
-                    savedStatus={getCareerOpportunityManagementStatus(item)}
-                    onSavedStatusChange={(status) =>
-                      handleSavedStatusChange(item, status)
-                    }
-                    onOpenDetail={() => openModalForItem(item)}
-                  />
-                ))}
-              </div>
-            )}
-
-          {activeTab === "archived" &&
-            !showInlineOpportunityPage &&
-            listItems.length === 0 &&
-            !listInitialLoading &&
-            !historyUpdateError && (
-              <div className="space-y-3">
-                <InlinePanel className="px-5 py-5">
-                  <div className="text-[14px] leading-6 text-neutral-soft">
-                    {t(
-                      "career.common.career_history_panel.0okcy6f",
-                      "이 탭에 해당하는 기회가 아직 없습니다."
-                    )}
-                  </div>
-                </InlinePanel>
-              </div>
-            )}
-
-          {activeTab === "archived" &&
-            !showInlineOpportunityPage &&
-            hasMoreListItems && (
-              <div
-                ref={loadMoreSentinelRef}
-                className="flex min-h-12 items-center justify-center text-[13px] text-neutral-soft"
-              >
-                {historyLoadingMore ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-neutral-muted" />
-                ) : (
-                  t(
-                    "career.common.career_history_panel.01m9cc2",
-                    "더 불러올 항목이 있습니다."
-                  )
-                )}
-              </div>
-            )}
         </div>
       </div>
 
@@ -2183,14 +1576,22 @@ const CareerHistoryPanel = ({
                 opportunityId: externalApplyOpportunity.id,
               }
             );
-            return updateFeedbackForItem(externalApplyOpportunity, "positive", {
+            return onUpdateHistoryOpportunitySavedStage(
+              externalApplyOpportunity.id,
               savedStage,
-              promptImmediately: false,
+              externalApplyOpportunity
+            );
+          }}
+          onApplied={() => updateHistoryLocation("saved", "applied", {
+            roleId: getOpportunityUrlRoleId(externalApplyOpportunity),
+          })}
+          onOpenLink={(url) => openHistoryLink(externalApplyOpportunity, url)}
+          onOpenChat={() => {
+            feedbackRoleQueryIgnoreRef.current = null;
+            updateHistoryLocation("saved", "saved", {
+              roleId: requestedRoleId,
             });
           }}
-          onApplied={() => updateHistoryLocation("saved", "applied")}
-          onOpenLink={(url) => openHistoryLink(externalApplyOpportunity, url)}
-          onOpenChat={() => openChatTab("click_history_apply_with_harper")}
         />
       ) : null}
 

@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v2",
+  "provenance": "Synthetic v1 profiles and roles retained. Progress projection corrected to the real production builder after inspecting the v1 harness; savedStage connected is acceptance bookkeeping, not evidence of company sharing. Added explicit form-preparation conversation before v2 generation. No v1 cases/gold overwritten.",
+  "createdAt": "2026-11-02",
+  "hashes": {
+    "cases-v2.json": "a13faf52b1bfa49cd0db891ee7803efecdf98ce146844c19b52454603f02b58d",
+    "gold-v2.json": "4adfc617bdd0090954580873e0e1f8aa7948776bd7cf78bf808d10a534853ce2"
+  }
+}

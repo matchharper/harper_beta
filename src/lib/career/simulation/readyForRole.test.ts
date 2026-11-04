@@ -1,3 +1,7 @@
+import { saveApplication } from "./saveApplication";
+import { recordResumeDelivery } from "./applicationFollowUp";
+import { inspectionMemoryStore } from "./sharedApplicationInspection.testSupport";
+import { hydrateApplicationInspections } from "./sharedApplicationInspection";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createSimulationSession } from "./session";
@@ -62,8 +66,10 @@ function fixture() {
   );
   action.status = "completed";
   state.actions = [action];
+  const inspections = inspectionMemoryStore();
   const admin = {
     from: (table: string) => {
+      if (table === "role_application_inspections") return inspections.from(table);
       assert.equal(table, "talent_documents");
       const filters: Record<string, unknown> = {};
       let operation = "read",
@@ -107,8 +113,9 @@ function fixture() {
       return q;
     },
     rpc: async (_name: string, args: any) => {
+      const nextPayload = args.p_payload ? await hydrateApplicationInspections(admin, args.p_payload) as typeof state : null;
       if (args.p_payload)
-        state = { ...args.p_payload, revision: state.revision + 1 };
+        state = { ...nextPayload!, revision: state.revision + 1 };
       return {
         data: {
           id: state.sessionId,
@@ -127,32 +134,37 @@ function fixture() {
     sourceId,
   };
 }
-test("private saving remains available during inspection without pinning a submission version", async () => {
+test("resume completion is independent of inspection and never creates the application draft", async () => {
   const f = fixture();
   f.record.state.actions = [];
   f.record.state.applicationUrl = "https://example.test/apply";
   f.record.state.applicationInspection = { status: "running", runId: "inspection" };
   const pending = await readyForRole(f.store, f.record, { action: "reuse" }, 1, "pending");
-  assert.equal(pending.result.preparationComplete, false);
-  assert.equal(pending.record.state.preparation?.finalDocumentId, null);
+  assert.equal(pending.result.preparationComplete, true);
+  assert.equal(pending.record.state.preparation?.finalDocumentId, f.sourceId);
+  assert.equal(pending.record.state.applicationReview, undefined);
   for (const status of ["supported", "unsupported", "unknown"] as const) {
     f.record.state.applicationInspection.status = "completed";
     f.record.state.applicationForm = { status: status === "supported" ? "read" : "unavailable", url: f.record.state.applicationUrl, checkedAt: new Date().toISOString(), fields: [], limitations: [], submission: { status, reason: "Observed access result" } };
     const ready = await readyForRole(f.store, f.record, { action: "reuse" }, 1, status);
-    assert.equal(ready.result.submission.status, status);
-    assert.equal(ready.result.applicationUrl, "https://example.test/apply");
+    assert.equal(ready.result.preparationComplete, true);
+    assert.equal(ready.record.state.applicationReview, undefined);
     assert.equal(ready.result.applicationStarted, false);
   }
 });
 
-test("ready_for_role saves observed answers and resolves the final resume attachment in the same call", async () => {
+test("application answers require a separately delivered resume and resolve its attachment", async () => {
   const f = fixture();
   f.record.state.actions = [];
   f.record.state.applicationForm = { status: "read", url: "https://fixture.example/apply", checkedAt: new Date().toISOString(), limitations: [], submission: { status: "supported", reason: "Public form" }, fields: [
     { label: "Motivation", type: "textarea", required: true, options: [], instructions: "", fileTypes: [], maxLength: null },
     { label: "Resume", type: "file", required: true, options: [], instructions: "", fileTypes: ["pdf"], maxLength: null },
   ] };
-  const saved = await readyForRole(f.store, f.record, { action: "reuse", application_fields: [{ fieldId: "field-1", value: "Previously approved text" }, { fieldId: "field-2", documentId: "final_resume" }] }, 1, "ready-form");
+  const ready = await readyForRole(f.store, f.record, { action: "reuse" }, 1, "ready");
+  const input = { application_fields: [{ fieldId: "field-1", value: "Previously approved text" }, { fieldId: "field-2", documentId: "final_resume" }] };
+  await assert.rejects(saveApplication(f.store, ready.record, input, "too-early"), /Deliver the prepared resume/);
+  const delivered = { ...ready.record, state: recordResumeDelivery(ready.record.state, 20, "follow-up") };
+  const saved = await saveApplication(f.store, delivered, input, "ready-form");
   assert.equal(saved.record.state.applicationReview?.fields[0].value, "Previously approved text");
   assert.equal(saved.record.state.applicationReview?.fields[1].documentId, f.sourceId);
   assert.equal(saved.result.applicationReview?.available, true);
@@ -170,16 +182,18 @@ test("supporting documents persist on a login handoff and require ownership", as
     ...f.docs.get(f.sourceId), id: supportingId, kind: "document", file_name: "Project.pdf",
     origin_type: "harper_authored_document", extracted_text: "Known project and contribution",
   });
-  const saved = await readyForRole(f.store, f.record, {
-    action: "reuse", application_documents: [supportingId],
-  }, 1, "supporting");
+  const ready = await readyForRole(f.store, f.record, { action: "reuse" }, 1, "ready");
+  const delivered = { ...ready.record, state: recordResumeDelivery(ready.record.state, 20, "follow-up") };
+  const saved = await saveApplication(f.store, delivered, {
+    application_fields: [], application_documents: [supportingId],
+  }, "supporting");
   assert.deepEqual(saved.record.state.applicationReview?.documents, [{ documentId: supportingId, title: "Project.pdf" }]);
-  const again = await readyForRole(f.store, saved.record, { action: "reuse" }, 2, "preserve");
+  const again = await saveApplication(f.store, saved.record, { application_fields: [] }, "preserve");
   assert.deepEqual(again.record.state.applicationReview?.documents, saved.record.state.applicationReview?.documents);
   f.docs.get(supportingId).talent_id = "different-owner";
-  await assert.rejects(readyForRole(f.store, again.record, {
-    action: "reuse", application_documents: [supportingId],
-  }, 3, "foreign"), /supporting document unavailable/);
+  await assert.rejects(saveApplication(f.store, again.record, {
+    application_fields: [], application_documents: [supportingId],
+  }, "foreign"), /supporting document unavailable/);
 });
 
 test("approved edits save while an unanswered question remains, then reuse the saved copy after resolution", async () => {
@@ -315,13 +329,15 @@ test("readiness preserves partial form uncertainty alongside accessible submissi
     text: "Required: describe a product you have used.",
     fields: [],
     limitations: ["Answer-dependent fields have not been inspected."],
-    submission: { status: "supported", reason: "Public form is reachable." },
+    submission: { status: "supported" },
   };
-  const { result } = await readyForRole(f.store, f.record, { action: "reuse" }, 1, "partial");
-  assert.equal(result.applicationInspection.status, "partial");
-  assert.equal(result.applicationInspection.text, f.record.state.applicationForm.text);
-  assert.deepEqual(result.applicationInspection.limitations, f.record.state.applicationForm.limitations);
-  assert.equal(result.submission.status, "supported");
+  const { record, result } = await readyForRole(f.store, f.record, { action: "reuse" }, 1, "partial");
+  const before = buildPreparationPrompt(record.state).map(b => b.text).join("\n");
+  assert.ok(!before.includes("Answer-dependent fields have not been inspected."));
+  const delivered = recordResumeDelivery(record.state, 20, "follow-up");
+  const after = buildPreparationPrompt(delivered).map(b => b.text).join("\n");
+  assert.ok(after.includes("Answer-dependent fields have not been inspected."));
+  assert.ok(after.includes("Required: describe a product you have used."));
   assert.equal(result.applicationStarted, false);
 });
 
@@ -339,19 +355,19 @@ test("planning retains access evidence; save receipts retain actions without rep
       limitations: ["지원 폼을 열지 못해 질문을 확인하지 못했습니다."],
       submission: { status: "unsupported", reason },
     };
-    const context = buildPreparationPrompt(f.record.state)
+    const { record, result } = await readyForRole(f.store, f.record, { action: "reuse" }, 1, "barrier");
+    const before = buildPreparationPrompt(record.state).find(block => block.key === "application_preparation_context")!.text;
+    assert.ok(!before.includes(reason));
+    const context = buildPreparationPrompt(recordResumeDelivery(record.state, 20, "follow-up"))
       .find(block => block.key === "application_preparation_context")!.text;
     assert.ok(context.includes(reason));
     assert.ok(context.includes("Assisted submission access: unsupported"));
-    assert.ok(context.includes("지원 폼을 열지 못해 질문을 확인하지 못했습니다."));
     assert.ok(!context.includes("2026-10-29T00:30:00.000Z"));
 
-    const { result } = await readyForRole(f.store, f.record, { action: "reuse" }, 1, "barrier");
     // This is the serializer used for tool delivery to the conversation provider.
     const providerText = serializeToolResultForModel(result);
     assert.equal(providerText, result.modelOutput);
-    assert.equal(result.submission.reason, reason);
-    assert.ok(providerText.includes("unsupported"));
+    assert.ok(!providerText.includes("unsupported"));
     assert.ok(!providerText.includes(reason));
     assert.ok(!providerText.includes("지원 폼을 열지 못해 질문을 확인하지 못했습니다."));
     assert.ok(providerText.includes(result.documentLink));
@@ -411,10 +427,9 @@ test("model-facing ready commands use native fields while persisted wrapped call
   });
   assert.deepEqual(readyForRoleSchema.parse({}), {});
   assert.deepEqual(readyForRoleSchema.parse({ action: "reuse" }), {});
-  assert.deepEqual(readyForRoleSchema.parse({
-    action: "reuse", expected_revision: 1, purpose: "Prepare application",
-    application_fields: [{ fieldId: "name", value: "Alex Example" }],
-  }), { applicationFields: [{ fieldId: "name", value: "Alex Example" }] });
+  assert.throws(() => readyForRoleSchema.parse({
+    action: "reuse", application_fields: [{ fieldId: "name", value: "Alex Example" }],
+  }), /save_application/);
   assert.throws(
     () =>
       readyForRoleSchema.parse({ action: "reuse", changes: command.changes }),

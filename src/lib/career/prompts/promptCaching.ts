@@ -10,6 +10,7 @@ const TOOL_DEPENDENT_BLOCK_KEYS = new Set([
   "default_conversation_guidance",
   "capability_catalog",
   "tool_policy",
+  "handbook_catalog",
 ]);
 
 /** Reorder whole blocks only; preserve every instruction and data value. */
@@ -30,7 +31,8 @@ export function orderCareerPromptBlocksForCaching<T extends PromptCacheBlock>(
       talentContexts.push(block);
     } else if (
       block.cacheable &&
-      !TOOL_DEPENDENT_BLOCK_KEYS.has(block.key ?? "")
+      !TOOL_DEPENDENT_BLOCK_KEYS.has(block.key ?? "") &&
+      !block.key?.startsWith("handbook:")
     ) {
       instructions.push(block);
     } else runtime.push(block);

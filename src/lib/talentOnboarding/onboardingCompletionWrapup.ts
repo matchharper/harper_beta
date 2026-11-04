@@ -4,10 +4,10 @@ import {
   type CareerPromptPreferences,
 } from "@/lib/career/prompts";
 import { runCareerChatAssistant } from "@/lib/career/llm";
-import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { careerTextAssistantModelOptions } from "@/lib/career/textChatModelConfig";
+import { readCareerConversationTextChatModel } from "@/lib/career/conversationTextChatModel.server";
 import {
   getCareerPromptLanguageName,
-  getCareerPromptToneRule,
   normalizeCareerPromptLocale,
 } from "@/lib/career/promptLocale";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
@@ -26,7 +26,6 @@ import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversat
 import {
   fetchOnboardingCompletionNextStepsMessage,
   fetchOnboardingCompletionWrapupMessage,
-  insertOnboardingInitialSearchStartedMessage,
   insertOnboardingCompletionNextStepsMessage,
   insertOnboardingCompletionWrapupMessage,
 } from "@/lib/talentOnboarding/messageStore";
@@ -49,7 +48,6 @@ import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import { hasActiveConversationCompletedOpportunityRun } from "@/lib/opportunityDiscovery/store";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
-import { buildOnboardingInitialSearchStartedContent } from "@/lib/talentOnboarding/onboardingInitialSearchStartedCopy";
 
 const FALLBACK_WRAPUP_CONTENT_KO = [
   "좋은 대화였습니다. 말씀해주신 내용을 바탕으로 다음 기회 탐색 기준을 정리했습니다.",
@@ -118,68 +116,6 @@ async function getOnboardingCompletionFallbackLocale(args: {
     return resolveFallbackLocale(setting?.preferred_locale);
   } catch {
     return "en";
-  }
-}
-
-type OnboardingInitialSearchStartedContext = {
-  gmailConnected: boolean;
-  hasUploadedResume: boolean;
-  locale: "ko" | "en";
-};
-
-async function getOnboardingInitialSearchStartedContext(args: {
-  admin: TalentAdminClient;
-  userId: string;
-}): Promise<OnboardingInitialSearchStartedContext> {
-  const [locale, profile, gmailIntegration] = await Promise.all([
-    getOnboardingCompletionFallbackLocale(args),
-    fetchTalentUserProfile(args).catch(() => null),
-    fetchActiveTalentGmailIntegration({
-      admin: args.admin,
-      talentId: args.userId,
-    }).catch(() => null),
-  ]);
-
-  return {
-    gmailConnected: Boolean(gmailIntegration),
-    hasUploadedResume: Boolean(
-      profile?.resume_file_name?.trim() || profile?.resume_storage_path?.trim()
-    ),
-    locale,
-  };
-}
-
-async function createOnboardingInitialSearchStartedReceipt(args: {
-  admin: TalentAdminClient;
-  contextPromise: Promise<OnboardingInitialSearchStartedContext>;
-  conversationId: string;
-  isMobile?: boolean | null;
-  opportunityRunId: string;
-  userId: string;
-}) {
-  try {
-    const context = await args.contextPromise;
-    return await insertOnboardingInitialSearchStartedMessage({
-      admin: args.admin,
-      content: buildOnboardingInitialSearchStartedContent({
-        ...context,
-        opportunityRunId: args.opportunityRunId,
-      }),
-      conversationId: args.conversationId,
-      isMobile: args.isMobile,
-      userId: args.userId,
-    });
-  } catch (error) {
-    console.error(
-      "[onboarding-initial-search-started] Failed to save message",
-      {
-        conversationId: args.conversationId,
-        error: error instanceof Error ? error.message : String(error),
-        opportunityRunId: args.opportunityRunId,
-        userId: args.userId,
-      }
-    );
-    return null;
   }
 }
 
@@ -271,7 +207,6 @@ function buildCurrentPreferences(
 
 function buildWrapupInstruction(preferredLocale?: string | null) {
   const outputLanguage = getCareerPromptLanguageName(preferredLocale);
-  const toneRule = getCareerPromptToneRule(preferredLocale);
 
   return [
     "## Onboarding completion wrap-up task",
@@ -301,7 +236,7 @@ function buildWrapupInstruction(preferredLocale?: string | null) {
     "**Key insights**",
     "- 2-4 concise bullets about recommendation-relevant signals.",
     "",
-    `Language: write in ${outputLanguage}. ${toneRule}`,
+    `Language: write in ${outputLanguage}.`,
     "Keep it specific, useful, and grounded in the conversation. Do not invent companies, investors, locations, compensation details, or preferences that were not discussed.",
     "Do not include a `Next steps` section or any instruction about how Harper will contact the user. That belongs in the separate assistant message.",
   ].join("\n");
@@ -400,12 +335,14 @@ export async function generateOnboardingCompletionWrapupContent(args: {
   });
 
   const generated = await runCareerChatAssistant({
+    ...careerTextAssistantModelOptions((await readCareerConversationTextChatModel(args)).model),
     executeTool: ({ input, name }) =>
       executeTalentTool({
         context: {
           admin: args.admin,
           conversationId: args.conversationId,
           responseLocale,
+          resumeRequestId: `onboarding-wrapup:${args.conversationId}`,
           userMessageId: args.latestUserMessageId ?? null,
           userId: args.userId,
         },
@@ -495,6 +432,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     gmailCapability: activeGmailIntegration
       ? "connected_but_unavailable_this_turn"
       : "not_connected",
+    includePostOnboardingConversationGuide: true,
     isConversationCompletedOpportunityRunActive,
     isOnboardingDone: true,
     postOnboardingContext,
@@ -520,10 +458,9 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
   });
 
   const generated = await runCareerChatAssistant({
+    ...careerTextAssistantModelOptions((await readCareerConversationTextChatModel(args)).model),
     executeTool: async () => null,
     messages: conversationMessages,
-    primaryModel: GPT_6_LUNA_MODEL,
-    openAIResponsesReasoningEffort: "medium",
     responseLocale,
     stopAfterToolNames: [],
     systemBlocks: promptPlan.promptBlocks,
@@ -784,18 +721,8 @@ export async function createOnboardingCompletionMessages(args: {
   opportunityRunId?: string | null;
   userId: string;
 }) {
-  const initialSearchContextPromise = args.opportunityRunId
-    ? getOnboardingInitialSearchStartedContext(args)
-    : null;
   const wrapupMessage = await createOnboardingCompletionWrapupMessage(args);
-  const initialSearchStartedMessage =
-    args.opportunityRunId && initialSearchContextPromise
-      ? await createOnboardingInitialSearchStartedReceipt({
-          ...args,
-          contextPromise: initialSearchContextPromise,
-          opportunityRunId: args.opportunityRunId,
-        })
-      : null;
+  const initialSearchStartedMessage = null;
   const nextStepsMessage = await createOnboardingCompletionNextStepsMessage({
     admin: args.admin,
     conversationId: args.conversationId,
@@ -818,18 +745,8 @@ export async function regenerateOnboardingCompletionMessages(args: {
   opportunityRunId?: string | null;
   userId: string;
 }) {
-  const initialSearchContextPromise = args.opportunityRunId
-    ? getOnboardingInitialSearchStartedContext(args)
-    : null;
   const wrapupMessage = await regenerateOnboardingCompletionWrapupMessage(args);
-  const initialSearchStartedMessage =
-    args.opportunityRunId && initialSearchContextPromise
-      ? await createOnboardingInitialSearchStartedReceipt({
-          ...args,
-          contextPromise: initialSearchContextPromise,
-          opportunityRunId: args.opportunityRunId,
-        })
-      : null;
+  const initialSearchStartedMessage = null;
   const nextStepsMessage = await regenerateOnboardingCompletionNextStepsMessage(
     {
       admin: args.admin,

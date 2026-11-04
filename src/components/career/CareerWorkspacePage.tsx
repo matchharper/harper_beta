@@ -1,4 +1,5 @@
 import { consumeGmailImportIntent } from "@/lib/integrations/gmailImportIntent";
+import { browserSessionFromQuery } from "@/lib/career/browser/links";
 import { useStartDailyExternalRecommendations } from "@/hooks/career/useDailyExternalRecommendations";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -36,6 +37,7 @@ import {
   OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+  OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM,
 } from "@/lib/officialJobs";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { showToast } from "@/components/toast/toast";
@@ -99,7 +101,6 @@ const CareerWorkspacePage = ({
   const requestedSettingsTab =
     isRouterReady &&
     (router.query.settingsTab === "profile" ||
-      router.query.settingsTab === "resume" ||
       router.query.settingsTab === "referral" ||
       router.query.settingsTab === "account")
       ? router.query.settingsTab
@@ -131,11 +132,17 @@ const CareerWorkspacePage = ({
   const officialJobsRoleSlug = isRouterReady
     ? getSingleQueryParam(router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM])
     : null;
+  const officialJobsRoleId = isRouterReady
+    ? getSingleQueryParam(
+        router.query[OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM]
+      )?.trim()
+    : null;
   const officialJobsQuery = useQuery({
     queryKey: officialJobsQueryKey,
     queryFn: fetchOfficialJobs,
     enabled:
       officialJobsSource === OFFICIAL_JOBS_LANDING_SOURCE &&
+      !officialJobsRoleId &&
       Boolean(officialJobsRoleSlug?.trim()),
     staleTime: OFFICIAL_JOBS_QUERY_STALE_TIME_MS,
     gcTime: OFFICIAL_JOBS_QUERY_GC_TIME_MS,
@@ -150,6 +157,7 @@ const CareerWorkspacePage = ({
   const officialJobsChatDraftSeed = useMemo(() => {
     if (officialJobsSource !== OFFICIAL_JOBS_LANDING_SOURCE) return null;
     if (
+      !officialJobsRoleId &&
       officialJobsRoleSlug?.trim() &&
       !officialJobsQuery.data &&
       !officialJobsQuery.isError
@@ -158,10 +166,12 @@ const CareerWorkspacePage = ({
     }
 
     const publicRoleTitle =
-      mappedOfficialJob?.roleTitle?.trim() ??
+      (officialJobsRoleId
+        ? officialJobsRoleTitle?.trim()
+        : mappedOfficialJob?.roleTitle?.trim()) ??
       officialJobsRoleTitle?.trim() ??
       "";
-    const roleId = mappedOfficialJob?.roleId?.trim() ?? "";
+    const roleId = officialJobsRoleId || mappedOfficialJob?.roleId?.trim() || "";
 
     const draft = buildOfficialJobsInitialChatDraft(
       publicRoleTitle,
@@ -176,6 +186,7 @@ const CareerWorkspacePage = ({
     );
 
     const keySource =
+      roleId ||
       officialJobsRoleSlug?.trim() ||
       [officialJobsRoleTitle?.trim(), officialJobsCompanyName?.trim()]
         .filter(Boolean)
@@ -193,6 +204,7 @@ const CareerWorkspacePage = ({
     officialJobsCompanyName,
     officialJobsQuery.data,
     officialJobsQuery.isError,
+    officialJobsRoleId,
     officialJobsRoleSlug,
     officialJobsRoleTitle,
     officialJobsSource,
@@ -352,9 +364,12 @@ const CareerWorkspacePage = ({
       delete nextQuery.appName;
       delete nextQuery.gmailConnect;
       delete nextQuery.gmailImport;
+      delete nextQuery.gmailCapability;
       delete nextQuery.settingsTab;
       delete nextQuery.status;
-      if (permissionsRequired) {
+      if (router.query.gmailCapability === "write") {
+        delete nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM];
+      } else if (permissionsRequired) {
         nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "permissions";
       } else if (connected) {
         nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "success";
@@ -387,6 +402,7 @@ const CareerWorkspacePage = ({
       }>("/api/talent/integrations/gmail/complete", {
         body: JSON.stringify({
           connectedAccountId: gmailConnectedAccountId,
+          ...(router.query.gmailCapability === "write" ? { capability: "write" } : {}),
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -397,6 +413,7 @@ const CareerWorkspacePage = ({
       .then(async (result) => {
         if (result.status === "permissions_required") {
           notifyGmailIntegrationChanged();
+          if (router.query.gmailCapability === "write") showToast({ message: t("career.forms.gmailWritePermission", "이메일 작성·발송 권한을 확인하지 못했어요. Gmail을 다시 연결해 주세요."), variant: "error" });
           clearCallbackQuery(false, true);
           return;
         }
@@ -432,6 +449,11 @@ const CareerWorkspacePage = ({
         }
         logCareerEvent("gmail_connect_succeeded");
         notifyGmailIntegrationChanged();
+        if (router.query.gmailCapability === "write") {
+          showToast({ message: t("career.profile.career_profile_links_settings_section.0erv6uz", "Gmail 연결이 완료되었어요"), variant: "success" });
+          clearCallbackQuery(false);
+          return;
+        }
         showToast({
           message: t(
             "career.profile.resume_links.gmail_connected_toast",
@@ -689,7 +711,7 @@ const CareerWorkspacePage = ({
       >
         <CareerWorkspaceScreen
           activeTab={currentActiveTab}
-          initialMobileChatOpen={Boolean(officialJobsChatDraftSeed)}
+          initialMobileChatOpen={Boolean(officialJobsChatDraftSeed || browserSessionFromQuery(router.query.browserSession))}
           onChangeTab={handleChangeTab}
         />
         <CareerSettingsModal

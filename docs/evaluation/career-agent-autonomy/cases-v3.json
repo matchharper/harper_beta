@@ -1,0 +1,109 @@
+{
+  "version": "v3",
+  "requestTime": "2026-11-03T01:00:00Z",
+  "provenance": "Correction of two v2 synthetic source inconsistencies found during review. Profile company/contact dates now agree with the existing document. User messages, pages and gold unchanged. v2 outputs retained. This is a fixture correction, not a product-guidance change or response quality retry.",
+  "cases": [
+    {
+      "id": "sufficient_resume_review",
+      "message": "이 이력서 고칠 데만 봐줘. 충분히 괜찮으면 그대로 쓰려고 해. 새 파일은 만들지 마.",
+      "profile": {
+        "name": "오지훈",
+        "email": "jihun@example.test",
+        "location": "서울",
+        "headline": "Backend Engineer",
+        "bio": "백엔드 엔지니어 4년. Java, PostgreSQL, Kafka. 주문 서비스 담당.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000211",
+            "company_name": "Parcelnest",
+            "role": "Backend Engineer",
+            "start_date": "2022-03",
+            "end_date": null,
+            "description": "백엔드 엔지니어 4년. Java, PostgreSQL, Kafka. 주문 서비스 담당."
+          }
+        ]
+      },
+      "brief": "서울 B2B SaaS 제품 직무. 주 2회 이하 출근 선호.",
+      "memory": "확인된 추가 개인 사실 없음.",
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000314",
+          "title": "Backend resume",
+          "text": "Jihun Oh\nSeoul | jihun@example.test\nBackend Engineer, Parcelnest | Mar 2022–Present\n- Owned the order service processing 80,000 orders per day using Java and PostgreSQL.\n- Reduced p95 API latency from 420 ms to 180 ms by redesigning indexes and removing N+1 queries.\n- Implemented idempotent Kafka consumers to prevent duplicate order creation.\nSkills: Java, PostgreSQL, Kafka\n"
+        }
+      ],
+      "role": {
+        "id": "70000000-0000-4000-8000-000000000413",
+        "company": "Orderbay",
+        "title": "Backend Engineer",
+        "url": "https://orderbay.example/backend",
+        "description": "Java and PostgreSQL backend role. Order processing, API latency, event-driven reliability.",
+        "source": "external",
+        "status": "active"
+      },
+      "pages": [
+        {
+          "url": "https://orderbay.example/backend",
+          "title": "Orderbay Backend Engineer",
+          "body": "Build order-processing services with Java, PostgreSQL and Kafka. Work on API latency and reliable event processing.",
+          "summary": "Build order-processing services with Java, PostgreSQL and Kafka. Work on API latency and reliable event processing.",
+          "searchTerms": " Orderbay Backend Engineer"
+        }
+      ],
+      "gmail": false
+    },
+    {
+      "id": "missing_personal_fields",
+      "message": "이 포지션 지원서 준비해줘.",
+      "profile": {
+        "name": "이나경",
+        "email": "nakyung@example.test",
+        "location": "서울",
+        "headline": "UX Researcher",
+        "bio": "UX 리서처 3년. 고객 인터뷰 32건, 설문 설계, 신규 가입 과정 사용성 테스트 5회 진행.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000211",
+            "company_name": "Usergrove",
+            "role": "UX Researcher",
+            "start_date": "2023-02",
+            "end_date": null,
+            "description": "UX 리서처 3년. 고객 인터뷰 32건, 설문 설계, 신규 가입 과정 사용성 테스트 5회 진행."
+          }
+        ]
+      },
+      "brief": "서울 B2B SaaS 제품 직무. 주 2회 이하 출근 선호.",
+      "memory": "확인된 추가 개인 사실 없음.",
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000316",
+          "title": "이나경 UX 이력서",
+          "text": "이나경 | Seoul | nakyung@example.test\nUX Researcher, Usergrove | 2023.02–Present\n고객 인터뷰 32건, 설문 설계, 신규 가입 과정 사용성 테스트 5회 진행.\n사용 도구: Dovetail, Figma."
+        }
+      ],
+      "role": {
+        "id": "70000000-0000-4000-8000-000000000414",
+        "company": "Northwindow",
+        "title": "UX Researcher",
+        "url": "https://northwindow.example/apply",
+        "description": "UX research position. Resume, motivation, earliest start date and legal eligibility to work in the UK required. London hybrid.",
+        "source": "external",
+        "status": "active"
+      },
+      "pages": [
+        {
+          "url": "https://northwindow.example/apply",
+          "title": "Northwindow UX Researcher application",
+          "body": "UX Researcher — London hybrid. Application fields: resume upload, motivation, earliest available start date, and whether you currently have the legal right to work in the UK. Answers are required. No alternative email application route is listed.",
+          "summary": "UX Researcher — London hybrid. Application fields: resume upload, motivation, earliest available start date, and whether you currently have the legal right to work in the UK. Answers are required. No alternative email application route is listed.",
+          "searchTerms": "지원 영국 취업 자격 입사 가능일 Northwindow UX Researcher application"
+        }
+      ],
+      "gmail": false,
+      "browser": {
+        "url": "https://northwindow.example/apply",
+        "observation": "Application form displays resume, motivation, earliest start date and UK work eligibility. No values have been entered and no application submitted."
+      }
+    }
+  ]
+}

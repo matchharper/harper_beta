@@ -65,7 +65,8 @@ test("Career tool budgets cover every provider, streaming mode, failures and bat
               const body = JSON.parse(String(init?.body));
               const delivered = JSON.stringify(body);
               if (delivered.includes("Synthetic unexpected error")) {
-                assert.ok(delivered.includes("newProviderField"), label);
+                assert.ok(delivered.includes("E_NEW"), label);
+                assert.ok(!delivered.includes("newProviderField"), label);
                 assert.ok(!delivered.includes("[object Object]"), label);
                 sawUnknownDiagnostic = true;
               }
@@ -200,7 +201,7 @@ test("Career tool budgets cover every provider, streaming mode, failures and bat
               ],
               tools: [
                 "read_document",
-                ...(hasResume ? ["generate_resume"] : []),
+                ...(hasResume ? ["upsert_document"] : []),
               ].map((name) => ({
                 type: "function" as const,
                 function: {

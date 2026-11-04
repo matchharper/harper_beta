@@ -382,19 +382,7 @@ const CareerCompanyWatchlistPanel = () => {
         className="md:my-4"
       />
 
-      {activeTab === "following" && (
-        <div className="mb-4 min-w-0 rounded-lg border border-positive/30 bg-bg-floating px-4 py-3 shadow-sm">
-          <div className="text-[13px] font-medium leading-5 text-positive">
-            {t("career.common.career.0h5494n", "추적중이에요")}
-          </div>
-          <p className="mt-1 line-clamp-3 text-neutral-primary text-sm">
-            {t(
-              "career.common.career.0kn6r0x",
-              "펀딩, 채용, 팀 변화, 사업 성과 등 의미 있는 변화를 찾아서 알려드립니다."
-            )}
-          </p>
-        </div>
-      )}
+      {activeTab === "following" && <p className="mb-4 text-sm text-neutral-muted">{t("career.automation.coverage", "연결된 채용 공고를 확인합니다. 뉴스와 펀딩 소식은 아직 추적하지 않습니다.")}</p>}
 
       <div className="space-y-4 pb-6">
         {actionError ? (

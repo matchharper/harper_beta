@@ -37,18 +37,18 @@ const reengagementHistory = readFileSync(
   "utf8"
 );
 
-test("session start and re-engagement turns expose no career tools", () => {
-  assert.match(sessionRoute, /allowedToolNames:\s*\[\]/);
-  assert.match(reengagementRoute, /allowedToolNames:\s*\[\]/);
+test("session start and re-engagement use the normal career tool selection", () => {
+  assert.doesNotMatch(sessionRoute, /allowedToolNames:/);
+  assert.doesNotMatch(reengagementRoute, /allowedToolNames:/);
   assert.doesNotMatch(
     `${sessionRoute}\n${reengagementRoute}`,
     /TALENT_TOOL_NAMES\.RECOMMEND_JOB_POSTINGS/
   );
 });
 
-test("dedicated re-engagement overrides the model without changing legacy session start", () => {
-  assert.match(reengagementRoute, /assistantModel:\s*GPT_6_LUNA_MODEL/);
-  assert.doesNotMatch(sessionRoute, /GPT_6_LUNA_MODEL/);
+test("both re-engagement entry points use a per-call Haiku override", () => {
+  assert.match(reengagementRoute, /assistantModel:\s*CLAUDE_HAIKU_MODEL/);
+  assert.match(sessionRoute, /assistantModel:\s*CLAUDE_HAIKU_MODEL/);
 });
 
 test("dedicated re-engagement configures temperature 0.8", () => {

@@ -2,6 +2,7 @@ import { renderOrgAgentWebLinks } from "@/lib/org/agent/navigationMarkdown";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
+import remarkCjkFriendly from "remark-cjk-friendly";
 import remarkRehype from "remark-rehype";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeStringify from "rehype-stringify";
@@ -141,6 +142,7 @@ export function renderReplyEmail(
   const processor = unified()
       .use(remarkParse)
       .use(remarkGfm)
+      .use(remarkCjkFriendly)
       .use(remarkRehype)
       .use(rehypeSanitize)
       .use(

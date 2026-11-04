@@ -1,3 +1,4 @@
+import { useCareerOpenForms } from "@/hooks/career/useCareerOpenForms";
 import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import CareerCompanyJobsDrawer from "./watchlist/CareerCompanyJobsDrawer";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
@@ -9,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/router";
+import { useQueryClient } from "@tanstack/react-query";
 import type {
   CareerInterviewProgress,
   CareerInternalOpportunityCallRequest,
@@ -30,6 +32,7 @@ import {
   type CareerProfileContextValue,
   type CareerWorkspaceContextValue,
 } from "./CareerSidebarContext";
+import { useEventCallback } from "@/hooks/useEventCallback";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerChat } from "@/hooks/career/useCareerChat";
@@ -75,7 +78,6 @@ import {
   type CareerConversationStarterId,
   type CareerConversationStarterMode,
 } from "@/lib/career/prompts/conversationStarters";
-import { CAREER_CHAT_ALLOWED_TOOLS_BY_ACTION } from "@/lib/career/chatToolPresets";
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 import type { CareerCoachingActivityUiAction } from "./chat/CareerCoachingActivityCard";
 import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
@@ -168,6 +170,7 @@ export const CareerFlowProvider = ({
 }) => {
   const t = useCareerT();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { locale } = useMessages();
   const sessionReengagementState = useCareerSessionReengagementState();
   const {
@@ -221,9 +224,12 @@ export const CareerFlowProvider = ({
   );
   const {
     actionMessageId: sessionReengagementActionMessageId,
+    actionVersionRef: sessionReengagementActionVersionRef,
     automaticRunRef: sessionReengagementRef,
     clearAction: clearSessionReengagementAction,
     pending: sessionReengagementPending,
+    readResponse: readSessionReengagementResponse,
+    streamMessage: sessionReengagementStreamMessage,
     recommendationStatus: sessionReengagementRecommendationStatus,
     setActionMessageId: setSessionReengagementActionMessageId,
     setPending: setSessionReengagementPending,
@@ -396,6 +402,11 @@ export const CareerFlowProvider = ({
     },
     []
   );
+  const { data: openWork } = useCareerOpenForms(conversationId);
+  const handleRequestAdmitted = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ["career-open-forms", conversationId] }),
+    [queryClient, conversationId]
+  );
 
   const {
     stage,
@@ -405,13 +416,16 @@ export const CareerFlowProvider = ({
     appendMessage,
     removeMessages,
     chatPending,
+    chatAdmissionPending,
     chatError,
     setChatError,
     assistantTyping,
     toolStatusMessage,
     activeThinkingLogs,
     activeRecommendationSearchStatus,
-    cancelActiveRecommendationSearch,
+    cancelActiveChat,
+    canStopChat,
+    stopPending,
     onboardingWrapupPending: chatOnboardingWrapupPending,
     thinkingLogsByMessageId,
     enqueueAssistantTypewriter,
@@ -420,6 +434,7 @@ export const CareerFlowProvider = ({
     regenerateOnboardingWrapup,
     resetChatState,
   } = useCareerChat({
+    isOnboardingDone: Boolean(sessionData?.talentPreferences?.isOnboardingDone),
     user,
     conversationId,
     sessionPending: chatSessionPending,
@@ -436,6 +451,8 @@ export const CareerFlowProvider = ({
       handleOnboardingChecklistProgressRefreshed,
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
     onMessagesChanged: appendLatestMessagesToCache,
+    onRequestAdmitted: handleRequestAdmitted,
+    hasDurableWork: openWork?.canStop,
   });
 
   const visibleUnlinkedOpportunityRuns = useMemo(() => {
@@ -626,6 +643,7 @@ export const CareerFlowProvider = ({
     historyUpdatingOpportunityIds,
     hydrateHistoryOpportunityCounts,
     hydrateHistoryOpportunities,
+    getHistoryOpportunityPageFilterState,
     isHistoryOpportunityPageFilterLoading,
     loadHistoryOpportunityByRoleId,
     loadMoreHistoryOpportunities,
@@ -854,9 +872,9 @@ export const CareerFlowProvider = ({
 
   const sendChatMessage = useCallback(
     async (args: {
-      allowedToolNames?: readonly string[];
       channel?: "chat" | "voice";
       simulationAction?:SimulationCardRequest;
+      formResponseMessageId?: number;
       coachingActivityAction?: {
         action: "start" | "end";
         activityMessageId: number;
@@ -868,7 +886,9 @@ export const CareerFlowProvider = ({
       link?: string;
       messageType?: TalentUserChatMessageType;
       opportunityMentions?: CareerOpportunityMention[];
+      viewedRoleId?: string;
       onError?: () => void;
+      onSuccess?: () => void;
     }) => {
       if (
         opportunityFeedbackFollowUpRunningRef.current ||
@@ -906,8 +926,6 @@ export const CareerFlowProvider = ({
       }
 
       await sendChatMessage({
-        allowedToolNames:
-          CAREER_CHAT_ALLOWED_TOOLS_BY_ACTION.currentDataJobPostingRecommendation,
         text: getDevCurrentDataJobPostingRecommendationPrompt(t),
       });
     }, [
@@ -923,7 +941,7 @@ export const CareerFlowProvider = ({
     await loadOlderMessages();
   }, [loadOlderMessages]);
 
-  const handleDeleteMessage = useCallback(
+  const handleDeleteMessage = useEventCallback(
     async (messageId: string | number): Promise<boolean> => {
       const parsedMessageId = Number(messageId);
       if (
@@ -952,32 +970,27 @@ export const CareerFlowProvider = ({
           throw new Error(
             getErrorMessage(
               payload,
-              // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
-              "메시지를 삭제하지 못했습니다."
+              t("ui.1xeaoum", "메시지를 삭제하지 못했습니다.")
             )
           );
         }
 
-        removeMessagesFromCache([parsedMessageId]);
-        removeMessages([parsedMessageId]);
+        const hiddenFormId = typeof payload.hiddenFormId === "number" ? payload.hiddenFormId : null;
+        const removedIds = hiddenFormId
+          ? [...new Set([parsedMessageId, ...[...messages, ...persistedMessages].filter((message) => message.careerForm?.formId === hiddenFormId || message.formResponse?.formId === hiddenFormId).map((message) => Number(message.id))])]
+          : [parsedMessageId];
+        removeMessagesFromCache(removedIds);
+        removeMessages(removedIds);
         return true;
       } catch (error) {
         setChatError(
           error instanceof Error
             ? error.message
-            : // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
-              "메시지를 삭제하지 못했습니다."
+            : t("ui.1xeaoum", "메시지를 삭제하지 못했습니다.")
         );
         return false;
       }
-    },
-    [
-      conversationId,
-      fetchWithAuth,
-      removeMessages,
-      removeMessagesFromCache,
-      setChatError,
-    ]
+    }
   );
 
   const enqueueAssistantMessages = useCallback(
@@ -1182,12 +1195,11 @@ export const CareerFlowProvider = ({
     onMessagesChanged: appendLatestMessagesToCache,
   });
 
-  const handleStartCallModeFromUi = useCallback(
+  const handleStartCallModeFromUi = useEventCallback(
     async (args?: Parameters<typeof handleStartCallMode>[0]) => {
       clearSessionReengagementAction();
       return handleStartCallMode(args);
-    },
-    [clearSessionReengagementAction, handleStartCallMode]
+    }
   );
 
   useEffect(() => {
@@ -1269,7 +1281,6 @@ export const CareerFlowProvider = ({
   const handleRequestMoreOpenPositions = useCallback(async () => {
     clearSessionReengagementAction();
     await sendChatMessage({
-      allowedToolNames: CAREER_CHAT_ALLOWED_TOOLS_BY_ACTION.moreOpenPositions,
       messageType: TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST,
       text: t(
         "career.common.career_flow_provider.request_more_open_positions",
@@ -1528,6 +1539,8 @@ export const CareerFlowProvider = ({
       }
 
       clearSessionReengagementAction();
+      const actionVersion = sessionReengagementActionVersionRef.current;
+      const isCurrentAction = () => sessionReengagementActionVersionRef.current === actionVersion;
       setSessionReengagementPending(true);
       setSessionReengagementThinkingLogs([]);
       setSessionReengagementRecommendationStatus(null);
@@ -1538,6 +1551,7 @@ export const CareerFlowProvider = ({
           "/api/talent/session/reengagement",
           {
             method: "POST",
+            headers: { Accept: "text/event-stream" },
             body: JSON.stringify({
               conversationId,
               timeZone: getCareerBrowserTimeZone(),
@@ -1545,9 +1559,10 @@ export const CareerFlowProvider = ({
             }),
           }
         );
-        const payload = (await response
-          .json()
-          .catch(() => ({}))) as SessionReengagementPayload;
+        const payload = await readSessionReengagementResponse(
+          response, appendLatestMessagesToCache, isCurrentAction
+        );
+        if (!isCurrentAction()) return false;
 
         if (!response.ok) {
           throw new Error(
@@ -1580,6 +1595,12 @@ export const CareerFlowProvider = ({
             payload.insightUpdatedAt ?? null
           );
         }
+        if ("talentBrief" in payload || "talentMemories" in payload) {
+          handleTalentContextsRefreshedFromChat(payload);
+        }
+        if (typeof payload.hiddenExpiredExternalOpportunityCount === "number" && payload.hiddenExpiredExternalOpportunityCount > 0) {
+          await refreshLatestHistoryOpportunities();
+        }
 
         const assistantMessages = Array.isArray(payload.assistantMessages)
           ? payload.assistantMessages
@@ -1588,7 +1609,6 @@ export const CareerFlowProvider = ({
             : [];
 
         if (assistantMessages.length > 0) {
-          await enqueueAssistantMessages(assistantMessages);
           const lastAssistantMessage =
             assistantMessages[assistantMessages.length - 1];
           setSessionReengagementActionMessageId(
@@ -1613,14 +1633,22 @@ export const CareerFlowProvider = ({
         );
         return false;
       } finally {
-        setSessionReengagementPending(false);
+        if (isCurrentAction()) {
+          setSessionReengagementPending(false);
+          setSessionReengagementThinkingLogs([]);
+          setSessionReengagementRecommendationStatus(null);
+        }
       }
     }, [
       clearSessionReengagementAction,
       conversationId,
-      enqueueAssistantMessages,
+      appendLatestMessagesToCache,
+      readSessionReengagementResponse,
+      sessionReengagementActionVersionRef,
       fetchWithAuth,
       handleTalentInsightsRefreshedFromChat,
+      handleTalentContextsRefreshedFromChat,
+      refreshLatestHistoryOpportunities,
       handleTalentPreferencesRefreshedFromChat,
       hydrateSession,
       loadSession,
@@ -1636,7 +1664,7 @@ export const CareerFlowProvider = ({
     ]);
 
   const handleRunSessionReengagementTest = useCallback(
-    async (options?: { deleteLatestMessage?: boolean }): Promise<void> => {
+    async (options?: { deleteRecentMessages?: boolean }): Promise<void> => {
       if (
         !conversationId ||
         sessionReengagementTestPending ||
@@ -1645,35 +1673,48 @@ export const CareerFlowProvider = ({
         return;
       }
 
-      clearSessionReengagementAction();
+      const deleteRecentMessages = options?.deleteRecentMessages !== false;
+      if (!deleteRecentMessages) {
+        clearSessionReengagementAction();
+        setSessionReengagementPending(true);
+      }
+      const actionVersion = sessionReengagementActionVersionRef.current;
+      const isCurrentAction = () => sessionReengagementActionVersionRef.current === actionVersion;
       setSessionReengagementTestPending(true);
       setChatError("");
-      const deleteLatestMessage = options?.deleteLatestMessage !== false;
       try {
         const response = await fetchWithAuth(
           "/api/talent/session/reengagement",
           {
             method: "POST",
+            ...(deleteRecentMessages ? {} : { headers: { Accept: "text/event-stream" } }),
             body: JSON.stringify({
               conversationId,
-              ...(deleteLatestMessage ? { devDeleteLatestMessage: true } : {}),
-              devForce: true,
-              timeZone: getCareerBrowserTimeZone(),
+              ...(deleteRecentMessages
+                ? { devDeleteRecentMessages: true }
+                : { devForce: true, timeZone: getCareerBrowserTimeZone() }),
             }),
           }
         );
-        const payload = (await response
-          .json()
-          .catch(() => ({}))) as SessionReengagementPayload;
+        const payload = deleteRecentMessages
+          ? ((await response.json().catch(() => ({}))) as SessionReengagementPayload)
+          : await readSessionReengagementResponse(response, appendLatestMessagesToCache, isCurrentAction);
+        if (!deleteRecentMessages && !isCurrentAction()) return;
 
         if (!response.ok) {
           throw new Error(
             getErrorMessage(
               payload,
               // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
-              "12시간 인사 테스트 실행에 실패했습니다."
+              deleteRecentMessages
+                ? "최근 메시지 삭제에 실패했습니다."
+                : "12시간 인사 테스트 실행에 실패했습니다."
             )
           );
+        }
+        if (deleteRecentMessages) {
+          removeMessagesFromCache(payload.deletedMessageIds ?? []);
+          return;
         }
         if (payload.skipped) {
           // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
@@ -1695,48 +1736,47 @@ export const CareerFlowProvider = ({
             payload.insightUpdatedAt ?? null
           );
         }
-
-        const deletedMessageId = payload.deletedMessage?.id;
-        if (deletedMessageId != null) {
-          removeMessagesFromCache([deletedMessageId]);
+        if ("talentBrief" in payload || "talentMemories" in payload) {
+          handleTalentContextsRefreshedFromChat(payload);
         }
-
-        const sessionPayload = await loadSession({ force: true });
-        if (sessionPayload) {
-          hydrateSession(sessionPayload);
-        } else {
-          const assistantMessages = Array.isArray(payload.assistantMessages)
-            ? payload.assistantMessages
-            : payload.assistantMessage
-              ? [payload.assistantMessage]
-              : [];
-          if (assistantMessages.length > 0) {
-            await enqueueAssistantMessages(assistantMessages);
-          }
+        if (typeof payload.hiddenExpiredExternalOpportunityCount === "number" && payload.hiddenExpiredExternalOpportunityCount > 0) {
+          await refreshLatestHistoryOpportunities();
         }
       } catch (error) {
         // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
         setChatError(
           error instanceof Error
             ? error.message
-            : "12시간 인사 테스트 실행 중 오류가 발생했습니다."
+            : deleteRecentMessages
+              ? "최근 메시지 삭제 중 오류가 발생했습니다."
+              : "12시간 인사 테스트 실행 중 오류가 발생했습니다."
         );
       } finally {
         setSessionReengagementTestPending(false);
+        if (!deleteRecentMessages && isCurrentAction()) {
+          setSessionReengagementPending(false);
+          setSessionReengagementThinkingLogs([]);
+          setSessionReengagementRecommendationStatus(null);
+        }
       }
     },
     [
       clearSessionReengagementAction,
       conversationId,
-      enqueueAssistantMessages,
+      appendLatestMessagesToCache,
+      readSessionReengagementResponse,
+      sessionReengagementActionVersionRef,
       fetchWithAuth,
       handleTalentInsightsRefreshedFromChat,
+      handleTalentContextsRefreshedFromChat,
+      refreshLatestHistoryOpportunities,
       handleTalentPreferencesRefreshedFromChat,
-      hydrateSession,
-      loadSession,
       removeMessagesFromCache,
       sessionReengagementTestPending,
       setChatError,
+      setSessionReengagementPending,
+      setSessionReengagementThinkingLogs,
+      setSessionReengagementRecommendationStatus,
       stage,
     ]
   );
@@ -1807,7 +1847,7 @@ export const CareerFlowProvider = ({
 
   useCareerAutomaticSessionReengagement({
     conversationId,
-    enqueueAssistantMessages,
+    appendAssistantMessages: appendLatestMessagesToCache,
     fetchWithAuth,
     onHistoryOpportunitiesChanged: refreshLatestHistoryOpportunities,
     onOpportunityRunChanged: setOpportunityRun,
@@ -1840,13 +1880,18 @@ export const CareerFlowProvider = ({
     historyOpportunities.length === 0 &&
     (historyInitialLoading || (!historyLoaded && activeTab === "history"));
 
+  const timelineMessages = useMemo(
+    () => sessionReengagementStreamMessage ? [...messages, sessionReengagementStreamMessage] : messages,
+    [messages, sessionReengagementStreamMessage]
+  );
+
   useCareerChatAutoScroll({
     preserveReadingPosition: messages.some(m=>m.applicationActivity || m.messageType === "application_activity" || m.simulationSession),
     conversationId,
     initialScrollPending: chatSessionPending,
-    messageCount: messages.length,
+    messageCount: timelineMessages.length,
     scrollRef,
-    scrollTick,
+    scrollTick: scrollTick + (sessionReengagementStreamMessage?.content.length ?? 0),
   });
 
   const userChatCount = useMemo(
@@ -1900,12 +1945,53 @@ export const CareerFlowProvider = ({
     ]
   );
 
+  const handleSimulationAction = useEventCallback(
+    async (action: SimulationCardRequest, text: string) => {
+      const source = messages.find(
+        (message) => Number(message.id) === action.sessionMessageId,
+      );
+      const offer = source?.applicationStartOffer;
+      let session = source?.simulationSession;
+      if (!offer && !session) {
+        const response = await fetchWithAuth(
+          `/api/talent/simulation?sessionMessageId=${action.sessionMessageId}`,
+        );
+        if (response.ok) session = (await response.json()).session ?? undefined;
+      }
+      const roleName = offer?.roleName ?? session?.roleName;
+      const roleId =
+        offer?.roleId ??
+        session?.activity?.roleId ??
+        (session?.roleRef.startsWith("role:")
+          ? session.roleRef.slice(5)
+          : undefined);
+      const documentId =
+        action.documentId ?? offer?.selectedDocumentId ?? session?.documentId;
+      const documentLabel = t(
+        "career.application.review.resumeFile",
+        "이력서 열기",
+      );
+      await sendChatMessage({
+        text: [
+          roleName,
+          text,
+          documentId ? `[${documentLabel}](documentId:${documentId})` : null,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        ...(roleName && roleId
+          ? { opportunityMentions: [{ roleId, label: roleName }] }
+          : {}),
+      });
+    },
+  );
+
   const chatPanelContextValue: CareerChatPanelCoreContextValue = useMemo(
     () => ({
       user,
       conversationId,
       stage,
-      messages,
+      messages: timelineMessages,
       scrollRef,
       hasOlderMessages,
       loadingOlderMessages,
@@ -1921,11 +2007,14 @@ export const CareerFlowProvider = ({
       profilePending,
       profileError,
       chatError,
-      assistantTyping,
+      assistantTyping: assistantTyping || Boolean(sessionReengagementStreamMessage),
       toolStatusMessage,
       activeThinkingLogs,
       activeRecommendationSearchStatus,
-      onCancelActiveRecommendationSearch: cancelActiveRecommendationSearch,
+      onCancelActiveRecommendationSearch: cancelActiveChat,
+      onCancelChat: cancelActiveChat,
+      canStopChat,
+      stopPending,
       initialChatDraft:
         preparedChatDraft?.text.trim() || initialChatDraft?.trim() || undefined,
       initialChatDraftKey:
@@ -1938,6 +2027,7 @@ export const CareerFlowProvider = ({
       onboardingWrapupPending,
       thinkingLogsByMessageId,
       chatPending,
+      chatAdmissionPending,
       sessionReengagementPending,
       sessionReengagementThinkingLogs,
       sessionReengagementRecommendationStatus,
@@ -1964,7 +2054,7 @@ export const CareerFlowProvider = ({
       onPrepareChatDraft: prepareChatDraft,
       onShowSameCompanyRoles: showSameCompanyRoles,
       onStartConversationStarter: handleStartConversationStarter,
-      onSimulationAction: async (simulationAction:SimulationCardRequest,text:string) => { await sendChatMessage({simulationAction,text}); },
+      onSimulationAction: handleSimulationAction,
       onUpdateCareerCoachingActivity: handleUpdateCareerCoachingActivity,
       onRunSessionReengagement: handleRunSessionReengagement,
       onUpdateHistoryOpportunityFeedback,
@@ -1984,9 +2074,13 @@ export const CareerFlowProvider = ({
     }),
     [
       assistantTyping,
+      sessionReengagementStreamMessage,
+      timelineMessages,
       activeThinkingLogs,
       activeRecommendationSearchStatus,
-      cancelActiveRecommendationSearch,
+      cancelActiveChat,
+      canStopChat,
+      stopPending,
       emailOnboardingToken,
       onboardingWrapupPending,
       authLoading,
@@ -1995,6 +2089,7 @@ export const CareerFlowProvider = ({
       authPending,
       chatError,
       chatPending,
+      chatAdmissionPending,
       thinkingLogsByMessageId,
       toolStatusMessage,
       sessionReengagementThinkingLogs,
@@ -2017,6 +2112,7 @@ export const CareerFlowProvider = ({
       handlePauseOnboarding,
       handleStartCallModeFromUi,
       handleStartConversationStarter,
+      handleSimulationAction,
       handleUpdateCareerCoachingActivity,
       handleSubmitOnboardingInterest,
       handleUseChatOnly,
@@ -2029,7 +2125,6 @@ export const CareerFlowProvider = ({
       forceCompletePending,
       isOnboardingDone,
       interviewProgress,
-      messages,
       loadingOlderMessages,
       onUpdateHistoryOpportunityFeedback,
       handleDeleteMessage,
@@ -2176,6 +2271,7 @@ export const CareerFlowProvider = ({
       historyUpdatingOpportunityIds,
       historyUpdateError,
       onLoadMoreHistoryOpportunities: loadMoreHistoryOpportunities,
+      getHistoryOpportunityPageFilterState,
       isHistoryOpportunityPageFilterLoading,
       onLoadSavedStageHistoryOpportunityPages:
         loadSavedStageHistoryOpportunityPages,
@@ -2196,6 +2292,7 @@ export const CareerFlowProvider = ({
       historyOpportunityCounts,
       historyUpdateError,
       historyUpdatingOpportunityIds,
+      getHistoryOpportunityPageFilterState,
       isHistoryOpportunityPageFilterLoading,
       loadHistoryOpportunityByRoleId,
       loadMoreHistoryOpportunities,

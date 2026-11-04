@@ -1,16 +1,16 @@
 import { companyReplyAddresses } from "../companyAlias";
-import { finishCompanyEmailReply, processCompanyEmailReply } from "./companyReply";
+import {
+  finishCompanyEmailReply,
+  processCompanyEmailReply,
+} from "./companyReply";
 import { processExternalCandidateReply } from "./externalReply";
 import { externalCandidateReplyAddresses } from "@/lib/org/agent/externalInvite";
-import { buildPreparationPrompt } from "@/lib/career/simulation/preparationPrompt";
-import { continueEmailApplication, emailApplicationContext, assertEmailApplicationReadyToReply } from "./application";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
+import { dispatchCareerCheckpoint } from "@/lib/career/agentContinuation";
 import { emailAssistantModel } from "./model";
 import { isOpsEmailTest, opsEmailTestInput } from "./opsTest";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
-import {
-  loadEmailReferenceContext,
-} from "./context";
+import { loadEmailReferenceContext } from "./context";
 import {
   buildReplySubject,
   htmlToPlainText,
@@ -76,8 +76,13 @@ export async function processEmailReply(
   owner: string
 ) {
   const opsTest = opsEmailTestInput(job);
-  if (!opsTest && job.resend_email_id && asObject(asObject(job.metadata).delivery).to) {
-    if (asObject(job.metadata).companyEmail) await finishCompanyEmailReply(admin, job, owner);
+  if (
+    !opsTest &&
+    job.resend_email_id &&
+    asObject(asObject(job.metadata).delivery).to
+  ) {
+    if (asObject(job.metadata).companyEmail)
+      await finishCompanyEmailReply(admin, job, owner);
     else await finishEmailReply(admin, job, owner);
     return;
   }
@@ -96,7 +101,8 @@ export async function processEmailReply(
   if (!inbound) throw new EmailPermanentError("inbound_event_not_found");
   const metadata = asObject(job.metadata);
   const testEmail =
-    opsTest ?? (job.kind === "referral_intro"
+    opsTest ??
+    (job.kind === "referral_intro"
       ? asObject(asObject(metadata.referralIntro).email)
       : {});
   const received = Object.keys(testEmail).length
@@ -136,15 +142,20 @@ export async function processEmailReply(
     return processExternalCandidateReply(special);
   if (job.kind === "org_intro_capture") return processIntroCapture(special);
   if (job.kind === "referral_intro") return processReferralIntro(special);
-  const identity = opsTest ? {
-    talentId: String(job.talent_id), conversationId: String(job.conversation_id),
-    companyRequestId: null, alias: null, lead: null,
-  } : await resolveEmailIdentity({
-    admin,
-    job,
-    sender,
-    recipients,
-  });
+  const identity = opsTest
+    ? {
+        talentId: String(job.talent_id),
+        conversationId: String(job.conversation_id),
+        companyRequestId: null,
+        alias: null,
+        lead: null,
+      }
+    : await resolveEmailIdentity({
+        admin,
+        job,
+        sender,
+        recipients,
+      });
   const profile = await readRow(
     admin,
     "talent_users",
@@ -158,12 +169,14 @@ export async function processEmailReply(
     identity.talentId,
     identity.conversationId
   );
-  const replyAlias = opsTest ? "ops-test@reply.matchharper.com" : await ensureReplyAlias(
-    admin,
-    identity.talentId,
-    conversationId,
-    identity.alias ?? asObject(metadata.delivery).replyTo
-  );
+  const replyAlias = opsTest
+    ? "ops-test@reply.matchharper.com"
+    : await ensureReplyAlias(
+        admin,
+        identity.talentId,
+        conversationId,
+        identity.alias ?? asObject(metadata.delivery).replyTo
+      );
   let attachments = received.attachments ?? [];
   if (!Object.keys(testEmail).length && (!body || attachments.length > 0))
     attachments = await getReceivedAttachments(inbound.provider_email_id);
@@ -181,11 +194,20 @@ export async function processEmailReply(
     content: `${body}${attachmentText}`,
   });
   if (identity.companyRequestId) {
-    const request = await readRow(admin, "company_talent_requests", identity.companyRequestId);
+    const request = await readRow(
+      admin,
+      "company_talent_requests",
+      identity.companyRequestId
+    );
     if (request?.ops_only) {
-      const { error } = await (admin.rpc as any)("bind_ops_candidate_reply_v1", {
-        p_request_id: request.id, p_talent_id: identity.talentId, p_source_message_id: sourceMessage.id,
-      });
+      const { error } = await (admin.rpc as any)(
+        "bind_ops_candidate_reply_v1",
+        {
+          p_request_id: request.id,
+          p_talent_id: identity.talentId,
+          p_source_message_id: sourceMessage.id,
+        }
+      );
       if (error) throw error;
     }
   }
@@ -199,33 +221,32 @@ export async function processEmailReply(
     sourceMessage,
     thread: fullBody === body ? "" : fullBody.slice(0, 16_000),
   };
-  if (!opsTest) await recordEmailAudit(admin, {
-    id: emailAuditId(job.id, "inbound"),
-    talent_id: ctx.talentId,
-    talent_message_id: sourceMessage.id,
-    inbound_event_id: inbound.id,
-    reply_job_id: job.id,
-    direction: "inbound",
-    mail_type: identity.companyRequestId
-      ? "company_talent_request"
-      : "inbound_reply",
-    status: "received",
-    from_email: sender,
-    to_email: recipients.map(normalizeEmailAddress).find(Boolean),
-    subject,
-    body_text: body,
-    metadata: {
-      replyTo: replyAlias,
-      ...(identity.companyRequestId
-        ? { companyTalentRequestId: identity.companyRequestId }
-        : {}),
-      attachments,
-    },
-  });
+  if (!opsTest)
+    await recordEmailAudit(admin, {
+      id: emailAuditId(job.id, "inbound"),
+      talent_id: ctx.talentId,
+      talent_message_id: sourceMessage.id,
+      inbound_event_id: inbound.id,
+      reply_job_id: job.id,
+      direction: "inbound",
+      mail_type: identity.companyRequestId
+        ? "company_talent_request"
+        : "inbound_reply",
+      status: "received",
+      from_email: sender,
+      to_email: recipients.map(normalizeEmailAddress).find(Boolean),
+      subject,
+      body_text: body,
+      metadata: {
+        replyTo: replyAlias,
+        ...(identity.companyRequestId
+          ? { companyTalentRequestId: identity.companyRequestId }
+          : {}),
+        attachments,
+      },
+    });
   let current = await readRow(admin, "email_reply_jobs", job.id);
   if (!current?.assistant_message_id) {
-    const application = await continueEmailApplication(ctx);
-    const applicationContext = await emailApplicationContext(ctx, application);
     const references = await loadEmailReferenceContext(ctx);
     const signupBody =
       opsTest || identity.lead || references.internalConnectionReply
@@ -280,14 +301,18 @@ export async function processEmailReply(
         .order("occurred_at", { ascending: false })
         .limit(3);
       if (historyError) throw historyError;
-      const historyText = history.map((row: EmailRow) =>
-        `- ${formatLlmDateTime(row.occurred_at)} | ${row.subject || "(no subject)"}\n${String(row.body_text ?? "").slice(0, 6000)}`
-      ).join("\n\n");
+      const historyText = history
+        .map(
+          (row: EmailRow) =>
+            `- ${formatLlmDateTime(row.occurred_at)} | ${row.subject || "(no subject)"}\n${String(row.body_text ?? "").slice(0, 6000)}`
+        )
+        .join("\n\n");
       const extra = [
         references.text,
         ...(onboarding ? [] : [await emailCoachingContext(ctx)]),
-        "Current application context (authoritative over older conversation summaries):\n" + applicationContext,
-        opsTest ? "Ops email test: treat the supplied input as the candidate's message and write to the candidate in the usual email voice. Reads, owned document changes and application preparation are real; email delivery, company contact, application submission and mutations that schedule future matching/contact are disabled. Describe only verified actions." : await signupFollowupContext(ctx),
+        opsTest
+          ? "Ops email test: treat the supplied input as the candidate's message and write to the candidate in the usual email voice. Reads, owned document changes and application preparation are real; email delivery, company contact, application submission and mutations that schedule future matching/contact are disabled. Describe only verified actions."
+          : await signupFollowupContext(ctx),
         onboarding
           ? buildOnboardingRuntimeStateSection({
               checklistCoverage: coverage,
@@ -314,20 +339,20 @@ export async function processEmailReply(
           model.chatCompletionReasoningEffort,
         assistantOpenAIResponsesReasoningEffort:
           model.openAIResponsesReasoningEffort,
+        onAgentCheckpoint: async checkpoint => {
+          await updateEmailJob(admin, "reply", job.id, owner, { status: "waiting_career", locked_at: null, locked_by: null,
+            attempts: Math.max(0, Number(job.attempts ?? 1) - 1), queue_dispatched_at: null });
+          await dispatchCareerCheckpoint({ admin, userId: ctx.talentId, conversationId, checkpoint });
+        },
         adapter: {
+          replyJobId: job.id,
           onboardingActive: onboarding,
           sourceMessage,
           adaptPromptBlocks: (blocks) =>
-            adaptEmailPromptBlocks([
-              ...blocks,
-              ...(application?.state.status === "active" && application.state.analysisStatus === "completed"
-                ? buildPreparationPrompt(application.state, ["ready_for_role"], "email") : []),
-            ], ctx, extra),
+            adaptEmailPromptBlocks(blocks, ctx, extra),
           adaptTools: (selection) => emailToolSelection(selection, onboarding),
           executeTool: (args) => executeEmailTool(ctx, args),
-          beforeAssistantFinalization: async () => { await assertEmailApplicationReadyToReply(ctx); },
-          persistAssistant: async ({ content, notices }) => {
-            await assertEmailApplicationReadyToReply(ctx);
+          persistAssistant: async ({ content, notices, agentTurn }) => {
             return persistReplyMessage({
               admin,
               jobId: job.id,
@@ -336,7 +361,10 @@ export async function processEmailReply(
               conversationId,
               role: "assistant",
               content,
-              metadata: { pendingProcessClosureNotices: notices },
+              metadata: {
+                pendingProcessClosureNotices: notices,
+                ...(agentTurn ? { agentTurn } : {}),
+              },
             });
           },
         },
@@ -387,7 +415,9 @@ export async function processEmailReply(
   }
   if (isOpsEmailTest(job) || process.env.EMAIL_REPLY_DRY_RUN === "true") {
     if (isOpsEmailTest(job))
-      await updateRow(admin, "talent_conversations", conversationId, { updated_at: nowIso() });
+      await updateRow(admin, "talent_conversations", conversationId, {
+        updated_at: nowIso(),
+      });
     await updateEmailJob(admin, "reply", job.id, owner, {
       status: "skipped",
       skip_reason: isOpsEmailTest(job) ? "ops_email_test" : "dry_run",

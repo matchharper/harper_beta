@@ -86,6 +86,8 @@ test("a partial Google grant stops before fetching mail without changing the con
     query: "subject:interview",
   });
   assert.equal(result.status, "permissions_required");
+  assert.match(result.modelOutput ?? "", /\[\[integration:gmail\]\]/);
+  assert.match(result.modelOutput ?? "", /no emails were read/i);
   assert.deepEqual(result.emails, []);
   assert.equal(calls.length, 1);
 });

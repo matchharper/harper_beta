@@ -17,6 +17,10 @@ import {
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
+import ProgressOpportunityList from "@/components/career/history/ProgressOpportunityList";
+import SavedOpportunityList from "@/components/career/history/SavedOpportunityList";
+
+const noop = () => {};
 
 type CareerMobileJobsListProps = {
   activeTab: JobsDisplayTab;
@@ -26,6 +30,7 @@ type CareerMobileJobsListProps = {
   onLoadMore?: () => void;
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
   onOpenDetail?: (opportunity: CareerHistoryOpportunity) => void;
+  onApply: (opportunity: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
   onInternalDecisionAction?: (
     opportunity: CareerHistoryOpportunity,
@@ -47,6 +52,7 @@ export function CareerMobileJobsList({
   onLoadMore,
   onOpenCompanyInfo,
   onOpenDetail,
+  onApply,
   onOpenOpportunityInfo,
   onInternalDecisionAction,
   onStatusChange,
@@ -54,6 +60,8 @@ export function CareerMobileJobsList({
   pendingOpportunityIds,
 }: CareerMobileJobsListProps) {
   const t = useCareerT();
+
+  if (activeTab === "applied") return <div className="px-3" style={{paddingBottom: `${bottomReservePx}px`}}><ProgressOpportunityList items={opportunities} loading={isLoading || hasMore} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={onOpenDetail ?? noop} onStatusChange={onStatusChange} /></div>;
 
   if (isLoading && opportunities.length === 0) {
     return <CareerMobileJobsLoadingState />;
@@ -72,25 +80,17 @@ export function CareerMobileJobsList({
       className="flex flex-col gap-3 px-3 pt-2"
       style={{ paddingBottom: `${bottomReservePx}px` }}
     >
-      {opportunities.map((item) => (
+      {activeTab === "saved" ? <SavedOpportunityList items={opportunities} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={onOpenDetail ?? noop} onApply={onApply} /> : opportunities.map((item) => (
         <CareerMobileJobCard
           key={item.id}
           item={item}
           pending={Boolean(pendingOpportunityIds?.has(item.id))}
           onOpenOpportunityInfo={onOpenOpportunityInfo}
           onOpenCompanyInfo={onOpenCompanyInfo}
-          onInternalDecisionAction={
-            onInternalDecisionAction
-              ? (action) => onInternalDecisionAction(item, action)
-              : undefined
-          }
+          onInternalDecisionAction={onInternalDecisionAction}
           status={getCareerOpportunityManagementStatus(item)}
-          onStatusChange={
-            onStatusChange
-              ? (status) => onStatusChange(item, status)
-              : undefined
-          }
-          onOpenDetail={() => onOpenDetail?.(item)}
+          onStatusChange={onStatusChange}
+          onOpenDetail={onOpenDetail}
         />
       ))}
 

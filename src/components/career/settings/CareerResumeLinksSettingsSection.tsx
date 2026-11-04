@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { Plug } from "lucide-react";
+import { FieldLabel } from "@/components/ui/panel";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
 import LoadingState from "@/components/career/OnboardingLoadingState";
@@ -15,6 +17,7 @@ import {
 } from "@/components/career/settings/CareerDocumentSettingsModals";
 import CareerDocumentsSettingsSection from "@/components/career/settings/CareerDocumentsSettingsSection";
 import CareerProfileLinksSettingsSection from "@/components/career/settings/CareerProfileLinksSettingsSection";
+import CareerGmailSettingsRow from "@/components/career/settings/CareerGmailSettingsRow";
 import { CareerDocumentDetail } from "@/components/career/documents/CareerDocumentDetail";
 import CareerCallNoteDetail from "@/components/career/profile/CareerCallNoteDetail";
 import type { CareerTalentDocument } from "@/components/career/types";
@@ -220,6 +223,16 @@ const CareerResumeLinksSettingsSection = ({
           onUploadComplete={handleResumeUploadComplete}
         />
       </div>
+
+      <section className="mt-9">
+        <FieldLabel
+          icon={<Plug className="h-4 w-4" />}
+          label={t("career.profile.sources.connected_services", "연결된 서비스")}
+        />
+        <div className="mt-3 flex flex-wrap gap-3">
+          <CareerGmailSettingsRow />
+        </div>
+      </section>
 
       <ProfileSourceApplyConfirmModal
         mode={sourceApplyConfirmMode}

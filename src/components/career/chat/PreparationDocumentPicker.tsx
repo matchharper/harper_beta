@@ -21,6 +21,8 @@ export function PreparationDocumentPicker({
   selectedId,
   id,
   onPick,
+  snapshotId,
+  snapshotName,
 }: {
   resume?: boolean;
   readOnly?: boolean;
@@ -28,6 +30,8 @@ export function PreparationDocumentPicker({
   selectedId?: string;
   id?: string;
   onPick: (id: string) => void | Promise<void>;
+  snapshotId?: string;
+  snapshotName?: string;
 }) {
   const router = useRouter();
   const closeMobileChat = useCareerMobileChatClose();
@@ -39,6 +43,21 @@ export function PreparationDocumentPicker({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const ref = useRef<HTMLInputElement>(null);
+  const openSnapshot = async () => {
+    setError("");
+    try {
+      const response = await fetchWithAuth(`/api/talent/work/attachments/${encodeURIComponent(snapshotId!)}`);
+      if (!response.ok) throw new Error();
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = snapshotName ?? "attachment";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setError(t("career.prep.uploadError", "파일을 연결하지 못했어요. 다시 시도해 주세요."));
+    }
+  };
   useEffect(() => {
     const controller = new AbortController();
     void fetchWithAuth("/api/talent/documents", { signal: controller.signal })
@@ -82,10 +101,12 @@ export function PreparationDocumentPicker({
   };
   if (readOnly)
     return selectedId ? (
+      <div className="space-y-2">
       <BareButton
         id={id}
         type="button"
         onClick={() => {
+          if (snapshotId) { void openSnapshot(); return; }
           closeMobileChat?.();
           void router.push(getCareerDocumentHref(selectedId));
         }}
@@ -93,10 +114,12 @@ export function PreparationDocumentPicker({
       >
         <FileText className="mt-0.5 size-4 shrink-0" aria-hidden />
         <span className="min-w-0 break-words">
-          {docs.find((document) => document.id === selectedId)?.fileName ??
+          {snapshotName ?? docs.find((document) => document.id === selectedId)?.fileName ??
             t("career.application.review.attachedFile", "첨부 파일")}
         </span>
       </BareButton>
+      {error ? <p role="alert" className="text-sm text-critical">{error}</p> : null}
+      </div>
     ) : (
       <span id={id} className="text-sm text-neutral-muted">
         —
@@ -104,6 +127,9 @@ export function PreparationDocumentPicker({
     );
   return (
     <div className="space-y-2">
+      {snapshotId ? <BareButton type="button" onClick={() => void openSnapshot()} className="text-sm underline underline-offset-4">
+        {snapshotName ?? t("career.application.review.attachedFile", "첨부 파일")}
+      </BareButton> : null}
       <Select
         disabled={disabled || uploading}
         onValueChange={(id) => {

@@ -149,7 +149,7 @@ test("session re-engagement uses readable Korean-local times and distinguishes a
 
   assert.match(prompt, /currentAccessAt: 8월 25일 18:24/);
   assert.match(prompt, /previousChatAt: 8월 24일 10:25/);
-  assert.match(prompt, /현재 접속 지역 타임존\(Asia\/Seoul\) 기준 24시간제/);
+  assert.match(prompt, /시각은 24시간제이며 내부 판단용/);
   assert.doesNotMatch(prompt, /\bKST\b/);
   assert.match(prompt, /이전 대화를 방금 일처럼 표현하지 마라/);
   assert.doesNotMatch(prompt, /2026-08-2[45]T/);
@@ -161,11 +161,9 @@ test("session re-engagement uses readable Korean-local times and distinguishes a
   assert.match(prompt, /"type":"open_pending_action"/);
   assert.match(prompt, /"type":"start_call"/);
   assert.match(prompt, /일반 CAREER_CHOICE_BUTTONS는 쓰지 않는다/);
-  assert.match(prompt, /Harper가 먼저 보낼 자연스러운 Korean 메시지/);
-  assert.match(prompt, /필요하면 적당히 길게 작성해도 된다/);
-  assert.match(prompt, /이전 대화에 이어서 답하는 turn이 아니라/);
-  assert.match(prompt, /마지막 메시지에 곧바로 답하거나 직전 문장을 이어 쓰지 마라/);
-  assert.match(prompt, /반드시.*짧고 자연스러운 재접속 인사나 가벼운 아이스브레이킹으로 시작/);
+  assert.match(prompt, /사용자가 새 메시지를 보내지 않은 상태/);
+  assert.match(prompt, /다시 방문한 사용자를 자연스러운 인사로 맞이하며 새로 대화를 여는 차례/);
+  assert.match(prompt, /먼저 Korean로 반갑게 인사를 건네고/);
   assert.doesNotMatch(prompt, /one brief/i);
   assert.doesNotMatch(prompt, /primary pending action/);
   assert.doesNotMatch(prompt, /다른 미응답 추천이 있더라도 함께 꺼내지 않는다/);
@@ -183,10 +181,9 @@ test("session re-engagement localizes times to the current access timezone and p
 
   assert.match(prompt, /currentAccessAt: Aug 31, 22:57/);
   assert.match(prompt, /previousChatAt: Aug 30, 22:57/);
-  assert.match(prompt, /현재 접속 지역 타임존\(America\/New_York\)/);
 });
 
-test("session re-engagement includes up to three prior messages and simple proactive candidates", () => {
+test("session re-engagement preserves recent history as context without prescribing topics", () => {
   const prompt = buildCareerSessionStartTurnInstruction({
     currentAccessAt: "2026-09-01T02:57:00.000Z",
     idleMs: 31 * 60 * 60 * 1000,
@@ -205,22 +202,7 @@ test("session re-engagement includes up to three prior messages and simple proac
   assert.match(prompt, /두 번째 과거 메시지/);
   assert.match(prompt, /세 번째 과거 메시지/);
   assert.match(prompt, /네 번째 과거 메시지/);
-  assert.match(prompt, /같은 주제·제안·표현을 두 번 연속 반복하지 말고/);
-  assert.match(prompt, /pending action이 있으면 다른 제안 후보보다 먼저 다룬다/);
-  assert.match(
-    prompt,
-    /pending action이 최근에 이미 언급되었거나 없거나 함께 언급할 가치가 있을 때/
-  );
-  assert.match(prompt, /회사의 선연락.*open_to_matches 전환/);
-  assert.match(prompt, /internal 추천이나 intro request/);
-  assert.match(prompt, /외부 추천 포지션.*피드백/);
-  assert.match(prompt, /최신 이력서.*업로드/);
-  assert.match(prompt, /최근 상태·니즈·맥락·선호/);
-  assert.match(prompt, /지금 조건으로 새로운 포지션 추천/);
-  assert.match(prompt, /저장한 포지션.*지원 우선순위/);
-  assert.match(prompt, /면접 준비나 커리어 의사결정/);
-  assert.match(prompt, /가장 유용한 1~2개/);
-  assert.match(prompt, /목록 전체를 그대로 나열하지 않는다/);
+
 });
 
 test("session re-engagement describes the update call as a natural invitation", () => {
@@ -242,7 +224,6 @@ test("session re-engagement describes the update call as a natural invitation", 
 
   assert.match(prompt, /최근 일·커리어 상황에서 달라진 점/);
   assert.match(prompt, /통화로 편하게 듣고 싶/);
-  assert.match(prompt, /프로그램명처럼 이름 붙이지 말고/);
   assert.doesNotMatch(prompt, /커리어 체크인/);
   assert.match(prompt, /"type":"start_call"/);
   assert.match(prompt, /"type":"start_call","actionKey"/);
@@ -278,7 +259,7 @@ test("session re-engagement exposes an internal opportunity call as an available
   assert.doesNotMatch(prompt, /call_123/);
 });
 
-test("incomplete onboarding re-engagement allows an icebreaker but never sends only a welcome", () => {
+test("incomplete onboarding return opens with a greeting when a question remains", () => {
   const prompt = buildCareerSessionStartTurnInstruction({
     currentAccessAt: "2026-08-25T09:24:05.960Z",
     idleMs: 31 * 60 * 60 * 1000,
@@ -287,8 +268,8 @@ test("incomplete onboarding re-engagement allows an icebreaker but never sends o
     previousChatAt: "2026-08-24T01:25:03.102495+00:00",
   });
 
-  assert.match(prompt, /재접속 인사나 아이스브레이킹은 사용해도 된다/);
-  assert.match(prompt, /그런 인사만 하고 발화를 끝내지 마라/);
+  assert.match(prompt, /자연스러운 인사로 맞이하며 새로 대화를 여는 차례/);
+  assert.match(prompt, /이어갈 실제 질문이 있으면 인사 뒤에 자연스럽게 연결/);
   assert.doesNotMatch(prompt, /재접속 자체를 인사로 알리지 마라/);
   assert.match(prompt, /__NO_SESSION_GREETING__만 출력해라/);
   assert.match(prompt, /구체적인 필수 정보가 없다면/);
@@ -373,53 +354,13 @@ test("session re-engagement supplies a pending meeting schedule", () => {
   assert.match(prompt, /"type":"open_pending_action","actionKey"/);
 });
 
-test("feedback follow-up forbids unsupported saved-filter claims", () => {
-  const prompt = buildCareerOpportunityFeedbackFollowUpTurnInstruction({
-    preferredLocale: "ko",
-    trigger:
-      CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback,
-  });
-
-  assert.match(prompt, /one signal when choosing future recommendations/);
-  assert.match(prompt, /Do not volunteer technical explanations/);
-  assert.match(prompt, /role fit summary is context/i);
-  assert.match(prompt, /Never repeat them to the user/);
-  assert.match(prompt, /ask exactly one focused question in the same reply/);
-  assert.match(prompt, /do not say Harper will prioritize, deprioritize/);
-  assert.match(prompt, /Exclude an entire company[\s\S]*only when/);
-  assert.match(
-    prompt,
-    /role mismatch[\s\S]*does not authorize company-wide exclusion/
-  );
-  assert.match(prompt, /explicit feedback reason.*direct evidence/i);
-});
-
-test("internal acceptance promises profile sharing and connection without exposing internals", () => {
-  const prompt = buildCareerOpportunityFeedbackFollowUpTurnInstruction({
-    preferredLocale: "ko",
-    trigger:
-      CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback,
-  });
-
-  assert.match(
-    prompt,
-    /share or introduce the candidate's profile and relevant experience/
-  );
-  assert.match(prompt, /help make the connection/);
-  assert.match(prompt, /do not volunteer a disclaimer/);
-  assert.match(prompt, /Never expose Harper's internal confirmation/);
-  assert.match(prompt, /If the internal opportunity was disliked/);
-  assert.match(
-    prompt,
-    /Follow any rejection-specific context provided for this turn/
-  );
-  assert.match(
-    prompt,
-    /keep the reply proportional to the user's stated reason/
-  );
-  assert.doesNotMatch(
-    prompt,
-    /다음에 어떤 과정이 진행되는지 최대한 자세히 안내해라/
-  );
-  assert.doesNotMatch(prompt, /same company/i);
+test("feedback events preserve the saved decision, event identity and optional silence", () => {
+  for (const trigger of Object.values(CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER)) {
+    const prompt = buildCareerOpportunityFeedbackFollowUpTurnInstruction({ preferredLocale: "ko", trigger });
+    assert.ok(prompt.includes(`Event source: ${trigger}`));
+    assert.ok(prompt.includes("The saved decision is already executed."));
+    assert.ok(prompt.includes("[[CAREER_FEEDBACK_SILENT]]"));
+    assert.ok(!prompt.includes("recommend_job_postings"));
+    assert.ok(!prompt.includes("ask exactly one"));
+  }
 });

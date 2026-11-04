@@ -27,7 +27,7 @@ function getReferralHowItWorks(t: CareerT) {
       ),
       description: t(
         "career.referral.modal.step2_description",
-        "상대방이 가입할 때 사용한 추천 링크를 기준으로 내 초대 기록에 반영됩니다."
+        "상대방이 가입할 때 사용한 초대 링크를 기준으로 내 초대 기록에 반영됩니다."
       ),
     },
     {
@@ -188,7 +188,7 @@ export function ReferralProgramReward({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <Text as={headingAs} type="body" className="font-normal">
-            {t("career.referral.modal.reward_heading", "추천 보상")}
+            {t("career.referral.modal.reward_heading", "초대 보상")}
           </Text>
           <p className="mt-2 text-[13px] leading-5 text-neutral-muted">
             {t(

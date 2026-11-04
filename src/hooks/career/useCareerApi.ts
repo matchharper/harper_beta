@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
+import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
+import { CAREER_TEXT_CHAT_MODEL_HEADER } from "@/lib/career/textChatModelConfig";
 
 export type FetchWithAuth = (
   url: string,
@@ -32,6 +34,9 @@ export const useCareerApi = () => {
         | undefined;
       if (incomingHeaders) {
         Object.assign(headers, incomingHeaders);
+      }
+      if (url.startsWith("/api/talent/")) {
+        headers[CAREER_TEXT_CHAT_MODEL_HEADER] = useCareerTextChatModelStore.getState().model;
       }
       if (
         init?.body &&

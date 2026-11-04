@@ -6,7 +6,8 @@ import {
   readCareerLiveSyncScope,
   type CareerLiveSyncScope,
 } from "@/lib/career/liveSync";
-import { supabase } from "@/lib/supabase";
+import { createAuthenticatedRealtimeClient } from "@/lib/supabase";
+import { useAuthStore } from "@/store/useAuthStore";
 
 export type { CareerLiveSyncScope } from "@/lib/career/liveSync";
 
@@ -20,6 +21,8 @@ export const useCareerLiveSync = ({
   userId: string | null;
 }) => {
   const onSyncRef = useRef(onSync);
+  const session = useAuthStore((state) => state.session);
+  const accessToken = session?.user.id === userId ? session.access_token : null;
 
   useEffect(() => {
     onSyncRef.current = onSync;
@@ -27,7 +30,7 @@ export const useCareerLiveSync = ({
 
   useEffect(() => {
     const normalizedUserId = userId?.trim() ?? "";
-    if (!enabled || !normalizedUserId) return;
+    if (!enabled || !normalizedUserId || !accessToken) return;
 
     let disposed = false;
     let syncRunning = false;
@@ -75,39 +78,52 @@ export const useCareerLiveSync = ({
       schedule("all", 0);
     };
 
-    const topic = buildCareerLiveSyncTopic(normalizedUserId);
-    const channel = supabase
-      .channel(topic, { config: { private: true } })
-      .on("broadcast", { event: CAREER_LIVE_SYNC_EVENT }, (payload) => {
-        schedule(readCareerLiveSyncScope(payload));
-      });
-
-    void supabase.realtime
-      .setAuth()
-      .then(() => {
-        if (disposed) return;
-        channel.subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            // Reconcile once after every successful join so events missed while
-            // disconnected cannot leave the Career workspace stale.
-            schedule("all", 0);
-          }
+    const realtime = createAuthenticatedRealtimeClient();
+    const isCurrentSession = () => {
+      const currentSession = useAuthStore.getState().session;
+      return (
+        !disposed &&
+        currentSession?.access_token === accessToken &&
+        currentSession.user.id === normalizedUserId
+      );
+    };
+    void (async () => {
+      await realtime.setAuth(accessToken);
+      if (!isCurrentSession()) return;
+      const channel = realtime
+        .channel(buildCareerLiveSyncTopic(normalizedUserId), {
+          config: { private: true },
+        })
+        .on("broadcast", { event: CAREER_LIVE_SYNC_EVENT }, (payload) => {
+          schedule(readCareerLiveSyncScope(payload));
         });
-      })
-      .catch(() => undefined);
+      channel.subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          // Reconcile once after every successful join so events missed while
+          // disconnected cannot leave the Career workspace stale.
+          schedule("all", 0);
+        }
+      });
+    })().catch(() => undefined);
 
     window.addEventListener("focus", syncWhenVisible);
     window.addEventListener("online", syncWhenVisible);
     document.addEventListener("visibilitychange", syncWhenVisible);
+    // Broadcasts are not replayed. A missed notification must not leave a
+    // completed background reply invisible until the user reloads the page.
+    const reconcileInterval = window.setInterval(() => {
+      if (!document.hidden) schedule("messages", 0);
+    }, 30_000);
 
     return () => {
       disposed = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
+      window.clearInterval(reconcileInterval);
       pendingScopes.clear();
       window.removeEventListener("focus", syncWhenVisible);
       window.removeEventListener("online", syncWhenVisible);
       document.removeEventListener("visibilitychange", syncWhenVisible);
-      void supabase.removeChannel(channel);
+      void realtime.removeAllChannels();
     };
-  }, [enabled, userId]);
+  }, [enabled, userId, accessToken]);
 };

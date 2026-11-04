@@ -23,7 +23,6 @@ export const ThinkingLogPanel = memo(function ThinkingLogPanel({
       hasToolWork
       logs={logs}
       startedAt={startedAt}
-      typographyClassName={careerTimelineBodyTextClassName}
     />
   );
 });

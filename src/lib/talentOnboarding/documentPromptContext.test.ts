@@ -42,14 +42,14 @@ test("first-turn upload context includes bounded hidden document data", () => {
   assert.ok(context);
   assert.match(context, /hidden from the user/);
   assert.match(context, /first-turn context/);
-  assert.match(context, /"file_name":"resume\.md"/);
-  assert.match(context, /"kind":"resume"/);
-  assert.match(context, /"has_more":true/);
+  assert.match(context, /file_name: resume\.md/);
+  assert.match(context, /kind: resume/);
+  assert.match(context, /has_more: 예/);
   assert.match(
     context,
-    new RegExp(`"next_offset":${FIRST_TURN_DOCUMENT_EXCERPT_CHARS}`)
+    new RegExp(`next_offset: ${FIRST_TURN_DOCUMENT_EXCERPT_CHARS}`)
   );
-  assert.match(context, /update_document/);
+  assert.match(context, /upsert_document/);
   assert.match(context, /is_deleted=true/);
 });
 
@@ -83,8 +83,8 @@ test("binary files are described without fabricated extracted text", () => {
   ]);
 
   assert.ok(context);
-  assert.match(context, /"content_excerpt":null/);
-  assert.match(context, /"text_available":false/);
-  assert.match(context, /"has_more":false/);
-  assert.match(context, /"next_offset":null/);
+  assert.match(context, /content_excerpt: 미확인/);
+  assert.match(context, /text_available: 아니요/);
+  assert.match(context, /has_more: 아니요/);
+  assert.match(context, /next_offset: 미확인/);
 });

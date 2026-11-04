@@ -1,0 +1,8 @@
+{
+  "version": "v1",
+  "provenance": "Synthetic .invalid candidate and application site; authored before first provider call.",
+  "hashes": {
+    "cases-v1.json": "5e9171192d49d12d57b7de34f8b41dae233a0c14cdf67a16e0df18ff802e6c4d",
+    "gold-v1.json": "0f2a4252a78b231196a5c095cba805cc22757b9cdb1a0f7a44d8781cae8186b3"
+  }
+}

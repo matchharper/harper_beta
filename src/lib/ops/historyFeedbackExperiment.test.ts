@@ -4,6 +4,7 @@ import {
   assignHistoryFeedbackVariant,
   HISTORY_FEEDBACK_EXPERIMENT,
   HISTORY_FEEDBACK_VIEW_EVENT,
+  HISTORY_FEEDBACK_CLICK_EVENT,
   HISTORY_FEEDBACK_SAVED_EVENT,
 } from "../career/historyFeedbackExperiment";
 import {
@@ -18,7 +19,7 @@ const log = (
   feedback?: string
 ): HistoryFeedbackLog => ({
   user_id: user,
-  type: feedback ? HISTORY_FEEDBACK_SAVED_EVENT : HISTORY_FEEDBACK_VIEW_EVENT,
+  type: feedback ? HISTORY_FEEDBACK_CLICK_EVENT : HISTORY_FEEDBACK_VIEW_EVENT,
   created_at: "2026-10-28T10:00:00.000Z",
   meta_data: {
     experiment: HISTORY_FEEDBACK_EXPERIMENT,
@@ -43,7 +44,7 @@ test("allocation stays fixed for an account and splits UUID users approximately 
   assert.ok(treatment > 4700 && treatment < 5300, `B users: ${treatment}`);
 });
 
-test("counts unique viewed recommendations and either saved feedback, excluding clicks and unviewed cards", () => {
+test("counts unique viewed recommendations with button clicks, excluding saved feedback and unviewed cards", () => {
   const rows = [
     log(userA, "positive"),
     log(userA, "positive"),
@@ -58,6 +59,11 @@ test("counts unique viewed recommendations and either saved feedback, excluding 
       type: "career_click_history_negative",
     },
     log(userA, "no-feedback", "keep"),
+    {
+      ...log(userA, "no-feedback", "positive"),
+      type: HISTORY_FEEDBACK_SAVED_EVENT,
+      created_at: "2026-11-01T10:00:00.000Z",
+    },
     log("excluded", "excluded"),
     log("excluded", "excluded", "positive"),
     { ...log(userA, "wrong-experiment"), meta_data: { experiment: "other" } },
@@ -77,6 +83,30 @@ test("counts unique viewed recommendations and either saved feedback, excluding 
     [3, 2, 2 / 3]
   );
   assert.equal(variant.metrics.length, 0);
+  assert.equal(result.lastObservedAt, "2026-10-28T10:00:00.000Z");
+});
+
+test("feedback saved through chat or email never substitutes for a button click in either variant", () => {
+  for (const user of [userA, "e25ee10a-939f-4af0-afb4-e81ef72b9091"]) {
+    const rows = [log(user, "chat"), log(user, "email"), log(user, "button")];
+    for (const source of ["chat", "email"]) {
+      const saved = log(user, source, "positive");
+      rows.push({
+        ...saved,
+        type: HISTORY_FEEDBACK_SAVED_EVENT,
+        meta_data: { ...(saved.meta_data as object), source },
+      });
+    }
+    rows.push(log(user, "button", "negative"));
+    const variant = buildHistoryFeedbackExperiment(rows).variants.find(
+      (v) => v.id === assignHistoryFeedbackVariant(user)
+    )!;
+    assert.deepEqual(variant.primary, {
+      numerator: 1,
+      denominator: 3,
+      rate: 1 / 3,
+    });
+  }
 });
 
 test("isolates users, variants and experiment versions; no views is an undefined rate", () => {

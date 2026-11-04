@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import { processEmailReply } from "./reply";
+import { CareerReplyContinuation } from "@/lib/career/capabilities/runtime";
 import { processEmailContact } from "./contact";
 import { processOnboardingReview } from "./onboarding";
 import { readRow, updateEmailJob } from "./store";
@@ -125,6 +126,7 @@ export async function processEmailRuntimeMessage(
       await processEmailContact(admin, job, owner);
     else await processOnboardingReview(admin, job, owner);
   } catch (error) {
+    if (error instanceof CareerReplyContinuation) return;
     const current = await readRow(
       admin,
       emailRuntimeTable(message.kind),

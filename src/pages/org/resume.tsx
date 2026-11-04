@@ -32,7 +32,7 @@ export default function SharedResumePage() {
   const busy = useRef(false);
   const query = new URLSearchParams(
     Object.fromEntries(
-      ["documentId", "talentId", "workspaceId"].map((key) => [
+      ["documentId", "talentId", "workspaceId", "roleId"].map((key) => [
         key,
         typeof router.query[key] === "string"
           ? (router.query[key] as string)
@@ -47,6 +47,7 @@ export default function SharedResumePage() {
       : null;
   const accessBody = JSON.stringify({
     kind: accessKind,
+    roleId: query.get("roleId"),
     documentId: query.get("documentId"),
     talentId: query.get("talentId"),
     workspaceId: query.get("workspaceId"),

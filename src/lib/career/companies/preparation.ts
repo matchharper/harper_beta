@@ -1,0 +1,335 @@
+import { randomUUID } from "node:crypto";
+import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import type { CareerBackgroundRun } from "../background/types";
+import {
+  readFollowInventory,
+  type FollowInventory,
+  type FollowRole,
+} from "./inventory";
+import {
+  refreshHiringNews,
+  readHiringNews,
+  formatHiringNews,
+  hiringCacheKey,
+} from "./hiringNews";
+import { formatCareerMatchingResult } from "../matching/formatters";
+import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
+
+type PreparationState = {
+  status?: string;
+  externalRunId?: string;
+  internalRunId?: string;
+  error?: string | null;
+};
+export const rolesNeedingEvaluation = (
+  inventory: FollowInventory,
+  source: FollowRole["source"]
+) =>
+  inventory.roles
+    .filter(
+      (role) =>
+        role.source === source && !role.evaluation && !role.recommendationId
+    )
+    .map((role) => role.id);
+
+const dependencies = {
+  inventory: readFollowInventory,
+  news: refreshHiringNews,
+  async external(args: {
+    admin: TalentAdminClient;
+    userId: string;
+    conversationId?: string;
+    operationId: string;
+    roleIds: string[];
+    preparationRunId: string;
+  }) {
+    const { requestExternalMatchingSearch } =
+      await import("../matching/externalSearch");
+    return requestExternalMatchingSearch(args);
+  },
+  async internal(args: {
+    admin: TalentAdminClient;
+    userId: string;
+    conversationId?: string;
+    operationId: string;
+    roleIds: string[];
+    preparationRunId: string;
+  }) {
+    const { requestInternalRoleEvaluation } =
+      await import("../matching/internalEvaluation");
+    return requestInternalRoleEvaluation(args);
+  },
+};
+
+/** Child requests are committed before queue publication. Recover their exact
+ * idempotency identities even when the transport never returned a receipt. */
+async function recoverPreparationChildren(
+  admin: TalentAdminClient,
+  run: CareerBackgroundRun,
+  state: PreparationState
+) {
+  if (!state.externalRunId) {
+    const child = await (admin.from as any)("external_recommendation_runs")
+      .select("id")
+      .eq("talent_id", run.talent_id)
+      .eq("operation_id", `follow-preparation:${run.id}:external`)
+      .maybeSingle();
+    if (child.error) throw child.error;
+    if (child.data) state.externalRunId = child.data.id;
+  }
+  if (!state.internalRunId) {
+    const child = await (admin.from as any)("opportunity_discovery_run")
+      .select("id")
+      .eq("talent_id", run.talent_id)
+      .eq(
+        "dedupe_key",
+        `career-internal:${run.talent_id}:follow-preparation:${run.id}:internal`
+      )
+      .maybeSingle();
+    if (child.error) throw child.error;
+    if (child.data) state.internalRunId = child.data.id;
+  }
+}
+
+export function shouldPrepareFollowedCompanies(run: CareerBackgroundRun) {
+  return (
+    run.trigger_payload.createdBy === "career_dev_controls" ||
+    (run.trigger_payload.sourceEvents ?? []).some(
+      (event: any) =>
+        event.sourceKind === "schedule" &&
+        event.scheduleKey === "career_check_in"
+    )
+  );
+}
+
+/** The scheduler's existing invocation owns this preparation. Child evaluation
+ * completion does not create a follow-trigger invocation or send a message. */
+export async function prepareFollowedCompanies(
+  args: { admin: TalentAdminClient; run: CareerBackgroundRun },
+  deps = dependencies
+) {
+  const { admin, run } = args;
+  if (!shouldPrepareFollowedCompanies(run))
+    return { ready: true, state: {} as PreparationState };
+  let state: PreparationState = run.coverage?.followPreparation ?? {};
+  if (state.status === "ready") return { ready: true, state };
+  const token = randomUUID();
+  const claim = await (admin.rpc as any)("claim_career_follow_preparation", {
+    p_run: run.id,
+    p_token: token,
+  });
+  if (claim.error) throw claim.error;
+  if (!claim.data) return { ready: false, state };
+  // Reload after acquiring the lease: an earlier queue attempt may have saved
+  // child receipts between the caller's read and this claim.
+  const fresh = await (admin.from as any)("opportunity_discovery_run")
+    .select("coverage")
+    .eq("id", run.id)
+    .single();
+  if (fresh.error) throw fresh.error;
+  state = { ...fresh.data.coverage?.followPreparation, error: null };
+  let waiting = false;
+  const deadlineAt = Date.now() + 300_000; // Leave room in the background queue request for persistence.
+  try {
+    await recoverPreparationChildren(admin, run, state);
+    if (!state.externalRunId || !state.internalRunId) {
+      const inventory = await deps.inventory(admin, run.talent_id);
+      const seen = new Set<string>();
+      for (const company of inventory.companies) {
+        const key = hiringCacheKey(company);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (Date.now() >= deadlineAt) {
+          waiting = true;
+          break;
+        }
+        await deps.news({ admin, company });
+      }
+      const base = {
+        admin,
+        userId: run.talent_id,
+        conversationId: run.conversation_id ?? undefined,
+        preparationRunId: run.id,
+      };
+      const external = rolesNeedingEvaluation(inventory, "external");
+      const internal = rolesNeedingEvaluation(inventory, "internal");
+      if (!waiting && !state.externalRunId && external.length) {
+        const receipt = await deps.external({
+          ...base,
+          operationId: `follow-preparation:${run.id}:external`,
+          roleIds: external,
+        });
+        state.externalRunId = receipt.runId;
+      }
+      if (!waiting && !state.internalRunId && internal.length) {
+        const receipt = await deps.internal({
+          ...base,
+          operationId: `follow-preparation:${run.id}:internal`,
+          roleIds: internal,
+        });
+        state.internalRunId = receipt.runId;
+      }
+    }
+  } catch (error) {
+    // Completed child receipts survive a later source failure. An unavailable
+    // source is incomplete evidence, not a claim of no changes.
+    state.error = error instanceof Error ? error.message : String(error);
+    // An unknown child cannot release the next preparation. If the durable
+    // ledger itself is unavailable, let the existing invocation retry.
+    await recoverPreparationChildren(admin, run, state);
+  }
+  for (const [source, id] of [
+    ["external", state.externalRunId],
+    ["internal", state.internalRunId],
+  ] as const) {
+    if (!id) continue;
+    const child = await (admin.from as any)(
+      source === "external"
+        ? "external_recommendation_runs"
+        : "opportunity_discovery_run"
+    )
+      .select("status")
+      .eq("id", id)
+      .eq("talent_id", run.talent_id)
+      .single();
+    if (child.error) {
+      waiting = true; // Unknown child state cannot release another paid preparation.
+      state.error = String(child.error.message ?? child.error);
+      continue;
+    }
+    if (["queued", "running"].includes(child.data.status)) waiting = true;
+  }
+  state.status = waiting ? "waiting" : "ready";
+  const saved = await (admin.rpc as any)("save_career_follow_preparation", {
+    p_run: run.id,
+    p_token: token,
+    p_patch: state,
+  });
+  if (saved.error) throw saved.error;
+  return { ready: !!saved.data && !waiting, state };
+}
+
+function score(role: FollowRole) {
+  const assessment = role.evaluation?.assessment;
+  return Number((assessment?.fit ?? assessment)?.mutualFit ?? -1);
+}
+export function formatFollowRoles(roles: FollowRole[]) {
+  return [
+    ...roles.map(
+      (role) =>
+        `Role ${role.id}; ${role.company} / ${role.name}; ${role.source}; posted ${role.postedAt ? formatLlmDateTime(role.postedAt) : "unknown"}; first stored ${formatLlmDateTime(role.createdAt)}${role.recommendationId ? `; already recommended ${role.recommendationId}` : ""}${!role.evaluation ? "; not evaluated" : ""}`
+    ),
+    formatCareerMatchingResult({
+      evaluations: roles.flatMap((role) =>
+        role.evaluation
+          ? [
+              {
+                id: role.evaluation.id,
+                role_id: role.id,
+                evaluated_at: role.evaluation.evaluatedAt,
+                assessment: role.evaluation.assessment,
+                stage: role.evaluation.stage,
+                role: {
+                  name: role.name,
+                  company_workspace: { company_name: role.company },
+                },
+              },
+            ]
+          : []
+      ),
+    }),
+    ...roles.flatMap((role) =>
+      typeof role.evaluation?.assessment.proceedToStage2 === "boolean"
+        ? [
+            `Role ${role.id}: saved first-stage assessment proceedToStage2=${role.evaluation.assessment.proceedToStage2}.`,
+          ]
+        : []
+    ),
+    ...roles.flatMap((role) =>
+      role.evaluation?.runId
+        ? [
+            `Evaluation source run ${role.evaluation.runId}; source ${role.source}; role ${role.id}. Use search_opportunities action=read for detailed run evidence.`,
+          ]
+        : []
+    ),
+  ].join("\n");
+}
+export function formatFollowOverview(inventory: FollowInventory) {
+  return inventory.companies
+    .map((company) => {
+      const roles = inventory.roles.filter((role) =>
+        role.followIds.includes(company.id)
+      );
+      // A compact index, not an evaluation limit. Full evidence is paginated by
+      // the existing follow_company tool; every unseen role was admitted above.
+      const recent = [...roles]
+        .sort((a, b) =>
+          (b.postedAt ?? b.createdAt).localeCompare(a.postedAt ?? a.createdAt)
+        )
+        .slice(0, 5);
+      const strongest = [...roles]
+        .filter((role) => role.evaluation && !role.recommendationId)
+        .sort((a, b) => score(b) - score(a))
+        .slice(0, 5);
+      const selected = [
+        ...new Map(
+          [...recent, ...strongest].map((role) => [role.id, role])
+        ).values(),
+      ];
+      return [
+        `Follow ${company.id}; revision ${company.revision}; ${company.name}; ${company.scope}; followed ${formatLlmDateTime(company.followedAt)}.`,
+        company.instruction
+          ? `User's follow instruction: ${company.instruction}`
+          : "",
+        `${roles.length} currently available roles; ${roles.filter((role) => role.evaluation).length} have saved assessments. Index contains ${selected.length} recent/strongest assessed roles.`,
+        formatFollowRoles(selected),
+        `Read all roles with follow_company action=read, follow_id=${company.id}.`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n");
+}
+export async function readPreparedFollowContext(
+  admin: TalentAdminClient,
+  userId: string,
+  state: PreparationState = {}
+) {
+  const inventory = await readFollowInventory(admin, userId);
+  const lines = [
+    "Followed-company preparation. Existing assessments are reused, including non-fit results; dates identify when they were evaluated. Changes to profile/Brief do not automatically rerun these assessments.",
+    state.error ? `Preparation incomplete: ${state.error}` : "",
+    formatFollowOverview(inventory),
+  ];
+  const seen = new Set<string>();
+  for (const company of inventory.companies) {
+    const key = hiringCacheKey(company);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    lines.push(
+      `${company.name} — hiring evidence\n${formatHiringNews(await readHiringNews(admin, company))}`
+    );
+  }
+  for (const [source, id] of [
+    ["external", state.externalRunId],
+    ["internal", state.internalRunId],
+  ] as const) {
+    if (!id) continue;
+    const result = await (admin.from as any)(
+      source === "external"
+        ? "external_recommendation_runs"
+        : "opportunity_discovery_run"
+    )
+      .select(source === "external" ? "status,error" : "status,error_message")
+      .eq("id", id)
+      .eq("talent_id", userId)
+      .single();
+    if (result.error) throw result.error;
+    lines.push(
+      `Preparation evaluation ${id}; ${source}; ${result.data.status}${(result.data.error ?? result.data.error_message) ? `; incomplete: ${String(result.data.error ?? result.data.error_message)}` : ""}.`
+    );
+  }
+  return inventory.companies.length || state.error
+    ? lines.filter(Boolean).join("\n\n")
+    : "No active followed-company scope to prepare.";
+}

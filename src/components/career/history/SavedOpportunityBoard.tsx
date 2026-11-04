@@ -1,6 +1,6 @@
 import { formatRelativeTime } from "@/lib/utils";
 import { Building2, GripVertical, Loader2 } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "../types";
 import {
@@ -68,11 +68,12 @@ const SavedOpportunityBoardCard = React.memo(
     pending: boolean;
     dragging: boolean;
     onDragEnd: () => void;
-    onDragStart: (event: React.DragEvent<HTMLDivElement>) => void;
-    onInternalDecisionAction?: (
-      action: CareerInternalOpportunityDecisionAction
+    onDragStart: (
+      item: CareerHistoryOpportunity,
+      event: React.DragEvent<HTMLDivElement>
     ) => void;
-    onOpenDetail: () => void;
+    onInternalDecisionAction?: SavedOpportunityBoardProps["onInternalDecisionAction"];
+    onOpenDetail: SavedOpportunityBoardProps["onOpenDetail"];
   }) {
     const t = useCareerT();
     const recommendedAgo = formatRelativeTime(item.recommendedAt, locale);
@@ -88,7 +89,7 @@ const SavedOpportunityBoardCard = React.memo(
     return (
       <div
         draggable={!pending && canChangeStatus}
-        onDragStart={onDragStart}
+        onDragStart={(event) => onDragStart(item, event)}
         onDragEnd={onDragEnd}
         className={cn(
           "group relative w-full rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak",
@@ -102,12 +103,12 @@ const SavedOpportunityBoardCard = React.memo(
             item={item}
             pending={pending}
             onCard
-            onAction={onInternalDecisionAction}
+            onAction={(action) => onInternalDecisionAction(item, action)}
           />
         ) : null}
         <BareButton
           type="button"
-          onClick={onOpenDetail}
+          onClick={() => onOpenDetail(item)}
           disabled={pending}
           className="w-full px-3 py-3 text-left disabled:cursor-not-allowed"
         >
@@ -211,6 +212,14 @@ function SavedOpportunityBoard({
   const [draggingOpportunityId, setDraggingOpportunityId] = useState<
     string | null
   >(null);
+  const handleDragStart = useCallback(
+    (item: CareerHistoryOpportunity, event: React.DragEvent<HTMLDivElement>) => {
+      event.dataTransfer.effectAllowed = "move";
+      setDraggingOpportunityId(item.id);
+    },
+    []
+  );
+  const handleDragEnd = useCallback(() => setDraggingOpportunityId(null), []);
   const itemById = useMemo(
     () => new Map(items.map((item) => [item.id, item])),
     [items]
@@ -308,17 +317,10 @@ function SavedOpportunityBoard({
                       locale={locale}
                       pending={pending}
                       dragging={draggingOpportunityId === item.id}
-                      onDragStart={(event) => {
-                        event.dataTransfer.effectAllowed = "move";
-                        setDraggingOpportunityId(item.id);
-                      }}
-                      onDragEnd={() => setDraggingOpportunityId(null)}
-                      onInternalDecisionAction={
-                        onInternalDecisionAction
-                          ? (action) => onInternalDecisionAction(item, action)
-                          : undefined
-                      }
-                      onOpenDetail={() => onOpenDetail(item)}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onInternalDecisionAction={onInternalDecisionAction}
+                      onOpenDetail={onOpenDetail}
                     />
                   );
                 })}

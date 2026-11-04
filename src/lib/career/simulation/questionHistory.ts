@@ -12,6 +12,7 @@ export function applicationQuestionMessages(state: SimulationSession) {
     content: "",
     createdAt: batch.createdAt,
     messageType: "application_questions",
+    applicationReviewMessageId: batch.applicationReviewMessageId,
     applicationQuestions: {
       ...batch,
       // A stopped activity cannot receive answers. Preserve the stored batch

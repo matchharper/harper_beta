@@ -81,21 +81,28 @@ test("Role writing shares the question UI, preserves drafts, supports skip/edit 
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  const panel = {
+  const panel: Partial<CareerChatPanelContextValue> = {
     conversationId: "conversation",
+    messages: [],
     onSendChatMessage: async (args) => {
       requests.push(args.internalCallAnswerSubmission!);
       assert.equal(args.text, "");
       assert.equal(
-        args.allowedToolNames,
-        undefined,
+        "allowedToolNames" in args,
+        false,
         "normal Career tools remain available"
       );
       if (fail) args.onError?.();
       else args.onSuccess?.();
     },
-    user: { id: "user" },
-  } as CareerChatPanelContextValue;
+    user: {
+      id: "user",
+      app_metadata: {},
+      user_metadata: {},
+      aud: "authenticated",
+      created_at: "2026-10-30T00:00:00Z",
+    },
+  };
   const button = (label: string) =>
     Array.from(dom.window.document.querySelectorAll("button")).find(
       (b) =>
@@ -110,7 +117,9 @@ test("Role writing shares the question UI, preserves drafts, supports skip/edit 
             value={{ locale: "en", query: {} } as NextRouter}
           >
             <MessagesProvider locale="en">
-              <CareerChatPanelProvider value={panel}>
+              <CareerChatPanelProvider
+                value={panel as CareerChatPanelContextValue}
+              >
                 <InternalCallAnswersProvider>
                   <InternalCallWriteButton callId="call" />
                   <InternalCallAnswersSlot>

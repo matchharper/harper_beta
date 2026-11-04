@@ -1,50 +1,10 @@
-import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RollingNumber } from "@/components/ui/rolling-number";
 import type { Locale } from "@/i18n/useMessage";
 import {
-  COMPANY_LANDING_STATS_POLL_SECONDS,
-  projectCompanyLandingPairCount,
+  COMPANY_LANDING_STATS_CACHE_SECONDS,
   type CompanyLandingStats,
 } from "@/lib/companyLandingStats";
 import { cn } from "@/lib/utils";
-
-function MatchingCount({
-  stats,
-  locale,
-}: {
-  stats: CompanyLandingStats;
-  locale: Locale;
-}) {
-  const [now, setNow] = useState<number | null>(null);
-
-  useEffect(() => {
-    const update = () => {
-      if (document.hidden) return;
-      setNow(Date.now());
-    };
-    const frame = window.requestAnimationFrame(update);
-    const timer = window.setInterval(update, 1000);
-    document.addEventListener("visibilitychange", update);
-    return () => {
-      window.clearInterval(timer);
-      window.cancelAnimationFrame(frame);
-      document.removeEventListener("visibilitychange", update);
-    };
-  }, []);
-
-  return (
-    <RollingNumber
-      value={
-        now === null
-          ? stats.assessedPairCount
-          : projectCompanyLandingPairCount(stats, now)
-      }
-      locale={locale}
-      suffix={locale === "ko" ? "건" : ""}
-    />
-  );
-}
 
 export function LandingStats({
   locale,
@@ -57,14 +17,13 @@ export function LandingStats({
 }) {
   const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
   const { data: stats } = useQuery<CompanyLandingStats>({
-    queryKey: ["company-landing-stats", "animated-matching-v2"],
+    queryKey: ["company-landing-stats", "daily-snapshot-v1"],
     queryFn: async ({ signal }) => {
       const response = await fetch("/api/company/landing-stats", { signal });
       if (!response.ok) throw new Error("Could not load statistics");
       return response.json();
     },
-    staleTime: COMPANY_LANDING_STATS_POLL_SECONDS * 1000,
-    refetchInterval: COMPANY_LANDING_STATS_POLL_SECONDS * 1000,
+    staleTime: COMPANY_LANDING_STATS_CACHE_SECONDS * 1000,
     refetchOnWindowFocus: true,
     retry: 1,
   });
@@ -95,7 +54,7 @@ export function LandingStats({
         },
         {
           label: c("인재와 포지션을 맞춰본 횟수", "Candidate–role matches assessed"),
-          value: stats ? <MatchingCount stats={stats} locale={locale} /> : "—",
+          value: formatStat(stats?.assessedPairCount, c("건", "")),
         },
       ].map(({ label, value }) => (
         <div

@@ -1,0 +1,230 @@
+{
+  "version": "v1",
+  "requestTime": "2026-11-02T03:00:00Z",
+  "provenance": "Fully synthetic people, companies, roles, documents and frozen public pages. No production records. Only the candidate message and normal source facts are supplied to the agent.",
+  "cases": [
+    {
+      "id": "sparse_experience",
+      "message": "이 공고에 지원할 이력서를 준비해줘.",
+      "profile": {
+        "name": "김서윤",
+        "email": "seoyun@example.test",
+        "location": "서울",
+        "headline": "Research Scientist",
+        "bio": "Sonora Systems에서 1년간 Research Scientist로 일했습니다. 오디오 생성 모델 연구에 참여했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000201",
+            "company_name": "Sonora Systems",
+            "role": "Research Scientist",
+            "start_date": "2024-08",
+            "end_date": "2025-08",
+            "description": "오디오 생성 모델 연구 참여"
+          }
+        ]
+      },
+      "brief": "오디오·멀티모달 연구 직무를 찾고 있습니다. 서울 근무가 가능합니다.",
+      "memory": "추가로 기록된 개인 업무 범위나 성과는 없습니다.",
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000301",
+          "title": "기본 이력서",
+          "text": "김서윤\n서울 | seoyun@example.test\nSonora Systems — Research Scientist | 2024.08–2025.08\n오디오 생성 모델 연구 참여."
+        }
+      ],
+      "role": {
+        "id": "70000000-0000-4000-8000-000000000401",
+        "company": "Auralink",
+        "title": "Applied Audio Researcher",
+        "url": "https://auralink.example/careers/audio",
+        "description": "생성 오디오 모델의 학습·평가, 음질과 지연 시간의 균형 개선을 연구합니다. Python 및 딥러닝 연구 경험을 봅니다. 서울 근무. 이력서 제출.",
+        "source": "external",
+        "status": "active"
+      },
+      "pages": [
+        {
+          "url": "https://sonora.example",
+          "title": "Sonora Systems — generative audio",
+          "searchTerms": "Sonora Systems 소노라 회사 오디오 audio 연구 research",
+          "summary": "텍스트 기반 효과음 생성 모델을 개발하는 회사. 제품과 기술 보고서 링크 제공.",
+          "body": "Sonora Systems develops text-to-sound models for game and media creators. Technical report: https://sonora.example/research/2025 . Company announcement: https://sonora.example/news/funding ."
+        },
+        {
+          "url": "https://sonora.example/research/2025",
+          "title": "Sonora 2025 technical report",
+          "searchTerms": "Sonora research performance latency benchmark 오디오 성능 연구 지연",
+          "summary": "제품 팀은 2025년 보고서에서 중앙 생성 지연 시간을 2.4초에서 1.3초로 줄였다고 발표했다.",
+          "body": "Published 2025-04. Sonora product team reports median generation latency reduced from 2.4 seconds to 1.3 seconds on its own benchmark."
+        },
+        {
+          "url": "https://sonora.example/news/funding",
+          "title": "Sonora funding announcement",
+          "searchTerms": "Sonora funding investor 투자 회사 펀딩",
+          "summary": "2024년 9월 North Pine Ventures 주도 시드 투자 유치.",
+          "body": "Published 2024-09. Sonora Systems announced seed funding led by North Pine Ventures."
+        },
+        {
+          "url": "https://auralink.example/careers/audio",
+          "title": "Auralink Applied Audio Researcher",
+          "searchTerms": "Auralink Applied Audio Researcher careers 공고 지원",
+          "summary": "오디오 생성 모델 학습·평가 연구자를 모집합니다.",
+          "body": "Applied Audio Researcher. Work: model training, audio quality evaluation, latency-quality tradeoffs. Seoul. Submit a resume."
+        }
+      ],
+      "gmail": false
+    },
+    {
+      "id": "empty_inventory",
+      "message": "내 조건에 맞는 이직 기회를 찾아줘.",
+      "profile": {
+        "name": "박지민",
+        "email": "jimin@example.test",
+        "location": "서울",
+        "headline": "Data Scientist",
+        "bio": "산업용 센서 시계열을 분석한 데이터 사이언티스트, 경력 4년. 설비 에너지 수요 예측 모델을 운영했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000202",
+            "company_name": "Meterworks",
+            "role": "Data Scientist",
+            "start_date": "2022-07",
+            "end_date": null,
+            "description": "산업용 센서 시계열 분석과 에너지 수요 예측 모델 운영"
+          }
+        ]
+      },
+      "brief": "산업 에너지 효율·최적화 분야의 데이터 사이언스 정규직. 서울 또는 국내 원격. 주 2회 이하 출근. 해외 이주 불가. 기본연봉 최소 8천만 원.",
+      "memory": "현재 고용주에게 이직 의사를 알리지 않았습니다.",
+      "documents": [],
+      "role": null,
+      "matching": {
+        "id": "70000000-0000-4000-8000-000000000501",
+        "title": "산업 에너지 데이터 사이언스",
+        "revision": 1
+      },
+      "pages": [
+        {
+          "url": "https://gridhaven.example",
+          "title": "GridHaven — industrial energy optimization",
+          "searchTerms": "industrial energy optimization machine learning data scientist Seoul 서울 산업 에너지 최적화 채용 데이터 과학 GridHaven 그리드헤이븐",
+          "summary": "서울 소재 산업 에너지 최적화 기업. 센서 데이터와 머신러닝으로 설비 전력 사용을 줄입니다.",
+          "body": "GridHaven develops industrial energy optimization software using sensor time series and machine learning. Team based in Seoul. Careers: https://gridhaven.example/careers ."
+        },
+        {
+          "url": "https://gridhaven.example/careers",
+          "title": "GridHaven careers",
+          "searchTerms": "GridHaven careers jobs contact data scientist Seoul 채용 데이터 사이언스 서울 원격",
+          "summary": "현재 이름이 붙은 채용 공고는 없으며 데이터·최적화 분야의 자발적 지원서를 받습니다.",
+          "body": "We have no named vacancies posted at present. We welcome speculative applications in data science and optimization at careers@gridhaven.example. Seoul team; two office days per week. Salary ranges are not published."
+        },
+        {
+          "url": "https://kilnlogic.example",
+          "title": "KilnLogic industrial efficiency",
+          "searchTerms": "industrial energy optimization Seoul data science 센서 에너지 산업 최적화 KilnLogic 킬른로직",
+          "summary": "산업용 열 공정 효율을 분석하는 서울 기업. 채용 안내와 팀 기술 글 제공.",
+          "body": "KilnLogic models industrial heating efficiency from time-series data. Seoul team, remote-friendly within Korea. Our careers page https://kilnlogic.example/careers contains current opportunities."
+        },
+        {
+          "url": "https://kilnlogic.example/careers",
+          "title": "KilnLogic careers",
+          "searchTerms": "KilnLogic careers data scientist 채용 정규직 연봉",
+          "summary": "현재 연구 인턴만 공개되어 있고 정규직 데이터 직무와 보상은 확인되지 않습니다.",
+          "body": "Current public opening: Research Intern, six months. No permanent data-science vacancy is listed. General careers questions: talent@kilnlogic.example. Permanent compensation is not published."
+        },
+        {
+          "url": "https://heliomesh.example/careers",
+          "title": "HelioMesh Senior Energy Scientist",
+          "searchTerms": "energy machine learning scientist 산업 에너지 최적화 채용",
+          "summary": "싱가포르 현장 근무 주 5일과 현지 이주가 필수인 에너지 과학자 공고.",
+          "body": "Senior Energy Scientist. Singapore relocation required; five onsite days weekly. Employment is permanent. This role cannot be performed remotely from Korea."
+        }
+      ],
+      "gmail": false
+    },
+    {
+      "id": "blocked_application",
+      "message": "이 포지션에 지원해줘.",
+      "profile": {
+        "name": "이도현",
+        "email": "dohyun@example.test",
+        "location": "서울",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 5년. Kubernetes 운영, 배포 자동화, 장애 대응을 담당했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000203",
+            "company_name": "Harborstack",
+            "role": "Platform Engineer",
+            "start_date": "2021-10",
+            "end_date": null,
+            "description": "Kubernetes 클러스터 12개 운영. 배포 파이프라인 자동화로 배포 시간을 40분에서 12분으로 단축. 온콜 대응 runbook 작성."
+          }
+        ]
+      },
+      "brief": "서울 플랫폼 엔지니어. 주 2회 출근 가능. 정규직.",
+      "memory": "제공된 이력서의 성과와 연락처는 사용자가 확인했습니다.",
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000303",
+          "title": "플랫폼 엔지니어 이력서",
+          "text": "이도현\n서울 | dohyun@example.test\nHarborstack — Platform Engineer | 2021.10–현재\nKubernetes 클러스터 12개 운영\n배포 파이프라인 자동화로 배포 시간을 40분에서 12분으로 단축\n온콜 대응 runbook 작성\n기술: Kubernetes, Terraform, Python"
+        }
+      ],
+      "role": {
+        "id": "70000000-0000-4000-8000-000000000403",
+        "company": "Cairn Cloud",
+        "title": "Platform Engineer",
+        "url": "https://jobbridge.example/jobs/cairn-platform",
+        "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+        "source": "external",
+        "status": "active"
+      },
+      "pages": [
+        {
+          "url": "https://jobbridge.example/jobs/cairn-platform",
+          "title": "Cairn Cloud Platform Engineer on JobBridge",
+          "searchTerms": "Cairn Cloud Platform Engineer JobBridge 공고 지원",
+          "summary": "Kubernetes 운영·배포 자동화 역할. 지원하려면 JobBridge 로그인이 필요합니다.",
+          "body": "Cairn Cloud Platform Engineer. Seoul, two office days weekly. Kubernetes operations, deployment automation, incident response. 3+ years experience. Resume and short motivation required. Apply button opens JobBridge login. Official company website: https://cairncloud.example ."
+        },
+        {
+          "url": "https://cairncloud.example",
+          "title": "Cairn Cloud official site",
+          "searchTerms": "Cairn Cloud 케언 클라우드 careers 플랫폼 채용 지원",
+          "summary": "개발팀을 위한 관리형 클라우드 플랫폼. 공식 채용 페이지 제공.",
+          "body": "Cairn Cloud builds a managed cloud platform for engineering teams. Careers: https://cairncloud.example/careers ."
+        },
+        {
+          "url": "https://cairncloud.example/careers",
+          "title": "Cairn Cloud careers",
+          "searchTerms": "Cairn Cloud Platform Engineer careers hiring email contact 지원 이메일 담당자",
+          "summary": "동일 Platform Engineer 공고는 공식 채용 이메일로도 지원할 수 있습니다.",
+          "body": "Platform Engineer — Seoul, two office days weekly. Kubernetes, deployment automation, incident response. Apply directly by emailing careers@cairncloud.example with your resume and a short motivation in the email body. No platform account or other application fields are required. The careers inbox is the official recipient for this role."
+        }
+      ],
+      "gmail": true,
+      "browser": {
+        "url": "https://jobbridge.example/jobs/cairn-platform",
+        "observation": "The Apply button opens a JobBridge sign-in page. No signed-in account is present. No applicant fields were entered and no application was submitted."
+      }
+    },
+    {
+      "id": "sufficient_material",
+      "message": "이 경력을 영문 이력서용 세 문장으로 다듬어줘. 사실은 바꾸지 말고 이 대화에서 문장만 보여줘.\n\nHarborstack 플랫폼 엔지니어로 Kubernetes 클러스터 12개를 운영했습니다. 배포 파이프라인을 자동화해서 배포 시간을 40분에서 12분으로 줄였습니다. 온콜 대응 runbook을 작성했습니다.",
+      "profile": {
+        "name": "이도현",
+        "email": "dohyun@example.test",
+        "location": "서울",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 5년.",
+        "experiences": []
+      },
+      "brief": "서울 플랫폼 엔지니어.",
+      "memory": "사용자가 이번 메시지에서 해당 경험과 수치를 확인했습니다.",
+      "documents": [],
+      "role": null,
+      "pages": [],
+      "gmail": false
+    }
+  ]
+}

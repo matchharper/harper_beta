@@ -143,8 +143,39 @@ test("daily boundary uses the chosen timezone, including DST, and unknown cost i
       input_tokens: 1000,
       input_tokens_details: { cached_tokens: 100 },
     }).usd,
-    0.00009
+    0.000091
   );
+});
+
+test("Decisions bills cache reads and writes once, with free output", () => {
+  assert.equal(directUsageCost("openai_decisions", {
+    input_tokens: 12_000,
+    input_tokens_details: {
+      cached_tokens: 4_000,
+      cache_write_tokens: 7_000,
+      cache_write_tokens_details: { ttl_30m_tokens: 3_000, ttl_12h_tokens: 4_000 },
+    },
+    output_tokens: 10_000,
+  }).usd, 0.001515);
+  assert.equal(directUsageCost("openai_decisions", {
+    input_tokens: 2_000,
+    input_tokens_details: { cached_tokens: 300, cache_write_tokens: 1_200 },
+  }).usd, 0.000203);
+  assert.equal(directUsageCost("openai_decisions", { input_tokens: 1_000 }).usd, 0.0001);
+});
+
+test("Decisions uses long-context rates only above 272K and prefers provider cost", () => {
+  const usage = (input_tokens: number) => ({
+    input_tokens,
+    input_tokens_details: {
+      cached_tokens: 1_000, cache_write_tokens: 2_000,
+      cache_write_tokens_details: { ttl_30m_tokens: 1_000, ttl_12h_tokens: 1_000 },
+    },
+  });
+  assert.equal(directUsageCost("openai_decisions", usage(272_000)).usd, 0.027285);
+  assert.equal(directUsageCost("openai_decisions", usage(273_000)).usd, 0.05477);
+  assert.deepEqual(directUsageCost("openai_decisions", { ...usage(273_000), cost: 0 }),
+    { usd: 0, status: "provider_reported" });
 });
 
 test("transient Decisions failure retries the same provider and records the missing cost receipt", async () => {

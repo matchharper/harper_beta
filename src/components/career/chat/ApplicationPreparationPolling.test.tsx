@@ -1,259 +1,38 @@
 import assert from "node:assert/strict";
-import test, { mock } from "node:test";
-import React, { act } from "react";
+import test from "node:test";
+import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
-import { supabase } from "@/lib/supabase";
-import { MessagesProvider } from "@/i18n/useMessage";
-import {
-  CareerChatPanelProvider,
-  type CareerChatPanelContextValue,
-} from "../CareerChatPanelContext";
-import {
-  ApplicationPreparationProvider,
-  useApplicationPreparation,
-} from "./ApplicationPreparationContext";
-import { createSimulationSession } from "@/lib/career/simulation/session";
-import { createPreparation } from "@/lib/career/simulation/preparation";
-import type { SessionRecord } from "@/lib/career/simulation/sessionStore";
+import { useApplicationComposerDraft } from "./useApplicationComposerDraft";
 
-test("preparation refreshes background work without polling idle sessions or chat tokens", async (context) => {
-  const dom = new JSDOM("<div id='root'></div>", {
-    url: "http://localhost",
-  });
-  const globals = ["Event", "CustomEvent", "window", "document", "navigator", "IS_REACT_ACT_ENVIRONMENT"];
-  const previous = globals.map(
-    (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const
-  );
-  for (const key of globals) {
-    Object.defineProperty(globalThis, key, {
-      configurable: true,
-      value: key === "IS_REACT_ACT_ENVIRONMENT"
-        ? true
-        : (dom.window as unknown as Record<string, unknown>)[key],
-    });
-  }
-  context.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
-  const auth = mock.method(supabase.auth, "getSession", async () => ({
-    data: { session: { access_token: "test" } },
-    error: null,
-  }));
-  const state = createSimulationSession({
-    roleRef: "job:polling-test",
-    roleName: "Engineer",
-    documentId: null,
-    documentName: null,
-  });
-  state.analysisStatus = "completed";
-  state.preparation = createPreparation();
-  let serverRecord: SessionRecord | null = { messageId: 10, state };
-  let getCount = 0;
-  let releaseRequest: (() => void) | undefined;
-  let pauseRequest = false;
-  const fetchMock = mock.method(globalThis, "fetch", async () => {
-    getCount++;
-    if (pauseRequest) await new Promise<void>((resolve) => { releaseRequest = resolve; });
-    return Response.json({ session: serverRecord, drafts: [] });
-  });
+// Preparation no longer owns an active session or polls. Drafts live in the
+// shared composer; ApplicationHistory.test.tsx covers its read-only predecessor.
+test("unsubmitted answers survive switching forms and remounting without mixing scopes", async () => {
+  const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
+  const globals = { window: dom.window, document: dom.window.document, CustomEvent: dom.window.CustomEvent, IS_REACT_ACT_ENVIRONMENT: true };
+  const previous = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  let draft!: ReturnType<typeof useApplicationComposerDraft<string>>;
+  function Editor({ scope }: { scope: string }) { draft = useApplicationComposerDraft(scope); return null; }
   const root = createRoot(dom.window.document.getElementById("root")!);
-  let controls: ReturnType<typeof useApplicationPreparation>;
-  function Capture() {
-    controls = useApplicationPreparation();
-    return null;
-  }
-  let panel = {
-    conversationId: "polling-conversation",
-    messages: [],
-    chatPending: false,
-    onSendChatMessage: async () => {},
-  } as unknown as CareerChatPanelContextValue;
-  let providerKey = 0;
-  const render = async () => {
-    await act(async () => {
-      root.render(
-        <MessagesProvider locale="ko">
-          <CareerChatPanelProvider value={panel}>
-            <ApplicationPreparationProvider key={providerKey}>
-              <Capture />
-            </ApplicationPreparationProvider>
-          </CareerChatPanelProvider>
-        </MessagesProvider>
-      );
-    });
-  };
-  const tick = async (ms: number) => {
-    await act(async () => { context.mock.timers.tick(ms); });
-  };
-  const refreshFromChat = async () => {
-    panel = { ...panel, chatPending: true };
-    await render();
-    panel = { ...panel, chatPending: false };
-    await render();
-  };
+  const render = async (scope: string) => act(async () => root.render(<Editor key={scope} scope={scope} />));
   try {
-    await render();
-    assert.equal(getCount, 1, "load the existing session once");
-    await tick(30_000);
-    assert.equal(getCount, 1, "an active session awaiting input needs no repeated requests");
-
-    for (const running of ["analysis", "draft", "continuation", "inspection", "browser"] as const) {
-      serverRecord = structuredClone(serverRecord!);
-      const next = serverRecord.state;
-      next.revision++;
-      next.analysisStatus = running === "analysis" ? "running" : "completed";
-      next.applicationInspection = running === "inspection" ? { status: "running", runId: "inspection", startedAt: new Date().toISOString() } : undefined;
-      next.preparation!.generation.status = running === "draft" ? "running" : "idle";
-      next.activity = {
-        version: 1, offerId: 1, outputs: {},
-        batches: running === "continuation" ? [{
-          id: "batch", key: "batch", purpose: "Prepare", itemIds: [],
-          status: "submitted", continuation: "running", responses: {},
-          createdAt: new Date().toISOString(),
-        }] : [],
-      };
-      next.browser = running === "browser" ? {
-        id: "browser", status: "queued", startedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(), documentId: "cv", documentHash: "hash",
-        url: "https://example.com/apply", purpose: "Apply",
-      } : undefined;
-      await refreshFromChat();
-      const before: number = getCount;
-      await tick(3000);
-      assert.equal(getCount, before + 1, `${running} refreshes while working`);
-      if (running === "inspection") {
-        panel = { ...panel, chatPending: true };
-        await render();
-        const duringChat: number = getCount;
-        await tick(3000);
-        assert.equal(getCount, duringChat + 1, "inspection keeps refreshing while the submitted chat waits for it");
-        panel = { ...panel, chatPending: false };
-        await render();
-      }
-      serverRecord = structuredClone(serverRecord);
-      serverRecord.state.revision++;
-      serverRecord.state.analysisStatus = "completed";
-      if (serverRecord.state.applicationInspection) serverRecord.state.applicationInspection.status = "completed";
-      serverRecord.state.preparation!.generation.status = "ready";
-      serverRecord.state.activity!.batches = [];
-      if (serverRecord.state.browser) serverRecord.state.browser.status = "waiting";
-      await tick(3000);
-      const after: number = getCount;
-      await tick(30_000);
-      assert.equal(getCount, after, `${running} stops when work is done or awaiting input`);
-    }
-
-    const beforeTokens = getCount;
-    panel = { ...panel, chatPending: true };
-    await render();
-    for (let token = 0; token < 5; token++) {
-      panel = { ...panel, messages: [{ id: 20, role: "assistant", messageType: "chat", content: `token ${token}`, createdAt: "now" }] };
-      await render();
-    }
-    await tick(30_000);
-    assert.equal(getCount, beforeTokens, "the chat stream owns progress while it is open");
-    panel = { ...panel, chatPending: false };
-    await render();
-    assert.equal(getCount, beforeTokens + 1, "reload after the chat stream finishes");
-    panel = { ...panel, messages: [...panel.messages] };
-    await render();
-    assert.equal(getCount, beforeTokens + 1, "equivalent message arrays do not trigger another request");
-
-    serverRecord = structuredClone(serverRecord!);
-    serverRecord.state.revision++;
-    serverRecord.state.browser!.status = "running";
-    await refreshFromChat();
-    pauseRequest = true;
-    const beforeSlow = getCount;
-    await tick(3000);
-    await tick(30_000);
-    assert.equal(getCount, beforeSlow + 1, "slow polls do not overlap");
-    pauseRequest = false;
-    serverRecord.state.browser!.status = "succeeded";
-    await act(async () => { releaseRequest!(); });
-    await tick(3000);
-    assert.equal(getCount, beforeSlow + 2, "fetch the final browser output before stopping");
-    serverRecord.state.browser!.resultMessageId = 30;
-    await tick(3000);
-    const afterResult = getCount;
-    await tick(30_000);
-    assert.equal(getCount, afterResult, "stop after the final result is persisted");
-    assert.equal(controls!.record!.state.browser!.resultMessageId, 30);
-
-    panel = { ...panel, chatPending: true };
-    providerKey++;
-    const beforeRemount = getCount;
-    await render();
-    assert.equal(getCount, beforeRemount + 1, "a mobile/desktop remount loads persisted activity during an in-flight turn");
-    assert.equal(controls!.record!.messageId, 10);
-    assert.equal(controls!.record!.state.browser!.resultMessageId, 30);
-    await tick(30_000);
-    assert.equal(getCount, beforeRemount + 1, "hydration does not start polling settled activity during chat");
-
-    serverRecord = null;
-    await refreshFromChat();
-    const withoutSession = getCount;
-    await tick(30_000);
-    assert.equal(getCount, withoutSession, "conversations without a session do not poll");
-    assert.equal(controls!.record, null);
+    await render("form-a");
+    await act(async () => draft[1]({ answer: "Unsubmitted A" }));
+    await render("form-b");
+    assert.deepEqual(draft[0], {});
+    await act(async () => draft[1]({ answer: "Unsubmitted B" }));
+    await render("form-a");
+    assert.equal(draft[0].answer, "Unsubmitted A");
+    await act(async () => root.render(null));
+    await render("form-b");
+    assert.equal(draft[0].answer, "Unsubmitted B");
+    await act(async () => draft[2]());
+    await render("form-a");
+    assert.equal(draft[0].answer, "Unsubmitted A", "clearing B preserves A");
   } finally {
     await act(async () => root.unmount());
-    context.mock.timers.reset();
-    fetchMock.mock.restore();
-    auth.mock.restore();
-    for (const [key, descriptor] of previous) {
-      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-      else Reflect.deleteProperty(globalThis, key);
-    }
     dom.window.close();
-  }
-});
-
-test("unsubmitted answers survive leaving A, working on B and returning to A", async () => {
-  const { askApplicationInput } = await import("@/lib/career/simulation/applicationInput");
-  const { endSimulationSession } = await import("@/lib/career/simulation/session");
-  const { resumeSavedPreparation } = await import("@/lib/career/simulation/savedApplications");
-  const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
-  const keys = ["Event", "CustomEvent", "window", "document", "navigator", "localStorage", "IS_REACT_ACT_ENVIRONMENT"];
-  const previous = keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const);
-  for (const key of keys) Object.defineProperty(globalThis, key, { configurable: true, value: key === "IS_REACT_ACT_ENVIRONMENT" ? true : (dom.window as unknown as Record<string, unknown>)[key] });
-  const auth = mock.method(supabase.auth, "getSession", async () => ({ data: { session: { access_token: "test" } }, error: null }));
-  function prepared(role: string) {
-    const s = createSimulationSession({ roleRef: role, roleName: role, documentId: "cv", documentName: "CV" });
-    s.analysisStatus = "completed"; s.preparation = createPreparation();
-    s.activity = { version: 1, outputs: {}, batches: [] };
-    return askApplicationInput(s, { purpose: "Prepare", items: [{ kind: "question", title: "Your work?" }, { kind: "question", title: "Result?" }] }, role);
-  }
-  const a = prepared("A"), b = prepared("B");
-  let current: SessionRecord = { messageId: 10, state: a };
-  const fetchMock = mock.method(globalThis, "fetch", async (_url: RequestInfo | URL, options?: RequestInit) => {
-    assert.ok(!options?.method || options.method === "GET", "unsubmitted inputs must not become an application or a chat turn");
-    return Response.json({ session: current, drafts: [] });
-  });
-  const root = createRoot(dom.window.document.getElementById("root")!);
-  let controls: ReturnType<typeof useApplicationPreparation>;
-  function Capture() { controls = useApplicationPreparation(); return null; }
-  let panel = { conversationId: "saved-applications", messages: [], chatPending: false, onSendChatMessage: async () => { assert.fail("No chat submission"); } } as unknown as CareerChatPanelContextValue;
-  const render = async () => act(async () => root.render(<MessagesProvider locale="ko"><CareerChatPanelProvider value={panel}><ApplicationPreparationProvider><Capture /></ApplicationPreparationProvider></CareerChatPanelProvider></MessagesProvider>));
-  const refresh = async () => { panel = { ...panel, chatPending: true }; await render(); panel = { ...panel, chatPending: false }; await render(); };
-  try {
-    await render();
-    const aId = a.actions[0].id, bId = b.actions[0].id;
-    await act(async () => { await controls!.command({ operation: "respond", itemId: aId, response: { decision: "answer", text: "A draft answer" } }); });
-    current = { messageId: 10, state: { ...endSimulationSession(a, "user"), revision: 2 } };
-    await refresh();
-    current = { messageId: 20, state: b };
-    await refresh();
-    await act(async () => { await controls!.command({ operation: "respond", itemId: bId, response: { decision: "answer", text: "B draft answer" } }); });
-    current = { messageId: 10, state: { ...resumeSavedPreparation(endSimulationSession(a, "user")), revision: 3 } };
-    await refresh();
-    assert.equal(controls!.record!.state.preparation!.responses[aId].text, "A draft answer");
-    assert.ok(!Object.hasOwn(controls!.record!.state.preparation!.responses, bId));
-    current = { messageId: 20, state: { ...resumeSavedPreparation(endSimulationSession(b, "user")), revision: 3 } };
-    await refresh();
-    assert.equal(controls!.record!.state.preparation!.responses[bId].text, "B draft answer");
-  } finally {
-    await act(async () => root.unmount()); fetchMock.mock.restore(); auth.mock.restore();
-    for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }
-    dom.window.close();
+    for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
   }
 });

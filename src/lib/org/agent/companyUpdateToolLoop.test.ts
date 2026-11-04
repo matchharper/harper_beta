@@ -1,8 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { runOrgAgentToolLoop } from "./chat";
-import { buildCompanyUpdatePrompt } from "./companyUpdate";
+import { buildCompanyUpdatePrompt, companyUpdateInitialCapabilities } from "./companyUpdate";
 import { parseCompanyMessages } from "./companyMessaging";
+
+test("a completed search exposes publication and policy together after an unrelated company decision", async () => {
+  const event = { facts: { matchingSearchRunId: "run-1", selectionReview: "Current candidates and empty pool" } };
+  assert.deepEqual(companyUpdateInitialCapabilities({ facts: {} }), []);
+  await runOrgAgentToolLoop({
+    admin: {} as any, user: { id: "actor" } as any, actorId: "actor", actorLabel: "팀원",
+    conversation: { id: "conversation", company_workspace_id: "workspace", role_id: "role" } as any,
+    currentUserMessageId: 3, mentions: [], model: "google/gemini-3.8-flash",
+    capabilityMode: "progressive", source: "chat", readAudience: "company_safe",
+    scopeKey: "chat:conversation", slackThreadId: null,
+    initialCapabilities: companyUpdateInitialCapabilities(event), userMessage: buildCompanyUpdatePrompt(event),
+    context: { roles: [], workspace: { companyName: "Example" }, companyText: "Example", rolesText: "-",
+      recentRecommendationsText: "-", recentContactsText: "-", summariesText: "-", conversationText: "-",
+      conversationMessages: [{ id: 2, role: "assistant", source: "harper", speaker: "Harper", complete: true,
+        content: "기존 후보를 제외했어요.", references: "", toolNames: ["decide_company_intro"] }],
+      contextNotesText: "-", defaultLongTextObservations: [] } as any,
+  }, {
+    complete: async args => {
+      const names = args.tools!.map(tool => tool.function.name);
+      assert.ok(names.includes("publish_role_recommendations"));
+      assert.ok(names.includes("request_matching_search"));
+      assert.ok(!names.includes("recommend_talents")); // No scheduled outreach authority.
+      assert.ok(String(args.messages[0].content).includes('<capability_policy id="candidate_search">'));
+      return { model: "google/gemini-3.8-flash", response: { choices: [{ message: { role: "assistant", content: "확인했어요." } }] } } as any;
+    },
+    executeTool: async () => { throw Error("No external actions in schema test"); },
+  });
+});
 
 test("a Slack product event can progressively load messaging and commit multiple thread parts", async () => {
   let completions = 0;

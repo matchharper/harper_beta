@@ -1,3 +1,4 @@
+import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
@@ -13,7 +14,7 @@ import {
   type CareerChatPanelContextValue,
 } from "@/components/career/CareerChatPanelContext";
 
-test("deferred suggestions settle independently and two saved links skip Gmail loading", async () => {
+test("feedback suggestions load independently without requesting Gmail status", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://fixture.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "fixture-anon-key";
   const { supabase } = await import("@/lib/supabase");
@@ -44,17 +45,13 @@ test("deferred suggestions settle independently and two saved links skip Gmail l
       resolvers.set(url, resolve);
     });
   };
-  let savedLinks = ["https://linkedin.com/in/fixture"];
   let state!: ReturnType<typeof useCareerTaskSuggestions>;
   function Harness() {
     state = useCareerTaskSuggestions();
     return (
       <div>
         Existing tasks
-        <span
-          data-feedback-loading={state.externalLoading}
-          data-sources-loading={state.sourcesLoading}
-        >
+        <span data-feedback-loading={state.externalLoading}>
           {state.externalFeedback.length}
         </span>
       </div>
@@ -64,29 +61,29 @@ test("deferred suggestions settle independently and two saved links skip Gmail l
   const render = async () => {
     await act(async () => {
       root.render(
-        <QueryClientProvider client={client}>
+        <RouterContext.Provider value={{ query: {}, pathname: "/career", isReady: true } as any}><QueryClientProvider client={client}>
           <CareerSidebarProvider
             value={
               {
                 user: { id: "fixture-user" },
                 workspaceDataLoading: false,
-                savedProfileLinks: savedLinks,
-              } as CareerSidebarContextValue
+                savedProfileLinks: [],
+              } as unknown as CareerSidebarContextValue
             }
           >
             <CareerChatPanelProvider
               value={
                 {
-                  sessionPending: false,
+                  messages: [], sessionPending: false,
                   profilePending: false,
                   profileError: "",
-                } as CareerChatPanelContextValue
+                } as unknown as CareerChatPanelContextValue
               }
             >
               <Harness />
             </CareerChatPanelProvider>
           </CareerSidebarProvider>
-        </QueryClientProvider>
+        </QueryClientProvider></RouterContext.Provider>
       );
     });
   };
@@ -109,23 +106,9 @@ test("deferred suggestions settle independently and two saved links skip Gmail l
     await render();
     assert.match(dom.window.document.body.textContent ?? "", /Existing tasks/);
     assert.equal(state.externalLoading, true);
-    assert.equal(state.sourcesLoading, true);
-    assert.deepEqual(
-      new Set(requests),
-      new Set([
-        "/api/talent/pending-actions?scope=external-feedback",
-        "/api/talent/integrations/gmail",
-      ])
-    );
-
-    await settle("/api/talent/integrations/gmail", {
-      connected: true,
-      status: "active",
-      analysis: { status: "not_started", updatedAt: null },
-    });
-    assert.equal(state.sourcesLoading, false);
-    assert.equal(state.sourceSuggestion, null);
-    assert.equal(state.externalLoading, true);
+    assert.deepEqual(requests, [
+      "/api/talent/pending-actions?scope=external-feedback",
+    ]);
 
     await settle("/api/talent/pending-actions?scope=external-feedback", {
       externalFeedback: [
@@ -141,14 +124,7 @@ test("deferred suggestions settle independently and two saved links skip Gmail l
     assert.equal(state.externalLoading, false);
     assert.equal(state.externalFeedback[0].roleId, "role");
 
-    await act(async () => {
-      client.removeQueries({ queryKey: ["career-gmail-integration"] });
-    });
-    savedLinks = ["https://one.dev", "https://two.dev"];
-    await render();
-    assert.equal(state.sourcesLoading, false);
-    assert.equal(state.sourceSuggestion, null);
-    assert.equal(requests.length, 2);
+    assert.equal(requests.length, 1);
   } finally {
     await act(async () => {
       root.unmount();

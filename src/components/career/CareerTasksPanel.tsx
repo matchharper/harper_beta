@@ -1,6 +1,5 @@
 import { CareerTodayExternalRecommendations } from "./CareerDailyExternalRecommendations";
 import {
-  Blocks,
   CalendarClock,
   ChevronRight,
   CircleHelp,
@@ -16,7 +15,7 @@ import {
   Search,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import { useState, type ReactNode } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -32,7 +31,7 @@ import { useCareerTasks } from "@/hooks/career/useCareerTasks";
 import { useCareerTaskSuggestions } from "@/hooks/career/useCareerTaskSuggestions";
 import { useCareerRecentInfo } from "@/hooks/career/useCareerRecentInfo";
 import { useMessages } from "@/i18n/useMessage";
-import { useCareerChatPanelContext } from "./CareerChatPanelContext";
+import { useCareerChatActivityContext } from "./CareerChatPanelContext";
 import CareerHomeDevControls from "./CareerHomeDevControls";
 import CareerHomePanel from "./CareerHomePanel";
 import CareerWelcomeHeader from "./CareerWelcomeHeader";
@@ -134,7 +133,7 @@ function TaskSuggestionSkeleton({ label }: { label: string }) {
   );
 }
 
-export default function CareerTasksPanel({
+const CareerTasksPanel = memo(function CareerTasksPanel({
   onOpenChat,
   onOpenChatAction,
   onOpenOpportunity,
@@ -169,17 +168,6 @@ export default function CareerTasksPanel({
     }
   };
   const taskSuggestions = useCareerTaskSuggestions();
-  const openProfileLinks = () => {
-    const isPreview = router.pathname === "/career/preview";
-    void router.push(
-      {
-        pathname: isPreview ? router.pathname : "/career/documents",
-        query: isPreview ? { ...router.query, tab: "documents" } : {},
-      },
-      undefined,
-      { shallow: isPreview, scroll: false }
-    );
-  };
   const {
     user,
     isOnboardingDone,
@@ -199,7 +187,7 @@ export default function CareerTasksPanel({
     onboardingWrapupPending,
     opportunityFeedbackFollowUpPending,
     callWrapUpPending,
-  } = useCareerChatPanelContext();
+  } = useCareerChatActivityContext();
   const completed = isOnboardingDone || stage === "completed";
   const recentInfo = useCareerRecentInfo({
     enabled: completed && router.pathname !== "/career/preview",
@@ -306,45 +294,18 @@ export default function CareerTasksPanel({
         />
       );
     }
-    if (action.kind === "career_check_in_call") {
-      return (
-        <TaskRow
-          key={action.id}
-          icon={<PhoneCall className="h-4 w-4" />}
-          title={t("career.tasks.check_in", "Harper와 5분 통화")}
-          description={t(
-            "career.tasks.check_in_description",
-            "최근 상황이나 달라진 조건을 가볍게 이야기해요."
-          )}
-          action={callAction(action)}
-        />
-      );
-    }
     return null;
   });
-  if (
-    !tasks.suggestions.some((action) => action.kind === "career_check_in_call")
-  ) {
+  if (!showCompletedState) {
     suggestions.push(
       <TaskRow
         key="check-in"
         icon={<PhoneCall className="h-4 w-4" />}
-        title={
-          showCompletedState
-            ? t("career.tasks.check_in", "Harper와 5분 통화")
-            : t("career.tasks.onboarding_call", "5분 커리어 인터뷰로 시작해요")
-        }
-        description={
-          showCompletedState
-            ? t(
-                "career.tasks.check_in_description",
-                "최근 상황이나 달라진 조건을 가볍게 이야기해요."
-              )
-            : t(
-                "career.tasks.onboarding_call_description",
-                "경험과 원하는 조건을 알려주시면 맞는 기회를 찾기 시작해요."
-              )
-        }
+        title={t("career.tasks.onboarding_call", "5분 커리어 인터뷰로 시작해요")}
+        description={t(
+          "career.tasks.onboarding_call_description",
+          "경험과 원하는 조건을 알려주시면 맞는 기회를 찾기 시작해요."
+        )}
         action={callAction()}
       />
     );
@@ -553,7 +514,7 @@ export default function CareerTasksPanel({
                       size="sm"
                     />
                   }
-                  meta={`${action.companyName} · ${action.isCompanyIntro ? t("career.tasks.intro_request", "회사의 Intro 요청") : t("career.tasks.harper_offer", "Harper 연결 제안")}`}
+                  meta={`${action.companyName} · ${action.isCompanyIntro ? t("career.tasks.intro_request", "먼저 온 관심") : t("career.tasks.harper_offer", "Harper 연결")}`}
                   title={action.roleTitle}
                   description={
                     action.recommendationSummary ??
@@ -579,7 +540,7 @@ export default function CareerTasksPanel({
       ),
     },
     suggestions: {
-      title: t("career.tasks.suggestions", "Harper 제안"),
+      title: t("career.tasks.suggestions", "이어서 해볼 것"),
       count: 0,
       content: (
         <>
@@ -623,7 +584,7 @@ export default function CareerTasksPanel({
               }
               title={t(
                 "career.tasks.feedback_request",
-                "추천에 대한 피드백을 남겨주세요"
+                "기회에 대한 생각 남기기"
               )}
               description={t(
                 "career.tasks.feedback_request_description",
@@ -639,48 +600,7 @@ export default function CareerTasksPanel({
                     )
                   }
                 >
-                  {t("career.tasks.review_recommendations", "추천 확인하기")}
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </MuteButton>
-              }
-            />
-          ) : null}
-          {taskSuggestions.sourcesLoading ? (
-            <TaskSuggestionSkeleton
-              label={t(
-                "career.tasks.loading_sources",
-                "연결된 자료를 확인하고 있어요"
-              )}
-            />
-          ) : taskSuggestions.sourcesError ? (
-            <TaskRow
-              icon={<RefreshCw className="h-4 w-4" />}
-              title={t(
-                "career.tasks.sources_error",
-                "연결된 자료를 확인하지 못했어요"
-              )}
-              action={
-                <MuteButton size="sm" onClick={openProfileLinks}>
-                  {t("career.tasks.check_sources", "연결 상태 확인하기")}
-                </MuteButton>
-              }
-            />
-          ) : taskSuggestions.sourceSuggestion ? (
-            <TaskRow
-              icon={<Blocks className="h-4 w-4" />}
-              title={t(
-                "career.tasks.sources_request",
-                "어떤 일을 해왔는지 더 알려주세요"
-              )}
-              description={t(
-                "career.tasks.sources_request_description",
-                "경험과 관심사를 볼 수 있는 자료를 조금 더 알려주세요. 맞는 기회를 찾고 소개하는 데 도움이 돼요."
-              )}
-              action={
-                <MuteButton size="sm" onClick={openProfileLinks}>
-                  {taskSuggestions.sourceSuggestion.gmailMissing
-                    ? t("career.tasks.add_sources", "추가 정보 제공하기")
-                    : t("career.tasks.add_links", "추가 정보 제공하기")}
+                  {t("career.tasks.review_recommendations", "찾은 기회 보기")}
                   <ChevronRight className="h-3.5 w-3.5" />
                 </MuteButton>
               }
@@ -690,7 +610,7 @@ export default function CareerTasksPanel({
       ),
     },
     working: {
-      title: t("career.tasks.working", "Harper가 하는 중"),
+      title: t("career.tasks.working", "Harper가 하고 있는 일"),
       count: 0,
       content: (
         <>
@@ -736,7 +656,7 @@ export default function CareerTasksPanel({
                     )
                   : t(
                       "career.tasks.preparing_connection",
-                      "기회를 검토하셨고, 회사 측에 소개를 전달하고 있어요"
+                      "회사 측에 소개를 전달하고 있어요"
                     )
               }
               action={
@@ -800,12 +720,12 @@ export default function CareerTasksPanel({
                         )
                       : t(
                           "career.tasks.priority_review_requested",
-                          "우선 검토를 요청했어요"
+                          "관심 있는 기회로 저장했어요"
                         )
               }
               description={t(
                 "career.tasks.priority_review_waiting",
-                "회사의 인재 목록에 전달했고, 적절한 타이밍에 잘 소개할 수 있게 기다리고 있어요."
+                "관심 있는 역할의 정보를 살펴보고 있어요. 소개를 원하시면 저에게 말씀해 주세요."
               )}
               action={
                 <>
@@ -1004,4 +924,6 @@ export default function CareerTasksPanel({
       <CareerHomeDevControls onOpenChat={onOpenChat} />
     </div>
   );
-}
+});
+
+export default CareerTasksPanel;

@@ -43,6 +43,11 @@ export async function GET(req: NextRequest) {
     await resumeCompletedScheduledMatching(admin);
     const recovered = await recoverOrgAgentWebActionJobs(admin);
     const proactiveEnqueued = await enqueueDueCompanyProactiveReviews();
+    const {enqueueDueCompanyAgentSchedules}=await import("@/lib/agentContacts/schedules");
+    let agentSchedulesEnqueued=0;
+    const agentRecoveryErrors:string[]=[];
+    try {agentSchedulesEnqueued=await enqueueDueCompanyAgentSchedules();}
+    catch(error) {agentRecoveryErrors.push('schedule');console.error('[agent-contact:schedule-recovery]',error);}
     const { data: jobs, error } = await (
       admin.from("company_agent_web_action_jobs" as any) as any
     )
@@ -62,6 +67,10 @@ export async function GET(req: NextRequest) {
       if (await dispatchOrgAgentWebActionJob({ admin, jobId })) dispatched += 1;
       else failedJobIds.push(jobId);
     }
+    const {recoverAgentCompanyEmail}=await import("@/lib/agentContacts/companyEmail.server");
+    let agentEmailsRecovered=0;
+    try {agentEmailsRecovered=await recoverAgentCompanyEmail();}
+    catch(error) {agentRecoveryErrors.push('email');console.error('[agent-contact:email-recovery]',error);}
     return NextResponse.json({
       signupNotificationsSent,
       attempted: (jobs ?? []).length,
@@ -69,7 +78,8 @@ export async function GET(req: NextRequest) {
       proactiveEnqueued,
       dispatched,
       failedJobIds,
-      ok: failedJobIds.length === 0,
+      agentSchedulesEnqueued,agentEmailsRecovered,agentRecoveryErrors,
+      ok: failedJobIds.length === 0 && agentRecoveryErrors.length===0,
     });
   } catch (error) {
     console.error("[org-agent/web-action:dispatch-recovery]", error);

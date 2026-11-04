@@ -315,14 +315,21 @@ export default function InternalConnectionAcceptanceModal({
                 )
               : t(
                   "career.common.internal_connection_acceptance_modal.028q399",
-                  "Harper가 회원님의 경력과 강점을 회사에 소개할게요. 회사에서 확인 후 진행을 원하면 커피챗/인터뷰 등 다음 단계를 안내할 수 있습니다."
+                  "Harper가 회사의 에이전트에게 회원님을 소개하고 연결을 요청할게요. 회사에서 진행을 원하면 다음 단계를 안내해 드립니다."
                 )}
+          </div>
+          <div className="mt-2 text-neutral-muted">
+            {item.acceptanceMaterial?.materialId
+              ? t("career.common.internal_connection_acceptance_modal.prepared_material", "이 역할에 선택한 프로필과 이력서를 공유합니다.")
+              : t("career.common.internal_connection_acceptance_modal.default_material", "기본 프로필과 공개 이력서를 공유합니다.")}
+            {item.acceptanceMaterial?.profileTitle && <p>{item.acceptanceMaterial.profileTitle}</p>}
+            {item.acceptanceMaterial?.documentNames?.map((name,index) => <p key={`${index}:${name}`}>{name}</p>)}
           </div>
           {isIntroRequest && (
             <div>
               {t(
                 "career.common.internal_connection_acceptance_modal.intro_immediate_connection",
-                "수락하면 회자와 바로 연결되고, 거절하면 회사에 내용을 잘 가공해서 Harper가 전달합니다."
+                "수락하면 회사에 소개를 전달하는 절차가 시작됩니다. 거절하면 그 의사를 회사에 전달합니다."
               )}
             </div>
           )}

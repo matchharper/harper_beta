@@ -1,4 +1,5 @@
 import { OpenAI } from "openai";
+import { tracedLlmFetch } from "./providerTrace";
 import { logger } from "@/utils/logger";
 import {
   buildOpenAIResponsesRequest,
@@ -50,18 +51,21 @@ export type Message = {
 export const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
+  fetch: tracedLlmFetch,
 });
 
 export const anthropicClient = new OpenAI({
   apiKey: process.env.ANTHROPIC_API_KEY ?? "missing-anthropic-api-key",
   dangerouslyAllowBrowser: true,
   baseURL: "https://api.anthropic.com/v1/",
+  fetch: tracedLlmFetch,
 });
 
 export const openrouterClient = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY ?? "missing-openrouter-api-key",
   dangerouslyAllowBrowser: true,
   baseURL: "https://openrouter.ai/api/v1",
+  fetch: tracedLlmFetch,
 });
 
 export type LlmChatProvider = "anthropic" | "openai" | "openrouter";

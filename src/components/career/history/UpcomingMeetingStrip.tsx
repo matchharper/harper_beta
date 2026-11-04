@@ -18,6 +18,7 @@ export default function UpcomingMeetingStrip({
 
   const dateTime = formatCareerMeetingDateTimeRange({
     endAt: meeting.endAt,
+    calendarDate: meeting.calendarDate,
     locale,
     startAt: meeting.startAt,
   });

@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import { before, test } from "node:test";
 import type { EmailJobContext } from "./types";
 import Module from "node:module";
+import { opsEmailTestToolBlock } from "./opsTest";
 let executeEmailTool: typeof import("./tools").executeEmailTool;
 let adaptEmailToolResult: typeof import("./tools").adaptEmailToolResult;
+let emailToolSelection: typeof import("./tools").emailToolSelection;
 let commonInstruction: string;
+let sharedTools: typeof import("@/lib/talentOnboarding/tools").getOpenAIChatTools;
 before(async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "email-unit-test";
@@ -23,11 +26,58 @@ before(async () => {
   try {
     executeEmailTool = (await import("./tools")).executeEmailTool;
     adaptEmailToolResult = (await import("./tools")).adaptEmailToolResult;
+    emailToolSelection = (await import("./tools")).emailToolSelection;
+    sharedTools = (await import("@/lib/talentOnboarding/tools"))
+      .getOpenAIChatTools;
     commonInstruction = (await import("@/lib/talentOnboarding/tools"))
       .TALENT_TOOL_COMMON_ASSISTANT_INSTRUCTION;
   } finally {
     nodeModule._load = load;
   }
+});
+
+test("email exposes one company follow tool with list and write actions", () => {
+  const selected = emailToolSelection(
+    { tools: sharedTools("chat"), toolNames: [], stopAfterToolNames: [] },
+    true
+  );
+  assert.ok(!selected.toolNames.includes("list_company_follows"));
+  const follows = selected.tools.filter(tool => tool.function.name === "follow_company");
+  assert.equal(follows.length, 1);
+  const properties = follows[0].function.parameters.properties as Record<string, { enum?: string[] }>;
+  assert.deepEqual(properties.action.enum, ["list", "read", "follow", "update", "unfollow"]);
+});
+
+test("email exposes the unified writer and projects saved resume links for the email channel", () => {
+  for (const onboarding of [false, true]) {
+    const selected = emailToolSelection(
+      { tools: sharedTools("chat"), toolNames: [], stopAfterToolNames: [] },
+      onboarding
+    );
+    assert.ok(selected.toolNames.includes("upsert_document"));
+    assert.ok(!selected.toolNames.includes("generate_resume"));
+    const writer = selected.tools.find(
+      (tool) => tool.function.name === "upsert_document"
+    )!;
+    assert.match(writer.function.description, /type=resume/);
+  }
+  const result = adaptEmailToolResult({
+    ok: true,
+    action: "create",
+    type: "resume",
+    kind: "resume",
+    contentSaved: true,
+    documentId: "resume",
+    revision: 1,
+    fileName: "Resume.pdf",
+    isPrivate: true,
+    documentLink: "/career/documents/resume",
+    modelOutput: "Old web-only projection",
+  }) as Record<string, unknown>;
+  assert.match(String(result.documentLink), /^https?:\/\//);
+  assert.ok(String(result.modelOutput).includes(String(result.documentLink)));
+  assert.match(String(result.modelOutput), /type: resume/);
+  assert.doesNotMatch(String(result.modelOutput), /Old web-only projection/);
 });
 
 test("email replaces only common writing guidance and preserves tool facts and domain rules", () => {
@@ -106,6 +156,34 @@ test("a retried source email reuses a completed business command instead of exec
   });
   assert.equal(calls, 2);
 });
+
+test("Markdown authoring retries keep their existing email command receipt without loading a resume session", async () => {
+  const { ctx } = context();
+  let calls = 0;
+  const executeDefault = async () => ({
+    ok: true,
+    contentSaved: true,
+    sequence: ++calls,
+  });
+  const input = {
+    action: "create",
+    type: "markdown",
+    title: "Motivation",
+    markdown: "Confirmed work",
+  };
+  const first = await executeEmailTool(ctx, {
+    name: "upsert_document",
+    input,
+    executeDefault,
+  });
+  const retry = await executeEmailTool(ctx, {
+    name: "upsert_document",
+    input,
+    executeDefault,
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(retry, first);
+});
 test("read tools remain fresh and lost execution ownership prevents all effects", async () => {
   const { ctx, job } = context();
   let calls = 0;
@@ -139,15 +217,64 @@ test("Ops email tests block external effects before any executor or cached succe
   job.kind = "ops_email_test";
   let calls = 0;
   const executeDefault = async () => ({ ok: true, sequence: ++calls });
-  for (const name of ["contact_company", "apply_for_role", "update_recommended_opportunity_feedback",
-    "request_internal_role_reconsideration", "update_onboarding_progress", "update_setting",
-    "update_talent_profile", "write_talent_context", "update_document", "unknown_future_tool"]) {
-    const result = await executeEmailTool(ctx, { name, input: {}, executeDefault }) as any;
+  for (const name of [
+    "contact_company",
+    "apply_for_role",
+    "update_recommended_opportunity_feedback",
+    "request_internal_role_reconsideration",
+    "update_onboarding_progress",
+    "update_setting",
+    "update_talent_profile",
+    "write_talent_context",
+    "write_email",
+    "unknown_future_tool",
+  ]) {
+    const result = (await executeEmailTool(ctx, {
+      name,
+      input: {},
+      executeDefault,
+    })) as any;
     assert.equal(result.error, "ops_email_test_external_effect_disabled", name);
   }
+  const visibilityChange = (await executeEmailTool(ctx, {
+    name: "upsert_document",
+    input: { document_id: "saved", is_public: true },
+    executeDefault,
+  })) as any;
+  assert.equal(
+    visibilityChange.error,
+    "ops_email_test_external_effect_disabled"
+  );
   assert.equal(calls, 0);
-  await executeEmailTool(ctx, { name: "list_documents", input: {}, executeDefault });
+  assert.equal(opsEmailTestToolBlock(job, "write_email", { action: "read_draft" })?.error,
+    "ops_email_test_external_effect_disabled");
+  await executeEmailTool(ctx, {
+    name: "list_documents",
+    input: {},
+    executeDefault,
+  });
   assert.equal(calls, 1);
+});
+
+test("Ops email tests keep unified document authoring local", () => {
+  const job = { kind: "ops_email_test" };
+  for (const input of [
+    { action: "create", type: "resume", title: "Resume", content: {} },
+    { action: "copy", document_id: "resume", expected_revision: 1 },
+    {
+      action: "create",
+      type: "markdown",
+      title: "Letter",
+      markdown: "Confirmed facts",
+    },
+    { action: "update", document_id: "saved", description: "Working draft" },
+  ])
+    assert.equal(opsEmailTestToolBlock(job, "upsert_document", input), null);
+  for (const field of ["kind", "is_primary", "is_public", "is_deleted"])
+    assert.equal(
+      opsEmailTestToolBlock(job, "upsert_document", { [field]: true })?.error,
+      "ops_email_test_external_effect_disabled"
+    );
 });
 
 function acceptanceContext() {
@@ -168,8 +295,14 @@ function acceptanceContext() {
   };
   const setting: any = { is_onboarding_done: true };
   const admin: any = {
-    async rpc() { return {data: null, error: null}; },
+    async rpc() {
+      return { data: null, error: null };
+    },
     from(table: string) {
+      if (table === "talent_role_materials") {
+        const q: any = { select: () => q, eq: () => q, order: async () => ({ data: [{ id: "material", revision: 1, action: "set" }], error: null }) };
+        return q;
+      }
       let patch: any;
       const filters: any = {};
       const read = () =>
@@ -193,9 +326,10 @@ function acceptanceContext() {
         async limit() {
           return { data: [rec], error: null };
         },
+        async not() { return { data: [], error: null }; },
         async maybeSingle() {
           if (patch) {
-            if (filters.updated_at !== rec.updated_at)
+            if (JSON.stringify(filters.email_acceptance_confirmation) !== JSON.stringify(rec.email_acceptance_confirmation))
               return { data: null, error: null };
             Object.assign(rec, patch);
           }
@@ -214,99 +348,17 @@ function acceptanceContext() {
   return { ctx, rec, role, setting };
 }
 
-test("internal email acceptance requires a different later message in the same conversation", async () => {
-  const { confirmEmailAcceptance } = await import("./tools");
-  const { ctx, rec } = acceptanceContext();
-  const payloads: any[] = [];
-  const accept = async (payload: any) => {
-    payloads.push(payload);
-    return { ok: true };
-  };
-  const input = {
-    opportunityId: rec.id,
-    feedback: "like",
-    feedbackReason: "Note to company",
-  };
-  const a: any = await confirmEmailAcceptance(
-    ctx,
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(a.confirmationRequired, true);
-  assert.equal(payloads.length, 0);
-  const b: any = await confirmEmailAcceptance(
-    ctx,
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(b.confirmationRequired, true);
-  assert.equal(payloads.length, 0);
-  const c: any = await confirmEmailAcceptance(
-    { ...ctx, conversationId: "another", sourceMessage: { id: 2 } as any },
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(c.confirmationRequired, true);
-  assert.equal(payloads.length, 0);
-  await confirmEmailAcceptance(
-    { ...ctx, conversationId: "another", sourceMessage: { id: 3 } as any },
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(payloads.length, 1);
-  assert.equal(payloads[0].recommendationId, rec.id);
-  assert.equal("expectedUpdatedAt" in payloads[0], false);
-  assert.equal(payloads[0].feedbackReason, "Note to company");
-  assert.equal(payloads[0].emailAcceptanceConfirmation.status, "confirmed");
-  assert.equal(
-    payloads[0].emailAcceptanceConfirmation.confirmedUserMessageId,
-    3
-  );
-});
-
-test("company Intro accepts directly, while onboarding, unavailable and isolated roles cannot accept", async () => {
-  const { confirmEmailAcceptance } = await import("./tools");
-  const { ctx, rec, role, setting } = acceptanceContext();
-  let calls = 0;
-  const accept = async () => ({ ok: true, number: ++calls });
-  const input = { opportunityId: rec.id, feedback: "like" };
-  rec.opportunity_type = "intro_request";
-  await confirmEmailAcceptance(ctx, input, async () => null, accept);
-  assert.equal(calls, 1);
-  setting.is_onboarding_done = false;
-  const incomplete: any = await confirmEmailAcceptance(
-    ctx,
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(incomplete.connectionAcceptanceRecorded, false);
-  assert.equal(calls, 1);
-  setting.is_onboarding_done = true;
-  rec.opportunity_type = "internal";
-  role.status = "ended";
-  const ended: any = await confirmEmailAcceptance(
-    ctx,
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(ended.error, "internal_opportunity_unavailable");
-  assert.equal(calls, 1);
-  role.status = "active";
-  role.information = { testOnly: true, testTalentIds: ["different"] };
-  const isolated: any = await confirmEmailAcceptance(
-    ctx,
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(isolated.error, "internal_opportunity_unavailable");
-  assert.equal(calls, 1);
+test("email delegates decisions to the same Career executor without a second confirmation state", async () => {
+  const {confirmEmailAcceptance}=await import("./tools");
+  const {ctx,rec}=acceptanceContext();
+  const original=structuredClone(rec);
+  const receipt={ok:false,modelOutput:"Internal introduction uses contact_company."};
+  let executions=0,legacyAccepts=0;
+  const result=await confirmEmailAcceptance(ctx,{opportunityId:rec.id,feedback:"like"},async()=>{executions++;return receipt;},async()=>{legacyAccepts++;});
+  assert.equal(result,receipt);
+  assert.equal(executions,1);
+  assert.equal(legacyAccepts,0);
+  assert.deepEqual(rec,original);
 });
 
 test("attachment selection never uploads an unselected file with the same name", async () => {
@@ -350,37 +402,73 @@ test("attachment selection never uploads an unselected file with the same name",
   assert.equal(resolveEmailAttachmentUploads(attachments, [null]), null);
 });
 
-test("email acceptance guidance is an adapter copy and cannot mutate the shared web tool contract", async () => {
+test("email keeps the shared introduction contract and does not add another confirmation loop", async () => {
   const { emailToolSelection } = await import("./tools");
   const { getOpenAIChatTools } = await import("@/lib/talentOnboarding/tools");
   const before = JSON.stringify(getOpenAIChatTools("chat"));
   const selection = emailToolSelection(
-    { tools: [], toolNames: [], stopAfterToolNames: [] } as any,
+    {
+      tools: sharedTools("chat"),
+      toolNames: [],
+      stopAfterToolNames: [],
+    } as any,
     false
   );
   const tool = selection.tools.find(
     (t) => t.function.name === "update_recommended_opportunity_feedback"
   )!;
-  assert.match(tool.function.description, /records the pending confirmation/);
-  const start = selection.tools.find(t => t.function.name === "simulate_application")!;
-  assert.match(start.function.description, /Choose the suitable source yourself/);
-  const revise = selection.tools.find(t => t.function.name === "manage_application_suggestions")!;
-  assert.match(revise.function.description, /save the approved subset with ready_for_role in this turn/);
-  const coaching = selection.tools.find(t => t.function.name === "manage_career_coaching_activity")!;
-  const parameters = coaching.function.parameters as { properties: { action: { enum: string[] } }; required: string[] };
+  assert.match(tool.function.description, /contact_company/);
+  assert.doesNotMatch(tool.function.description, /pending confirmation/);
+  for (const name of [
+    "simulate_application",
+    "manage_simulation_session",
+    "manage_application_suggestions",
+    "ready_for_role",
+    "save_application",
+    "apply_for_role",
+  ])
+    assert.ok(!selection.toolNames.includes(name));
+  assert.ok(selection.toolNames.includes("write_email"));
+  assert.ok(selection.toolNames.includes("use_browser"));
+  assert.ok(selection.toolNames.includes("suggest_form"));
+  assert.ok(selection.toolNames.includes("web_search"));
+  const coaching = selection.tools.find(
+    (t) => t.function.name === "manage_career_coaching_activity"
+  )!;
+  const parameters = coaching.function.parameters as {
+    properties: { action: { enum: string[] } };
+    required: string[];
+  };
   assert.deepEqual(parameters.properties.action.enum, ["end"]);
   assert.ok(parameters.required.includes("activityMessageId"));
   assert.ok(parameters.required.includes("expectedRevision"));
-  const { manageApplicationSuggestionsTool } = await import("@/lib/career/simulation/suggestions");
-  assert.match(manageApplicationSuggestionsTool.function.description, /composer/);
-  assert.notEqual(revise, manageApplicationSuggestionsTool);
   assert.equal(JSON.stringify(getOpenAIChatTools("chat")), before);
 });
 
 test("generated resume links are ordinary email URLs without changing shared results", () => {
-  const source = { ok: true, documentId: "00000000-0000-4000-8000-000000000001", documentLink: "[Resume](documentId:00000000-0000-4000-8000-000000000001)" };
+  const source = {
+    ok: true,
+    documentId: "00000000-0000-4000-8000-000000000001",
+    documentLink: "[Resume](documentId:00000000-0000-4000-8000-000000000001)",
+  };
   const projected = adaptEmailToolResult(source) as typeof source;
   assert.match(projected.documentLink, /^https?:\/\//);
   assert.match(projected.documentLink, /\/career\/documents\?documentId=/);
   assert.match(source.documentLink, /documentId:/);
+});
+
+
+test("email browser results include an owned viewer entry without provider credentials", () => {
+  const raw = { session: { id: "10000000-0000-4000-8000-000000000001", provider_refs: { live_url: "private-provider-url" } },
+    modelOutput: "Browser agent report: Login required; no submission." };
+  const result = adaptEmailToolResult(raw) as any;
+  assert.match(result.modelOutput, /Login required; no submission/);
+  assert.ok(result.modelOutput.includes("/career?browserSession=10000000-0000-4000-8000-000000000001"));
+  assert.ok(!result.modelOutput.includes("private-provider-url"));
+  assert.equal(raw.modelOutput, "Browser agent report: Login required; no submission.");
+  const selected = emailToolSelection({ tools: sharedTools("chat"), toolNames: [], stopAfterToolNames: [] }, false);
+  for (const name of ["use_browser", "suggest_form", "write_email"]) {
+    const description = selected.tools.find(t => t.function.name === name)!.function.description;
+    assert.doesNotMatch(description, /\[\[browser:|\[\[integration:gmail\]\]|above the chat composer/);
+  }
 });

@@ -1,8 +1,10 @@
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
+import { companyAgentScope } from "@/lib/agentContacts/companyScope";
 import type { User } from "@supabase/supabase-js";
 import { hasOrgWorkspaceAccessBypass } from "./access";
 import { assertWorkspaceAvailable, isReviewOnboarding } from "./workspaceReview.server";
 import { readCachedOrgPermission } from "./permissionCache.server";
+import { memoOrgRead } from "./requestScope.server";
 import { OrgHttpError } from "./httpError";
 import { canAccessOrgRole, resolveOrgRoleAccess, type OrgRoleAccess, type OrgTeam } from "./teamAccess.shared";
 export { canAccessOrgRole, resolveOrgRoleAccess, orgMemberTeamIds } from "./teamAccess.shared";
@@ -32,6 +34,13 @@ type RoleAccessArgs = { admin: Admin; user: User; workspaceId: string; allowRevi
 
 /** Candidate routes may reuse DB-derived access; privileged/background calls stay fresh. */
 export async function readOrgRoleAccess(args: RoleAccessArgs): Promise<OrgRoleAccess> {
+  const service = companyAgentScope(args.admin);
+  if (service) {
+    if (service.workspaceId !== args.workspaceId) throw new OrgHttpError(403, "Company event workspace mismatch");
+    await assertWorkspaceAvailable(args);
+    await service.assertCurrent();
+    return { authority: "admin", scope: "team", teamId: null, teamName: null, teamIds: [], teamNames: [], roleIds: [service.roleId], audienceRestricted: true };
+  }
   if (args.fresh || args.allowReviewSetup || (args.admin as any)[orgRoleAudienceScope] !== undefined || isReviewOnboarding(args.workspaceId, args.user.id)) {
     return readCurrentOrgRoleAccess(args);
   }
@@ -40,6 +49,8 @@ export async function readOrgRoleAccess(args: RoleAccessArgs): Promise<OrgRoleAc
 }
 
 async function readCurrentOrgRoleAccess(args: RoleAccessArgs): Promise<OrgRoleAccess> {
+  return memoOrgRead(args.admin, ["role-access", args.workspaceId, args.user.id, args.user.email,
+    Boolean(args.allowReviewSetup), isReviewOnboarding(args.workspaceId, args.user.id)], async () => {
   await assertWorkspaceAvailable(args);
   const audienceTeamIds = (args.admin as any)[orgRoleAudienceScope] as string[] | undefined;
   if (hasOrgWorkspaceAccessBypass(args.user.email)) {
@@ -59,16 +70,19 @@ async function readCurrentOrgRoleAccess(args: RoleAccessArgs): Promise<OrgRoleAc
   return constrainOrgRoleAudience({ ...access, teamName: teams.find((team: any) => team.id === access.teamId)?.name ?? null,
     teamNames: teams.map((team: any) => team.name) }, audienceTeamIds);
 
+  });
 }
 
 /** The query must select company_internal_roles; non-null embedding filters parent rows too. */
 export function scopeOrgRoleQuery<T>(query: T, access: OrgRoleAccess): T {
+  if (access.roleIds) return (query as any).in("role_id", access.roleIds);
   if (access.scope === "organization") return query;
   return access.teamIds.length ? (query as any).in("company_internal_roles.team_id", access.teamIds).not("company_internal_roles", "is", null) : (query as any).in("role_id", []);
 }
 
 export async function visibleOrgRoleIds(args: { admin: Admin; user: User; workspaceId: string }): Promise<string[] | null> {
   const access = await readOrgRoleAccess(args);
+  if (access.roleIds) return access.roleIds;
   if (access.scope === "organization") return null;
   if (!access.teamIds.length) return [];
   const { data, error } = await (args.admin.from("company_roles") as any)
@@ -79,6 +93,10 @@ export async function visibleOrgRoleIds(args: { admin: Admin; user: User; worksp
 
 export async function assertOrgTeamRoleAccess(args: { admin: Admin; user: User; workspaceId: string; roleId: string }) {
   const access = await readOrgRoleAccess(args);
+  if (access.roleIds) {
+    if (!access.roleIds.includes(args.roleId)) throw new OrgHttpError(404, "Role unavailable in this company event");
+    return access;
+  }
   const { data, error } = await (args.admin.from("company_roles") as any)
     .select("role_id, company_internal_roles(team_id)").eq("company_workspace_id", args.workspaceId).eq("role_id", args.roleId)
     .eq("source_type", "internal").maybeSingle();

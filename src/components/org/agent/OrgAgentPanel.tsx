@@ -1,4 +1,8 @@
-import { useRoleStartQuery, applyRoleStartMutation, type RoleStartMutationResult } from "@/hooks/org/useRoleStart";
+import {
+  useRoleStartQuery,
+  applyRoleStartMutation,
+  type RoleStartMutationResult,
+} from "@/hooks/org/useRoleStart";
 import { queryKeys } from "@/lib/queryKeys";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
@@ -21,10 +25,7 @@ import {
   getPreviousChatMessageDateKey,
 } from "@/components/chat/ChatTimeline";
 import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
-import {
-  OrgTodoArea,
-  useOrgTodoShortcuts,
-} from "@/components/org/OrgTodoChip";
+import { OrgTodoArea, useOrgTodoShortcuts } from "@/components/org/OrgTodoChip";
 import { OrgRoleSearchActivity } from "@/components/org/role-overview/OrgRoleSearchActivity";
 import {
   OrgAgentDateDivider,
@@ -156,8 +157,15 @@ export function OrgAgentChatSurface({
   // Role start question cards live in this chat and in the 시작 tab with one
   // shared state; poll only while a card is being prepared.
   const queryClient = useQueryClient();
-  const roleStartKey = useMemo(() => queryKeys.org.roleStart(workspaceId, roleId ?? ""), [roleId, workspaceId]);
-  const roleStart = useRoleStartQuery(roleId ?? "", workspaceId, purpose === "role-creation" && !readOnly);
+  const roleStartKey = useMemo(
+    () => queryKeys.org.roleStart(workspaceId, roleId ?? ""),
+    [roleId, workspaceId]
+  );
+  const roleStart = useRoleStartQuery(
+    roleId ?? "",
+    workspaceId,
+    purpose === "role-creation" && !readOnly
+  );
   const roleStartSignature = [
     roleStart.data?.session?.phase,
     roleStart.data?.session?.pendingQuestion?.id,
@@ -198,7 +206,12 @@ export function OrgAgentChatSurface({
     },
     onMutate: () => queryClient.cancelQueries({ queryKey: roleStartKey }),
     onSuccess: async (result) => {
-      await applyRoleStartMutation(queryClient, workspaceId, roleId ?? "", result);
+      await applyRoleStartMutation(
+        queryClient,
+        workspaceId,
+        roleId ?? "",
+        result
+      );
       void refetchHistory();
     },
   });
@@ -619,7 +632,6 @@ export function OrgAgentChatSurface({
               chat.thinkingLogs,
               responseLocale
             )}
-            typographyClassName="text-[13px] leading-[1.65]"
           />
           {chat.assistantStatus === "pending" ? (
             <OrgAgentPendingBubble />
@@ -692,62 +704,68 @@ export function OrgAgentChatSurface({
               )}
               workspaceId={workspaceId}
             >
-          <OrgAgentComposer
-            key={initialMessage}
-            initialMessage={initialRoleCreation ? initialMessage : undefined}
-            allowAttachments
-            autoFocus={autoFocus}
-            compactWidth={initialRoleCreation}
-            disabled={readOnly || !workspaceId}
-            isStreaming={chat.isStreaming}
-            model={model}
-            onModelChange={handleModelChange}
-            onSend={({ attachments, mentions, message }) => {
-              setStickToBottom(true);
-              return chat.sendMessage({
-                attachments,
-                draftRoleId:
-                  initialRoleCreation && typeof crypto !== "undefined"
-                    ? crypto.randomUUID()
-                    : null,
-                mentions,
-                message,
-                model,
-              });
-            }}
-            roleId={roleId}
-            suggestions={initialRoleCreation ? roleStartSuggestions : undefined}
-            workspaceId={workspaceId}
-          />
+              <OrgAgentComposer
+                key={initialMessage}
+                initialMessage={
+                  initialRoleCreation ? initialMessage : undefined
+                }
+                allowAttachments
+                autoFocus={autoFocus}
+                compactWidth={initialRoleCreation}
+                disabled={readOnly || !workspaceId}
+                isStreaming={chat.isStreaming}
+                model={model}
+                onModelChange={handleModelChange}
+                onSend={({ attachments, mentions, message }) => {
+                  setStickToBottom(true);
+                  return chat.sendMessage({
+                    attachments,
+                    draftRoleId:
+                      initialRoleCreation && typeof crypto !== "undefined"
+                        ? crypto.randomUUID()
+                        : null,
+                    mentions,
+                    message,
+                    model,
+                  });
+                }}
+                roleId={roleId}
+                suggestions={
+                  initialRoleCreation ? roleStartSuggestions : undefined
+                }
+                workspaceId={workspaceId}
+              />
             </OrgTodoArea>
           ) : (
-          <OrgAgentComposer
-            key={initialMessage}
-            initialMessage={initialRoleCreation ? initialMessage : undefined}
-            allowAttachments
-            autoFocus={autoFocus}
-            compactWidth={initialRoleCreation}
-            disabled={readOnly || !workspaceId}
-            isStreaming={chat.isStreaming}
-            model={model}
-            onModelChange={handleModelChange}
-            onSend={({ attachments, mentions, message }) => {
-              setStickToBottom(true);
-              return chat.sendMessage({
-                attachments,
-                draftRoleId:
-                  initialRoleCreation && typeof crypto !== "undefined"
-                    ? crypto.randomUUID()
-                    : null,
-                mentions,
-                message,
-                model,
-              });
-            }}
-            roleId={roleId}
-            suggestions={initialRoleCreation ? roleStartSuggestions : undefined}
-            workspaceId={workspaceId}
-          />
+            <OrgAgentComposer
+              key={initialMessage}
+              initialMessage={initialRoleCreation ? initialMessage : undefined}
+              allowAttachments
+              autoFocus={autoFocus}
+              compactWidth={initialRoleCreation}
+              disabled={readOnly || !workspaceId}
+              isStreaming={chat.isStreaming}
+              model={model}
+              onModelChange={handleModelChange}
+              onSend={({ attachments, mentions, message }) => {
+                setStickToBottom(true);
+                return chat.sendMessage({
+                  attachments,
+                  draftRoleId:
+                    initialRoleCreation && typeof crypto !== "undefined"
+                      ? crypto.randomUUID()
+                      : null,
+                  mentions,
+                  message,
+                  model,
+                });
+              }}
+              roleId={roleId}
+              suggestions={
+                initialRoleCreation ? roleStartSuggestions : undefined
+              }
+              workspaceId={workspaceId}
+            />
           )}
         </div>
       </div>

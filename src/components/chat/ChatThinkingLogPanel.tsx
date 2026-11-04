@@ -31,7 +31,6 @@ export type ChatThinkingLogPanelProps = {
   statusLabel?: string;
   logs: Array<string | ChatThinkingLogEntry>;
   startedAt?: string;
-  typographyClassName?: string;
 };
 
 export function formatChatWorkDuration(
@@ -119,7 +118,6 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
   logs,
   startedAt,
   statusLabel: statusLabelOverride,
-  typographyClassName,
 }: ChatThinkingLogPanelProps) {
   const [expanded, setExpanded] = useState(active);
   const isExpanded = active || expanded;
@@ -136,8 +134,7 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
   return (
     <div
       className={cn(
-        "flex w-full max-w-[760px] flex-col gap-2 text-neutral-muted",
-        typographyClassName,
+        "flex w-full max-w-[760px] flex-col gap-2 text-neutral-muted text-sm leading-6",
         className
       )}
       aria-live={active ? "polite" : undefined}
@@ -146,8 +143,7 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
         onClick={() => setExpanded((previous) => !previous)}
         aria-expanded={isExpanded}
         className={cn(
-          "inline-flex w-fit items-center gap-1.5 cursor-default rounded-[8px] py-1 font-normal text-neutral-soft transition-colors hover:text-neutral-900",
-          typographyClassName
+          "inline-flex w-fit items-center gap-1.5 cursor-default rounded-[8px] py-1 font-normal text-neutral-soft transition-colors hover:text-neutral-900"
         )}
       >
         {active ? <Loader2 className="h-4 w-4 animate-spin" /> : <></>}
@@ -173,8 +169,7 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
                 <li
                   key={entry.id || `${index}-${entry.label}`}
                   className={cn(
-                    "wrap-break-word flex items-start gap-2 text-neutral-muted",
-                    typographyClassName
+                    "wrap-break-word flex items-start gap-2 text-neutral-muted"
                   )}
                 >
                   {entry.status ? (

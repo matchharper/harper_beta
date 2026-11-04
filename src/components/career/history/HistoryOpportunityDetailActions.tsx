@@ -97,7 +97,7 @@ export default function HistoryOpportunityDetailActions({
             <RotateCcw aria-hidden className="size-3.5" />
             {t(
               "career.history.internal_decision_actions.revert",
-              "새 포지션으로 되돌리기"
+              "새 기회로 되돌리기"
             )}
           </MuteButton>
         ) : null}

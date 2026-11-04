@@ -124,7 +124,6 @@ export default function CareerMobileTopBar({
             profileImageUrl={profilePicture ?? null}
             profileName={userName ?? "Candidate"}
             profileEmail={userEmail ?? ""}
-            showReferralEntryPoints={showReferralEntryPoints}
             onLogout={onLogout}
             onSuggestUpdate={() => onOpenSupport?.()}
           />

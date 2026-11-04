@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  inspectionTargetText,
+  type InspectionTarget,
+} from "./applicationFormInspection";
 import { applicationStagehandRuntime } from "@/lib/career/simulation/applicationStagehandRuntime";
 import { withBrowserAbort } from "@/lib/career/simulation/browserAbort";
 import {
@@ -16,7 +20,8 @@ type Runtime = Pick<
 export async function inspectApplicationQuestions(
   url: string,
   parentSignal: AbortSignal,
-  runtime: Runtime = applicationStagehandRuntime
+  runtime: Runtime = applicationStagehandRuntime,
+  target?: InspectionTarget
 ): Promise<ApplicationQuestions> {
   const signal = AbortSignal.any([parentSignal, AbortSignal.timeout(180_000)]);
   let driver: ApplicationBrowserRuntimeRef | undefined;
@@ -28,7 +33,13 @@ export async function inspectApplicationQuestions(
       signal,
     });
     await withBrowserAbort(
-      () => runtime.start(driver!, questionInspectionInstructions),
+      () =>
+        runtime.start(
+          driver!,
+          [questionInspectionInstructions, inspectionTargetText(target)]
+            .filter(Boolean)
+            .join("\n")
+        ),
       signal
     );
     while (true) {

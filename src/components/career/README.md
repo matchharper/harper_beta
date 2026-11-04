@@ -15,6 +15,12 @@
 
 ## Runtime Structure
 
+- `chat/inline/CareerInlineUi.tsx`
+  - 매칭 결과·기회 모음·원하는 조건을 실제 채팅 본문 안에 표시합니다.
+  - parser는 `src/lib/career/inlineUi.ts`, 연결 지점은 `CareerMessageBubble.tsx`입니다.
+  - 기존 기회 카드·진행 행·Brief 편집을 재사용하며, preview도 같은 renderer에 synthetic runtime을 주입합니다.
+  - 표시 계약과 아직 적용하지 않은 LLM 가이드 계획: [Career 인라인 UI](../../../docs/career-inline-chat-ui-ko.md).
+
 - `CareerFlowProvider.tsx`
   - career 페이지의 실제 조립 지점입니다.
   - auth, session, chat, profile, preferences, settings, voice 관련 hook 을 묶고 두 개의 context 로 내려줍니다.
@@ -28,9 +34,9 @@
 
 - `CareerWorkspaceNav.tsx`
   - 데스크톱 왼쪽 메인 nav. 상단 AppBar와 오른쪽의 workspace 탭을 대체합니다.
-  - 할 일 / 새 기회 / 내 기회 / 프로필 / 이력서·링크 / 선호 기준을 표시하고,
-    새 기회·내 기회는 기존 history 화면의 `new`·`saved` 목록으로 연결합니다.
-  - 새 기회 배지는 응답 대기 중인 Harper 연결 포지션 수를 우선 표시하며, 없으면
+  - 할 일 / 기회 / 내 정보 / 원하는 조건을 표시하고,
+    기회 안에서 기존 history 화면의 새 기회·진행중·저장함 등을 선택합니다.
+  - 기회 메뉴 배지는 응답 대기 중인 Harper 연결 포지션 수를 우선 표시하며, 없으면
     아직 열람하지 않은 새 jobs 수를 표시합니다. 99 이상은 `99+`, 0은 숨깁니다.
   - 펼친 너비 244px, 접힌 너비 64px, 행 높이 36px, 메뉴 간격 4px이며,
     선택 상태는 `/org` sidebar를 참고합니다.
@@ -70,8 +76,8 @@
     `profileLinks=0|1|2`, `gmail=0|1`로 자료 보완 표시 경계를 확인할 수 있습니다.
 
 - `profile/CareerProfileWorkspace.tsx`
-  - `/career/profile`은 구조화 프로필을 보여주며, 내부 탭은 두지 않습니다.
-  - `/career/documents`는 `view="documents"`로 이력서·링크와 문서 상세를 보여줍니다.
+  - 내 정보는 neutral TabBoxes의 프로필 / 내 자료로 구성됩니다. `/career/profile`은 프로필을, `/career/documents`는 내 자료를 선택합니다. 원하는 조건(`/career/brief`)은 독립 사이드 메뉴이며 내 정보 탭을 표시하지 않습니다.
+  - `/career/documents`는 `view="documents"`로 내 자료(링크·문서·연결된 서비스)와 문서 상세를 보여줍니다.
   - 문서 카드는 모바일 2열, md 이상 3열로 가로 공간을 채웁니다.
   - 기존 `profileSection=links|connections` 및 문서·콜노트 상세 주소도 새 문서 탭으로 전환합니다.
   - `/career/brief`는 `view="brief"`로 같은 선호 기준·차단 기업 UI를 별도 탭에서 보여줍니다.
@@ -83,8 +89,9 @@
 
 - `CareerSettingsModal.tsx`
   - 데스크톱 왼쪽 하단 또는 모바일 상단의 설정 버튼으로 여는 모달.
-  - `프로필 설정 / 내 이력서·링크 / 계정 관리` 탭으로 구성됩니다.
-  - profile 탭에서도 `CareerProfileSettingsSection` 을 그대로 재사용합니다.
+  - `기회 설정 / 계정 / 초대하기(대상 사용자)` 탭으로 구성됩니다.
+  - 기회 설정은 `settings/CareerOpportunitySettingsSection`으로 수신 스위치 두 개를 표시합니다. 기존 저장 경로와 중지 확인을 유지하며 공유 상태 변경도 같은 context에서 읽습니다.
+  - 계정의 `settings/CareerLanguageSetting`은 공통 Select와 기존 locale 저장 API를 사용합니다. 프로필 드롭다운의 언어 메뉴·별도 모달은 제거했습니다.
 
 ## Context Boundaries
 
@@ -127,20 +134,15 @@ UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 
 ### Profile / Settings
 
 - `CareerProfileSettingsSection.tsx`
-  - 현재 profile 설정의 주 UI입니다.
-  - 아래 항목을 한 화면에서 관리합니다.
-    - network application draft
-    - talent preferences draft
-    - profile visibility
-    - blocked companies
-  - 상단에 가장 최근 저장 시각을 보여줍니다.
-  - 섹션 전체에서 변경사항이 생기면 우하단에 `Refresh`, `설정 저장` 버튼이 나타납니다.
-  - `Refresh` 는 서버 재조회가 아니라 마지막 저장 snapshot 으로 draft 를 되돌립니다.
-  - `profileVisibility` 클릭 시 자동 저장하지 않습니다.
-  - `CareerBlockedCompaniesSettingsSection`은 차단 기업 입력·목록·추가/삭제 저장 기능만 재사용하며, 선호 기준(`/career/brief`) 맨 아래에 표시됩니다.
+  - 설정의 `기회 설정`에서는 기회 수신을 관리하고, 프로필 공유 방식 선택기는 내 정보 > 프로필 탭의 최상단에 둡니다. 프로필의 기존 요약·설정 바로가기를 이 선택기로 대체합니다. `ProfileVisibilityPanel`에서 옵션을 선택하면 기존 hook을 통해 즉시 저장합니다.
+  - `CareerPreferencesSettingsSection`은 근무 형태 선택과 제외할 회사 추가·삭제를 원하는 조건(`/career/brief`)에 표시합니다. 기존 설정 원본을 사용하며 Brief 행으로 복사하지 않습니다.
+  - 저장 실패로 draft가 남으면 `되돌리기`와 `설정 저장`을 제공합니다. 되돌리기는 마지막 저장 snapshot으로 복구합니다.
+
+- `CareerProfileSharingSummary.tsx`
+  - 홈에서 현재 공유 상태와 프로필 바로가기를 표시합니다. 프로필 탭에서는 실제 공유 방식 선택기를 표시합니다.
 
 - `settings/CareerResumeLinksSettingsSection.tsx`
-  - 이력서 파일/링크 저장 전용 섹션.
+  - 링크·문서와 별도의 `연결된 서비스` 영역을 표시합니다. Gmail 연결·해제·이메일 가져오기는 기존 `CareerGmailSettingsRow`를 재사용합니다.
 
 - `profile/CareerTalentProfilePanel.tsx`
   - talent structured profile 렌더러.
@@ -170,7 +172,9 @@ UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 
 - `CareerHistoryPanel.tsx`
   - history 탭 표시.
   - 데스크톱의 새 기회는 새 포지션 목록만 표시하고 상단 탭을 숨깁니다.
-  - 내 기회는 상단의 저장한 포지션·보관함 탭과 숨긴 포지션 버튼을 유지합니다.
+  - 내 기회는 저장함·진행중 탭을 표시하고, 종료/보관 탭과 숨긴 포지션 버튼은 데스크톱 상단 오른쪽에 둡니다. 저장함은 `SavedOpportunityList`에서 새 기회와 같은 접힌 행 UI를 사용하며 클릭하면 바로 상세로 이동합니다. 보기 선택은 없고, 행 오른쪽에 지원하기 버튼과 마감 정보를 표시합니다. 남은 기간이 10일 이하면 카운트다운, 그보다 길면 날짜로 표시합니다. 진행중은 지원함·진행중·최종 합격, 종료/보관은 진행 종료·보관한 항목을 합칩니다.
+  - 데스크톱·모바일의 저장 단계 목록은 같은 로더를 사용합니다. 진행중의 `applied`·`connected`·`offer`는 기존 `savedStages` API로 함께 조회하고, 각 단계의 서버 `nextOffset`으로 추가 로딩과 완료를 판단합니다. 저장한 지원 이력은 `listPosition: previous`여도 해당 단계에 포함하며, 조회 실패 후 재시도와 캐시 누락 시 복구를 지원합니다.
+  - 진행중 목록은 `ProgressOpportunityList`에서 상단 상태 필터 없이 해당 탭의 기회를 모두 표시합니다. 이전 필터 선택은 적용하거나 저장하지 않습니다. 단계별 모든 페이지를 불러옵니다. `ProgressOpportunityRow`는 저장함과 같은 `OpportunityCard`를 사용하며 오른쪽에 상태 자체를 누르는 기존 드롭다운 버튼, 내부 하단에는 예정된 일정이 있을 때만 작은 일정 정보를 표시합니다. 목록에는 일정 추가 버튼과 빈 일정 안내를 표시하지 않습니다. 저장함·진행중의 내부 연결 카드는 연결 텍스트나 배지 대신 회사 로고에 주황색 `border-primary` 테두리를 표시합니다. 로고에 hover하거나 키보드로 focus하면 shared `Tooltips`로 “Harper로 연결중인 기회.”를 보여줍니다. 행을 클릭하면 상세로 이동하며, 상세 상단도 같은 `ProgressOpportunityRow`를 그대로 사용합니다. 상세에서는 카드 자체의 이동을 생략하고 `showAppointmentCreate`를 켜서 상태 변경·일정 추가를 유지합니다. 아래 일정 목록에는 일정 추가 버튼과 빈 일정 안내를 중복 표시하지 않습니다. 상세는 48px/64px 섹션 간격으로 일정·준비 내용·진행 이력을 먼저 보여줍니다. 회사 간단 소개·모의 인터뷰 버튼은 표시하지 않고 공고 상세 정보는 기본으로 접습니다. 상태 드롭다운은 저장함(`saved`)·지원함·진행중·최종 합격(`offer`)·종료/보관(`closed`)을 저장하고 해당 탭으로 이동합니다. 저장된 개인 단계가 회사 태그보다 우선하며, 최종 합격은 저장 성공 후 역할 멘션과 함께 Harper 채팅으로 전송합니다. `AppointmentCreateButton`은 인증된 `POST /api/talent/meeting-schedules`를 통해 기존 `write_talent_meeting_schedule`에 외부 일정을 저장합니다. 공고 소유 범위를 확인하고 재시도는 같은 요청 ID를 사용합니다. 데스크톱은 버튼에 붙은 팝오버, 모바일은 하단 시트에 일정·내용 입력과 날짜 달력을 표시합니다. 종료 시각은 없으며 `source_refs.calendarDate`로 날짜만 선택한 사실을 유지합니다. 당일 자정이 지나도 당일 일정은 목록에 유지하고 모델 입력에서도 시각을 만들지 않습니다. 저장 후 해당 사용자 이력 캐시의 역할별 다음 일정과 일정 쿼리를 갱신하며 회사 초대나 캘린더 생성은 실행하지 않습니다.
 
 - `CareerInPageTabs.tsx`
   - profile 탭 내부 상단 탭.

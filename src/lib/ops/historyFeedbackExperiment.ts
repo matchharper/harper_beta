@@ -2,7 +2,7 @@ import {
   assignHistoryFeedbackVariant,
   HISTORY_FEEDBACK_EXPERIMENT,
   HISTORY_FEEDBACK_VIEW_EVENT,
-  HISTORY_FEEDBACK_SAVED_EVENT,
+  HISTORY_FEEDBACK_CLICK_EVENT,
   type HistoryFeedbackVariant,
 } from "../career/historyFeedbackExperiment";
 import {
@@ -45,7 +45,7 @@ export function buildHistoryFeedbackExperiment(
     if (row.type === HISTORY_FEEDBACK_VIEW_EVENT) {
       views.set(key, variant);
     } else if (
-      row.type === HISTORY_FEEDBACK_SAVED_EVENT &&
+      row.type === HISTORY_FEEDBACK_CLICK_EVENT &&
       (meta.feedback === "positive" || meta.feedback === "negative")
     ) {
       feedback.add(key);
@@ -73,13 +73,17 @@ export function buildHistoryFeedbackExperiment(
       metrics: [],
       summaryMetrics: [
         { label: "열람 수", format: "count", value: primary.denominator },
-        { label: "피드백 수", format: "count", value: primary.numerator },
         {
-          label: "열람 대비 피드백",
+          label: "피드백 버튼 클릭 수",
+          format: "count",
+          value: primary.numerator,
+        },
+        {
+          label: "열람 대비 버튼 클릭",
           format: "rate",
           value: primary.rate,
           description:
-            "선택 기간에 새 외부 공고의 상세를 열람하고 긍정·부정 피드백을 저장한 공고 수 ÷ 열람한 공고 수. 같은 사용자·공고는 한 번만 집계합니다.",
+            "선택 기간에 새 외부 공고의 상세를 열람하고 피드백 버튼을 클릭한 공고 수 ÷ 열람한 공고 수. 채팅·메일로 남긴 피드백은 제외하며, 같은 사용자·공고는 한 번만 집계합니다.",
         },
       ],
     };
@@ -100,7 +104,7 @@ export function buildHistoryFeedbackExperiment(
     },
     firstObservedAt: observed[0] ?? null,
     lastObservedAt: observed.at(-1) ?? null,
-    primaryMetricLabel: "열람 대비 피드백",
+    primaryMetricLabel: "열람 대비 버튼 클릭",
     metricLayout: "summary",
     status: views.size ? "running" : "awaiting_data",
     unitLabel: "공고",

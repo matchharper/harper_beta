@@ -1,0 +1,9 @@
+{
+  "version": "v1",
+  "createdAt": "2026-11-03",
+  "runner": "scripts/localE2e/concurrentApplications.mjs",
+  "hashes": {
+    "README.md": "22e10c509cc5febbbccf76fac2525072468000b3548305492f1c3418baecfae5"
+  },
+  "scope": "Actual local product and real model/browser providers; synthetic receiver only; manual review; preserve failures"
+}

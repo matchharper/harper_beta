@@ -8,6 +8,7 @@ import {
   OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+  OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM,
 } from "@/lib/officialJobs";
 
 type OnboardingStatus = {
@@ -84,6 +85,10 @@ export function useTalentOnboardingRedirect({
     getSingleQueryParam(
       router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM]
     )?.trim() || "";
+  const officialJobRoleId =
+    getSingleQueryParam(
+      router.query[OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM]
+    )?.trim() || "";
   const startQuery = getSingleQueryParam(router.query.start);
   const localId = getSingleQueryParam(router.query.lid)?.trim() || "";
   const source = normalizeCareerUtmSource(
@@ -115,6 +120,9 @@ export function useTalentOnboardingRedirect({
     if (officialJobSlug) {
       query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM] = officialJobSlug;
     }
+    if (officialJobRoleId) {
+      query[OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM] = officialJobRoleId;
+    }
 
     void router.replace({
       pathname: "/career/onboarding",
@@ -127,6 +135,7 @@ export function useTalentOnboardingRedirect({
     mail,
     needsOnboarding,
     officialJobCompanyName,
+    officialJobRoleId,
     officialJobSlug,
     officialJobTitle,
     router,

@@ -1,3 +1,4 @@
+import { readCareerCheckInContext } from './schedules/server';
 import { buildInternalOpportunityRealtimeInstruction } from "./prompts/cases/lifecyclePrompts";
 import { buildMockInterviewCandidateContext } from "./mockInterviewCandidateContext";
 import { fetchMockInterviewContext } from "./mockInterview";
@@ -19,7 +20,10 @@ import {
   buildCareerRealtimeRecentConversationSection,
   renderCareerPromptBlocks,
 } from "@/lib/career/prompts";
-import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import {
+  formatTalentMessageContentForLlmPrompt,
+  formatTalentConversationReferencesForLlm,
+} from "@/lib/career/opportunityFeedbackNote";
 import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 import { fetchCurrentCareerCoachingActivity } from "@/lib/career/careerCoachingActivity";
 import {
@@ -114,6 +118,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     activeGmailIntegration,
     isConversationCompletedOpportunityRunActive,
     recentActivitySummaries,
+    checkInContext,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId: args.userId }),
     fetchTalentSetting({ admin, userId: args.userId }),
@@ -142,6 +147,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       userId: args.userId,
     }),
     fetchRecentTalentActivitySummaries({admin,userId:args.userId,limit:5}),
+    readCareerCheckInContext({ admin, userId: args.userId }).catch(() => 'Persistent Career check-in could not be read; its timing and active state are unknown.'),
   ]);
 
   const structuredProfile = await fetchTalentStructuredProfile({
@@ -303,12 +309,19 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     internalCallRequest,
     recentConversationSection,
     recentRecommendedOpportunitiesText,
-    runtimeInstruction: careerCoachingActivity
-      ? buildCareerCoachingCallOpeningInstruction({
-          activity: careerCoachingActivity,
-          preferredLocale: currentPreferences.preferredLocale,
-        })
-      : undefined,
+    runtimeInstruction: [
+      checkInContext,
+      formatTalentConversationReferencesForLlm(visibleMessages, {
+        preferredLocale: currentPreferences.preferredLocale,
+        timeZone: args.timeZone,
+      }),
+      careerCoachingActivity
+        ? buildCareerCoachingCallOpeningInstruction({
+            activity: careerCoachingActivity,
+            preferredLocale: currentPreferences.preferredLocale,
+          })
+        : undefined,
+    ].filter(Boolean).join("\n\n"),
     structuredProfileText,
     timeZone: args.timeZone,
     toolNames: promptToolNames,

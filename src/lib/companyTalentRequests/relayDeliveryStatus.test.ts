@@ -28,6 +28,7 @@ function adminWhoseDeliveryFails() {
   const query = (table: string): any => {
     const chain: any = {
       eq: () => chain,
+      insert: async () => ({ error: null }),
       maybeSingle: async () => ({
         data:
           table === "talent_messages"
@@ -41,10 +42,16 @@ function adminWhoseDeliveryFails() {
   };
   return {
     from: query,
-    rpc: async () => ({
-      data: { id: "relay-1", idempotent: false, status: "queued" },
-      error: null,
-    }),
+    rpc: async (name: string) => {
+      if (name === "ops_private_contact_for_message_v1") {
+        return { data: null, error: null };
+      }
+      assert.equal(name, "create_company_talent_relay_v2");
+      return {
+        data: { id: "relay-1", idempotent: false, status: "queued" },
+        error: null,
+      };
+    },
   };
 }
 

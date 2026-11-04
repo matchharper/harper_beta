@@ -1,12 +1,12 @@
 import {
+  DEFAULT_CAREER_TEXT_CHAT_MODEL,
   isCareerTextChatModelId,
   resolveCareerTextChatModel,
 } from "@/lib/career/textChatModelConfig";
-import { CLAUDE_HAIKU_MODEL } from "@/lib/llm/modelConfig";
 import { isOpsEmailTest } from "./opsTest";
 import { asObject, type EmailRow } from "./types";
 
-export const EMAIL_ASSISTANT_MODEL = CLAUDE_HAIKU_MODEL;
+export const EMAIL_ASSISTANT_MODEL = DEFAULT_CAREER_TEXT_CHAT_MODEL;
 
 export function emailAssistantModel(job?: EmailRow) {
   const override = job && isOpsEmailTest(job)

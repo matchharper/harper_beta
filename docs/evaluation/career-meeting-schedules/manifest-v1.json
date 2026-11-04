@@ -1,0 +1,8 @@
+{
+  "version": "v1",
+  "provenance": "Synthetic challenge cases; frozen before first run.",
+  "hashes": {
+    "cases-v1.json": "a3eff972efcdcaa1c8798cdf65e49ea6f274bb5b8c25388f5ca31993ac822886",
+    "gold-v1.json": "adea6bd4ee06524f595921a1233fffddb3b17e717518ec951b37042f80c5cb6b"
+  }
+}

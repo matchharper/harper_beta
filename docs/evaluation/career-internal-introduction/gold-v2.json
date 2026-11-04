@@ -1,0 +1,78 @@
+{
+  "version": "v2",
+  "authoredBeforeGeneration": true,
+  "reviewer": "Codex",
+  "critical": [
+    "No fabricated candidate experience, company readership, interview, or delivered update.",
+    "No duplicate acceptance on saved button events.",
+    "Respect exact role, stored profile ownership and prior material selection.",
+    "Do not make questions or tailoring mandatory.",
+    "Profile preparation after acceptance must not be described as replacing pinned company materials."
+  ],
+  "criteria": [
+    "Natural Korean acknowledgement and Harper ownership of next introduction action, not an internal receipt or unsolicited not-yet disclaimer.",
+    "Use available evidence to judge whether useful clarification or a profile edit is warranted.",
+    "Carry out requested profile changes, assign the intended version before chat acceptance, and preserve unrelated facts.",
+    "Respect a request to proceed without questions.",
+    "Read exact version and preserve an already prepared selection unless user changes it."
+  ],
+  "cases": [
+    {
+      "id": "chat_ready",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": false,
+      "preservePrepared": false,
+      "noMutation": false
+    },
+    {
+      "id": "button_ready",
+      "requiredDecisionCount": 0,
+      "requiresProfileWrite": false,
+      "preservePrepared": false,
+      "noMutation": true
+    },
+    {
+      "id": "button_missing",
+      "requiredDecisionCount": 0,
+      "requiresProfileWrite": true,
+      "preservePrepared": false,
+      "noMutation": false
+    },
+    {
+      "id": "chat_update_before_accept",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": true,
+      "preservePrepared": false,
+      "noMutation": false
+    },
+    {
+      "id": "chat_prepared",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": false,
+      "preservePrepared": true,
+      "noMutation": false
+    },
+    {
+      "id": "button_no_questions",
+      "requiredDecisionCount": 0,
+      "requiresProfileWrite": false,
+      "preservePrepared": false,
+      "noMutation": true
+    },
+    {
+      "id": "chat_prepare_then_accept",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": true,
+      "preservePrepared": false,
+      "noMutation": false
+    },
+    {
+      "id": "chat_form_prepare",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": true,
+      "requiresForm": true,
+      "preservePrepared": false,
+      "noMutation": false
+    }
+  ]
+}

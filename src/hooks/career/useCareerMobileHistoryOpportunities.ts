@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { getCareerDefaultSavedStageForOpportunity } from "@/components/career/opportunityTypeMeta";
+import { useCallback, useEffect, useMemo } from "react";
 import { getSavedOpportunityManagementStatus } from "@/components/career/history/savedOpportunityStatus";
-import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
+import {
+  getHistoryOpportunityBucket,
+  isSavedHistoryOpportunity,
+} from "@/hooks/career/careerSessionData";
 import {
   compareNewOpportunityHistoryOrder,
   compareSavedOpportunityHistoryOrder,
@@ -10,6 +12,7 @@ import type {
   CareerHistoryOpportunity,
   CareerHistoryOpportunityCounts,
   CareerHistoryOpportunityPageFilter,
+  CareerHistoryOpportunityPageState,
   CareerOpportunitySavedStage,
 } from "@/components/career/types";
 
@@ -29,14 +32,18 @@ const compareRecommendedAtDesc = (
   right: CareerHistoryOpportunity
 ) => Date.parse(right.recommendedAt) - Date.parse(left.recommendedAt);
 
-const getHistoryFiltersForJobsTab = (
+export const getHistoryFiltersForJobsTab = (
   tab: CareerMobileHistoryJobsTab
 ): CareerHistoryOpportunityPageFilter[] => {
   if (tab === "saved") {
     return [{ historyTab: "saved", savedStage: "saved" }];
   }
   if (tab === "applied") {
-    return [{ historyTab: "saved", savedStage: "applied" }];
+    return [
+      { historyTab: "saved", savedStage: "applied" },
+      { historyTab: "saved", savedStage: "connected" },
+      { historyTab: "saved", savedStage: "offer" },
+    ];
   }
   if (tab === "connected") {
     return [{ historyTab: "saved", savedStage: "connected" }];
@@ -45,7 +52,10 @@ const getHistoryFiltersForJobsTab = (
     return [{ historyTab: "saved", savedStage: "closed" }];
   }
   if (tab === "hidden") {
-    return [{ historyTab: "saved", savedStage: "hidden" }];
+    return [
+      { historyTab: "saved", savedStage: "closed" },
+      { historyTab: "saved", savedStage: "hidden" },
+    ];
   }
   if (tab === "archived") {
     return [{ historyTab: "archived" }];
@@ -53,87 +63,39 @@ const getHistoryFiltersForJobsTab = (
   return [{ historyTab: "new" }];
 };
 
-const getHistoryFilterKey = (filter: CareerHistoryOpportunityPageFilter) =>
-  filter.historyTab === "saved"
-    ? `saved:${filter.savedStage ?? "all"}`
-    : filter.historyTab;
-
-const getJobsTabTotal = (
+export const getJobsTabTotal = (
   tab: CareerMobileHistoryJobsTab,
   counts: CareerHistoryOpportunityCounts
 ) => {
   if (tab === "new") return counts.new;
   if (tab === "saved") return counts.savedStages.saved;
-  if (tab === "applied") return counts.savedStages.applied;
+  if (tab === "applied")
+    return (
+      counts.savedStages.applied +
+      counts.savedStages.connected +
+      (counts.savedStages.offer ?? 0)
+    );
   if (tab === "connected") return counts.savedStages.connected;
   if (tab === "closed") return counts.savedStages.closed;
-  if (tab === "hidden") return counts.savedStages.hidden;
+  if (tab === "hidden")
+    return counts.savedStages.closed + counts.savedStages.hidden;
   return counts.archived;
 };
 
-const isOpportunityInJobsTab = (
+export const isOpportunityInJobsTab = (
   item: CareerHistoryOpportunity,
   tab: CareerMobileHistoryJobsTab
 ) => {
   const bucket = getHistoryOpportunityBucket(item);
   if (tab === "new") return bucket === "new";
   if (tab === "archived") return bucket === "archived";
-  if (bucket !== "saved") return false;
+  if (!isSavedHistoryOpportunity(item)) return false;
   const status = getSavedOpportunityManagementStatus(item);
   if (tab === "saved") return status === "saved";
+  if (tab === "applied")
+    return status === "applied" || status === "connected" || status === "offer";
+  if (tab === "hidden") return status === "closed" || status === "hidden";
   return status === tab;
-};
-
-const getSavedStageLoadedCount = (
-  items: CareerHistoryOpportunity[],
-  stage: CareerOpportunitySavedStage
-) =>
-  items.filter(
-    (item) =>
-      getHistoryOpportunityBucket(item) === "saved" &&
-      (item.savedStage ?? getCareerDefaultSavedStageForOpportunity(item)) ===
-        stage
-  ).length;
-
-const getSavedOpenLoadedCount = (items: CareerHistoryOpportunity[]) =>
-  items.filter((item) => {
-    if (getHistoryOpportunityBucket(item) !== "saved") return false;
-    const stage =
-      item.savedStage ?? getCareerDefaultSavedStageForOpportunity(item);
-    return stage !== "hidden";
-  }).length;
-
-const getFilterLoadedCount = (
-  items: CareerHistoryOpportunity[],
-  filter: CareerHistoryOpportunityPageFilter
-) => {
-  if (filter.historyTab === "new") {
-    return items.filter((item) => getHistoryOpportunityBucket(item) === "new")
-      .length;
-  }
-  if (filter.historyTab === "archived") {
-    return items.filter(
-      (item) => getHistoryOpportunityBucket(item) === "archived"
-    ).length;
-  }
-  if (filter.savedStage === "all") return getSavedOpenLoadedCount(items);
-  if (filter.savedStage)
-    return getSavedStageLoadedCount(items, filter.savedStage);
-  return items.filter((item) => getHistoryOpportunityBucket(item) === "saved")
-    .length;
-};
-
-const getFilterTotal = (
-  filter: CareerHistoryOpportunityPageFilter,
-  counts: CareerHistoryOpportunityCounts
-) => {
-  if (filter.historyTab === "new") return counts.new;
-  if (filter.historyTab === "archived") return counts.archived;
-  if (filter.savedStage === "all") {
-    return Math.max(0, counts.saved - counts.savedStages.hidden);
-  }
-  if (filter.savedStage) return counts.savedStages[filter.savedStage];
-  return counts.saved;
 };
 
 const sortOpportunitiesForJobsTab =
@@ -149,24 +111,35 @@ const sortOpportunitiesForJobsTab =
   };
 
 export function useCareerMobileHistoryOpportunities(args: {
+  enabled?: boolean;
+  loadAllProgress?: boolean;
+  historyUpdateError?: string;
   activeTab: CareerMobileHistoryJobsTab;
   historyLoading: boolean;
-  historyLoadingMore: boolean;
   historyOpportunities: CareerHistoryOpportunity[];
   historyOpportunityCounts: CareerHistoryOpportunityCounts;
   onLoadMoreHistoryOpportunities: (
     filter?: CareerHistoryOpportunityPageFilter
   ) => void | Promise<void>;
+  onLoadSavedStageHistoryOpportunityPages: (
+    stages: CareerOpportunitySavedStage[]
+  ) => void | Promise<void>;
+  getHistoryOpportunityPageFilterState: (
+    filter: CareerHistoryOpportunityPageFilter
+  ) => CareerHistoryOpportunityPageState | undefined;
 }) {
   const {
+    enabled = true,
+    loadAllProgress = false,
+    historyUpdateError = "",
     activeTab,
     historyLoading,
-    historyLoadingMore,
     historyOpportunities,
     historyOpportunityCounts,
     onLoadMoreHistoryOpportunities,
+    onLoadSavedStageHistoryOpportunityPages,
+    getHistoryOpportunityPageFilterState,
   } = args;
-  const requestedInitialPageKeysRef = useRef<Set<string>>(new Set());
   const filters = useMemo(
     () => getHistoryFiltersForJobsTab(activeTab),
     [activeTab]
@@ -179,73 +152,105 @@ export function useCareerMobileHistoryOpportunities(args: {
         .sort(sortOpportunitiesForJobsTab(activeTab)),
     [activeTab, historyOpportunities]
   );
-  const nextLoadFilter = useMemo(
+  const pages = useMemo(
     () =>
-      filters.find(
-        (candidate) =>
-          getFilterLoadedCount(historyOpportunities, candidate) <
-          getFilterTotal(candidate, historyOpportunityCounts)
-      ) ?? null,
-    [filters, historyOpportunities, historyOpportunityCounts]
+      filters.map((filter) => {
+        const state = getHistoryOpportunityPageFilterState(filter);
+        if (state) {
+          return {
+            filter,
+            loading: state.loading,
+            needsInitialPage: false,
+            hasMore: state.nextOffset !== null,
+          };
+        }
+        // Saved tabs always ask the server for their first page. Session counts
+        // can be stale; after that the server cursor determines completion.
+        if (filter.historyTab === "saved") {
+          return {
+            filter,
+            loading: false,
+            needsInitialPage: true,
+            hasMore: true,
+          };
+        }
+        const loadedCount = historyOpportunities.filter(
+          (item) => getHistoryOpportunityBucket(item) === filter.historyTab
+        ).length;
+        const count = historyOpportunityCounts[filter.historyTab];
+        return {
+          filter,
+          loading: false,
+          needsInitialPage:
+            loadedCount <
+            Math.min(count, CAREER_MOBILE_HISTORY_INITIAL_PAGE_SIZE),
+          hasMore: loadedCount < count,
+        };
+      }),
+    [
+      filters,
+      getHistoryOpportunityPageFilterState,
+      historyOpportunities,
+      historyOpportunityCounts,
+    ]
   );
-  const hasMore = Boolean(nextLoadFilter);
+
+  const requestPages = useCallback(
+    async (requested: CareerHistoryOpportunityPageFilter[]) => {
+      const stages: CareerOpportunitySavedStage[] = [];
+      const requests: (void | Promise<void>)[] = [];
+      for (const filter of requested) {
+        if (
+          filter.historyTab === "saved" &&
+          filter.savedStage &&
+          filter.savedStage !== "all"
+        ) {
+          stages.push(filter.savedStage);
+        } else {
+          requests.push(onLoadMoreHistoryOpportunities(filter));
+        }
+      }
+      if (stages.length)
+        requests.push(onLoadSavedStageHistoryOpportunityPages(stages));
+      await Promise.all(requests);
+    },
+    [onLoadMoreHistoryOpportunities, onLoadSavedStageHistoryOpportunityPages]
+  );
 
   const loadMore = useCallback(() => {
-    if (!nextLoadFilter || historyLoading || historyLoadingMore) return;
-    void onLoadMoreHistoryOpportunities(nextLoadFilter);
-  }, [
-    historyLoading,
-    historyLoadingMore,
-    nextLoadFilter,
-    onLoadMoreHistoryOpportunities,
-  ]);
+    if (!enabled || historyLoading) return;
+    void requestPages(
+      pages
+        .filter((page) => page.hasMore && !page.loading)
+        .map((page) => page.filter)
+    );
+  }, [enabled, historyLoading, pages, requestPages]);
 
   useEffect(() => {
-    const needsSavedFirstPage = filters.some(
-      (filter) =>
-        filter.historyTab === "saved" &&
-        !requestedInitialPageKeysRef.current.has(getHistoryFilterKey(filter))
+    if (!enabled || historyLoading || historyUpdateError) return;
+    const initial = pages.filter(
+      (page) =>
+        (page.needsInitialPage ||
+          (loadAllProgress && activeTab === "applied" && page.hasMore)) &&
+        !page.loading
     );
-    if (
-      !hasMore ||
-      (!needsSavedFirstPage &&
-        opportunities.length >=
-          Math.min(totalCount, CAREER_MOBILE_HISTORY_INITIAL_PAGE_SIZE))
-    ) {
-      return;
-    }
-    if (historyLoading || historyLoadingMore) return;
-
-    const filterToLoad = filters.find((candidate) => {
-      const filterKey = getHistoryFilterKey(candidate);
-      return (
-        !requestedInitialPageKeysRef.current.has(filterKey) &&
-        getFilterLoadedCount(historyOpportunities, candidate) <
-          getFilterTotal(candidate, historyOpportunityCounts)
-      );
-    });
-    if (!filterToLoad) return;
-
-    requestedInitialPageKeysRef.current.add(getHistoryFilterKey(filterToLoad));
-    void onLoadMoreHistoryOpportunities(filterToLoad);
+    if (initial.length) void requestPages(initial.map((page) => page.filter));
   }, [
-    filters,
-    hasMore,
+    activeTab,
+    enabled,
     historyLoading,
-    historyLoadingMore,
-    historyOpportunities,
-    historyOpportunityCounts,
-    onLoadMoreHistoryOpportunities,
-    opportunities.length,
-    totalCount,
+    historyUpdateError,
+    loadAllProgress,
+    pages,
+    requestPages,
   ]);
 
   return {
-    hasMore,
+    hasMore: pages.some((page) => page.hasMore),
     isLoading:
-      historyLoading ||
-      historyLoadingMore ||
-      (totalCount > 0 && opportunities.length === 0),
+      enabled &&
+      (historyLoading ||
+        pages.some((page) => page.loading || page.needsInitialPage)),
     loadMore,
     opportunities,
     totalCount,

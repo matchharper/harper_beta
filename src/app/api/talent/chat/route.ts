@@ -1,51 +1,18 @@
-import { applicationDocumentResult } from "@/lib/career/simulation/applicationWritingContract";
-import { applicationBatchContinuation } from "@/lib/career/simulation/applicationAnswerContext";
+import { CareerTurnCancelled, watchCareerTurnCancellation } from "@/lib/career/turnCancellation.server";
+import { createCareerFormPresenter } from "@/lib/career/forms/server";
+import { throwIfToolControlError } from "@/lib/llm/toolError";
+import { prepareCareerAgentTurn, CareerAgentReplyUnavailable } from "@/lib/career/agentTurnRuntime.server";
+import { CareerReplyContinuation } from "@/lib/career/capabilities/runtime";
+import { dispatchCareerCheckpoint } from "@/lib/career/agentContinuation";
+
 import { formatToolResultText } from "@/lib/llm/promptText";
 import { internalCallSubmissionSchema } from "@/lib/career/internalCallAnswers";
 import { saveInternalCallChatSubmission } from "@/lib/career/internalCallAnswersDatabase.server";
 import { reportToolDiagnostic } from "@/lib/llm/toolExecution";
 import { extractCareerDocumentLinks } from "@/lib/career/documentLinks";
-import { executeApplicationPreparationTool } from "@/lib/career/simulation/toolExecution";
-import { awaitApplicationInspection } from "@/lib/career/simulation/applicationInspection";
-import { MANAGE_APPLICATION_SUGGESTIONS } from "@/lib/career/simulation/suggestions";
-import { READY_FOR_ROLE } from "@/lib/career/simulation/readyForRole";
-import { pendingApplicationBatch } from "@/lib/career/simulation/applicationInput";
-import { applicationSessionToolResult } from "@/lib/career/simulation/sessionTool";
-import { assertApplicationResumeWrite, recordApplicationResume } from "@/lib/career/simulation/resumeWorkflow";
-import { documentFingerprint } from "@/lib/career/simulation/resumeAttachment";
 import { orderApplicationMessages } from "@/lib/career/simulation/presentation";
-import { extractStartOfferPayload, startOfferVisibleLength, type StartOfferPayload } from "@/lib/career/simulation/startOfferPayload";
-import { prepareApplicationStartPayload } from "@/lib/career/simulation/startOfferStore";
-import { renderableApplicationMarkdown } from "@/lib/career/simulation/applicationMarkdown";
-import { after as afterApplicationResponse } from "next/server";
-import { APPLY_TO_ROLE } from "@/lib/career/simulation/applicationBrowser";
-import { startApplicationBrowser, resumeApplicationBrowser, runApplicationBrowser } from "@/lib/career/simulation/applicationBrowserServer";
-import { enqueueApplicationBrowser } from "@/lib/career/simulation/applicationBrowserQueue";
-import { stopApplicationBrowser } from "@/lib/career/simulation/agentsApi";
-
-import { allPreparationAnswered } from "@/lib/career/simulation/preparation";
-import { respondPreparationFromChat } from "@/lib/career/simulation/preparationService";
 import { careerT } from "@/lib/career/translatedCareerMessage";
-import { applicationStartRequestSchema } from "@/lib/career/simulation/startOffer";
-import { claimApplicationStartOffer } from "@/lib/career/simulation/startOfferStore";
-import {
-  sessionOperation,
-  saveSession,
-  persistSimulationProposal,
-  type SessionRecord,
-} from "@/lib/career/simulation/sessionStore";
-import {
-  cardRequestSchema,
-  resolveAnalysisCardAction,
-  sessionMutationSchema,
-  mutateSimulationSession,
-} from "@/lib/career/simulation/session";
-import {
-  SIMULATION_TOOL_NAMES,
-  SIMULATION_SESSION_TOOL,
-  APPLICATION_PREPARATION_SESSION_ACTIONS,
-} from "@/lib/career/simulation/sessionTool";
-import { createCareerCapabilityTurn, isCareerCapabilityTurn } from "@/lib/career/capabilities/server";
+import { isCareerCapabilityTurn } from "@/lib/career/capabilities/server";
 import { getCareerCapabilityMode } from "@/lib/career/capabilities/registry";
 import { initialCareerCapabilityPayload } from "@/lib/career/capabilities/lease";
 import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
@@ -99,13 +66,11 @@ import {
 import {
   executeTalentTool,
   TALENT_TOOL_NAMES,
-  withTalentToolAssistantInstruction,
 } from "@/lib/talentOnboarding/tools";
 import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import { commitDeliveredProcessClosureNotices } from "@/lib/talentOnboarding/processClosureNotice";
 import type { PendingProcessClosureNotice } from "@/lib/talentOnboarding/tools";
-import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
-import { canStartApplication, resolveCareerChatTools } from "@/lib/career/llmTools";
+import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import {
   fetchRecentMessagesWithSummary,
   maybeSummarizeTalentConversation,
@@ -127,7 +92,6 @@ import {
 } from "@/lib/opportunityDiscovery/store";
 import {
   createRecommendJobPostingStatusLog,
-  getRecommendJobPostingsChatPreamble,
   isRecommendJobPostingSearchStopped,
   type RecommendJobPostingStatus,
 } from "@/lib/talentOnboarding/recommendJobPostingStatus";
@@ -139,6 +103,7 @@ import {
 import {
   fetchRecentRecommendedOpportunitiesForPrompt,
   fetchTalentOpportunityHistoryByIds,
+  fetchTalentOpportunityHistoryByRoleIds,
   fetchTalentPostingCardsByRoleIds,
   formatRecentRecommendedOpportunitiesForPrompt,
   type TalentOpportunityHistoryItem,
@@ -149,13 +114,9 @@ import {
   normalizePostingRoleIds,
 } from "@/lib/career/postingLinks";
 import {
-  COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-  fetchRecentCompanySnapshot,
-  formatCompanySnapshotMessage,
-  getOrCreateCompanySnapshot,
-  touchConversation,
-} from "@/lib/career/companySnapshot";
-import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+  formatTalentMessageContentForLlmPrompt,
+  formatTalentConversationReferencesForLlm,
+} from "@/lib/career/opportunityFeedbackNote";
 import {
   appendCareerOpportunityMentionMetadata,
   normalizeCareerOpportunityMentions,
@@ -190,6 +151,9 @@ import { buildFirstTurnUploadedDocumentContext } from "@/lib/talentOnboarding/do
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { resolveCareerTextChatModelForRequest } from "@/lib/career/textChatModelConfig";
+import { resolveCareerRequestTextChatModel } from "@/lib/career/requestTextChatModel";
+import { resolveCareerConversationVersion } from "@/lib/career/conversationVersion";
+import { loadCareerPromptExperiment } from "@/lib/career/prompts/promptExperiment.server";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 import {
   expireCurrentCareerCoachingActivity,
@@ -202,11 +166,13 @@ import type { TalentMessageResponse } from "@/lib/talentOnboarding/models";
 export const maxDuration = 480;
 
 type Body = {
+  durable?: boolean;
   internalCallAnswerSubmission?: unknown;
   clientRequestId?: string;
-  allowedToolNames?: unknown;
   channel?: string;
+  formResponseMessageId?: number;
   simulationAction?: unknown;
+  applicationPreparationContinuation?: {sessionMessageId:number; continuationId:string};
   applicationInputSubmission?: {batchId:string; sessionMessageId:number; expectedRevision:number};
   coachingActivityAction?: unknown;
   conversationStarterId?: string;
@@ -215,8 +181,11 @@ type Body = {
   message?: string;
   messageType?: unknown;
   opportunityMentions?: unknown;
+  viewedRoleId?: unknown;
   pendingAction?: unknown;
   textChatModel?: unknown;
+  promptVariant?: unknown;
+  conversationVersion?: unknown;
   timeZone?: string;
   uploadedDocumentIds?: unknown;
   link?: string;
@@ -255,9 +224,6 @@ function normalizeCareerCoachingActivityActionReference(
   return { action, activityMessageId, channel, expectedRevision };
 }
 
-type CompanySnapshotToolResult = {
-  messages: ReturnType<typeof toTalentMessageResponse>[];
-};
 
 const toResponseMessage = toTalentMessageResponse;
 
@@ -403,18 +369,6 @@ async function buildTalentProfileSnapshot(args: {
   };
 }
 
-const optionalToolString = (value: unknown) => {
-  const text =
-    typeof value === "string" ? stripPostgresUnsafeChars(value).trim() : "";
-  return text || null;
-};
-
-const normalizeAllowedToolNames = (value: unknown) => {
-  if (!Array.isArray(value)) return undefined;
-  return value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter((item) => item.length > 0);
-};
 
 function normalizeUploadedDocumentIds(value: unknown) {
   if (!Array.isArray(value)) return [];
@@ -525,32 +479,6 @@ function extractRecommendationPostingRoleIds(result: unknown) {
   return normalizePostingRoleIds([...roleIdsFromResult, ...roleIdsFromDraft]);
 }
 
-async function persistThinkingLogsForMessage(args: {
-  admin: ReturnType<typeof getTalentSupabaseAdmin>;
-  conversationId: string;
-  messageId: number | string | null | undefined;
-  thinkingLogs: string[];
-  userId: string;
-}) {
-  const messageId =
-    typeof args.messageId === "number"
-      ? args.messageId
-      : typeof args.messageId === "string" && /^\d+$/.test(args.messageId)
-        ? Number(args.messageId)
-        : null;
-  if (!messageId || args.thinkingLogs.length === 0) return;
-
-  const { error } = await args.admin
-    .from("talent_messages")
-    .update({ thinking_logs: args.thinkingLogs })
-    .eq("id", messageId)
-    .eq("conversation_id", args.conversationId)
-    .eq("user_id", args.userId);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to persist thinking logs");
-  }
-}
 
 async function fetchStoppedRecommendationSourceMessage(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
@@ -576,21 +504,17 @@ async function fetchStoppedRecommendationSourceMessage(args: {
   return data as TalentMessageRow;
 }
 
-function attachThinkingLogsToLastMessage<
-  T extends { id: number | string; thinkingLogs?: string[] },
->(messages: T[], thinkingLogs: string[]) {
-  if (messages.length === 0 || thinkingLogs.length === 0) return messages;
-  const lastIndex = messages.length - 1;
-  return messages.map((message, index) =>
-    index === lastIndex ? { ...message, thinkingLogs } : message
-  );
-}
 
 // ---------------------------------------------------------------------------
 // POST handler
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
+  let releaseAgentTurn: (() => Promise<void>) | undefined;
+  let executionSignal = req.signal;
+  let standaloneCancellation: ReturnType<typeof watchCareerTurnCancellation> | undefined;
+  let persistedSourceResponse: TalentMessageResponse | undefined;
+  const deadlineAt = Date.now() + 430_000;
   try {
     const user = await getRequestUser(req);
     if (!user) {
@@ -610,7 +534,6 @@ export async function POST(req: NextRequest) {
       body.messageType
     );
     const requestChannel = body.channel === "voice" ? "voice" : "chat";
-    const allowedToolNames = normalizeAllowedToolNames(body.allowedToolNames);
     const canUseInternalFitHoldQuestionTool = false;
     const opportunityMentions = normalizeCareerOpportunityMentions(
       body.opportunityMentions
@@ -637,7 +560,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!message && uploadedDocumentIds.length === 0 && !body.applicationInputSubmission && !body.internalCallAnswerSubmission) {
+    if (!message && uploadedDocumentIds.length === 0 && !body.formResponseMessageId && !body.internalCallAnswerSubmission) {
       return NextResponse.json(
         { error: "message or uploadedDocumentIds is required" },
         { status: 400 }
@@ -650,6 +573,21 @@ export async function POST(req: NextRequest) {
       );
     }
     const admin = getTalentSupabaseAdmin();
+    let savedFormResponse: TalentMessageRow | null = null;
+    if (body.formResponseMessageId !== undefined) {
+      if (!Number.isSafeInteger(body.formResponseMessageId) || body.formResponseMessageId <= 0) {
+        return NextResponse.json({ error: "Invalid form response" }, { status: 400 });
+      }
+      const { data, error } = await admin.from("talent_messages").select("*")
+        .eq("id", body.formResponseMessageId).eq("user_id", user.id)
+        .eq("conversation_id", conversationId).eq("role", "user")
+        .eq("message_type", "career_form_response").maybeSingle();
+      if (error || !data || (data.payload as Record<string, unknown> | null)?.hidden === true) {
+        return NextResponse.json({ error: "Form response unavailable" }, { status: 404 });
+      }
+      savedFormResponse = data as TalentMessageRow;
+      message = savedFormResponse.content;
+    }
     const [talentSetting, activeGmailIntegration] = await Promise.all([
       fetchTalentSetting({ admin, userId: user.id }),
       fetchActiveTalentGmailIntegration({
@@ -677,10 +615,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const touchConversationIfAllowed = async () => {
-      if (skipConversationWrites) return;
-      await touchConversation(admin, conversationId, user.id);
-    };
     const updateConversationStageIfAllowed = async (isCompleted: boolean) => {
       if (skipConversationWrites) return;
       const now = new Date().toISOString();
@@ -763,182 +697,13 @@ export async function POST(req: NextRequest) {
           })
         : null;
 
-    const simulationStore = { admin, userId: user.id, conversationId };
-    let simulationSession: SessionRecord | null = null;
-    let simulationSchemaAvailable = true;
-    try {
-      simulationSession = await sessionOperation({
-        ...simulationStore,
-        operation: "touch",
-      });
-    } catch (error) {
-      // Deploying code before its migration must not break ordinary Career chat.
-      if (
-        error instanceof Error &&
-        ["PGRST202", "42883"].includes(
-          String((error as Error & { code?: string }).code)
-        )
-      )
-        simulationSchemaAvailable = false;
-      else throw error;
-    }
-    const submission = body.applicationInputSubmission;
-    let applicationQuestionsAsked = false;
-    let responseStartOffer: StartOfferPayload | undefined;
-    const dispatchBrowser = async (record: SessionRecord) => {
-      if (process.env.NODE_ENV === "development") afterApplicationResponse(() => runApplicationBrowser(simulationStore, record.messageId));
-      else await enqueueApplicationBrowser(user.id, conversationId, record.messageId, record.state.revision);
-    };
-    if (submission && simulationSession?.state.status === "active" && simulationSession.messageId === submission.sessionMessageId) {
-      simulationSession = await awaitApplicationInspection(simulationStore, simulationSession);
-    }
-    if (submission) {
-      const batch = simulationSession?.state.activity?.batches.find(b=>b.id===submission.batchId);
-      if (!batch || batch.status!=="submitted" || !["pending","failed"].includes(batch.continuation) || simulationSession?.state.status!=="active" || simulationSession.messageId!==submission.sessionMessageId || simulationSession.state.revision<submission.expectedRevision) {
-        return NextResponse.json({error:"Question submission is no longer current"},{status:409});
-      }
-      if (batch.browser) {
-        const resumed=await resumeApplicationBrowser(simulationStore,simulationSession,submission.batchId);
-        await dispatchBrowser(resumed);
-        return NextResponse.json({ok:true,assistantMessages:"message" in resumed ? [resumed.message] : [],messages:[],conversationId});
-      }
-      const state=structuredClone(simulationSession.state);
-      state.activity!.batches.find(b=>b.id===batch.id)!.continuation="running";
-      state.activity!.batches.find(b=>b.id===batch.id)!.continuationStartedAt=new Date().toISOString();
-      simulationSession=await saveSession(simulationStore,simulationSession,state,`continue:${batch.id}:${state.revision}`);
-      message = applicationBatchContinuation(batch.id);
-    }
-    const finishApplicationContinuation = async (failed=false) => {
-      if (!submission) return;
-      const latest=await sessionOperation({...simulationStore,operation:"read",messageId:submission.sessionMessageId});
-      if (!latest || latest.state.status!=="active") return;
-      const state=structuredClone(latest.state), batch=state.activity?.batches.find(b=>b.id===submission.batchId);
-      if (!batch || batch.continuation!=="running") return;
-      batch.continuation=failed?"failed":"done";
-      simulationSession=await saveSession(simulationStore,latest,state,`continued:${batch.id}:${failed}`);
-    };
-    let requestedApplicationStart: Awaited<
-      ReturnType<typeof claimApplicationStartOffer>
-    > | null = null;
-    const startRequest =
-      body.simulationAction &&
-      (body.simulationAction as { action?: unknown }).action === "start"
-        ? applicationStartRequestSchema.safeParse(body.simulationAction)
-        : null;
-    if (startRequest) {
-      if (!startRequest.success)
-        return NextResponse.json(
-          { error: "Invalid application start request" },
-          { status: 400 }
-        );
-      if (!canStartApplication({
-        channel: requestChannel,
-        isOnboardingDone: talentSetting?.is_onboarding_done,
-        allowedToolNames,
-        responseLocale,
-      }))
-        return NextResponse.json({ error: "Application preparation is unavailable in this request." }, { status: 403 });
-      if (simulationSession?.state.activity?.offerId === startRequest.data.sessionMessageId) {
-        return NextResponse.json({ok:true,alreadyStarted:true,assistantMessages:[],messages:[],conversationId});
-      }
-      if (
-        simulationSession?.state.status === "active" ||
-        careerCoachingActivity?.status === "active" ||
-        careerCoachingActivity?.status === "suggested"
-      )
-        return NextResponse.json(
-          {
-            error:
-              "Finish the current activity before starting a new application.",
-          },
-          { status: 409 }
-        );
-      try {
-        requestedApplicationStart = await claimApplicationStartOffer({
-          admin,
-          userId: user.id,
-          conversationId,
-          messageId: startRequest.data.sessionMessageId,
-          documentId: startRequest.data.documentId,
-        });
-        // Preserve the exact optimistic user message; the verified role is in the offer.
-      } catch (error) {
-        return NextResponse.json(
-          { error: error instanceof Error ? error.message : "Unable to start" },
-          { status: 409 }
-        );
-      }
-    }
-    const textChatModel = resolveCareerTextChatModelForRequest(
-      body.textChatModel,
-      requestChannel === "chat" && canUseCareerDevControls(user.email),
-      Boolean(requestedApplicationStart) || simulationSession?.state.status === "active"
-    );
-    const simulationCardAction =
-      !startRequest && body.simulationAction
-        ? cardRequestSchema.safeParse(body.simulationAction)
-        : null;
-    if (simulationCardAction && !simulationCardAction.success)
-      return NextResponse.json(
-        { error: "Invalid simulation action" },
-        { status: 400 }
-      );
-    if (
-      simulationCardAction?.success &&
-      (!simulationSession ||
-        simulationSession.state.status !== "active" ||
-        simulationSession.messageId !==
-          simulationCardAction.data.sessionMessageId ||
-        simulationSession.state.revision !==
-          simulationCardAction.data.expectedRevision)
-    )
-      return NextResponse.json(
-        {
-          error:
-            "This simulation card is no longer current. Reload the conversation.",
-        },
-        { status: 409 }
-      );
-
-    if (
-      simulationCardAction?.success &&
-      simulationCardAction.data.action !== "end"
-    ) {
-      const target = simulationSession?.state.actions.find(
-        (a) => a.id === simulationCardAction.data.actionId
-      );
-      if (!target || ["completed", "skipped"].includes(target.status))
-        return NextResponse.json(
-          { error: "This action is no longer available." },
-          { status: 409 }
-        );
-    }
-    if (simulationCardAction?.success && simulationSession) {
-      const action = simulationCardAction.data;
-      if (action.action === "select_analysis") {
-        const target = resolveAnalysisCardAction(simulationSession.state, action);
-        if (!target) return NextResponse.json({ error: "This analysis action is no longer available." }, { status: 409 });
-        message = careerT(responseLocale, "career.simulation.actionRequest", "‘{title}’ 액션을 함께 진행해 주세요.", { values: { title: target.title } });
-      } else if (action.action === "select") {
-        const proposal = simulationSession.state.proposal;
-        if (!proposal || proposal.actionId !== action.actionId)
-          return NextResponse.json(
-            { error: "This proposal is no longer available." },
-            { status: 409 }
-          );
-        // Resolve the request from the stored proposal, never from a client-supplied execution prompt.
-        message = proposal.request;
-      } else {
-        message =
-          action.action === "end"
-            ? responseLocale === "ko"
-              ? "시뮬레이트는 여기서 마칠게요."
-              : "End this simulation session."
-            : responseLocale === "ko"
-              ? "이 액션은 건너뛸게요."
-              : "Skip this action.";
-      }
-    }
+    const textChatModel = requestChannel === "chat"
+      ? resolveCareerRequestTextChatModel(req, user, body.textChatModel)
+      : resolveCareerTextChatModelForRequest(undefined, false);
+    const conversationVersion = resolveCareerConversationVersion(body.conversationVersion,
+      requestChannel === "chat" && canUseCareerDevControls(user.email));
+    const promptExperiment = await loadCareerPromptExperiment(conversationVersion === "professional" ? body.promptVariant : undefined,
+      requestChannel === "chat" && Boolean(talentSetting?.is_onboarding_done) && canUseCareerDevControls(user.email));
     const uploadedDocuments = await fetchTalentDocumentsByIds({
       admin,
       documentIds: uploadedDocumentIds,
@@ -1160,6 +925,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Resolve the displayed role through the same owner-scoped reader as the UI.
+    // Viewing supplies context, not a recommendation decision or sharing consent.
+    const viewedRoleId = typeof body.viewedRoleId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.viewedRoleId)
+      ? body.viewedRoleId : null;
+    const [viewedOpportunity] = viewedRoleId
+      ? await fetchTalentOpportunityHistoryByRoleIds({
+          admin, userId: user.id, locale: responseLocale, roleIds: [viewedRoleId],
+        })
+      : [];
     const effectiveOpportunityMentions = selectedInternalOpportunity
       ? normalizeCareerOpportunityMentions([
           ...opportunityMentions.filter(
@@ -1186,17 +961,31 @@ export async function POST(req: NextRequest) {
     // The runtime reads current server-owned activity facts on every completion,
     // including activity start and confirmed return to ordinary chat.
     const trackCapabilities = isCareerCapabilityTurn({
-      applicationStartRequested: Boolean(requestedApplicationStart),
-      applicationActive: simulationSession?.state.status === "active",
-      applicationInputSubmitted: Boolean(submission),
       channel: requestChannel,
       isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
-      allowedToolNames,
     });
-    const { data: insertedUserMessage, error: userMessageError } = savedInternalCallAnswers
-      ? { data: savedInternalCallAnswers.message, error: null }
-      : submission
-      ? await admin.from("talent_messages").select("*").eq("conversation_id", conversationId).eq("user_id", user.id).order("id", {ascending:false}).limit(1).single()
+    executionSignal.throwIfAborted();
+    // A saved form response already owns a durable wakeup, including requests
+    // from a tab opened before this release. Never start a second inline reply.
+    if (trackCapabilities && (body.durable === true || savedFormResponse) && !savedInternalCallAnswers && !coachingActivityAction && !conversationStarterId) {
+      const { data, error } = savedFormResponse ? { data: savedFormResponse, error: null } : await (admin.rpc as any)("admit_career_request", {
+        p_user_id: user.id, p_conversation_id: conversationId, p_content: normalizedContent,
+        p_message_type: userMessageType, p_is_mobile: isMobile,
+        p_payload: { ...initialCareerCapabilityPayload(capabilityMode), careerTextChatModel: textChatModel.model,
+          careerConversationVersion: conversationVersion, clientRequestId: body.clientRequestId ?? crypto.randomUUID(),
+          ...(promptExperiment ? { careerPromptExperiment: promptExperiment } : {}),
+          ...(viewedOpportunity ? { viewedOpportunity: { roleId: viewedOpportunity.roleId, label: `${viewedOpportunity.companyName} · ${viewedOpportunity.title}` } } : {}),
+        },
+      });
+      if (error) throw error;
+      after(async () => {
+        const { publishCareerInvocations } = await import("@/lib/career/work/invocations");
+        await publishCareerInvocations({ admin, userId: user.id, conversationId });
+      });
+      return NextResponse.json({ ok: true, accepted: true, userMessage: toResponseMessage(data as TalentMessageRow) }, { status: 202 });
+    }
+    const { data: insertedUserMessage, error: userMessageError } = savedFormResponse || savedInternalCallAnswers
+      ? { data: savedFormResponse ?? savedInternalCallAnswers!.message, error: null }
       : await admin
       .from("talent_messages")
       .insert(
@@ -1207,7 +996,17 @@ export async function POST(req: NextRequest) {
             role: "user",
             content: normalizedContent,
             message_type: userMessageType,
-            ...(trackCapabilities ? { payload: initialCareerCapabilityPayload(capabilityMode) } : {}),
+            payload: {
+              ...(trackCapabilities ? initialCareerCapabilityPayload(capabilityMode) : {}),
+              careerTextChatModel: textChatModel.model,
+              careerConversationVersion: conversationVersion,
+              ...(viewedOpportunity ? { viewedOpportunity: {
+                roleId: viewedOpportunity.roleId,
+                label: `${viewedOpportunity.companyName} · ${viewedOpportunity.title}`,
+              } } : {}),
+              ...(body.clientRequestId ? { clientRequestId: body.clientRequestId } : {}),
+              ...(promptExperiment ? { careerPromptExperiment: promptExperiment } : {}),
+            },
           },
           isMobile
         )
@@ -1236,6 +1035,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Saved form/call responses reuse their original message and retain the
+    // exact action payload while recording this server-authorized model choice.
+    if (savedFormResponse || savedInternalCallAnswers) {
+      const storedPayload = (insertedUserMessage as TalentMessageRow).payload;
+      const payload = {
+        ...(storedPayload && typeof storedPayload === "object" && !Array.isArray(storedPayload) ? storedPayload : {}),
+        careerTextChatModel: textChatModel.model,
+        careerConversationVersion: conversationVersion,
+        ...(body.clientRequestId ? { clientRequestId: body.clientRequestId } : {}),
+        careerPromptExperiment: promptExperiment ?? null,
+      };
+      const { error } = await admin.from("talent_messages").update({ payload })
+        .eq("id", insertedUserMessage.id).eq("user_id", user.id)
+        .eq("conversation_id", conversationId);
+      if (error) throw error;
+      (insertedUserMessage as TalentMessageRow).payload = payload;
+    }
+    if (body.clientRequestId) {
+      const stop = await admin.from("talent_messages").select("id")
+        .eq("user_id", user.id).eq("conversation_id", conversationId)
+        .eq("message_type", "career_turn_stop").eq("payload->>clientRequestId", body.clientRequestId)
+        .limit(1).maybeSingle();
+      if (stop.error) throw stop.error;
+      if (stop.data || ((insertedUserMessage as TalentMessageRow).payload as { careerTurnStopped?: boolean } | null)?.careerTurnStopped) {
+        const payload = (insertedUserMessage as TalentMessageRow).payload;
+        const saved = await admin.from("talent_messages").update({ payload: {
+          ...(payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {}), careerTurnStopped: true,
+        } }).eq("id", insertedUserMessage.id).eq("user_id", user.id);
+        if (saved.error) throw saved.error;
+        return NextResponse.json({ ok: true, stopped: true });
+      }
+    }
+    persistedSourceResponse = toResponseMessage(insertedUserMessage as TalentMessageRow);
+    if (!trackCapabilities) {
+      standaloneCancellation = watchCareerTurnCancellation({ admin, userId: user.id, conversationId, sourceMessageId: insertedUserMessage.id }, executionSignal);
+      executionSignal = standaloneCancellation.signal;
+      releaseAgentTurn = async () => standaloneCancellation?.dispose();
+      await standaloneCancellation.check();
+    }
     summarizeConversationInBackground({
       maxToMessageId: insertedUserMessage.id - 1,
     });
@@ -1251,15 +1089,7 @@ export async function POST(req: NextRequest) {
       recentLimit: 16,
       userId: user.id,
     });
-    // The current activity already carries its immutable suggestions, answers,
-    // resume and role facts. Older application transcripts describe other runs
-    // and must not become examples or instructions for this preparation.
-    const applicationHistoryStart = simulationSession?.state.status === "active"
-      ? simulationSession.messageId
-      : null;
-    const promptMessages = applicationHistoryStart !== null
-      ? recentMessages.filter((item) => Number(item.id) >= applicationHistoryStart)
-      : recentMessages;
+    const promptMessages = recentMessages;
 
     const llmMessages = promptMessages
       .filter(
@@ -1267,10 +1097,6 @@ export async function POST(req: NextRequest) {
           item.id !== savedInternalCallAnswers?.message.id &&
           !["simulation_session", "simulation_action"].includes(
             item.message_type ?? ""
-          ) &&
-          !(
-            simulationSession?.state.status === "active" &&
-            item.message_type === "application_simulation"
           ) &&
           item.message_type !==
             TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
@@ -1292,7 +1118,6 @@ export async function POST(req: NextRequest) {
         includeCreatedAt: true, preferredLocale: responseLocale, timeZone: promptTimeZone,
       }),
     });
-    if (submission) llmMessages.push({role: "user", content: message});
 
     const activeInternalFitHoldQuestion =
       selectedInternalFitHoldQuestion ??
@@ -1319,35 +1144,8 @@ export async function POST(req: NextRequest) {
           talentId: user.id,
         })
       : null;
-    if (simulationCardAction?.success && simulationSession) {
-      const action = simulationCardAction.data;
-      const mutation =
-        action.action === "end"
-          ? { action: "end" as const }
-          : action.action === "skip"
-            ? {
-                action: "update_action" as const,
-                actionId: action.actionId,
-                status: "skipped" as const,
-                reason: "User chose to skip this action.",
-              }
-            : { action: "select" as const, actionId: action.actionId };
-      simulationSession = await saveSession(
-        simulationStore,
-        simulationSession,
-        mutateSimulationSession(
-          simulationSession.state,
-          mutation,
-          Number(insertedUserMessage.id)
-        ),
-        `card:${insertedUserMessage.id}`
-      );
-    }
     const toolSelection = resolveCareerChatTools({
-      simulationActive: simulationSession?.state.status === "active",
-        simulationPreparation: Boolean(simulationSession?.state.preparation),
       activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
-      allowedToolNames,
       channel: requestChannel,
       hasActiveGmailIntegration: Boolean(activeGmailIntegration),
       isOnboardingDone: talentSetting?.is_onboarding_done,
@@ -1428,6 +1226,7 @@ export async function POST(req: NextRequest) {
         : "The latest message carries a stale career-coaching card reference. Do not apply that action to another activity. Respond using the current activity state and let the user know briefly if the requested card action is no longer available."
       : undefined;
     const runtimeInstruction = [
+      formatTalentConversationReferencesForLlm(promptMessages, { preferredLocale: responseLocale, timeZone: promptTimeZone }),
       savedInternalCallAnswers
         ? `The latest user message contains their written answers and explicit skips for the optional internal-role questionnaire. They are already saved and call request ${savedInternalCallAnswers.call.id} is completed.`
         : undefined,
@@ -1437,18 +1236,9 @@ export async function POST(req: NextRequest) {
     ]
       .filter((value): value is string => Boolean(value))
       .join("\n\n");
-    let applicationStartOutcomeInstruction: string | undefined;
     const currentPromptArgs = (): Parameters<typeof buildCareerConversationPromptPlan>[0] => ({
-        simulationAvailability: !simulationSchemaAvailable
-          ? "unavailable"
-          : simulationSession?.state.status === "active"
-            ? undefined
-            : "inactive",
-        simulationSession:
-          simulationSession?.state.status === "active"
-            ? simulationSession.state
-            : undefined,
         activeInternalFitHoldQuestion,
+        conversationVersion,
         careerCoachingActivity,
         channel: "chat",
         companyTalentRequestText:
@@ -1473,40 +1263,33 @@ export async function POST(req: NextRequest) {
         pendingOpportunityFeedbackContext,
         postOnboardingContext,
         profile,
-        conversationMode:
-          simulationSession?.state.status === "active"
-            ? "simulation"
-            : careerCoachingActivity?.status === "active"
+        conversationMode: careerCoachingActivity?.status === "active"
               ? "career_coaching"
               : conversationStarter?.id === "career_coaching"
                 ? "default"
                 : (conversationStarter?.id ?? "default"),
         recentActivitySummaries,
         recentRecommendedOpportunitiesText,
-        runtimeInstruction: [
-          simulationSession?.state.status === "active" ? uploadedDocumentRuntimeInstruction : runtimeInstruction,
-          applicationStartOutcomeInstruction,
-        ].filter(Boolean).join("\n\n") || undefined,
+        runtimeInstruction,
         structuredProfileText,
         timeZone: promptTimeZone,
         toolNames: toolSelection.toolNames,
       });
     const buildCurrentPromptPlan = () => buildCareerConversationPromptPlan(currentPromptArgs());
     const capabilityPromptArgs = currentPromptArgs();
-    if (simulationSession?.state.status === "active" && !submission) {
-      simulationSession = await saveSession(simulationStore, simulationSession, {...simulationSession.state, lastActivityAt: new Date().toISOString()}, `user-turn:${insertedUserMessage.id}`);
-    }
     const { isOnboardingActive, promptBlocks } = buildCurrentPromptPlan();
-    const capabilityTurn = trackCapabilities ? await createCareerCapabilityTurn({
+    const capabilityTurn = trackCapabilities ? await prepareCareerAgentTurn({
     origin: "web",
-      admin, userId: user.id, conversationId, sourceMessage: submission ? null : insertedUserMessage as TalentMessageRow,
+      abortSignal: executionSignal, deadlineAt,
+      selectorInput: { messages: llmMessages, currentContext: `Current user message ID: ${insertedUserMessage.id}.` },
+      onCheckpoint: async (checkpoint) => {
+        await dispatchCareerCheckpoint({ admin, userId: user.id, conversationId, checkpoint });
+      },
+      admin, userId: user.id, conversationId, sourceMessage: insertedUserMessage as TalentMessageRow,
       mode: capabilityMode, eligibleTools: toolSelection.tools, promptArgs: capabilityPromptArgs,
       getPromptArgs: currentPromptArgs,
       getEligibleTools: () => resolveCareerChatTools({
-        simulationActive: simulationSession?.state.status === "active",
-        simulationPreparation: Boolean(simulationSession?.state.preparation),
         activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
-        allowedToolNames,
         channel: requestChannel,
         hasActiveGmailIntegration: Boolean(activeGmailIntegration),
         isOnboardingDone: talentSetting?.is_onboarding_done,
@@ -1519,43 +1302,11 @@ export async function POST(req: NextRequest) {
         ...(coachingActivityAction && careerCoachingActivity && coachingActivityAction.activityMessageId === careerCoachingActivity.messageId && coachingActivityAction.expectedRevision === careerCoachingActivity.revision ? ["career_coaching" as const] : []),
       ],
     }) : undefined;
+    releaseAgentTurn = capabilityTurn?.release ?? releaseAgentTurn;
+    executionSignal = capabilityTurn?.runtime.abortSignal ?? executionSignal;
     const initialCapabilityStep = capabilityTurn?.runtime.resolveStep(false);
     if (initialCapabilityStep) toolDefinitions = initialCapabilityStep.tools;
     const systemBlocks = initialCapabilityStep?.systemBlocks ?? promptBlocks;
-    const refreshSimulationRuntime = async () => {
-      if (!simulationSchemaAvailable) return;
-      simulationSession = await sessionOperation({
-        ...simulationStore,
-        operation: "read",
-      });
-      careerCoachingActivity = await fetchCurrentCareerCoachingActivity({
-        admin,
-        conversationId,
-        userId: user.id,
-      });
-      const selected = resolveCareerChatTools({
-        simulationActive: simulationSession?.state.status === "active",
-        simulationPreparation: Boolean(simulationSession?.state.preparation),
-        allowedToolNames,
-        channel: requestChannel,
-        hasActiveGmailIntegration: Boolean(activeGmailIntegration),
-        isOnboardingDone: talentSetting?.is_onboarding_done,
-        responseLocale,
-      });
-      toolDefinitions.splice(0, toolDefinitions.length, ...selected.tools);
-      toolSelection.stopAfterToolNames.splice(0, toolSelection.stopAfterToolNames.length, ...selected.stopAfterToolNames);
-      toolSelection.toolNames.splice(
-        0,
-        toolSelection.toolNames.length,
-        ...selected.toolNames
-      );
-      systemBlocks.splice(
-        0,
-        systemBlocks.length,
-        ...buildCurrentPromptPlan().promptBlocks
-      );
-    };
-
     // console.info("[career-chat:prompt-breakdown]", {
     //   cacheableSystemBlockKeys: systemBlocks
     //     .filter((block) => block.cacheable)
@@ -1574,9 +1325,6 @@ export async function POST(req: NextRequest) {
     // logger.log("\n\n [toolPolicy] : ", toolPolicy);
 
     // --- Conversation LLM call (natural language, no JSON mode) ---
-    const preparedCompanySnapshotRef: {
-      current: CompanySnapshotToolResult | null;
-    } = { current: null };
     let thinkingLogs: string[] = [];
     let pendingRecommendationPostingRoleIds: string[] = [];
     const pendingProcessClosureNotices = new Map<
@@ -1594,7 +1342,7 @@ export async function POST(req: NextRequest) {
     } = { current: null };
     let opportunityRecommendationsChanged = false;
     let documentsChanged = uploadedDocuments.length > 0;
-    let applicationReviewMessageId: number | undefined;
+
     const generatedDocumentLinks = new Map<string, string>();
     const withGeneratedDocumentLinks = (text: string) => {
       const visibleIds = new Set(extractCareerDocumentLinks(text).documents.map(document => document.id));
@@ -1608,45 +1356,61 @@ export async function POST(req: NextRequest) {
       expiredCareerCoachingActivityMessage
         ? [expiredCareerCoachingActivityMessage]
         : [];
-    if (simulationSession) {
-      const snapshot = await sessionOperation({
-        ...simulationStore,
-        operation: "read",
-        messageId: simulationSession.messageId,
-      });
-      if (snapshot) auxiliaryAssistantMessages.push(snapshot.message);
-    }
-    if (requestedApplicationStart)
-      auxiliaryAssistantMessages.push(requestedApplicationStart.message);
-    let suppressRolePreviews = Boolean(requestedApplicationStart || simulationSession?.state.status === "active");
-    let proposalChanged = false;
-    let analysisCompletedThisTurn = false;
+    let suppressRolePreviews = false;
     let careerCoachingCallReady: CareerCoachingActivity | null = null;
-    let emitSimulationMessage:
-      | ((message: TalentMessageResponse) => void)
-      | null = null;
-    let simulationResult: Promise<unknown> | null = null;
-    let simulationInputKey: string | null = null;
-    let activityTransport = simulationSession?.state;
-    const onSimulationMessage = (message: TalentMessageResponse) => {
-      if (message.simulationSession?.activity) activityTransport=message.simulationSession;
-      if (activityTransport?.activity) message={...message,applicationActivity:{activityId:activityTransport.sessionId,revision:activityTransport.revision,view:message.messageType,runId:message.applicationDraft?.runId ?? activityTransport.analysisStartedAt}};
-      if (message.simulation?.status === "completed") analysisCompletedThisTurn = true;
-      if(message.applicationStartOffer || message.simulation || message.simulationSession?.status === "active") suppressRolePreviews=true;
-      auxiliaryAssistantMessages = [
-        ...auxiliaryAssistantMessages.filter((item) => item.id !== message.id),
-        message,
-      ];
-      emitSimulationMessage?.(message);
+    let emitArtifactMessage: ((message: TalentMessageResponse) => void) | null = null;
+    let deliveredArtifact = false;
+    const onArtifactMessage = (message: TalentMessageResponse, emit = true) => {
+      deliveredArtifact = true;
+      auxiliaryAssistantMessages = [...auxiliaryAssistantMessages.filter(item => item.id !== message.id), message];
+      if (emit) emitArtifactMessage?.(message);
     };
-    const attachResponseStartOffer = async (replyId: number) => {
-      if (!responseStartOffer || simulationSession?.state.status === "active") return;
-      try {
-        const card = await prepareApplicationStartPayload({ admin, userId: user.id, conversationId, replyId, request: responseStartOffer });
-        auxiliaryAssistantMessages.push(card);
-      } catch (error) {
-        console.error("[application-start] Could not prepare response card", { replyId, error: error instanceof Error ? error.message : "Unknown error" });
-      }
+    const formPresenter = createCareerFormPresenter(
+      { admin, userId: user.id, conversationId },
+      // Include forms in the final ordered batch, after every text message.
+      message => onArtifactMessage(message, false),
+      capabilityTurn?.replyId ?? `message:${insertedUserMessage.id}`
+    );
+    const commitAssistantProgressRow = async (text: string) => {
+      const content = stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(text));
+      if (!content.trim()) return null;
+      const { data, error } = await admin.from("talent_messages").insert(withIsMobile({
+        conversation_id: conversationId, user_id: user.id, role: "assistant",
+        content, message_type: "chat", payload: { suppressRolePreviews, careerTurnSourceMessageId: insertedUserMessage.id }, thinking_logs: thinkingLogs,
+      }, isMobile)).select("*").single();
+      if (error || !data) throw new Error(error?.message ?? "Failed to save assistant progress");
+      return data as TalentMessageRow;
+    };
+    const finishArtifactOnlyTurn = async () => {
+      await formPresenter.flush();
+      await capabilityTurn?.complete();
+      await commitDeliveredProcessClosureNotices({
+        admin, notices: pendingProcessClosureNotices.values(), talentId: user.id,
+      });
+      summarizeConversationInBackground();
+      const profileSnapshot = await buildTalentProfileSnapshot({
+        admin, conversationId, includeDocuments: documentsChanged, userId: user.id,
+      });
+      const assistantMessages = orderApplicationMessages(await attachPostingPreviewsToMessages({
+        admin, messages: auxiliaryAssistantMessages, userId: user.id,
+      }));
+      const response = {
+        ok: true,
+        userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
+        assistantMessage: assistantMessages.at(-1) ?? null,
+        assistantMessages,
+        historyChangedRoleId: changedOpportunityRoleId,
+        historyShouldRefresh: opportunityRecommendationsChanged,
+        careerCoachingCallReady,
+        opportunityDiscoveryQueued: false,
+        opportunityRun: serializeOpportunityRun(activeRun),
+        progress: {
+          answeredCount: userTurnCount, targetCount: TALENT_INTERVIEW_FINAL_STEP,
+          completed: false, currentStep: currentProgressStep,
+        },
+        ...profileSnapshot,
+      };
+      return { response, profileSnapshot };
     };
     let emitToolStatus: ((message: string) => void) | null = null;
     let emitRecommendationStatus:
@@ -1678,7 +1442,6 @@ export async function POST(req: NextRequest) {
       messageId: number | string | null | undefined;
     }) => {
       if (
-        simulationSession ||
         !shouldAutoExtractInsights ||
         !args.content.trim()
       ) {
@@ -1739,7 +1502,7 @@ export async function POST(req: NextRequest) {
         const result = await executeTalentTool({
           context: {
             admin,
-            abortSignal: req.signal,
+            abortSignal: executionSignal,
             onRecommendationSearchProgress: (progress) => {
               latestProgress = progress;
               recordRecommendationStatus(progress);
@@ -1777,7 +1540,7 @@ export async function POST(req: NextRequest) {
         recordRecommendationStatus(completedStatus, { persist: true });
         return result;
       } catch (error) {
-        if (req.signal.aborted) {
+        if (executionSignal.aborted) {
           throw error;
         }
         recordRecommendationStatus({ ...latestProgress, state: "error" }, { persist: true });
@@ -1787,194 +1550,39 @@ export async function POST(req: NextRequest) {
     const executeDefaultTalentTool = async (toolArgs: {
       input: Record<string, unknown>;
       name: string;
-      startConfirmed?: boolean;
     }) => {
       const { toolInput } = splitToolUiStatus(toolArgs.input);
-      if (simulationSession?.state.status === "active" && !toolArgs.startConfirmed && !SIMULATION_TOOL_NAMES.includes(toolArgs.name))
-        throw new Error("Tool unavailable in Apply with Harper mode");
-      if (toolArgs.name === APPLY_TO_ROLE) {
-        if (!simulationSession || simulationSession.state.status !== "active") throw new Error("No active application");
-        const saved=await startApplicationBrowser(simulationStore,simulationSession,toolInput,Number(insertedUserMessage.id),simulationSession.state.applicationReview?.revision);
-        simulationSession=saved;
-        onSimulationMessage(saved.message);
-        if (saved.execution.applicationInProgress) await dispatchBrowser(saved);
-        applicationQuestionsAsked=saved.execution.awaitingUserInput;
-        if (applicationQuestionsAsked) thinkingLogs.length=0;
-        return saved.execution;
-      }
-      if(toolArgs.name===MANAGE_APPLICATION_SUGGESTIONS) {
-        if(!simulationSession) throw new Error("No active application");
-        const execution = await executeApplicationPreparationTool({ store: simulationStore, record: simulationSession, name: toolArgs.name, input: toolInput, messageId: Number(insertedUserMessage.id), submittedBatchId: submission?.batchId });
-        const saved=execution!.record;
-        simulationSession=saved;
-        onSimulationMessage(saved.message);
-        const awaitingUserInput="awaitingUserInput" in execution!.result && execution!.result.awaitingUserInput === true;
-        if(awaitingUserInput) {applicationQuestionsAsked=true;thinkingLogs.length=0;}
-        await refreshSimulationRuntime();
-        return execution!.result;
-      }
-      if(toolArgs.name===READY_FOR_ROLE) {
-        if(!simulationSession) throw new Error("No active application");
-        const prepared=await executeApplicationPreparationTool({ store: simulationStore, record: simulationSession, name: toolArgs.name, input: toolInput, messageId: Number(insertedUserMessage.id), submittedBatchId: submission?.batchId });
-        if (!prepared || !("documentId" in prepared.result)) throw new Error("Prepared document unavailable");
-        simulationSession=prepared.record;
-        if (prepared.record.state.applicationReview) applicationReviewMessageId = prepared.record.messageId;
-        onSimulationMessage(prepared.record.message);
-        generatedDocumentLinks.set(prepared.result.documentId,prepared.result.documentLink);
-        documentsChanged=true;
-        await refreshSimulationRuntime();
-        return prepared.result;
-      }
-      if (toolArgs.name === SIMULATION_SESSION_TOOL) {
-        if (toolInput.action === "list" || toolInput.action === "resume") {
-          const { manageSavedApplications } = await import("@/lib/career/simulation/savedApplications");
-          const result = await manageSavedApplications(simulationStore, toolInput, `turn:${insertedUserMessage.id}`, onSimulationMessage);
-          await refreshSimulationRuntime();
-          return result;
-        }
-        if (!simulationSession || simulationSession.state.status !== "active")
-          return { ok: false, reason: "No active simulation session." };
-        if (toolInput.action === "inspect") {
-          const inspected = await executeApplicationPreparationTool({ store: simulationStore, record: simulationSession, name: toolArgs.name, input: toolInput, messageId: Number(insertedUserMessage.id) });
-          simulationSession = inspected!.record;
-          onSimulationMessage(inspected!.record.message);
-          await refreshSimulationRuntime();
-          return inspected!.result;
-        }
-        const mutation = sessionMutationSchema.parse(toolInput);
-        if (simulationSession.state.preparation && !APPLICATION_PREPARATION_SESSION_ACTIONS.includes(mutation.action))
-          throw new Error("Use manage_application_suggestions to resolve or revise preparation suggestions.");
-        if(simulationSession.state.browser && ["queued","running"].includes(simulationSession.state.browser.status) && !["end","request_switch","cancel_switch"].includes(mutation.action)) throw new Error("The browser is using the current application data. Stop it before changing those details.");
-        if (mutation.action === "end") await stopApplicationBrowser(simulationSession.state.browser);
-        if (mutation.action === "propose" && analysisCompletedThisTurn && !simulationSession.state.preparation) {
-          return { ok: false, reason: "The analysis already displays the action list. A separate reminder card is available in a later user turn; continue this reply briefly in prose." };
-        }
-        if (mutation.action === "generate_draft") throw new Error("Write the revised document in ordinary chat instead.");
-        if (mutation.action === "respond") {
-          if(!mutation.actionId || !mutation.response) return {ok:false,reason:"Response required"};
-          const saved=await respondPreparationFromChat(simulationStore,simulationSession,mutation.actionId,mutation.response,Number(insertedUserMessage.id),`response:${submission?.batchId ?? insertedUserMessage.id}:${JSON.stringify(mutation)}`);
-          const batch=saved.state.activity?.batches.find(b=>b.browser && b.status === "submitted" && b.continuation === "pending");
-          if(batch) {
-            simulationSession=await resumeApplicationBrowser(simulationStore,saved,batch.id);
-            await dispatchBrowser(simulationSession);
-          } else simulationSession=saved;
-          onSimulationMessage(saved.message);
-          await refreshSimulationRuntime();
-          return {ok:true, responseRecorded:true, draftAvailable:simulationSession.state.preparation?.generation.status==="ready"};
-        }
-        const saved = await saveSession(
-          simulationStore,
-          simulationSession,
-          mutateSimulationSession(
-            simulationSession.state,
-            mutation,
-            Number(insertedUserMessage.id)
-          ),
-          `turn:${submission?.batchId ?? insertedUserMessage.id}:${JSON.stringify(mutation)}`
-        );
-        simulationSession = saved;
-        onSimulationMessage(saved.message);
-        if (mutation.action === "propose") proposalChanged = true;
-        await refreshSimulationRuntime();
-        return applicationSessionToolResult(saved.state, mutation.action);
-      }
       if (toolArgs.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
         return executeRecommendJobPostings(toolInput);
       }
 
-      if (toolArgs.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION) {
-        if (toolArgs.startConfirmed && !simulationSchemaAvailable)
-          return {
-            ok: false,
-            reason:
-              "Simulation sessions are unavailable until the database migration is applied. No analysis or edits were started.",
-          };
-        const key = JSON.stringify([
-          toolInput.roleId,
-          toolInput.official_job_slug,
-          toolInput.document_id,
-          toolInput.profile_only === true,
-        ]);
-        if (simulationInputKey !== null && simulationInputKey !== key) {
-          return {
-            ok: false,
-            reason:
-              "One role and source can be simulated per chat turn. The existing card belongs to the first selected role. Ask the user to request the other analysis in the next turn.",
-          };
-        }
-        simulationInputKey = key;
-        simulationResult ??= executeTalentTool({
-          context: {
-            admin,
-            abortSignal: req.signal,
-            conversationId,
-            isMobile,
-            responseLocale,
-            userMessageId: insertedUserMessage.id,
-            userId: user.id,
-            onSimulationMessage,
-            scheduleAfter: (task) => afterApplicationResponse(task),
-            simulationStartConfirmed: toolArgs.startConfirmed === true,
-            textChatModel: textChatModel.model,
-            simulationStartOfferId: toolArgs.startConfirmed ? requestedApplicationStart?.message.id : undefined,
-          },
-          logging: false,
-          name: toolArgs.name,
-          input: toolInput,
-        });
-        if (toolArgs.startConfirmed) {
-          const preparationRun = simulationResult;
-          afterApplicationResponse(async () => { await preparationRun; });
-        }
-        try {
-          const result = await simulationResult;
-          if (isRecord(result) && result.startCardDisplayed === true && result.awaitingUserInput === true)
-            applicationQuestionsAsked = true;
-          return result;
-        } finally {
-          try { await refreshSimulationRuntime(); }
-          catch (error) { req.signal.throwIfAborted(); reportToolDiagnostic({ error, source: "context_refresh" }); }
-        }
-      }
-
-      if (toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME && simulationSession?.state.status === "active") {
-        if(simulationSession.state.preparation) throw new Error("Use ready_for_role to preserve the selected source and save the prepared resume");
-        assertApplicationResumeWrite(simulationSession.state);
-      }
       let result = await executeTalentTool({
         context: {
           admin,
-          abortSignal: req.signal,
+          abortSignal: executionSignal,
+          deadlineAt,
+          onArtifactMessage,
+          presentForm: formPresenter.presentForm,
           conversationId,
           isMobile,
           responseLocale,
-          suppressCommonAssistantInstruction: simulationSession?.state.status === "active",
           registerProcessClosureNotices,
           scheduleAfter: (task) => after(task),
           userMessageId: insertedUserMessage.id,
-          resumeRequestId: submission ? `${conversationId}:application-answers:${submission.batchId}` : typeof body.clientRequestId === "string" && /^[0-9a-f-]{36}$/i.test(body.clientRequestId) ? `${conversationId}:${body.clientRequestId}` : undefined,
+          resumeRequestId: capabilityTurn?.replyId ?? `message:${insertedUserMessage.id}`,
           userId: user.id,
         },
         logging: false,
         name: toolArgs.name,
         input: toolInput,
       });
-      if ((toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME || toolArgs.name === TALENT_TOOL_NAMES.WRITE_DOCUMENT) && isRecord(result) && result.ok === true && typeof result.documentId === "string" && typeof result.documentLink === "string") {
+      if ((toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME || toolArgs.name === TALENT_TOOL_NAMES.UPSERT_DOCUMENT) && isRecord(result) && result.ok === true && typeof result.documentId === "string" && typeof result.documentLink === "string") {
         generatedDocumentLinks.set(result.documentId, result.documentLink);
-        if (toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME && simulationSession?.state.status === "active" && simulationSession.state.preparation && typeof result.revision === "number" && typeof result.fileName === "string") {
-          const state = recordApplicationResume(simulationSession.state, {documentId: result.documentId, revision: result.revision, fileName: result.fileName});
-          const saved = await saveSession(simulationStore, simulationSession, state, `resume:${result.documentId}:${result.revision}`);
-          simulationSession = saved;
-          onSimulationMessage(saved.message);
-          await refreshSimulationRuntime();
-        }
       }
-      if (toolArgs.name === TALENT_TOOL_NAMES.WRITE_DOCUMENT && isRecord(result) && result.ok === true && simulationSession?.state.status === "active" && simulationSession.state.preparation)
-        result = applicationDocumentResult(result);
       rememberCareerCoachingActivityMessage(result);
       rememberRecommendationPostingRoleIds(result);
 
-      if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT || toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME || toolArgs.name === TALENT_TOOL_NAMES.WRITE_DOCUMENT) {
+      if (toolArgs.name === TALENT_TOOL_NAMES.UPSERT_DOCUMENT || toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME) {
         documentsChanged = true;
       }
 
@@ -2014,37 +1622,20 @@ export async function POST(req: NextRequest) {
       return result;
     };
 
-    const startRequestedApplication = async () => {
-      if (!requestedApplicationStart) return;
-      onSimulationMessage(requestedApplicationStart.message);
-      const result = await executeDefaultTalentTool({
-        name: TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
-        input: requestedApplicationStart.input,
-        startConfirmed: true,
-      });
-      if(isRecord(result) && result.awaitingUserInput===true) applicationQuestionsAsked=true;
-      applicationStartOutcomeInstruction = `The user pressed Start for the known role and selected resume. Current execution result:
-${formatToolResultText(result)}`;
-      systemBlocks.push({
-        key: "application_start_outcome",
-        text: applicationStartOutcomeInstruction,
-      });
-    };
-
     if (streamResponse) {
       const encoder = new TextEncoder();
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
           const send = (event: string, data: unknown) => {
-            if (req.signal.aborted) return;
+            if (req.signal.aborted || (executionSignal.aborted && event !== "done")) return;
             try {
               controller.enqueue(encoder.encode(createSseMessage(event, data)));
             } catch {
               // Client disconnected while a tool or model call was still resolving.
             }
           };
-          emitSimulationMessage = (message) =>
-            send("simulation_message", { message, suppressRolePreviews });
+          emitArtifactMessage = (message) =>
+            send("artifact_message", { message, suppressRolePreviews });
           emitToolStatus = (message) => send("tool_status", { message });
           emitRecommendationStatus = (status) =>
             send("recommendation_search_status", status);
@@ -2060,7 +1651,7 @@ ${formatToolResultText(result)}`;
             ).replaceAll(TALENT_ONBOARDING_DONE_MARKER, "");
             const heldSuffixLength =
               getOnboardingMarkerPrefixSuffixLength(pendingAssistantText);
-            const safeLength = Math.min(pendingAssistantText.length - heldSuffixLength, startOfferVisibleLength(pendingAssistantText));
+            const safeLength = Math.min(pendingAssistantText.length - heldSuffixLength, pendingAssistantText.length);
             if (safeLength <= 0) return;
 
             const visibleDelta = pendingAssistantText.slice(0, safeLength);
@@ -2082,26 +1673,18 @@ ${formatToolResultText(result)}`;
             streamedAssistantText += missingText;
             send("text_delta", { delta: missingText });
           };
-          const clearToolPreamble = () => {
-            if (!streamedAssistantText && !pendingAssistantText) return;
+          const commitAssistantProgress = async (text: string) => {
+            const content = stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(
+              text
+            ));
+            if (!content.trim()) return;
+            const message = await commitAssistantProgressRow(content);
+            if (!message) return;
+            flushVisibleText(content);
+            send("assistant_message", { message: toResponseMessage(message as TalentMessageRow), continuing: true });
             pendingAssistantText = "";
             streamedAssistantText = "";
-            send("assistant_text_replace", { content: "" });
-          };
-          let injectedRecommendationToolPreamble = "";
-          const ensureRecommendationToolPreamble = () => {
-            if (
-              injectedRecommendationToolPreamble ||
-              streamedAssistantText.trim() ||
-              pendingAssistantText.trim()
-            ) {
-              return;
-            }
-
-            const recommendationToolPreamble =
-              getRecommendJobPostingsChatPreamble(responseLocale);
-            injectedRecommendationToolPreamble = recommendationToolPreamble;
-            sendVisibleTextDelta(`${recommendationToolPreamble}\n\n`);
+            thinkingLogs = [];
           };
           const markRecommendationStatusAnchor = () => {
             if (recommendationStatusAfterCharCount !== null) return;
@@ -2122,18 +1705,16 @@ ${formatToolResultText(result)}`;
                   recommendationStatusAfterCharCount,
                 };
           try {
-            if (!submission) send("user_message", {
-              message: toResponseMessage(
-                insertedUserMessage as TalentMessageRow
-              ),
+            send("user_message", {
+              message: toResponseMessage(insertedUserMessage as TalentMessageRow),
             });
-
             if(suppressRolePreviews) send("application_mode", {suppressRolePreviews:true});
             let assistantText: string;
             try {
-              await startRequestedApplication();
-              assistantText = applicationQuestionsAsked ? "" : await runCareerChatAssistantStream({
+              assistantText = await runCareerChatAssistantStream({
+                abortSignal: executionSignal,
                 toolRuntime: capabilityTurn?.runtime,
+                hasDeliveredArtifact: () => deliveredArtifact || formPresenter.hasPending(),
                 chatCompletionReasoningEffort:
                   textChatModel.chatCompletionReasoningEffort,
                 messages: llmMessages,
@@ -2143,18 +1724,12 @@ ${formatToolResultText(result)}`;
                 systemBlocks,
                 responseLocale,
                 onTextDelta: (delta) => {
-                  if (!recommendationToolStarted && !simulationSession?.state.activity) sendVisibleTextDelta(delta);
+                  if (!recommendationToolStarted) sendVisibleTextDelta(delta);
                 },
-                onToolDetected: (tool) => {
-                  if (tool.name !== TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
-                    clearToolPreamble();
-                  }
-                },
+                onAssistantMessage: commitAssistantProgress,
                 onToolStart: (tool) => {
-                  if (tool.name === MANAGE_APPLICATION_SUGGESTIONS || tool.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION) return;
                   if (tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
                     recommendationToolStarted = true;
-                    ensureRecommendationToolPreamble();
                     markRecommendationStatusAnchor();
                     recordRecommendationStatus({ state: "running" });
                     return;
@@ -2167,9 +1742,6 @@ ${formatToolResultText(result)}`;
                   if (status) {
                     recordThinkingLog(status);
                   }
-                },
-                onStopToolStart: () => {
-                  clearToolPreamble();
                 },
                 openAIResponsesReasoningEffort:
                   textChatModel.openAIResponsesReasoningEffort,
@@ -2184,147 +1756,17 @@ ${formatToolResultText(result)}`;
                     );
                     if (languageStatus) recordThinkingLog(languageStatus);
                   }
-                  if (status && name !== MANAGE_APPLICATION_SUGGESTIONS && name !== TALENT_TOOL_NAMES.SIMULATE_APPLICATION && !(name === SIMULATION_SESSION_TOOL && toolInput.action === "generate_draft")) {
+                  if (status) {
                     recordThinkingLog(status);
                   }
 
-                  if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
-                    await insertTalentToolUsageLog({
-                      admin,
-                      name,
-                      userId: user.id,
-                    });
-
-                    const companyName =
-                      optionalToolString(toolInput.company_name) ??
-                      optionalToolString(toolInput.companyName);
-                    if (!companyName) {
-                      throw new Error(
-                        "research_company requires company_name."
-                      );
-                    }
-
-                    const cachedSnapshot = await fetchRecentCompanySnapshot({
-                      admin,
-                      companyName,
-                      preferredLocale: responseLocale,
-                    });
-                    if (cachedSnapshot) {
-                      const personalizedResult =
-                        await getOrCreateCompanySnapshot({
-                          admin,
-                          companyName,
-                          preferredLocale: responseLocale,
-                          reason: optionalToolString(toolInput.reason),
-                          recentSnapshot: cachedSnapshot,
-                          userId: user.id,
-                        });
-                      documentsChanged ||= Boolean(
-                        personalizedResult.snapshot.document
-                      );
-                      const messageContent = stripPostgresUnsafeChars(
-                        formatCompanySnapshotMessage({
-                          preferredLocale: responseLocale,
-                          reused: true,
-                          snapshot: personalizedResult.snapshot,
-                        })
-                      );
-                      const { data: cacheMessage, error: cacheMessageError } =
-                        await admin
-                          .from("talent_messages")
-                          .insert(
-                            withIsMobile(
-                              {
-                                content: messageContent,
-                                conversation_id: conversationId,
-                                message_type:
-                                  COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                                role: "assistant",
-                                user_id: user.id,
-                              },
-                              isMobile
-                            )
-                          )
-                          .select("*")
-                          .single();
-                      if (cacheMessageError || !cacheMessage) {
-                        throw new Error(
-                          cacheMessageError?.message ??
-                            "Failed to insert company_snapshot result message."
-                        );
-                      }
-                      await touchConversationIfAllowed();
-                      preparedCompanySnapshotRef.current = {
-                        messages: [
-                          toResponseMessage(cacheMessage as TalentMessageRow),
-                        ],
-                      };
-                      return withTalentToolAssistantInstruction({
-                        ok: true,
-                        cached: true,
-                      });
-                    }
-
-                    // Intentional double cache-fetch: route checked cache above for fast-path,
-                    // but getOrCreateCompanySnapshot rechecks for idempotency (another request
-                    // may have created the snapshot between the two calls).
-                    const result = await getOrCreateCompanySnapshot({
-                      admin,
-                      companyName,
-                      preferredLocale: responseLocale,
-                      reason: optionalToolString(toolInput.reason),
-                      userId: user.id,
-                    });
-                    documentsChanged ||= Boolean(result.snapshot.document);
-                    const messageContent = stripPostgresUnsafeChars(
-                      formatCompanySnapshotMessage({
-                        preferredLocale: responseLocale,
-                        reused: result.reused,
-                        snapshot: result.snapshot,
-                      })
-                    );
-                    const {
-                      data: researchMessage,
-                      error: researchMessageError,
-                    } = await admin
-                      .from("talent_messages")
-                      .insert(
-                        withIsMobile(
-                          {
-                            content: messageContent,
-                            conversation_id: conversationId,
-                            message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                            role: "assistant",
-                            user_id: user.id,
-                          },
-                          isMobile
-                        )
-                      )
-                      .select("*")
-                      .single();
-                    if (researchMessageError || !researchMessage) {
-                      throw new Error(
-                        researchMessageError?.message ??
-                          "Failed to insert company_snapshot result message."
-                      );
-                    }
-                    await touchConversationIfAllowed();
-                    preparedCompanySnapshotRef.current = {
-                      messages: [
-                        toResponseMessage(researchMessage as TalentMessageRow),
-                      ],
-                    };
-                    return withTalentToolAssistantInstruction({
-                      ok: true,
-                      cached: result.reused,
-                    });
-                  }
 
                   return executeDefaultTalentTool({ name, input: toolInput });
                 },
               });
             } catch (error) {
-              await finishApplicationContinuation(true);
+              throwIfToolControlError(error);
+              executionSignal.throwIfAborted();
               const receipt = recommendationReceiptRef.current;
               if (!receipt) throw error;
               console.warn(
@@ -2340,67 +1782,29 @@ ${formatToolResultText(result)}`;
               assistantText = receipt.answerDraft;
             }
 
-            const preparedCompanySnapshot = preparedCompanySnapshotRef.current;
-            if (preparedCompanySnapshot) {
-              const preparedAssistantText =
-                preparedCompanySnapshot.messages[
-                  preparedCompanySnapshot.messages.length - 1
-                ]?.content ?? "";
-              const preparedMessageId =
-                preparedCompanySnapshot.messages[
-                  preparedCompanySnapshot.messages.length - 1
-                ]?.id;
-              await persistThinkingLogsForMessage({
-                admin,
-                conversationId,
-                messageId: preparedMessageId,
-                thinkingLogs,
-                userId: user.id,
-              });
-              await persistInsightExtractionForAssistantMessage({
-                content: preparedAssistantText,
-                messageId: preparedMessageId,
-              });
-              const messagesWithThinkingLogs = attachThinkingLogsToLastMessage(
-                preparedCompanySnapshot.messages,
-                thinkingLogs
-              );
-              summarizeConversationInBackground();
 
-              send("assistant_messages", {
-                messages: messagesWithThinkingLogs,
-              });
-              send("progress", {
-                progress: {
-                  answeredCount: userTurnCount,
-                  completed: false,
-                  currentStep: currentProgressStep,
-                  targetCount: TALENT_INTERVIEW_FINAL_STEP,
-                },
-              });
-              const profileSnapshot = await buildTalentProfileSnapshot({
-                admin,
-                conversationId,
-                includeDocuments: documentsChanged,
-                userId: user.id,
-              });
-              send("talent_profile", profileSnapshot);
-              await capabilityTurn?.complete();
-              send("done", { ok: true });
-              return;
-            }
-
-            const extractedStartOffer = extractStartOfferPayload(assistantText);
-            responseStartOffer = simulationSession?.state.status === "active" ? undefined : extractedStartOffer.request;
-            if (responseStartOffer) suppressRolePreviews = true;
-            let assistantTextSource = withGeneratedDocumentLinks(extractedStartOffer.content);
+            let assistantTextSource = withGeneratedDocumentLinks(assistantText);
             if (recommendationReceiptRef.current) {
               assistantTextSource =
                 recommendationReceiptRef.current.answerDraft;
             }
-            if (!assistantTextSource && !applicationQuestionsAsked) {
+            if (!assistantTextSource.trim() && (deliveredArtifact || formPresenter.hasPending())) {
+              const { response, profileSnapshot } = await finishArtifactOnlyTurn();
+              send("assistant_text_done", { ok: true });
+              send("assistant_messages", { messages: response.assistantMessages });
+              send("progress", { progress: response.progress });
+              send("talent_profile", profileSnapshot);
+              if (response.careerCoachingCallReady) {
+                send("career_coaching_call_ready", { activity: response.careerCoachingCallReady });
+              }
+              send("done", { ok: true });
+              return;
+            }
+            if (!assistantTextSource) {
               assistantTextSource = (
                 await recoverCareerChatAssistantText({
+          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
+          abortSignal: executionSignal,
                   latestUserMessage: normalizedContent,
                   messages: llmMessages,
                   onTextDelta: sendVisibleTextDelta,
@@ -2409,15 +1813,13 @@ ${formatToolResultText(result)}`;
                 })
               ).trim();
             }
-            if (!assistantTextSource && !applicationQuestionsAsked) {
+            if (!assistantTextSource) {
               throw new Error(
                 "Career assistant returned no visible text after recovery."
               );
             }
 
-            let assistantTextWithMarkers = simulationSession?.state.activity
-              ? renderableApplicationMarkdown(assistantTextSource)
-              : assistantTextSource;
+            let assistantTextWithMarkers = assistantTextSource;
 
             const completion = resolveTalentOnboardingCompletion({
               assistantContent: assistantTextWithMarkers,
@@ -2426,9 +1828,11 @@ ${formatToolResultText(result)}`;
             let safeAssistantText = stripPostgresUnsafeChars(
               stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
             );
-            if (!safeAssistantText && !applicationQuestionsAsked) {
+            if (!safeAssistantText) {
               const recoveredText = (
                 await recoverCareerChatAssistantText({
+          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
+          abortSignal: executionSignal,
                   latestUserMessage: normalizedContent,
                   messages: llmMessages,
                   onTextDelta: sendVisibleTextDelta,
@@ -2447,18 +1851,6 @@ ${formatToolResultText(result)}`;
               safeAssistantText = stripPostgresUnsafeChars(
                 stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
               );
-            }
-            if (
-              !recommendationReceiptRef.current &&
-              injectedRecommendationToolPreamble &&
-              !safeAssistantText.startsWith(injectedRecommendationToolPreamble)
-            ) {
-              safeAssistantText = [
-                injectedRecommendationToolPreamble,
-                safeAssistantText,
-              ]
-                .filter((text) => text.trim().length > 0)
-                .join("\n\n");
             }
             safeAssistantText =
               ensureRecommendationPostingLinks(safeAssistantText);
@@ -2490,14 +1882,6 @@ ${formatToolResultText(result)}`;
               send("done", { ok: true, stopped: true });
               return;
             }
-            await finishApplicationContinuation();
-            if (applicationQuestionsAsked) {
-              // The question batch owns its introduction; discard provisional prose.
-              send("assistant_text_done", {ok:true, discard:true});
-              send("assistant_messages", {messages:auxiliaryAssistantMessages});
-              send("done", {ok:true});
-              return;
-            }
             flushVisibleText(safeAssistantText);
             send("assistant_text_done", { ok: true });
 
@@ -2512,7 +1896,7 @@ ${formatToolResultText(result)}`;
                       role: "assistant",
                       content: safeAssistantText,
                       message_type: "chat",
-                      payload: {suppressRolePreviews, ...(applicationReviewMessageId ? { applicationReviewMessageId } : {}), ...(savedInternalCallAnswers ? { internalCallAnswerMessageId: savedInternalCallAnswers.message.id } : {}), ...(responseStartOffer ? { applicationStartRequest: responseStartOffer } : {})},
+                      payload: {suppressRolePreviews, careerTurnSourceMessageId: insertedUserMessage.id, ...(capabilityTurn ? { agentTurn: capabilityTurn.getCompletionPayload() } : {}), ...(savedInternalCallAnswers ? { internalCallAnswerMessageId: savedInternalCallAnswers.message.id } : {})},
                       thinking_logs: thinkingLogs,
                     },
                     isMobile
@@ -2527,7 +1911,12 @@ ${formatToolResultText(result)}`;
               );
             }
 
-            await attachResponseStartOffer(Number(insertedAssistantMessage.id));
+            // Reconcile the streamed placeholder with its durable ID before
+            // onboarding extraction or other post-processing refreshes history.
+            send("assistant_message", {
+              message: toResponseMessage(insertedAssistantMessage as TalentMessageRow),
+              continuing: true,
+            });
 
             await commitDeliveredProcessClosureNotices({
               admin,
@@ -2596,6 +1985,8 @@ ${formatToolResultText(result)}`;
               insertedCompletionNextStepsMessage =
                 completionMessages.nextStepsMessage;
             }
+            await formPresenter.flush();
+            await capabilityTurn?.complete();
             const recommendationSearchRun = recommendationReceiptRef.current
               ?.statusRunId
               ? await fetchSerializedOpportunityRunForTalent({
@@ -2657,15 +2048,6 @@ ${formatToolResultText(result)}`;
                 ),
                 userId: user.id,
               });
-
-            if (proposalChanged && simulationSession) {
-              const card = await persistSimulationProposal(
-                simulationStore,
-                simulationSession,
-                Number(insertedAssistantMessage.id)
-              );
-              if (card) assistantResponseMessages.push(card);
-            }
             assistantResponseMessages.splice(0, assistantResponseMessages.length, ...orderApplicationMessages(assistantResponseMessages));
             if (assistantResponseMessages.length > 1) {
               send("assistant_messages", {
@@ -2711,10 +2093,13 @@ ${formatToolResultText(result)}`;
               userId: user.id,
             });
             send("talent_profile", profileSnapshot);
-            await capabilityTurn?.complete();
             send("done", { ok: true });
           } catch (error) {
-            if (req.signal.aborted) return;
+            if (error instanceof CareerReplyContinuation) { send("done", { ok: true, continuationQueued: true }); return; }
+            if (error instanceof CareerTurnCancelled || executionSignal.aborted) {
+              send("done", { ok: true, stopped: true });
+              return;
+            }
             await notifyUnsupportedUnicodeEscapeError({
               conversationId,
               error,
@@ -2735,7 +2120,8 @@ ${formatToolResultText(result)}`;
                 : "Failed to process talent chat";
             send("error", { error: errorMessage });
           } finally {
-            emitSimulationMessage = null;
+            await releaseAgentTurn?.();
+            emitArtifactMessage = null;
             emitToolStatus = null;
             emitRecommendationStatus = null;
             emitOpportunityRecommendationsChanged = null;
@@ -2755,9 +2141,16 @@ ${formatToolResultText(result)}`;
 
     let assistantText: string;
     try {
-      await startRequestedApplication();
-      assistantText = applicationQuestionsAsked ? "" : await runCareerChatAssistant({
+      assistantText = await runCareerChatAssistant({
+        abortSignal: executionSignal,
+        onAssistantMessage: async (text) => {
+          const row = await commitAssistantProgressRow(text);
+          if (!row) return;
+          auxiliaryAssistantMessages.push(toResponseMessage(row));
+          thinkingLogs = [];
+        },
         toolRuntime: capabilityTurn?.runtime,
+                hasDeliveredArtifact: () => deliveredArtifact || formPresenter.hasPending(),
         chatCompletionReasoningEffort:
           textChatModel.chatCompletionReasoningEffort,
         messages: llmMessages,
@@ -2778,175 +2171,18 @@ ${formatToolResultText(result)}`;
           if (status) recordThinkingLog(status);
         },
         executeTool: async ({ name, input }) => {
-          if (
-            simulationSession?.state.status === "active" &&
-            !SIMULATION_TOOL_NAMES.includes(name)
-          )
-            return {
-              ok: false,
-              reason:
-                "This action is unavailable in Simulate. End the session after user agreement before changing modes.",
-            };
           const { status, toolInput } = splitToolUiStatus(input);
           if (status) {
             recordThinkingLog(status);
           }
 
-          if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
-            await insertTalentToolUsageLog({
-              admin,
-              name,
-              userId: user.id,
-            });
-
-            const companyName =
-              optionalToolString(toolInput.company_name) ??
-              optionalToolString(toolInput.companyName);
-            if (!companyName) {
-              throw new Error("research_company requires company_name.");
-            }
-
-            const cachedSnapshot = await fetchRecentCompanySnapshot({
-              admin,
-              companyName,
-              preferredLocale: responseLocale,
-            });
-            if (cachedSnapshot) {
-              const personalizedResult = await getOrCreateCompanySnapshot({
-                admin,
-                companyName,
-                preferredLocale: responseLocale,
-                reason: optionalToolString(toolInput.reason),
-                recentSnapshot: cachedSnapshot,
-                userId: user.id,
-              });
-              documentsChanged ||= Boolean(
-                personalizedResult.snapshot.document
-              );
-              const messageContent = stripPostgresUnsafeChars(
-                formatCompanySnapshotMessage({
-                  preferredLocale: responseLocale,
-                  reused: true,
-                  snapshot: personalizedResult.snapshot,
-                })
-              );
-              const { data: cacheMessage, error: cacheMessageError } =
-                await admin
-                  .from("talent_messages")
-                  .insert(
-                    withIsMobile(
-                      {
-                        content: messageContent,
-                        conversation_id: conversationId,
-                        message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                        role: "assistant",
-                        user_id: user.id,
-                      },
-                      isMobile
-                    )
-                  )
-                  .select("*")
-                  .single();
-              if (cacheMessageError || !cacheMessage) {
-                await notifyUnsupportedUnicodeEscapeError({
-                  conversationId,
-                  error: cacheMessageError,
-                  metadata: {
-                    companyName,
-                    messageContentLength: messageContent.length,
-                    reusedSnapshot: true,
-                    streamResponse: false,
-                  },
-                  route: "/api/talent/chat",
-                  stage: "talent_messages.insert:company_snapshot_cached",
-                  userId: user.id,
-                });
-                throw new Error(
-                  cacheMessageError?.message ??
-                    "Failed to insert company_snapshot result message."
-                );
-              }
-              await touchConversationIfAllowed();
-              preparedCompanySnapshotRef.current = {
-                messages: [toResponseMessage(cacheMessage as TalentMessageRow)],
-              };
-              return withTalentToolAssistantInstruction({
-                ok: true,
-                cached: true,
-              });
-            }
-
-            // Intentional double cache-fetch: route checked cache above for fast-path,
-            // but getOrCreateCompanySnapshot rechecks for idempotency (another request
-            // may have created the snapshot between the two calls).
-            const result = await getOrCreateCompanySnapshot({
-              admin,
-              companyName,
-              preferredLocale: responseLocale,
-              reason: optionalToolString(toolInput.reason),
-              userId: user.id,
-            });
-            documentsChanged ||= Boolean(result.snapshot.document);
-            const messageContent = stripPostgresUnsafeChars(
-              formatCompanySnapshotMessage({
-                preferredLocale: responseLocale,
-                reused: result.reused,
-                snapshot: result.snapshot,
-              })
-            );
-            const { data: researchMessage, error: researchMessageError } =
-              await admin
-                .from("talent_messages")
-                .insert(
-                  withIsMobile(
-                    {
-                      content: messageContent,
-                      conversation_id: conversationId,
-                      message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                      role: "assistant",
-                      user_id: user.id,
-                    },
-                    isMobile
-                  )
-                )
-                .select("*")
-                .single();
-            if (researchMessageError || !researchMessage) {
-              await notifyUnsupportedUnicodeEscapeError({
-                conversationId,
-                error: researchMessageError,
-                metadata: {
-                  companyName,
-                  messageContentLength: messageContent.length,
-                  reusedSnapshot: result.reused,
-                  streamResponse: false,
-                },
-                route: "/api/talent/chat",
-                stage: "talent_messages.insert:company_snapshot",
-                userId: user.id,
-              });
-              throw new Error(
-                researchMessageError?.message ??
-                  "Failed to insert company_snapshot result message."
-              );
-            }
-            await touchConversationIfAllowed();
-            preparedCompanySnapshotRef.current = {
-              messages: [
-                toResponseMessage(researchMessage as TalentMessageRow),
-              ],
-            };
-            return withTalentToolAssistantInstruction({
-              ok: true,
-              cached: result.reused,
-            });
-          }
 
           return executeDefaultTalentTool({ name, input: toolInput });
         },
       });
     } catch (error) {
-      await finishApplicationContinuation(true);
+      throwIfToolControlError(error);
+      executionSignal.throwIfAborted();
       const receipt = recommendationReceiptRef.current;
       if (!receipt) throw error;
       console.warn(
@@ -2962,75 +2198,25 @@ ${formatToolResultText(result)}`;
       assistantText = receipt.answerDraft;
     }
 
-    const preparedCompanySnapshot = preparedCompanySnapshotRef.current;
-    if (preparedCompanySnapshot) {
-      const preparedAssistantText =
-        preparedCompanySnapshot.messages[
-          preparedCompanySnapshot.messages.length - 1
-        ]?.content ?? "";
-      const preparedMessageId =
-        preparedCompanySnapshot.messages[
-          preparedCompanySnapshot.messages.length - 1
-        ]?.id;
-      await persistInsightExtractionForAssistantMessage({
-        content: preparedAssistantText,
-        messageId: preparedMessageId,
-      });
-      const finalThinkingLogs = thinkingLogs;
-      const messagesWithThinkingLogs = attachThinkingLogsToLastMessage(
-        preparedCompanySnapshot.messages,
-        finalThinkingLogs
-      );
-      if (finalThinkingLogs.length > 0) {
-        await persistThinkingLogsForMessage({
-          admin,
-          conversationId,
-          messageId: preparedMessageId,
-          thinkingLogs: finalThinkingLogs,
-          userId: user.id,
-        });
-      }
-      summarizeConversationInBackground();
-      const profileSnapshot = await buildTalentProfileSnapshot({
-        admin,
-        conversationId,
-        includeDocuments: documentsChanged,
-        userId: user.id,
-      });
-
-      await capabilityTurn?.complete();
-      return NextResponse.json({
-        ok: true,
-        historyChangedRoleId: changedOpportunityRoleId,
-        historyShouldRefresh: opportunityRecommendationsChanged,
-        assistantMessage:
-          messagesWithThinkingLogs[messagesWithThinkingLogs.length - 1],
-        assistantMessages: messagesWithThinkingLogs,
-        progress: {
-          answeredCount: userTurnCount,
-          completed: false,
-          currentStep: currentProgressStep,
-          targetCount: TALENT_INTERVIEW_FINAL_STEP,
-        },
-        userMessage: submission ? undefined : toResponseMessage(insertedUserMessage as TalentMessageRow),
-        ...profileSnapshot,
-      });
-    }
 
     if (generatedDocumentLinks.size === 0) {
       logger.log("\n\nassistantText : ", assistantText, "\n\n");
     }
 
-    const extractedStartOffer = extractStartOfferPayload(assistantText);
-            responseStartOffer = simulationSession?.state.status === "active" ? undefined : extractedStartOffer.request;
-            if (responseStartOffer) suppressRolePreviews = true;
-            let assistantTextSource = withGeneratedDocumentLinks(extractedStartOffer.content);
+    let assistantTextSource = withGeneratedDocumentLinks(assistantText);
     if (recommendationReceiptRef.current) {
       assistantTextSource = recommendationReceiptRef.current.answerDraft;
     }
-    if (!assistantTextSource && !applicationQuestionsAsked) {
+    if (!assistantTextSource.trim() && (deliveredArtifact || formPresenter.hasPending())) {
+      const { response } = await finishArtifactOnlyTurn();
+      await releaseAgentTurn?.();
+      return NextResponse.json(response);
+    }
+    if (!assistantTextSource) {
       assistantTextSource = (
         await recoverCareerChatAssistantText({
+          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
+          abortSignal: executionSignal,
           latestUserMessage: normalizedContent,
           messages: llmMessages,
           responseLocale,
@@ -3038,27 +2224,26 @@ ${formatToolResultText(result)}`;
         })
       ).trim();
     }
-    if (!assistantTextSource && !applicationQuestionsAsked) {
+    if (!assistantTextSource) {
       throw new Error(
         "Career assistant returned no visible text after recovery."
       );
     }
 
-    let assistantTextWithMarkers = simulationSession?.state.activity
-              ? renderableApplicationMarkdown(assistantTextSource)
-              : assistantTextSource;
+    let assistantTextWithMarkers = assistantTextSource;
 
     const completion = resolveTalentOnboardingCompletion({
       assistantContent: assistantTextWithMarkers,
     });
 
-    await finishApplicationContinuation();
     let safeAssistantText = stripPostgresUnsafeChars(
       stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
     );
-    if (!safeAssistantText && !applicationQuestionsAsked) {
+    if (!safeAssistantText) {
       const recoveredText = (
         await recoverCareerChatAssistantText({
+          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
+          abortSignal: executionSignal,
           latestUserMessage: normalizedContent,
           messages: llmMessages,
           responseLocale,
@@ -3097,17 +2282,13 @@ ${formatToolResultText(result)}`;
       userId: user.id,
     });
     if (stoppedSourceMessage) {
+      await releaseAgentTurn?.();
       return NextResponse.json({
         ok: true,
         stopped: true,
         userMessage: toResponseMessage(stoppedSourceMessage),
         assistantMessages: [],
       });
-    }
-
-    if (applicationQuestionsAsked) {
-      await finishApplicationContinuation();
-      return NextResponse.json({ok:true,conversationId,userMessage:submission ? undefined : toResponseMessage(insertedUserMessage as TalentMessageRow),assistantMessages:auxiliaryAssistantMessages});
     }
     // --- Save assistant message ---
     const { data: insertedAssistantMessage, error: assistantError } =
@@ -3121,7 +2302,7 @@ ${formatToolResultText(result)}`;
               role: "assistant",
               content: safeAssistantText,
               message_type: "chat",
-              payload: {suppressRolePreviews, ...(applicationReviewMessageId ? { applicationReviewMessageId } : {}), ...(savedInternalCallAnswers ? { internalCallAnswerMessageId: savedInternalCallAnswers.message.id } : {}), ...(responseStartOffer ? { applicationStartRequest: responseStartOffer } : {})},
+              payload: {suppressRolePreviews, careerTurnSourceMessageId: insertedUserMessage.id, ...(capabilityTurn ? { agentTurn: capabilityTurn.getCompletionPayload() } : {}), ...(savedInternalCallAnswers ? { internalCallAnswerMessageId: savedInternalCallAnswers.message.id } : {})},
               thinking_logs: thinkingLogs,
             },
             isMobile
@@ -3145,6 +2326,7 @@ ${formatToolResultText(result)}`;
         stage: "talent_messages.insert:assistant_message",
         userId: user.id,
       });
+      await releaseAgentTurn?.();
       return NextResponse.json(
         {
           error: assistantError.message ?? "Failed to insert assistant message",
@@ -3152,8 +2334,6 @@ ${formatToolResultText(result)}`;
         { status: 500 }
       );
     }
-
-    await attachResponseStartOffer(Number(insertedAssistantMessage.id));
 
     await commitDeliveredProcessClosureNotices({
       admin,
@@ -3203,6 +2383,9 @@ ${formatToolResultText(result)}`;
       completionMessages?.initialSearchStartedMessage ?? null;
     const insertedCompletionNextStepsMessage =
       completionMessages?.nextStepsMessage ?? null;
+
+    await formPresenter.flush();
+    await capabilityTurn?.complete();
 
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
@@ -3264,25 +2447,17 @@ ${formatToolResultText(result)}`;
       ),
       userId: user.id,
     });
-    if (proposalChanged && simulationSession) {
-      const card = await persistSimulationProposal(
-        simulationStore,
-        simulationSession,
-        Number(insertedAssistantMessage.id)
-      );
-      if (card) assistantResponseMessages.push(card);
-    }
     assistantResponseMessages.splice(0, assistantResponseMessages.length, ...orderApplicationMessages(assistantResponseMessages));
     const insertedAssistantResponseMessage = assistantResponseMessages.find(
       (message) => message.id === insertedAssistantMessage.id
     );
 
-    await capabilityTurn?.complete();
+    await releaseAgentTurn?.();
     return NextResponse.json({
       ok: true,
       historyChangedRoleId: changedOpportunityRoleId,
       historyShouldRefresh: opportunityRecommendationsChanged,
-      userMessage: submission ? undefined : toResponseMessage(insertedUserMessage as TalentMessageRow),
+      userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
       assistantMessage:
         insertedAssistantResponseMessage ??
         toResponseMessage(insertedAssistantMessage as TalentMessageRow),
@@ -3305,6 +2480,13 @@ ${formatToolResultText(result)}`;
       ...profileSnapshot,
     });
   } catch (error) {
+    await releaseAgentTurn?.();
+    if (error instanceof CareerTurnCancelled || executionSignal.aborted) return NextResponse.json({ ok: true, stopped: true, userMessage: persistedSourceResponse });
+    if (error instanceof CareerReplyContinuation) return NextResponse.json({ ok: true, continuationQueued: true, userMessage: persistedSourceResponse });
+    if (error instanceof CareerAgentReplyUnavailable) {
+      if (error.completed) return NextResponse.json({ ok: true, alreadyCompleted: true, userMessage: persistedSourceResponse });
+      return NextResponse.json({ error: error.message, userMessage: persistedSourceResponse }, { status: 409 });
+    }
     const message =
       error instanceof Error ? error.message : "Failed to process talent chat";
     return NextResponse.json({ error: message }, { status: 500 });

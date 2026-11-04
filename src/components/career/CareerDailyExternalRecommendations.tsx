@@ -1,6 +1,6 @@
 import { ChevronRight, Loader2 } from "lucide-react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import { useCareerChatPanelContext } from "./CareerChatPanelContext";
+import { useCareerChatActivityContext } from "./CareerChatPanelContext";
 import { CompanyLogo } from "./watchlist/CompanyLogo";
 import {
   useDailyExternalRecommendations,
@@ -10,7 +10,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 
 function useSnapshot() {
   const { user, isOnboardingDone, stage } = useCareerSidebarContext();
-  const { tasksOverride, pendingActionsOverride } = useCareerChatPanelContext();
+  const { tasksOverride, pendingActionsOverride } = useCareerChatActivityContext();
   return useDailyExternalRecommendations(
     user?.id,
     tasksOverride === undefined &&
@@ -88,7 +88,7 @@ export function TodayExternalRecommendationsCard({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] text-neutral-primary">
-          {t("career.external_daily.today", "오늘의 기회들을 확인해 보세요")}
+          {t("career.external_daily.today", "오늘 찾은 기회 보기")}
         </span>
       </span>
       <ChevronRight

@@ -1,0 +1,8 @@
+{
+  "datasetVersion": "v1",
+  "provenance": "2026-10-29 incident-inspired synthetic, no production data",
+  "files": {
+    "cases-v1.json": "76fa99b5bfbc3091997f5ebf9545e675b154486c9bc8fbf26eefa214ac3d814b",
+    "gold-v1.md": "742e2762d3f5f4b944514cc28dd53d39eb5694ce2337d9484ee035eb2223608b"
+  }
+}

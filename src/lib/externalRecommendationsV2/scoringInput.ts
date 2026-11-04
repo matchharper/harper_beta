@@ -7,6 +7,7 @@ import {
 } from "../talentOnboarding/jobPostingRecommendations";
 import { externalScoringInput } from "./workerInputText";
 import { descriptionText } from "./descriptionText";
+import { PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
 export function v2PromptCandidate(
   card: RoleCard,
   language: "ko" | "en"
@@ -22,7 +23,7 @@ export function buildScoringInput(
   context: unknown,
   candidates: FullJdPromptCandidate[]
 ) {
-  return buildScoringSections(context, candidates).map(section => section.text).join("\n\n");
+  return [`Times: ${PROMPT_TIME_ZONE}.`, ...buildScoringSections(context, candidates).map(section => section.text)].join("\n\n");
 }
 
 export function buildScoringSections(context: unknown, candidates: FullJdPromptCandidate[]) {

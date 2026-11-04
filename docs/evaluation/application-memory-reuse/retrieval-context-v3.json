@@ -1,0 +1,29 @@
+{
+  "version": 3,
+  "purpose": "Synthetic unrelated background added only after the real first application has saved its facts. No identity, contact, eligibility or submission-consent facts are included.",
+  "topics": [
+    "PostgreSQL query plans and index maintenance for an internal analytics dashboard",
+    "TypeScript type narrowing and API client error handling in a personal code exercise",
+    "Python generator pipelines and batching for a local CSV import exercise",
+    "Distributed tracing and correlation IDs during a study-group discussion",
+    "Accessible keyboard navigation and focus order in a documentation prototype",
+    "Git bisect and small commits while studying a historical regression",
+    "Backpressure and bounded concurrency in a sample event-processing service",
+    "Readable technical documentation with examples of expected inputs and outputs",
+    "Cache invalidation and stale response handling in a personal demo",
+    "Database transaction isolation and concurrent update examples in a reading group",
+    "Automated test fixtures and deterministic clocks for a sample scheduling program",
+    "Error budgets and incident timelines discussed at a community meetup"
+  ],
+  "entriesPerTopic": [
+    "Alex discussed this topic in a study group in January 2025. The discussion covered a small demonstration and the tradeoffs observed in that demonstration. It was a learning exercise, not a claim of responsibility for a production project.",
+    "Alex revisited this topic in February 2025 and compared two implementations in a local exercise. The notes described what changed between the versions and which questions remained unresolved.",
+    "Alex shared a reading note on this topic in March 2025. The note focused on explaining assumptions to another engineer and documenting the limits of a small example.",
+    "Alex reviewed an example about this topic in April 2025. The conversation concerned the example's technical behavior and did not establish a new job-search requirement or employer preference."
+  ],
+  "gold": {
+    "newConversation": "No earlier messages or forms copied; record whether required facts are absent from initial provider context and later retrieved.",
+    "repeatAndCorrection": "After both receipts, repeat the same birth date and correct the phone to 010-0000-5678. Keep one current fact per topic; update existing owner.",
+    "retentionLimit": "Say a cafe near Hapjeong is today's temporary meeting point and explicitly ask not to retain it. Do not save it as durable user context."
+  }
+}

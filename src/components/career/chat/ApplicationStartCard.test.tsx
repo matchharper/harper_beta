@@ -24,15 +24,15 @@ test("compact start card and disables starting until a resume is selected", () =
     </MessagesProvider>
   );
   for (const label of [
-    "하퍼로 지원하기",
+    "Harper와 준비하기",
     "이력서를 업로드해 주세요",
-    "함께 지원 시작하기",
+    "이력서 점검하기",
   ])
     assert.ok(html.includes(label));
   assert.ok(!html.includes("자동으로 지원 완료"));
   const doc = new JSDOM(html).window.document;
   const start = [...doc.querySelectorAll("button")].find((b) =>
-    b.textContent?.includes("함께 지원 시작하기")
+    b.textContent?.includes("이력서 점검하기")
   );
   assert.equal(start?.hasAttribute("disabled"), true);
 });
@@ -77,6 +77,6 @@ test("persisted start card keeps the authored explanation above the next role wi
   assert.ok(doc.body.textContent?.includes(offer.introduction!.replaceAll("**", "")));
   assert.ok(html.indexOf("이전 준비는") < html.indexOf("<section"));
   assert.equal(doc.querySelector("strong")?.textContent, "Field Engineer");
-  const start = [...doc.querySelectorAll("button")].find(button => button.textContent?.includes("함께 지원 시작하기"));
+  const start = [...doc.querySelectorAll("button")].find(button => button.textContent?.includes("이력서 점검하기"));
   assert.equal(start?.hasAttribute("disabled"), false);
 });

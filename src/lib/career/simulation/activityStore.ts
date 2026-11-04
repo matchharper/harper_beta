@@ -1,3 +1,4 @@
+import { hydrateApplicationInspections, storeApplicationInspections } from "./sharedApplicationInspection";
 import { applicationQuestionMessages } from "./questionHistory";
 import { createHash } from "node:crypto";
 import type { Json } from "@/types/database.types";
@@ -46,6 +47,9 @@ export function activityRecord(
     }),
   };
 }
+export async function readActivityRecord(row: ActivityRow, store: SessionStoreArgs) {
+  return activityRecord({ ...row, payload: await hydrateApplicationInspections(store.admin, row.payload) }, store);
+}
 export async function activityOperation(
   args: SessionStoreArgs & {
     operation: "read" | "touch" | "begin" | "save" | "resume";
@@ -63,7 +67,7 @@ export async function activityOperation(
     p_operation: args.operation === "touch" ? "read" : args.operation,
     p_message_id: args.record?.messageId ?? args.messageId ?? null,
     p_revision: args.record?.state.revision ?? null,
-    p_payload: args.state ?? null,
+    p_payload: args.state ? await storeApplicationInspections(args.admin, args.state) : null,
     p_key: args.key
       ? createHash("sha256").update(args.key).digest("hex")
       : null,
@@ -72,7 +76,7 @@ export async function activityOperation(
   if (error)
     throw Object.assign(new Error(error.message), { code: error.code });
   if (!data) return null;
-  const record = activityRecord(data as ActivityRow, args);
+  const record = await readActivityRecord(data as ActivityRow, args);
   if (args.operation !== "touch") return record;
   const state = expirePreparation(record.state);
   if (JSON.stringify(state) === JSON.stringify(record.state)) return record;

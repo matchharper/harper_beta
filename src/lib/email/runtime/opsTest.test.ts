@@ -31,8 +31,11 @@ before(async () => {
         assert.match(text, /Subject: 지원 문의/);
         assert.match(text, /Ops email test/);
         assert.doesNotMatch(text, /\{"subject"/);
-        const selection = args.adapter.adaptTools({ tools: [], toolNames: [], stopAfterToolNames: [] });
-        assert.ok(selection.toolNames.includes("ready_for_role"));
+        const { resolveCareerChatTools } = await import("@/lib/career/llmTools");
+        const selection = args.adapter.adaptTools(resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, allowedToolNames: args.allowedToolNames }));
+        assert.ok(selection.toolNames.includes("use_browser"));
+        assert.ok(selection.toolNames.includes("suggest_form"));
+        assert.notEqual(args.adapter.artifactsVisible, true);
         const blocked = await args.adapter.executeTool({
           name: "contact_company", input: {},
           executeDefault: async () => { throw new Error("External executor must not run"); },
@@ -40,7 +43,7 @@ before(async () => {
         const providerResult = serializeToolResultForModel(blocked);
         assert.match(providerResult, /ops_email_test_external_effect_disabled/);
         assert.ok(!providerResult.trim().startsWith("{"));
-        await args.adapter.beforeAssistantFinalization();
+        await args.adapter.beforeAssistantFinalization?.();
         return args.adapter.persistAssistant({ content: response, notices: [] });
       },
     };

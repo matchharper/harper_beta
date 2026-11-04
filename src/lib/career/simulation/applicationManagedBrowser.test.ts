@@ -5,6 +5,7 @@ import {
   runManagedApplication,
   resumeManagedApplication,
   managedApplicationInstructions,
+  managedApplicationReviewIdentity,
   type ManagedApplicationHooks,
 } from "./applicationManagedBrowser";
 import { browserUseAgents } from "./browserUseAgents";
@@ -15,7 +16,7 @@ import type { SessionRecord } from "./sessionStore";
 const workspaceId = "00000000-0000-4000-8000-000000000010";
 const sessionId = "00000000-0000-4000-8000-000000000011";
 const runId = "00000000-0000-4000-8000-000000000012";
-function fixture(t: TestContext) {
+function fixture(t: TestContext, reviewedSubmission = true) {
   let state = createSimulationSession({
     roleRef: "job:fixture",
     roleName: "Fixture · Engineer",
@@ -67,6 +68,7 @@ function fixture(t: TestContext) {
     ],
   };
   state.applicationReview = review;
+  state.applicationForm = form;
   state.browser = {
     id: "attempt",
     engine: "browser-use-agents",
@@ -78,6 +80,9 @@ function fixture(t: TestContext) {
     startedAt: state.startedAt,
     updatedAt: state.startedAt,
     reviewedApplication: review,
+  };
+  if (reviewedSubmission) state.browser.managed = {
+    authorizedReviewFingerprint: managedApplicationReviewIdentity(state),
   };
   const calls: string[] = [];
   let completed: unknown;
@@ -195,24 +200,18 @@ function fixture(t: TestContext) {
       remoteStatus = "completed";
       if (value) output = value;
     },
+    running: () => { remoteStatus = "running"; },
   };
 }
 
-test("review approval precedes any managed API request; approved values and filenames reach one run", async (t) => {
+test("one submit action dispatches the reviewed values and files without a second approval", async (t) => {
   const f = fixture(t);
-  await runManagedApplication(f.hooks, 0);
-  assert.deepEqual(f.calls, []);
-  const batch = f.record().state.activity!.batches.at(-1)!;
-  assert.ok(
-    batch.review?.markdown.includes("제가 승인한 원문입니다.\n줄바꿈 유지")
-  );
-  assert.ok(batch.review?.markdown.includes("지원서.pdf"));
-  assert.ok(batch.review?.markdown.includes("미입력"));
-  await f.respond();
   assert.equal(applicationSubmissionState(f.record().state), "not_submitted");
   await runManagedApplication(f.hooks, 0);
+  assert.equal(f.record().state.activity!.batches.length, 0);
   assert.equal(f.calls.filter((c) => c === "run").length, 1);
-  assert.ok(f.task().includes(batch.review!.markdown));
+  assert.ok(f.task().includes("제가 승인한 원문입니다.\n줄바꿈 유지"));
+  assert.ok(f.task().includes("미입력"));
   assert.ok(f.task().includes("uploads/지원서.pdf"));
   assert.ok(f.task().includes(managedApplicationInstructions));
   await runManagedApplication(f.hooks, 0);
@@ -225,7 +224,7 @@ test("review approval precedes any managed API request; approved values and file
 });
 
 test("declining approval never uploads files or starts an agent", async (t) => {
-  const f = fixture(t);
+  const f = fixture(t, false);
   await runManagedApplication(f.hooks, 0);
   await f.respond("cancel");
   await runManagedApplication(f.hooks, 0);
@@ -235,16 +234,15 @@ test("declining approval never uploads files or starts an agent", async (t) => {
 
 test("edited review and changed attachment invalidate approval before any remote run", async (t) => {
   const f = fixture(t);
-  await runManagedApplication(f.hooks, 0);
   f.mutate((s) => {
     s.applicationReview!.revision++;
   });
-  await assert.rejects(f.respond(), /review changed/);
+  await assert.rejects(runManagedApplication(f.hooks, 0), /review changed/);
   assert.deepEqual(f.calls, []);
 });
 
 test("changed file after approval cannot be uploaded", async (t) => {
-  const f = fixture(t);
+  const f = fixture(t, false);
   await runManagedApplication(f.hooks, 0);
   await f.respond();
   f.changeFile();
@@ -254,8 +252,6 @@ test("changed file after approval cannot be uploaded", async (t) => {
 
 test("ambiguous run creation is never replayed after worker restart", async (t) => {
   const f = fixture(t);
-  await runManagedApplication(f.hooks, 0);
-  await f.respond();
   t.mock.method(browserUseAgents, "createRun", async () => {
     f.calls.push("run");
     throw new Error("connection lost");
@@ -269,10 +265,8 @@ test("ambiguous run creation is never replayed after worker restart", async (t) 
   assert.ok(f.record().state.browser!.transmissionAttemptedAt);
 });
 
-test("new required question returns to Harper and requires review before a same-session follow-up", async (t) => {
+test("answering a new required question continues the same authorized application without another approval", async (t) => {
   const f = fixture(t);
-  await runManagedApplication(f.hooks, 0);
-  await f.respond();
   await runManagedApplication(f.hooks, 0);
   f.finish({
     status: "needs_input",
@@ -293,39 +287,32 @@ test("new required question returns to Harper and requires review before a same-
   await runManagedApplication(f.hooks, 0);
   assert.equal(f.record().state.browser!.status, "waiting");
   await f.respond("다음 달 1일");
-  await runManagedApplication(f.hooks, 0);
-  assert.equal(f.calls.filter((c) => c === "run").length, 1);
-  assert.ok(
-    f
-      .record()
-      .state.activity!.batches.at(-1)!
-      .review?.markdown.includes("다음 달 1일")
-  );
   assert.equal(f.record().state.browser!.managed!.sessionId, sessionId);
-  await f.respond();
+  f.running();
   t.mock.method(
     browserUseAgents,
     "createRun",
     async (
-      _task: string,
+      task: string,
       _schema: unknown,
       workspace: string,
       session: string
     ) => {
       assert.equal(workspace, workspaceId);
       assert.equal(session, sessionId);
+      assert.ok(task.includes("다음 달 1일"));
       f.calls.push("run");
       return { id: runId, sessionId, status: "running" };
     }
   );
   await runManagedApplication(f.hooks, 0);
   assert.equal(f.calls.filter((c) => c === "run").length, 2);
+  assert.equal(f.record().state.activity!.batches.length, 1);
+  assert.equal(f.record().state.activity!.batches[0].browser!.kind, "information");
 });
 
 test("possible submission never resumes just because the agent asks a question", async (t) => {
   const f = fixture(t);
-  await runManagedApplication(f.hooks, 0);
-  await f.respond();
   await runManagedApplication(f.hooks, 0);
   f.finish({
     status: "needs_input",
@@ -338,13 +325,11 @@ test("possible submission never resumes just because the agent asks a question",
   });
   await runManagedApplication(f.hooks, 0);
   assert.equal((f.completed() as { status: string }).status, "uncertain");
-  assert.equal(f.record().state.activity!.batches.length, 1);
+  assert.equal(f.record().state.activity!.batches.length, 0);
 });
 
 test("cancellation while uploading prevents dispatch", async (t) => {
   const f = fixture(t);
-  await runManagedApplication(f.hooks, 0);
-  await f.respond();
   t.mock.method(browserUseAgents, "upload", async () => {
     f.mutate((s) => {
       s.status = "ended";
@@ -354,3 +339,35 @@ test("cancellation while uploading prevents dispatch", async (t) => {
   await assert.rejects(runManagedApplication(f.hooks, 0), /authorization changed/);
   assert.equal(f.calls.filter((c) => c === "run").length, 0);
 });
+
+test("a changed reviewed resume stops before sending any applicant data", async (t) => {
+  const f = fixture(t);
+  f.changeFile();
+  await assert.rejects(runManagedApplication(f.hooks, 0), /Final file changed/);
+  assert.deepEqual(f.calls, []);
+});
+
+test("a review changed during upload cannot use the earlier submit authorization", async (t) => {
+  const f = fixture(t);
+  t.mock.method(browserUseAgents, "upload", async () => {
+    f.mutate(s => { s.applicationReview!.fields[0].value = "Concurrent edit"; });
+    return [];
+  });
+  await assert.rejects(runManagedApplication(f.hooks, 0), /authorization changed/);
+  assert.equal(f.calls.filter(c => c === "run").length, 0);
+});
+
+for (const blocker of ["Login required", "Email verification required", "Blocking CAPTCHA"]) {
+  test(`${blocker} stops the attempt without asking for whole-application approval`, async (t) => {
+    const f = fixture(t);
+    f.finish({ status: "failed", summary: blocker, url: "https://fixture.example/apply", evidence: blocker,
+      submissionAttempted: false, questions: [], reviewMarkdown: "" });
+    await runManagedApplication(f.hooks, 0);
+    await runManagedApplication(f.hooks, 0);
+    assert.equal(f.record().state.browser!.status, "failed");
+    assert.equal(f.record().state.browser!.approval!.executed, false);
+    assert.equal(f.record().state.activity!.batches.length, 0);
+    assert.equal(f.calls.filter(c => c === "run").length, 1);
+    assert.ok(f.record().state.applicationReview);
+  });
+}

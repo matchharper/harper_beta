@@ -108,7 +108,7 @@ export default function CareerOpportunityPreviewModal({
     <TalentCareerModal
       open={Boolean(item)}
       onClose={onClose}
-      ariaLabel={t("career.history.job_actions.preview_modal", "포지션 상세")}
+      ariaLabel={t("career.history.job_actions.preview_modal", "기회 상세")}
       backdropClassName="z-[100]"
       overlayClassName="z-[100] items-start pt-6 sm:pt-10"
       panelClassName="w-[calc(100vw-24px)] max-w-[880px] border border-neutral-1000-a05 bg-bg-floating sm:w-[min(880px,86vw)]"

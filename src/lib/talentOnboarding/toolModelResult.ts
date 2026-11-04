@@ -1,3 +1,4 @@
+import { formatDocumentToolModelResult } from "./documentToolModelResult";
 import { formatPromptText } from "@/lib/llm/promptText";
 
 type Data = Record<string, unknown>;
@@ -20,6 +21,10 @@ export function withCompactTalentToolModelResult(name: string, result: unknown):
   if (!raw || typeof raw.modelOutput === "string") return result;
   let model: Data;
   switch (name) {
+    case "list_documents":
+    case "read_document":
+    case "upsert_document":
+      return { ...raw, modelOutput: formatDocumentToolModelResult(name, raw) };
     case "update_setting": {
       model = omit(raw, ["remainingInternalRoles", "impactLevel", "internalRoleHistoryLimit", "updatedSettingFields"]);
       if (Array.isArray(raw.remainingInternalRoles)) {

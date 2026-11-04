@@ -132,6 +132,7 @@ export async function loadCompanyProactiveAwareness(args: {
 export async function runCompanyProactiveReview(args: {
   user: User; conversation: OrgAgentConversationRow; anchorMessageId: number; jobId: string;
   actionContext: Record<string, unknown>; responseLocale?: "ko" | "en" | "auto";
+  executionDeadlineAt: number;
 }) {
   if (!isCompanyProactiveReviewEnabled()) throw new OrgAgentWebActionSupersededError();
   const admin: any = getSupabaseAdmin();
@@ -171,7 +172,7 @@ export async function runCompanyProactiveReview(args: {
     readAudience: "company_safe", scopeKey: `proactive:${channel.id}`, slackThreadId: null, mentions: [],
     userLabel: "Harper-initiated recruiting assignment", userMessage: buildCompanyProactiveReviewPrompt(awareness),
     onToolStatus: (log) => { thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log); },
-    assertCanContinue, signal: AbortSignal.timeout(240000) });
+    assertCanContinue, signal: AbortSignal.timeout(proactiveReviewRemainingMs(args.executionDeadlineAt, String(args.actionContext.deadlineAt))) });
   let batch = result.state.companyMessageBatch;
   if (!batch && result.reply.trim()) {
     await assertCanContinue();
@@ -182,4 +183,10 @@ export async function runCompanyProactiveReview(args: {
   await saveCompanyMessageBatchThinkingLogs({ admin, workspaceId, batch, thinkingLogs });
   if (!batch) return { outcome: "completed_silent" as const, progressMessageId: null, terminalMessageId: null };
   return { outcome: "completed_message" as const, progressMessageId: null, terminalMessageId: batch.messageIds[0], batchId: batch.batchId };
+}
+
+export function proactiveReviewRemainingMs(executionDeadlineAt: number, reviewDeadlineAt: string, now = Date.now()) {
+  const remaining = Math.min(executionDeadlineAt, Date.parse(reviewDeadlineAt)) - now;
+  if (!Number.isFinite(remaining) || remaining <= 0) throw new OrgAgentWebActionSupersededError();
+  return remaining;
 }

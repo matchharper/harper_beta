@@ -1,0 +1,15 @@
+{
+  "datasetVersion": "v2",
+  "createdAt": "2026-11-03",
+  "guidanceRevisions": {
+    "A": "463d83cb",
+    "B": "0967d691"
+  },
+  "hashes": {
+    "cases-v2.json": "497e7d29b011e4c12d337f3d599106cd22c04939d18e692a3e56e260b612716a",
+    "gold-v2.json": "11e603abbc1fe684d049154b91fb96e97f5b702b2cd9adb3fcbe8e1f4d26ec96"
+  },
+  "repetitions": 2,
+  "model": "production default, same model/reasoning as v1",
+  "boundary": "Live original Career model and Decisions; identical frozen fixture for A/B; no external side effects. Evaluation-only source replay; no checkout or product edits."
+}

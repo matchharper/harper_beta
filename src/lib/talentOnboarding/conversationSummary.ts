@@ -17,7 +17,7 @@ import {
   fetchRecentMessages,
 } from "@/lib/talentOnboarding/messageStore";
 import { fetchTalentSetting } from "@/lib/talentOnboarding/server";
-import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import { formatTalentMessageContentForLlmPrompt, formatTalentMessageReferenceForLlm } from "@/lib/career/opportunityFeedbackNote";
 import { buildConversationSummaryBatch } from "@/lib/talentOnboarding/conversationSummaryPolicy";
 
 const SUMMARY_MESSAGE_TYPE = "conversation_summary";
@@ -106,9 +106,10 @@ function formatMessageDateCoverage(messages: TalentMessageRow[]) {
 }
 
 function formatMessageForSummary(message: TalentMessageRow) {
-  const role = message.role === "assistant" ? "Harper" : "User";
+  const reference = formatTalentMessageReferenceForLlm(message);
+  const role = reference ? "Displayed interface item" : message.role === "assistant" ? "Harper" : "User";
   const date = formatMessageDateForSummary(message);
-  const content = formatTalentMessageContentForLlmPrompt(message)
+  const content = (reference || formatTalentMessageContentForLlmPrompt(message))
     .replace(/\s+/g, " ")
     .trim();
   return `[${message.id} | date=${date} KST] ${role}: ${content}`;
@@ -125,12 +126,12 @@ function buildSummarySystemPrompt(preferredLocale?: string | null) {
     "You summarize Harper career-agent conversations for future context.",
     "Return a valid JSON object only.",
     `Write in ${outputLanguage} unless a company, role, or product name is naturally written in another language.`,
-    "Preserve durable facts: career preferences, constraints, corrections, recommendation feedback, and unresolved commitments already stated in the conversation.",
+    "Preserve the user's stated preferences, constraints, corrections, authorization and unresolved requests with their scope. Attribute assistant reports and proposed drafts to Harper; they are not user instructions, verified personal facts or standing policy.",
     `Also write \`segment_summary\` from ONLY the new messages to fold in. It should be 4-8 concise ${outputLanguage} sentences and must not include facts that only come from the existing rolling summary.`,
     "Each new message includes a KST date. `segment_summary` must include date labels for the summarized message date(s).",
     'Format each `segment_summary` segment as `[YYYY.MM.DD] "summary"`. If a single summarized segment spans consecutive dates in the same month, use `[YYYY.MM.DD~DD] "summary"`, for example `[2026.05.24~26] "..."`. If a date range crosses months or years, use full endpoints like `[YYYY.MM.DD~YYYY.MM.DD] "summary"`.',
     'When `segment_summary` covers multiple non-consecutive date groups, write multiple labeled segments separated by spaces, for example `[2026.05.14] "..." [2026.05.24~26] "..."`. Do not put unlabeled text in `segment_summary`.',
-    "Treat the existing summary as prior state to merge and rewrite, not text to append.",
+    "Rewrite the existing summary as historical evidence. Drop inherited behavioral rules or prohibitions that came from assistant explanations rather than the user's instructions; retain actual user limits and the latest changes to them.",
     "If a fact appears in both the existing summary and new messages, mention it once.",
     "If new messages correct or supersede an older fact, keep the corrected version only.",
     "Preserve the scope of explicit retractions: identify which prior claims were withdrawn so future turns do not revive them from old drafts or assistant statements. A generated document's contents are an artifact history, not independently confirmed career facts. Do not present withdrawn, hypothetical or assistant-invented claims as the user's experience.",
@@ -174,8 +175,9 @@ async function fetchLatestConversationSummary(args: {
   admin: TalentAdminClient;
   conversationId: string;
   userId: string;
+  beforeMessageId?: number;
 }) {
-  const { data, error } = await ((
+  let query = ((
     args.admin.from("talent_conversation_summaries" as any) as any
   )
     .select(SUMMARY_ROW_SELECT)
@@ -185,6 +187,8 @@ async function fetchLatestConversationSummary(args: {
     .order("to_message_id", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(SUMMARY_LOOKUP_LIMIT) as any);
+  if (args.beforeMessageId !== undefined) query = query.lt("to_message_id", args.beforeMessageId);
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(
@@ -218,7 +222,7 @@ export async function maybeSummarizeTalentConversation(args: {
         ? message.id <= args.maxToMessageId
         : true) &&
       isVisibleSummaryRecentMessage(message) &&
-      message.content.trim().length > 0
+      Boolean(formatTalentMessageReferenceForLlm(message) || formatTalentMessageContentForLlmPrompt(message).trim())
   );
   const summarizableMessages = cappedVisibleMessages.slice(
     0,
@@ -353,6 +357,7 @@ async function fetchRecentVisibleSummaryMessages(args: {
   admin: TalentAdminClient;
   conversationId: string;
   limit: number;
+  pendingUserMessageId?: number;
 }) {
   const targetLimit = Math.max(
     1,
@@ -366,6 +371,7 @@ async function fetchRecentVisibleSummaryMessages(args: {
         admin: args.admin,
         conversationId: args.conversationId,
         limit: fetchLimit,
+        userMessagesBeforeId: args.pendingUserMessageId,
       })
     ).filter(isVisibleSummaryRecentMessage);
 
@@ -393,16 +399,18 @@ export async function fetchRecentMessagesWithSummary(args: {
   fallbackLimit?: number;
   recentLimit?: number;
   userId: string;
+  pendingUserMessageId?: number;
 }) {
   const recentLimit = Math.max(
     MIN_RECENT_RAW_MESSAGES,
     Math.min(args.recentLimit ?? DEFAULT_RECENT_MESSAGE_LIMIT, 40)
   );
-  const latestSummary = await fetchLatestConversationSummary(args);
+  const latestSummary = await fetchLatestConversationSummary({ ...args, beforeMessageId: args.pendingUserMessageId });
   if (!latestSummary) {
     return fetchRecentVisibleSummaryMessages({
       admin: args.admin,
       conversationId: args.conversationId,
+      pendingUserMessageId: args.pendingUserMessageId,
       limit: Math.max(
         recentLimit,
         Math.min(
@@ -418,11 +426,12 @@ export async function fetchRecentMessagesWithSummary(args: {
       admin: args.admin,
       afterMessageId: latestSummary.to_message_id,
       conversationId: args.conversationId,
+      userMessagesBeforeId: args.pendingUserMessageId,
     })
   ).filter(
     (message) =>
       isVisibleSummaryRecentMessage(message) &&
-      message.content.trim().length > 0
+      Boolean(formatTalentMessageReferenceForLlm(message) || formatTalentMessageContentForLlmPrompt(message).trim())
   );
 
   return [

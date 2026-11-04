@@ -310,3 +310,96 @@ test("saved board recovers an exhausted page after cache loss and keeps it throu
     dom.window.close();
   }
 });
+
+for (const succeeds of [true, false]) {
+  test(`saving a current opportunity ${succeeds ? "commits without chat or list reload" : "restores the new card on failure"}`, async () => {
+    const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
+    const previous = new Map(["window", "document", "Event", "CustomEvent", "IS_REACT_ACT_ENVIRONMENT"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+    Object.defineProperties(globalThis, {
+      window: { configurable: true, value: dom.window },
+      document: { configurable: true, value: dom.window.document },
+      Event: { configurable: true, value: dom.window.Event },
+      CustomEvent: { configurable: true, value: dom.window.CustomEvent },
+      IS_REACT_ACT_ENVIRONMENT: { configurable: true, writable: true, value: true },
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const root = createRoot(dom.window.document.getElementById("root")!);
+    const current = { ...opportunity, listPosition: "current" as const };
+    const requests: unknown[] = [];
+    let resolvePatch!: (response: Response) => void;
+    const patch = new Promise<Response>(resolve => { resolvePatch = resolve; });
+    let hook!: ReturnType<typeof useCareerHistoryState>;
+    const fetchWithAuth: FetchWithAuth = async (url, init) => {
+      assert.equal(url, "/api/talent/opportunities");
+      assert.equal(init?.method, "PATCH");
+      requests.push(JSON.parse(String(init?.body)));
+      return patch;
+    };
+    function Harness() {
+      hook = useCareerHistoryState({ autoLoad: false, conversationId: "conversation-1", enabled: false, userId: "fixture", fetchWithAuth,
+        initialSessionPage: { counts: null, items: [current], nextOffset: null } });
+      return null;
+    }
+    try {
+      await act(async () => root.render(<QueryClientProvider client={client}><MessagesProvider locale="ko"><Harness /></MessagesProvider></QueryClientProvider>));
+      let result!: Promise<boolean>;
+      await act(async () => { result = hook.onUpdateHistoryOpportunitySavedStage(current.id, "saved", current); });
+      assert.equal(hook.historyOpportunityCounts.new, 0);
+      assert.equal(hook.historyOpportunityCounts.saved, 1);
+      assert.equal(requests.length, 1);
+      assert.deepEqual(requests[0], { action: "feedback", feedback: "positive", opportunityId: current.id, savedStage: "saved", locale: "ko" });
+      await act(async () => {
+        resolvePatch(succeeds ? Response.json({ opportunity: { ...current, feedback: "positive", savedStage: "saved" } }) : Response.json({ error: "save failed" }, { status: 500 }));
+        assert.equal(await result, succeeds);
+      });
+      assert.equal(requests.length, 1, "saving never waits for a conversation or full list reload");
+      assert.equal(hook.historyOpportunityCounts.new, succeeds ? 0 : 1);
+      assert.equal(hook.historyOpportunityCounts.saved, succeeds ? 1 : 0);
+      assert.equal(hook.historyOpportunities[0]?.feedback, succeeds ? "positive" : null);
+    } finally {
+      await act(async () => root.unmount());
+      client.clear();
+      for (const [key, descriptor] of previous) {
+        if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+        else Reflect.deleteProperty(globalThis, key);
+      }
+      dom.window.close();
+    }
+  });
+}
+
+test("an initial history request failure settles loading and exposes its error", async () => {
+  const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
+  const previous = new Map(["window", "document", "Event", "CustomEvent", "IS_REACT_ACT_ENVIRONMENT"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  Object.defineProperties(globalThis, {
+    window: { configurable: true, value: dom.window },
+    document: { configurable: true, value: dom.window.document },
+    Event: { configurable: true, value: dom.window.Event },
+    CustomEvent: { configurable: true, value: dom.window.CustomEvent },
+    IS_REACT_ACT_ENVIRONMENT: { configurable: true, writable: true, value: true },
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  let hook!: ReturnType<typeof useCareerHistoryState>;
+  const fetchWithAuth: FetchWithAuth = async () => Response.json({ error: "History query failed" }, { status: 500 });
+  function Harness() {
+    hook = useCareerHistoryState({ conversationId: null, enabled: true, userId: "fixture", fetchWithAuth });
+    return null;
+  }
+  try {
+    await act(async () => root.render(<QueryClientProvider client={client}><MessagesProvider locale="ko"><Harness /></MessagesProvider></QueryClientProvider>));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
+    assert.equal(hook.historyInitialLoading, false);
+    assert.equal(hook.historyLoaded, true);
+    assert.equal(hook.historyUpdateError, "History query failed");
+    assert.equal(hook.historyOpportunities.length, 0);
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+    dom.window.close();
+  }
+});

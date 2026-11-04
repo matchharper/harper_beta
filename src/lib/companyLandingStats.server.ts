@@ -2,11 +2,7 @@ import postgres from "postgres";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseDotenv } from "dotenv";
-import type {
-  CompanyLandingSnapshot,
-  CompanyLandingPairSnapshot,
-} from "./companyLandingStats";
-import { COMPANY_LANDING_ACTIVITY_WINDOW_SECONDS } from "./companyLandingStats";
+import type { CompanyLandingStats } from "./companyLandingStats";
 
 // Use the same server connection configuration as Career's company job index.
 const DATABASE_ENV_NAMES = [
@@ -54,91 +50,20 @@ function getStatsClient() {
   return client;
 }
 
-// Only anonymous aggregates leave the database. Keep the query here so local
-// fixture verification and the public endpoint use exactly the same definition.
+// Source populations are aggregated only by the daily database job.
 export async function readCompanyLandingStats(
   db = getStatsClient()
-): Promise<CompanyLandingSnapshot> {
-  const [row] = await db.begin("read only", async (tx) => {
-    await tx`set local statement_timeout = '30000ms'`;
-    return tx<CompanyLandingSnapshot[]>`
-      with conversations as (
-        select user_id, count(*) as message_count
-        from public.talent_messages m
-        where exists (
-            select 1 from public.talent_setting s
-            where s.user_id = m.user_id and s.is_onboarding_done = true
-          )
-          and (
-            (message_type in ('chat', 'call_transcript')
-              and role in ('user', 'assistant'))
-            or (message_type = 'opportunity_feedback_note' and role = 'user')
-          )
-          and length(btrim(content)) > 0
-        group by user_id
-        -- Among completed onboardings, retain two-way chat/voice participants.
-        -- Count their full history, including onboarding and job feedback.
-        having count(*) filter (
-          where role = 'user' and message_type in ('chat', 'call_transcript')
-        ) > 0
-          and count(*) filter (
-            where role = 'assistant' and message_type in ('chat', 'call_transcript')
-          ) > 0
-      )
-      select
-        (select count(*)::integer from public.talent_users) as "talentCount",
-        (select round(avg(message_count))::integer from conversations)
-          as "averageConversationMessages",
-        (select count(*) from public.talent_external_fit e
-         full join public.talent_opportunity_fit f
-           on e.talent_id = f.talent_id and e.role_id = f.opportunity_id
-         where not exists (
-           select 1 from public.company_roles r
-           where r.source_type = 'internal'
-             and r.information->>'testOnly' = 'true'
-             and r.role_id = coalesce(e.role_id, f.opportunity_id)
-         ))::double precision as "assessedPairCount",
-        to_char(statement_timestamp() at time zone 'UTC',
-          'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "updatedAt"
-    `;
-  });
-  if (!row) throw new Error("Company landing statistics returned no result");
-  return row;
-}
-
-// The frequent refresh reads only fit aggregates, not the message population.
-export async function readCompanyLandingPairStats(
-  db = getStatsClient()
-): Promise<CompanyLandingPairSnapshot> {
-  const [row] = await db.begin("read only", async (tx) => {
-    await tx`set local statement_timeout = '30000ms'`;
-    return tx<CompanyLandingPairSnapshot[]>`
-      with pairs as (
-        -- Both tables have unique talent/role keys. A full join counts a pair
-        -- once and avoids a separate external-index lookup for every internal
-        -- row. Preserve the external timestamp when the pair exists in both.
-        select case when e.talent_id is not null then e.created_at
-          else f.created_at end as created_at
-        from public.talent_external_fit e
-        full join public.talent_opportunity_fit f
-          on e.talent_id = f.talent_id and e.role_id = f.opportunity_id
-        where not exists (
-          select 1 from public.company_roles r
-          where r.source_type = 'internal'
-            and r.information->>'testOnly' = 'true'
-            and r.role_id = coalesce(e.role_id, f.opportunity_id)
-        )
-      )
-      select count(*)::double precision as "assessedPairCount",
-      (count(*) filter (where created_at >= statement_timestamp()
-        - ${COMPANY_LANDING_ACTIVITY_WINDOW_SECONDS} * interval '1 second'
-        and created_at <= statement_timestamp()))::double precision
-        / ${COMPANY_LANDING_ACTIVITY_WINDOW_SECONDS} as "recentAssessmentsPerSecond",
-      to_char(statement_timestamp() at time zone 'UTC',
-        'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "updatedAt"
-      from pairs
-    `;
-  });
-  if (!row) throw new Error("Company landing pair statistics returned no result");
+): Promise<CompanyLandingStats> {
+  const [row] = await db<CompanyLandingStats[]>`
+    SELECT
+      talent_count::double precision AS "talentCount",
+      average_conversation_messages AS "averageConversationMessages",
+      assessed_pair_count::double precision AS "assessedPairCount",
+      to_char(updated_at AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "updatedAt"
+    FROM public.company_landing_stats
+    WHERE name = 'current'
+  `;
+  if (!row) throw new Error("Company landing statistics snapshot is unavailable");
   return row;
 }

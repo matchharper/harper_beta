@@ -1,3 +1,4 @@
+import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { z } from "zod";
 import { applicationEditsSchema } from "./applicationEditsSchema";
 import {
@@ -44,7 +45,7 @@ export const applicationInputTool = {
   function: {
     name: ASK_APPLICATION_INPUT,
     description:
-      "Request decisions, missing facts or documents in the application composer. Use question without options to collect writing ideas, motivation or experience notes; use material only to request or select an actual file. Reference existing preparation action IDs to reuse their evidence and edit examples; an explicit different kind creates a new question from that action without overwriting its history; supply kind/title/description/options for additional questions. For an additional change, include target/reason and edits grounded in confirmed source facts; unknown experience belongs in a question, not a finished edit example. For a final resume selection, use a material item with documentPurpose=final_resume. Only ask when the answer changes content or the next operation. One pending batch is allowed; replace=true explicitly replaces it, preserving answers to unchanged items. This tool saves a question batch and ends the current turn to wait for the user. Do not execute other work after it.",
+      TOOL_DESCRIPTIONS.request_application_information,
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -231,7 +232,10 @@ export function askApplicationInput(
   });
   next.preparation!.inputRevision++;
   next.preparation!.approvedVersion = null;
-  next.preparation!.finalDocumentId = null;
+  if (items.some(item => item.inputKind === "change" || item.documentPurpose === "final_resume")) {
+    next.preparation!.finalDocumentId = null;
+    next.preparation!.finalDocumentFingerprint = null;
+  }
   next.preparation!.showInputs = true;
   next.preparation!.currentItemId =
     items.find((i) => !next.preparation!.responses[i.id])?.id ?? items[0].id;

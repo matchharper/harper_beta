@@ -21,6 +21,8 @@ import { assertEmailLease, updateEmailJob, readRow } from "./store";
 import { asObject, EmailContinuationPending, EmailPermanentError, type EmailJobContext } from "./types";
 import { EMAIL_ASSISTANT_MODEL } from "./model";
 import { isOpsEmailTest } from "./opsTest";
+import { assertApplicationDocumentWrite } from "@/lib/career/simulation/resumeWorkflow";
+import { isResumeDocumentWrite } from "@/lib/documents/authoring";
 
 export const emailApplicationStore = (ctx: EmailJobContext) => ({ admin: ctx.admin, userId: ctx.talentId, conversationId: ctx.conversationId });
 export async function loadEmailApplication(ctx: EmailJobContext) {
@@ -185,7 +187,7 @@ export function emailApplicationToolResult(result: Record<string, unknown>, appl
 
 export async function executeEmailApplicationTool(ctx: EmailJobContext, name: string, input: Record<string, unknown>) {
   const store = emailApplicationStore(ctx);
-  if (["simulate_application", "manage_application_suggestions", "ready_for_role", "apply_for_role", "manage_simulation_session"].includes(name)) await assertCurrentApplicationSource(ctx);
+  if (["simulate_application", "manage_application_suggestions", "ready_for_role", "save_application", "apply_for_role", "manage_simulation_session"].includes(name)) await assertCurrentApplicationSource(ctx);
   if (name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION) {
     const setting = await readRow(ctx.admin, "talent_setting", ctx.talentId, "user_id");
     const result = await executeTalentTool({ name, input, channel: "chat", logging: false,
@@ -203,11 +205,13 @@ export async function executeEmailApplicationTool(ctx: EmailJobContext, name: st
     return { ...(result as object), awaitingUserInput: true,
       assistantInstruction: "Preparation is running durably. The runtime will resume and send the prepared proposal; this is not a request for user input." };
   }
-  if (name === TALENT_TOOL_NAMES.GENERATE_RESUME) {
+  if (name === TALENT_TOOL_NAMES.GENERATE_RESUME ||
+      (name === TALENT_TOOL_NAMES.UPSERT_DOCUMENT && await isResumeDocumentWrite({ ...store, input }))) {
     const active = await loadEmailApplication(ctx);
-    if (active?.state.status === "active") return { ok: false, reason: "Use ready_for_role to save the active application's resume and preserve its source." };
+    if (active?.state.status === "active")
+      await assertApplicationDocumentWrite(active.state, { ...store, name, input });
   }
-  if (!["manage_application_suggestions", "ready_for_role", "apply_for_role", "manage_simulation_session"].includes(name)) return undefined;
+  if (!["manage_application_suggestions", "ready_for_role", "save_application", "apply_for_role", "manage_simulation_session"].includes(name)) return undefined;
   if (name === "manage_simulation_session" && ["list", "resume"].includes(String(input.action))) {
     const { manageSavedApplications } = await import("@/lib/career/simulation/savedApplications");
     const result = await manageSavedApplications(store, input, `email:${ctx.sourceMessage.id}`);
@@ -231,7 +235,7 @@ export async function executeEmailApplicationTool(ctx: EmailJobContext, name: st
     result = { ...execution.result };
     if (typeof result.documentId === "string") result.documentLink = new URL(getCareerDocumentHref(result.documentId), getConfiguredPublicSiteUrl()).href;
   } else if (name === "apply_for_role") {
-    const started = await startApplicationBrowser(store, record, input, Number(ctx.sourceMessage.id));
+    const started = await startApplicationBrowser(store, record, input, Number(ctx.sourceMessage.id), record.state.applicationReview?.revision);
     record = started;
     if (started.execution.applicationInProgress) await linkApplicationBrowser(ctx, record.state.browser!.id);
     result = started.execution;

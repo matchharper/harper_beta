@@ -1,4 +1,6 @@
 import Head from "next/head";
+import { applicationDiscoveryCases } from "@/lib/ops/applicationDiscoveryCases";
+import { applicationLimitations } from "@/lib/career/simulation/applicationForm";
 import { memo, useEffect, useRef, useState } from "react";
 import OpsShell from "@/components/ops/OpsShell";
 import { useCanFetchInternal } from "@/components/ops/debugging/shared";
@@ -89,10 +91,16 @@ const InspectionLogEntry = memo(function InspectionLogEntry({
 export default function ApplicationFormDebuggingPage() {
   const canFetch = useCanFetchInternal();
   const [tab, setTab] = useState("questions");
-  const [provider, setProvider] = useState<QuestionProvider>("current");
+  const [mode, setMode] = useState<QuestionProvider | "application-agent">(
+    "application-agent"
+  );
+  const agentMode = mode === "application-agent";
+  const provider: QuestionProvider = agentMode ? "browser-use" : mode;
+  const [presetId, setPresetId] = useState("");
   const [questionsRunning, setQuestionsRunning] = useState(false);
   const [url, setUrl] = useState("");
-  const [resolveOfficialLink, setResolveOfficialLink] = useState(false);
+  const [resolveLinks, setResolveOfficialLink] = useState(false);
+  const resolveOfficialLink = agentMode || resolveLinks;
   const [role, setRole] = useState<InspectionRole | null>(null);
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState<ApplicationInspectionEvent[]>([]);
@@ -147,7 +155,11 @@ export default function ApplicationFormDebuggingPage() {
             resolveOfficialLink
               ? {
                   resolveOfficialLink: true,
-                  ...(role ? { roleId: role.id } : { url: url.trim() }),
+                  ...(presetId
+                    ? { presetId }
+                    : role
+                      ? { roleId: role.id }
+                      : { url: url.trim() }),
                 }
               : { url: url.trim() }
           ),
@@ -197,6 +209,45 @@ export default function ApplicationFormDebuggingPage() {
     setTimeout(() => URL.revokeObjectURL(href), 1000);
   }
   const form = result?.form;
+  const presetPicker = (
+    <Select
+      value={presetId}
+      onValueChange={(value) => {
+        const preset = applicationDiscoveryCases.find(
+          (item) => item.id === value
+        );
+        if (!preset) return;
+        setResult(null);
+        setLogs([]);
+        setUsage(null);
+        setError("");
+        setStartedAt(null);
+        setElapsed(0);
+        setPresetId(preset.id);
+        setUrl(preset.source.originalUrl ?? "");
+        setRole(null);
+        setMode("application-agent");
+      }}
+      disabled={running || questionsRunning}
+    >
+      <SelectTrigger
+        aria-label="테스트 공고 선택"
+        className="w-auto max-w-full"
+      >
+        <SelectValue>
+          {applicationDiscoveryCases.find((item) => item.id === presetId)
+            ?.label ?? "테스트 공고"}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent className="min-w-80">
+        {applicationDiscoveryCases.map((item) => (
+          <SelectItem key={item.id} value={item.id}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
   return (
     <OpsShell compactHeader title="지원 양식">
       <Head>
@@ -212,16 +263,26 @@ export default function ApplicationFormDebuggingPage() {
             실행 방식
           </label>
           <Select
-            value={provider}
+            value={mode}
             onValueChange={(value) => {
-              if (value) setProvider(value as QuestionProvider);
+              if (value) {
+                setMode(value as QuestionProvider | "application-agent");
+                setPresetId("");
+              }
             }}
             disabled={running || questionsRunning}
           >
             <SelectTrigger id="question-provider" className="max-w-sm">
-              <SelectValue>{questionProviderLabels[provider]}</SelectValue>
+              <SelectValue>
+                {agentMode
+                  ? "Apply with Harper"
+                  : questionProviderLabels[provider]}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="application-agent">
+                Apply with Harper
+              </SelectItem>
               {questionProviders.map((value) => (
                 <SelectItem key={value} value={value}>
                   {questionProviderLabels[value]}
@@ -230,7 +291,7 @@ export default function ApplicationFormDebuggingPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-2">
+        <div hidden={agentMode} className="flex items-center gap-2">
           <Switch
             id="resolve-official-link"
             checked={resolveOfficialLink}
@@ -238,7 +299,7 @@ export default function ApplicationFormDebuggingPage() {
             disabled={running || questionsRunning}
           />
           <label htmlFor="resolve-official-link" className="text-sm">
-            공식 공고 링크 먼저 찾기
+            지원 경로 자동 조사
           </label>
         </div>
         {resolveOfficialLink && (
@@ -251,15 +312,18 @@ export default function ApplicationFormDebuggingPage() {
                 value={role}
                 onChange={(selected) => {
                   setRole(selected);
+                  setPresetId("");
                   if (selected) setUrl(selected.originalUrl ?? "");
                 }}
                 disabled={running || questionsRunning}
                 canFetch={canFetch}
               />
             </details>
-            <p className="text-xs text-neutral-muted">
-              연결된 저장 공고가 있으면 찾은 공식 URL로 갱신합니다.
-            </p>
+            {!presetId && (
+              <p className="text-xs text-neutral-muted">
+                연결된 저장 공고는 접근을 확인한 지원 URL로 갱신합니다.
+              </p>
+            )}
           </>
         )}
         <div hidden={provider !== "current"}>
@@ -273,7 +337,7 @@ export default function ApplicationFormDebuggingPage() {
           />
         </div>
         <div
-          hidden={provider === "current" && tab !== "questions"}
+          hidden={agentMode || (provider === "current" && tab !== "questions")}
           role="tabpanel"
           aria-label="질문만 가져오기"
         >
@@ -283,15 +347,19 @@ export default function ApplicationFormDebuggingPage() {
             onUrlChange={(value) => {
               setUrl(value);
               setRole(null);
+              setPresetId("");
             }}
             role={role}
             resolveOfficialLink={resolveOfficialLink}
             provider={provider}
             onRunningChange={setQuestionsRunning}
+            urlActions={presetPicker}
           />
         </div>
         <div
-          hidden={provider !== "current" || tab !== "inspection"}
+          hidden={
+            !agentMode && (provider !== "current" || tab !== "inspection")
+          }
           role="tabpanel"
           aria-label="양식 조사"
           className="space-y-5"
@@ -304,9 +372,15 @@ export default function ApplicationFormDebuggingPage() {
             }}
           >
             <div className="min-w-64 flex-1 space-y-1.5">
-              <label htmlFor="application-url" className="text-sm font-medium">
-                공고 / 지원 URL
-              </label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  htmlFor="application-url"
+                  className="text-sm font-medium"
+                >
+                  공고 / 지원 URL
+                </label>
+                {presetPicker}
+              </div>
               <Input
                 id="application-url"
                 type="url"
@@ -315,6 +389,7 @@ export default function ApplicationFormDebuggingPage() {
                 onChange={(event) => {
                   setUrl(event.target.value);
                   setRole(null);
+                  setPresetId("");
                 }}
                 disabled={running || questionsRunning}
                 placeholder="https://…"
@@ -330,12 +405,19 @@ export default function ApplicationFormDebuggingPage() {
                 !(url.trim() || (resolveOfficialLink && role))
               }
             >
-              {running ? "가져오는 중…" : "양식 가져오기"}
+              {running
+                ? "조사 중…"
+                : agentMode
+                  ? "지원 경로 조사"
+                  : "양식 가져오기"}
             </MuteButton>
           </form>
           {running && (
             <p role="status" className="text-sm text-neutral-muted">
-              지원 양식을 읽고 있습니다 · {seconds(elapsed)}
+              {agentMode
+                ? "지원 경로를 조사하고 있습니다"
+                : "지원 양식을 읽고 있습니다"}{" "}
+              · {seconds(elapsed)}
             </p>
           )}
           {error && (
@@ -362,7 +444,7 @@ export default function ApplicationFormDebuggingPage() {
                   {form.url}
                 </a>
               )}
-              {form.limitations.map((item, index) => (
+              {applicationLimitations(form).map((item, index) => (
                 <p
                   key={index}
                   className="whitespace-pre-wrap text-sm text-neutral-muted"
@@ -370,13 +452,6 @@ export default function ApplicationFormDebuggingPage() {
                   {item}
                 </p>
               ))}
-              {form.status !== "read" &&
-                !form.limitations.length &&
-                form.submission?.reason && (
-                  <p className="text-sm text-neutral-muted">
-                    {form.submission.reason}
-                  </p>
-                )}
               {!!form.fields.length && (
                 <Table aria-label="가져온 지원 항목">
                   <TableHeader>
@@ -435,7 +510,9 @@ export default function ApplicationFormDebuggingPage() {
               </summary>
               <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-muted">
                 <span>{seconds(result?.durationMs ?? elapsed)}</span>
-                <span>모델 비용 {money(usage)} · Browserbase 제외</span>
+                <span>
+                  모델 비용 {money(usage)} · 브라우저 서비스 비용 제외
+                </span>
                 <span>모델 요청 {usage?.requests ?? 0}회</span>
                 {!!usage?.searchRequests && (
                   <span>

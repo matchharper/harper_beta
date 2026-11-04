@@ -48,6 +48,8 @@ import {
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
+import { resolveCareerRequestTextChatModel } from "@/lib/career/requestTextChatModel";
+import { CLAUDE_HAIKU_MODEL } from "@/lib/llm/modelConfig";
 import {
   buildCareerSessionStartTurnInstruction,
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
@@ -140,6 +142,7 @@ const createEmptyHistoryCounts = () => ({
     saved: 0,
     applied: 0,
     connected: 0,
+    offer: 0,
     closed: 0,
     hidden: 0,
   },
@@ -245,7 +248,7 @@ async function generateSessionStartGreeting(args: {
   });
 
   const result = await runCareerChatTurn({
-    allowedToolNames: [],
+    assistantModel: CLAUDE_HAIKU_MODEL,
     admin,
     assistantMessagePayload: CAREER_REENGAGEMENT_MESSAGE_PAYLOAD,
     conversationId,
@@ -346,6 +349,7 @@ export async function GET(req: NextRequest) {
     let profile = await fetchTalentUserProfile({ admin, userId: user.id });
     if (conversation.stage === "profile") {
       const seeded = await autoStartClaimedTalentConversation({
+        textChatModel: resolveCareerRequestTextChatModel(req, user).model,
         admin,
         conversation,
         isMobile,

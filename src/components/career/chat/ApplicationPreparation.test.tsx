@@ -241,6 +241,14 @@ test("composer collects decisions without chat turns, restores answers, and sepa
       dom.window.document.body.textContent!,
       /PRIVATE|진행하기/
     );
+    // Unnumbered decisions are operated by their visible buttons. Hidden global
+    // numeric/arrow shortcuts must not accept a resume edit in the background.
+    await act(async () => {
+      for (const key of ["1", "2", "ArrowDown", "Enter"])
+        dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 200));
+    });
+    assert.equal(commands.length, 0);
     await act(async () => button("적용").click());
     assert.equal(commands.length,0);
     assert.equal(dom.window.document.querySelector("[data-response-flash]")?.getAttribute("data-response-flash"),"accept");
@@ -344,7 +352,8 @@ test("composer collects decisions without chat turns, restores answers, and sepa
     assert.equal(button("입력 내용 다시 보기"), undefined);
     assert.equal(button("이어서 준비하기"), undefined);
     state.preparation!.responses = savedResponses;
-    // Exercise the actual parent branch, not only the child/slot.
+    // The live composer uses generic forms; legacy preparation state must not
+    // replace it. Legacy slot behavior remains covered independently above.
     state.analysisStatus = "running";
     await render(<CareerComposerSection />);
     const wrapper = dom.window.document.querySelector("[data-vaul-no-drag]")!;
@@ -355,7 +364,7 @@ test("composer collects decisions without chat turns, restores answers, and sepa
     state.analysisStatus = "completed";
     state.preparation!.showInputs = true;
     await render(<CareerComposerSection />);
-    assert.ok(wrapper.querySelector("[data-preparation-questions]"));
+    assert.equal(wrapper.querySelector("[data-preparation-questions]"), null);
     assert.equal(wrapper.querySelectorAll("textarea").length, 1);
     assert.equal(wrapper.firstElementChild!.className, widthWrapperClass);
     Object.defineProperty(dom.window, "innerWidth", {
@@ -370,13 +379,7 @@ test("composer collects decisions without chat turns, restores answers, and sepa
       }) as unknown as MediaQueryList;
     await render(<CareerComposerSection />);
     assert.equal(wrapper.firstElementChild!.className, widthWrapperClass);
-    const body = wrapper.querySelector(".overflow-y-auto")!;
-    assert.ok(body);
-    assert.equal(
-      body.querySelector("form"),
-      null,
-      "input controls are outside the scrolling body"
-    );
+    assert.equal(wrapper.querySelectorAll("textarea").length, 1);
     state.preparation!.generation.status = "running";
     await render(<CareerComposerSection />);
     assert.equal(wrapper.querySelector("[data-preparation-questions]"), null);
@@ -420,135 +423,35 @@ test("composer collects decisions without chat turns, restores answers, and sepa
     await render(<ApplicationDraftReview draft={draft} messageId={20} />);
     assert.equal(button("확인하고 지원").disabled, true);
 
-    // A live POST stream must switch the parent before the model finishes.
+    // Historical preparation records no longer start another active workflow.
     const auth = mock.method(supabase.auth, "getSession", async () => ({
-      data: { session: { access_token: "test" } },
-      error: null,
+      data: { session: { access_token: "test" } }, error: null,
     }));
-    state.preparation = createPreparation();
-    state.actions = [state.actions[1]];
-    state.preparation.currentItemId = "Q";
-    let serverRecord = { messageId: 10, state: structuredClone(state) };
-    let streamController: ReadableStreamDefaultController<Uint8Array>;
     let postCount = 0;
-    const fetchMock = mock.method(
-      globalThis,
-      "fetch",
-      async (_url: unknown, init?: RequestInit) => {
-        if (init?.method === "POST") {
-          postCount++;
-          return new Response(
-            new ReadableStream<Uint8Array>({
-              start(c) {
-                streamController = c;
-              },
-            }),
-            { headers: { "content-type": "application/x-ndjson" } }
-          );
-        }
-        return Response.json({ session: serverRecord, drafts: [] });
-      }
-    );
+    const fetchMock = mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+      if (init?.method === "POST") postCount++;
+      return Response.json({ outputs: [] });
+    });
     let controls: ReturnType<typeof useApplicationPreparation>;
     function CaptureControls() {
       controls = useApplicationPreparation();
       return null;
     }
-    const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
     try {
       await render(
         <ApplicationPreparationProvider>
           <CaptureControls />
-          <CareerComposerSection />
-          <ApplicationDraftProgress />
+          <ApplicationPreparationComposerSlot>
+            <textarea aria-label="Ordinary composer" />
+          </ApplicationPreparationComposerSlot>
         </ApplicationPreparationProvider>
       );
-      await act(flush);
-      assert.ok(
-        dom.window.document.querySelector("[data-preparation-questions]")
-      );
-      let finished = false;
-      let result: Promise<boolean>;
-      await act(async () => {
-        result = controls!
-          .command({
-            operation: "respond",
-            itemId: "Q",
-            response: { decision: "answer", text: "Built APIs" },
-          })
-          .then((ok) => {
-            finished = true;
-            return ok;
-          });
-        await flush();
-      });
-      serverRecord = {
-        messageId: 10,
-        state: mutateSimulationSession(
-          serverRecord.state,
-          {
-            action: "respond",
-            actionId: "Q",
-            response: { decision: "answer", text: "Built APIs" },
-          },
-          0
-        ),
-      };
-      serverRecord.state.revision++;
-      serverRecord.state.preparation!.showInputs = false;
-      serverRecord.state.preparation!.generation = {
-        status: "running",
-        runId: "stream",
-        startedAt: new Date().toISOString(),
-        inputRevision: 1,
-      };
-      const bytes = new TextEncoder().encode(
-        JSON.stringify({ session: serverRecord }) + "\n"
-      );
-      await act(async () => {
-        streamController!.enqueue(bytes.slice(0, 17));
-        streamController!.enqueue(bytes.slice(17));
-        await flush();
-      });
-      assert.equal(finished, false);
-      assert.equal(
-        dom.window.document.querySelector("[data-preparation-questions]"),
-        null
-      );
-      assert.equal(
-        dom.window.document.querySelector("textarea")!.disabled,
-        false
-      );
-      assert.match(
-        dom.window.document.querySelector('[role="status"]')!.textContent!,
-        /초안 작성 중/
-      );
-      // Failed generation does not undo the already committed answer or restore the wizard.
-      serverRecord = structuredClone(serverRecord);
-      serverRecord.state.revision++;
-      serverRecord.state.preparation!.generation.status = "failed";
-      await act(async () => {
-        streamController!.enqueue(
-          new TextEncoder().encode(
-            JSON.stringify({ session: serverRecord }) +
-              "\n" +
-              JSON.stringify({ error: "Model failed" }) +
-              "\n"
-          )
-        );
-        streamController!.close();
-        assert.equal(await result!, true);
-      });
-      assert.equal(
-        controls!.record!.state.preparation!.responses.Q.text,
-        "Built APIs"
-      );
-      assert.equal(
-        dom.window.document.querySelector("[data-preparation-questions]"),
-        null
-      );
-      assert.ok(button("초안 다시 만들기"));
-      assert.equal(postCount, 1);
+      await act(async () => { await new Promise<void>(resolve => setImmediate(resolve)); });
+      assert.equal(controls!.record, null);
+      assert.equal(dom.window.document.querySelector("[data-preparation-questions]"), null);
+      assert.equal(dom.window.document.querySelector("textarea")!.disabled, false);
+      assert.equal(await controls!.command({ operation: "respond", itemId: "Q", response: { decision: "answer", text: "Built APIs" } }), false);
+      assert.equal(postCount, 0, "historical readers cannot restart legacy preparation");
     } finally {
       fetchMock.mock.restore();
       auth.mock.restore();
@@ -726,7 +629,7 @@ test("review questions remain closed until the matching chat review has rendered
   assert.doesNotMatch(html,/Review this before deciding/);
 });
 
-test("saved answers show inspection waiting, then a recoverable continuation without a duplicate composer", async () => {
+test("resume answer continuation is independent of inspection; only delivered resumes wait for application details", async () => {
   const { renderToStaticMarkup } = await import("react-dom/server");
   const { ApplicationPreparationContext } = await import("./ApplicationPreparationContext");
   const { ApplicationPreparationComposerSlot } = await import("./ApplicationPreparationComposer");
@@ -737,13 +640,13 @@ test("saved answers show inspection waiting, then a recoverable continuation wit
   state.activity = { version: 1, offerId: 1, outputs: {}, batches: [{ id: "saved", key: "saved", purpose: "suggestions", itemIds: [], status: "submitted", continuation: "pending", responses: {}, createdAt: new Date().toISOString() }] };
   state.applicationInspection = { status: "running", runId: "inspection" };
   const render = (pending = false) => renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationPreparationContext.Provider value={{ record: { state, messageId: 1 }, drafts: [], pending, error: "", command: async () => true }}><ApplicationPreparationComposerSlot><span>Ordinary input</span></ApplicationPreparationComposerSlot></ApplicationPreparationContext.Provider></MessagesProvider>);
-  assert.match(render(true), /Your answers are saved/);
-  assert.doesNotMatch(render(true), /Continue with saved answers|data-preparation-questions/);
+  assert.doesNotMatch(render(true), /Your answers are saved|data-preparation-questions/);
+  assert.match(render(), />Continue<\/button>/);
   state.applicationInspection.status = "completed";
   assert.doesNotMatch(render(), /Your answers are saved/);
-  assert.match(render(), /Continue with saved answers/);
+  assert.match(render(), />Continue<\/button>/);
   state.activity.batches[0].continuation = "done";
-  assert.doesNotMatch(render(), /Continue with saved answers/);
+  assert.doesNotMatch(render(), />Continue<\/button>/);
 });
 
 test("decisions are unnumbered with mobile Apply on the right; other choices stay numbered", async () => {
@@ -772,10 +675,7 @@ test("decisions are unnumbered with mobile Apply on the right; other choices sta
       assert.equal(buttons.length,item.kind === "material" && item.documentId && !item.documentPurpose ? 3 : 2);
       if (item.kind === "change") {
         assert.ok(group.classList.contains("grid-cols-2"));
-        assert.ok(group.classList.contains("sm:grid-cols-1"));
-        assert.deepEqual(buttons.map(button => button.textContent), ["Apply", "Don't apply"]);
-        assert.ok(buttons[1].classList.contains("-order-1"));
-        assert.ok(buttons[1].classList.contains("sm:order-none"));
+        assert.deepEqual(buttons.map(button => button.textContent), ["Don't apply", "Apply"]);
         buttons.forEach(button => assert.equal(button.firstElementChild, null));
       } else {
         buttons.forEach((button,index)=>{assert.equal(button.firstElementChild?.textContent,String(index+1));buttonClasses.push(button.className);});

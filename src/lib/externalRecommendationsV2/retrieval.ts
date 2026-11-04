@@ -150,6 +150,8 @@ export async function retrieveRoles(args: {
   blockedCompanies: string[];
   limit?: number;
   excludeRoleIds?: string[];
+  includePreviouslyRecommended?: boolean;
+  unlimitedPerCompany?: boolean;
   asOf?: string | null;
   vectors?: number[][];
   targetSalaryKrw?: number | null;

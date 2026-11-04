@@ -122,6 +122,14 @@ ${options.backgroundOrigin === "scheduled_review" || options.backgroundOrigin ==
 - After that first visible progress update, continue all intermediate reasoning and tool work without further progress narration. The final text, if any, must contain only verified results, a concrete useful proposal or a necessary question.
 - Never perform or announce an action merely to avoid a silent completion.
 `
+    : surface === "chat"
+    ? `
+## Turn delivery
+- You may speak before or between tool calls when it helps the user understand your approach or a new finding. These messages remain visible in order; continue from them without repeating acknowledgements.
+- Let useful information determine when to speak. Tool status already shows routine activity, so narration is optional, including before the first tool.
+- Describe intended work before execution and completed results only after confirmation. If you need the user's answer to proceed, ask and wait rather than continuing dependent work.
+- The terminal response completes the conversation with the verified result or a necessary question.
+`
     : `
 ## Turn delivery
 - A response that contains tool calls may also contain one short progress update when the work will take time and that update genuinely helps the user. State only what you are starting, never an unverified result, and do not ask a question there.

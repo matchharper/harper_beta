@@ -1,3 +1,4 @@
+import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { z } from "zod";
 
 export const applicationBrowserReadActionSchema = z.discriminatedUnion(
@@ -84,7 +85,7 @@ export const applicationBrowserReadActionTool = {
   type: "function" as const,
   name: APPLICATION_BROWSER_ACTION,
   description:
-    "Read the public application page. Inspect reads the main document and any frames you explicitly selected. It returns controls, instructions and an unread frame index, without opening frame contents. Only if the application form is embedded, inspect with its observed frameRef. Other frames need no inspection. A frame read failure preserves readable content and appears in readErrors. Navigate only the supplied URL or a link actually observed in the latest snapshot. Click may follow an observed link or a button outside forms; form controls and submit buttons are blocked. No candidate data, files, code execution, input actions or approval commands are available.",
+    TOOL_DESCRIPTIONS.perform_application_browser_action_read,
   parameters: {
     type: "object",
     additionalProperties: false,
@@ -101,7 +102,7 @@ export const applicationBrowserActionTool = {
   type: "function" as const,
   name: APPLICATION_BROWSER_ACTION,
   description:
-    "Inspect and operate the current application browser through observed element refs. Reads default to the main document; only select an observed frameRef with inspect when the application form is embedded. Subsequent snapshots refresh the main document and explicitly selected frames; readErrors identify inaccessible scopes, never proof of missing fields. Use fill_fields to fill, select, check and attach multiple confirmed fields from the same current snapshot in one call. Each field uses action, ref and its value/checked/documentId. A batch cannot navigate, click or submit; it stops at an error or held website request. Inspect the returned snapshot before continuing with remaining fields; never replay a batch. Use documentId only from supplied attachments. Website requests after personal input are held for user approval. A pendingRequest pauses this browser task; do not retry the action. Executable code, arbitrary HTTP calls and approval commands are unavailable.",
+    TOOL_DESCRIPTIONS.perform_application_browser_action_operate,
   parameters: {
     type: "object",
     additionalProperties: false,

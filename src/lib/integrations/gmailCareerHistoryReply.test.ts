@@ -47,10 +47,7 @@ test("tells the model how to report an empty but completed review", () => {
 });
 
 test("uses the Career chat path without changing conversation state", () => {
-  assert.match(
-    replySource,
-    /assistantModel:\s*CAREER_LLM_CONFIG\.chat\.gmailCareerHistoryFollowUp\.model/
-  );
+  assert.match(replySource, /assistantModel:\s*CLAUDE_HAIKU_MODEL/);
   assert.match(replySource, /allowedToolNames:\s*\[\]/);
   assert.match(replySource, /skipConversationWrites:\s*true/);
   assert.match(replySource, /suppressOnboarding:\s*true/);

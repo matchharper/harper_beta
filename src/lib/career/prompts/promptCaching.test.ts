@@ -3,8 +3,8 @@ import test from "node:test";
 import { orderCareerPromptBlocksForCaching } from "./promptCaching";
 import { buildCareerConversationPromptPlan } from "./conversationPlan";
 import { resolveCareerCapabilities } from "../capabilities/resolver";
-import { createSimulationSession } from "../simulation/session";
-import { createPreparation } from "../simulation/preparation";
+import { CareerHandbookRuntime } from "../handbooks/runtime";
+import { renderCareerHandbookCatalog } from "../handbooks/registry";
 import type { CareerPromptBlock } from "./types";
 
 const base = {
@@ -32,7 +32,8 @@ test("cache layout preserves every whole block and leaves request data after bot
     { key: "career_coaching_state", text: '{"revision":2}' },
     { key: "profile_context", text: "Complete profile", cacheable: true },
     { key: "tool_policy", text: "Current tool policy", cacheable: true },
-    { key: "application_start_payload", text: "Start offer instructions" },
+    { key: "handbook_catalog", text: "Available handbooks", cacheable: true },
+    { key: "handbook:resume", text: "Loaded resume guidance", cacheable: true },
     { key: "future_matching_insights", text: "Complete Brief and Memory", cacheable: true },
     { key: "dynamic_state", text: "Time and current request" },
   ];
@@ -54,7 +55,7 @@ test("capability loading, Gmail availability and coaching revisions leave saved-
   const tools = [
     "read_talent_context", "write_talent_context", "update_talent_profile",
     "get_role_context", "read_recommended_opportunities",
-    "list_documents", "read_document", "generate_resume", "search_connected_gmail",
+    "list_documents", "read_document", "upsert_document", "search_connected_gmail",
   ].map((name) => ({
     type: "function" as const,
     function: { name, description: name, parameters: { type: "object" } },
@@ -67,12 +68,12 @@ test("capability loading, Gmail availability and coaching revisions leave saved-
     topic: "Career direction", updatedAt: "2026-10-12T00:00:00Z",
   };
   const cold = buildCareerConversationPromptPlan({
-    ...base, simulationAvailability: "inactive", gmailCapability: "available",
+    ...base, gmailCapability: "available",
     careerCoachingActivity: activity,
     capabilities: resolveCareerCapabilities({ eligibleTools: tools, loaded: new Set(), mode: "progressive" }),
   });
   const loaded = buildCareerConversationPromptPlan({
-    ...base, simulationAvailability: "inactive", gmailCapability: "not_connected",
+    ...base, gmailCapability: "not_connected",
     careerCoachingActivity: { ...activity, revision: 2 },
     capabilities: resolveCareerCapabilities({
       eligibleTools: tools, loaded: new Set(["opportunities", "documents", "connected_inbox"]), mode: "progressive",
@@ -80,37 +81,42 @@ test("capability loading, Gmail availability and coaching revisions leave saved-
   });
   assert.deepEqual(cachedPrefix(cold.promptBlocks), cachedPrefix(loaded.promptBlocks));
   const text = (plan: typeof cold, key: string) => plan.promptBlocks.find((b) => b.key === key)!.text;
-  assert.notEqual(text(cold, "default_conversation_guidance"), text(loaded, "default_conversation_guidance"));
+  assert.equal(text(cold, "career_main"), text(loaded, "career_main"));
+  assert.equal(loaded.promptBlocks.some(block => block.key === "tool_policy"), false);
   assert.notEqual(text(cold, "gmail_capability"), text(loaded, "gmail_capability"));
   assert.notEqual(text(cold, "career_coaching_state"), text(loaded, "career_coaching_state"));
-  assert.match(text(loaded, "application_start_payload"), /simulate_application/);
 });
 
-test("application answers and working facts stay intact outside the saved-context cache", () => {
-  const session = createSimulationSession({
-    roleRef: "role:fixture", roleName: "Backend Engineer",
-    documentId: "resume-fixture", documentName: "CV.pdf",
-  });
-  session.preparation = createPreparation();
-  session.analysisStatus = "completed";
-  const updated = structuredClone(session);
-  updated.facts.push({ id: "F1", text: "Confirmed impact: reduced latency.", messageId: 15 });
-  const before = buildCareerConversationPromptPlan({ ...base, conversationMode: "simulation", simulationSession: session });
-  const after = buildCareerConversationPromptPlan({ ...base, conversationMode: "simulation", simulationSession: updated });
-  assert.deepEqual(cachedPrefix(before.promptBlocks), cachedPrefix(after.promptBlocks));
-  const context = after.promptBlocks.find((b) => b.key === "application_preparation_context")!;
-  assert.deepEqual(JSON.parse(context.text).facts, updated.facts);
-  assert.ok(after.promptBlocks.indexOf(context) > after.promptBlocks.findIndex((b) => b.key === "future_matching_insights"));
+test("loaded handbook bodies and fresh execution evidence stay intact after saved-context cache boundaries", () => {
+  const before = buildCareerConversationPromptPlan(base);
+  const evidence = "Browser execution run-fixture finished: the application requires the user's login.";
+  const after = buildCareerConversationPromptPlan({ ...base, runtimeInstruction: evidence });
+  const handbooks = new CareerHandbookRuntime();
+  handbooks.load(["application", "resume"], "selector");
+  const addedBlocks = [
+    { key: "handbook_catalog", text: renderCareerHandbookCatalog(), cacheable: false },
+    ...handbooks.blocks(),
+  ];
+  const ordered = orderCareerPromptBlocksForCaching([...after.promptBlocks, ...addedBlocks]);
+  assert.deepEqual(cachedPrefix(before.promptBlocks), cachedPrefix(ordered));
+  const memoryIndex = ordered.findIndex(block => block.key === "future_matching_insights");
+  for (const block of addedBlocks) {
+    assert.equal(ordered.filter(candidate => candidate === block).length, 1);
+    assert.ok(ordered.indexOf(block) > memoryIndex, block.key);
+  }
+  const context = ordered.find(block => block.text.includes(evidence))!;
+  assert.ok(context);
+  assert.ok(ordered.indexOf(context) > memoryIndex);
 });
 
 test("an empty Brief/Memory retains a profile boundary and unrelated prompt plans keep their order", () => {
   const plan = buildCareerConversationPromptPlan({
     ...base, talentContextSection: "", toolNames: ["read_document"],
-    simulationAvailability: "inactive", gmailCapability: "available",
+    gmailCapability: "available",
   });
   assert.equal(plan.promptBlocks.some((b) => b.key === "future_matching_insights"), false);
   const profileIndex = plan.promptBlocks.findIndex((b) => b.key === "profile_context");
-  for (const key of ["tool_policy", "gmail_capability", "application_start_payload", "simulation_availability", "dynamic_state"]) {
+  for (const key of ["gmail_capability", "dynamic_state"]) {
     assert.ok(plan.promptBlocks.findIndex((b) => b.key === key) > profileIndex, key);
   }
   const other = [

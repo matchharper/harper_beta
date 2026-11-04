@@ -1,3 +1,4 @@
+import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { browserProgressEntrySchema } from "./browserProgress";
 import { applicationReviewSchema } from "./applicationReview";
 import { z } from "zod";
@@ -24,6 +25,8 @@ const browserAttemptSchema = z.object({
     dispatchStarted: z.boolean().optional(),
     task: z.string().optional(),
     reviewFingerprint: z.string().optional(),
+    // The submit action authorizes this exact saved review for this attempt.
+    authorizedReviewFingerprint: z.string().optional(),
     filePaths: z.array(z.object({ documentId: z.string(), name: z.string(), path: z.string() })).optional(),
     totalCostUsd: z.string().optional(),
   }).optional(),
@@ -109,7 +112,7 @@ export const applyToRoleTool = {
   function: {
     name: APPLY_TO_ROLE,
     description:
-      "Fill the current role's public application form using the user's selected final resume and confirmed answers after ready_for_role and authorization to apply. Prepare known required materials first. Reuses an in-progress run; retries a failed attempt when no submission was sent. Returns the recorded outcome when submission succeeded or may have happened. Set restart=true only when the user explicitly requests a NEW attempt knowing that prior outcome; a retry request after a known pre-submission failure needs no extra confirmation. Resuming saved preparation preserves the prior outcome. A saved-stage applied label alone is not a website receipt. New attempts preserve previous outcomes and require fresh approval of the answers and files before website entry and submission. Login/CAPTCHA are unsupported. Yields only while a run or question is pending; otherwise use the returned facts to answer the user.",
+      TOOL_DESCRIPTIONS.apply_for_role,
     parameters: {
       type: "object",
       additionalProperties: false,

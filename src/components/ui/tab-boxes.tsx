@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { badgeVariants } from "@/components/ui/badge";
 import { BareButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type TabBoxesSize = "xs" | "sm" | "md" | "lg";
+export type TabBoxesVariant = "default" | "neutral";
 
 export type TabBoxItem<T extends string> = {
   count?: React.ReactNode;
@@ -25,6 +27,7 @@ export type TabBoxesProps<T extends string> = Omit<
   listClassName?: string;
   onValueChange: (value: T) => void;
   size?: TabBoxesSize;
+  variant?: TabBoxesVariant;
 };
 
 const tabBoxSizeClassNames: Record<TabBoxesSize, string> = {
@@ -57,8 +60,11 @@ export function TabBoxes<T extends string>({
   listClassName,
   onValueChange,
   size = "md",
+  variant = "default",
   ...props
 }: TabBoxesProps<T>) {
+  const isNeutral = variant === "neutral";
+
   return (
     <div className={cn("w-full overflow-x-auto", className)} {...props}>
       <div
@@ -78,26 +84,43 @@ export function TabBoxes<T extends string>({
               disabled={item.disabled}
               onClick={() => onValueChange(item.value)}
               className={cn(
-                "flex items-center justify-between rounded-md border-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55",
-                tabBoxSizeClassNames[size],
-                selected
-                  ? "border-primary bg-bg-floating text-primary"
-                  : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-primary hover:text-primary",
+                "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55",
+                isNeutral
+                  ? [
+                      badgeVariants({ size }),
+                      "rounded-full font-normal h-8 px-3",
+                      selected
+                        ? "bg-neutral-primary text-neutral-00"
+                        : "bg-black/4 text-neutral-primary",
+                    ]
+                  : [
+                      "flex items-center justify-between rounded-md border-2 text-left",
+                      tabBoxSizeClassNames[size],
+                      selected
+                        ? "border-primary bg-bg-floating text-primary"
+                        : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-primary hover:text-primary",
+                    ],
                 itemClassName,
                 getItemClassName?.(item, selected)
               )}
             >
-              <div className="flex min-w-0 flex-col gap-1">
+              <div
+                className={
+                  isNeutral ? "contents" : "flex min-w-0 flex-col gap-1"
+                }
+              >
                 <span
                   className={cn(
-                    "min-w-0 truncate font-medium",
-                    tabBoxLabelClassNames[size]
+                    "min-w-0 truncate",
+                    !isNeutral && ["font-medium", tabBoxLabelClassNames[size]]
                   )}
                 >
                   {item.label}
                 </span>
                 {countContent != null ? (
-                  <span className={cn(tabBoxCountClassNames[size])}>
+                  <span
+                    className={cn(!isNeutral && tabBoxCountClassNames[size])}
+                  >
                     {countContent}
                   </span>
                 ) : null}

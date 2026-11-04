@@ -1,5 +1,5 @@
 import type { InspectionRole } from "@/lib/ops/applicationFormInspection";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ApplicationQuestionFields } from "./ApplicationQuestionFields";
 import { Input } from "@/components/ui/input";
 import { MuteButton } from "@/components/ui/button";
@@ -20,7 +20,9 @@ export function ApplicationQuestionsPanel({
   role,
   resolveOfficialLink,
   onRunningChange,
+  urlActions,
 }: {
+  urlActions?: ReactNode;
   canFetch: boolean;
   provider?: QuestionProvider;
   url: string;
@@ -186,9 +188,12 @@ export function ApplicationQuestionsPanel({
           </div>
         )}
         <div className="min-w-64 flex-1 space-y-1.5">
-          <label htmlFor="questions-url" className="text-sm font-medium">
-            공고 / 지원 URL
-          </label>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label htmlFor="questions-url" className="text-sm font-medium">
+              공고 / 지원 URL
+            </label>
+            {urlActions}
+          </div>
           <Input
             id="questions-url"
             type="url"

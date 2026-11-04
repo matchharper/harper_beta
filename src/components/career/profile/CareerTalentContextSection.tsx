@@ -66,16 +66,16 @@ export default function CareerTalentContextSection({
     () => ({
       compensation: t(
         "career.profile.context.pinned.compensation",
-        "기대 보상 조건"
+        "보상"
       ),
       deal_breakers: t(
         "career.profile.context.pinned.deal_breakers",
-        "피하고 싶은 조건"
+        "피하고 싶은 것"
       ),
-      location: t("career.profile.context.pinned.location", "선호 근무 지역"),
+      location: t("career.profile.context.pinned.location", "지역·근무 방식"),
       must_haves: t(
         "career.profile.context.pinned.must_haves",
-        "꼭 있어야 하는 조건"
+        "꼭 필요한 것"
       ),
       next_scope: t("career.profile.context.pinned.next_scope", "다음 역할"),
     }),
@@ -242,7 +242,7 @@ export default function CareerTalentContextSection({
       <div>
         <div className="flex items-center justify-between gap-4">
           <h3 className="flex items-center gap-2 text-[14px] font-medium text-neutral-primary">
-            {t("career.profile.context.brief_title", "Search Brief")}
+            {t("career.profile.context.brief_title", "원하는 조건")}
             <Tooltips
               text={t(
                 "career.profile.context.brief_description",

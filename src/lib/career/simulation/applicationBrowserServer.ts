@@ -1,8 +1,11 @@
+import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { APPLICATION_WRITING_CONTRACT } from "./applicationWritingContract";
-import { runManagedApplication, resumeManagedApplication, type ManagedApplicationHooks } from "./applicationManagedBrowser";
+import { careerTextAssistantModelOptions } from "../textChatModelConfig";
+import { readCareerConversationTextChatModel } from "../conversationTextChatModel.server";
+import { runManagedApplication, resumeManagedApplication, managedApplicationReviewIdentity, type ManagedApplicationHooks } from "./applicationManagedBrowser";
 import { browserUseAgents } from "./browserUseAgents";
 import { formatToolResultText } from "@/lib/llm/promptText";
-import { applicationReviewText } from "./applicationReview";
+import { applicationReviewText, applicationReviewMatchesForm } from "./applicationReview";
 import { isStagehandBrowser } from "./applicationBrowserRuntimeRef";
 import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
 import { applicationStagehandRuntime, APPLICATION_STAGEHAND_MODEL } from "./applicationStagehandRuntime";
@@ -146,7 +149,7 @@ export const applicationBrowserTools = [
     type: "function",
     name: "report_application_outcome",
     description:
-      "Report the observed application outcome. Success requires an actual confirmation page, receipt or confirmation number after approved submission. If the site says an application already exists, report uncertain with that exact observed evidence; do not claim this run submitted it or try submitting again. Login/CAPTCHA are failures. A click or turn completion is not success. Include the real final URL, observed evidence and actual blocker; never claim mailbox access.",
+      TOOL_DESCRIPTIONS.report_application_outcome,
     parameters: {
       type: "object",
       required: ["status", "summary", "url", "evidence"],
@@ -201,9 +204,15 @@ export async function startApplicationBrowser(
   }
   if (s.status !== "active" || s.analysisStatus !== "completed" || !s.activity)
     throw new Error("Completed application analysis required");
+  if (s.activity.channel !== "email" && !s.applicationReview)
+    throw new Error("Prepare and save the application answers with save_application before applying");
+  if (s.activity.channel !== "email" && s.preparation?.applicationFollowUp && s.preparation.applicationFollowUp.status !== "done")
+    throw new Error("Finish preparing the application draft before applying");
   if (s.applicationReview && s.applicationReview.revision !== reviewedRevision)
     throw new Error("Open the saved application review and start from that screen with its current version");
   if (isApplicationInspectionPending(s)) throw new Error("Application requirements are still being checked");
+  if (s.applicationReview && !applicationReviewMatchesForm(s))
+    throw new Error("The application form changed; save and review its current answers before submitting");
   if (s.applicationForm?.submission?.status === "unsupported")
     throw new Error("The inspected form has an observed access barrier. Provide its direct application link and the observed reason, or recheck changed access with manage_simulation_session action=inspect.");
   if (s.applicationForm?.submission?.status !== "supported")
@@ -222,6 +231,8 @@ export async function startApplicationBrowser(
     throw new Error("Final resume file unavailable");
   if (s.preparation?.finalDocumentFingerprint !== documentFingerprint(doc))
     throw new Error("Final resume changed; read its current revision and call ready_for_role before applying");
+  if (s.applicationReview && s.applicationReview.resumeDocumentId !== id)
+    throw new Error("Save the application with the current prepared resume before applying");
   const url = applicationEntryUrl(s.applicationUrl ?? "");
   if (url.protocol !== "https:")
     throw new Error("A public HTTPS application URL is required");
@@ -241,6 +252,11 @@ export async function startApplicationBrowser(
     ...(s.browser ? { previousAttempts: archiveApplicationAttempt(s.browser) } : {}),
     ...(sourceMessageId !== undefined ? { sourceMessageId } : {}),
   };
+  if (state.applicationReview) {
+    state.browser.managed = {
+      authorizedReviewFingerprint: managedApplicationReviewIdentity(state),
+    };
+  }
   const saved = await saveSession(store, record, state, `browser:start:${state.browser.id}`);
   return { ...saved, execution: applicationStartResult(saved.state, true) };
 }
@@ -309,6 +325,7 @@ async function complete(
     .order("created_at", { ascending: false })
     .limit(8);
   const text = await runCareerChatAssistant({
+    ...careerTextAssistantModelOptions((await readCareerConversationTextChatModel(store)).model),
     systemBlocks: [
       {
         text: `${APPLICATION_WRITING_CONTRACT}

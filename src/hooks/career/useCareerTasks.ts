@@ -1,4 +1,4 @@
-import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import { useCareerChatActivityContext } from "@/components/career/CareerChatPanelContext";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import {
   useCareerPendingActionsSnapshot,
@@ -10,7 +10,7 @@ import { useMessages } from "@/i18n/useMessage";
 export function useCareerTasks(includeProgress = false) {
   const { user, isOnboardingDone, stage } = useCareerSidebarContext();
   const { locale } = useMessages();
-  const { pendingActionsOverride, tasksOverride } = useCareerChatPanelContext();
+  const { pendingActionsOverride, tasksOverride } = useCareerChatActivityContext();
   const overridden =
     tasksOverride !== undefined || pendingActionsOverride !== undefined;
   const enabled = !overridden && (isOnboardingDone || stage === "completed");

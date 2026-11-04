@@ -24,9 +24,15 @@ import {
 } from "@/components/chat/ChatTimeline";
 import { CardButton, MuteButton } from "@/components/ui/button";
 import { useSendOrgAgentMeetingRequest } from "@/hooks/org/useOrgAgent";
-import { orgTalentReferenceHref, readOrgTalentReferenceHref, remarkOrgTalentReferences, splitOrgTalentReferences } from "@/lib/org/agent/talentReference";
+import {
+  orgTalentReferenceHref,
+  readOrgTalentReferenceHref,
+  remarkOrgTalentReferences,
+  splitOrgTalentReferences,
+} from "@/lib/org/agent/talentReference";
 import { OrgTalentReferenceBadge } from "./OrgTalentReferenceBadge";
 import { formatOrgChatMessageTime } from "@/lib/org/agent/messagePresentation";
+import { formatChatDateDividerLabel } from "@/lib/chat/dateDivider";
 import { splitOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
 import {
   convertSlackMrkdwnToWebMarkdown,
@@ -45,29 +51,12 @@ import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
 import { cn } from "@/lib/utils";
 import { getHarperOwnedUrlRoute } from "@/lib/urlDisplay";
 
-function parseDate(createdAt: string) {
-  const date = new Date(createdAt);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatDateLabel(createdAt: string, locale: "ko" | "en") {
-  const date = parseDate(createdAt);
-  if (!date) return "";
-  return new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-US", {
-    day: "numeric",
-    month: "long",
-    weekday: "short",
-    year: "numeric",
-  }).format(date);
-}
-
 export function OrgAgentDateDivider({ createdAt }: { createdAt: string }) {
   const { locale, c } = useOrgLocale();
-  const label = formatDateLabel(createdAt, locale);
+  const label = formatChatDateDividerLabel(createdAt, locale);
   return (
     <ChatDateDivider
       ariaLabel={c("대화 날짜 {p0}", "Conversation date {p0}", { p0: label })}
-      className="text-[13px] leading-[1.55]"
       label={label}
     />
   );
@@ -117,10 +106,24 @@ function useTalentReferenceNavigation(workspaceId: string) {
   const router = useRouter();
   return (href: string) => {
     const reference = readOrgTalentReferenceHref(href, workspaceId);
-    if (reference && ["/org/home", "/org/inbox", "/org/jobs", "/org/role"].includes(router.pathname) && router.query.orgId === workspaceId) {
-      const query = { ...router.query, talentId: reference.talentId, detailRoleId: reference.roleId ?? undefined,
-        recommendationId: reference.recommendationId ?? undefined, detailWorkspaceId: workspaceId };
-      void router.push({ pathname: router.pathname, query }, undefined, { shallow: true, scroll: false });
+    if (
+      reference &&
+      ["/org/home", "/org/inbox", "/org/jobs", "/org/role"].includes(
+        router.pathname
+      ) &&
+      router.query.orgId === workspaceId
+    ) {
+      const query = {
+        ...router.query,
+        talentId: reference.talentId,
+        detailRoleId: reference.roleId ?? undefined,
+        recommendationId: reference.recommendationId ?? undefined,
+        detailWorkspaceId: workspaceId,
+      };
+      void router.push({ pathname: router.pathname, query }, undefined, {
+        shallow: true,
+        scroll: false,
+      });
       return;
     }
     const route = getHarperOwnedUrlRoute(href);
@@ -128,7 +131,15 @@ function useTalentReferenceNavigation(workspaceId: string) {
   };
 }
 
-function MentionText({ content, workspaceId, roleId }: { content: string; workspaceId: string; roleId?: string | null }) {
+function MentionText({
+  content,
+  workspaceId,
+  roleId,
+}: {
+  content: string;
+  workspaceId: string;
+  roleId?: string | null;
+}) {
   const openTalent = useTalentReferenceNavigation(workspaceId);
   return (
     <>
@@ -139,8 +150,20 @@ function MentionText({ content, workspaceId, roleId }: { content: string; worksp
             className="border-white/30 text-white hover:bg-white/10 focus-visible:ring-white/40"
             talentId={segment.reference.talentId}
             label={segment.reference.label}
-            href={orgTalentReferenceHref({ talentId: segment.reference.talentId, workspaceId, roleId })}
-            onClick={() => openTalent(orgTalentReferenceHref({ talentId: segment.reference!.talentId, workspaceId, roleId }))}
+            href={orgTalentReferenceHref({
+              talentId: segment.reference.talentId,
+              workspaceId,
+              roleId,
+            })}
+            onClick={() =>
+              openTalent(
+                orgTalentReferenceHref({
+                  talentId: segment.reference!.talentId,
+                  workspaceId,
+                  roleId,
+                })
+              )
+            }
           />
         ) : (
           <span key={`text:${index}`}>{segment.text}</span>
@@ -246,13 +269,20 @@ function OrgAssistantContent({
               index > 0 && "mt-3"
             )}
             content={markdown}
-            additionalRemarkPlugins={[[remarkOrgTalentReferences, { workspaceId, roleId }]]}
+            additionalRemarkPlugins={[
+              [remarkOrgTalentReferences, { workspaceId, roleId }],
+            ]}
             renderLink={({ href, text }) => {
               const reference = readOrgTalentReferenceHref(href, workspaceId);
               if (!reference) return undefined;
-              return <OrgTalentReferenceBadge talentId={reference.talentId}
-                label={text}
-                href={href} onClick={() => openTalent(href)} />;
+              return (
+                <OrgTalentReferenceBadge
+                  talentId={reference.talentId}
+                  label={text}
+                  href={href}
+                  onClick={() => openTalent(href)}
+                />
+              );
             }}
             key={`text:${index}`}
             onHarperLinkClick={(href) => {
@@ -350,7 +380,10 @@ export function OrgAgentMessageBubble({
     decision: "no" | "yes";
     messageId: number;
   }) => void;
-  onRoleStartChoice?: (args: { questionId: string; chipId: string | null }) => void;
+  onRoleStartChoice?: (args: {
+    questionId: string;
+    chipId: string | null;
+  }) => void;
   readOnly?: boolean;
   roleId?: string | null;
   showUserAttribution?: boolean;
@@ -401,7 +434,6 @@ export function OrgAgentMessageBubble({
           hasToolWork={hasOrgAgentToolWork(message.thinkingLogs)}
           logs={localizeOrgAgentThinkingLogs(message.thinkingLogs, locale)}
           startedAt={turnStartedAt}
-          typographyClassName="text-[13px] leading-[1.65]"
         />
       )}
       {!isUser &&
@@ -479,7 +511,11 @@ export function OrgAgentMessageBubble({
         >
           {isUser ? (
             <div className="whitespace-pre-wrap break-words">
-              <MentionText content={visibleMessageContent} workspaceId={workspaceId} roleId={roleId} />
+              <MentionText
+                content={visibleMessageContent}
+                workspaceId={workspaceId}
+                roleId={roleId}
+              />
             </div>
           ) : (
             <OrgAssistantContent
@@ -533,13 +569,24 @@ export function OrgAgentMessageBubble({
           {startQuestion ? (
             <ChatChoiceList
               choices={[
-                ...startQuestion.chips.map((chip) => ({ label: chip.label, value: chip.id })),
+                ...startQuestion.chips.map((chip) => ({
+                  label: chip.label,
+                  value: chip.id,
+                })),
                 { label: c("건너뛰기", "Skip"), value: "__skip" },
               ]}
-              disabled={readOnly || choicePending || startQuestion.status !== "pending" || !onRoleStartChoice}
+              disabled={
+                readOnly ||
+                choicePending ||
+                startQuestion.status !== "pending" ||
+                !onRoleStartChoice
+              }
               hint={
                 startQuestion.status === "pending"
-                  ? c("고르거나 아래에 직접 답해 주세요.", "Pick one or answer below in your own words.")
+                  ? c(
+                      "고르거나 아래에 직접 답해 주세요.",
+                      "Pick one or answer below in your own words."
+                    )
                   : undefined
               }
               keyPrefix={`role-start-${message.id}`}
@@ -555,7 +602,9 @@ export function OrgAgentMessageBubble({
           {briefReady ? (
             <div className="mt-3">
               <MuteButton asChild variant="dark">
-                <Link href={briefReady.href}>{c("Brief 확인하기", "Review the Brief")}</Link>
+                <Link href={briefReady.href}>
+                  {c("Brief 확인하기", "Review the Brief")}
+                </Link>
               </MuteButton>
             </div>
           ) : null}

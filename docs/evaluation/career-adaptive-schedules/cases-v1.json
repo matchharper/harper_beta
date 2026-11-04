@@ -1,0 +1,60 @@
+{
+  "datasetVersion": "v1",
+  "requestTime": "2026-11-02T09:00:00+09:00",
+  "cases": [
+    {
+      "id": "return_search",
+      "mode": "chat",
+      "status": "paused",
+      "interval": 11,
+      "reason": "Harper paused its own routine after several delivered emails and no subsequent user response. The user never requested stopping contact.",
+      "message": "오랜만이야. 이제 다시 이직 준비하려고. 기존 조건으로 지원할 만한 공고 몇 개 찾아줘.",
+      "expect": "resume"
+    },
+    {
+      "id": "return_application",
+      "mode": "chat",
+      "status": "paused",
+      "interval": 8,
+      "reason": "Harper paused its own recurring checks during a long gap in conversation. No user stop instruction exists.",
+      "message": "오랜만이야. 지난번에 내가 승인해 둔 아틀라스 플랫폼 엔지니어 지원, 그 자료 그대로 이어서 제출해줘.",
+      "expect": "resume"
+    },
+    {
+      "id": "important_only",
+      "mode": "chat",
+      "status": "active",
+      "interval": 3,
+      "reason": "Initial product schedule; no user-specified cadence.",
+      "message": "앞으로 비슷한 공고를 계속 보내지는 말고, 중요한 정보가 생겼을 때만 알려줘. 확인하는 주기는 네가 적당히 정해.",
+      "expect": "instruction"
+    },
+    {
+      "id": "user_pause_one_off",
+      "mode": "chat",
+      "status": "paused",
+      "interval": 9,
+      "reason": "User message 19: 정기적으로 연락하는 건 중단해줘. 내가 필요할 때만 들어와서 요청할게.",
+      "message": "오늘 필요한 공고 하나만 찾아줘. 기존 플랫폼 엔지니어 조건 그대로야.",
+      "expect": "stay_paused"
+    },
+    {
+      "id": "background_silence",
+      "mode": "background",
+      "status": "active",
+      "interval": 3,
+      "reason": "Initial product schedule; no user-specified cadence.",
+      "facts": "The last actual user message was 2026-08-01. Eight routine emails were sent afterward, with no subsequent inbound messages recorded. Each of the last five evaluations completed with no new useful roles; the current Brief and reviewed sources have not changed. There is no pending application, company request or other notification obligation.",
+      "expect": "adapt"
+    },
+    {
+      "id": "custom_cadence",
+      "mode": "chat",
+      "status": "active",
+      "interval": 13,
+      "reason": "The user explicitly asked to check every thirteen days.",
+      "message": "이번 주는 이력서 소개 문구만 조금 더 명확하게 다듬고 싶어. 지금 일정은 그대로 두고, 첫 문장부터 같이 보자.",
+      "expect": "preserve"
+    }
+  ]
+}

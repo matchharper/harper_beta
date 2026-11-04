@@ -1,0 +1,36 @@
+{
+  "version": "v1",
+  "cases": [
+    {
+      "id": "return_search",
+      "expectation": "resume"
+    },
+    {
+      "id": "return_application",
+      "expectation": "resume"
+    },
+    {
+      "id": "important_only",
+      "expectation": "instruction"
+    },
+    {
+      "id": "user_pause_one_off",
+      "expectation": "stay_paused"
+    },
+    {
+      "id": "background_silence",
+      "expectation": "adapt"
+    },
+    {
+      "id": "custom_cadence",
+      "expectation": "preserve"
+    }
+  ],
+  "semanticReview": [
+    "Current request is addressed naturally.",
+    "Timing and instructions follow current context without forced initial cadence.",
+    "Explicit user restrictions remain authoritative.",
+    "No-response history is not treated as rejection or a new user preference.",
+    "Only saved changes are described as completed."
+  ]
+}

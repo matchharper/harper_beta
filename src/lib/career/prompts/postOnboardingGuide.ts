@@ -1,10 +1,5 @@
 import {
-  CAREER_REENGAGEMENT_ACTIONS_END,
-  CAREER_REENGAGEMENT_ACTIONS_START,
-} from "@/lib/career/reengagementActions";
-import {
   getCareerPromptLanguageName,
-  getCareerPromptToneRule,
 } from "@/lib/career/promptLocale";
 import { cleanCareerPromptInlineValue } from "@/lib/career/prompts/promptUtils";
 import type {
@@ -12,40 +7,14 @@ import type {
   CareerPromptChannel,
 } from "@/lib/career/prompts/types";
 
-export function buildCareerPostOnboardingConversationGuide(args: {
+export function buildCareerPostOnboardingConversationGuide(_args: {
   channel: CareerPromptChannel;
   preferredLocale?: string | null;
 }) {
-  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
-  const gmailActionLabel =
-    outputLanguage === "English" ? "Connect Gmail" : "Gmail 연결하기";
-  const gmailActionGuidance =
-    args.channel === "chat"
-      ? [
-          "When Gmail is not connected and application/recruiting history is the primary topic, offer both ways to continue: the candidate can tell Harper directly, or use one Gmail connection button. Append this action block only in that case:",
-          CAREER_REENGAGEMENT_ACTIONS_START,
-          JSON.stringify({
-            actions: [
-              {
-                label: gmailActionLabel,
-                action: {
-                  type: "open_path",
-                  path: "/career/profile?profileSection=links",
-                },
-              },
-            ],
-          }),
-          CAREER_REENGAGEMENT_ACTIONS_END,
-          "Write each marker exactly once on its own line, keep the JSON outside Markdown code fences, and put nothing after the closing marker.",
-        ]
-      : [
-          "In voice, offer the same manual-or-Gmail choice conversationally without emitting UI action markers.",
-        ];
-
   return [
     "## Post-onboarding conversation guide",
     "Use this guide while the conversation is transitioning out of onboarding, when the candidate is replying to that handoff, or when they explicitly revisit one of these topics. Otherwise treat it as background awareness and do not reopen completed onboarding questions.",
-    "Post-onboarding here means the period after onboarding ends and before the first opportunity run completes; during this period, avoid calling recommend_job_postings when possible and let the existing initial run continue.",
+    "Read any active matching or background invocation before starting overlapping work. A queued initial invocation is not proof that a search or email has completed.",
     "This is a decision guide, not a checklist. Address the latest user request and any higher-priority runtime instruction first. Then choose at most one unresolved direction that gives the candidate the clearest next step; do not stack several disconnected questions in one response.",
     "",
     "Useful directions, in onboarding-transition priority order:",
@@ -61,13 +30,12 @@ export function buildCareerPostOnboardingConversationGuide(args: {
     "- If application history was already provided, use it instead of asking for a generic repetition; ask only for a meaningful missing detail.",
     "- If Gmail is already connected, do not ask the candidate to connect it again. Gmail-derived Career Memories are snapshots; do not claim current inbox access or specific history without the corresponding context or tool result.",
     "- Describe Gmail scope accurately: Harper can use recruiting/application emails to organize companies, roles, and process history for matching. Do not reduce this to merely reading which postings looked interesting, and do not claim to read unrelated mail.",
-    "",
-    ...gmailActionGuidance,
   ].join("\n");
 }
 
 export function buildCareerPostOnboardingContextSection(args: {
   context?: CareerPostOnboardingContext | null;
+  factsOnly?: boolean;
   toolNames?: readonly string[];
 }) {
   const opportunity = args.context?.entryOpportunity;
@@ -82,12 +50,19 @@ export function buildCareerPostOnboardingContextSection(args: {
     opportunity.verifiedActiveRoleId,
     160
   );
+  if (args.factsOnly) return [
+    "## Current conversation entry opportunity",
+    "Source: the candidate entered this conversation from a Harper /jobs opportunity.",
+    `Company: ${companyName || "not available"}`,
+    `Role: ${roleTitle || "not available"}`,
+    `Verified active internal roleId: ${roleId || "none"}`,
+  ].join("\n");
   const toolNames = new Set(args.toolNames ?? []);
   const toolGuidance = roleId
-    ? toolNames.has("internal_role_priority_review")
+    ? toolNames.has("apply_to_internal_role")
       ? [
           `- Tool-only exact active roleId: ${JSON.stringify(roleId)}.`,
-          "- If the candidate explicitly agrees to prioritize this exact opportunity, call internal_role_priority_review with action=register and this roleId. Do not call get_internal_roles first.",
+          "- If the candidate explicitly agrees to prioritize this exact opportunity, call apply_to_internal_role with this roleId. This evaluates and saves the opportunity for review; company sharing still needs explicit introduction consent.",
         ]
       : []
     : toolNames.has("get_internal_roles")
@@ -112,22 +87,21 @@ export function buildOnboardingCompletionHandoffInstruction(
   preferredLocale?: string | null
 ) {
   const outputLanguage = getCareerPromptLanguageName(preferredLocale);
-  const toneRule = getCareerPromptToneRule(preferredLocale);
 
   return [
     "## Onboarding completion handoff task",
-    "Write the normal Harper assistant message that appears immediately after the separate onboarding summary card and localized search-start receipt. Apply the Post-onboarding conversation guide now.",
-    "The receipt already thanks the candidate, confirms the background search has started, promises the first results within one hour in the Positions tab and email, and says the conversation can continue while it runs. Do not repeat those generic facts.",
+    "Write the normal Harper assistant message after the onboarding summary card. Apply the Post-onboarding conversation guide now.",
+    "A Career background invocation has been recorded. Its useful work and delivery will be decided from context. Do not claim that search results or email are ready, promise an unsupported deadline, or describe a fixed recommendation quota.",
     "",
     "The candidate should understand what happens next and have one clear, relevant way to continue:",
     "- Briefly confirm that Harper reflected the most important grounded criteria from the conversation into future search and matching.",
-    "- Continue naturally from the search-start receipt. Use the runtime context to stay accurate, but focus this message on the candidate's grounded criteria and a useful next direction rather than repeating delivery timing.",
+    "- Use the actual runtime context to explain any relevant next step. The conversation can continue while background work proceeds.",
     "- Briefly explain that like/dislike feedback and tracking a company can improve what Harper brings next, but do not let product instructions crowd out the conversation.",
     "- Choose one primary next direction from the shared guide. A current entry opportunity normally takes priority; otherwise continue with the first still-useful direction supported by the conversation.",
     "- If the candidate ended onboarding with a direct question or unfinished request, address that before introducing another topic.",
     "",
     "Output requirements:",
-    `- Write warm, clear ${outputLanguage}. ${toneRule}`,
+    `- Write warm, clear ${outputLanguage}.`,
     "- Use a few short paragraphs. Do not include a title such as `Next steps`.",
     "- Ask at most one primary question. Do not enumerate the guide or mention that a sequence exists.",
     "- Do not claim that Harper found, recommended, shared, or connected a specific opportunity unless the supplied context establishes that fact.",

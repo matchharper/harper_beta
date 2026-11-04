@@ -19,7 +19,7 @@ function sanitizeTalentToolResultForLog(name: string, result: unknown) {
   if (
     [
       "generate_resume",
-      "write_document",
+      "upsert_document",
       "update_talent_profile",
       "read_document",
       "ready_for_role",
@@ -62,7 +62,7 @@ export function logTalentToolCall(args: {
       safeSerialize(
         [
           "generate_resume",
-          "write_document",
+          "upsert_document",
           "update_talent_profile",
           "ready_for_role",
         ].includes(args.name)

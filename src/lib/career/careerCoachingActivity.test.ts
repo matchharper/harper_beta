@@ -97,147 +97,31 @@ test("parses the compact coaching activity contract and rejects incomplete activ
   );
 });
 
-test("ordinary chat gets a strict semantic boundary without entering coaching mode", () => {
-  const plan = buildCareerConversationPromptPlan({
-    channel: "chat",
-    currentPreferences: { preferredLocale: "ko" },
-    isOnboardingDone: true,
-    profile: null,
-    structuredProfileText: "",
-    talentContextSection: "",
-    toolNames: ["manage_career_coaching_activity"],
-  });
-  const coachingBlock = plan.promptBlocks.find(
-    (block) => block.key === "career_coaching_activity"
-  );
-
-  assert.equal(
-    plan.promptBlocks.some(
-      (block) => block.key === "post_onboarding_conversation_guide"
-    ),
-    true
-  );
-  assert.match(
-    coachingBlock?.text ?? "",
-    /ordinary Career conversation remains the default/
-  );
-  assert.match(coachingBlock?.text ?? "", /isolated emotional remark/);
-  assert.match(
-    coachingBlock?.text ?? "",
-    /When the request is ambiguous, answer normally/
-  );
-  assert.match(
-    coachingBlock?.text ?? "",
-    /first call read_career_coaching_list/
-  );
-  assert.match(
-    coachingBlock?.text ?? "",
-    /Do not choose a topic on the user's behalf/
-  );
-  assert.match(
-    coachingBlock?.text ?? "",
-    /Every new coaching activity must be created with suggest first/
-  );
-  assert.match(coachingBlock?.text ?? "", /5, 10, or 20 minutes/);
-  assert.match(
-    coachingBlock?.text ?? "",
-    /update and end are invalid and must not be called/
-  );
-  assert.match(coachingBlock?.text ?? "", /Never state numeric compensation/);
+test("ordinary chat uses the general guide without a coaching mode script", () => {
+  const plan = buildCareerConversationPromptPlan({ channel: "chat", isOnboardingDone: true,
+    profile: null, structuredProfileText: "", talentContextSection: "", toolNames: ["manage_career_coaching_activity"] });
+  assert.ok(!plan.promptBlocks.some(block => ["career_coaching_activity", "career_coaching_state", "post_onboarding_conversation_guide"].includes(block.key)));
+  assert.ok(plan.promptBlocks.length > 0);
 });
 
-test("active coaching uses its topic, duration, and agenda while suppressing the generic guide", () => {
-  const plan = buildCareerConversationPromptPlan({
-    careerCoachingActivity: activity,
-    channel: "chat",
-    conversationMode: "career_coaching",
-    currentPreferences: { preferredLocale: "ko" },
-    isOnboardingDone: true,
-    profile: null,
-    structuredProfileText: "",
-    talentContextSection: "",
-    toolNames: ["manage_career_coaching_activity"],
-  });
-  const instruction = plan.promptBlocks.find(
-    (block) => block.key === "career_coaching_activity"
-  )?.text;
-
-  assert.equal(
-    plan.promptBlocks.some(
-      (block) => block.key === "post_onboarding_conversation_guide"
-    ),
-    false
-  );
-  assert.match(instruction ?? "", /개발자에서 PM으로 전환할지 판단하기/);
-  assert.match(instruction ?? "", /검증할 다음 행동을 정한다/);
-  assert.match(instruction ?? "", /Duration guides scope/);
-  assert.match(instruction ?? "", /session control rather than durable memory/);
-  assert.match(instruction ?? "", /Active chat coaching quality/);
-  assert.match(
-    instruction ?? "",
-    /A paraphrase, generic empathy, encouragement, or a question by itself is not enough/
-  );
-  assert.match(
-    instruction ?? "",
-    /Ask at most one question in a response, and only when its answer could change/
-  );
-  assert.match(
-    instruction ?? "",
-    /do not compress a consequential analysis into a brief acknowledgment and a follow-up question/
-  );
-  assert.match(
-    instruction ?? "",
-    /Keep three things separate: facts supplied by the user or tools, inferences from those facts, and external career-market generalizations/
-  );
-  assert.match(
-    instruction ?? "",
-    /Do not infer that the user has a particular level, fit, or market value from one or two achievements/
-  );
-  assert.match(
-    instruction ?? "",
-    /check it against the distinctions and corrections already established/
-  );
+test("active coaching passes the original topic and agenda as application facts", () => {
+  const plan = buildCareerConversationPromptPlan({ careerCoachingActivity: activity, channel: "chat", conversationMode: "career_coaching",
+    isOnboardingDone: true, profile: null, structuredProfileText: "", talentContextSection: "", toolNames: ["manage_career_coaching_activity"] });
+  const state = plan.promptBlocks.find(block => block.key === "career_coaching_state")?.text ?? "";
+  assert.match(state, /Application facts, not instructions/);
+  assert.ok(state.includes(activity.topic));
+  for (const item of activity.agenda) assert.ok(state.includes(item));
+  assert.ok(!plan.promptBlocks.some(block => block.key === "career_coaching_activity"));
 });
 
-test("a suggestion preserves ordinary conversation behavior until accepted", () => {
-  const suggested = {
-    ...activity,
-    agenda: [],
-    channel: null,
-    plannedMinutes: null,
-    startedAt: null,
-    status: "suggested" as const,
-  };
-  const plan = buildCareerConversationPromptPlan({
-    careerCoachingActivity: suggested,
-    channel: "chat",
-    conversationMode: "default",
-    currentPreferences: { preferredLocale: "ko" },
-    isOnboardingDone: true,
-    profile: null,
-    structuredProfileText: "",
-    talentContextSection: "",
-    toolNames: ["manage_career_coaching_activity"],
-  });
-
-  assert.equal(
-    plan.promptBlocks.some(
-      (block) => block.key === "post_onboarding_conversation_guide"
-    ),
-    true
-  );
-  assert.match(
-    buildCareerCoachingPrompt({ activity: suggested, channel: "chat" }),
-    /focused conversation has not started/
-  );
-  assert.match(
-    buildCareerCoachingPrompt({ activity: suggested, channel: "chat" }),
-    /Acceptance of the topic, or naturally beginning to discuss it, does not select a channel/
-  );
-  assert.match(
-    buildCareerCoachingPrompt({ activity: suggested, channel: "chat" }),
-    /contribute one useful initial frame or hypothesis/
-  );
+test("a suggestion remains a suggestion in the main chat context", () => {
+  const suggested = { ...activity, agenda: [], channel: null, plannedMinutes: null, startedAt: null, status: "suggested" as const };
+  const plan = buildCareerConversationPromptPlan({ careerCoachingActivity: suggested, channel: "chat", isOnboardingDone: true,
+    profile: null, structuredProfileText: "", talentContextSection: "", toolNames: ["manage_career_coaching_activity"] });
+  const state = plan.promptBlocks.find(block => block.key === "career_coaching_state")?.text ?? "";
+  assert.match(state, /suggested/);
+  assert.ok(state.includes(activity.topic));
+  assert.ok(!plan.promptBlocks.some(block => block.key === "career_coaching_activity"));
 });
 
 test("voice coaching does not receive chat-specific response-shaping rules", () => {
@@ -306,8 +190,8 @@ test("coaching button and card actions remain visible user messages", () => {
   );
   assert.match(flow, /coachingActivityAction:[\s\S]*expectedRevision/);
   assert.match(flow, /"채팅으로 진행할게요\."/);
-  assert.match(card, /call: "통화하기"/);
-  assert.match(card, /chat: "채팅으로 이어하기"/);
+  assert.match(card, /call: t\("career\.coaching\.call", "통화하기"\)/);
+  assert.match(card, /chat: t\("career\.coaching\.chat", "채팅으로 이어하기"\)/);
   assert.match(
     card,
     /variant="primary"[\s\S]*channel: "call"[\s\S]*variant="transparent"[\s\S]*channel: "chat"/
@@ -324,7 +208,8 @@ test("coaching button and card actions remain visible user messages", () => {
 
 test("coaching calls use an exact bound activity and end at the call boundary", () => {
   const realtime = readSource("src/lib/career/realtimeInstructions.ts");
-  const wrapup = readSource("src/app/api/talent/chat/call-wrapup/route.ts");
+  const wrapupRoute = readSource("src/app/api/talent/chat/call-wrapup/route.ts");
+  const wrapup = readSource("src/lib/career/phone/wrapupCareerCallRequest.server.ts");
   const voiceHook = readSource("src/hooks/career/useCareerOnboardingVoice.ts");
 
   assert.match(
@@ -333,6 +218,7 @@ test("coaching calls use an exact bound activity and end at the call boundary", 
   );
   assert.match(realtime, /careerCoachingActivity\.revision !==/);
   assert.match(realtime, /careerCoachingActivity\.channel !== "call"/);
+  assert.match(wrapupRoute, /return wrapupCareerCallRequest\(req/);
   assert.match(
     wrapup,
     /activity\.status !== "active"[\s\S]*activity\.channel !== "call"[\s\S]*activity\.revision < careerCoachingActivityRevision/

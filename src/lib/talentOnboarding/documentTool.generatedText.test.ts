@@ -6,6 +6,9 @@ import {
   readTalentDocumentForTool,
   updateTalentDocumentForTool,
 } from "./documentTool";
+import { upsertDocument } from "@/lib/documents/authoring";
+import { formatToolResultText } from "@/lib/llm/promptText";
+import { withCompactTalentToolModelResult } from "./toolModelResult";
 import { serializeTalentDocuments } from "./documentStore";
 import type { TalentDocumentRow } from "./models";
 import { recordPdfExport } from "@/lib/documents/pdfDiagnostics";
@@ -175,6 +178,7 @@ test("lists and reads generated Gmail text without a Storage object", async () =
       createdAt: document.created_at,
       documentId: document.id,
       fileName: document.file_name,
+      description: null,
       hasExtractedText: true,
       isPrimary: false,
       isPublic: false,
@@ -278,4 +282,33 @@ test("owners can publish and unpublish generated resumes without primary selecti
     assert.equal(document.is_primary, false);
   }
   await assert.rejects(updateTalentDocumentForTool({ admin, userId: "other", input: { document_id: document.id, is_public: true } }), /not found/);
+});
+
+
+test("description is available in list/read model text and editable on resumes without changing their body", async () => {
+  const document = createGmailDocument({ kind: "resume", origin_type: "harper_generated_resume", revision: 3, description: "제품 리더 지원용" });
+  const { admin } = createDocumentAdmin([document]);
+  const list = await listTalentDocumentsForTool({ admin, userId: "talent-a", input: {} });
+  assert.equal(list.documents[0].description, "제품 리더 지원용");
+  const model = formatToolResultText(withCompactTalentToolModelResult("list_documents", list));
+  assert.match(model, /제품 리더 지원용/);
+  assert.match(model, /documentId: gmail-document/);
+  assert.doesNotMatch(model, /T00:00|storage_path|Career history/);
+  const input = { document_id: document.id, description: "데이터 플랫폼 리더 지원용" };
+  const saved = await upsertDocument({ admin, userId: "talent-a", userMessageId: 1, input });
+  assert.match(formatToolResultText(withCompactTalentToolModelResult("upsert_document", saved)), /데이터 플랫폼 리더 지원용/);
+  const read = await readTalentDocumentForTool({ admin, userId: "talent-a", input });
+  assert.equal(read.document.description, input.description);
+  assert.equal(read.excerpt, "# Career history\n\n## Acme — Engineer");
+  assert.match(formatToolResultText(withCompactTalentToolModelResult("read_document", read)), /데이터 플랫폼 리더 지원용/);
+  await upsertDocument({ admin, userId: "talent-a", userMessageId: 2, input: { ...input, description: null } });
+  assert.equal(document.description, null);
+  await assert.rejects(upsertDocument({ admin, userId: "other", userMessageId: 3, input }), /not found/);
+  await assert.rejects(upsertDocument({ admin, userId: "talent-a", userMessageId: 3, input: { ...input, is_primary: true } }), /cannot be selected as primary/);
+  await upsertDocument({ admin, userId: "talent-a", userMessageId: 4, input: { document_id: document.id, is_deleted: true } });
+  assert.equal(document.is_deleted, true);
+  assert.equal((await listTalentDocumentsForTool({ admin, userId: "talent-a", input: {} })).documents.length, 0);
+  await upsertDocument({ admin, userId: "talent-a", userMessageId: 5, input: { document_id: document.id, is_deleted: false, description: "복원한 이력서" } });
+  assert.equal(document.is_deleted, false);
+  assert.equal(document.description, "복원한 이력서");
 });

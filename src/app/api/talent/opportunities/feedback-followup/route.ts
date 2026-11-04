@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCareerRequestTextChatModel } from "@/lib/career/requestTextChatModel";
 import { createTalentOpportunityFeedbackFollowUpReply } from "@/lib/career/historyActionReply";
 import type { TalentOpportunityFeedbackReplyTrigger } from "@/lib/career/historyActionReply";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import { isMobileRequest } from "@/lib/requestDevice";
 import type { TalentOpportunityFeedback } from "@/lib/talentOpportunity";
-import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import {
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
   isCareerOpportunityFeedbackFollowUpTrigger,
@@ -25,14 +25,6 @@ function normalizeFeedbackFollowUpTrigger(
 
 function normalizeFeedback(value: unknown): TalentOpportunityFeedback | null {
   return value === "positive" || value === "negative" ? value : null;
-}
-
-function getAllowedToolNamesForFeedbackFollowUp(
-  trigger: TalentOpportunityFeedbackReplyTrigger
-): readonly string[] | null {
-  return trigger === FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
-    ? [TALENT_TOOL_NAMES.GET_INTERNAL_ROLES]
-    : [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS];
 }
 
 export async function POST(req: NextRequest) {
@@ -66,9 +58,9 @@ export async function POST(req: NextRequest) {
 
     const assistantMessage = await createTalentOpportunityFeedbackFollowUpReply(
       {
+        textChatModel: resolveCareerRequestTextChatModel(req, user).model,
         action: feedback === "keep" ? null : feedback,
         admin,
-        allowedToolNames: getAllowedToolNamesForFeedbackFollowUp(trigger),
         conversationId,
         feedbackReason,
         isMobile: requestIsMobile,

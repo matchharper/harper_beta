@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v5",
+  "provenance": "Agent inbox contract; current original prompts/schemas/formatters, actual profile/material SQL; downstream delivery receipts are synthetic. Button acceptance no longer pre-executed. Added initial jobs two-turn flow. Frozen before generation.",
+  "createdAt": "2026-11-03",
+  "hashes": {
+    "cases-v5.json": "08090777fb445a66b62c2889f5cbcbd6093526eea6dc8a25401399455e8ceaff",
+    "gold-v5.json": "f7c7c23889e846912b6b6817798fc06409970857912d843cf2196031eed468e5"
+  }
+}

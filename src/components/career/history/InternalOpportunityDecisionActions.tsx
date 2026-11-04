@@ -79,7 +79,7 @@ export function InternalOpportunityDecisionMenu({
           >
             {t(
               "career.history.internal_decision_actions.revert",
-              "새 포지션으로 되돌리기"
+              "새 기회로 되돌리기"
             )}
           </ActionDropdownItem>
         ) : null}
@@ -138,16 +138,16 @@ export function InternalOpportunityDecisionChangeModal({
   const description = isStop
     ? t(
         "career.history.internal_decision_actions.stop_description",
-        "진행 중단 의사를 전달하고 이 포지션을 ‘진행 종료’로 이동합니다. 이미 회사 담당자와 연락 중이거나 일정이 잡혔다면, 담당자에게 직접 취소 의사를 알려주세요."
+        "진행 중단 의사를 전달하고 이 기회를 ‘종료/보관’으로 이동합니다. 이미 회사 담당자와 연락 중이거나 일정이 잡혔다면, 담당자에게 직접 취소 의사를 알려주세요."
       )
     : isAcceptedRevert
       ? t(
           "career.history.internal_decision_actions.revert_accept_description",
-          "회사에 소개해 달라는 결정을 취소하고 이 포지션을 ‘새 포지션’으로 되돌립니다. 되돌린 뒤 다시 결정할 수 있어요. 이미 전달된 정보나 발송된 안내는 자동으로 회수되지 않습니다."
+          "회사에 소개해 달라는 결정을 취소하고 이 기회를 ‘새 기회’로 되돌립니다. 되돌린 뒤 다시 결정할 수 있어요. 이미 전달된 정보나 발송된 안내는 자동으로 회수되지 않습니다."
         )
       : t(
           "career.history.internal_decision_actions.revert_reject_description",
-          "거절을 취소하고 이 포지션을 ‘새 포지션’으로 되돌립니다. 되돌린 뒤에는 다시 수락하거나 거절할 수 있어요."
+          "넘기기를 취소하고 이 기회를 ‘새 기회’로 되돌립니다. 되돌린 뒤 다시 결정할 수 있어요."
         );
 
   const handleConfirm = async () => {
@@ -194,7 +194,7 @@ export function InternalOpportunityDecisionChangeModal({
                 )
               : t(
                   "career.history.internal_decision_actions.revert_confirm",
-                  "새 포지션으로 되돌리기"
+                  "새 기회로 되돌리기"
                 )}
           </MuteButton>
         </div>
