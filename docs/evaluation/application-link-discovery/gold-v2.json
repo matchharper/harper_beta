@@ -1,0 +1,26 @@
+{
+  "version": "v2",
+  "reviewedAt": "2026-10-29",
+  "reviewer": "Codex independent public-browser review before agent execution",
+  "scope": "Three additional employers; v1 inputs and gold remain unchanged.",
+  "cases": {
+    "delightroom-backend": {
+      "officialJobUrl": "https://delightroom.ninehire.site/job_posting/nrFCgQ3x",
+      "applicationUrl": "https://delightroom.ninehire.site/job_posting/nrFCgQ3x/apply",
+      "job": "(알라미) Backend Engineer",
+      "expected": "Active Ninehire form reached from official delightroom.com/recruit listing. Name, phone, email, source, resume; optional referrer, attachment, URL and two independent optional consents. No submission."
+    },
+    "specter-ai": {
+      "officialJobUrl": "https://recruit.specter.co.kr/jobs/b36ae308-c3d6-423e-a1e4-e1d500258204",
+      "applicationUrl": "https://recruit.specter.co.kr/jobs/b36ae308-c3d6-423e-a1e4-e1d500258204/apply",
+      "job": "AI Engineer",
+      "expected": "Active company-owned application form: name, email, phone, resume PDF <=10MB, source channel and privacy consent required; portfolio PDF <=100MB and portfolio video link optional. No submission."
+    },
+    "mayi-field": {
+      "officialJobUrl": "https://mayi.career.greetinghr.com/ko/o/240269",
+      "applicationUrl": "https://mayi.career.greetinghr.com/ko/o/240269/apply",
+      "job": "필드 엔지니어 (Field Engineer)",
+      "expected": "Active Greeting form: name, email, phone, resume PDF, alternative military service selection, required privacy consent. Optional portfolio file/URL, four referrer fields, optional data consent and third-party consent independently. Email confirmation control visible: preserve uncertainty about verification requirements. No submission."
+    }
+  }
+}

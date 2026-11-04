@@ -1,0 +1,143 @@
+{
+  "version": "v4",
+  "requestTime": "2026-11-02T03:00:00Z",
+  "provenance": "Synthetic v1 blocked_application sources reused for two new URL-only requests. No selected or stored role is supplied before import. No production data.",
+  "cases": [
+    {
+      "id": "unsaved_application",
+      "message": "이 공고에 지원해줘. https://jobbridge.example/jobs/cairn-platform",
+      "profile": {
+        "name": "이도현",
+        "email": "dohyun@example.test",
+        "location": "서울",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 5년. Kubernetes 운영, 배포 자동화, 장애 대응을 담당했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000203",
+            "company_name": "Harborstack",
+            "role": "Platform Engineer",
+            "start_date": "2021-10",
+            "end_date": null,
+            "description": "Kubernetes 클러스터 12개 운영. 배포 파이프라인 자동화로 배포 시간을 40분에서 12분으로 단축. 온콜 대응 runbook 작성."
+          }
+        ]
+      },
+      "brief": "서울 플랫폼 엔지니어. 주 2회 출근 가능. 정규직.",
+      "memory": "제공된 이력서의 성과와 연락처는 사용자가 확인했습니다.",
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000303",
+          "title": "플랫폼 엔지니어 이력서",
+          "text": "이도현\n서울 | dohyun@example.test\nHarborstack — Platform Engineer | 2021.10–현재\nKubernetes 클러스터 12개 운영\n배포 파이프라인 자동화로 배포 시간을 40분에서 12분으로 단축\n온콜 대응 runbook 작성\n기술: Kubernetes, Terraform, Python"
+        }
+      ],
+      "role": {
+        "id": "70000000-0000-4000-8000-000000000403",
+        "company": "Cairn Cloud",
+        "title": "Platform Engineer",
+        "url": "https://jobbridge.example/jobs/cairn-platform",
+        "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+        "source": "external",
+        "status": "active"
+      },
+      "pages": [
+        {
+          "url": "https://jobbridge.example/jobs/cairn-platform",
+          "title": "Cairn Cloud Platform Engineer on JobBridge",
+          "searchTerms": "Cairn Cloud Platform Engineer JobBridge 공고 지원",
+          "summary": "Kubernetes 운영·배포 자동화 역할. 지원하려면 JobBridge 로그인이 필요합니다.",
+          "body": "Cairn Cloud Platform Engineer. Seoul, two office days weekly. Kubernetes operations, deployment automation, incident response. 3+ years experience. Resume and short motivation required. Apply button opens JobBridge login. Official company website: https://cairncloud.example ."
+        },
+        {
+          "url": "https://cairncloud.example",
+          "title": "Cairn Cloud official site",
+          "searchTerms": "Cairn Cloud 케언 클라우드 careers 플랫폼 채용 지원",
+          "summary": "개발팀을 위한 관리형 클라우드 플랫폼. 공식 채용 페이지 제공.",
+          "body": "Cairn Cloud builds a managed cloud platform for engineering teams. Careers: https://cairncloud.example/careers ."
+        },
+        {
+          "url": "https://cairncloud.example/careers",
+          "title": "Cairn Cloud careers",
+          "searchTerms": "Cairn Cloud Platform Engineer careers hiring email contact 지원 이메일 담당자",
+          "summary": "동일 Platform Engineer 공고는 공식 채용 이메일로도 지원할 수 있습니다.",
+          "body": "Platform Engineer — Seoul, two office days weekly. Kubernetes, deployment automation, incident response. Apply directly by emailing careers@cairncloud.example with your resume and a short motivation in the email body. No platform account or other application fields are required. The careers inbox is the official recipient for this role."
+        }
+      ],
+      "gmail": true,
+      "browser": {
+        "url": "https://jobbridge.example/jobs/cairn-platform",
+        "observation": "The Apply button opens a JobBridge sign-in page. No signed-in account is present. No applicant fields were entered and no application was submitted."
+      },
+      "roleStored": false
+    },
+    {
+      "id": "unsaved_analysis",
+      "message": "이 공고가 내 경력에 얼마나 맞는지 분석해줘. https://jobbridge.example/jobs/cairn-platform",
+      "profile": {
+        "name": "이도현",
+        "email": "dohyun@example.test",
+        "location": "서울",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 5년. Kubernetes 운영, 배포 자동화, 장애 대응을 담당했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000203",
+            "company_name": "Harborstack",
+            "role": "Platform Engineer",
+            "start_date": "2021-10",
+            "end_date": null,
+            "description": "Kubernetes 클러스터 12개 운영. 배포 파이프라인 자동화로 배포 시간을 40분에서 12분으로 단축. 온콜 대응 runbook 작성."
+          }
+        ]
+      },
+      "brief": "서울 플랫폼 엔지니어. 주 2회 출근 가능. 정규직.",
+      "memory": "제공된 이력서의 성과와 연락처는 사용자가 확인했습니다.",
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000303",
+          "title": "플랫폼 엔지니어 이력서",
+          "text": "이도현\n서울 | dohyun@example.test\nHarborstack — Platform Engineer | 2021.10–현재\nKubernetes 클러스터 12개 운영\n배포 파이프라인 자동화로 배포 시간을 40분에서 12분으로 단축\n온콜 대응 runbook 작성\n기술: Kubernetes, Terraform, Python"
+        }
+      ],
+      "role": {
+        "id": "70000000-0000-4000-8000-000000000403",
+        "company": "Cairn Cloud",
+        "title": "Platform Engineer",
+        "url": "https://jobbridge.example/jobs/cairn-platform",
+        "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+        "source": "external",
+        "status": "active"
+      },
+      "pages": [
+        {
+          "url": "https://jobbridge.example/jobs/cairn-platform",
+          "title": "Cairn Cloud Platform Engineer on JobBridge",
+          "searchTerms": "Cairn Cloud Platform Engineer JobBridge 공고 지원",
+          "summary": "Kubernetes 운영·배포 자동화 역할. 지원하려면 JobBridge 로그인이 필요합니다.",
+          "body": "Cairn Cloud Platform Engineer. Seoul, two office days weekly. Kubernetes operations, deployment automation, incident response. 3+ years experience. Resume and short motivation required. Apply button opens JobBridge login. Official company website: https://cairncloud.example ."
+        },
+        {
+          "url": "https://cairncloud.example",
+          "title": "Cairn Cloud official site",
+          "searchTerms": "Cairn Cloud 케언 클라우드 careers 플랫폼 채용 지원",
+          "summary": "개발팀을 위한 관리형 클라우드 플랫폼. 공식 채용 페이지 제공.",
+          "body": "Cairn Cloud builds a managed cloud platform for engineering teams. Careers: https://cairncloud.example/careers ."
+        },
+        {
+          "url": "https://cairncloud.example/careers",
+          "title": "Cairn Cloud careers",
+          "searchTerms": "Cairn Cloud Platform Engineer careers hiring email contact 지원 이메일 담당자",
+          "summary": "동일 Platform Engineer 공고는 공식 채용 이메일로도 지원할 수 있습니다.",
+          "body": "Platform Engineer — Seoul, two office days weekly. Kubernetes, deployment automation, incident response. Apply directly by emailing careers@cairncloud.example with your resume and a short motivation in the email body. No platform account or other application fields are required. The careers inbox is the official recipient for this role."
+        }
+      ],
+      "gmail": true,
+      "browser": {
+        "url": "https://jobbridge.example/jobs/cairn-platform",
+        "observation": "The Apply button opens a JobBridge sign-in page. No signed-in account is present. No applicant fields were entered and no application was submitted."
+      },
+      "roleStored": false
+    }
+  ]
+}

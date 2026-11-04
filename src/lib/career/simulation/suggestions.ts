@@ -1,3 +1,4 @@
+import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { formatPromptText } from "@/lib/llm/promptText";
 import { z } from "zod";
 import type { SimulationSession } from "./session";
@@ -33,7 +34,7 @@ export const manageApplicationSuggestionsTool = {
   function: {
     name: MANAGE_APPLICATION_SUGGESTIONS,
     description:
-      "Resolve or revise preparation suggestions. Existing id addresses an item; suggestion replaces it or creates one without id. accept settles an authorized change, ignore removes it from execution, ask publishes it in the question composer and ends the turn. For an answered question, use ignore and accept any resulting grounded change. Saved button choices remain settled unless the user subsequently changes them. This tool records decisions; ready_for_role writes the actual resume. Save useful partial work before publishing a new essential question.",
+      TOOL_DESCRIPTIONS.manage_application_suggestions,
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -89,6 +90,7 @@ export function manageApplicationSuggestions(
   const s = structuredClone(session),
     present: string[] = [];
   let changed = false;
+  let resumeChanged = false;
   const ids = input.changes.flatMap((c) => (c.id ? [c.id] : []));
   if (new Set(ids).size !== ids.length)
     throw new Error("Each suggestion may be changed once per call");
@@ -117,6 +119,7 @@ export function manageApplicationSuggestions(
       else s.actions.push(replacement);
       item = replacement;
     }
+    resumeChanged ||= item!.inputKind === "change";
     const decision = change.decision ?? "ask";
     if (decision === "ask") {
       item!.status = "pending";
@@ -137,8 +140,10 @@ export function manageApplicationSuggestions(
   }
   if (changed) {
     s.preparation!.inputRevision++;
-    s.preparation!.finalDocumentId = null;
-    s.preparation!.finalDocumentFingerprint = null;
+    if (resumeChanged) {
+      s.preparation!.finalDocumentId = null;
+      s.preparation!.finalDocumentFingerprint = null;
+    }
   }
   if (present.length)
     return askApplicationInput(

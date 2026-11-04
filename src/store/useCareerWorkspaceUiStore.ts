@@ -1,8 +1,7 @@
+import type { CareerConversationVersion } from "@/lib/career/conversationVersion";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { CareerHistoryOpportunity } from "@/components/career/types";
-
-export type CareerSavedHistoryDisplayMode = "list" | "board";
 
 export const CAREER_CHAT_PANEL_MIN_WIDTH_PCT = 34;
 export const CAREER_CHAT_PANEL_MAX_WIDTH_PCT = 62;
@@ -20,14 +19,15 @@ export const normalizeCareerChatPanelWidthPct = (value: unknown) => {
   return Math.round(clampChatPanelWidthPct(numeric) * 100) / 100;
 };
 
-const normalizeSavedHistoryDisplayMode = (
-  value: unknown
-): CareerSavedHistoryDisplayMode => (value === "board" ? "board" : "list");
-
 type CareerWorkspaceUiStoreState = {
+  lastMyOpportunitiesTab: "saved" | "applied" | "hidden" | "archived";
+  setLastMyOpportunitiesTab: (
+    tab: "saved" | "applied" | "hidden" | "archived"
+  ) => void;
+  conversationVersion: CareerConversationVersion;
+  setConversationVersion: (version: CareerConversationVersion) => void;
   chatPanelWidthPct: number;
   desktopSidebarCollapsed: boolean;
-  devMessageActionsVisible: boolean;
   companyJobsOpportunity: CareerHistoryOpportunity | null;
   companyJobsOnOpenChat: (() => void) | null;
   setCompanyJobsOpportunity: (
@@ -36,23 +36,24 @@ type CareerWorkspaceUiStoreState = {
   ) => void;
   desktopRoleActionOpportunity: CareerHistoryOpportunity | null;
   desktopRoleActionScope: "role" | "company";
-  savedHistoryDisplayMode: CareerSavedHistoryDisplayMode;
   setChatPanelWidthPct: (value: number) => void;
   setDesktopSidebarCollapsed: (collapsed: boolean) => void;
-  setDevMessageActionsVisible: (visible: boolean) => void;
   setDesktopRoleActionOpportunity: (
     opportunity: CareerHistoryOpportunity | null,
     scope?: "role" | "company"
   ) => void;
-  setSavedHistoryDisplayMode: (value: CareerSavedHistoryDisplayMode) => void;
 };
 
 export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
   persist(
     (set) => ({
+      lastMyOpportunitiesTab: "saved",
+      setLastMyOpportunitiesTab: (lastMyOpportunitiesTab) =>
+        set({ lastMyOpportunitiesTab }),
+      conversationVersion: "professional",
+      setConversationVersion: (conversationVersion) => set({ conversationVersion }),
       chatPanelWidthPct: CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
       desktopSidebarCollapsed: false,
-      devMessageActionsVisible: false,
       companyJobsOpportunity: null,
       companyJobsOnOpenChat: null,
       setCompanyJobsOpportunity: (item, onOpenChat) =>
@@ -62,31 +63,24 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
         }),
       desktopRoleActionOpportunity: null,
       desktopRoleActionScope: "role",
-      savedHistoryDisplayMode: "list",
       setChatPanelWidthPct: (value) =>
         set({ chatPanelWidthPct: normalizeCareerChatPanelWidthPct(value) }),
       setDesktopSidebarCollapsed: (collapsed) =>
         set({ desktopSidebarCollapsed: collapsed }),
-      setDevMessageActionsVisible: (visible) =>
-        set({ devMessageActionsVisible: visible }),
       setDesktopRoleActionOpportunity: (opportunity, scope = "role") =>
         set({
           desktopRoleActionOpportunity: opportunity,
           desktopRoleActionScope: scope,
-        }),
-      setSavedHistoryDisplayMode: (value) =>
-        set({
-          savedHistoryDisplayMode: normalizeSavedHistoryDisplayMode(value),
         }),
     }),
     {
       name: "career-workspace-ui",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
+        lastMyOpportunitiesTab: state.lastMyOpportunitiesTab,
+        conversationVersion: state.conversationVersion,
         chatPanelWidthPct: state.chatPanelWidthPct,
         desktopSidebarCollapsed: state.desktopSidebarCollapsed,
-        devMessageActionsVisible: state.devMessageActionsVisible,
-        savedHistoryDisplayMode: state.savedHistoryDisplayMode,
       }),
       merge: (persistedState, currentState) => {
         const state =
@@ -94,14 +88,17 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
 
         return {
           ...currentState,
+          conversationVersion: state?.conversationVersion === "friendly" ? "friendly" : "professional",
+          lastMyOpportunitiesTab:
+            state?.lastMyOpportunitiesTab === "applied" ||
+            state?.lastMyOpportunitiesTab === "hidden" ||
+            state?.lastMyOpportunitiesTab === "archived"
+              ? state.lastMyOpportunitiesTab
+              : "saved",
           chatPanelWidthPct: normalizeCareerChatPanelWidthPct(
             state?.chatPanelWidthPct
           ),
           desktopSidebarCollapsed: state?.desktopSidebarCollapsed === true,
-          devMessageActionsVisible: state?.devMessageActionsVisible === true,
-          savedHistoryDisplayMode: normalizeSavedHistoryDisplayMode(
-            state?.savedHistoryDisplayMode
-          ),
         };
       },
     }

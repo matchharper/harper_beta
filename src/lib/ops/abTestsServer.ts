@@ -5,7 +5,7 @@ import {
 } from "./historyFeedbackExperiment";
 import {
   HISTORY_FEEDBACK_VIEW_EVENT,
-  HISTORY_FEEDBACK_SAVED_EVENT,
+  HISTORY_FEEDBACK_CLICK_EVENT,
 } from "@/lib/career/historyFeedbackExperiment";
 import {
   buildExternalRecommendationExperiment,
@@ -492,7 +492,7 @@ export async function fetchOpsAbTests(args: {
           .select("id,user_id,type,created_at,meta_data")
           .in("type", [
             HISTORY_FEEDBACK_VIEW_EVENT,
-            HISTORY_FEEDBACK_SAVED_EVENT,
+            HISTORY_FEEDBACK_CLICK_EVENT,
           ])
           .gte("created_at", startIso)
           .lte("created_at", new Date(now).toISOString())

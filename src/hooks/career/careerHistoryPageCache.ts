@@ -5,7 +5,7 @@ import type {
 } from "@/components/career/types";
 import {
   getDefaultSavedStage,
-  getHistoryOpportunityBucket,
+  getHistoryOpportunityBucket, isSavedHistoryOpportunity,
 } from "@/hooks/career/careerSessionData";
 
 type CareerHistoryPageLike = {
@@ -18,7 +18,7 @@ const isHistoryOpportunityInFilter = (
 ) => {
   const bucket = getHistoryOpportunityBucket(item);
   if (filter.historyTab !== "saved") return bucket === filter.historyTab;
-  if (bucket !== "saved") return false;
+  if (!isSavedHistoryOpportunity(item)) return false;
 
   const stage = item.savedStage ?? getDefaultSavedStage(item);
   if (filter.savedStage === "all") return stage !== "hidden";

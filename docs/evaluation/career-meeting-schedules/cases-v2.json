@@ -1,0 +1,45 @@
+{
+  "version": "v2",
+  "now": "2030-01-06T00:00:00Z",
+  "cases": [
+    {
+      "id": "new",
+      "existing": false,
+      "subject": "Platform interview confirmation",
+      "body": "Your Atlas platform interview is confirmed for January 7, 2030 at 09:00–10:00 Asia/Seoul. Please prepare one deployment architecture example. Join https://meet.example.test/platform ."
+    },
+    {
+      "id": "rescheduled",
+      "existing": true,
+      "subject": "Re: Platform interview confirmation",
+      "body": "Change confirmed: our January 7 interview is now January 8, 2030 at 15:00–16:00 Asia/Seoul. The same meeting link remains valid. The January 7 time is cancelled, not a second interview."
+    },
+    {
+      "id": "cancelled",
+      "existing": true,
+      "subject": "Re: Platform interview confirmation",
+      "body": "We have cancelled the January 7 interview. No replacement time has been arranged. Please disregard the meeting link and do not attend."
+    },
+    {
+      "id": "tentative",
+      "existing": false,
+      "subject": "Platform interview schedule",
+      "body": "We would like to interview you for the Atlas platform role. Could you do January 7, 2030 at 09:00 or January 8 at 15:00, Asia/Seoul? Please let us know your availability. No time has been confirmed."
+    },
+    {
+      "id": "duplicate",
+      "existing": true,
+      "subject": "Platform interview confirmation",
+      "body": "Reminder of your confirmed Atlas platform interview: January 7, 2030, 09:00–10:00 Asia/Seoul, https://meet.example.test/platform . This repeats our original invitation, not an additional interview."
+    },
+    {
+      "id": "outside_window_cancelled",
+      "existing": true,
+      "existingStart": "2030-01-15T09:00:00+09:00",
+      "existingEnd": "2030-01-15T10:00:00+09:00",
+      "discoveryEmpty": true,
+      "subject": "Re: Following up",
+      "body": "We have cancelled the January 15 interview. No replacement time has been arranged. Please disregard the old meeting link and do not attend."
+    }
+  ]
+}

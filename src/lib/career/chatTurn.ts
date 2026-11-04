@@ -1,4 +1,12 @@
-import { createCareerCapabilityTurn, isCareerCapabilityTurn, readCareerCapabilityCoaching } from "@/lib/career/capabilities/server";
+import { readCareerReengagementOpportunities, REENGAGEMENT_OPPORTUNITY_PRELOAD } from "./reengagementOpportunities";
+import { createCareerFormPresenter } from "./forms/server";
+import { watchCareerTurnCancellation } from "./turnCancellation.server";
+import { prepareCareerAgentTurn } from "./agentTurnRuntime.server";
+import { readCareerSourceTextChatModel, resolveCareerTextChatModel, type CareerTextChatModelId } from "./textChatModelConfig";
+import { readCareerConversationTextChatModel } from "./conversationTextChatModel.server";
+import type { CareerReplyCheckpoint } from "./capabilities/runtime";
+import { throwIfToolControlError } from "@/lib/llm/toolError";
+import { isCareerCapabilityTurn, readCareerCapabilityCoaching } from "@/lib/career/capabilities/server";
 import { getCareerCapabilityMode } from "@/lib/career/capabilities/registry";
 import { initialCareerCapabilityPayload } from "@/lib/career/capabilities/lease";
 import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
@@ -12,6 +20,7 @@ import {
 import {
   recoverCareerChatAssistantText,
   runCareerChatAssistant,
+  runCareerChatAssistantStream,
 } from "@/lib/career/llm";
 import { normalizeNoMessageContent } from "@/lib/career/noMessageContent";
 import {
@@ -52,12 +61,10 @@ import { buildSavedProfileChangesForExtractor } from "@/lib/talentOnboarding/pro
 import {
   executeTalentTool,
   TALENT_TOOL_NAMES,
-  withTalentToolAssistantInstruction,
 } from "@/lib/talentOnboarding/tools";
 import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import { commitDeliveredProcessClosureNotices } from "@/lib/talentOnboarding/processClosureNotice";
 import type { PendingProcessClosureNotice } from "@/lib/talentOnboarding/tools";
-import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
 import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
@@ -97,17 +104,13 @@ import {
   extractPostingRoleIdsFromText,
   normalizePostingRoleIds,
 } from "@/lib/career/postingLinks";
-import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import {
+  formatTalentMessageContentForLlmPrompt,
+  formatTalentConversationReferencesForLlm,
+} from "@/lib/career/opportunityFeedbackNote";
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
 import { getCareerToolStartThinkingLog } from "@/lib/career/toolThinkingLog";
 import { fetchTalentCompanyContactContext } from "@/lib/companyTalentRequests/server";
-import {
-  COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-  fetchRecentCompanySnapshot,
-  formatCompanySnapshotMessage,
-  getOrCreateCompanySnapshot,
-  touchConversation,
-} from "@/lib/career/companySnapshot";
 import { withIsMobile } from "@/lib/requestDevice";
 import {
   sanitizeSingleLineDbText,
@@ -128,15 +131,25 @@ import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingCon
 
 type TalentMessageResponse = ReturnType<typeof toTalentMessageResponse>;
 
-type CompanySnapshotToolResult = {
-  messages: TalentMessageResponse[];
-};
+export function includeCareerSourceMessage(
+  recentMessages: TalentMessageRow[],
+  sourceMessage?: TalentMessageRow
+) {
+  const messages = [...recentMessages];
+  if (!sourceMessage || messages.some(row => Number(row.id) === Number(sourceMessage.id))) return messages;
+  const index = messages.findIndex(row => row.message_type !== "conversation_summary" && Number(row.id) > Number(sourceMessage.id));
+  messages.splice(index < 0 ? messages.length : index, 0, sourceMessage);
+  return messages;
+}
 
 export type CareerChatTurnChannel = "chat" | "voice";
 
 // Server channels can reuse the existing turn without changing the web route,
 // its prompt builder, provider loop, or domain tool registry.
 export type CareerTextTurnAdapter = {
+  replyJobId?: string;
+  /** Whether saved cards/forms themselves reach the user on this transport. */
+  artifactsVisible?: boolean;
   onboardingActive?: boolean;
   sourceMessage: TalentMessageRow;
   adaptPromptBlocks: (blocks: Parameters<typeof runCareerChatAssistant>[0]["systemBlocks"]) => Parameters<typeof runCareerChatAssistant>[0]["systemBlocks"];
@@ -150,16 +163,30 @@ export type CareerTextTurnAdapter = {
   persistAssistant: (args: {
     content: string;
     notices: PendingProcessClosureNotice[];
+    agentTurn?: ReturnType<Awaited<ReturnType<typeof prepareCareerAgentTurn>>["getCompletionPayload"]>;
   }) => Promise<TalentMessageRow>;
 };
 
 export type RunCareerChatTurnArgs = {
+  inboxId?: string;
+  resumeDependenciesPending?: boolean;
+  workId?: string;
+  workRevision?: number;
+  backgroundInvocation?: import("./background/types").CareerBackgroundInvocation;
   scheduleAfter?: (task: () => Promise<void>) => void;
   adapter?: CareerTextTurnAdapter;
+  existingSourceMessage?: TalentMessageRow;
+  agentReplyId?: string;
+  abortSignal?: AbortSignal;
+  deadlineAt?: number;
+  onAgentCheckpoint?: (checkpoint: CareerReplyCheckpoint) => Promise<void>;
+  onAgentTurnStarted?: (claimId: string) => Promise<void>;
+  onArtifactMessage?: (message: TalentMessageResponse) => void;
   admin: TalentAdminClient;
   assistantMessagePayload?: TalentMessageRow["payload"];
   allowedToolNames?: readonly string[] | null;
   assistantModel?: string;
+  textChatModel?: CareerTextChatModelId;
   assistantChatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   assistantMessagePrefix?: string | null;
   assistantOpenAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
@@ -171,7 +198,8 @@ export type RunCareerChatTurnArgs = {
   link?: string | null;
   noMessageMarker?: string;
   onRecommendationStatus?: (status: RecommendJobPostingStatus) => void;
-  onThinkingLog?: (status: string) => void;
+  onThinkingLog?: (status: string, logs: string[]) => void;
+  onTextDelta?: (delta: string) => void | Promise<void>;
   pendingOpportunityFeedbackContext?: string | null;
   proactiveContext?: string | null;
   shouldInsertAssistantMessage?: () => Promise<boolean>;
@@ -216,11 +244,6 @@ export type CareerChatTurnResult = {
   preferencesUpdatedAt: string | null;
 };
 
-const optionalToolString = (value: unknown) => {
-  const text =
-    typeof value === "string" ? stripPostgresUnsafeChars(value).trim() : "";
-  return text || null;
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -306,43 +329,7 @@ async function attachPostingPreviewsToMessages(args: {
   });
 }
 
-async function persistThinkingLogsForMessage(args: {
-  admin: TalentAdminClient;
-  conversationId: string;
-  messageId: number | string | null | undefined;
-  thinkingLogs: string[];
-  userId: string;
-}) {
-  const messageId =
-    typeof args.messageId === "number"
-      ? args.messageId
-      : typeof args.messageId === "string" && /^\d+$/.test(args.messageId)
-        ? Number(args.messageId)
-        : null;
-  if (!messageId || args.thinkingLogs.length === 0) return;
 
-  const { error } = await args.admin
-    .from("talent_messages")
-    .update({ thinking_logs: args.thinkingLogs })
-    .eq("id", messageId)
-    .eq("conversation_id", args.conversationId)
-    .eq("user_id", args.userId);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to persist thinking logs");
-  }
-}
-
-function attachThinkingLogsToLastMessage<T extends { thinkingLogs?: string[] }>(
-  messages: T[],
-  thinkingLogs: string[]
-) {
-  if (messages.length === 0 || thinkingLogs.length === 0) return messages;
-  const lastIndex = messages.length - 1;
-  return messages.map((message, index) =>
-    index === lastIndex ? { ...message, thinkingLogs } : message
-  );
-}
 
 async function buildTalentProfileSnapshot(args: {
   admin: TalentAdminClient;
@@ -428,9 +415,19 @@ export async function runCareerChatTurn(
     shouldInsertAssistantMessage,
     userId,
   } = args;
+  const requestStartedAt = Date.now();
   const scheduleAfter = args.scheduleAfter ?? after;
+  const existingSourceMessage = args.adapter?.sourceMessage ?? args.existingSourceMessage;
+  const sourceModel = args.assistantModel ? undefined : (
+    readCareerSourceTextChatModel(existingSourceMessage?.payload) ?? (
+      args.textChatModel ? resolveCareerTextChatModel(args.textChatModel)
+        : existingSourceMessage ? resolveCareerTextChatModel(undefined)
+        : await readCareerConversationTextChatModel({ admin, userId, conversationId })
+    )
+  );
+  const assistantModel = args.assistantModel ?? sourceModel?.model;
   const requestChannel = args.channel === "voice" ? "voice" : "chat";
-  if (args.adapter && (args.adapter.sourceMessage.user_id !== userId || args.adapter.sourceMessage.conversation_id !== conversationId || args.adapter.sourceMessage.role !== "user")) {
+  if (existingSourceMessage && (existingSourceMessage.user_id !== userId || existingSourceMessage.conversation_id !== conversationId || existingSourceMessage.role !== "user")) {
     throw new Error("Server channel source message does not belong to this turn");
   }
   const assistantMessageType =
@@ -494,10 +491,6 @@ export async function runCareerChatTurn(
         });
       }
     });
-  };
-  const touchConversationIfAllowed = async () => {
-    if (skipConversationWrites) return;
-    await touchConversation(admin, conversationId, userId);
   };
   const updateConversationStageIfAllowed = async (isCompleted: boolean) => {
     if (skipConversationWrites) return;
@@ -622,6 +615,24 @@ export async function runCareerChatTurn(
         userId,
       })
     : null;
+  const isSessionReengagement =
+    (args.assistantMessagePayload as { kind?: string } | null)?.kind ===
+      "session_reengagement";
+  const reengagementOpportunities = isSessionReengagement && !isOnboardingActiveForTurn
+    ? await readCareerReengagementOpportunities({
+        admin,
+        userId,
+        blockedCompanies: talentSetting?.blocked_companies ?? [],
+      }).catch((error) => {
+        console.warn("[career] re-engagement opportunities unavailable", {
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+        return "Saved search results could not be read for this return. Their absence is unknown; the ordinary matching tools can read current facts.";
+      })
+    : "";
+  const turnRuntimeInstruction = [proactiveContext, reengagementOpportunities]
+    .filter(Boolean)
+    .join("\n\n");
   const shouldAutoExtractInsights = isOnboardingActiveForTurn && !suppressOnboarding;
   const savedProfileChangesForExtraction = new Set<string>();
   const canUseInternalFitHoldQuestionTool = false;
@@ -666,9 +677,9 @@ export async function runCareerChatTurn(
       : Promise.resolve(0);
 
   const capabilityMode = getCareerCapabilityMode();
-  const trackCapabilities = !args.adapter && isCareerCapabilityTurn({ channel: requestChannel, isOnboardingDone: !isOnboardingActiveForTurn, allowedToolNames: args.allowedToolNames });
+  const trackCapabilities = isCareerCapabilityTurn({ channel: requestChannel, isOnboardingDone: !isOnboardingActiveForTurn, allowedToolNames: args.allowedToolNames });
   const careerCoachingActivity = trackCapabilities ? await readCareerCapabilityCoaching({ admin, userId, conversationId, expire: true }) : null;
-  let insertedUserMessage: TalentMessageRow | null = args.adapter?.sourceMessage ?? null;
+  let insertedUserMessage: TalentMessageRow | null = existingSourceMessage ?? null;
   const normalizedContent = link
     ? `${rawUserMessage}\n\nReference link: ${link}`
     : rawUserMessage;
@@ -683,7 +694,10 @@ export async function runCareerChatTurn(
             role: "user",
             content: normalizedContent,
             message_type: "chat",
-            ...(trackCapabilities ? { payload: initialCareerCapabilityPayload(capabilityMode) } : {}),
+            ...((trackCapabilities || sourceModel) ? { payload: {
+              ...(trackCapabilities ? initialCareerCapabilityPayload(capabilityMode) : {}),
+              ...(sourceModel ? { careerTextChatModel: sourceModel.model } : {}),
+            } } : {}),
           },
           isMobile
         )
@@ -722,17 +736,19 @@ export async function runCareerChatTurn(
     admin,
     conversationId,
     recentLimit: 16,
+    pendingUserMessageId: args.inboxId ? existingSourceMessage?.id : undefined,
     userId,
   });
 
-  // Durable continuation answers the original inbound message. Background
-  // output after that message is supplied as current runtime context, not as
-  // an assistant prefill or a new user instruction.
-  const sourceWindow = args.adapter
-    ? recentMessages.filter(item => Number(item.id) <= Number(args.adapter!.sourceMessage.id))
-    : recentMessages;
-  if (args.adapter && !sourceWindow.some(item => Number(item.id) === Number(args.adapter!.sourceMessage.id)))
-    sourceWindow.push(args.adapter.sourceMessage);
+  // The source identifies authorization and usage; it is not a history cutoff.
+  // Current Career conversation includes work delivered while an external run
+  // was in flight. Email adapters retain their existing inbound-message window.
+  const sourceWindow = args.inboxId ? recentMessages : includeCareerSourceMessage(
+    args.adapter
+      ? recentMessages.filter(item => Number(item.id) <= Number(args.adapter!.sourceMessage.id))
+      : recentMessages,
+    existingSourceMessage
+  );
   const llmMessages = sourceWindow
     .filter(
       (item) =>
@@ -749,21 +765,19 @@ export async function runCareerChatTurn(
       }),
     }))
     .filter((item) => item.content.trim().length > 0);
-  const assistantTurnMessages = [...llmMessages];
-  if (
-    !rawUserMessage &&
-    proactiveContext &&
-    assistantTurnMessages[assistantTurnMessages.length - 1]?.role !== "user"
-  ) {
-    assistantTurnMessages.push({
+
+  if (isSessionReengagement && proactiveContext) {
+    // A real app event opens a new model turn after the historical transcript.
+    // Ending on an assistant message would be an unsupported Claude prefill.
+    // This transport message is never persisted as candidate speech/consent.
+    llmMessages.push({
       role: "user",
-      content: [
-        "Use the runtime context above to write the next assistant message now.",
-      ].join("\n"),
+      content: `Application event (not a user-authored message or new authorization):\n\n${proactiveContext}`,
     });
   }
 
   const defaultToolSelection = resolveCareerChatTools({
+    background: Boolean(args.backgroundInvocation),
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
@@ -816,6 +830,7 @@ export async function runCareerChatTurn(
       conversationMode: careerCoachingActivity?.status === "active" ? "career_coaching" : "default",
       activeInternalFitHoldQuestion,
       channel: "chat",
+      backgroundInvocation: Boolean(args.backgroundInvocation),
       companyTalentRequestText: companyContactContext,
       talentContextSection,
       currentPreferences,
@@ -831,7 +846,13 @@ export async function runCareerChatTurn(
         fetchedPendingOpportunityFeedbackContext,
       postOnboardingContext,
       profile,
-      runtimeInstruction: proactiveContext,
+      runtimeInstruction: [
+        isSessionReengagement ? reengagementOpportunities : turnRuntimeInstruction,
+        formatTalentConversationReferencesForLlm(sourceWindow, {
+          preferredLocale: responseLocale,
+          timeZone: args.timeZone,
+        }),
+      ].filter(Boolean).join("\n\n"),
       recentActivitySummaries,
       recentRecommendedOpportunitiesText,
       structuredProfileText,
@@ -839,19 +860,69 @@ export async function runCareerChatTurn(
       toolNames: toolSelection.toolNames,
     };
   const { isOnboardingActive, promptBlocks } = buildCareerConversationPromptPlan(capabilityPromptArgs);
-  const capabilityTurn = trackCapabilities ? await createCareerCapabilityTurn({
+  const capabilityTurn = trackCapabilities ? await prepareCareerAgentTurn({
     origin: "server",
     admin, userId, conversationId, sourceMessage: insertedUserMessage, mode: capabilityMode,
     eligibleTools: toolSelection.tools, promptArgs: capabilityPromptArgs,
+    agentReplyId: args.agentReplyId,
+    inboxId: args.inboxId,
+    resumeDependenciesPending: args.resumeDependenciesPending,
+    workId: args.workId,
+    workRevision: args.workRevision,
+    backgroundRunId: args.backgroundInvocation?.runId,
+    sourceMessageCursor: args.backgroundInvocation?.sourceMessageCursor,
+    ...(args.backgroundInvocation ? { selectionSnapshot: {
+      capabilityIds: ["schedules", "career_delivery"],
+      handbookIds: ["proactive_career"], status: "selected" as const, elapsedMs: 0,
+    } } : isSessionReengagement ? { selectionSnapshot: REENGAGEMENT_OPPORTUNITY_PRELOAD } : {}),
+    continuation: {
+      channel: args.backgroundInvocation ? "background" : args.adapter ? "adapter" : "career",
+      ...(args.assistantModel ? { assistantModel: args.assistantModel } : {}),
+      ...(sourceModel ? { textChatModel: sourceModel.model } : {}),
+      ...(args.backgroundInvocation ? { backgroundRunId: args.backgroundInvocation.runId, sourceMessageCursor: args.backgroundInvocation.sourceMessageCursor } : {}),
+      ...(args.adapter?.replyJobId ? { emailReplyJobId: args.adapter.replyJobId } : {}),
+      ...(insertedUserMessage ? { sourceMessageId: insertedUserMessage.id } : {}),
+      ...(turnRuntimeInstruction ? { runtimeInstruction: turnRuntimeInstruction } : {}),
+      ...(noMessageMarker ? { noMessageMarker } : {}),
+    },
+    abortSignal: args.abortSignal,
+    // The shared server path is also used by routes with a 240-second budget.
+    // Leave time to persist the transcript and hand it to the continuation queue.
+    deadlineAt: args.deadlineAt ?? (args.onAgentCheckpoint ? requestStartedAt + 200_000 : undefined),
+    onCheckpoint: args.onAgentCheckpoint,
+    selectorInput: {
+      messages: llmMessages,
+      currentContext: [
+        `Gmail: ${gmailCapability}.`,
+        proactiveContext,
+        fetchedPendingOpportunityFeedbackContext,
+      ].filter(Boolean).join("\n\n"),
+    },
+    adaptPromptBlocks: args.adapter
+      ? blocks => args.adapter!.adaptPromptBlocks(blocks) as typeof blocks
+      : undefined,
   }) : undefined;
+  const standaloneCancellation = !capabilityTurn && insertedUserMessage
+    ? watchCareerTurnCancellation({ admin, userId, conversationId, sourceMessageId: insertedUserMessage.id }, args.abortSignal) : undefined;
+  args = { ...args, abortSignal: capabilityTurn?.runtime.abortSignal ?? standaloneCancellation?.signal ?? args.abortSignal };
+  try {
+  if (capabilityTurn) await args.onAgentTurnStarted?.(capabilityTurn.claimId);
+  await standaloneCancellation?.check();
   const initialCapabilityStep = capabilityTurn?.runtime.resolveStep(false);
   if (initialCapabilityStep) toolDefinitions = initialCapabilityStep.tools;
   const defaultSystemBlocks = initialCapabilityStep?.systemBlocks ?? promptBlocks;
-  const systemBlocks = args.adapter?.adaptPromptBlocks(defaultSystemBlocks) ?? defaultSystemBlocks;
+  const systemBlocks = initialCapabilityStep ? defaultSystemBlocks
+    : args.adapter?.adaptPromptBlocks(defaultSystemBlocks) ?? defaultSystemBlocks;
 
-  const preparedCompanySnapshotRef: {
-    current: CompanySnapshotToolResult | null;
-  } = { current: null };
+  const artifactMessages = new Map<string | number, TalentMessageResponse>();
+  const onArtifactMessage = (message: TalentMessageResponse) => {
+    artifactMessages.set(message.id, message);
+    args.onArtifactMessage?.(message);
+  };
+  const formPresenter = createCareerFormPresenter(
+    { admin, userId, conversationId }, onArtifactMessage,
+    capabilityTurn?.replyId ?? args.agentReplyId ?? `message:${insertedUserMessage?.id}`
+  );
   let documentsChanged = false;
   let thinkingLogs: string[] = [];
   let pendingRecommendationPostingRoleIds: string[] = [];
@@ -867,7 +938,7 @@ export async function runCareerChatTurn(
     thinkingLogs = appendThinkingLog(thinkingLogs, status);
     const currentLast = thinkingLogs[thinkingLogs.length - 1];
     if (currentLast && currentLast !== previousLast) {
-      onThinkingLog?.(currentLast);
+      onThinkingLog?.(currentLast, thinkingLogs);
     }
   };
   const recordRecommendationStatus = (
@@ -909,6 +980,9 @@ export async function runCareerChatTurn(
           responseLocale,
           scheduleAfter,
           userMessageId: insertedUserMessage?.id ?? null,
+          resumeRequestId: capabilityTurn?.replyId ?? args.agentReplyId,
+          abortSignal: args.abortSignal,
+          onArtifactMessage,
           userId,
         },
         name: TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
@@ -956,7 +1030,17 @@ export async function runCareerChatTurn(
         responseLocale,
         registerProcessClosureNotices,
         scheduleAfter,
-        userMessageId: insertedUserMessage?.id ?? null,
+        userMessageId: capabilityTurn?.runtime.options.inputInbox?.messageIds().at(-1) ?? insertedUserMessage?.id ?? null,
+        userMessageIds: capabilityTurn?.runtime.options.inputInbox?.messageIds(),
+        resumeRequestId: capabilityTurn?.replyId ?? args.agentReplyId,
+        backgroundInvocation: args.backgroundInvocation,
+        workId: args.workId,
+        workRevision: args.workRevision,
+        agentClaimId: capabilityTurn?.claimId,
+        abortSignal: args.abortSignal,
+        deadlineAt: capabilityTurn?.runtime.deadlineAt ?? args.deadlineAt,
+        onArtifactMessage,
+        presentForm: formPresenter.presentForm,
         userId,
       },
       logging: false,
@@ -983,8 +1067,32 @@ export async function runCareerChatTurn(
 
   let assistantText: string;
   try {
-    assistantText = await runCareerChatAssistant({
+    const assistantArgs: Parameters<typeof runCareerChatAssistant>[0] = {
       toolRuntime: capabilityTurn?.runtime,
+      hasDeliveredArtifact: () => (!args.adapter || args.adapter.artifactsVisible === true) && (artifactMessages.size > 0 || formPresenter.hasPending()),
+      onAssistantMessage: args.backgroundInvocation || args.adapter ? undefined : async (text) => {
+        const visibleText = normalizeNoMessageContent(text, noMessageMarker);
+        if (!visibleText) return;
+        const content = stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(
+          args.transformAssistantTextBeforeInsert?.(visibleText) ?? visibleText
+        ));
+        if (!content.trim()) return;
+        if (shouldInsertAssistantMessage && !(await shouldInsertAssistantMessage())) return;
+        const row = args.adapter
+          ? await args.adapter.persistAssistant({ content, notices: [] })
+          : await (async () => {
+              const { data, error } = await admin.from("talent_messages").insert(withIsMobile({
+                conversation_id: conversationId, user_id: userId, role: "assistant", content,
+                message_type: "chat", thinking_logs: thinkingLogs,
+                ...(sourceModel ? { payload: { careerTextChatModel: sourceModel.model } } : {}),
+              }, isMobile)).select("*").single();
+              if (error || !data) throw new Error(error?.message ?? "Failed to save assistant progress");
+              return data as TalentMessageRow;
+            })();
+        onArtifactMessage(toTalentMessageResponse(row));
+        thinkingLogs = [];
+      },
+      abortSignal: args.abortSignal,
       onToolStart: ({ name, input }) => {
         if (name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
           recordRecommendationStatus({ state: "running" });
@@ -1021,168 +1129,34 @@ export async function runCareerChatTurn(
           });
         }
 
-        if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
-          await insertTalentToolUsageLog({
-            admin,
-            name,
-            userId,
-          });
-
-          const companyName =
-            optionalToolString(toolInput.company_name) ??
-            optionalToolString(toolInput.companyName);
-          if (!companyName) {
-            throw new Error("research_company requires company_name.");
-          }
-
-          const cachedSnapshot = await fetchRecentCompanySnapshot({
-            admin,
-            companyName,
-            preferredLocale: responseLocale,
-          });
-          if (cachedSnapshot) {
-            const personalizedResult = await getOrCreateCompanySnapshot({
-              admin,
-              companyName,
-              preferredLocale: responseLocale,
-              reason: optionalToolString(toolInput.reason),
-              recentSnapshot: cachedSnapshot,
-              userId,
-            });
-            documentsChanged ||= Boolean(personalizedResult.snapshot.document);
-            const messageContent = stripPostgresUnsafeChars(
-              formatCompanySnapshotMessage({
-                preferredLocale: responseLocale,
-                reused: true,
-                snapshot: personalizedResult.snapshot,
-              })
-            );
-            const { data: cacheMessage, error: cacheMessageError } = await admin
-              .from("talent_messages")
-              .insert(
-                withIsMobile(
-                  {
-                    content: messageContent,
-                    conversation_id: conversationId,
-                    message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                    role: "assistant",
-                    user_id: userId,
-                  },
-                  isMobile
-                )
-              )
-              .select("*")
-              .single();
-            if (cacheMessageError || !cacheMessage) {
-              await notifyUnsupportedUnicodeEscapeError({
-                conversationId,
-                error: cacheMessageError,
-                metadata: {
-                  companyName,
-                  messageContentLength: messageContent.length,
-                  reusedSnapshot: true,
-                },
-                route: "runCareerChatTurn",
-                stage: "talent_messages.insert:company_snapshot_cached",
-                userId,
-              });
-              throw new Error(
-                cacheMessageError?.message ??
-                  "Failed to insert company_snapshot result message."
-              );
-            }
-            await touchConversationIfAllowed();
-            preparedCompanySnapshotRef.current = {
-              messages: [
-                toTalentMessageResponse(cacheMessage as TalentMessageRow),
-              ],
-            };
-            return withTalentToolAssistantInstruction({
-              ok: true,
-              cached: true,
-            });
-          }
-
-          const result = await getOrCreateCompanySnapshot({
-            admin,
-            companyName,
-            preferredLocale: responseLocale,
-            reason: optionalToolString(toolInput.reason),
-            userId,
-          });
-          documentsChanged ||= Boolean(result.snapshot.document);
-          const messageContent = stripPostgresUnsafeChars(
-            formatCompanySnapshotMessage({
-              preferredLocale: responseLocale,
-              reused: result.reused,
-              snapshot: result.snapshot,
-            })
-          );
-          const { data: researchMessage, error: researchMessageError } =
-            await admin
-              .from("talent_messages")
-              .insert(
-                withIsMobile(
-                  {
-                    content: messageContent,
-                    conversation_id: conversationId,
-                    message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                    role: "assistant",
-                    user_id: userId,
-                  },
-                  isMobile
-                )
-              )
-              .select("*")
-              .single();
-          if (researchMessageError || !researchMessage) {
-            await notifyUnsupportedUnicodeEscapeError({
-              conversationId,
-              error: researchMessageError,
-              metadata: {
-                companyName,
-                messageContentLength: messageContent.length,
-                reusedSnapshot: result.reused,
-              },
-              route: "runCareerChatTurn",
-              stage: "talent_messages.insert:company_snapshot",
-              userId,
-            });
-            throw new Error(
-              researchMessageError?.message ??
-                "Failed to insert company_snapshot result message."
-            );
-          }
-          await touchConversationIfAllowed();
-          preparedCompanySnapshotRef.current = {
-            messages: [
-              toTalentMessageResponse(researchMessage as TalentMessageRow),
-            ],
-          };
-          return withTalentToolAssistantInstruction({
-            ok: true,
-            cached: result.reused,
-          });
-        }
 
         return executeDefaultTalentTool({ name, input: toolInput });
       },
       isOnboardingActive,
-      messages: assistantTurnMessages,
-      ...(args.assistantChatCompletionReasoningEffort
-        ? { chatCompletionReasoningEffort: args.assistantChatCompletionReasoningEffort }
+      messages: llmMessages,
+      ...((args.assistantChatCompletionReasoningEffort ?? sourceModel?.chatCompletionReasoningEffort)
+        ? { chatCompletionReasoningEffort: args.assistantChatCompletionReasoningEffort ?? sourceModel?.chatCompletionReasoningEffort }
         : {}),
       openAIResponsesReasoningEffort:
-        args.assistantOpenAIResponsesReasoningEffort,
-      primaryModel: args.assistantModel,
+        args.assistantOpenAIResponsesReasoningEffort ?? sourceModel?.openAIResponsesReasoningEffort,
+      primaryModel: assistantModel,
       responseLocale,
       stopAfterToolNames: toolSelection.stopAfterToolNames,
       systemBlocks,
       temperature: args.assistantTemperature,
       tools: toolDefinitions,
       usageLabel: args.usageLabel,
-    });
+    };
+    assistantText = args.onTextDelta
+      ? await runCareerChatAssistantStream({
+          ...assistantArgs,
+          onTextDelta: args.onTextDelta,
+          onToolStart: ({ name }) => assistantArgs.onToolStart?.({ name, input: {} }),
+        })
+      : await runCareerChatAssistant(assistantArgs);
   } catch (error) {
+    throwIfToolControlError(error);
+    args.abortSignal?.throwIfAborted();
     const receipt = recommendationReceiptRef.current;
     if (!receipt) throw error;
     console.warn(
@@ -1223,7 +1197,7 @@ export async function runCareerChatTurn(
     const completed = options?.completed === true;
     const responseMessages = await attachPostingPreviewsToMessages({
       admin,
-      messages: assistantMessages,
+      messages: [...new Map([...artifactMessages.values(), ...assistantMessages].map(message => [message.id, message])).values()].sort((a, b) => Number(a.id) - Number(b.id)),
       userId,
     });
     const assistantMessage =
@@ -1235,7 +1209,6 @@ export async function runCareerChatTurn(
       responseMessages[responseMessages.length - 1] ??
       null;
 
-    await capabilityTurn?.complete();
     return {
       ok: true,
       assistantMessage,
@@ -1260,56 +1233,40 @@ export async function runCareerChatTurn(
     };
   };
 
-  const preparedCompanySnapshot = preparedCompanySnapshotRef.current;
-  if (preparedCompanySnapshot) {
-    const preparedAssistantText =
-      preparedCompanySnapshot.messages[
-        preparedCompanySnapshot.messages.length - 1
-      ]?.content ?? "";
-    const preparedMessageId =
-      preparedCompanySnapshot.messages[
-        preparedCompanySnapshot.messages.length - 1
-      ]?.id;
-    await persistInsightExtractionForAssistantMessage({
-      content: preparedAssistantText,
-      messageId: preparedMessageId,
-    });
-    const finalThinkingLogs = thinkingLogs;
-    const messagesWithThinkingLogs = attachThinkingLogsToLastMessage(
-      preparedCompanySnapshot.messages,
-      finalThinkingLogs
-    );
-    if (finalThinkingLogs.length > 0) {
-      await persistThinkingLogsForMessage({
-        admin,
-        conversationId,
-        messageId: preparedMessageId,
-        thinkingLogs: finalThinkingLogs,
-        userId,
-      });
-    }
-    await commitDeliveredProcessClosureNotices({
-      admin,
-      notices: pendingProcessClosureNotices.values(),
-      talentId: userId,
-    });
-    summarizeConversationInBackground();
-    return buildResult(messagesWithThinkingLogs);
-  }
 
   // A transport may yield durable work before generating a reply that cannot
   // yet be delivered. Persistence rechecks ownership after finalization.
   await args.adapter?.beforeAssistantFinalization?.();
+  if (args.backgroundInvocation) {
+    // Only deliver_career_email emits candidate-visible output. Empty or
+    // intermediate assistant text is a normal background outcome, not a reason
+    // to call a second writer or synthesize a user/assistant chat message.
+    await capabilityTurn?.complete();
+    return buildResult([]);
+  }
   let assistantTextSource = assistantText.trim();
   if (recommendationReceiptRef.current) {
     assistantTextSource = recommendationReceiptRef.current.answerDraft;
   }
+  if (!assistantTextSource && (!args.adapter || args.adapter.artifactsVisible === true) && (!isOnboardingActiveForTurn || artifactMessages.size > 0 || formPresenter.hasPending())) {
+    // An empty final message can follow already delivered progress, a form or
+    // delegated work. A second writer without that execution transcript/tools
+    // would invent a new account of what happened.
+    await formPresenter.flush();
+    await capabilityTurn?.complete();
+    await commitDeliveredProcessClosureNotices({
+      admin, notices: pendingProcessClosureNotices.values(), talentId: userId,
+    });
+    return buildResult(Array.from(artifactMessages.values()));
+  }
   if (!assistantTextSource && !noMessageMarker) {
     assistantTextSource = (
       await recoverCareerChatAssistantText({
-        primaryModel: args.assistantModel,
+          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
+          abortSignal: args.abortSignal,
+        primaryModel: assistantModel,
         latestUserMessage: normalizedContent || proactiveContext,
-        messages: assistantTurnMessages,
+        messages: llmMessages,
         responseLocale,
         systemBlocks,
         usageLabel: args.usageLabel,
@@ -1329,12 +1286,12 @@ export async function runCareerChatTurn(
       .join("\n\n");
   }
   if (!normalizedNoMessageContent && noMessageMarker) {
+    await capabilityTurn?.complete({ delivered: false });
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
       conversationId,
       userId,
     });
-    await capabilityTurn?.complete();
     return {
       ok: true,
       assistantMessage: null,
@@ -1367,9 +1324,11 @@ export async function runCareerChatTurn(
   if (!safeAssistantText) {
     const recoveredText = (
       await recoverCareerChatAssistantText({
-        primaryModel: args.assistantModel,
+          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
+          abortSignal: args.abortSignal,
+        primaryModel: assistantModel,
         latestUserMessage: normalizedContent || proactiveContext,
-        messages: assistantTurnMessages,
+        messages: llmMessages,
         responseLocale,
         systemBlocks,
         usageLabel: args.usageLabel,
@@ -1415,6 +1374,7 @@ export async function runCareerChatTurn(
   }
 
   if (shouldInsertAssistantMessage && !(await shouldInsertAssistantMessage())) {
+    await capabilityTurn?.complete({ delivered: false });
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
       conversationId,
@@ -1437,7 +1397,7 @@ export async function runCareerChatTurn(
   }
 
   const { data: insertedAssistantMessage, error: assistantError } = args.adapter
-    ? { data: await args.adapter.persistAssistant({ content: safeAssistantText, notices: Array.from(pendingProcessClosureNotices.values()) }), error: null }
+    ? { data: await args.adapter.persistAssistant({ content: safeAssistantText, notices: Array.from(pendingProcessClosureNotices.values()), agentTurn: capabilityTurn?.getCompletionPayload() }), error: null }
     : await admin
     .from("talent_messages")
     .insert(
@@ -1448,8 +1408,12 @@ export async function runCareerChatTurn(
           role: "assistant",
           content: safeAssistantText,
           message_type: assistantMessageType,
-          ...(args.assistantMessagePayload !== undefined
-            ? { payload: args.assistantMessagePayload }
+          ...((args.assistantMessagePayload !== undefined || capabilityTurn || sourceModel)
+            ? { payload: {
+                ...(args.assistantMessagePayload as Record<string, unknown> ?? {}),
+                ...(sourceModel ? { careerTextChatModel: sourceModel.model } : {}),
+                ...(capabilityTurn ? { agentTurn: capabilityTurn.getCompletionPayload() } : {}),
+              } as TalentMessageRow["payload"] }
             : {}),
           thinking_logs: thinkingLogs,
         },
@@ -1477,6 +1441,7 @@ export async function runCareerChatTurn(
       assistantError.message ?? "Failed to insert assistant message"
     );
   }
+
 
   if (!args.adapter) {
     await commitDeliveredProcessClosureNotices({
@@ -1558,6 +1523,9 @@ export async function runCareerChatTurn(
   const insertedCompletionNextStepsMessage =
     completionMessages?.nextStepsMessage ?? null;
 
+  await formPresenter.flush();
+  await capabilityTurn?.complete();
+
   const recommendationSearchRun = recommendationReceiptRef.current?.statusRunId
     ? await fetchSerializedOpportunityRunForTalent({
         admin,
@@ -1613,5 +1581,13 @@ export async function runCareerChatTurn(
         recommendationReceiptRef.current?.newRunCreated === true,
       recommendationSearchRun,
     }
-  );
+  );  } finally {
+    standaloneCancellation?.dispose();
+    await capabilityTurn?.release().catch(error => {
+      console.warn("[TalentChatTurn] Failed to release agent reply", {
+        replyId: capabilityTurn.replyId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
 }

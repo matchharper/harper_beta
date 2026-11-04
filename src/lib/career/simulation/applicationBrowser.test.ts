@@ -1,6 +1,10 @@
+import { inspectionMemoryStore } from "./sharedApplicationInspection.testSupport";
+import { hydrateApplicationInspections } from "./sharedApplicationInspection";
 import {applicationStagehandRuntime as remote} from "./applicationStagehandRuntime";
 import { client } from "@/lib/llm/llm";
 import { applicationExecutionFacts } from "./applicationExecution";
+import { prepareApplicationReview } from "./applicationReview";
+import { APPLICATION_STAGEHAND_MODEL } from "./applicationStagehandRuntime";
 import { resumeSavedPreparation } from "./savedApplications";
 import { documentFingerprint } from "./resumeAttachment";
 import test from "node:test";
@@ -23,11 +27,19 @@ import {
 import {
   runApplicationBrowser,
   reconcileBrowserEnd,
-  startApplicationBrowser,
+  startApplicationBrowser as startReviewedApplicationBrowser,
   resumeApplicationBrowser,
 } from "./applicationBrowserServer";
 import { expirePreparation } from "./preparationStore";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+
+// The executor tests start from a saved application, as the submit UI does.
+const startApplicationBrowser = (
+  store: Parameters<typeof startReviewedApplicationBrowser>[0],
+  record: Parameters<typeof startReviewedApplicationBrowser>[1],
+  input: Parameters<typeof startReviewedApplicationBrowser>[2],
+  messageId?: number,
+) => startReviewedApplicationBrowser(store, record, input, messageId, record.state.applicationReview?.revision);
 
 // Existing executor tests below exercise already-persisted legacy attempts.
 function fixture(legacy = true) {
@@ -44,9 +56,12 @@ function fixture(legacy = true) {
   state.applicationUrl = "https://example.org/jobs/engineer";
   state.applicationInspection = { status: "completed", runId: "inspection" };
   state.applicationForm = { status: "read", url: state.applicationUrl, checkedAt: state.startedAt, fields: [], limitations: [], submission: { status: "supported", reason: "Observed public form" } };
+  state.applicationReview = prepareApplicationReview(state, "final-file");
   let documentHash = "hash-1";
+  const inspections = inspectionMemoryStore();
   const admin = {
     rpc: async (_: string, args: Record<string, unknown>) => {
+      const nextPayload = args.p_payload ? await hydrateApplicationInspections(admin, args.p_payload) as typeof state : null;
       if (
         args.p_user_id !== "owner" ||
         args.p_conversation_id !== "conversation"
@@ -56,10 +71,13 @@ function fixture(legacy = true) {
         if (args.p_revision !== state.revision)
           return { data: null, error: { message: "Revision conflict" } };
         state = {
-          ...(args.p_payload as SimulationSession),
+          ...nextPayload!,
           revision: state.revision + 1,
         };
-        if (legacy && state.browser) state.browser.engine = undefined;
+        if (legacy && state.browser) {
+          state.browser.engine = undefined;
+          delete state.browser.managed;
+        }
       }
       return {
         data: {
@@ -71,7 +89,8 @@ function fixture(legacy = true) {
         error: null,
       };
     },
-    from: () => {
+    from: (table: string) => {
+      if (table === "role_application_inspections") return inspections.from(table);
       const filters: Record<string, unknown> = {};
       const query = {
         select: () => query,
@@ -100,6 +119,7 @@ function fixture(legacy = true) {
     store: { admin, userId: "owner", conversationId: "conversation" },
     record: () => ({ messageId: 10, state: structuredClone(state) }),
     set: (s: SimulationSession) => {
+      if (!s.browser) s.applicationReview = prepareApplicationReview(s, "final-file");
       state = s;
     },
     changeFile: () => {
@@ -196,10 +216,11 @@ test("PDF provider failure reaches the outcome LLM with its stage and cause befo
   state.preparation!.finalDocumentId = doc.id;
   state.preparation!.finalDocumentFingerprint = documentFingerprint(doc);
   f.set(state);
-  const query = { select: () => query, eq: () => query, order: () => query, contains: () => query,
-    limit: async () => ({ data: [], error: null }), maybeSingle: async () => ({ data: null, error: null }),
+  const query = { select: () => query, eq: () => query, not: () => query, order: () => query, contains: () => query,
+    limit: () => query, then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve), maybeSingle: async () => ({ data: null, error: null }),
     insert: () => query, single: async () => ({ data: { id: 1234 }, error: null }) };
-  t.mock.method(f.store.admin, "from", ((table: string) => table === "talent_documents"
+  const originalFrom = f.store.admin.from.bind(f.store.admin);
+  t.mock.method(f.store.admin, "from", ((table: string) => table === "role_application_inspections" ? originalFrom(table) : table === "talent_documents"
     ? { select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: doc, error: null }) }) }) }) }) }
     : query) as any);
   const saved = process.env.BROWSERLESS_API_TOKEN;
@@ -772,7 +793,7 @@ test(`${provider} run uses the existing question UI and resumes an exact approve
   } finally {Object.assign(remote,originals);globalThis.fetch=originalFetch;}
 });
 
-test("new applications start the Luna Browserbase worker with confirmed attachments and preserve missing-information flow", async () => {
+test("persisted legacy applications start their Browserbase worker and preserve missing-information flow", async () => {
   const originals={...remote}, originalFetch=globalThis.fetch;
   const f=fixture();const s=f.record().state;s.preparation!.finalDocumentId="final-file";f.set(s);
   f.set((await startApplicationBrowser(f.store,f.record(),{purpose:"Apply"})).state);
@@ -782,7 +803,7 @@ test("new applications start the Luna Browserbase worker with confirmed attachme
   remote.start=async(_ref,instruction)=>{starts++;assert.match(instruction,/100 action steps/);assert.match(instruction,/final-file/);};
   remote.status=async()=>({status:"waiting",sessionId:"bb",steps:1,maxSteps:100,required_actions:[{type:"function_call",call_id:"phone",turn_id:"stagehand",name:"request_application_information",arguments:{purpose:"Contact",items:[{kind:"question",title:"Phone number?"}]}}]});
   globalThis.fetch=async()=>{throw Error("No legacy planner");};
-  try {await runApplicationBrowser(f.store,10);const state=f.record().state;assert.equal(starts,1);assert.equal(state.browser!.model,"gpt-6-luna");assert.equal(state.browser!.status,"waiting");assert.equal(state.activity!.batches.at(-1)!.browser!.kind,"information");await runApplicationBrowser(f.store,10);assert.equal(starts,1);}
+  try {await runApplicationBrowser(f.store,10);const state=f.record().state;assert.equal(starts,1);assert.equal(state.browser!.model,APPLICATION_STAGEHAND_MODEL);assert.equal(state.browser!.status,"waiting");assert.equal(state.activity!.batches.at(-1)!.browser!.kind,"information");await runApplicationBrowser(f.store,10);assert.equal(starts,1);}
   finally {Object.assign(remote,originals);globalThis.fetch=originalFetch;}
 });
 

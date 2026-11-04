@@ -52,7 +52,7 @@ async function readEvaluationRows(args: Args, roleId:string, input:Record<string
   const rows:RoleEvaluation[]=[];
   const groups=references===undefined?[undefined]:Array.from({length:Math.ceil(references.length/150)},(_,i)=>references.slice(i*150,i*150+150));
   for(const ids of groups)for(let page=0;;page+=1000) {
-    let query=(args.admin.from('company_role_candidate_evaluations' as any) as any)
+    let query=(args.admin.from('company_readable_role_evaluations_v1' as any) as any)
       .select('id,talent_id,run_id,discovery_run_id,brief_version,stage,assessment,evaluated_at,input_contract_version')
       .eq('company_workspace_id',args.workspaceId).eq('role_id',roleId);
     if(briefVersion!=='all')query=query.eq('brief_version',briefVersion);

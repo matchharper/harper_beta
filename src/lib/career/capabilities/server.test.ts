@@ -94,6 +94,7 @@ test("scoped lease query reads latest source rows before completion filtering; C
     conversationId: "conversation-a",
     sourceMessage: source,
     mode: "progressive",
+    selectionSnapshot: { capabilityIds: ["documents"], handbookIds: [], status: "selected", elapsedMs: 0 },
     promptArgs,
     eligibleTools: [
       {
@@ -110,16 +111,16 @@ test("scoped lease query reads latest source rows before completion filtering; C
   await turn.complete();
   await turn.complete();
   assert.equal(patches, 2);
+  assert.equal(historyReads, 0, "new turns select current bundles instead of restoring old automatic tool leases");
+  assert.deepEqual([...await readCareerCapabilityLeases({ admin, userId: "user-a", conversationId: "conversation-a", beforeId: 20, currentCreatedAt: now })], ["documents"]);
   assert.equal(historyReads, 1);
   assert.equal(payload.upload, "keep");
   assert.equal(payload.concurrentField, "preserve too");
-  assert.deepEqual(payload.careerCapabilityTurn, {
-    version: 1,
-    status: "completed",
-    mode: "progressive",
-    activated: [],
-    used: [],
-  });
+  const record = payload.careerCapabilityTurn as Record<string, unknown>;
+  assert.equal(record.version, 2);
+  assert.equal(record.status, "completed");
+  assert.equal(record.replyId, "message:20");
+  assert.deepEqual(record.activated, ["documents"]);
   await assert.rejects(
     createCareerCapabilityTurn({
       admin,
@@ -159,6 +160,7 @@ test("lease read/persistence failure is cold and never turns successful business
     conversationId: "conversation-a",
     sourceMessage: source,
     mode: "progressive",
+    selectionSnapshot: { capabilityIds: ["documents"], handbookIds: [], status: "selected", elapsedMs: 0 },
     promptArgs,
     eligibleTools: [],
   });
@@ -216,6 +218,7 @@ test("a verified coaching end receipt wins over the old active prompt even when 
     conversationId: "conversation-a",
     sourceMessage: source,
     mode: "progressive",
+    selectionSnapshot: { capabilityIds: ["documents"], handbookIds: [], status: "selected", elapsedMs: 0 },
     promptArgs: {
       ...promptArgs,
       careerCoachingActivity: activity,
@@ -253,7 +256,7 @@ test("a verified coaching end receipt wins over the old active prompt even when 
   );
   const after = turn.runtime.resolveStep();
   assert.ok(
-    after.systemBlocks.some(
+    !after.systemBlocks.some(
       (block) => block.key === "post_onboarding_conversation_guide"
     )
   );
@@ -264,67 +267,44 @@ test("a verified coaching end receipt wins over the old active prompt even when 
   );
 });
 
-test("application start owns the turn before an activity exists, and retains its post-analysis prompt and question tools", async () => {
-  const {buildCareerConversationPromptPlan} = await import('../prompts/conversationPlan');
-  const {resolveCareerChatTools} = await import('../llmTools');
-  const {createSimulationSession} = await import('../simulation/session');
-  const {createPreparation} = await import('../simulation/preparation');
-  const ordinary = {channel: 'chat' as const, isOnboardingDone: true};
-  // Source turns participate in the common runtime; activity facts are refreshed
-  // before each completion rather than freezing the pre-start prompt.
-  assert.equal(isCareerCapabilityTurn({...ordinary, applicationStartRequested:true, applicationActive:false}), true);
-  assert.equal(isCareerCapabilityTurn({...ordinary, applicationActive:true}), true);
-  assert.equal(isCareerCapabilityTurn({...ordinary, applicationInputSubmitted:true}), true);
-  assert.equal(isCareerCapabilityTurn(ordinary), true);
-  const state = createSimulationSession({roleRef:'job:example', roleName:'Engineer',documentId:'resume',documentName:'CV'});
-  state.analysisStatus='completed'; state.preparation=createPreparation();
-  state.activity={version:1, offerId:10, batches:[], outputs:{}};
-  const selected = resolveCareerChatTools({...ordinary, simulationActive:true});
-  const plan = buildCareerConversationPromptPlan({channel:'chat',isOnboardingDone:true,conversationMode:'simulation',simulationSession:state,toolNames:selected.toolNames,profile:null,structuredProfileText:'',talentContextSection:''});
-  assert.ok(selected.toolNames.includes('manage_application_suggestions'));
-  assert.ok(!selected.stopAfterToolNames.includes('manage_application_suggestions'));
-  assert.ok(selected.toolNames.includes('ready_for_role'));
-  assert.ok(plan.promptBlocks.some(b => b.key === 'application_preparation_contract'));
-  assert.ok(!plan.promptBlocks.some(b => b.key === 'simulation_availability'));
-  const context=plan.promptBlocks.find(b => b.key === 'application_preparation_context')!.text;
-  assert.match(context, /상태: active/);
-  assert.match(context, /analysisStatus: completed/);
+test("current eligibility and execution facts refresh without creating an application mode", async () => {
+  const { resolveCareerChatTools } = await import('../llmTools');
+  let connected = true;
+  const currentTools = () => resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, hasActiveGmailIntegration: connected }).tools;
+  const currentPrompt = () => ({ ...promptArgs, gmailCapability: connected ? "available" as const : "not_connected" as const,
+    runtimeInstruction: connected ? "Gmail connection is active." : "The Gmail connection was removed." });
+  const turn = await createCareerCapabilityTurn({ admin: {} as TalentAdminClient, userId: "fixture", conversationId: "fixture", sourceMessage: null,
+    mode: "progressive", promptArgs: currentPrompt(), getPromptArgs: currentPrompt, eligibleTools: currentTools(), getEligibleTools: currentTools,
+    selectionSnapshot: { capabilityIds: ["connected_inbox", "email_writing", "documents"], handbookIds: [], status: "selected", elapsedMs: 0 },
+  });
+  const before = turn.runtime.resolveStep(false);
+  for (const name of ["search_connected_gmail", "write_email", "read_document", "load_handbook"]) assert.ok(before.offeredNames.has(name), name);
+  connected = false;
+  const after = turn.runtime.resolveStep(false);
+  for (const name of ["search_connected_gmail", "write_email"]) {
+    assert.ok(after.offeredNames.has(name), name);
+    assert.ok(after.tools.find(tool => tool.function.name === name)!.function.description.endsWith("Gmail 미연결으로 사용할 수 없음"));
+  }
+  for (const name of ["simulate_application", "manage_simulation_session"]) assert.ok(!after.offeredNames.has(name), name);
+  assert.ok(after.offeredNames.has("read_document"));
+  assert.ok(after.systemBlocks.some(block => block.text.includes("The Gmail connection was removed.")));
+  connected = true;
+  const reconnected = turn.runtime.resolveStep(false);
+  for (const name of ["search_connected_gmail", "write_email"])
+    assert.ok(!reconnected.tools.find(tool => tool.function.name === name)!.function.description.includes("Gmail 미연결으로 사용할 수 없음"));
+});
 
-  let currentState: typeof state | undefined;
-  const currentPrompt = () => ({...promptArgs,conversationMode:currentState ? "simulation" as const : "default" as const,simulationSession:currentState,
-    runtimeInstruction: currentState ? "Verified start result: completed" : undefined});
-  const currentTools = () => resolveCareerChatTools({...ordinary,simulationActive:Boolean(currentState)}).tools;
-  const turn = await createCareerCapabilityTurn({admin:{} as TalentAdminClient,userId:"fixture",conversationId:"fixture",sourceMessage:null,mode:"progressive",
-    promptArgs:currentPrompt(),getPromptArgs:currentPrompt,eligibleTools:currentTools(),getEligibleTools:currentTools});
-  assert.ok(!turn.runtime.resolveStep(false).offeredNames.has("manage_simulation_session"));
-  currentState = state;
-  const started = turn.runtime.resolveStep(false);
-  const applicationTools = ["manage_simulation_session", "manage_application_suggestions", "ready_for_role", "apply_for_role"];
-  for (const name of applicationTools) assert.ok(started.offeredNames.has(name), name);
-  assert.ok(started.offeredNames.has("load_career_capabilities"));
-  assert.ok(started.offeredNames.has("write_talent_context"));
-  assert.ok(started.offeredNames.has("read_document"));
-  assert.equal(turn.runtime.claimCall("read_document", started), null);
-  for (const name of ["web_search", "open_url", "update_talent_profile", "list_documents", "write_document", "get_role_context"])
-    assert.ok(!started.offeredNames.has(name), name);
-  for (const id of ["web_research", "profile", "documents", "opportunities"])
-    assert.ok(started.catalogText.includes(id), id);
-  assert.ok(started.systemBlocks.some(block=>block.text.includes("Verified start result: completed")));
-  assert.equal(turn.runtime.load({capabilityIds:["web_research", "documents"]}, started).ok, true);
-  // A load affects the next completion, and does not load unrelated shared tools.
-  assert.equal(turn.runtime.claimCall("web_search", started), "tool_not_offered");
-  const loaded = turn.runtime.resolveStep(false);
-  for (const name of [...applicationTools, "web_search", "open_url", "list_documents", "read_document", "write_document"])
-    assert.ok(loaded.offeredNames.has(name), name);
-  for (const name of ["update_talent_profile", "get_role_context", "save_job_posting", "generate_resume"])
-    assert.ok(!loaded.offeredNames.has(name), name);
-  currentState = undefined;
-  const ended = turn.runtime.resolveStep(false);
-  for (const name of applicationTools.filter(name => name !== "manage_simulation_session")) assert.ok(!ended.offeredNames.has(name), name);
-  assert.ok(ended.offeredNames.has("manage_simulation_session"), "saved preparations remain available through the loaded capability");
-  assert.ok(ended.offeredNames.has("web_search"));
-  assert.ok(ended.offeredNames.has("write_document"));
-  assert.ok(!ended.offeredNames.has("update_talent_profile"));
-  assert.ok(ended.offeredNames.has("research_company"));
-  assert.ok(ended.systemBlocks.some(block=>block.key==="capability_catalog"));
+test("quiet completion closes the reply without consuming a handbook's delivered-reply allowance", async () => {
+  const records: any[] = [];
+  const turn = await createCareerCapabilityTurn({
+    admin: {} as TalentAdminClient, conversationId: "quiet-conversation", userId: "quiet-user",
+    sourceMessage: null, replyId: "quiet-event", promptArgs, eligibleTools: [],
+    mode: "progressive", selectionSnapshot: { capabilityIds: [], handbookIds: ["proactive_career"], status: "selected", elapsedMs: 0 },
+    persistCompletion: async (record, books) => { records.push({ record, books }); },
+  });
+  const step = turn.runtime.resolveStep();
+  await turn.runtime.beforeCompletion(step, { transport: "chat", messages: [] });
+  await turn.complete({ delivered: false }); await turn.complete({ delivered: false });
+  assert.equal(records.length, 1);
+  assert.equal(records[0].books[0].remainingReplies, 3);
 });

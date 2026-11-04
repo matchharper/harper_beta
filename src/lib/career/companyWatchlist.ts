@@ -1,11 +1,10 @@
 import type { Json } from "@/types/database.types";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
   getTalentSupabaseAdmin,
-  type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
-import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
+import { randomUUID } from "node:crypto";
+import { writeCareerCompanyFollow } from "@/lib/career/companies/server";
 import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 
 if (typeof window !== "undefined") {
@@ -658,6 +657,7 @@ async function fetchActiveFollowRows(
   )
     .select("*")
     .eq("talent_id", userId)
+    .eq("scope", "company")
     .in("company_db_id", ids)
     .is("unfollowed_at", null);
 
@@ -702,7 +702,7 @@ function mapCompanyWatchlistItem(args: {
       companyDb: args.companyDb,
       workspace,
     }),
-    discoveryChannelSummary: follow?.discovery_channel_summary ?? null,
+    discoveryChannelSummary: null,
     employeeCountRange: args.companyDb.employee_count_range ?? null,
     followedAt: follow?.followed_at ?? null,
     following: Boolean(follow && !follow.unfollowed_at),
@@ -734,7 +734,7 @@ function mapCompanyWatchlistItem(args: {
       workspace,
     }),
     specialities: toStringList(args.companyDb.specialities, 12),
-    trackingSummary: follow?.tracking_summary ?? null,
+    trackingSummary: null,
     websiteUrl: args.companyDb.website_url ?? null,
   };
 }
@@ -767,6 +767,7 @@ export async function fetchTalentCompanyWatchlistPage(args: {
   )
     .select("*", { count: "exact" })
     .eq("talent_id", args.userId)
+    .eq("scope", "company")
     .is("unfollowed_at", null)
     .order("followed_at", { ascending: false })
     .range(from, to);
@@ -952,147 +953,16 @@ export async function updateTalentCompanyFollow(args: {
     });
   }
 
-  const { data: existingFollow, error: existingError } = await (
-    args.admin.from("talent_company_follow" as any) as any
-  )
-    .select("*")
-    .eq("talent_id", args.userId)
-    .eq("company_db_id", companyDbId)
-    .maybeSingle();
-
-  if (existingError) {
-    throw new Error(existingError.message ?? "Failed to read company follow");
-  }
-
-  const now = new Date().toISOString();
-  const source = cleanText(args.source, 80) || "watchlist";
-  const companyWorkspaceId =
-    cleanText(args.companyWorkspaceId, 120) ||
-    existingDetail.companyWorkspaceId ||
-    null;
-
-  if (args.action === "unfollow") {
-    if (!existingFollow || existingFollow.unfollowed_at) {
-      return {
-        assistantMessage: null,
-        changed: false,
-        item: { ...existingDetail, following: false, followedAt: null },
-        userMessage: null,
-      };
-    }
-
-    const { error } = await (
-      args.admin.from("talent_company_follow" as any) as any
-    )
-      .update({
-        unfollowed_at: now,
-        updated_at: now,
-      })
-      .eq("talent_id", args.userId)
-      .eq("company_db_id", companyDbId);
-
-    if (error) throw new Error(error.message ?? "Failed to unfollow company");
-
-    await insertTalentActivityEvent({
-      admin: args.admin as TalentAdminClient,
-      changedDomains: ["company_follow"],
-      conversationId,
-      eventType: "company_unfollowed",
-      impactLevel: "low",
-      source,
-      summary: `User unfollowed company "${existingDetail.name}".`,
-      userId: args.userId,
-    });
-
-    return {
-      assistantMessage: null,
-      changed: true,
-      item: { ...existingDetail, following: false, followedAt: null },
-      userMessage: null,
-    };
-  }
-
-  const alreadyFollowing = Boolean(
-    existingFollow && !existingFollow.unfollowed_at
-  );
-  if (alreadyFollowing) {
-    return {
-      assistantMessage: null,
-      changed: false,
-      item: existingDetail,
-      userMessage: null,
-    };
-  }
-
-  const trackingSummary = careerT(
-    args.preferredLocale,
-    "career.company.follow.tracking_summary",
-    "시그널 추적 중. 펀딩, 채용, Founder 글, 팀 변화 중 의미 있는 변화만 요약합니다."
-  );
-  const discoveryChannelSummary = careerT(
-    args.preferredLocale,
-    "career.company.follow.discovery_channel_summary",
-    "회사 측 검색 노출 활성. 이 회사가 인재를 찾거나 Harper에 채용 요청을 보낼 때 팔로워 신호를 우선 반영합니다."
-  );
-
-  const { error: upsertError } = await (
-    args.admin.from("talent_company_follow" as any) as any
-  ).upsert(
-    {
-      company_db_id: companyDbId,
-      company_workspace_id: companyWorkspaceId,
-      conversation_id: conversationId,
-      discovery_channel_summary: discoveryChannelSummary,
-      followed_at: now,
-      source,
-      talent_id: args.userId,
-      tracking_summary: trackingSummary,
-      unfollowed_at: null,
-      updated_at: now,
-    },
-    { onConflict: "talent_id,company_db_id" }
-  );
-
-  if (upsertError) {
-    throw new Error(upsertError.message ?? "Failed to follow company");
-  }
-
-  await insertTalentActivityEvent({
-    admin: args.admin as TalentAdminClient,
-    changedDomains: [
-      "company_follow",
-      "signal_tracking",
-      "company_discovery_channel",
-    ],
-    conversationId,
-    eventType: "company_followed",
-    impactLevel: "medium",
-    source,
-    summary: `User followed company "${existingDetail.name}". Harper should track company signals and prioritize this follower signal if the company searches for talent.`,
-    userId: args.userId,
+  const follow = await writeCareerCompanyFollow({
+    admin: args.admin, userId: args.userId, conversationId,
+    requestId: `watchlist:${randomUUID()}`,
+    input: { action: args.action, scope: "company", company_db_id: companyDbId,
+      company_workspace_id: args.companyWorkspaceId ?? existingDetail.companyWorkspaceId,
+      source: args.source ?? "watchlist" },
   });
-
-  const item = await fetchTalentCompanyWatchlistDetail({
-    admin: args.admin,
-    companyDbId,
-    preferredLocale: args.preferredLocale,
-    userId: args.userId,
-  });
-
-  return {
-    assistantMessage: null,
-    changed: true,
-    followUp: {
-      companyDbId,
-      delayed: Boolean(conversationId),
-    },
-    item: item ?? {
-      ...existingDetail,
-      discoveryChannelSummary,
-      followedAt: now,
-      following: true,
-      trackingSummary,
-    },
-    userMessage: null,
-  };
+  const item = await fetchTalentCompanyWatchlistDetail({ admin: args.admin, companyDbId,
+    preferredLocale: args.preferredLocale, userId: args.userId });
+  return { assistantMessage: null, userMessage: null,
+    changed: existingDetail.following !== Boolean(follow.id && !follow.unfollowed_at),
+    item: item ?? existingDetail };
 }

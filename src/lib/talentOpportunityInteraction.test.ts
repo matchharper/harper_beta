@@ -91,3 +91,44 @@ test("interaction updates retain first timestamp and scope the conditional write
     assert.ok(Number.isFinite(Date.parse(stored!)));
   }
 });
+
+test("a posting interaction saves the recommendation before recording the view and reuses it on retry", async () => {
+  const { updateTalentOpportunityHistoryItem } = await import("./talentOpportunity");
+  const roleId = "00000000-0000-4000-8000-000000000001";
+  const recommendationId = "00000000-0000-4000-8000-000000000002";
+  let saved = false;
+  const events: string[] = [];
+  const filters: Array<[string, unknown]> = [];
+  const recommendationQuery = {
+    select: () => recommendationQuery,
+    eq: (key: string, value: unknown) => { filters.push([key, value]); return recommendationQuery; },
+    order: () => recommendationQuery,
+    limit: () => recommendationQuery,
+    maybeSingle: async () => ({ data: saved ? { id: recommendationId } : null, error: null }),
+    insert: (row: Record<string, unknown>) => {
+      assert.equal(row.talent_id, "owner");
+      assert.equal(row.role_id, roleId);
+      events.push("insert"); saved = true;
+      return recommendationQuery;
+    },
+    single: async () => ({ data: { id: recommendationId }, error: null }),
+    update: () => { assert.ok(saved); events.push("view"); return recommendationQuery; },
+    is: async () => ({ error: null }),
+  };
+  const roleQuery = {
+    select: () => roleQuery,
+    eq: () => roleQuery,
+    maybeSingle: async () => ({ data: { role_id: roleId, source_type: "external" }, error: null }),
+  };
+  const admin = { from: (table: string) => {
+    assert.ok(["talent_opportunity_recommendation", "company_roles"].includes(table));
+    return table === "company_roles" ? roleQuery : recommendationQuery;
+  } };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await updateTalentOpportunityHistoryItem({ admin: admin as never, action: "view", opportunityId: `posting:${roleId}`, userId: "owner" });
+    assert.equal(result.opportunityId, recommendationId);
+  }
+  assert.deepEqual(events, ["insert", "view", "view"]);
+  assert.ok(filters.some(([key, value]) => key === "talent_id" && value === "owner"));
+  assert.ok(filters.some(([key, value]) => key === "id" && value === recommendationId));
+});

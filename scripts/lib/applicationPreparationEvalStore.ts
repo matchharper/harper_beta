@@ -1,3 +1,5 @@
+import { inspectionMemoryStore } from "../../src/lib/career/simulation/sharedApplicationInspection.testSupport";
+import { hydrateApplicationInspections } from "../../src/lib/career/simulation/sharedApplicationInspection";
 import assert from "node:assert/strict";
 import type { TalentAdminClient } from "../../src/lib/talentOnboarding/admin";
 import type { SessionRecord } from "../../src/lib/career/simulation/sessionStore";
@@ -15,8 +17,10 @@ export function applicationPreparationEvalStore(
     [source.id, structuredClone(source)],
   ]);
   const userId = source.talent_id;
+  const inspections = inspectionMemoryStore();
   const admin = {
     from(table: string) {
+      if (table === "role_application_inspections") return inspections.from(table);
       assert.ok(
         table === "talent_documents" || table in fixtureRows,
         "Only explicitly supplied synthetic tables are available"
@@ -90,7 +94,7 @@ export function applicationPreparationEvalStore(
         current = {
           messageId: 10,
           state: {
-            ...structuredClone(args.p_payload),
+            ...await hydrateApplicationInspections(admin, structuredClone(args.p_payload)) as typeof current.state,
             revision: current.state.revision + 1,
           },
         };

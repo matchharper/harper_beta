@@ -1,0 +1,14 @@
+[
+  {
+    "id": "saved_preference",
+    "messages": [{"role":"user","content":"원격으로 일할 수 있는 곳 위주로 찾아봐 줘. 주 1회 출근 정도는 괜찮아."}],
+    "context": "Verified execution: the candidate's Search Brief was updated to prefer remote work, allowing one office day per week. Existing other preferences were preserved. No search has run yet. No email was sent; no resume was attached. The user did not ask for either email or a resume. Background search continues automatically using the saved criteria.",
+    "review": "Confirm the useful preference and next work naturally without enumerating irrelevant non-actions or claiming search results."
+  },
+  {
+    "id": "disappointment",
+    "messages": [{"role":"user","content":"면접에서 또 떨어졌어. 준비를 꽤 했는데 좀 힘드네."}],
+    "context": "No company feedback is available. No tools or external actions have run.",
+    "review": "Respond sensitively and compactly; do not invent a rejection reason, force cheerful laughter, or overwhelm with a long checklist."
+  }
+]

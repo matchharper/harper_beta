@@ -1,0 +1,73 @@
+{
+  "task": "career-application-live-completion",
+  "datasetVersion": "live-postings-v1",
+  "goldVersion": "manual-ending-v1",
+  "createdAt": "2026-10-29T21:56:58.788096+00:00",
+  "sourceRevision": "4a14635e5f29dc7379304ef4a13e6d5a948911bf",
+  "dirtyWorktree": true,
+  "runtimeSourceHashes": {
+    "src/app/api/talent/chat/route.ts": "328b0ce15122b75cb0f49af671b944dfe2894e475491ce2935c5f77d1be718f7",
+    "src/lib/career/llm.ts": "b7811a5a696866ea14bdcb54e68ac78fbdc938e800c0948f393183ec88dcf171",
+    "src/lib/career/chatTurn.ts": "6f5730f258bc3b81108ff39d967655a6d5a686529b28d5359dddedaaac5fe02e",
+    "src/lib/career/agentTurnRuntime.server.ts": "6fe06faa0453146d78757616722020cf6e0da8a2248b394f0e6cc6193855c2fb",
+    "src/lib/career/agentReplyWorker.ts": "f0c1f257c68d8e7c5236329da37cf94e5ef9ce0963778ef40889f7182e5de157",
+    "src/lib/career/developmentQueue.server.ts": "92a801d2de1fc757d0132654dff9576b70d73c78d38e4542f7a302a2d35176f5",
+    "src/lib/career/externalOperationContinuation.ts": "2d9d46864cdd1adf0d0030624fd3d69fa846c1b9858563cb82854ce8b525ab08",
+    "src/lib/career/browser/tool.ts": "4ee573087937cf51e22e966727140449285b80f4a1df091c014b44d2620b572a",
+    "src/lib/career/browser/worker.ts": "814bd5802ae0b3c0a515ac87888f37f5d2cd98e6a78663d14df4cb1456e656c0",
+    "src/lib/career/simulation/browserUseAgents.ts": "dd6094660cae2e78a896072bdd5ffb5fcbbd71827fafc2e9edd8a494cf11126b",
+    "src/lib/career/capabilities/decisions.ts": "c331445f7f37454250bca75bade1c5b975c73023ee3d1dcd17b18456ce1f87c2",
+    "src/lib/career/capabilities/runtime.ts": "d4d972dec50df7e3e050a7ed7460618755353c1827e19d14ca9ab9eb47963fd1",
+    "src/lib/career/handbooks/application.ts": "1ee323856e7cac867b8474d06184497bbc063098e275726376f29cf2af541fea",
+    "src/lib/career/handbooks/resume.ts": "979bda7ca3e234d1c214ad381f64867e12c2fe3eec0ff6e6587e9a18f54cb0f8",
+    "src/lib/career/prompts/conversationPlan.ts": "faa0aa4de3d6e6662e115b3139692c2d35d7705f92f32a46aeac043b6b5b0a8b",
+    "src/lib/talentOnboarding/tools.ts": "08e16fe7d8247a5d3ac9a93b7d6e460aa45b6aef324cc78d6bde42b09b7fa1fb"
+  },
+  "runtimeFingerprint": "893319b08e35330d6774c38ff58b49c42db96904254b77cde99ee1348218ebcc",
+  "inputAndGoldHashes": {
+    "input-contract-v1.md": "b8a1781d91b85fb92d541cbdb46dab6e018bd626c02b38e8332dfffdec0ac003",
+    "gold-v1.json": "e2e3b8ae53fd7397cf6424083af51de1f8ec0d406a7b73d23fe0d22b22b1ea48"
+  },
+  "frozenInput": "Initial request template; actual private source message and selected posting preserved per case. Historical requests are not replaced. Live website content is mutable.",
+  "provenance": "Existing account recommendations/messages/browser operations, read-only capture; two retrospective cases plus new live UI observations.",
+  "canonicalRunner": "Existing Chrome Career UI through actual product runtime. No alternate executor.",
+  "configuration": {
+    "conversationModel": "Actual per attempt; unknown when absent from recorded trace.",
+    "reasoning": "Actual per attempt; unknown when absent.",
+    "sampling": "Actual provider settings per attempt; do not infer from requested defaults.",
+    "decisions": {
+      "sourceDefaultModel": "gpt-6-luna",
+      "endpoint": "https://api.openai.com/v1/decisions",
+      "sourceRequestTimeoutMs": 5000
+    },
+    "browser": {
+      "sourceDefaultModel": "gpt-6-luna",
+      "endpoint": "https://api.browser-use.com/api/v4",
+      "sourceRequestTimeoutMs": 30000
+    },
+    "deadline": "Existing product runtime and continuation; no evaluation-specific step or model budget.",
+    "tools": "Current eligible general capabilities and loaders; no evaluation-only runtime tools."
+  },
+  "historicalMetrics": {
+    "distinctCases": 2,
+    "userAttempts": 7,
+    "browserRuns": 5,
+    "acceptedEndings": 0
+  },
+  "privacy": {
+    "privateArtifacts": "private/",
+    "runArtifacts": "runs/",
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "credentialsCaptured": false,
+    "providerRetention": "Existing product settings, not independently verified or changed."
+  },
+  "limitations": [
+    "One purposively selected account; not representative success-rate benchmark.",
+    "Live pages/login state vary.",
+    "Retrospective screenshots absent in initial capture.",
+    "No final submission, email sending or employer receipt tested.",
+    "Synthetic tone, resume suggestion and old browser lab results excluded."
+  ],
+  "status": "Prepared; root executing real UI cases. Private ledger is current result source."
+}

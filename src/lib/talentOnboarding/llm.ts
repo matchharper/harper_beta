@@ -349,6 +349,13 @@ export async function runTalentAssistantToolLoop(args: {
   abortSignal?: AbortSignal;
   getSystemPrompt?: () => string;
   toolRuntime?: CareerCapabilityRuntime;
+  formatToolFailure?: (args: {
+    name: string;
+    callId: string;
+    input: Record<string, unknown>;
+    error: unknown;
+    diagnostics: readonly unknown[];
+  }) => string;
   executeTool: (args: {
     input: Record<string, unknown>;
     name: string;
@@ -357,6 +364,8 @@ export async function runTalentAssistantToolLoop(args: {
   maxTotalToolCalls?: number;
   modelConfig?: TalentAssistantModelConfig;
   messages: TalentChatMessage[];
+  /** Commit visible prose before executing this completion's tool batch. */
+  onAssistantMessage?: (text: string) => void | Promise<void>;
   onToolStart?: (args: {
     id: string;
     input: Record<string, unknown>;
@@ -390,7 +399,7 @@ export async function runTalentAssistantToolLoop(args: {
     usageLabel,
   } = args;
 
-  if (tools.length === 0 && !onTextDelta) {
+  if (tools.length === 0 && !args.toolRuntime && !onTextDelta) {
     return runTalentAssistantCompletion({
       anthropicOverloadFallbackModel:
         modelConfig?.anthropicOverloadFallbackModel,
@@ -404,7 +413,7 @@ export async function runTalentAssistantToolLoop(args: {
     });
   }
 
-  if (tools.length === 0) {
+  if (tools.length === 0 && !args.toolRuntime) {
     args.abortSignal?.throwIfAborted();
     const response = await createTalentChatCompletion({
       abortSignal: args.abortSignal,
@@ -422,7 +431,7 @@ export async function runTalentAssistantToolLoop(args: {
     return cleanModelText(getMessageContent(response.choices[0]?.message));
   }
 
-  const workingMessages = [...messages];
+  const workingMessages = (args.toolRuntime?.resumedMessages("chat") as TalentChatMessage[] | undefined) ?? [...messages];
   let totalToolCalls = 0;
   let pendingToolResultAttribution: string[] = [];
 
@@ -455,8 +464,8 @@ export async function runTalentAssistantToolLoop(args: {
         : undefined;
     pendingToolResultAttribution = [];
     args.abortSignal?.throwIfAborted();
-    const response = await createTalentChatCompletion({
-      abortSignal: args.abortSignal,
+    const complete = (abortSignal?: AbortSignal) => createTalentChatCompletion({
+      abortSignal,
       anthropicOverloadFallbackModel:
         modelConfig?.anthropicOverloadFallbackModel,
       chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
@@ -470,6 +479,9 @@ export async function runTalentAssistantToolLoop(args: {
       tools: stepTools,
       usageLabel,
     });
+    const response = capabilityStep
+      ? await args.toolRuntime!.runCompletion(capabilityStep, { transport: "chat", model: modelConfig?.primaryModel, messages: workingMessages }, complete)
+      : await complete(args.abortSignal);
 
     const message = response.choices[0]?.message as any;
     const assistantContent = cleanModelText(getMessageContent(message));
@@ -480,6 +492,8 @@ export async function runTalentAssistantToolLoop(args: {
     if (toolCalls.length === 0) {
       return assistantContent;
     }
+
+    if (assistantContent) await args.onAssistantMessage?.(assistantContent);
 
     workingMessages.push({
       ...(Array.isArray(message?._responses_output)
@@ -542,7 +556,7 @@ export async function runTalentAssistantToolLoop(args: {
       const callError = capabilityStep ? args.toolRuntime!.claimCall(toolName, capabilityStep)
         : !offeredNames.has(toolName) ? "tool_not_offered" : null;
       if (callError || args.toolRuntime?.isInternalTool(toolName)) {
-        const loadCapture = await runToolCall(async () => callError ? { ok: false, error: callError } : args.toolRuntime!.load(parsedArguments, capabilityStep!), { callId: toolCallId, name: toolName });
+        const loadCapture = await runToolCall(async () => callError ? { ok: false, error: callError } : args.toolRuntime!.load(parsedArguments, capabilityStep!, toolName), { callId: toolCallId, name: toolName, input: parsedArguments });
         if (!loadCapture.returned) throwIfToolControlError(loadCapture.error);
         workingMessages.push({ role: "tool", tool_call_id: toolCallId, name: toolName, content: prepareToolDelivery(loadCapture, formatToolResultText) });
         continue;
@@ -577,7 +591,7 @@ export async function runTalentAssistantToolLoop(args: {
         });
             if (capabilityStep) await observeToolCall(() => args.toolRuntime!.recordResult(toolName, result, capabilityStep));
             return result;
-          }, { callId: toolCallId, name: toolName });
+          }, { callId: toolCallId, name: toolName, input: parsedArguments });
           capturedDiagnostics = toolCapture.diagnostics;
           const result = unwrapToolCall(toolCapture);
 
@@ -613,11 +627,16 @@ export async function runTalentAssistantToolLoop(args: {
           name: toolName,
           source: usageLabel ?? "talent-assistant-tool-loop",
         });
+        if (capabilityStep) await observeToolCall(() => args.toolRuntime!.recordResult(
+          toolName, { ok: false, status: "failed" }, capabilityStep
+        ));
         workingMessages.push({
           role: "tool",
           tool_call_id: toolCallId,
           name: toolName,
-          content: serializeToolResultForModel(toolErrorResult(error), formatToolResultText, capturedDiagnostics),
+          content: args.formatToolFailure
+            ? args.formatToolFailure({ name: toolName, callId: toolCallId, input: parsedArguments, error, diagnostics: capturedDiagnostics })
+            : serializeToolResultForModel(toolErrorResult(error), formatToolResultText, capturedDiagnostics),
         });
       }
     }

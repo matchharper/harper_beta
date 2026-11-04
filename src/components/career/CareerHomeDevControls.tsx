@@ -1,3 +1,4 @@
+// career-i18n-skip-file: Internal developer controls and synthetic preview copy.
 import {
   AlertTriangle,
   BriefcaseBusiness,
@@ -19,6 +20,7 @@ import { CAREER_CHECKPOINT_USER_ID } from "@/lib/career/devCheckpointContract";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { DevColorPaletteControls } from "@/components/common/DevColorPaletteControls";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
@@ -38,6 +40,7 @@ import {
   OPENROUTER_MUSE_SPARK_13_MODEL,
 } from "@/lib/llm/modelConfig";
 import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
+import type { SerializedOpportunityRun } from "@/lib/opportunityDiscovery/types";
 import { useCareerDevSqlPromptHistoryStore } from "@/store/useCareerDevSqlPromptHistoryStore";
 import { useCareerVoiceModelStore } from "@/store/useCareerVoiceModelStore";
 import {
@@ -46,11 +49,15 @@ import {
   type CareerVoiceModelOverride,
 } from "@/lib/career/voiceModel";
 import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
+import { useCareerPromptVariantStore } from "@/store/useCareerPromptVariantStore";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
+import {
+  CAREER_PROMPT_FILES,
+  CAREER_PROMPT_VARIANTS,
+} from "@/lib/career/prompts/promptExperiment";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import CareerPriorityReviewDevControls from "./CareerPriorityReviewDevControls";
 import CareerGlassDevControls from "./CareerGlassDevControls";
-import { canUsePriorityReviewTests } from "@/lib/career/priorityReviewTestContract";
+import { GmailIntegrationActionContent } from "./chat/GmailIntegrationAction";
 import type {
   DevExternalVariant,
   DevExternalVariantSnapshot,
@@ -61,6 +68,12 @@ const CareerRecommendationSearchPreview = dynamic(
 );
 const CareerExternalFitsDevModal = dynamic(
   () => import("./CareerExternalFitsDevModal")
+);
+const CareerBrowserUseDevModal = dynamic(
+  () => import("./CareerBrowserUseDevModal")
+);
+const CareerAgentRunDevModal = dynamic(
+  () => import("./CareerAgentRunDevModal")
 );
 
 const devVoiceModelOptions: Array<{
@@ -136,18 +149,22 @@ type CareerDevPromptLogKind = "text" | "voice";
 
 const getReengagementPendingActionKey = (
   action: CareerReengagementPendingAction
-) => JSON.stringify(action);
+) => action.actionKey;
 
 const getReengagementPendingActionLabel = (
   action: CareerReengagementPendingAction
 ) => {
   switch (action.kind) {
+    case "internal_opportunity_call":
+      return "역할 관련 통화";
+    case "career_check_in_call":
+      return "커리어 체크인 통화";
     case "company_request":
       return "회사 요청";
     case "internal_opportunity":
       return "Internal 연결 제안";
     case "meeting_schedule":
-      return "meeting_schedule";
+      return "미팅 일정 요청";
     case "reevaluation_question":
       return "Reevaluation criteria";
   }
@@ -157,6 +174,10 @@ const getReengagementPendingActionDescription = (
   action: CareerReengagementPendingAction
 ) => {
   switch (action.kind) {
+    case "internal_opportunity_call":
+      return `${action.companyName} · ${action.roleTitle}${action.reason ? ` · ${action.reason}` : ""}`;
+    case "career_check_in_call":
+      return `최근 커리어 변화 확인 · ${action.status}`;
     case "company_request":
       return `${action.companyName} · ${action.roleTitle} · ${action.request}`;
     case "internal_opportunity":
@@ -176,6 +197,14 @@ export default function CareerHomeDevControls({
   onOpenChat: () => void;
 }) {
   const logCareerEvent = useCareerLogEvent();
+  const conversationVersion = useCareerWorkspaceUiStore(
+    (state) => state.conversationVersion
+  );
+  const setConversationVersion = useCareerWorkspaceUiStore(
+    (state) => state.setConversationVersion
+  );
+  const [browserUseOpen, setBrowserUseOpen] = React.useState(false);
+  const [pendingActionsOpen, setPendingActionsOpen] = React.useState(false);
   const { fetchWithAuth } = useCareerApi();
   const devSqlPromptHistory = useCareerDevSqlPromptHistoryStore(
     (state) => state.prompts
@@ -190,14 +219,12 @@ export default function CareerHomeDevControls({
     (state) => state.setModelOverride
   );
   const textChatModel = useCareerTextChatModelStore((state) => state.model);
+  const promptVariant = useCareerPromptVariantStore((state) => state.variant);
+  const setPromptVariant = useCareerPromptVariantStore(
+    (state) => state.setVariant
+  );
   const setTextChatModel = useCareerTextChatModelStore(
     (state) => state.setModel
-  );
-  const devMessageActionsVisible = useCareerWorkspaceUiStore(
-    (state) => state.devMessageActionsVisible
-  );
-  const setDevMessageActionsVisible = useCareerWorkspaceUiStore(
-    (state) => state.setDevMessageActionsVisible
   );
   const {
     user,
@@ -229,11 +256,122 @@ export default function CareerHomeDevControls({
   const [devPromptLogStatus, setDevPromptLogStatus] = React.useState("");
   const [devRoleFtsLoading, setDevRoleFtsLoading] = React.useState(false);
   const [devRoleFtsStatus, setDevRoleFtsStatus] = React.useState("");
+  const [wonderfulResetPending, setWonderfulResetPending] =
+    React.useState(false);
+  const [wonderfulResetStatus, setWonderfulResetStatus] = React.useState("");
+  const wonderfulResetSubmitting = React.useRef(false);
   const [searchPreviewOpen, setSearchPreviewOpen] = React.useState(false);
   const [externalFitsOpen, setExternalFitsOpen] = React.useState(false);
+  const [backgroundRun, setBackgroundRun] = React.useState<{
+    id: string;
+    userId: string;
+    conversationId: string;
+  } | null>(null);
+  const backgroundRunId =
+    backgroundRun &&
+    backgroundRun.userId === user?.id &&
+    backgroundRun.conversationId === conversationId
+      ? backgroundRun.id
+      : null;
+  const [backgroundRunPending, setBackgroundRunPending] = React.useState(false);
+  const [backgroundRunModalOpen, setBackgroundRunModalOpen] =
+    React.useState(false);
+  const [backgroundRunError, setBackgroundRunError] = React.useState("");
+  const backgroundRequest = React.useRef<{
+    conversationId: string;
+    id: string;
+  } | null>(null);
+  const backgroundSubmitting = React.useRef(false);
 
   const showDevRunControls = canUseCareerDevControls(user?.email);
+  const backgroundRunQuery = useQuery({
+    queryKey: ["career-dev-background-run", user?.id, backgroundRunId],
+    enabled: showDevRunControls && Boolean(backgroundRunId),
+    queryFn: async (): Promise<SerializedOpportunityRun> => {
+      const response = await fetchWithAuth(
+        `/api/talent/opportunity-runs?ids=${backgroundRunId}`
+      );
+      const payload = await response.json();
+      if (!response.ok || !payload.runs?.[0])
+        throw new Error("실행 상태를 불러오지 못했습니다.");
+      return payload.runs[0];
+    },
+    refetchInterval: (query) =>
+      query.state.data?.active === false ? false : 3000,
+  });
+  const handleRunBackgroundAgent = async () => {
+    if (!user || !conversationId || backgroundSubmitting.current) return;
+    backgroundSubmitting.current = true;
+    setBackgroundRunModalOpen(true);
+    setBackgroundRun(null);
+    setBackgroundRunPending(true);
+    setBackgroundRunError("");
+    if (backgroundRequest.current?.conversationId !== conversationId)
+      backgroundRequest.current = { conversationId, id: crypto.randomUUID() };
+    try {
+      logCareerEvent("click_home_dev_career_background_agent");
+      const response = await fetchWithAuth("/api/talent/dev-career-agent", {
+        method: "POST",
+        body: JSON.stringify({
+          conversationId,
+          requestId: backgroundRequest.current.id,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.runId)
+        throw new Error(payload.error || "실행을 접수하지 못했습니다.");
+      setBackgroundRun({ id: payload.runId, userId: user.id, conversationId });
+      backgroundRequest.current = null;
+    } catch (error) {
+      setBackgroundRunError(
+        error instanceof Error ? error.message : "실행을 접수하지 못했습니다."
+      );
+    } finally {
+      backgroundSubmitting.current = false;
+      setBackgroundRunPending(false);
+    }
+  };
   const queryClient = useQueryClient();
+  const handleResetWonderfulRole = async () => {
+    if (!user || wonderfulResetSubmitting.current) return;
+    wonderfulResetSubmitting.current = true;
+    setWonderfulResetPending(true);
+    setWonderfulResetStatus("");
+    try {
+      logCareerEvent("click_home_dev_reset_wonderful_role");
+      const response = await fetchWithAuth(
+        "/api/talent/dev-reset-wonderful-role",
+        {
+          method: "POST",
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "역할 초기화에 실패했습니다.");
+      }
+      await Promise.all(
+        [
+          "career-history-opportunities",
+          "career-opportunity-mentions",
+          "career-reengagement-pending-actions",
+          "career-pending-actions",
+          "career-task-progress",
+        ].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key, user.id] })
+        )
+      );
+      setWonderfulResetStatus(
+        "Wonderful Korea FDE를 Harper의 연결 제안으로 다시 추천했습니다."
+      );
+    } catch (error) {
+      setWonderfulResetStatus(
+        error instanceof Error ? error.message : "역할 초기화에 실패했습니다."
+      );
+    } finally {
+      wonderfulResetSubmitting.current = false;
+      setWonderfulResetPending(false);
+    }
+  };
   const externalVariantQueryKey = ["career-dev-external-variant", user?.id];
   const externalVariantQuery = useQuery({
     queryKey: externalVariantQueryKey,
@@ -248,7 +386,8 @@ export default function CareerHomeDevControls({
     retry: false,
   });
   const externalVariantSnapshot = externalVariantQuery.data;
-  const [externalVariantSaving, setExternalVariantSaving] = React.useState(false);
+  const [externalVariantSaving, setExternalVariantSaving] =
+    React.useState(false);
   const [externalVariantError, setExternalVariantError] = React.useState("");
   const saveExternalVariant = async (selection: DevExternalVariant) => {
     if (externalVariantSaving) return;
@@ -260,15 +399,22 @@ export default function CareerHomeDevControls({
         body: JSON.stringify({ selection }),
       });
       if (!response.ok) throw new Error("추천 버전을 저장하지 못했습니다.");
-      queryClient.setQueryData(externalVariantQueryKey, await response.json() as DevExternalVariantSnapshot);
+      queryClient.setQueryData(
+        externalVariantQueryKey,
+        (await response.json()) as DevExternalVariantSnapshot
+      );
     } catch (error) {
-      setExternalVariantError(error instanceof Error ? error.message : "추천 버전을 저장하지 못했습니다.");
+      setExternalVariantError(
+        error instanceof Error
+          ? error.message
+          : "추천 버전을 저장하지 못했습니다."
+      );
     } finally {
       setExternalVariantSaving(false);
     }
   };
   const reengagementPendingActions = useCareerReengagementPendingActions({
-    enabled: showDevRunControls,
+    enabled: showDevRunControls && pendingActionsOpen,
     userId: user?.id,
   });
   const showLocalWorkerRunControls = process.env.NODE_ENV !== "production";
@@ -554,19 +700,137 @@ export default function CareerHomeDevControls({
       <div className="mt-4">
         <DevColorPaletteControls />
       </div>
-      <CareerGlassDevControls />
+      <fieldset className="mt-4 min-w-0 space-y-2">
+        <legend className="text-[13px] font-medium text-neutral-primary">
+          Career 버전
+        </legend>
+        <div className="flex flex-wrap gap-2">
+          <MuteButton
+            aria-pressed={conversationVersion === "professional"}
+            variant={
+              conversationVersion === "professional" ? "dark" : "default"
+            }
+            onClick={() => { setConversationVersion("professional"); setPromptVariant(null); }}
+          >
+            1. 포멀 · 전문적 (현재)
+          </MuteButton>
+          <MuteButton
+            aria-pressed={conversationVersion === "friendly"}
+            variant={conversationVersion === "friendly" ? "dark" : "default"}
+            onClick={() => { setConversationVersion("friendly"); setPromptVariant(null); }}
+          >
+            2. 친근 · 컴팩트
+          </MuteButton>
+        </div>
+      </fieldset>
+      <div className="mt-3 space-y-2">
+        <MuteButton
+          onClick={() => void handleResetWonderfulRole()}
+          disabled={!user || wonderfulResetPending}
+        >
+          {wonderfulResetPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" />
+          )}
+          {wonderfulResetPending
+            ? "초기화 중..."
+            : "Wonderful Korea FDE 초기화 · 다시 추천"}
+        </MuteButton>
+        {wonderfulResetStatus ? (
+          <Text as="div" type="caption" role="status">
+            {wonderfulResetStatus}
+          </Text>
+        ) : null}
+      </div>
+      <div className="mt-3 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <MuteButton
+            onClick={() => void handleRunBackgroundAgent()}
+            disabled={
+              !conversationId ||
+              backgroundRunPending ||
+              Boolean(
+                backgroundRunId && backgroundRunQuery.data?.active !== false
+              )
+            }
+          >
+            {backgroundRunPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Play className="size-3.5" />
+            )}
+            {backgroundRunPending ? "접수 중..." : "Career agent 1회 실행"}
+          </MuteButton>
+          {backgroundRunId ? (
+            <MuteButton onClick={() => setBackgroundRunModalOpen(true)}>
+              실행 로그 보기
+            </MuteButton>
+          ) : null}
+          <Text as="span" type="subtle">
+            현재 계정으로 실행하며, 실제 이메일이 발송될 수 있습니다.
+          </Text>
+        </div>
+        {backgroundRunId ? (
+          <Text as="div" type="subtle" role="status" className="break-all">
+            {backgroundRunQuery.data
+              ? {
+                  queued: "대기 중",
+                  running: "실행 중",
+                  handed_off: "Career agent 처리 중",
+                  completed: "완료",
+                  failed: "실패",
+                  cancelled: "취소됨",
+                  partial: "일부 완료",
+                }[backgroundRunQuery.data.status]
+              : "접수됨"}{" "}
+            · {backgroundRunId}
+          </Text>
+        ) : null}
+        {backgroundRunError || backgroundRunQuery.error ? (
+          <Text as="div" type="subtle" role="alert" className="text-critical">
+            {backgroundRunError || backgroundRunQuery.error?.message}
+          </Text>
+        ) : null}
+      </div>
+      {backgroundRunModalOpen ? (
+        <CareerAgentRunDevModal
+          key={backgroundRunId ?? "pending"}
+          runId={backgroundRunId}
+          pending={backgroundRunPending}
+          error={backgroundRunError}
+          onRetry={() => void handleRunBackgroundAgent()}
+          onClose={() => setBackgroundRunModalOpen(false)}
+        />
+      ) : null}
+      <div className="mt-3">
+        <MuteButton onClick={() => setBrowserUseOpen(true)}>
+          <Play className="size-3.5" />
+          Browser Use
+        </MuteButton>
+      </div>
+      {browserUseOpen ? (
+        <CareerBrowserUseDevModal onClose={() => setBrowserUseOpen(false)} />
+      ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Text as="span" type="subtle">추천 검색 로딩</Text>
+        <Text as="span" type="subtle">
+          추천 검색 로딩
+        </Text>
         <MuteButton onClick={() => setSearchPreviewOpen(true)}>
-          <Play className="size-3.5" />로딩 미리보기
+          <Play className="size-3.5" />
+          로딩 미리보기
         </MuteButton>
       </div>
       {searchPreviewOpen ? (
-        <CareerRecommendationSearchPreview onClose={() => setSearchPreviewOpen(false)} />
+        <CareerRecommendationSearchPreview
+          onClose={() => setSearchPreviewOpen(false)}
+        />
       ) : null}
       {process.env.NODE_ENV !== "production" ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Text as="span" type="subtle">Apply with Harper</Text>
+          <Text as="span" type="subtle">
+            Apply with Harper
+          </Text>
           <MuteButton asChild>
             <a
               href="/career/preview/application"
@@ -577,40 +841,67 @@ export default function CareerHomeDevControls({
               제안 받은 상태 미리보기
             </a>
           </MuteButton>
-          <Text as="span" type="subtle">예시 데이터 · 새 탭에서 열기</Text>
+          <Text as="span" type="subtle">
+            예시 데이터 · 새 탭에서 열기
+          </Text>
         </div>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Text as="span" type="subtle">외부 공고 fit</Text>
-        <MuteButton onClick={() => setExternalFitsOpen(true)} disabled={!user?.id}>
-          <BriefcaseBusiness className="size-3.5" />fit 목록 보기
+        <Text as="span" type="subtle">
+          외부 공고 fit
+        </Text>
+        <MuteButton
+          onClick={() => setExternalFitsOpen(true)}
+          disabled={!user?.id}
+        >
+          <BriefcaseBusiness className="size-3.5" />
+          fit 목록 보기
         </MuteButton>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Text as="span" type="subtle">recommend_job_posting</Text>
-        {([
-          { value: "auto", label: "자동" },
-          { value: "control", label: "기존 버전" },
-          { value: "v2", label: "V2" },
-        ] as const).map((option) => (
+        <Text as="span" type="subtle">
+          recommend_job_posting
+        </Text>
+        {(
+          [
+            { value: "auto", label: "자동" },
+            { value: "control", label: "기존 버전" },
+            { value: "v2", label: "V2" },
+          ] as const
+        ).map((option) => (
           <MuteButton
             key={option.value}
             aria-pressed={externalVariantSnapshot?.selection === option.value}
-            variant={externalVariantSnapshot?.selection === option.value ? "dark" : "default"}
-            disabled={!externalVariantSnapshot || externalVariantSaving || !externalVariantSnapshot.experimentEnabled}
+            variant={
+              externalVariantSnapshot?.selection === option.value
+                ? "dark"
+                : "default"
+            }
+            disabled={
+              !externalVariantSnapshot ||
+              externalVariantSaving ||
+              !externalVariantSnapshot.experimentEnabled
+            }
             onClick={() => void saveExternalVariant(option.value)}
           >
             {option.label}
           </MuteButton>
         ))}
         <Text as="span" type="subtle" role="status">
-          {externalVariantSaving ? "저장 중…" : externalVariantSnapshot
-            ? `현재 적용: ${externalVariantSnapshot.effectiveVariant === "v2" ? "V2" : "기존 버전"}`
-            : externalVariantQuery.isError ? "버전 확인 실패" : "버전 확인 중…"}
+          {externalVariantSaving
+            ? "저장 중…"
+            : externalVariantSnapshot
+              ? `현재 적용: ${externalVariantSnapshot.effectiveVariant === "v2" ? "V2" : "기존 버전"}`
+              : externalVariantQuery.isError
+                ? "버전 확인 실패"
+                : "버전 확인 중…"}
         </Text>
         <Text as="div" type="subtle" className="w-full">
-          이 계정·브라우저의 다음 추천 호출부터 적용 · 정기 Worker 추천은 자동 배정 유지
-          {externalVariantSnapshot?.experimentEnabled === false ? " · 추천 실험이 비활성화되어 있습니다." : ""}
+          이 계정·브라우저의 다음 추천 호출부터 적용 · 정기 Worker 추천은 자동
+          배정 유지
+          {externalVariantSnapshot?.experimentEnabled === false
+            ? " · 추천 실험이 비활성화되어 있습니다."
+            : ""}
         </Text>
         {externalVariantError || externalVariantQuery.error ? (
           <Text as="div" type="subtle" role="alert">
@@ -624,24 +915,6 @@ export default function CareerHomeDevControls({
           onClose={() => setExternalFitsOpen(false)}
         />
       ) : null}
-      {canUsePriorityReviewTests(user?.email) ? (
-        <CareerPriorityReviewDevControls model={textChatModel} />
-      ) : null}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Text as="span" type="subtle">
-          채팅 메시지 복사·삭제 버튼
-        </Text>
-        <MuteButton
-          aria-pressed={devMessageActionsVisible}
-          onClick={() => setDevMessageActionsVisible(!devMessageActionsVisible)}
-          variant={devMessageActionsVisible ? "dark" : "default"}
-        >
-          {devMessageActionsVisible ? "표시 중" : "숨김"}
-        </MuteButton>
-        <Text as="span" type="subtle">
-          기본값은 숨김이며, 일반 사용자와 같은 메시지 간격으로 보여요.
-        </Text>
-      </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Text as="span" type="subtle">
           Text LLM
@@ -665,6 +938,36 @@ export default function CareerHomeDevControls({
           다음 텍스트 메시지부터 적용
         </Text>
       </div>
+      {process.env.NODE_ENV !== "production" && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Text as="span" type="subtle">
+            Prompt
+          </Text>
+          <MuteButton
+            onClick={() => setPromptVariant(null)}
+            variant={promptVariant === null ? "dark" : "default"}
+          >
+            기존 코드
+          </MuteButton>
+          {CAREER_PROMPT_VARIANTS.map((variant, index) => (
+            <MuteButton
+              key={variant}
+              title={CAREER_PROMPT_FILES[variant]}
+              aria-pressed={promptVariant === variant}
+              onClick={() => { setConversationVersion("professional"); setPromptVariant(variant); }}
+              variant={promptVariant === variant ? "dark" : "default"}
+            >
+              {`버전 ${index + 1} · ${["현재", "수정안", "직접 편집"][index]}`}
+            </MuteButton>
+          ))}
+          {promptVariant && (
+            <Text as="span" type="subtle" className="w-full">
+              {CAREER_PROMPT_FILES[promptVariant]} · 파일 저장 후 다음
+              메시지부터 적용
+            </Text>
+          )}
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Text as="span" type="subtle">
           Voice
@@ -831,7 +1134,7 @@ export default function CareerHomeDevControls({
         </MuteButton>
         <MuteButton
           onClick={() => {
-            logCareerEvent("click_home_dev_reengagement_test");
+            logCareerEvent("click_home_dev_delete_recent_messages");
             void onRunSessionReengagementTest();
           }}
           disabled={sessionReengagementTestPending}
@@ -841,13 +1144,13 @@ export default function CareerHomeDevControls({
           ) : (
             <RefreshCw className="h-3.5 w-3.5" />
           )}
-          최근 메시지 삭제 + 12시간 인사
+          최근 메시지 6개 삭제
         </MuteButton>
         <MuteButton
           onClick={() => {
             logCareerEvent("click_home_dev_reengagement_greeting_only");
             void onRunSessionReengagementTest({
-              deleteLatestMessage: false,
+              deleteRecentMessages: false,
             });
           }}
           disabled={sessionReengagementTestPending}
@@ -859,20 +1162,26 @@ export default function CareerHomeDevControls({
           )}
           12시간 인사만
         </MuteButton>
+        <MuteButton
+          aria-haspopup="dialog"
+          onClick={() => {
+            setPendingActionsOpen(true);
+            void reengagementPendingActions.refetch();
+          }}
+        >
+          <Clock3 className="h-3.5 w-3.5" />
+          Pending actions 전체 보기
+        </MuteButton>
       </div>
-      <div className="mt-4 rounded-xl border border-neutral-1000-a05 bg-bg-weak px-3 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <Text as="div" type="subtle" className="mt-1">
-              전체 {currentPendingActions.length}개 · 아래 우선 후보 최대 1개를
-              LLM에 전달
-            </Text>
-          </div>
+      <TalentCareerModal
+        open={pendingActionsOpen}
+        onClose={() => setPendingActionsOpen(false)}
+        title="현재 Pending actions"
+        description="현재 계정의 re-engagement 조회 결과입니다. 종류별 최대 100개를 조회하며, prompt 후보는 최대 4개입니다. 과거 응답 당시의 입력 기록은 아닙니다."
+        footer={
           <MuteButton
             onClick={() => void reengagementPendingActions.refetch()}
             disabled={reengagementPendingActions.isFetching}
-            size="sm"
-            variant="default"
           >
             {reengagementPendingActions.isFetching ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -881,55 +1190,52 @@ export default function CareerHomeDevControls({
             )}
             새로고침
           </MuteButton>
+        }
+      >
+        <div data-career-i18n-skip="true" aria-busy={reengagementPendingActions.isFetching}>
+          {reengagementPendingActions.isError ? (
+            <p role="alert" className="mb-3 text-sm text-critical">
+              {reengagementPendingActions.error.message}
+            </p>
+          ) : null}
+          {reengagementPendingActions.isPending ? (
+            <p role="status" className="text-sm text-neutral-muted">불러오는 중…</p>
+          ) : reengagementPendingActions.data ? (
+            <>
+              <p className="mb-3 text-sm text-neutral-muted">
+                조회 {currentPendingActions.length}개 · prompt 후보 {promptPendingActionCandidateKeys.size}개
+              </p>
+              {currentPendingActions.length === 0 ? (
+                <p className="text-sm text-neutral-muted">현재 조회된 pending action이 없습니다.</p>
+              ) : (
+                <ol className="divide-y divide-neutral-1000-a10">
+                  {currentPendingActions.map((action) => (
+                    <li key={action.actionKey} className="space-y-2 py-4 first:pt-0 last:pb-0">
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium text-neutral-primary">
+                          {getReengagementPendingActionLabel(action)}
+                        </span>
+                        <span className="text-xs text-neutral-muted">
+                          {action.actionKey} · {promptPendingActionCandidateKeys.has(action.actionKey) ? "prompt 후보" : "prompt 제외"}
+                        </span>
+                      </div>
+                      <p className="whitespace-pre-wrap break-words text-sm text-neutral-primary">
+                        {getReengagementPendingActionDescription(action)}
+                      </p>
+                      <details>
+                        <summary className="cursor-pointer text-xs text-neutral-muted">상세 데이터</summary>
+                        <pre className="mt-2 whitespace-pre-wrap break-all rounded-lg bg-bg-weak p-3 text-xs leading-5 text-neutral-primary">
+                          {JSON.stringify(action, null, 2)}
+                        </pre>
+                      </details>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </>
+          ) : null}
         </div>
-        {reengagementPendingActions.isPending ? (
-          <Text as="div" type="subtle" className="mt-3">
-            pending action을 불러오는 중...
-          </Text>
-        ) : reengagementPendingActions.isError ? (
-          <Text as="div" type="subtle" className="mt-3 text-critical">
-            {reengagementPendingActions.error instanceof Error
-              ? reengagementPendingActions.error.message
-              : "pending action을 불러오지 못했습니다."}
-          </Text>
-        ) : currentPendingActions.length === 0 ? (
-          <Text as="div" type="subtle" className="mt-3">
-            현재 pending action이 없습니다.
-          </Text>
-        ) : (
-          <div className="mt-3 max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-1">
-            {currentPendingActions.map((action, index) => {
-              const isPromptCandidate = promptPendingActionCandidateKeys.has(
-                getReengagementPendingActionKey(action)
-              );
-              return (
-                <div
-                  key={`${action.kind}-${index}`}
-                  className="rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-2"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Text as="span" type="label">
-                      {getReengagementPendingActionLabel(action)}
-                    </Text>
-                    {isPromptCandidate ? (
-                      <Text as="span" type="subtle" className="text-primary">
-                        우선 후보
-                      </Text>
-                    ) : null}
-                  </div>
-                  <Text
-                    as="div"
-                    type="subtle"
-                    className="mt-1 whitespace-pre-wrap break-words"
-                  >
-                    {getReengagementPendingActionDescription(action)}
-                  </Text>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      </TalentCareerModal>
       {devRoleFtsStatus ? (
         <Text as="div" type="subtle" className="mt-2">
           {devRoleFtsStatus}
@@ -1101,6 +1407,27 @@ export default function CareerHomeDevControls({
           </div>
         ) : null}
       </div>
+      <CareerGlassDevControls />
+      <details className="mt-4 min-w-0" data-career-i18n-skip="true">
+        <summary className="cursor-pointer text-[13px] font-medium">
+          Gmail 연결 미리보기
+        </summary>
+        <div className="mt-3">
+          <code className="text-xs text-neutral-muted">
+            [[integration:gmail]]
+          </code>
+          <div inert className="mt-3 flex flex-wrap gap-6">
+            <div className="min-w-0 max-w-full">
+              <p className="text-xs text-neutral-muted">연결 전</p>
+              <GmailIntegrationActionContent />
+            </div>
+            <div className="min-w-0 max-w-full">
+              <p className="text-xs text-neutral-muted">연결 완료</p>
+              <GmailIntegrationActionContent connected />
+            </div>
+          </div>
+        </div>
+      </details>
       {process.env.NODE_ENV !== "production" &&
       user?.id === CAREER_CHECKPOINT_USER_ID ? (
         <CareerCheckpointDevControls />

@@ -1,0 +1,1191 @@
+{
+  "datasetVersion": "reengagement-opportunities-v2",
+  "provenance": "Synthetic roles and candidate; no production data. Frozen before live model execution.",
+  "cases": [
+    {
+      "isOnboardingDone": true,
+      "preferredLocale": "ko",
+      "timeZone": "Asia/Seoul",
+      "currentAccessAt": "2026-11-02T03:00:00Z",
+      "previousChatAt": "2026-10-31T03:00:00Z",
+      "idleMs": 172800000,
+      "structuredProfileText": "이름: 지민. 백엔드 개발자 6년. B2B SaaS API 설계·운영 경험. 서울 거주. 제품 의사결정에 참여할 수 있는 백엔드 역할을 찾고 있음.",
+      "talentContextSection": "Current Search Brief: 서울, 주 2회 이상 원격. 백엔드 개발과 제품 의사결정 참여. 새로운 포지션을 추천받고 싶어 함.",
+      "recentMessages": [
+        {
+          "id": 1,
+          "role": "user",
+          "content": "제품 설계에도 참여할 수 있는 백엔드 포지션이 있으면 추천해 주세요. 서울이고 주 2회 이상 원격이면 좋겠어요.",
+          "message_type": "chat"
+        },
+        {
+          "id": 2,
+          "role": "assistant",
+          "content": "말씀하신 방향으로 살펴볼게요.",
+          "message_type": "chat"
+        }
+      ],
+      "recentReengagementHistory": [],
+      "pendingActions": [],
+      "opportunitySnapshot": {
+        "matching": {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "title": "서울 백엔드, 제품 설계 참여",
+          "revision": 1,
+          "criteria": {
+            "brief": [
+              {
+                "label": "희망 역할",
+                "content": "백엔드 개발과 제품 설계에 함께 참여. 서울, 주 2회 이상 원격 근무."
+              }
+            ]
+          }
+        },
+        "latestRun": {
+          "id": "00000000-0000-4000-8000-000000000090",
+          "status": "completed",
+          "created_at": "2026-11-01T01:00:00Z",
+          "finished_at": "2026-11-01T02:00:00Z"
+        },
+        "lastCompletedRun": {
+          "id": "00000000-0000-4000-8000-000000000090",
+          "status": "completed",
+          "created_at": "2026-11-01T01:00:00Z",
+          "finished_at": "2026-11-01T02:00:00Z"
+        },
+        "activeRuns": [],
+        "listRevision": "synthetic-list-v1",
+        "results": {
+          "evaluations": [
+            {
+              "id": "00000000-0000-4000-8000-000000000201",
+              "role_id": "00000000-0000-4000-8000-000000000101",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 89,
+                  "candidateInterest": 91,
+                  "companyInterest": 87,
+                  "roleFit": 93,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 1",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000301",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 1"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000202",
+              "role_id": "00000000-0000-4000-8000-000000000102",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 88,
+                  "candidateInterest": 90,
+                  "companyInterest": 86,
+                  "roleFit": 92,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 2",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000302",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 2"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000203",
+              "role_id": "00000000-0000-4000-8000-000000000103",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 87,
+                  "candidateInterest": 89,
+                  "companyInterest": 85,
+                  "roleFit": 91,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 3",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000303",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 3"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000204",
+              "role_id": "00000000-0000-4000-8000-000000000104",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 86,
+                  "candidateInterest": 88,
+                  "companyInterest": 84,
+                  "roleFit": 90,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 4",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000304",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 4"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000205",
+              "role_id": "00000000-0000-4000-8000-000000000105",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 85,
+                  "candidateInterest": 87,
+                  "companyInterest": 83,
+                  "roleFit": 89,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 5",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000305",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 5"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000206",
+              "role_id": "00000000-0000-4000-8000-000000000106",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 84,
+                  "candidateInterest": 86,
+                  "companyInterest": 82,
+                  "roleFit": 88,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 6",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000306",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 6"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000207",
+              "role_id": "00000000-0000-4000-8000-000000000107",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 83,
+                  "candidateInterest": 85,
+                  "companyInterest": 81,
+                  "roleFit": 87,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 7",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000307",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 7"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000208",
+              "role_id": "00000000-0000-4000-8000-000000000108",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 82,
+                  "candidateInterest": 84,
+                  "companyInterest": 80,
+                  "roleFit": 86,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 8",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000308",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 8"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000209",
+              "role_id": "00000000-0000-4000-8000-000000000109",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 81,
+                  "candidateInterest": 83,
+                  "companyInterest": 79,
+                  "roleFit": 85,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 9",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000309",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 9"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000210",
+              "role_id": "00000000-0000-4000-8000-000000000110",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 80,
+                  "candidateInterest": 82,
+                  "companyInterest": 78,
+                  "roleFit": 84,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 10",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000310",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 10"
+                }
+              }
+            }
+          ],
+          "evaluationCount": 18,
+          "remainingEvaluationCount": 8,
+          "expiredRoleCount": 2,
+          "evaluationCursor": "00000000-0000-4000-8000-000000000210"
+        },
+        "roleFacts": [
+          {
+            "role_id": "00000000-0000-4000-8000-000000000101",
+            "name": "Backend Engineer 1",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000101"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000102",
+            "name": "Backend Engineer 2",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000102"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000103",
+            "name": "Backend Engineer 3",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000103"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000104",
+            "name": "Backend Engineer 4",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000104"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000105",
+            "name": "Backend Engineer 5",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000105"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000106",
+            "name": "Backend Engineer 6",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000106"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000107",
+            "name": "Backend Engineer 7",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000107"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000108",
+            "name": "Backend Engineer 8",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000108"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000109",
+            "name": "Backend Engineer 9",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000109"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000110",
+            "name": "Backend Engineer 10",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000110"
+          }
+        ]
+      },
+      "searchResults": [
+        {
+          "id": "00000000-0000-4000-8000-000000000221",
+          "role_id": "00000000-0000-4000-8000-000000000121",
+          "evaluated_at": "2026-11-01T02:00:00Z",
+          "input_fingerprint": "synthetic-profile-v1",
+          "assessment": {
+            "fit": {
+              "mutualFit": 69,
+              "candidateInterest": 71,
+              "companyInterest": 67,
+              "roleFit": 73,
+              "constraintPass": 100,
+              "evidence": "sufficient"
+            },
+            "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+            "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+          },
+          "role": {
+            "name": "Backend Engineer 21",
+            "company_workspace_id": "00000000-0000-4000-8000-000000000321",
+            "company_workspace": {
+              "company_name": "Synthetic Team 21"
+            }
+          }
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000222",
+          "role_id": "00000000-0000-4000-8000-000000000122",
+          "evaluated_at": "2026-11-01T02:00:00Z",
+          "input_fingerprint": "synthetic-profile-v1",
+          "assessment": {
+            "fit": {
+              "mutualFit": 68,
+              "candidateInterest": 70,
+              "companyInterest": 66,
+              "roleFit": 72,
+              "constraintPass": 100,
+              "evidence": "sufficient"
+            },
+            "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+            "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+          },
+          "role": {
+            "name": "Backend Engineer 22",
+            "company_workspace_id": "00000000-0000-4000-8000-000000000322",
+            "company_workspace": {
+              "company_name": "Synthetic Team 22"
+            }
+          }
+        }
+      ],
+      "id": "ready_candidates"
+    },
+    {
+      "isOnboardingDone": true,
+      "preferredLocale": "ko",
+      "timeZone": "Asia/Seoul",
+      "currentAccessAt": "2026-11-02T03:00:00Z",
+      "previousChatAt": "2026-10-31T03:00:00Z",
+      "idleMs": 172800000,
+      "structuredProfileText": "이름: 지민. 백엔드 개발자 6년. B2B SaaS API 설계·운영 경험. 서울 거주. 제품 의사결정에 참여할 수 있는 백엔드 역할을 찾고 있음.",
+      "talentContextSection": "Current Search Brief: 서울, 주 2회 이상 원격. 백엔드 개발과 제품 의사결정 참여. 새로운 포지션을 추천받고 싶어 함.",
+      "recentMessages": [
+        {
+          "id": 1,
+          "role": "user",
+          "content": "제품 설계에도 참여할 수 있는 백엔드 포지션이 있으면 추천해 주세요. 서울이고 주 2회 이상 원격이면 좋겠어요.",
+          "message_type": "chat"
+        },
+        {
+          "id": 2,
+          "role": "assistant",
+          "content": "말씀하신 방향으로 살펴볼게요.",
+          "message_type": "chat"
+        }
+      ],
+      "recentReengagementHistory": [],
+      "pendingActions": [],
+      "opportunitySnapshot": {
+        "matching": {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "title": "서울 백엔드, 제품 설계 참여",
+          "revision": 1,
+          "criteria": {
+            "brief": [
+              {
+                "label": "희망 역할",
+                "content": "백엔드 개발과 제품 설계에 함께 참여. 서울, 주 2회 이상 원격 근무."
+              }
+            ]
+          }
+        },
+        "latestRun": {
+          "id": "00000000-0000-4000-8000-000000000090",
+          "status": "completed",
+          "created_at": "2026-10-10T01:00:00Z",
+          "finished_at": "2026-10-10T02:00:00Z"
+        },
+        "lastCompletedRun": {
+          "id": "00000000-0000-4000-8000-000000000090",
+          "status": "completed",
+          "created_at": "2026-10-10T01:00:00Z",
+          "finished_at": "2026-10-10T02:00:00Z"
+        },
+        "activeRuns": [],
+        "listRevision": "synthetic-list-v1",
+        "results": {
+          "evaluations": [],
+          "evaluationCount": 0,
+          "remainingEvaluationCount": 0,
+          "expiredRoleCount": 18,
+          "evaluationCursor": null
+        },
+        "roleFacts": []
+      },
+      "searchResults": [
+        {
+          "id": "00000000-0000-4000-8000-000000000221",
+          "role_id": "00000000-0000-4000-8000-000000000121",
+          "evaluated_at": "2026-11-01T02:00:00Z",
+          "input_fingerprint": "synthetic-profile-v1",
+          "assessment": {
+            "fit": {
+              "mutualFit": 69,
+              "candidateInterest": 71,
+              "companyInterest": 67,
+              "roleFit": 73,
+              "constraintPass": 100,
+              "evidence": "sufficient"
+            },
+            "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+            "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+          },
+          "role": {
+            "name": "Backend Engineer 21",
+            "company_workspace_id": "00000000-0000-4000-8000-000000000321",
+            "company_workspace": {
+              "company_name": "Synthetic Team 21"
+            }
+          }
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000222",
+          "role_id": "00000000-0000-4000-8000-000000000122",
+          "evaluated_at": "2026-11-01T02:00:00Z",
+          "input_fingerprint": "synthetic-profile-v1",
+          "assessment": {
+            "fit": {
+              "mutualFit": 68,
+              "candidateInterest": 70,
+              "companyInterest": 66,
+              "roleFit": 72,
+              "constraintPass": 100,
+              "evidence": "sufficient"
+            },
+            "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+            "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+          },
+          "role": {
+            "name": "Backend Engineer 22",
+            "company_workspace_id": "00000000-0000-4000-8000-000000000322",
+            "company_workspace": {
+              "company_name": "Synthetic Team 22"
+            }
+          }
+        }
+      ],
+      "id": "empty_old_results"
+    },
+    {
+      "isOnboardingDone": true,
+      "preferredLocale": "ko",
+      "timeZone": "Asia/Seoul",
+      "currentAccessAt": "2026-11-02T03:00:00Z",
+      "previousChatAt": "2026-10-31T03:00:00Z",
+      "idleMs": 172800000,
+      "structuredProfileText": "이름: 지민. 백엔드 개발자 6년. B2B SaaS API 설계·운영 경험. 서울 거주. 제품 의사결정에 참여할 수 있는 백엔드 역할을 찾고 있음.",
+      "talentContextSection": "Current Search Brief: 서울, 주 2회 이상 원격. 백엔드 개발과 제품 의사결정 참여. 새로운 포지션을 추천받고 싶어 함.\nCurrent user instruction: 이번 달은 검색·추천을 쉬며 다시 요청할 때 재개.",
+      "recentMessages": [
+        {
+          "id": 1,
+          "role": "user",
+          "content": "이번 달은 이직 준비를 쉬려고 해요. 공고 추천이나 검색은 제가 다시 부탁할 때 해 주세요.",
+          "message_type": "chat"
+        },
+        {
+          "id": 2,
+          "role": "assistant",
+          "content": "알겠어요. 다시 말씀해 주실 때 이어갈게요.",
+          "message_type": "chat"
+        }
+      ],
+      "recentReengagementHistory": [],
+      "pendingActions": [],
+      "opportunitySnapshot": {
+        "matching": {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "title": "서울 백엔드, 제품 설계 참여",
+          "revision": 1,
+          "criteria": {
+            "brief": [
+              {
+                "label": "희망 역할",
+                "content": "백엔드 개발과 제품 설계에 함께 참여. 서울, 주 2회 이상 원격 근무."
+              }
+            ]
+          }
+        },
+        "latestRun": {
+          "id": "00000000-0000-4000-8000-000000000090",
+          "status": "completed",
+          "created_at": "2026-11-01T01:00:00Z",
+          "finished_at": "2026-11-01T02:00:00Z"
+        },
+        "lastCompletedRun": {
+          "id": "00000000-0000-4000-8000-000000000090",
+          "status": "completed",
+          "created_at": "2026-11-01T01:00:00Z",
+          "finished_at": "2026-11-01T02:00:00Z"
+        },
+        "activeRuns": [],
+        "listRevision": "synthetic-list-v1",
+        "results": {
+          "evaluations": [
+            {
+              "id": "00000000-0000-4000-8000-000000000201",
+              "role_id": "00000000-0000-4000-8000-000000000101",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 89,
+                  "candidateInterest": 91,
+                  "companyInterest": 87,
+                  "roleFit": 93,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 1",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000301",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 1"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000202",
+              "role_id": "00000000-0000-4000-8000-000000000102",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 88,
+                  "candidateInterest": 90,
+                  "companyInterest": 86,
+                  "roleFit": 92,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 2",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000302",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 2"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000203",
+              "role_id": "00000000-0000-4000-8000-000000000103",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 87,
+                  "candidateInterest": 89,
+                  "companyInterest": 85,
+                  "roleFit": 91,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 3",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000303",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 3"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000204",
+              "role_id": "00000000-0000-4000-8000-000000000104",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 86,
+                  "candidateInterest": 88,
+                  "companyInterest": 84,
+                  "roleFit": 90,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 4",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000304",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 4"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000205",
+              "role_id": "00000000-0000-4000-8000-000000000105",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 85,
+                  "candidateInterest": 87,
+                  "companyInterest": 83,
+                  "roleFit": 89,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 5",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000305",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 5"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000206",
+              "role_id": "00000000-0000-4000-8000-000000000106",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 84,
+                  "candidateInterest": 86,
+                  "companyInterest": 82,
+                  "roleFit": 88,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 6",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000306",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 6"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000207",
+              "role_id": "00000000-0000-4000-8000-000000000107",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 83,
+                  "candidateInterest": 85,
+                  "companyInterest": 81,
+                  "roleFit": 87,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 7",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000307",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 7"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000208",
+              "role_id": "00000000-0000-4000-8000-000000000108",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 82,
+                  "candidateInterest": 84,
+                  "companyInterest": 80,
+                  "roleFit": 86,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 8",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000308",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 8"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000209",
+              "role_id": "00000000-0000-4000-8000-000000000109",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 81,
+                  "candidateInterest": 83,
+                  "companyInterest": 79,
+                  "roleFit": 85,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 9",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000309",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 9"
+                }
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000210",
+              "role_id": "00000000-0000-4000-8000-000000000110",
+              "evaluated_at": "2026-11-01T02:00:00Z",
+              "input_fingerprint": "synthetic-profile-v1",
+              "assessment": {
+                "fit": {
+                  "mutualFit": 80,
+                  "candidateInterest": 82,
+                  "companyInterest": 78,
+                  "roleFit": 84,
+                  "constraintPass": 100,
+                  "evidence": "sufficient"
+                },
+                "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+                "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+              },
+              "role": {
+                "name": "Backend Engineer 10",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000310",
+                "company_workspace": {
+                  "company_name": "Synthetic Team 10"
+                }
+              }
+            }
+          ],
+          "evaluationCount": 18,
+          "remainingEvaluationCount": 8,
+          "expiredRoleCount": 2,
+          "evaluationCursor": "00000000-0000-4000-8000-000000000210"
+        },
+        "roleFacts": [
+          {
+            "role_id": "00000000-0000-4000-8000-000000000101",
+            "name": "Backend Engineer 1",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000101"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000102",
+            "name": "Backend Engineer 2",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000102"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000103",
+            "name": "Backend Engineer 3",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000103"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000104",
+            "name": "Backend Engineer 4",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000104"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000105",
+            "name": "Backend Engineer 5",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000105"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000106",
+            "name": "Backend Engineer 6",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000106"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000107",
+            "name": "Backend Engineer 7",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000107"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000108",
+            "name": "Backend Engineer 8",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000108"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000109",
+            "name": "Backend Engineer 9",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000109"
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000110",
+            "name": "Backend Engineer 10",
+            "summary": {
+              "ko": "B2B 제품의 백엔드 설계·개발. 제품 담당자와 우선순위 결정에 참여."
+            },
+            "location_text": "서울",
+            "work_mode": "hybrid",
+            "external_jd_url": "https://example.invalid/jobs/00000000-0000-4000-8000-000000000110"
+          }
+        ]
+      },
+      "searchResults": [
+        {
+          "id": "00000000-0000-4000-8000-000000000221",
+          "role_id": "00000000-0000-4000-8000-000000000121",
+          "evaluated_at": "2026-11-01T02:00:00Z",
+          "input_fingerprint": "synthetic-profile-v1",
+          "assessment": {
+            "fit": {
+              "mutualFit": 69,
+              "candidateInterest": 71,
+              "companyInterest": 67,
+              "roleFit": 73,
+              "constraintPass": 100,
+              "evidence": "sufficient"
+            },
+            "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+            "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+          },
+          "role": {
+            "name": "Backend Engineer 21",
+            "company_workspace_id": "00000000-0000-4000-8000-000000000321",
+            "company_workspace": {
+              "company_name": "Synthetic Team 21"
+            }
+          }
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000222",
+          "role_id": "00000000-0000-4000-8000-000000000122",
+          "evaluated_at": "2026-11-01T02:00:00Z",
+          "input_fingerprint": "synthetic-profile-v1",
+          "assessment": {
+            "fit": {
+              "mutualFit": 68,
+              "candidateInterest": 70,
+              "companyInterest": 66,
+              "roleFit": 72,
+              "constraintPass": 100,
+              "evidence": "sufficient"
+            },
+            "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+            "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+          },
+          "role": {
+            "name": "Backend Engineer 22",
+            "company_workspace_id": "00000000-0000-4000-8000-000000000322",
+            "company_workspace": {
+              "company_name": "Synthetic Team 22"
+            }
+          }
+        }
+      ],
+      "id": "explicit_pause"
+    },
+    {
+      "isOnboardingDone": true,
+      "preferredLocale": "ko",
+      "timeZone": "Asia/Seoul",
+      "currentAccessAt": "2026-11-02T03:00:00Z",
+      "previousChatAt": "2026-10-31T03:00:00Z",
+      "idleMs": 172800000,
+      "structuredProfileText": "이름: 지민. 백엔드 개발자 6년. B2B SaaS API 설계·운영 경험. 서울 거주. 제품 의사결정에 참여할 수 있는 백엔드 역할을 찾고 있음.",
+      "talentContextSection": "Current Search Brief: 서울, 주 2회 이상 원격. 백엔드 개발과 제품 의사결정 참여. 새로운 포지션을 추천받고 싶어 함.",
+      "recentMessages": [
+        {
+          "id": 1,
+          "role": "user",
+          "content": "제품 설계에도 참여할 수 있는 백엔드 포지션이 있으면 추천해 주세요. 서울이고 주 2회 이상 원격이면 좋겠어요.",
+          "message_type": "chat"
+        },
+        {
+          "id": 2,
+          "role": "assistant",
+          "content": "말씀하신 방향으로 살펴볼게요.",
+          "message_type": "chat"
+        }
+      ],
+      "recentReengagementHistory": [],
+      "pendingActions": [],
+      "opportunitySnapshot": {
+        "matching": null,
+        "latestRun": {
+          "id": "00000000-0000-4000-8000-000000000090",
+          "status": "completed",
+          "created_at": "2026-11-01T01:00:00Z",
+          "finished_at": "2026-11-01T02:00:00Z"
+        },
+        "lastCompletedRun": {
+          "id": "00000000-0000-4000-8000-000000000090",
+          "status": "completed",
+          "created_at": "2026-11-01T01:00:00Z",
+          "finished_at": "2026-11-01T02:00:00Z"
+        },
+        "activeRuns": [],
+        "legacy": [
+          {
+            "role_id": "00000000-0000-4000-8000-000000000101",
+            "name": "Backend Engineer 1",
+            "company_name": "Synthetic Team 1",
+            "summary": "백엔드 API 설계·개발과 제품 우선순위 결정. 서울, 주 2회 원격.",
+            "fit": {
+              "mutualFit": 89,
+              "candidateInterest": 91,
+              "companyInterest": 87,
+              "roleFit": 93,
+              "constraintPass": 100,
+              "evidence": "sufficient",
+              "evaluatedAt": "2026-11-01T02:00:00Z"
+            },
+            "meta": {},
+            "created_at": "2026-11-01T02:00:00Z",
+            "total": 2
+          },
+          {
+            "role_id": "00000000-0000-4000-8000-000000000102",
+            "name": "Backend Engineer 2",
+            "company_name": "Synthetic Team 2",
+            "summary": "백엔드 API 설계·개발과 제품 우선순위 결정. 서울, 주 2회 원격.",
+            "fit": {
+              "mutualFit": 88,
+              "candidateInterest": 90,
+              "companyInterest": 86,
+              "roleFit": 92,
+              "constraintPass": 100,
+              "evidence": "sufficient",
+              "evaluatedAt": "2026-11-01T02:00:00Z"
+            },
+            "meta": {},
+            "created_at": "2026-11-01T02:00:00Z",
+            "total": 2
+          }
+        ]
+      },
+      "searchResults": [
+        {
+          "id": "00000000-0000-4000-8000-000000000201",
+          "role_id": "00000000-0000-4000-8000-000000000101",
+          "evaluated_at": "2026-11-01T02:00:00Z",
+          "input_fingerprint": "synthetic-profile-v1",
+          "assessment": {
+            "fit": {
+              "mutualFit": 89,
+              "candidateInterest": 91,
+              "companyInterest": 87,
+              "roleFit": 93,
+              "constraintPass": 100,
+              "evidence": "sufficient"
+            },
+            "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+            "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+          },
+          "role": {
+            "name": "Backend Engineer 1",
+            "company_workspace_id": "00000000-0000-4000-8000-000000000301",
+            "company_workspace": {
+              "company_name": "Synthetic Team 1"
+            }
+          }
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000202",
+          "role_id": "00000000-0000-4000-8000-000000000102",
+          "evaluated_at": "2026-11-01T02:00:00Z",
+          "input_fingerprint": "synthetic-profile-v1",
+          "assessment": {
+            "fit": {
+              "mutualFit": 88,
+              "candidateInterest": 90,
+              "companyInterest": 86,
+              "roleFit": 92,
+              "constraintPass": 100,
+              "evidence": "sufficient"
+            },
+            "workScreen": "백엔드 개발과 서비스 설계. 제품 담당자와 개발 우선순위를 함께 정함.",
+            "candidatePracticalScreen": "서울 근무, 주 2회 원격 가능. 사용자의 경력과 근무 희망에 부합."
+          },
+          "role": {
+            "name": "Backend Engineer 2",
+            "company_workspace_id": "00000000-0000-4000-8000-000000000302",
+            "company_workspace": {
+              "company_name": "Synthetic Team 2"
+            }
+          }
+        }
+      ],
+      "id": "legacy_fit"
+    }
+  ]
+}

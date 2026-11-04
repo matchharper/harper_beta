@@ -56,37 +56,11 @@ export async function startDailyRun(
   timeZone: string,
   locale: string
 ) {
-  if (process.env.EXTERNAL_RECOMMENDATION_EXPERIMENT === "off") return;
-  const { data: existing, error } = await (
-    admin.from("external_recommendation_runs" as never) as any
-  )
-    .select("id")
-    .eq("talent_id", userId)
-    .eq("day_key", dayKey(timeZone))
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (existing) return;
-  const loaded = await loadExternalContext(admin, userId);
-  if (
-    !loaded.dailyEnabled ||
-    (await fetchActiveInitialConversationRun({ admin, userId }))
-  )
-    return;
-  try {
-    const run = await createRun(admin, userId, "daily", {
-      day_key: dayKey(timeZone),
-      time_zone: timeZone,
-      locale,
-      provider: externalVariant(userId) === "v2" ? fitProvider() : null,
-    });
-    try {
-      await publishDailyRun(run.id);
-    } catch {
-      /* The dispatcher recovers a durable run if queue publishing fails. */
-    }
-  } catch (error) {
-    if ((error as { code?: string }).code !== "23505") throw error;
-  }
+  // Career's original agent now owns proactive search and list publication.
+  // Keep this compatibility export for old clients without producing new daily runs.
+  void admin; void userId; void timeZone; void locale;
+  return;
+
 }
 async function controlCached(args: EngineArgs) {
   const loaded = await loadExternalContext(args.admin, args.userId);

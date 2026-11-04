@@ -1,0 +1,145 @@
+{
+  "datasetVersion": "session-return-v1",
+  "cases": [
+    {
+      "id": "no-pending-assistant-last",
+      "isOnboardingDone": true,
+      "preferredLocale": "ko",
+      "timeZone": "Asia/Seoul",
+      "currentAccessAt": "2026-11-02T03:00:00Z",
+      "previousChatAt": "2026-10-31T03:01:00Z",
+      "idleMs": 172800000,
+      "structuredProfileText": "이름: 지민. 경력: B2B 제품 디자이너 6년. 서울 거주. 당장 지원하기보다 제품 방향 논의에 참여할 수 있는 팀과 자신의 역할을 먼저 탐색하고 싶어 함.",
+      "recentMessages": [
+        {
+          "id": 1,
+          "role": "user",
+          "content": "다음에는 팀에서 직접 제품 방향을 논의할 수 있는 곳으로 옮기고 싶어요. 지금 당장 지원하기보다는 어떤 팀이 맞을지 먼저 생각해 보고 싶습니다.",
+          "message_type": "chat",
+          "created_at": "2026-10-31T03:00:00Z"
+        },
+        {
+          "id": 2,
+          "role": "assistant",
+          "content": "직접 제품 방향에 참여할 수 있는지가 중요한 기준이군요. 지금 팀에서 아쉬웠던 순간을 바탕으로, 다음 팀에서 원하는 역할을 같이 구체화해 볼 수 있어요.",
+          "message_type": "chat",
+          "created_at": "2026-10-31T03:01:00Z"
+        }
+      ],
+      "recentReengagementHistory": [],
+      "pendingActions": []
+    },
+    {
+      "id": "no-pending-user-last",
+      "isOnboardingDone": true,
+      "preferredLocale": "ko",
+      "timeZone": "Asia/Seoul",
+      "currentAccessAt": "2026-11-02T03:00:00Z",
+      "previousChatAt": "2026-10-31T03:02:00Z",
+      "idleMs": 172800000,
+      "structuredProfileText": "이름: 지민. 경력: B2B 제품 디자이너 6년. 서울 거주. 당장 지원하기보다 제품 방향 논의에 참여할 수 있는 팀과 자신의 역할을 먼저 탐색하고 싶어 함.",
+      "recentMessages": [
+        {
+          "id": 1,
+          "role": "user",
+          "content": "다음에는 팀에서 직접 제품 방향을 논의할 수 있는 곳으로 옮기고 싶어요. 지금 당장 지원하기보다는 어떤 팀이 맞을지 먼저 생각해 보고 싶습니다.",
+          "message_type": "chat",
+          "created_at": "2026-10-31T03:00:00Z"
+        },
+        {
+          "id": 2,
+          "role": "assistant",
+          "content": "직접 제품 방향에 참여할 수 있는지가 중요한 기준이군요. 지금 팀에서 아쉬웠던 순간을 바탕으로, 다음 팀에서 원하는 역할을 같이 구체화해 볼 수 있어요.",
+          "message_type": "chat",
+          "created_at": "2026-10-31T03:01:00Z"
+        },
+        {
+          "id": 3,
+          "role": "user",
+          "content": "좋아요. 오늘은 여기까지 하고 다음에 이어서 이야기해요.",
+          "message_type": "chat",
+          "created_at": "2026-10-31T03:02:00Z"
+        }
+      ],
+      "recentReengagementHistory": [],
+      "pendingActions": []
+    },
+    {
+      "id": "meeting-assistant-last",
+      "isOnboardingDone": true,
+      "preferredLocale": "ko",
+      "timeZone": "Asia/Seoul",
+      "currentAccessAt": "2026-11-02T03:00:00Z",
+      "previousChatAt": "2026-10-31T03:01:00Z",
+      "idleMs": 172800000,
+      "structuredProfileText": "이름: 지민. 경력: B2B 제품 디자이너 6년. 서울 거주. 당장 지원하기보다 제품 방향 논의에 참여할 수 있는 팀과 자신의 역할을 먼저 탐색하고 싶어 함.",
+      "recentMessages": [
+        {
+          "id": 1,
+          "role": "user",
+          "content": "다음에는 팀에서 직접 제품 방향을 논의할 수 있는 곳으로 옮기고 싶어요. 지금 당장 지원하기보다는 어떤 팀이 맞을지 먼저 생각해 보고 싶습니다.",
+          "message_type": "chat",
+          "created_at": "2026-10-31T03:00:00Z"
+        },
+        {
+          "id": 2,
+          "role": "assistant",
+          "content": "직접 제품 방향에 참여할 수 있는지가 중요한 기준이군요. 지금 팀에서 아쉬웠던 순간을 바탕으로, 다음 팀에서 원하는 역할을 같이 구체화해 볼 수 있어요.",
+          "message_type": "chat",
+          "created_at": "2026-10-31T03:01:00Z"
+        }
+      ],
+      "recentReengagementHistory": [],
+      "pendingActions": [
+        {
+          "actionKey": "pending_1",
+          "kind": "meeting_schedule",
+          "companyName": "샘플랩",
+          "roleTitle": "Product Designer"
+        }
+      ]
+    },
+    {
+      "id": "meeting-user-last",
+      "isOnboardingDone": true,
+      "preferredLocale": "ko",
+      "timeZone": "Asia/Seoul",
+      "currentAccessAt": "2026-11-02T03:00:00Z",
+      "previousChatAt": "2026-10-31T03:02:00Z",
+      "idleMs": 172800000,
+      "structuredProfileText": "이름: 지민. 경력: B2B 제품 디자이너 6년. 서울 거주. 당장 지원하기보다 제품 방향 논의에 참여할 수 있는 팀과 자신의 역할을 먼저 탐색하고 싶어 함.",
+      "recentMessages": [
+        {
+          "id": 1,
+          "role": "user",
+          "content": "다음에는 팀에서 직접 제품 방향을 논의할 수 있는 곳으로 옮기고 싶어요. 지금 당장 지원하기보다는 어떤 팀이 맞을지 먼저 생각해 보고 싶습니다.",
+          "message_type": "chat",
+          "created_at": "2026-10-31T03:00:00Z"
+        },
+        {
+          "id": 2,
+          "role": "assistant",
+          "content": "직접 제품 방향에 참여할 수 있는지가 중요한 기준이군요. 지금 팀에서 아쉬웠던 순간을 바탕으로, 다음 팀에서 원하는 역할을 같이 구체화해 볼 수 있어요.",
+          "message_type": "chat",
+          "created_at": "2026-10-31T03:01:00Z"
+        },
+        {
+          "id": 3,
+          "role": "user",
+          "content": "좋아요. 오늘은 여기까지 하고 다음에 이어서 이야기해요.",
+          "message_type": "chat",
+          "created_at": "2026-10-31T03:02:00Z"
+        }
+      ],
+      "recentReengagementHistory": [],
+      "pendingActions": [
+        {
+          "actionKey": "pending_1",
+          "kind": "meeting_schedule",
+          "companyName": "샘플랩",
+          "roleTitle": "Product Designer"
+        }
+      ]
+    }
+  ]
+}

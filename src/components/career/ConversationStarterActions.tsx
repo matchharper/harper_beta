@@ -167,7 +167,7 @@ export function ConversationStarterActions({
     pendingAction?.kind === "open_position_recommendation_request";
   const openPositionRequestLabel = t(
     "career.common.conversation_starters.more_open_positions",
-    "포지션 더 추천받기"
+    "기회 더 찾아줘"
   );
 
   return (

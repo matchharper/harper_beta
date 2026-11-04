@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v1",
+  "provenance": "Synthetic Korean role and candidate, authored before any generation. No production personal data.",
+  "createdAt": "2026-11-02",
+  "hashes": {
+    "cases-v1.json": "b2222a667e0e1aeae9641856d824c4b41b7b619e66b46720fd8ae23f931f34e3",
+    "gold-v1.json": "1cfaf21c65a7ad56e050e8f4721ced511ffbd9387d95a716c273b9c8066a4557"
+  }
+}

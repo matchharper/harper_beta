@@ -1,0 +1,165 @@
+{
+  "version": "v3",
+  "now": "2030-01-06T00:00:00Z",
+  "cases": [
+    {
+      "id": "chain_new",
+      "continuity": "appointment_lifecycle",
+      "existing": false,
+      "now": "2030-01-06T00:00:00Z",
+      "subject": "Platform interview confirmation",
+      "body": "Your Atlas platform interview is confirmed for January 7, 2030 at 09:00–10:00 Asia/Seoul. Prepare one deployment architecture example. Join https://meet.example.test/platform .",
+      "emails": [
+        {
+          "messageId": "original-invite",
+          "threadId": "atlas-thread",
+          "subject": "Platform interview confirmation",
+          "content": "Your Atlas platform interview is confirmed for January 7, 2030 at 09:00–10:00 Asia/Seoul. Prepare one deployment architecture example. Join https://meet.example.test/platform .",
+          "to": "candidate@example.test",
+          "cc": null,
+          "receivedAt": "2030-01-06T00:00:00Z",
+          "from": "recruiter@atlas.example.test"
+        }
+      ]
+    },
+    {
+      "id": "chain_rescheduled",
+      "continuity": "appointment_lifecycle",
+      "existing": false,
+      "now": "2030-01-06T01:00:00Z",
+      "subject": "Re: Platform interview confirmation",
+      "body": "Change confirmed: our January 7 interview is now January 8, 2030 at 15:00–16:00 Asia/Seoul. The same meeting link remains valid. The January 7 time is cancelled, not a second interview.",
+      "emails": [
+        {
+          "messageId": "original-invite",
+          "threadId": "atlas-thread",
+          "subject": "Platform interview confirmation",
+          "content": "Your Atlas platform interview is confirmed for January 7, 2030 at 09:00–10:00 Asia/Seoul. Prepare one deployment architecture example. Join https://meet.example.test/platform .",
+          "to": "candidate@example.test",
+          "cc": null,
+          "receivedAt": "2030-01-06T00:00:00Z",
+          "from": "recruiter@atlas.example.test"
+        },
+        {
+          "messageId": "changed-invite",
+          "threadId": "atlas-thread",
+          "subject": "Re: Platform interview confirmation",
+          "content": "Change confirmed: our January 7 interview is now January 8, 2030 at 15:00–16:00 Asia/Seoul. The same meeting link remains valid. The January 7 time is cancelled, not a second interview.",
+          "to": "candidate@example.test",
+          "cc": null,
+          "receivedAt": "2030-01-06T01:00:00Z",
+          "from": "recruiter@atlas.example.test"
+        }
+      ]
+    },
+    {
+      "id": "chain_reminder",
+      "continuity": "appointment_lifecycle",
+      "existing": false,
+      "now": "2030-01-08T05:00:00Z",
+      "subject": "Re: Platform interview confirmation",
+      "body": "Change confirmed: our January 7 interview is now January 8, 2030 at 15:00–16:00 Asia/Seoul. The same meeting link remains valid. The January 7 time is cancelled, not a second interview.",
+      "emails": [
+        {
+          "messageId": "original-invite",
+          "threadId": "atlas-thread",
+          "subject": "Platform interview confirmation",
+          "content": "Your Atlas platform interview is confirmed for January 7, 2030 at 09:00–10:00 Asia/Seoul. Prepare one deployment architecture example. Join https://meet.example.test/platform .",
+          "to": "candidate@example.test",
+          "cc": null,
+          "receivedAt": "2030-01-06T00:00:00Z",
+          "from": "recruiter@atlas.example.test"
+        },
+        {
+          "messageId": "changed-invite",
+          "threadId": "atlas-thread",
+          "subject": "Re: Platform interview confirmation",
+          "content": "Change confirmed: our January 7 interview is now January 8, 2030 at 15:00–16:00 Asia/Seoul. The same meeting link remains valid. The January 7 time is cancelled, not a second interview.",
+          "to": "candidate@example.test",
+          "cc": null,
+          "receivedAt": "2030-01-06T01:00:00Z",
+          "from": "recruiter@atlas.example.test"
+        }
+      ],
+      "sourceFromWork": true,
+      "discoveryEmpty": true
+    },
+    {
+      "id": "chain_cancelled",
+      "continuity": "appointment_lifecycle",
+      "existing": false,
+      "now": "2030-01-08T05:10:00Z",
+      "subject": "Re: Following up",
+      "body": "The January 8 interview is cancelled. There is no replacement date. Please do not attend the meeting.",
+      "emails": [
+        {
+          "messageId": "original-invite",
+          "threadId": "atlas-thread",
+          "subject": "Platform interview confirmation",
+          "content": "Your Atlas platform interview is confirmed for January 7, 2030 at 09:00–10:00 Asia/Seoul. Prepare one deployment architecture example. Join https://meet.example.test/platform .",
+          "to": "candidate@example.test",
+          "cc": null,
+          "receivedAt": "2030-01-06T00:00:00Z",
+          "from": "recruiter@atlas.example.test"
+        },
+        {
+          "messageId": "changed-invite",
+          "threadId": "atlas-thread",
+          "subject": "Re: Platform interview confirmation",
+          "content": "Change confirmed: our January 7 interview is now January 8, 2030 at 15:00–16:00 Asia/Seoul. The same meeting link remains valid. The January 7 time is cancelled, not a second interview.",
+          "to": "candidate@example.test",
+          "cc": null,
+          "receivedAt": "2030-01-06T01:00:00Z",
+          "from": "recruiter@atlas.example.test"
+        },
+        {
+          "messageId": "cancelled-invite",
+          "threadId": "atlas-thread",
+          "subject": "Re: Following up",
+          "content": "The January 8 interview is cancelled. There is no replacement date. Please do not attend the meeting.",
+          "to": "candidate@example.test",
+          "cc": null,
+          "receivedAt": "2030-01-08T05:10:00Z",
+          "from": "recruiter@atlas.example.test"
+        }
+      ],
+      "discoveryEmpty": true
+    },
+    {
+      "id": "mixed_unlinked_timezone",
+      "existing": false,
+      "subject": "Infrastructure interview confirmation",
+      "body": "Cedar infrastructure engineer interview confirmed for January 7, 2030 at 16:00 America/Los_Angeles. The end time has not been specified. Join https://meet.example.test/cedar .",
+      "emails": [
+        {
+          "messageId": "cedar-confirmed",
+          "threadId": "cedar-thread",
+          "subject": "Infrastructure interview confirmation",
+          "content": "Cedar infrastructure engineer interview confirmed for January 7, 2030 at 16:00 America/Los_Angeles. The end time has not been specified. Join https://meet.example.test/cedar .",
+          "to": "candidate@example.test",
+          "cc": null,
+          "receivedAt": "2030-01-06T00:00:00Z",
+          "from": "recruiter@cedar.example.test"
+        },
+        {
+          "messageId": "beacon-options",
+          "threadId": "beacon-thread",
+          "subject": "Designer interview schedule",
+          "content": "For the Beacon designer position, could you do January 8 at 11:00 or January 9 at 15:00 Asia/Seoul? No time has been confirmed.",
+          "to": "candidate@example.test",
+          "cc": null,
+          "receivedAt": "2030-01-06T00:00:00Z",
+          "from": "recruiter@beacon.example.test"
+        }
+      ],
+      "context": "User delegation: 여러 회사 면접 메일을 확인해서 확정된 일정과 준비할 것을 챙겨줘. Saved applications: Atlas platform engineer Role 55555555-5555-4555-8555-555555555555; Beacon designer Role 66666666-6666-4666-8666-666666666666. Cedar infrastructure engineer application was made outside Harper; no Cedar Role is saved. Next routine Career check is January 13."
+    },
+    {
+      "id": "gmail_unavailable",
+      "existing": true,
+      "gmailUnavailable": true,
+      "subject": "Platform interview confirmation",
+      "body": "This source is unavailable and must not be included as retrieved evidence."
+    }
+  ]
+}

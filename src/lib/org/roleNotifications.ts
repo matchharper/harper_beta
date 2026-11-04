@@ -53,12 +53,13 @@ async function fetchRoleNotificationChannels(args: {
 }
 
 export async function fetchOrgRoleNotificationSettings(args: {
+  admin?: AdminClient;
   audienceChannelId?: string;
   roleId: string;
   user: User;
   workspaceId: string;
 }): Promise<OrgRoleNotificationSettings & { availableAssignees: Array<{ userId: string; name: string; current: boolean }> }> {
-  const admin = getSupabaseAdmin();
+  const admin = args.admin ?? getSupabaseAdmin();
   const workspaceId = text(args.workspaceId);
   const roleId = text(args.roleId);
   if (!workspaceId || !roleId) {

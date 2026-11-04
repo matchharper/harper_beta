@@ -1,20 +1,12 @@
-import OpportunityCard from "./OpportunityCard";
-import {
-  Archive,
-  Bookmark,
-  Handshake,
-  Loader2,
-  ThumbsDown,
-  type LucideIcon,
-} from "lucide-react";
+import NewOpportunityCard from "./NewOpportunityCard";
+// import CareerMatchingList from "./CareerMatchingList";
+import { Loader2 } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AnimatedHandshake } from "@/components/ui/animated-handshake";
 import { MuteButton } from "@/components/ui/button";
 import {
   SectionDescription,
   SectionHeader,
 } from "@/components/ui/section-header";
-import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import {
@@ -22,20 +14,12 @@ import {
   useCareerSidebarContext,
 } from "../CareerSidebarContext";
 import { formatCareerDate } from "@/lib/career/dateFormat";
-import { cn } from "@/lib/utils";
-import {
-  getCareerNegativeActionLabel,
-  getCareerPositiveActionIcon,
-  getCareerPositiveActionLabel,
-} from "../opportunityTypeMeta";
 import type { CareerHistoryOpportunity } from "../types";
-import { OpportunitySwipeRow } from "./OpportunitySwipeRow";
 
 import {
   assignHistoryFeedbackVariant,
   HISTORY_FEEDBACK_EXPERIMENT,
   HISTORY_FEEDBACK_VIEW_EVENT,
-  type HistoryFeedbackVariant,
 } from "@/lib/career/historyFeedbackExperiment";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
@@ -61,8 +45,7 @@ type NewOpportunityListProps = {
 
 // Harper의 연결 섹션과 카드에 표시하는 한국어 문구는 여기에서 수정합니다.
 // career-i18n-skip-next-line Source is translated by useCareerT below.
-const INTERNAL_CONNECTION_DESCRIPTION =
-  "Harper가 회사와의 연결을 도와드리는 기회입니다.";
+const INTERNAL_CONNECTION_DESCRIPTION = "Harper가 회사에 직접 연결하는 기회예요.";
 
 const DATE_LABEL_FORMATTERS: Record<Locale, Intl.DateTimeFormat> = {
   ko: new Intl.DateTimeFormat("ko-KR", {
@@ -81,215 +64,6 @@ const RELATIVE_DATE_LABEL_FORMATTERS: Record<Locale, Intl.RelativeTimeFormat> =
     ko: new Intl.RelativeTimeFormat("ko-KR", { numeric: "auto" }),
     en: new Intl.RelativeTimeFormat("en-US", { numeric: "auto" }),
   };
-
-function PositiveActionIconView({
-  icon: Icon,
-  className = "size-4",
-}: {
-  icon: LucideIcon;
-  className?: string;
-}) {
-  if (Icon === Handshake) return <AnimatedHandshake className={className} />;
-  return <Icon aria-hidden className={className} />;
-}
-
-function NewOpportunityCard({
-  feedbackVariant = "thumbs",
-  expanded,
-  item,
-  onApply,
-  onNegative,
-  onKeep,
-  onOpenCompanyInfo,
-  onOpenLink,
-  onPositive,
-  onToggleOpportunity,
-  pending,
-}: Pick<
-  NewOpportunityListProps,
-  | "onApply"
-  | "onNegative"
-  | "onKeep"
-  | "onOpenCompanyInfo"
-  | "onOpenLink"
-  | "onPositive"
-  | "onToggleOpportunity"
-> & {
-  feedbackVariant: HistoryFeedbackVariant;
-  expanded: boolean;
-  item: CareerHistoryOpportunity;
-  pending: boolean;
-}) {
-  const t = useCareerT();
-  const isInternal = item.isInternal || item.sourceType === "internal";
-  const saveHide = !isInternal && feedbackVariant === "save_hide";
-  const PositiveActionIcon = saveHide
-    ? Bookmark
-    : getCareerPositiveActionIcon(item.opportunityType);
-  const NegativeActionIcon = saveHide ? Archive : ThumbsDown;
-  const positiveLabel = saveHide
-    ? t("career.common.save", "저장")
-    : getCareerPositiveActionLabel(item.opportunityType, t);
-  const negativeLabel = saveHide
-    ? t("career.history.feedback_actions.hide_tooltip", "목록에서 숨기기")
-    : getCareerNegativeActionLabel(item.opportunityType, t);
-  const positiveTooltip = saveHide
-    ? t("career.company.jobs.save", "저장하기")
-    : positiveLabel;
-  const negativeTooltip = negativeLabel;
-  const actionClass = "py-2.5 rounded-sm font-normal md:font-light text-sm";
-
-  return (
-    <OpportunitySwipeRow
-      disabled={pending || expanded}
-      positive={{
-        label: positiveLabel,
-        icon: (
-          <PositiveActionIconView
-            icon={PositiveActionIcon}
-            className="size-5"
-          />
-        ),
-        onSelect: () => onPositive(item),
-      }}
-      negative={{
-        label: negativeLabel,
-        icon: <NegativeActionIcon aria-hidden className="size-5" />,
-        onSelect: () => onNegative(item),
-      }}
-    >
-      <OpportunityCard
-        item={item}
-        expanded={expanded}
-        onToggle={() => onToggleOpportunity(item)}
-        onOpenCompanyInfo={onOpenCompanyInfo}
-        onOpenLink={onOpenLink}
-        collapsedActions={
-          <div
-            className={cn(
-              "flex shrink-0 items-center gap-0 md:gap-1 opacity-100 transition-opacity md:[@media(hover:hover)]:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
-              pending && "md:[@media(hover:hover)]:opacity-100"
-            )}
-          >
-            {isInternal ? (
-              <Tooltips
-                text={t(
-                  "career.history.keep.tooltip",
-                  "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
-                )}
-              >
-                <MuteButton
-                  disabled={pending}
-                  variant="transparent"
-                  aria-label={t(
-                    "career.history.keep.action",
-                    "저장하고 나중에 결정"
-                  )}
-                  onClick={() => onKeep(item)}
-                >
-                  <Bookmark aria-hidden className="size-3.5 md:size-4" />
-                </MuteButton>
-              </Tooltips>
-            ) : null}
-            <Tooltips text={negativeTooltip}>
-              <MuteButton
-                aria-label={`${item.title}: ${negativeTooltip}`}
-                disabled={pending}
-                onClick={() => onNegative(item)}
-                variant="transparent"
-              >
-                <NegativeActionIcon
-                  aria-hidden
-                  className="size-3.5 md:size-4"
-                />
-              </MuteButton>
-            </Tooltips>
-            <Tooltips text={positiveTooltip}>
-              <MuteButton
-                aria-label={`${item.title}: ${positiveTooltip}`}
-                disabled={pending}
-                onClick={() => onPositive(item)}
-                variant="transparent"
-              >
-                {pending ? (
-                  <Loader2
-                    aria-hidden
-                    className="size-3.5 md:size-4 animate-spin"
-                  />
-                ) : (
-                  <PositiveActionIconView
-                    icon={PositiveActionIcon}
-                    className="size-3.5 md:size-4"
-                  />
-                )}
-              </MuteButton>
-            </Tooltips>
-          </div>
-        }
-        actions={
-          <div className="grid grid-cols-2 items-center gap-2 pt-4 md:grid-cols-3 max-md:[&>button:last-child:nth-child(odd)]:col-start-2">
-            {isInternal ? (
-              <Tooltips
-                text={t(
-                  "career.history.keep.tooltip",
-                  "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
-                )}
-              >
-                <MuteButton
-                  disabled={pending}
-                  onClick={() => onKeep(item)}
-                  size="md"
-                  variant="neutral"
-                  className={actionClass}
-                >
-                  <Bookmark aria-hidden className="size-3.5" />
-                  {t("career.history.keep.action", "저장하고 나중에 결정")}
-                </MuteButton>
-              </Tooltips>
-            ) : null}
-            <MuteButton
-              disabled={pending}
-              onClick={() => onNegative(item)}
-              size="md"
-              className={actionClass}
-            >
-              <NegativeActionIcon aria-hidden className="size-3.5 stroke-0.5" />
-              {negativeLabel}
-            </MuteButton>
-            <MuteButton
-              disabled={pending}
-              onClick={() => onPositive(item)}
-              size="md"
-              variant={isInternal ? "primary" : "dark"}
-              className={actionClass}
-            >
-              {pending ? (
-                <Loader2 aria-hidden className="size-3.5 animate-spin" />
-              ) : (
-                <PositiveActionIconView
-                  icon={PositiveActionIcon}
-                  className="size-3.5"
-                />
-              )}
-              {positiveLabel}
-            </MuteButton>
-            {!isInternal ? (
-              <MuteButton
-                disabled={pending}
-                onClick={() => onApply(item)}
-                size="md"
-                variant="primary"
-                className={actionClass}
-              >
-                {t("career.history.external_application.apply", "지원하기")}
-              </MuteButton>
-            ) : null}
-          </div>
-        }
-      />
-    </OpportunitySwipeRow>
-  );
-}
 
 function getDateGroups(
   items: readonly CareerHistoryOpportunity[],
@@ -396,11 +170,11 @@ export default function NewOpportunityList({
         key: "internal",
         title: t(
           "career.history.new_opportunity_list.harper_suggestions",
-          "Harper의 연결"
+          "Harper 연결"
         ),
         empty: t(
           "career.history.new_opportunity_list.no_suggestions",
-          "Harper를 통해서 연결되는 기회입니다."
+          "Harper가 회사에 직접 연결하는 기회예요."
         ),
         description:
           currentInternalCount > 0
@@ -426,10 +200,10 @@ export default function NewOpportunityList({
       },
       {
         key: "external",
-        title: t("career.history.new_opportunity_list.open_positions", "Jobs"),
+        title: t("career.history.new_opportunity_list.open_positions", "직접 지원"),
         empty: t(
           "career.history.new_opportunity_list.no_open_positions",
-          "새로 추천된 포지션이 없습니다."
+          "새로 찾은 기회가 없습니다."
         ),
         description: null,
         count:
@@ -463,15 +237,29 @@ export default function NewOpportunityList({
           aria-labelledby={`new-opportunities-${listId}-${section.key}`}
         >
           <SectionHeader>
-            <h2
-              className="flex items-center gap-2.5 text-base md:text-[16px] font-medium leading-7 text-neutral-primary"
-              id={`new-opportunities-${listId}-${section.key}`}
-            >
-              {section.title}
-              <span className="text-[13px] font-normal tabular-nums text-neutral-muted">
-                {section.count}
-              </span>
-            </h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2
+                className="flex items-center gap-2.5 text-base md:text-[16px] font-medium leading-7 text-neutral-primary"
+                id={`new-opportunities-${listId}-${section.key}`}
+              >
+                {section.title}
+                <span className="text-[13px] font-normal tabular-nums text-neutral-muted">
+                  {section.count}
+                </span>
+              </h2>
+              {/* {section.key === "external" ? (
+                <CareerMatchingList
+                  userId={user?.id}
+                  onApply={onApply}
+                  onNegative={onNegative}
+                  onPositive={onPositive}
+                  onKeep={onKeep}
+                  onOpenCompanyInfo={onOpenCompanyInfo}
+                  onOpenLink={onOpenLink}
+                  pendingOpportunityIds={pendingOpportunityIds}
+                />
+              ) : null} */}
+            </div>
             {section.description ? (
               <SectionDescription tone="muted">
                 {section.description}
@@ -521,7 +309,7 @@ export default function NewOpportunityList({
                     <span className="mt-2 block">
                       {t(
                         "career.history.new_opportunity_list.external_recommendations_off",
-                        "현재 외부 포지션의 추천이 꺼져있습니다. Harper에게 요청하시면, 주기적으로 직접 지원하실만한 외부 공고를 찾아서 전달드립니다."
+                        "직접 지원 기회 받기가 꺼져 있어요. Harper에게 요청하면 채용 페이지에서 지원할 수 있는 기회도 찾아드려요."
                       )}
                     </span>
                   ) : null}

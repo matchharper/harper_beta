@@ -1,0 +1,137 @@
+{
+  "version": "v3",
+  "requestTime": "2026-11-02T09:00:00+09:00",
+  "role": {
+    "name": "플랫폼 엔지니어",
+    "company": "노바클라우드",
+    "description": "주문 서비스의 Kubernetes 인프라와 SLO를 운영하고 장애 대응 체계를 개선합니다. Terraform 기반 배포 자동화, 온콜 운영 경험을 찾습니다. 팀 관리 경력은 필수가 아닙니다.",
+    "private": "온콜 개선을 직접 주도한 경험을 추가로 확인하면 유용함. 회사 비공개 정보이며 후보자에게 인용하지 않음."
+  },
+  "cases": [
+    {
+      "id": "chat_ready",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "네, 노바클라우드에 소개해주세요."
+      ]
+    },
+    {
+      "id": "button_ready",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "button",
+      "turns": [
+        null
+      ]
+    },
+    {
+      "id": "button_missing",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어로 Kubernetes 운영과 배포 자동화를 맡았습니다.",
+        "experience": "Kubernetes 클러스터 운영과 배포 자동화 담당.",
+        "years": "6년"
+      },
+      "mode": "button",
+      "turns": [
+        null,
+        "네, 주문 서비스 SLO를 제가 정의했고 알림 기준과 온콜 runbook도 직접 만들었어요. 장애 복구시간 중앙값은 45분에서 18분으로 줄었습니다. 이 내용을 제 기본 프로필 경력에도 반영해 주세요."
+      ]
+    },
+    {
+      "id": "chat_update_before_accept",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어로 Kubernetes 운영과 배포 자동화를 맡았습니다.",
+        "experience": "Kubernetes 클러스터 운영과 배포 자동화 담당.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "네, 노바클라우드에 소개해주세요. 프로필에 빠진 경험이 있는데 주문 서비스 SLO와 온콜 runbook을 직접 만들고 장애 복구시간 중앙값을 45분에서 18분으로 줄였어요. 이 내용을 프로필에 반영해서 소개해 주세요."
+      ]
+    },
+    {
+      "id": "chat_prepared",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어로 Kubernetes 운영과 배포 자동화를 맡았습니다.",
+        "experience": "Kubernetes 클러스터 운영과 배포 자동화 담당.",
+        "years": "6년"
+      },
+      "preparedProfile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "네, 준비해 둔 자료로 소개해주세요."
+      ]
+    },
+    {
+      "id": "button_no_questions",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어로 Kubernetes 운영과 배포 자동화를 맡았습니다.",
+        "experience": "Kubernetes 클러스터 운영과 배포 자동화 담당.",
+        "years": "6년"
+      },
+      "mode": "button",
+      "historyUser": "추가 질문이나 자료 수정 없이 지금 프로필 그대로 노바클라우드에 소개해 주세요.",
+      "turns": [
+        null
+      ]
+    },
+    {
+      "id": "chat_prepare_then_accept",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어로 Kubernetes 운영과 배포 자동화를 맡았습니다.",
+        "experience": "Kubernetes 클러스터 운영과 배포 자동화 담당.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "노바클라우드에 소개받고 싶어요. 소개 전에 프로필에서 더 설명하면 좋을 부분이 있으면 알려주세요.",
+        "SLO를 제가 정의했고 오류 예산 기반 알림과 온콜 runbook을 만들었어요. 장애 복구시간 중앙값이 45분에서 18분으로 줄었습니다. 이 내용을 프로필에 반영해서 소개해주세요."
+      ]
+    },
+    {
+      "id": "chat_form_prepare",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어로 Kubernetes 운영과 배포 자동화를 맡았습니다.",
+        "experience": "Kubernetes 클러스터 운영과 배포 자동화 담당.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "노바클라우드 소개 전에 프로필을 보완하고 싶어요. 제가 직접 한 일을 회사가 이해할 수 있게, 필요한 경험을 질문 폼으로 물어봐주세요.",
+        "SLO와 오류 예산 기반 알림, 온콜 runbook을 제가 직접 만들었고 장애 복구시간 중앙값이 45분에서 18분으로 줄었어요. Kubernetes 클러스터 3개와 서비스 20개를 운영했고 Terraform으로 배포 환경을 관리했습니다. 팀 관리를 맡은 적은 없습니다. 이 내용을 기본 프로필에 반영해서 소개해주세요."
+      ]
+    }
+  ],
+  "progressSource": "buildInternalRecommendationProgress, no company tags, savedStage connected; current acceptance date",
+  "contextPlacement": "Current decision, resource index and UI event use production runtimeInstruction; persistent Brief/Memory use talentContextSection."
+}

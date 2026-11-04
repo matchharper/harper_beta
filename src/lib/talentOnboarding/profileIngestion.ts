@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { readProfileSnapshot, writeProfileSnapshot, type ProfileSnapshot } from "@/lib/career/profiles/store";
 import { logger } from "@/utils/logger";
 import {
   buildCareerProfileIngestionSystemPrompt,
@@ -1504,6 +1506,7 @@ export async function ingestTalentProfileFromLinkedin(
   args: IngestArgs
 ): Promise<TalentProfileIngestionResult> {
   const { admin, userId } = args;
+  const currentVersion = await readProfileSnapshot({ admin: admin as any, userId });
   const extracted = await extractTalentProfileDraftFromSources(args);
   const now = new Date().toISOString();
   const userPayload: Record<string, unknown> = {
@@ -1532,128 +1535,16 @@ export async function ingestTalentProfileFromLinkedin(
     userPayload.resume_text = resumeText;
   }
 
-  logger.log("[TalentIngest] writing talent_users");
-  const { error: userUpdateError } = await (admin as any)
-    .from("talent_users")
-    .update(userPayload)
-    .eq("user_id", userId);
-  if (userUpdateError) {
-    await notifyUnsupportedUnicodeEscapeError({
-      error: userUpdateError,
-      metadata: {
-        hasResumeText: Boolean(resumeText),
-        linkCount: extracted.links.length,
-        resumeFileName: userPayload.resume_file_name ?? null,
-      },
-      route: "talentProfileIngestion",
-      stage: "talent_users.update:ingest_from_sources",
-      userId,
-    });
-    throw new Error(userUpdateError.message ?? "Failed to update talent_users");
-  }
+  const experienceRows = extracted.experiences.map(item => ({ ...item, talent_id: userId,
+    company_id: item.company_id ? String(item.company_id) : null }));
+  const educationRows = extracted.educations.map(item => ({ ...item, talent_id: userId }));
+  await writeProfileSnapshot({ admin: admin as any, userId, action: "update", profileId: currentVersion.profileId,
+    expectedRevision: currentVersion.revision, operationId: `profile-ingest:${randomUUID()}`,
+    snapshot: { talentUser: { ...currentVersion.snapshot.talentUser, ...userPayload },
+      talentExperiences: experienceRows, talentEducations: educationRows,
+      talentExtras: extracted.talentExtras } as ProfileSnapshot,
+    source: { kind: "profile_source_ingestion", links: extracted.links } });
   await refreshTalentPreferredLocale({ admin, userId });
-
-  logger.log("[TalentIngest] replacing child rows", {
-    experiences: extracted.experiences.length,
-    educations: extracted.educations.length,
-    extras: extracted.talentExtras.length,
-    experienceCompanyLogos: extracted.experiences.filter(
-      (item) => item.company_logo
-    ).length,
-  });
-
-  const db = admin as any;
-
-  const { error: expDeleteError } = await db
-    .from("talent_experiences")
-    .delete()
-    .eq("talent_id", userId);
-  if (expDeleteError) {
-    throw new Error(
-      expDeleteError.message ?? "Failed to delete old talent_experiences"
-    );
-  }
-
-  const { error: eduDeleteError } = await db
-    .from("talent_educations")
-    .delete()
-    .eq("talent_id", userId);
-  if (eduDeleteError) {
-    throw new Error(
-      eduDeleteError.message ?? "Failed to delete old talent_educations"
-    );
-  }
-
-  const experienceRows = extracted.experiences.map((item) => ({
-    talent_id: userId,
-    role: item.role,
-    description: item.description,
-    employment_type: item.employment_type,
-    start_date: item.start_date,
-    end_date: item.end_date,
-    months: item.months,
-    company_id:
-      typeof item.company_id === "number" && item.company_id > 0
-        ? String(item.company_id)
-        : null,
-    company_link: item.company_link,
-    company_name: item.company_name,
-    company_location: item.company_location,
-    company_logo: item.company_logo,
-  }));
-  if (experienceRows.length > 0) {
-    const { error: expInsertError } = await db
-      .from("talent_experiences")
-      .insert(experienceRows);
-    if (expInsertError) {
-      throw new Error(
-        expInsertError.message ?? "Failed to insert talent_experiences"
-      );
-    }
-  }
-
-  const educationRows = extracted.educations.map((item) => ({
-    talent_id: userId,
-    school: item.school,
-    degree: item.degree,
-    description: item.description,
-    field: item.field,
-    start_date: item.start_date,
-    end_date: item.end_date,
-    url: item.url,
-  }));
-  if (educationRows.length > 0) {
-    const { error: eduInsertError } = await db
-      .from("talent_educations")
-      .insert(educationRows);
-    if (eduInsertError) {
-      throw new Error(
-        eduInsertError.message ?? "Failed to insert talent_educations"
-      );
-    }
-  }
-
-  const extrasContent = {
-    updated_at: now,
-    talent_extras: extracted.talentExtras.map((item) => ({
-      title: item.title,
-      description: item.description,
-      date: item.date,
-    })),
-  };
-
-  const { error: extrasUpsertError } = await db.from("talent_extras").upsert(
-    {
-      talent_id: userId,
-      content: extrasContent,
-    },
-    { onConflict: "talent_id" }
-  );
-  if (extrasUpsertError) {
-    throw new Error(
-      extrasUpsertError.message ?? "Failed to upsert talent_extras"
-    );
-  }
 
   await mergeBlockedCompaniesIntoTalentSetting({
     admin,
@@ -2134,6 +2025,7 @@ export async function mergeTalentProfileFromLatestSources(
   args: MergeIngestArgs
 ): Promise<TalentProfileIngestionResult> {
   const { admin, userId, existingProfile } = args;
+  const currentVersion = await readProfileSnapshot({ admin: admin as any, userId });
   const extracted = await extractTalentProfileDraftFromSources(args);
   let mergedRaw: ReturnType<typeof buildFallbackMergedProfile>;
   try {
@@ -2204,136 +2096,7 @@ export async function mergeTalentProfileFromLatestSources(
     now,
   });
 
-  const { error: userUpdateError } = await db
-    .from("talent_users")
-    .update(userUpdatePayload)
-    .eq("user_id", userId);
-  if (userUpdateError) {
-    await notifyUnsupportedUnicodeEscapeError({
-      error: userUpdateError,
-      metadata: {
-        linkCount: extracted.links.length,
-        resumeFileName: args.resumeFileName ?? null,
-        resumeTextLength:
-          typeof args.resumeText === "string" ? args.resumeText.length : 0,
-      },
-      route: "talentProfileIngestion",
-      stage: "talent_users.update:merge_latest_sources",
-      userId,
-    });
-    throw new Error(userUpdateError.message ?? "Failed to update talent_users");
-  }
-  if (Object.prototype.hasOwnProperty.call(userUpdatePayload, "location")) {
-    await refreshTalentPreferredLocale({ admin, userId });
-  }
-
-  const finalExperienceIds = new Set(
-    experiences
-      .map((item) => item.existingId)
-      .filter((item): item is number => typeof item === "number")
-  );
-  const experienceIdsToDelete = existingProfile.talentExperiences
-    .map((item) => item.id)
-    .filter((id) => !finalExperienceIds.has(id));
-  if (experienceIdsToDelete.length > 0) {
-    const { error } = await db
-      .from("talent_experiences")
-      .delete()
-      .eq("talent_id", userId)
-      .in("id", experienceIdsToDelete);
-    if (error) {
-      throw new Error(error.message ?? "Failed to delete talent_experiences");
-    }
-  }
-
-  for (const item of experiences.filter((row) => row.existingId)) {
-    const { error } = await db
-      .from("talent_experiences")
-      .update(
-        experienceUpdatePayload(
-          item,
-          item.existingId
-            ? existingExperienceById.get(item.existingId)
-            : undefined
-        )
-      )
-      .eq("talent_id", userId)
-      .eq("id", item.existingId);
-    if (error) {
-      throw new Error(error.message ?? "Failed to update talent_experiences");
-    }
-  }
-
-  const experienceRowsToInsert = experiences
-    .filter((item) => !item.existingId)
-    .map((item) => ({
-      talent_id: userId,
-      ...experienceUpdatePayload(item),
-    }));
-  if (experienceRowsToInsert.length > 0) {
-    const { error } = await db
-      .from("talent_experiences")
-      .insert(experienceRowsToInsert);
-    if (error) {
-      throw new Error(error.message ?? "Failed to insert talent_experiences");
-    }
-  }
-
-  const finalEducationIds = new Set(
-    educations
-      .map((item) => item.existingId)
-      .filter((item): item is number => typeof item === "number")
-  );
-  const existingEducationById = new Map(
-    existingProfile.talentEducations.map((item) => [item.id, item])
-  );
-  const educationIdsToDelete = existingProfile.talentEducations
-    .map((item) => item.id)
-    .filter((id) => !finalEducationIds.has(id));
-  if (educationIdsToDelete.length > 0) {
-    const { error } = await db
-      .from("talent_educations")
-      .delete()
-      .eq("talent_id", userId)
-      .in("id", educationIdsToDelete);
-    if (error) {
-      throw new Error(error.message ?? "Failed to delete talent_educations");
-    }
-  }
-
-  for (const item of educations.filter((row) => row.existingId)) {
-    const { error } = await db
-      .from("talent_educations")
-      .update(
-        educationUpdatePayload(
-          item,
-          item.existingId
-            ? existingEducationById.get(item.existingId)
-            : undefined
-        )
-      )
-      .eq("talent_id", userId)
-      .eq("id", item.existingId);
-    if (error) {
-      throw new Error(error.message ?? "Failed to update talent_educations");
-    }
-  }
-
-  const educationRowsToInsert = educations
-    .filter((item) => !item.existingId)
-    .map((item) => ({
-      talent_id: userId,
-      ...educationUpdatePayload(item),
-    }));
-  if (educationRowsToInsert.length > 0) {
-    const { error } = await db
-      .from("talent_educations")
-      .insert(educationRowsToInsert);
-    if (error) {
-      throw new Error(error.message ?? "Failed to insert talent_educations");
-    }
-  }
-
+  const existingEducationById = new Map(existingProfile.talentEducations.map(item => [item.id,item]));
   const existingExtraByTitle = new Map(
     existingProfile.talentExtras
       .map((item) => [normalizedExtraTitle(item.title), item] as const)
@@ -2355,21 +2118,15 @@ export async function mergeTalentProfileFromLatestSources(
     };
   });
 
-  const { error: extrasUpsertError } = await db.from("talent_extras").upsert(
-    {
-      talent_id: userId,
-      content: {
-        updated_at: now,
-        talent_extras: talentExtras,
-      },
-    },
-    { onConflict: "talent_id" }
-  );
-  if (extrasUpsertError) {
-    throw new Error(
-      extrasUpsertError.message ?? "Failed to upsert talent_extras"
-    );
-  }
+  await writeProfileSnapshot({ admin: admin as any, userId, action: "update", profileId: currentVersion.profileId,
+    expectedRevision: currentVersion.revision, operationId: `profile-source-merge:${randomUUID()}`,
+    snapshot: { talentUser: { ...currentVersion.snapshot.talentUser, ...userUpdatePayload },
+      talentExperiences: experiences.map(item => ({ ...experienceUpdatePayload(item,item.existingId ? existingExperienceById.get(item.existingId) : undefined),
+        ...(item.existingId ? { id: item.existingId } : {}), talent_id: userId })),
+      talentEducations: educations.map(item => ({ ...educationUpdatePayload(item,item.existingId ? existingEducationById.get(item.existingId) : undefined),
+        ...(item.existingId ? { id: item.existingId } : {}), talent_id: userId })), talentExtras } as ProfileSnapshot,
+    source: { kind: "profile_source_merge", links: extracted.links } });
+  if (Object.prototype.hasOwnProperty.call(userUpdatePayload, "location")) await refreshTalentPreferredLocale({ admin, userId });
   const blockedCompanies = normalizeTalentBlockedCompanies([
     ...extracted.blockedCompanies,
     ...blockedCompaniesFromExperiences(experiences),

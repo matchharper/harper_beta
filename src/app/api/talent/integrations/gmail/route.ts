@@ -6,6 +6,7 @@ import {
   deleteComposioConnectedAccount,
   getComposioAccountStatus,
   getComposioGmailReadAccess,
+  getComposioGmailWriteAccess,
   getComposioConnectedAccount,
   isOwnedComposioGmailAccount,
   revokeComposioConnectedAccount,
@@ -33,10 +34,12 @@ const statusPayload = (
   analysis?: {
     status: GmailCareerHistoryStatus;
     updatedAt: string | null;
-  }
+  },
+  writeConnected = false
 ) => ({
   analysis: analysis ?? { status: "not_started", updatedAt: null },
   connected: status === "active",
+  writeConnected,
   status,
 });
 
@@ -144,7 +147,11 @@ export async function GET(req: NextRequest) {
             { status: 503 }
           );
         }
-        return NextResponse.json(statusPayload("active", analysis));
+        return NextResponse.json(statusPayload(
+          "active",
+          analysis,
+          getComposioGmailWriteAccess(account) === "granted"
+        ));
       }
 
       const status: GmailIntegrationStatus =

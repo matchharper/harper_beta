@@ -13,8 +13,12 @@ export const getDefaultSavedStage = (item: CareerHistoryOpportunity) =>
 export type CareerHistoryOpportunityBucket = "new" | "saved" | "archived";
 
 export const getHistoryOpportunityBucket = (
-  item: Pick<CareerHistoryOpportunity, "feedback" | "savedStage">
+  item: Pick<CareerHistoryOpportunity, "feedback" | "savedStage" | "listPosition">
 ): CareerHistoryOpportunityBucket => {
+  if (item.listPosition === "previous") return "archived";
+  if (item.listPosition === "current") {
+    return isSavedHistoryOpportunity(item) ? "saved" : "new";
+  }
   if (item.feedback === "negative") return "archived";
   if (item.feedback === "positive" || item.feedback === "keep" || item.savedStage === "hidden") {
     return "saved";
@@ -22,10 +26,14 @@ export const getHistoryOpportunityBucket = (
   return "new";
 };
 
+export const isSavedHistoryOpportunity = (item: Pick<CareerHistoryOpportunity, "feedback" | "savedStage">) =>
+  item.feedback === "positive" || item.feedback === "keep" || (item.feedback === null && item.savedStage === "hidden");
+
 const SAVED_STAGES: CareerOpportunitySavedStage[] = [
   "saved",
   "applied",
   "connected",
+  "offer",
   "closed",
   "hidden",
 ];
@@ -41,6 +49,7 @@ export const createEmptyHistoryOpportunityCounts =
       saved: 0,
       applied: 0,
       connected: 0,
+      offer: 0,
       closed: 0,
       hidden: 0,
     },
@@ -79,7 +88,7 @@ export const normalizeHistoryOpportunityCounts = (
   }
 
   if (counts.total === 0) {
-    counts.total = counts.new + counts.saved + counts.archived;
+    counts.total = Math.max(counts.new + counts.archived, counts.saved);
   }
 
   return counts;
@@ -94,11 +103,11 @@ export const deriveHistoryOpportunityCounts = (
     counts.total += 1;
     const bucket = getHistoryOpportunityBucket(item);
 
-    if (bucket === "saved") {
+    if (isSavedHistoryOpportunity(item)) {
       const stage = item.savedStage ?? getDefaultSavedStage(item);
       counts.saved += 1;
       counts.savedStages[stage] += 1;
-      continue;
+      if (bucket === "saved") continue;
     }
 
     if (bucket === "archived") {
@@ -107,9 +116,9 @@ export const deriveHistoryOpportunityCounts = (
     }
 
     counts.new += 1;
-    if (item.sourceType === "internal" || item.isInternal) {
+    if ((item.sourceType === "internal" || item.isInternal) && item.feedback === null) {
       counts.newInternal += 1;
-    } else if (!item.viewedAt) {
+    } else if (item.sourceType !== "internal" && !item.isInternal && !item.viewedAt) {
       counts.newExternalUnread += 1;
     }
   }
@@ -156,6 +165,7 @@ export const normalizeHistoryOpportunities = (
       item.savedStage !== "saved" &&
       item.savedStage !== "applied" &&
       item.savedStage !== "connected" &&
+      item.savedStage !== "offer" &&
       item.savedStage !== "closed" &&
       item.savedStage !== "hidden"
     ) {
@@ -200,8 +210,9 @@ export const normalizeHistoryOpportunities = (
       typeof item.upcomingMeeting !== "object" ||
       typeof item.upcomingMeeting.startAt !== "string" ||
       Number.isNaN(Date.parse(item.upcomingMeeting.startAt)) ||
-      typeof item.upcomingMeeting.endAt !== "string" ||
-      Number.isNaN(Date.parse(item.upcomingMeeting.endAt))
+      (item.upcomingMeeting.endAt != null &&
+        (typeof item.upcomingMeeting.endAt !== "string" ||
+          Number.isNaN(Date.parse(item.upcomingMeeting.endAt))))
     ) {
       item.upcomingMeeting = null;
     } else if (typeof item.upcomingMeeting.title !== "string") {

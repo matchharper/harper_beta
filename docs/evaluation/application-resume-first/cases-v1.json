@@ -1,0 +1,7 @@
+{
+  "version": "resume-first-v1",
+  "candidate": { "name": "이서준", "email": "seojun@example.test", "experience": "Example Studio에서 내부 API를 개발했습니다.", "accepted": "Example Studio에서 내부 API의 설계와 운영을 담당했습니다." },
+  "role": "Example Labs · API Engineer",
+  "fields": ["이름", "이메일", "이 역할에 지원하는 이유", "이력서"],
+  "gold": { "resume_first": true, "original_preserved": true, "application_saved_after_delivery": true, "motivation_written_from_confirmed_facts": true, "resume_attached": true, "no_extra_question": true, "no_submission": true }
+}

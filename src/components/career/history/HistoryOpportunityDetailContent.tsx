@@ -1,4 +1,5 @@
-import { ApplicationReviewEntry } from "../chat/ApplicationReviewPanel";
+import OpportunityStatusDropdown from "./OpportunityStatusDropdown";
+import ApplicationPreparationSteps from "./ApplicationPreparationSteps";
 import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
 import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
 import React, { ReactNode } from "react";
@@ -23,7 +24,6 @@ import {
   ChevronDown,
   ChevronRight,
   Dot,
-  EllipsisVertical,
   FileText,
   HeartHandshake,
   MapPin,
@@ -39,10 +39,6 @@ import { BareButton, MuteButton } from "@/components/ui/button";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
-import {
-  ActionDropdown,
-  ActionDropdownItem,
-} from "@/components/ui/action-dropdown";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import {
   getKnownCompanyDataText,
@@ -50,15 +46,14 @@ import {
 } from "@/lib/career/fundingStage";
 import {
   canChangeCareerOpportunityManagementStatus,
-  getCareerOpportunityManagementStatusLabel,
-  getCareerOpportunityManagementStatusOptions,
   type CareerOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
-import UpcomingMeetingStrip from "./UpcomingMeetingStrip";
+import UpcomingAppointments from "../UpcomingAppointments";
 import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
 import NewOpportunityCompanyRoleSwitcher from "./NewOpportunityCompanyRoleSwitcher";
 import HistoryOpportunityRoleActions from "./HistoryOpportunityRoleActions";
 import OpportunityCard from "./OpportunityCard";
+import ProgressOpportunityRow from "./ProgressOpportunityRow";
 import HistoryOpportunityDetailActions from "./HistoryOpportunityDetailActions";
 
 export { getKnownCompanyDataText, parseFundingStageLabel };
@@ -135,15 +130,26 @@ export const OpportunityHeader = ({
       value: formatCareerLocation(item.location, locale),
     },
     ...metaItems,
-    ...(process.env.NODE_ENV === "development" && size === "sm" && item.estimatedAnnualSalary
-      ? [{
-          label: "estimatedSalary",
-          value: t("career.history.estimated_salary.range", "{range} (추정)", {
-            values: {
-              range: formatEstimatedAnnualSalary(item.estimatedAnnualSalary, locale),
-            },
-          }),
-        }]
+    ...(process.env.NODE_ENV === "development" &&
+    size === "sm" &&
+    item.estimatedAnnualSalary
+      ? [
+          {
+            label: "estimatedSalary",
+            value: t(
+              "career.history.estimated_salary.range",
+              "{range} (추정)",
+              {
+                values: {
+                  range: formatEstimatedAnnualSalary(
+                    item.estimatedAnnualSalary,
+                    locale
+                  ),
+                },
+              }
+            ),
+          },
+        ]
       : []),
   ].filter(
     (meta): meta is { label: string; value: string } =>
@@ -306,7 +312,8 @@ export const HistoryOpportunityOverview = ({
   const recommendationSummary = item.recommendationSummary?.trim() ?? "";
   const recommendationConcerns = item.recommendationConcerns ?? [];
   const hasRecommendationContent =
-    Boolean(item.recommendationNote || recommendationSummary) || item.recommendationReasons.length > 0;
+    Boolean(item.recommendationNote || recommendationSummary) ||
+    item.recommendationReasons.length > 0;
   const hasStandaloneJdButton = Boolean(roleLink) && !hasRecommendationContent;
 
   return (
@@ -333,14 +340,16 @@ export const HistoryOpportunityOverview = ({
                   className="flex cursor-pointer flex-row items-center gap-1 underline underline-offset-4 transition-colors duration-200 hover:text-primary"
                 >
                   <ArrowUpRight className="h-4 w-4" />
-                  {t("career.common.career.0wohsg4", "JD 확인하기")}
+                  {t("career.common.career.0wohsg4", "원문 보기")}
                 </BareButton>
               )}
             </div>
           </div>
           <div className="mt-1 h-[1px] w-full bg-neutral-1000-a05" />
           <div className="flex flex-col gap-1.5 py-2">
-            {item.recommendationNote ? <p className="mb-2 leading-6">{item.recommendationNote}</p> : null}
+            {item.recommendationNote ? (
+              <p className="mb-2 leading-6">{item.recommendationNote}</p>
+            ) : null}
             {recommendationSummary && (
               <div className="mb-2">{recommendationSummary}</div>
             )}
@@ -381,7 +390,7 @@ export const HistoryOpportunityOverview = ({
           }}
           className="mt-5 bg-neutral-200 hover:bg-neutral-300 inline-flex min-h-10 items-center justify-center w-full gap-2 rounded-md px-4 text-[13px] font-normal"
         >
-          {t("career.common.career.0wohsg4", "JD 확인하기")}
+          {t("career.common.career.0wohsg4", "원문 보기")}
           <ArrowUpRight className="h-4 w-4" />
         </BareButton>
       )}
@@ -517,7 +526,7 @@ const HistoryOpportunityAdditionalDetails = ({
       <div className="space-y-2">
         <HistorySectionTitle
           icon={<FileText className="h-4 w-4" />}
-          title={t("career.common.career.0f24yir", "역할 설명")}
+          title={t("career.common.career.0f24yir", "하는 일")}
         />
         <div className="h-px w-full bg-neutral-1000-a05" />
         {item.description?.trim() ? (
@@ -532,47 +541,6 @@ const HistoryOpportunityAdditionalDetails = ({
         )}
       </div>
     </div>
-  );
-};
-
-const OpportunityManagementStatusDropdown = ({
-  disabled,
-  status,
-  onChange,
-}: {
-  disabled: boolean;
-  status: CareerOpportunityManagementStatus;
-  onChange: (value: CareerOpportunityManagementStatus) => void;
-}) => {
-  const t = useCareerT();
-  const options = getCareerOpportunityManagementStatusOptions(t);
-  const statusLabel = getCareerOpportunityManagementStatusLabel(status, t);
-
-  return (
-    <ActionDropdown
-      align="end"
-      contentClassName="min-w-[190px]"
-      trigger={
-        <MuteButton
-          variant="transparent"
-          aria-label={`${statusLabel} 상태 변경`}
-          disabled={disabled}
-        >
-          <EllipsisVertical className="h-4 w-4" />
-        </MuteButton>
-      }
-    >
-      {options.map((option) => (
-        <ActionDropdownItem
-          key={option.id}
-          selected={option.id === status}
-          disabled={disabled}
-          onSelect={() => onChange(option.id)}
-        >
-          {option.label}
-        </ActionDropdownItem>
-      ))}
-    </ActionDropdown>
   );
 };
 
@@ -618,9 +586,29 @@ export const HistoryOpportunityInlinePage = ({
 }) => {
   const t = useCareerT();
   const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
+  const inProgress = savedStatus === "applied" || savedStatus === "connected" || savedStatus === "offer";
+  const opportunityCard = (
+    <OpportunityCard
+      key={item.id}
+      item={item}
+      showUnreadIndicator={false}
+      onOpenCompanyInfo={onOpenCompanyInfo}
+      onOpenLink={(_, url) => onOpenLink(url)}
+      actions={
+        <HistoryOpportunityDetailActions
+          item={item}
+          pending={pending}
+          onApply={onApply}
+          onSavedStatusChange={onSavedStatusChange}
+          onKeepDecision={onKeepDecision}
+          onInternalDecisionAction={onInternalDecisionAction}
+        />
+      }
+    />
+  );
 
   return (
-    <section className={cn("min-w-0 pb-8 text-neutral-primary", className)}>
+    <section className={cn("min-w-0 pb-12 text-neutral-primary", inProgress && "[&>section]:mt-12 sm:[&>section]:mt-16", className)}>
       <div className="mb-4 flex flex-row gap-3 items-center justify-between">
         <nav className="flex min-w-0 items-center gap-1 text-[13px] leading-5 text-neutral-muted">
           <BareButton
@@ -628,7 +616,7 @@ export const HistoryOpportunityInlinePage = ({
             onClick={onBack}
             className="shrink-0 font-medium text-neutral-muted transition-colors hover:text-neutral-primary"
           >
-            {t("career.common.career_workspace_screen.0jpahnv", "포지션")}
+            {t("career.common.career_workspace_screen.0jpahnv", "기회")}
           </BareButton>
           <ChevronRight className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
           <span
@@ -639,9 +627,9 @@ export const HistoryOpportunityInlinePage = ({
           </span>
         </nav>
 
-        {savedStatus && onSavedStatusChange && canChangeStatus ? (
+        {!inProgress && savedStatus && onSavedStatusChange && canChangeStatus ? (
           <div className="flex max-w-full justify-start sm:justify-end">
-            <OpportunityManagementStatusDropdown
+            <OpportunityStatusDropdown
               disabled={pending}
               status={savedStatus}
               onChange={onSavedStatusChange}
@@ -650,26 +638,41 @@ export const HistoryOpportunityInlinePage = ({
         ) : null}
       </div>
 
-      <UpcomingMeetingStrip meeting={item.upcomingMeeting} className="mb-4" />
+      {inProgress ? (
+        <>
+          <header>
+            <h1 className="sr-only">{item.title}</h1>
+            <ProgressOpportunityRow
+              item={item}
+              status={savedStatus}
+              pending={pending}
+              onStatusChange={canChangeStatus ? onSavedStatusChange : undefined}
+              showAppointmentCreate
+            />
+          </header>
+          <UpcomingAppointments roleId={item.roleId} />
+          {item.talentMemo && (
+            <section className="mb-3 space-y-1.5">
+              <h2 className="text-[13px] font-normal text-neutral-muted">
+                {t("career.meetings.notes", "준비할 내용 · 메모")}
+              </h2>
+              <RichText variant="career" typography="body-compact">
+                {item.talentMemo}
+              </RichText>
+            </section>
+          )}
 
-      <OpportunityCard
-        key={item.id}
+        </>
+      ) : (
+        opportunityCard
+      )}
+
+      <ApplicationPreparationSteps
+        key={item.roleId}
         item={item}
-        onOpenCompanyInfo={onOpenCompanyInfo}
-        onOpenLink={(_, url) => onOpenLink(url)}
-        actions={
-          <HistoryOpportunityDetailActions
-            item={item}
-            pending={pending}
-            onApply={onApply}
-            onSavedStatusChange={onSavedStatusChange}
-            onKeepDecision={onKeepDecision}
-            onInternalDecisionAction={onInternalDecisionAction}
-          />
-        }
+        onOpenChat={onOpenChat}
+        onOpenLink={onOpenLink}
       />
-
-      {!item.isInternal && <ApplicationReviewEntry roleId={item.roleId} />}
 
       <TalentRoleActivityTimeline
         item={item}
@@ -677,13 +680,28 @@ export const HistoryOpportunityInlinePage = ({
         onAddTalentMemo={onUpdateTalentMemo}
       />
 
-      <HistoryOpportunityRoleActions
-        key={item.id}
-        className={cn("mt-10", !roleActionsOnDesktop && "md:hidden")}
-        item={item}
-        onOpenChat={onOpenChat}
-        onStartMockInterview={onStartMockInterview}
-      />
+      {inProgress ? (
+        <details
+          key={`jd-${item.id}`}
+          className="group/jd mt-12 border-t border-neutral-1000-a05 pt-6 sm:mt-16"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-normal text-neutral-muted [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2">
+              {t("career.history.progress.job_details", "공고 상세 정보")}
+            </span>
+            <ChevronDown className="size-4 transition-transform group-open/jd:rotate-180" />
+          </summary>
+          <div className="mt-4">{opportunityCard}</div>
+        </details>
+      ) : (
+        <HistoryOpportunityRoleActions
+          key={`actions-${item.id}`}
+          className={cn("mt-10", !roleActionsOnDesktop && "md:hidden")}
+          item={item}
+          onOpenChat={onOpenChat}
+          onStartMockInterview={onStartMockInterview}
+        />
+      )}
     </section>
   );
 };

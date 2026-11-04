@@ -20,8 +20,10 @@ export const CAREER_TEXT_CHAT_MODEL_IDS = [
 
 export type CareerTextChatModelId = (typeof CAREER_TEXT_CHAT_MODEL_IDS)[number];
 
+export const CAREER_TEXT_CHAT_MODEL_HEADER = "x-career-text-chat-model";
+
 export const DEFAULT_CAREER_TEXT_CHAT_MODEL: CareerTextChatModelId =
-  CLAUDE_MODEL;
+  GPT_61_SOL_MODEL;
 
 export function isCareerTextChatModelId(
   value: unknown
@@ -70,14 +72,23 @@ export function resolveCareerTextChatModel(value: unknown): {
 
 export function resolveCareerTextChatModelForRequest(
   value: unknown,
-  canOverride: boolean,
-  applicationActive = false
+  canOverride: boolean
 ) {
   return resolveCareerTextChatModel(
     canOverride && isCareerTextChatModelId(value)
       ? value
-      : applicationActive
-        ? CLAUDE_HAIKU_MODEL
-        : DEFAULT_CAREER_TEXT_CHAT_MODEL
+      : DEFAULT_CAREER_TEXT_CHAT_MODEL
   );
+}
+
+export function careerTextAssistantModelOptions(value: unknown) {
+  const { model, ...reasoning } = resolveCareerTextChatModel(value);
+  return { primaryModel: model, ...reasoning };
+}
+
+/** Read only the server-resolved model saved with the original user turn. */
+export function readCareerSourceTextChatModel(payload: unknown) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return undefined;
+  const model = (payload as Record<string, unknown>).careerTextChatModel;
+  return isCareerTextChatModelId(model) ? resolveCareerTextChatModel(model) : undefined;
 }

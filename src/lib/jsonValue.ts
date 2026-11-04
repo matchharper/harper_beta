@@ -1,4 +1,4 @@
-function canonicalJsonValue(value: unknown): unknown {
+export function canonicalJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalJsonValue);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(

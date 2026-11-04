@@ -1,0 +1,45 @@
+{
+  "runVersion": "channel-final-review-v12",
+  "input": "input-contract-v3.md",
+  "gold": "gold-v2.json",
+  "capturedAt": "2026-10-30T03:57:14.325749+00:00",
+  "sourceHashes": {
+    "src/lib/career/handbooks/application.ts": "141928370559c4b4289e5068255537213d13146f31dce30b854570c312d0f267",
+    "src/lib/career/handbooks/registry.ts": "5e870f5610acb3c0db6b461952e48ec32f295addba876b337fa116f8cb7b686f",
+    "src/lib/career/forms/server.ts": "856d7fe0140ab70b90ee9f521cc41e6f31b55b7a58c5673181785eb7d446c534",
+    "src/lib/career/capabilities/registry.ts": "4332dff43aaea336d2aa5b239da869a373f3dc4303b6e93ba336491080c048f3",
+    "src/lib/career/browser/tool.ts": "5b312ae107c6c21d02ed2aaf7ca47588ea998fe05f6d3830863591d868a7615f",
+    "src/lib/talentOnboarding/profileStore.ts": "f76df455c73084e3dc4daee39641281922c5df66954f3d0500a40fd3a886aa1b",
+    "src/lib/career/profiles/tools.ts": "73ad7df6b197eb7224e8288f548f545692a5197e2d752173102858c97eb9c6d7",
+    "src/app/api/talent/chat/route.ts": "9041ad0404b18e78fc5a81683256d5447c665bf81cab0f6ec25746abbd37ac53",
+    "src/lib/career/chatTurn.ts": "8347f1d00c6e5865d6c25ec8495bccdd064187e35f6ca73e874a07cd535b97e0",
+    "src/lib/career/llm.ts": "fc5aab56872631298b84efa89b673548099cab16f3cb2761815253215c30f9d8",
+    "src/lib/career/textChatModelConfig.ts": "f47f173dff51d8eb6648fd8f9d763068b68385691ca0b83688cb821b822839ce",
+    "src/lib/career/prompts/rawPrompts.ts": "acf2af55abbe5a3f0ba9a5e17ff53dda4cb03818e8a4b61f1694acdac226ca0a",
+    "src/lib/career/prompts/conversationPlan.ts": "4c465cb4a5416235905de1a3840501738283c5a232c5aaa85e426f1f51fb6c18",
+    "src/lib/career/prompts/toolPolicyPrompt.ts": "25b2097953a1be624d33a7d1216834818c6ea0b6afbd4fbb6d5439dedffc080b",
+    "src/lib/career/simulation/browserUseAgents.ts": "841fc21ff217d799d161382988b7cd37e703038a86136a1beac6cfe302542f43",
+    "src/lib/talentOnboarding/messageStore.ts": "413a1d9923fe97c2772e3ede6cc357020657baa280a338fb94fc67864713d082",
+    "src/lib/talentOnboarding/conversationSummary.ts": "5f926bd01b3bc3a037545d501284f257d3fb0e11a832bea745da863ea2f86fa6",
+    "src/lib/career/opportunityFeedbackNote.ts": "72d4a72e827713ae98407e7484256a573e93d16e1f60141f0c885c393b7e4929",
+    "src/lib/integrations/gmail.ts": "d95109af406e0e207b2d44f0483f3a3e2a7ec1d784ef812a68ba8375cd68b39a",
+    "src/components/career/BrowserSessionCard.tsx": "bcb36f3d54cc16251559249972a7c1413920de9234763bce4a3287247375332b"
+  },
+  "models": {
+    "conversation": [
+      "claude-sonnet-5-5",
+      "gpt-6.1-sol (high)"
+    ],
+    "finalDefault": "gpt-6.1-sol (high)",
+    "continuation": "Original request model preserved; no application-mode model branch."
+  },
+  "limitations": [
+    "Live website and conversation are not frozen",
+    "Same real posting repeated; not five distinct applications",
+    "Final submit CTA not clicked on behalf of user",
+    "Adaptive debugging in one ongoing conversation; not a controlled model benchmark.",
+    "Optional unavailable Notion URL and non-applicable employee referral remain empty; no request to the user to provide them.",
+    "ChannelTalk did not request login or email verification."
+  ],
+  "privateArtifacts": "runs/channel-final-review-v11/"
+}

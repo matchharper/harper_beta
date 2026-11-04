@@ -341,13 +341,25 @@ async function deliverRunNotice(args: {
       && record(runResult.roleSearch).selectionMethod === "evaluation_only"
       ? formatCompanyRoleSearch(await readCompanyRoleSearch({admin,user,workspaceId,
           input:{roleId:primaryRoleId,view:"selection",runId}})) : null;
+    const sourceMessageId = record(run.request_options).sourceMessageId;
+    let sourceRequest: { messageId: number; content: string } | undefined;
+    if (companyRequested && Number.isSafeInteger(sourceMessageId)) {
+      // Preserve the actual request, without moving private conversation text into this Role.
+      const { data: source, error } = await (admin.from("company_messages" as any) as any)
+        .select("id,content").eq("id", sourceMessageId)
+        .eq("company_workspace_id", workspaceId).eq("conversation_id", conversation.id)
+        .eq("role", "user").in("message_type", ["chat", "slack"]).maybeSingle();
+      if (error) throw error;
+      if (source) sourceRequest = { messageId: source.id, content: source.content };
+    }
     const { jobId } = await enqueueCompanyUpdate({
       workspaceId, roleId: primaryRoleId, eventKey: idempotencyKey,
       purpose: companyRequested
-        ? "Continue the company's candidate-search request. Explain its verified outcome and complete any still-authorized useful work; propose a concrete next step when helpful."
+        ? "Resume the company's candidate-search assignment from this completed step, using the original request, subsequent conversation and candidate-search policy."
         : "Explain the verified restriction on new candidate recommendations and its practical scope in the company's hiring conversation.",
       facts: {
         result: firstResultContext,
+        ...(sourceRequest ? { sourceRequest } : {}),
         ...(searchDirection ? { previouslyExplainedSearchDirection: searchDirection } : {}),
         candidateIds,
         matchingSearchRunId: runId,
@@ -456,7 +468,7 @@ export async function POST(req: NextRequest) {
       admin.from("company_first_search_runs" as any) as any
     )
       .select(
-        "id, company_workspace_id, requested_role_ids, scheduled_role_ids, result, scheduled_slot, status, trigger_reason, workspace:company_workspace(company_name)"
+        "id, company_workspace_id, requested_role_ids, scheduled_role_ids, request_options, result, scheduled_slot, status, trigger_reason, workspace:company_workspace(company_name)"
       )
       .eq("id", runId)
       .maybeSingle();

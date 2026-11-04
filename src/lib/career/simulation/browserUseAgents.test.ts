@@ -6,6 +6,24 @@ const run = "00000000-0000-4000-8000-000000000002";
 const session = "00000000-0000-4000-8000-000000000003";
 process.env.BROWSER_USE_API_KEY = "fixture-secret";
 
+test("live preview queries only the owned active session and returns only the read-only viewer URL", async (t) => {
+  let liveUrl: string | null = null;
+  t.mock.method(globalThis, "fetch", async (input: string) => {
+    const url = new URL(input);
+    assert.equal(url.searchParams.get("agentSessionId"), session);
+    assert.equal(url.searchParams.get("filterBy"), "active");
+    return Response.json({ items: [{ liveUrl, cdpUrl: "private-control-credential" }] });
+  });
+  assert.equal(await browserUseAgents.livePreview(session), null);
+  liveUrl = "https://live.browser-use.com/session/fixture?token=secret";
+  const preview = new URL((await browserUseAgents.livePreview(session))!);
+  assert.equal(preview.searchParams.get("readOnly"), "true");
+  assert.equal(preview.searchParams.get("ui"), "false");
+  assert.equal(preview.searchParams.get("token"), "secret");
+  liveUrl = "https://unrelated.example/session";
+  await assert.rejects(browserUseAgents.livePreview(session), /viewer origin/);
+});
+
 test("V4 uploads exact bytes with signed headers and sends explicit Luna model without mail", async (t) => {
   const calls: string[] = [];
   t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
@@ -17,7 +35,7 @@ test("V4 uploads exact bytes with signed headers and sends explicit Luna model w
         files: [
           { name: "Resume.pdf", contentType: "application/pdf", size: 3 },
         ],
-        allowOverrides: false,
+        allowOverrides: true,
       });
       return Response.json({
         files: [
@@ -67,6 +85,25 @@ test("V4 uploads exact bytes with signed headers and sends explicit Luna model w
     session
   );
   assert.equal(calls.length, 3);
+});
+
+test("reselection replaces an earlier upload but cannot overwrite another selected attachment", async (t) => {
+  const uploadedBytes: number[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    if (new URL(url).pathname.endsWith("/files/upload")) {
+      const body = JSON.parse(String(init.body));
+      assert.equal(body.allowOverrides, true);
+      return Response.json({ files: [{ name: "Resume.pdf", path: "uploads/resume.pdf", uploadUrl: "https://upload.example/signed" }] });
+    }
+    uploadedBytes.push(Buffer.from(init.body as Uint8Array)[0]);
+    return new Response(null, { status: 200 });
+  });
+  const file = (documentId: string, byte: number) => ({ documentId, name: "Resume.pdf", path: "Resume.pdf", mimeType: "application/pdf", data: Buffer.from([byte]).toString("base64") });
+  await browserUseAgents.upload(workspace, [file("original", 1)]);
+  await browserUseAgents.upload(workspace, [file("revised", 2)]);
+  assert.deepEqual(uploadedBytes, [1, 2]);
+  await assert.rejects(browserUseAgents.upload(workspace, [file("first", 3), file("second", 4)]), /same browser file path/);
+  assert.deepEqual(uploadedBytes, [1, 2, 3]);
 });
 
 test("cleanup waits for cancellation then stops session browsers and deletes exact workspace paths", async (t) => {

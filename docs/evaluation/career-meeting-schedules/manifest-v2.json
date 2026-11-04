@@ -1,0 +1,8 @@
+{
+  "version": "v2",
+  "provenance": "v1 cases preserved; three synthetic boundary cases added before their first run. Actual inbox preparation and 72-hour context replace hand-built inputs.",
+  "hashes": {
+    "cases-v2.json": "2a0884892deb13c09292da0bd1ece869612a0a0f8cf762458d57b694b513f64e",
+    "gold-v2.json": "6f05f43f39b0e80fae82fe440a3b978c8c269fce9359edfb9ee6e3a02d0fcd4f"
+  }
+}

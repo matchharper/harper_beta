@@ -3,20 +3,30 @@ import {
   previouslyRecommendedRoleExclusionSql,
 } from "../talentOnboarding/jobPostingRecommendations";
 
+const closedRoleStatusesSql = "'expired','closed','inactive','archived','ended'";
+
+/** Expiration is checked again when reading saved results, not just at retrieval. */
+export function expiredExternalRoleSql(alias = "cr") {
+  return `(COALESCE(${alias}.is_expired, false)
+    OR (${alias}.expires_at IS NOT NULL AND ${alias}.expires_at <= now())
+    OR COALESCE(${alias}.status IN (${closedRoleStatusesSql}), false))`;
+}
+
 export function eligibilitySql(args: {
   userId: string;
   blockedCompanies: string[];
   asOf?: string | null;
+  includePreviouslyRecommended?: boolean;
 }) {
   return [
     "cr.source_type = 'external'",
     "COALESCE(cr.source_provider,'') <> 'user_submitted'",
     "COALESCE(cr.is_expired,false) = false",
     "(cr.expires_at IS NULL OR cr.expires_at > now())",
-    "cr.status NOT IN ('expired','closed','inactive','archived','ended')",
+    `cr.status NOT IN (${closedRoleStatusesSql})`,
     "cw.external_roles_enabled = true",
     "lower(coalesce(cr.information->>'testOnly','false')) <> 'true'",
-    previouslyRecommendedRoleExclusionSql(args.userId, args.asOf),
+    args.includePreviouslyRecommended ? "" : previouslyRecommendedRoleExclusionSql(args.userId, args.asOf),
     ...buildBlockedCompanySql(args.blockedCompanies),
   ]
     .filter(Boolean)

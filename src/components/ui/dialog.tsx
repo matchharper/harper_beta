@@ -10,6 +10,10 @@ const DialogTrigger = DialogPrimitive.Trigger;
 const DialogPortal = DialogPrimitive.Portal;
 const DialogClose = DialogPrimitive.Close;
 
+// Non-modal panels that keep their place in the document. Callers own layout;
+// Radix retains focus, outside interaction, and Escape handling without a portal.
+const DialogPanelContent = DialogPrimitive.Content;
+
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
@@ -138,6 +142,7 @@ export {
   DialogClose,
   DialogOverlay,
   DialogContent,
+  DialogPanelContent,
   DialogHeader,
   DialogFooter,
   DialogTitle,

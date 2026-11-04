@@ -18,6 +18,12 @@ export function formatLlmDateTime(value: unknown): string {
   return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
 }
 
+/** Profile dates can have only year/month precision; never invent a day. */
+export function formatLlmPartialDate(value: unknown): string {
+  if (typeof value === 'string' && /^\d{4}(?:-\d{2})?$/.test(value.trim())) return value.trim();
+  return formatLlmDateTime(value);
+}
+
 /** Only structured timestamp metadata; never search/replace timestamps inside source text. */
 export function projectLlmDateTimes(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(projectLlmDateTimes);

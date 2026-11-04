@@ -56,7 +56,7 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
     return {outcome:"completed_silent" as const,progressMessageId:null,terminalMessageId:null};
   }
   const context=await buildOrgAgentPromptContext({admin,user:args.user,conversation:args.conversation,
-    beforeMessageId:args.anchorMessageId,currentUserMessageId:args.anchorMessageId,includeSharedConversation:true,
+    includeLatestConversation:true,currentUserMessageId:args.anchorMessageId,includeSharedConversation:true,
     readAudience:"company_safe",scopeKey:`scheduled:${roleId}`});
   const role=context.roles.find(row=>row.roleId===roleId);
   if(!role) throw new Error("Scheduled Role not accessible");
@@ -123,7 +123,7 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
         location:role.locationText,workMode:role.workMode,salaryRange:role.salaryRange},
       inventory:{recordedAllContractsInventory:inventory,...accepted,
         inputContractVersion:"worker_behavior_v1",compatibleStage2:null,compatibleUnassessed:null,
-        compatibilityNote:"Exact current input fingerprints are verified by Worker; other-contract inventory is not reusable coverage."},completedRuns:receipts,selectionInput},
+        compatibilityNote:"Scores retain their exact evaluated input references. Current sharing and execution eligibility are checked separately; other-contract inventory is not reusable coverage."},completedRuns:receipts,selectionInput},
     {executeTool:async tool=>{
       if(tool.name!=="request_matching_search" && tool.name!=="recommend_talents") {
         // Optional reads accept the same short refs, but are never preconditions.

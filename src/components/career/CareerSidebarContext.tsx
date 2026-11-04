@@ -5,6 +5,7 @@ import type {
   CareerHistoryOpportunityCounts,
   CareerHistoryOpportunityFeedback,
   CareerHistoryOpportunityPageFilter,
+  CareerHistoryOpportunityPageState,
   CareerCallStartRequest,
   CareerCallNoteReadResult,
   CareerInternalOpportunityCallRequest,
@@ -65,7 +66,7 @@ export type CareerSidebarContextValue = {
   onRunOnboardingCompletionTest: () => boolean | Promise<boolean>;
   onRunCurrentDataJobPostingRecommendationTest: () => void | Promise<void>;
   onRunSessionReengagementTest: (options?: {
-    deleteLatestMessage?: boolean;
+    deleteRecentMessages?: boolean;
   }) => boolean | void | Promise<boolean | void>;
   onRunPeriodicOpportunityDiscoveryTest: (
     agentVariant?: CareerOpportunityAgentVariant,
@@ -108,6 +109,9 @@ export type CareerSidebarContextValue = {
   isHistoryOpportunityPageFilterLoading: (
     filter: CareerHistoryOpportunityPageFilter
   ) => boolean;
+  getHistoryOpportunityPageFilterState: (
+    filter: CareerHistoryOpportunityPageFilter
+  ) => CareerHistoryOpportunityPageState | undefined;
   onLoadSavedStageHistoryOpportunityPages: (
     savedStages: CareerOpportunitySavedStage[]
   ) => void | Promise<void>;
@@ -139,8 +143,9 @@ export type CareerSidebarContextValue = {
   ) => boolean | void | Promise<boolean | void>;
   onUpdateHistoryOpportunitySavedStage: (
     opportunityId: string,
-    savedStage: CareerOpportunitySavedStage
-  ) => void | Promise<void>;
+    savedStage: CareerOpportunitySavedStage,
+    fallbackOpportunity?: CareerHistoryOpportunity
+  ) => boolean | void | Promise<boolean | void>;
   onUpdateHistoryOpportunityTalentMemo: (
     opportunityId: string,
     talentMemo: string | null
@@ -293,6 +298,7 @@ export type CareerHistoryContextValue = Pick<
   | "historyUpdateError"
   | "historyUpdatingOpportunityIds"
   | "isHistoryOpportunityPageFilterLoading"
+  | "getHistoryOpportunityPageFilterState"
   | "onChangeInternalHistoryOpportunityDecision"
   | "onLoadHistoryOpportunityByRoleId"
   | "onLoadMoreHistoryOpportunities"

@@ -106,6 +106,14 @@ export async function executeCareerToolRequest(
       searchPurpose = "mock_interview";
     }
 
+    let voiceEventId:string|undefined;
+    if(channel==='voice' && ['apply_to_internal_role','contact_company'].includes(name)) {
+      const {data,error}=await (admin.rpc as any)('record_career_voice_tool_request_v1',{
+        p_talent:user.id,p_conversation:conversationId,p_call:String(body.toolCallId ?? ''),p_name:name,p_arguments:body.arguments ?? {},
+      });
+      if(error) throw error;
+      voiceEventId=data;
+    }
     const toolCapture = await runToolCall(
       () =>
         executeTalentTool({
@@ -125,6 +133,7 @@ export async function executeCareerToolRequest(
             scheduleAfter: (task) => runtime.scheduleAfter(task),
             toolCallId: String(body.toolCallId ?? "").trim() || null,
             userId: user.id,
+            voiceEventId,
           },
           input:
             body.arguments && typeof body.arguments === "object"

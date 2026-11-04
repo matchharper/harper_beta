@@ -28,6 +28,8 @@ export function buildFilterFirstRoleSql(args: {
   userId: string;
   blockedCompanies: string[];
   candidateLimit?: number;
+  includePreviouslyRecommended?: boolean;
+  unlimitedPerCompany?: boolean;
   salaryWeight?: number;
   limit?: number;
 }) {
@@ -123,7 +125,7 @@ nearest AS MATERIALIZED (
  ) AS company_rank
  FROM scored
 ), company_capped AS (
- SELECT * FROM company_ranked WHERE company_rank <= ${SEARCH_COMPANY_ROLE_LIMIT}
+ SELECT * FROM company_ranked ${args.unlimitedPerCompany ? "" : `WHERE company_rank <= ${SEARCH_COMPANY_ROLE_LIMIT}`}
 ), ${buildCountrySelectionCtes(countryRows, limit)}`;
   const projection = args.listOnly
     ? `cr.role_id::text,cr.name AS role_name,cw.company_name,cr.external_jd_url,cr.location_text,

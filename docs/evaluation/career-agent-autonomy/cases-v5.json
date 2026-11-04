@@ -1,0 +1,823 @@
+{
+  "version": "v5",
+  "requestTime": "2026-11-02T03:00:00Z",
+  "provenance": "Synthetic v1 facts with ten distinct saved postings and durable waiting work. Frozen before generation; no production access.",
+  "cases": [
+    {
+      "id": "ten_independent_applications",
+      "message": "저장한 이 10개 공고에 모두 지원해줘. 기존 이력서로 진행하고 문구도 알아서 정리해서 제출까지 해줘. 모르는 개인 정보가 반드시 필요한 곳만 따로 물어보고 나머지는 계속해줘.",
+      "profile": {
+        "name": "이도현",
+        "email": "dohyun@example.test",
+        "location": "서울",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 5년. Kubernetes 운영, 배포 자동화, 장애 대응을 담당했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000203",
+            "company_name": "Harborstack",
+            "role": "Platform Engineer",
+            "start_date": "2021-10",
+            "end_date": null,
+            "description": "Kubernetes 클러스터 12개 운영. 배포 파이프라인 자동화로 배포 시간을 40분에서 12분으로 단축. 온콜 대응 runbook 작성."
+          }
+        ]
+      },
+      "brief": "서울 플랫폼 엔지니어. 주 2회 출근 가능. 정규직.",
+      "memory": "제공된 이력서의 성과와 연락처는 사용자가 확인했습니다.",
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000303",
+          "title": "플랫폼 엔지니어 이력서",
+          "text": "이도현\n서울 | dohyun@example.test\nHarborstack — Platform Engineer | 2021.10–현재\nKubernetes 클러스터 12개 운영\n배포 파이프라인 자동화로 배포 시간을 40분에서 12분으로 단축\n온콜 대응 runbook 작성\n기술: Kubernetes, Terraform, Python"
+        }
+      ],
+      "role": null,
+      "pages": [
+        {
+          "url": "https://jobbridge.example/jobs/cairn-platform",
+          "title": "Cairn Cloud Platform Engineer on JobBridge",
+          "searchTerms": "Cairn Cloud Platform Engineer JobBridge 공고 지원",
+          "summary": "Kubernetes 운영·배포 자동화 역할. 지원하려면 JobBridge 로그인이 필요합니다.",
+          "body": "Cairn Cloud Platform Engineer. Seoul, two office days weekly. Kubernetes operations, deployment automation, incident response. 3+ years experience. Resume and short motivation required. Apply button opens JobBridge login. Official company website: https://cairncloud.example ."
+        },
+        {
+          "url": "https://cairncloud.example",
+          "title": "Cairn Cloud official site",
+          "searchTerms": "Cairn Cloud 케언 클라우드 careers 플랫폼 채용 지원",
+          "summary": "개발팀을 위한 관리형 클라우드 플랫폼. 공식 채용 페이지 제공.",
+          "body": "Cairn Cloud builds a managed cloud platform for engineering teams. Careers: https://cairncloud.example/careers ."
+        },
+        {
+          "url": "https://cairncloud.example/careers",
+          "title": "Cairn Cloud careers",
+          "searchTerms": "Cairn Cloud Platform Engineer careers hiring email contact 지원 이메일 담당자",
+          "summary": "동일 Platform Engineer 공고는 공식 채용 이메일로도 지원할 수 있습니다.",
+          "body": "Platform Engineer — Seoul, two office days weekly. Kubernetes, deployment automation, incident response. Apply directly by emailing careers@cairncloud.example with your resume and a short motivation in the email body. No platform account or other application fields are required. The careers inbox is the official recipient for this role."
+        }
+      ],
+      "gmail": true,
+      "browser": {
+        "url": "https://jobbridge.example/jobs/cairn-platform",
+        "observation": "The Apply button opens a JobBridge sign-in page. No signed-in account is present. No applicant fields were entered and no application was submitted."
+      },
+      "roles": [
+        {
+          "id": "70000000-0000-4000-8000-000000000410",
+          "company": "Auralink 1",
+          "title": "Platform Engineer",
+          "url": "https://auralink1.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000411",
+          "company": "Auralink 2",
+          "title": "Platform Engineer",
+          "url": "https://auralink2.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000412",
+          "company": "Auralink 3",
+          "title": "Platform Engineer",
+          "url": "https://auralink3.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000413",
+          "company": "Auralink 4",
+          "title": "Platform Engineer",
+          "url": "https://auralink4.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000414",
+          "company": "Auralink 5",
+          "title": "Platform Engineer",
+          "url": "https://auralink5.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000415",
+          "company": "Auralink 6",
+          "title": "Platform Engineer",
+          "url": "https://auralink6.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000416",
+          "company": "Auralink 7",
+          "title": "Platform Engineer",
+          "url": "https://auralink7.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000417",
+          "company": "Auralink 8",
+          "title": "Platform Engineer",
+          "url": "https://auralink8.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000418",
+          "company": "Auralink 9",
+          "title": "Platform Engineer",
+          "url": "https://auralink9.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000419",
+          "company": "Auralink 10",
+          "title": "Platform Engineer",
+          "url": "https://auralink10.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "id": "delegate_all_pending_reviews",
+      "message": "준비된 열 군데 지원 검토를 하나씩 누르지 않을게. 다 알아서 제출해. 이력서의 확인된 사실만 쓰고, 연봉이나 비자처럼 모르는 개인 정보는 지어내지 마.",
+      "profile": {
+        "name": "이도현",
+        "email": "dohyun@example.test",
+        "location": "서울",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 5년. Kubernetes 운영, 배포 자동화, 장애 대응을 담당했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000203",
+            "company_name": "Harborstack",
+            "role": "Platform Engineer",
+            "start_date": "2021-10",
+            "end_date": null,
+            "description": "Kubernetes 클러스터 12개 운영. 배포 파이프라인 자동화로 배포 시간을 40분에서 12분으로 단축. 온콜 대응 runbook 작성."
+          }
+        ]
+      },
+      "brief": "서울 플랫폼 엔지니어. 주 2회 출근 가능. 정규직.",
+      "memory": "제공된 이력서의 성과와 연락처는 사용자가 확인했습니다.",
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000303",
+          "title": "플랫폼 엔지니어 이력서",
+          "text": "이도현\n서울 | dohyun@example.test\nHarborstack — Platform Engineer | 2021.10–현재\nKubernetes 클러스터 12개 운영\n배포 파이프라인 자동화로 배포 시간을 40분에서 12분으로 단축\n온콜 대응 runbook 작성\n기술: Kubernetes, Terraform, Python"
+        }
+      ],
+      "role": null,
+      "pages": [
+        {
+          "url": "https://jobbridge.example/jobs/cairn-platform",
+          "title": "Cairn Cloud Platform Engineer on JobBridge",
+          "searchTerms": "Cairn Cloud Platform Engineer JobBridge 공고 지원",
+          "summary": "Kubernetes 운영·배포 자동화 역할. 지원하려면 JobBridge 로그인이 필요합니다.",
+          "body": "Cairn Cloud Platform Engineer. Seoul, two office days weekly. Kubernetes operations, deployment automation, incident response. 3+ years experience. Resume and short motivation required. Apply button opens JobBridge login. Official company website: https://cairncloud.example ."
+        },
+        {
+          "url": "https://cairncloud.example",
+          "title": "Cairn Cloud official site",
+          "searchTerms": "Cairn Cloud 케언 클라우드 careers 플랫폼 채용 지원",
+          "summary": "개발팀을 위한 관리형 클라우드 플랫폼. 공식 채용 페이지 제공.",
+          "body": "Cairn Cloud builds a managed cloud platform for engineering teams. Careers: https://cairncloud.example/careers ."
+        },
+        {
+          "url": "https://cairncloud.example/careers",
+          "title": "Cairn Cloud careers",
+          "searchTerms": "Cairn Cloud Platform Engineer careers hiring email contact 지원 이메일 담당자",
+          "summary": "동일 Platform Engineer 공고는 공식 채용 이메일로도 지원할 수 있습니다.",
+          "body": "Platform Engineer — Seoul, two office days weekly. Kubernetes, deployment automation, incident response. Apply directly by emailing careers@cairncloud.example with your resume and a short motivation in the email body. No platform account or other application fields are required. The careers inbox is the official recipient for this role."
+        }
+      ],
+      "gmail": true,
+      "browser": {
+        "url": "https://jobbridge.example/jobs/cairn-platform",
+        "observation": "The Apply button opens a JobBridge sign-in page. No signed-in account is present. No applicant fields were entered and no application was submitted."
+      },
+      "roles": [
+        {
+          "id": "70000000-0000-4000-8000-000000000410",
+          "company": "Auralink 1",
+          "title": "Platform Engineer",
+          "url": "https://auralink1.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000411",
+          "company": "Auralink 2",
+          "title": "Platform Engineer",
+          "url": "https://auralink2.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000412",
+          "company": "Auralink 3",
+          "title": "Platform Engineer",
+          "url": "https://auralink3.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000413",
+          "company": "Auralink 4",
+          "title": "Platform Engineer",
+          "url": "https://auralink4.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000414",
+          "company": "Auralink 5",
+          "title": "Platform Engineer",
+          "url": "https://auralink5.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000415",
+          "company": "Auralink 6",
+          "title": "Platform Engineer",
+          "url": "https://auralink6.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000416",
+          "company": "Auralink 7",
+          "title": "Platform Engineer",
+          "url": "https://auralink7.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000417",
+          "company": "Auralink 8",
+          "title": "Platform Engineer",
+          "url": "https://auralink8.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000418",
+          "company": "Auralink 9",
+          "title": "Platform Engineer",
+          "url": "https://auralink9.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000419",
+          "company": "Auralink 10",
+          "title": "Platform Engineer",
+          "url": "https://auralink10.example/careers/audio",
+          "description": "서울 플랫폼 엔지니어. Kubernetes 운영·배포 자동화·온콜 프로세스 개선을 담당합니다. 경력 3년 이상. 이력서와 짧은 지원 동기 제출. 주 2회 출근.",
+          "source": "external",
+          "status": "active"
+        }
+      ],
+      "works": [
+        {
+          "id": "70000000-0000-4000-8000-000000000900",
+          "user_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": "70000000-0000-4000-8000-000000000002",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "application:70000000-0000-4000-8000-000000000410",
+          "status": "waiting",
+          "revision": 1,
+          "request": {
+            "target": "70000000-0000-4000-8000-000000000410",
+            "instruction": "Auralink 1에 지원",
+            "source_refs": [
+              1
+            ]
+          },
+          "result": {
+            "note": "Prepared application; final review pending",
+            "refs": [
+              "100"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-02T03:00:00Z",
+          "updated_at": "2026-11-02T03:00:00Z"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000901",
+          "user_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": "70000000-0000-4000-8000-000000000002",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "application:70000000-0000-4000-8000-000000000411",
+          "status": "waiting",
+          "revision": 1,
+          "request": {
+            "target": "70000000-0000-4000-8000-000000000411",
+            "instruction": "Auralink 2에 지원",
+            "source_refs": [
+              1
+            ]
+          },
+          "result": {
+            "note": "Prepared application; final review pending",
+            "refs": [
+              "101"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-02T03:00:00Z",
+          "updated_at": "2026-11-02T03:00:00Z"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000902",
+          "user_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": "70000000-0000-4000-8000-000000000002",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "application:70000000-0000-4000-8000-000000000412",
+          "status": "waiting",
+          "revision": 1,
+          "request": {
+            "target": "70000000-0000-4000-8000-000000000412",
+            "instruction": "Auralink 3에 지원",
+            "source_refs": [
+              1
+            ]
+          },
+          "result": {
+            "note": "Prepared application; final review pending",
+            "refs": [
+              "102"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-02T03:00:00Z",
+          "updated_at": "2026-11-02T03:00:00Z"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000903",
+          "user_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": "70000000-0000-4000-8000-000000000002",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "application:70000000-0000-4000-8000-000000000413",
+          "status": "waiting",
+          "revision": 1,
+          "request": {
+            "target": "70000000-0000-4000-8000-000000000413",
+            "instruction": "Auralink 4에 지원",
+            "source_refs": [
+              1
+            ]
+          },
+          "result": {
+            "note": "Prepared application; final review pending",
+            "refs": [
+              "103"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-02T03:00:00Z",
+          "updated_at": "2026-11-02T03:00:00Z"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000904",
+          "user_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": "70000000-0000-4000-8000-000000000002",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "application:70000000-0000-4000-8000-000000000414",
+          "status": "waiting",
+          "revision": 1,
+          "request": {
+            "target": "70000000-0000-4000-8000-000000000414",
+            "instruction": "Auralink 5에 지원",
+            "source_refs": [
+              1
+            ]
+          },
+          "result": {
+            "note": "Prepared application; final review pending",
+            "refs": [
+              "104"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-02T03:00:00Z",
+          "updated_at": "2026-11-02T03:00:00Z"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000905",
+          "user_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": "70000000-0000-4000-8000-000000000002",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "application:70000000-0000-4000-8000-000000000415",
+          "status": "waiting",
+          "revision": 1,
+          "request": {
+            "target": "70000000-0000-4000-8000-000000000415",
+            "instruction": "Auralink 6에 지원",
+            "source_refs": [
+              1
+            ]
+          },
+          "result": {
+            "note": "Prepared application; final review pending",
+            "refs": [
+              "105"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-02T03:00:00Z",
+          "updated_at": "2026-11-02T03:00:00Z"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000906",
+          "user_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": "70000000-0000-4000-8000-000000000002",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "application:70000000-0000-4000-8000-000000000416",
+          "status": "waiting",
+          "revision": 1,
+          "request": {
+            "target": "70000000-0000-4000-8000-000000000416",
+            "instruction": "Auralink 7에 지원",
+            "source_refs": [
+              1
+            ]
+          },
+          "result": {
+            "note": "Prepared application; final review pending",
+            "refs": [
+              "106"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-02T03:00:00Z",
+          "updated_at": "2026-11-02T03:00:00Z"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000907",
+          "user_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": "70000000-0000-4000-8000-000000000002",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "application:70000000-0000-4000-8000-000000000417",
+          "status": "waiting",
+          "revision": 1,
+          "request": {
+            "target": "70000000-0000-4000-8000-000000000417",
+            "instruction": "Auralink 8에 지원",
+            "source_refs": [
+              1
+            ]
+          },
+          "result": {
+            "note": "Prepared application; final review pending",
+            "refs": [
+              "107"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-02T03:00:00Z",
+          "updated_at": "2026-11-02T03:00:00Z"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000908",
+          "user_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": "70000000-0000-4000-8000-000000000002",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "application:70000000-0000-4000-8000-000000000418",
+          "status": "waiting",
+          "revision": 1,
+          "request": {
+            "target": "70000000-0000-4000-8000-000000000418",
+            "instruction": "Auralink 9에 지원",
+            "source_refs": [
+              1
+            ]
+          },
+          "result": {
+            "note": "Prepared application; final review pending",
+            "refs": [
+              "108"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-02T03:00:00Z",
+          "updated_at": "2026-11-02T03:00:00Z"
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000909",
+          "user_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": "70000000-0000-4000-8000-000000000002",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "application:70000000-0000-4000-8000-000000000419",
+          "status": "waiting",
+          "revision": 1,
+          "request": {
+            "target": "70000000-0000-4000-8000-000000000419",
+            "instruction": "Auralink 10에 지원",
+            "source_refs": [
+              1
+            ]
+          },
+          "result": {
+            "note": "Prepared application; final review pending",
+            "refs": [
+              "109"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-02T03:00:00Z",
+          "updated_at": "2026-11-02T03:00:00Z"
+        }
+      ],
+      "forms": [
+        {
+          "formId": 100,
+          "revision": 1,
+          "kind": "form",
+          "title": "Auralink 1 지원 검토",
+          "items": [
+            {
+              "id": "summary",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "기존 이력서를 첨부한 지원. 추가 개인정보 없음."
+            }
+          ],
+          "positive": {
+            "id": "submit",
+            "label": "제출",
+            "message": "제출해줘"
+          },
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "70000000-0000-4000-8000-000000000900"
+            }
+          ]
+        },
+        {
+          "formId": 101,
+          "revision": 1,
+          "kind": "form",
+          "title": "Auralink 2 지원 검토",
+          "items": [
+            {
+              "id": "summary",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "기존 이력서를 첨부한 지원. 추가 개인정보 없음."
+            }
+          ],
+          "positive": {
+            "id": "submit",
+            "label": "제출",
+            "message": "제출해줘"
+          },
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "70000000-0000-4000-8000-000000000901"
+            }
+          ]
+        },
+        {
+          "formId": 102,
+          "revision": 1,
+          "kind": "form",
+          "title": "Auralink 3 지원 검토",
+          "items": [
+            {
+              "id": "summary",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "기존 이력서를 첨부한 지원. 추가 개인정보 없음."
+            }
+          ],
+          "positive": {
+            "id": "submit",
+            "label": "제출",
+            "message": "제출해줘"
+          },
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "70000000-0000-4000-8000-000000000902"
+            }
+          ]
+        },
+        {
+          "formId": 103,
+          "revision": 1,
+          "kind": "form",
+          "title": "Auralink 4 지원 검토",
+          "items": [
+            {
+              "id": "summary",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "기존 이력서를 첨부한 지원. 추가 개인정보 없음."
+            }
+          ],
+          "positive": {
+            "id": "submit",
+            "label": "제출",
+            "message": "제출해줘"
+          },
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "70000000-0000-4000-8000-000000000903"
+            }
+          ]
+        },
+        {
+          "formId": 104,
+          "revision": 1,
+          "kind": "form",
+          "title": "Auralink 5 지원 검토",
+          "items": [
+            {
+              "id": "summary",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "기존 이력서를 첨부한 지원. 추가 개인정보 없음."
+            }
+          ],
+          "positive": {
+            "id": "submit",
+            "label": "제출",
+            "message": "제출해줘"
+          },
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "70000000-0000-4000-8000-000000000904"
+            }
+          ]
+        },
+        {
+          "formId": 105,
+          "revision": 1,
+          "kind": "form",
+          "title": "Auralink 6 지원 검토",
+          "items": [
+            {
+              "id": "summary",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "기존 이력서를 첨부한 지원. 추가 개인정보 없음."
+            }
+          ],
+          "positive": {
+            "id": "submit",
+            "label": "제출",
+            "message": "제출해줘"
+          },
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "70000000-0000-4000-8000-000000000905"
+            }
+          ]
+        },
+        {
+          "formId": 106,
+          "revision": 1,
+          "kind": "form",
+          "title": "Auralink 7 지원 검토",
+          "items": [
+            {
+              "id": "summary",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "기존 이력서를 첨부한 지원. 추가 개인정보 없음."
+            }
+          ],
+          "positive": {
+            "id": "submit",
+            "label": "제출",
+            "message": "제출해줘"
+          },
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "70000000-0000-4000-8000-000000000906"
+            }
+          ]
+        },
+        {
+          "formId": 107,
+          "revision": 1,
+          "kind": "form",
+          "title": "Auralink 8 지원 검토",
+          "items": [
+            {
+              "id": "summary",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "기존 이력서를 첨부한 지원. 추가 개인정보 없음."
+            }
+          ],
+          "positive": {
+            "id": "submit",
+            "label": "제출",
+            "message": "제출해줘"
+          },
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "70000000-0000-4000-8000-000000000907"
+            }
+          ]
+        },
+        {
+          "formId": 108,
+          "revision": 1,
+          "kind": "form",
+          "title": "Auralink 9 지원 검토",
+          "items": [
+            {
+              "id": "summary",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "기존 이력서를 첨부한 지원. 추가 개인정보 없음."
+            }
+          ],
+          "positive": {
+            "id": "submit",
+            "label": "제출",
+            "message": "제출해줘"
+          },
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "70000000-0000-4000-8000-000000000908"
+            }
+          ]
+        },
+        {
+          "formId": 109,
+          "revision": 1,
+          "kind": "form",
+          "title": "Auralink 10 지원 검토",
+          "items": [
+            {
+              "id": "summary",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "기존 이력서를 첨부한 지원. 추가 개인정보 없음."
+            }
+          ],
+          "positive": {
+            "id": "submit",
+            "label": "제출",
+            "message": "제출해줘"
+          },
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "70000000-0000-4000-8000-000000000909"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

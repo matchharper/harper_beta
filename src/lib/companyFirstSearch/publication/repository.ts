@@ -55,7 +55,7 @@ async function readEvaluations(query: Query, command: PublicationCommand, versio
     if (!source || (source.source_snapshot?.roleSearchBrief?.version ?? source.result?.roleSearch?.briefVersion) !== version)
       throw new Error('Source run is unavailable or uses a different Hiring Brief');
     const refs = source.result?.roleSearch?.evidence?.evaluationIds ?? null;
-    const rows = await query(`SELECT id::text,talent_id::text,stage,assessment FROM public.company_role_candidate_evaluations
+    const rows = await query(`SELECT id::text,talent_id::text,stage,assessment FROM public.company_readable_role_evaluations_v1
       WHERE company_workspace_id=$1::uuid AND role_id=$2::uuid AND brief_version=$3 AND stage IN (1,2)
         AND (($4::uuid[] IS NOT NULL AND id=ANY($4::uuid[])) OR ($4::uuid[] IS NULL AND run_id=$5::uuid))
       ORDER BY evaluated_at DESC,id DESC`, [command.workspaceId, command.roleId, version, refs, command.sourceRunId]);
@@ -64,9 +64,9 @@ async function readEvaluations(query: Query, command: PublicationCommand, versio
     return rows.filter(row => row.stage === 2);
   }
   return query(`SELECT DISTINCT ON(talent_id) id::text,talent_id::text,assessment
-    FROM public.company_role_candidate_evaluations current
+    FROM public.company_readable_role_evaluations_v1 current
     WHERE role_id=$1::uuid AND brief_version=$2 AND stage=2 AND talent_id=ANY($3::uuid[])
-      AND NOT EXISTS(SELECT 1 FROM public.company_role_candidate_evaluations screen
+      AND NOT EXISTS(SELECT 1 FROM public.company_readable_role_evaluations_v1 screen
         WHERE screen.role_id=current.role_id AND screen.talent_id=current.talent_id AND screen.brief_version=current.brief_version
           AND screen.stage=1 AND screen.evaluated_at>current.evaluated_at AND screen.assessment->>'proceedToStage2'='false')
     ORDER BY talent_id,evaluated_at DESC,id DESC`, [command.roleId, version, command.talentIds]);
@@ -150,7 +150,7 @@ export async function loadSnapshot(query: Query, command: PublicationCommand): P
     experiences: source.experiences.map((item: Facts) => ({companyName:item.companyName,role:item.role,startDate:item.startDate,endDate:item.endDate,description:item.description})),
     educations: source.educations.map((item: Facts) => ({school:item.school,degree:item.degree,field:item.field,startDate:item.startDate,endDate:item.endDate,description:item.description})),
     extra: {talentExtras: (Array.isArray(rawExtras) ? rawExtras : []).filter(item => item && typeof item === 'object')
-      .map(item => Object.fromEntries(['title','description','date','memo'].map(key => [key, String(item[key] || '')])))}};
+      .map(item => Object.fromEntries(['title','description','date'].map(key => [key, String(item[key] || '')])))}};
     const searchBrief = briefs.filter(item => item.talent_id === talentId).map(({talent_id: _, ...item}) => item);
     const evaluated = evaluationByTalent.get(talentId)!;
     return {talentId, profile, searchBrief, assessment: evaluated.assessment, evaluationId: evaluated.id,
@@ -236,7 +236,7 @@ export async function persistPublication(query: Query, command: PublicationComma
     else await query(`INSERT INTO public.company_intro_candidates(id,company_workspace_id,role_id,talent_id,selection_run_id,
       selection_reason,presentation,role_fingerprint,talent_fingerprint,status) VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7::text::jsonb,$8,$9,'ready')`,
     [candidateId,command.workspaceId,command.roleId,candidate.talentId,runId,written.tldr,JSON.stringify(presentation),current.version,candidate.sourceFingerprint]);
-    await query(`INSERT INTO public.company_role_candidate_evaluations(company_workspace_id,role_id,talent_id,run_id,brief_version,stage,input_fingerprint,assessment)
+    await query(`INSERT INTO public.company_readable_role_evaluations_v1(company_workspace_id,role_id,talent_id,run_id,brief_version,stage,input_fingerprint,assessment)
       VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,3,$6,$7::text::jsonb)`,
     [command.workspaceId,command.roleId,candidate.talentId,runId,current.version,written.fingerprint,JSON.stringify({tldr:written.tldr,
       harperNote:written.harperNote,finalFit:written.finalFit,criteria:written.criteriaEvaluations,

@@ -21,9 +21,10 @@ const PopoverContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & {
     surface?: boolean;
   }
->(({ className, sideOffset = 6, surface = true, ...props }, ref) => (
-  <PopoverPrimitive.Portal>
+>(({ className, sideOffset = 6, surface = true, forceMount, ...props }, ref) => (
+  <PopoverPrimitive.Portal forceMount={forceMount}>
     <PopoverPrimitive.Content
+      forceMount={forceMount}
       className={cn(
         "z-[100] outline-none",
         surface &&

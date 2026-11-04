@@ -1,7 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatTalentMessageContentForLlmPrompt } from "./opportunityFeedbackNote";
+import { formatTalentMessageContentForLlmPrompt, formatTalentMessageReferenceForLlm } from "./opportunityFeedbackNote";
+
+test("a vague user message retains its observed screen context without rewriting the user's words", () => {
+  const content = "여기는 어떤 일을 하는 곳이에요?";
+  const message = { role: "user", content, payload: { viewedOpportunity: {
+    roleId: "00000000-0000-4000-8000-000000000001", label: "Example · Engineer",
+  } } };
+  const formatted = formatTalentMessageContentForLlmPrompt(message);
+  assert.ok(formatted.startsWith(content));
+  assert.match(formatted, /Example · Engineer/);
+  assert.match(formatted, /viewing is not acceptance or sharing consent/);
+  assert.equal(message.content, content);
+  assert.equal(formatTalentMessageContentForLlmPrompt({ ...message, payload: {} }), content);
+});
+
+test("browser cards remain visible to the model without passing viewer credentials", () => {
+  const formatted = formatTalentMessageReferenceForLlm({
+    content: "", message_type: "browser_session",
+    payload: { session_id: "session-for-this-conversation", requestId: "internal-request" },
+  });
+  assert.match(formatted, /Browser session: session-for-this-conversation/);
+  assert.doesNotMatch(formatted, /internal-request/);
+});
 
 test("strips opportunity run metadata before adding a message to an LLM prompt", () => {
   const formatted = formatTalentMessageContentForLlmPrompt({

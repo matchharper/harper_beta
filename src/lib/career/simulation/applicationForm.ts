@@ -2,7 +2,8 @@ import { z } from "zod";
 
 export const applicationSubmissionSchema = z.object({
   status: z.enum(["supported", "unsupported", "unknown"]),
-  reason: z.string(),
+  // Read compatibility for saved inspections; new producers use limitations.
+  reason: z.string().optional(),
 });
 
 export const applicationInspectionSchema = z.object({
@@ -11,6 +12,7 @@ export const applicationInspectionSchema = z.object({
   startedAt: z.string().optional(),
   finishedAt: z.string().optional(),
   resolveOfficialLink: z.boolean().optional(),
+  browserUseSessionId: z.string().optional(),
 });
 
 export function isApplicationInspectionPending(state: {
@@ -45,3 +47,11 @@ export const applicationFormSchema = z.object({
     ),
 });
 export type ApplicationForm = z.infer<typeof applicationFormSchema>;
+
+/** Preserve old saved access evidence while presenting one combined list. */
+export function applicationLimitations(form: ApplicationForm): string[] {
+  const legacyReason = form.submission?.reason;
+  return legacyReason && !form.limitations.includes(legacyReason)
+    ? [...form.limitations, legacyReason]
+    : form.limitations;
+}

@@ -1,3 +1,4 @@
+// career-i18n-skip-file: Internal developer controls and synthetic preview copy.
 import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RotateCcw } from "lucide-react";

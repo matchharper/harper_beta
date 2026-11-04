@@ -117,7 +117,7 @@ export const OPS_TALENT_ACTION_SECTIONS: OpsTalentActionSection[] = [
       },
       {
         id: "priority_review_called",
-        label: "우선 검토 요청",
+        label: "내부 기회 관심 요청",
         sourceGroup: "product",
       },
     ],

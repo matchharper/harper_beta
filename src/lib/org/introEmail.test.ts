@@ -89,7 +89,7 @@ test("warm intro prompt supports warm, evidence-grounded introductions in both l
   assert.doesNotMatch(serverSource, /acceptanceReason: args\.acceptReason/);
 });
 
-test("builds a factual one-line professional summary from current or recent experience", () => {
+test("intro source preserves shared achievements and does not infer employment from an absent end date", () => {
   assert.equal(
     buildOrgIntroCandidateProfessionalSummary([
       {
@@ -103,9 +103,10 @@ test("builds a factual one-line professional summary from current or recent expe
         endDate: null,
         role: "B2B SaaS Founder",
         startDate: "2026-01-01",
+        description: "장애 복구 시간을 45분에서 18분으로 단축했습니다.",
       },
     ]),
-    "현재 Current Co에서 B2B SaaS Founder로 재직 중입니다."
+    "B2B SaaS Founder · Current Co\n시작: 2026-01-01; 종료: 미기록 (현재 재직 여부 미확인)\n장애 복구 시간을 45분에서 18분으로 단축했습니다.\n\nProduct Manager · Previous Co\n시작: 2024-01-01; 종료: 2025-12-01"
   );
   assert.equal(
     buildOrgIntroCandidateProfessionalSummary([
@@ -116,7 +117,7 @@ test("builds a factual one-line professional summary from current or recent expe
         startDate: "2023-01-01",
       },
     ]),
-    "Previous Co에서 Backend Engineer로 근무한 경험이 있습니다."
+    "Backend Engineer · Previous Co\n시작: 2023-01-01; 종료: 2025-12-01"
   );
   assert.equal(buildOrgIntroCandidateProfessionalSummary([]), null);
 });

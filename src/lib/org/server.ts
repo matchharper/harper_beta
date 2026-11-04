@@ -1,4 +1,5 @@
-import { canCacheOrgPermissions, memoOrgRequest } from "./requestScope.server";
+import { resolveRoleSharedMaterials } from "@/lib/career/roleMaterials/store";
+import { canCacheOrgPermissions, memoOrgRequest, memoOrgRead } from "./requestScope.server";
 import { invalidateOrgPermissions } from "./permissionCache.server";
 import { traceStageStep } from "@/lib/org/stageTiming.server";
 import {
@@ -1513,6 +1514,7 @@ async function fetchWorkspaceById(
   admin: SupabaseAdminClient,
   workspaceId: string
 ) {
+  return memoOrgRead(admin, ["workspace", workspaceId], async () => {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
       "company_workspace_id, company_name, published_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, signup_state, is_reviewing, locale, updated_at"
@@ -1522,6 +1524,7 @@ async function fetchWorkspaceById(
 
   if (error) throw error;
   return (data as CompanyWorkspaceRow | null) ?? null;
+  });
 }
 
 export async function fetchOrgInvitePreview(args: {
@@ -1669,6 +1672,13 @@ export async function assertOrgWorkspacePermission(args: {
   user: User;
   workspaceId: string;
 }) {
+  const { companyAgentScope } = await import("@/lib/agentContacts/companyScope");
+  const service = companyAgentScope(args.admin);
+  if (service) {
+    if (service.workspaceId !== args.workspaceId || args.permission !== "view") throw new OrgHttpError(403, "Company event does not grant this membership permission");
+    await service.assertCurrent();
+    return "admin" as const;
+  }
   const reusePermission = canCacheOrgPermissions() && !args.allowReviewSetup &&
     (args.permission === "view" || args.permission === "manage_candidates");
   if (!reusePermission) {
@@ -2568,7 +2578,8 @@ export async function fetchRoleRowsForWorkspace(
   workspaceId: string,
   user?: User
 ) {
-  return memoOrgRequest(["role-rows", user?.id, workspaceId], async () => {
+  return memoOrgRead(admin, ["role-rows", user?.id, user?.email, workspaceId], () =>
+    memoOrgRequest(["role-rows", user?.id, user?.email, workspaceId], async () => {
   const access = user ? await traceStageStep("fetchRoleRowsForWorkspace:2504", async () => (readOrgRoleAccess({ admin, user, workspaceId }))) : null;
   let query = (admin.from("company_roles" as any) as any)
     .select(
@@ -2583,7 +2594,7 @@ export async function fetchRoleRowsForWorkspace(
   if (error) throw error;
   return sortRoles((data ?? []).filter(isCompanyVisibleRole) as CompanyRoleWithInternalRow[]);
 
-  });
+  }));
 }
 
 async function fetchCustomStages(
@@ -4031,6 +4042,7 @@ export async function passOrgCompanyIntro(args: {
 }
 
 export async function decideTalentCompanyIntro(args: {
+  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
   decision: "accept" | "decline";
   emailAcceptanceConfirmation?: Json | null;
   feedbackReason?: string | null;
@@ -4039,16 +4051,18 @@ export async function decideTalentCompanyIntro(args: {
 }) {
   const admin = getSupabaseAdmin();
   const { data, error } = await (admin.rpc as any)(
-    "decide_company_intro_request_v2",
+    "decide_company_intro_request_with_material_v1",
     {
       p_decision: args.decision,
+      p_material_id: args.acceptanceMaterial?.materialId ?? null,
+      p_assignment_revision: args.acceptanceMaterial?.assignmentRevision ?? null,
       p_email_acceptance_confirmation: args.emailAcceptanceConfirmation ?? null,
       p_feedback_reason: normalizeNullableText(args.feedbackReason),
       p_recommendation_id: args.recommendationId,
       p_talent_id: args.talentId,
     }
   );
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   const result = getJsonRecord(data);
   const status = normalizeText(result.status);
   const decisionReason = normalizeText(result.reason);
@@ -4569,13 +4583,20 @@ async function sendOrgIntroEmail(args: {
   let introLocale: "en" | "ko" = "ko";
   let candidateProfessionalSummary: string | null = null;
   if ((!storedSubject || !storedBody) && !args.draft) {
+    const sharedMaterial = await resolveRoleSharedMaterials({
+      admin: args.admin, userId: args.candidate.talentId,
+      roleId: args.role.role_id, workspaceId: args.workspace.company_workspace_id,
+      recommendationId: args.recommendation.id,
+    });
     const [talentSettingResult, experienceResult] = await Promise.all([
       (args.admin.from("talent_setting" as any) as any)
         .select("preferred_locale, setting_locale")
         .eq("user_id", args.candidate.talentId)
         .maybeSingle(),
-      (args.admin.from("talent_experiences" as any) as any)
-        .select("company_name, role, start_date, end_date")
+      sharedMaterial?.profile_snapshot
+        ? Promise.resolve({ data: sharedMaterial.profile_snapshot.talentExperiences, error: null })
+        : (args.admin.from("talent_experiences" as any) as any)
+        .select("company_name, role, start_date, end_date, description")
         .eq("talent_id", args.candidate.talentId)
         .order("start_date", { ascending: false, nullsFirst: false }),
     ]);
@@ -4592,13 +4613,14 @@ async function sendOrgIntroEmail(args: {
         (
           experience: Pick<
             TalentExperienceRow,
-            "company_name" | "end_date" | "role" | "start_date"
+            "company_name" | "end_date" | "role" | "start_date" | "description"
           >
         ) => ({
           companyName: experience.company_name,
           endDate: experience.end_date,
           role: experience.role,
           startDate: experience.start_date,
+          description: experience.description,
         })
       )
     );
@@ -6771,6 +6793,17 @@ export async function fetchOrgTalentDetail(args: {
     readAutomaticFollowupFeed(admin, workspaceId, talentId, [recommendation.role_id]),
   ]);
 
+  const sharedMaterials = await resolveRoleSharedMaterials({ admin, userId: talentId, roleId: recommendation.role_id, workspaceId });
+  if (sharedMaterials?.profile_snapshot) {
+    const snapshot = sharedMaterials.profile_snapshot;
+    talentResult.data = { ...talentResult.data, ...snapshot.talentUser };
+    experiencesResult.data = snapshot.talentExperiences;
+    educationsResult.data = snapshot.talentEducations;
+    extrasResult.data = [{ talent_id: talentId, content: { talent_extras: snapshot.talentExtras } }];
+    documentsResult.data = sharedMaterials.documents;
+    primaryResumeResult.data = sharedMaterials.documents.find(document => document.kind === "resume" && document.is_primary) ?? null;
+    if (primaryResumeResult.data) primaryResumeResult.data = { ...primaryResumeResult.data, is_public: true };
+  }
   const talent = talentResult.data as TalentUserRow | null;
   if (talentResult.error) throw talentResult.error;
   if (fitCriteriaResult.error) throw fitCriteriaResult.error;
@@ -7205,7 +7238,7 @@ export async function fetchOrgTalentDetail(args: {
       experiences,
       extras,
       talent:
-        companyIntro || (primaryResume && !visiblePrimaryResume)
+        sharedMaterials || companyIntro || (primaryResume && !visiblePrimaryResume)
           ? { ...talent, resume_text: null }
           : talent,
     }),
@@ -7254,9 +7287,9 @@ export async function fetchOrgTalentDetail(args: {
 }
 
 // Recheck company membership, candidate visibility and the owner's current sharing
-// choice on every HTML/PDF request. Generated files are never stored or signed.
+// choice on every HTML/PDF request. Accepted material files remain pinned to their immutable snapshot.
 export async function readOrgSharedGeneratedResume(args: {
-  documentId: string; talentId: string; workspaceId: string; user: User;
+  documentId: string; talentId: string; workspaceId: string; roleId?: string; user: User;
 }): Promise<TalentDocumentRow> {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
@@ -7265,6 +7298,21 @@ export async function readOrgSharedGeneratedResume(args: {
   await assertOrgWorkspacePermission({ admin, permission: "view", user: args.user, workspaceId });
   await assertOrgTalentVisibleInWorkspace({ admin, talentId, user: args.user, workspaceId });
   await assertNoPendingCompanyIntroCompanyAction({ admin, talentId, workspaceId });
+  if (args.roleId) {
+    await fetchOrgTalentDetail({ admin, user: args.user, workspaceId, talentId, roleId: args.roleId });
+    const material = await resolveRoleSharedMaterials({ admin, userId: talentId, workspaceId, roleId: args.roleId });
+    if (material) {
+      const document = material.documents.find(row => row.id === args.documentId && row.origin_type === "harper_generated_resume");
+      if (!document) throw new OrgHttpError(404, "Document not found");
+      return { ...document, description: document.description ?? null, revision: document.revision ?? 1, structured_content: document.structured_content ?? null };
+    }
+  } else {
+    const { data: pins, error: pinsError } = await (admin.from("talent_opportunity_recommendation") as any)
+      .select("id,company_roles!inner(company_workspace_id)").eq("talent_id",talentId)
+      .eq("company_roles.company_workspace_id",workspaceId).not("shared_material_id","is",null).limit(1);
+    if(pinsError)throw pinsError;
+    if(pins?.length)throw new OrgHttpError(400,"Choose the Role for its shared materials");
+  }
   const { data, error } = await admin.from("talent_documents").select("*")
     .eq("id", args.documentId).eq("talent_id", talentId)
     .eq("kind", "resume").eq("origin_type", "harper_generated_resume")
@@ -7275,6 +7323,7 @@ export async function readOrgSharedGeneratedResume(args: {
 }
 
 export async function openOrgResume(args: {
+  roleId?: string | null;
   documentId?: string | null;
   kind?: "storage" | "link" | "document" | null;
   link?: string | null;
@@ -7305,6 +7354,28 @@ export async function openOrgResume(args: {
     talentId,
     workspaceId,
   });
+
+  if (args.roleId) {
+    await fetchOrgTalentDetail({ admin, user: args.user, workspaceId, talentId, roleId: args.roleId });
+    const material = await resolveRoleSharedMaterials({ admin, userId: talentId, roleId: args.roleId, workspaceId });
+    if (material) {
+      if (args.kind === "link") {
+        const links = material.profile_snapshot?.talentUser?.resume_links;
+        if (!Array.isArray(links) || !links.includes(args.link)) throw new OrgHttpError(404, "Link not found");
+        return { ok: true, url: String(args.link) };
+      }
+      const document = args.documentId ? material.documents.find(row => row.id === args.documentId)
+        : material.documents.find(row => row.kind === "resume" && row.is_primary) ?? material.documents.find(row => row.kind === "resume");
+      if (!document) throw new OrgHttpError(404, "Document not found");
+      return { ok: true, url: `/api/org/material-document?${new URLSearchParams({ workspaceId, talentId, roleId: args.roleId, materialId: material.id, documentId: document.id })}` };
+    }
+  } else {
+    const { data: pinned, error: pinnedError } = await (admin.from("talent_opportunity_recommendation") as any)
+      .select("id,company_roles!inner(company_workspace_id)").eq("talent_id",talentId)
+      .eq("company_roles.company_workspace_id",workspaceId).not("shared_material_id","is",null).limit(1);
+    if (pinnedError) throw pinnedError;
+    if (pinned?.length) throw new OrgHttpError(400, "Choose the Role for its shared materials");
+  }
 
   const { data, error } = await (admin.from("talent_users" as any) as any)
     .select("user_id, resume_storage_path, resume_links, resume_file_name")

@@ -131,7 +131,7 @@ export default function PreviewHistoryPanel({
   };
 
   if (router.query.historyTab && router.query.historyTab !== "new") {
-    return <CareerHistoryPanel navigationMode="sidebar" />;
+    return <CareerHistoryPanel />;
   }
 
   const card = (item: CareerHistoryOpportunity) => (
@@ -240,7 +240,7 @@ export default function PreviewHistoryPanel({
               </h2>
               {internal.length ? (
                 <p className="text-sm leading-6 text-neutral-muted">
-                  Harper가 회사와의 연결을 도와드리는 기회입니다.
+                  Harper가 연결해드리는 기회들입니다.
                 </p>
               ) : null}
             </div>

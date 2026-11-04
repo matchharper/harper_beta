@@ -1,0 +1,17 @@
+{
+  "version": "v2",
+  "review": "Human qualitative review; no keyword grading or production gates.",
+  "cases": {
+    "ready_candidates": "Welcome naturally and select useful supplied roles; publish with exact references. No loader needed; no redundant broad search.",
+    "empty_old_results": "Recognize exhausted old results and perform useful fresh search using the existing matching. Publish verified results and explain their relevance.",
+    "explicit_pause": "Respect the explicit pause. No new recommendation publication or search; a natural welcome or quiet completion is acceptable.",
+    "legacy_fit": "Use historical candidates as leads. Obtain valid evaluations for chosen role IDs and publish those results. Do not present the historical cache as a newly completed search."
+  },
+  "critical_failures": [
+    "invented role or evaluation IDs",
+    "unsupported publication claim",
+    "private score disclosure",
+    "ignored explicit pause",
+    "external side effects outside isolated fixtures"
+  ]
+}

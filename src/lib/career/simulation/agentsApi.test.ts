@@ -1,3 +1,5 @@
+import { inspectionMemoryStore } from "./sharedApplicationInspection.testSupport";
+import { hydrateApplicationInspections } from "./sharedApplicationInspection";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -41,8 +43,11 @@ function fixture() {
     "first"
   );
   let conflict: (() => void) | undefined;
+  const inspections = inspectionMemoryStore();
   const admin = {
+    from: inspections.from,
     rpc: async (_: string, args: any) => {
+      const nextPayload = args.p_payload ? await hydrateApplicationInspections(admin, args.p_payload) as typeof state : null;
       assert.equal(args.p_user_id, "owner");
       assert.equal(args.p_conversation_id, "conversation");
       if (args.p_operation !== "read") {
@@ -58,7 +63,7 @@ function fixture() {
             error: { message: "Session revision conflict" },
           };
         state = {
-          ...structuredClone(args.p_payload),
+          ...nextPayload!,
           revision: state.revision + 1,
         };
       }
@@ -115,7 +120,7 @@ test("explicit reinspection recovers a failed read and retains answers without a
   const refreshed = await refreshApplicationInspection(f.store, 10, 9, inspect);
   assert.equal(refreshed.state.applicationForm?.submission?.status, "supported");
   assert.equal(refreshed.state.preparation?.responses.Q.text, "Built APIs");
-  assert.equal(refreshed.state.preparation?.finalDocumentId, null);
+  assert.equal(refreshed.state.preparation?.finalDocumentId, "saved-resume", "reinspection preserves the selected document");
   assert.equal(refreshed.state.browser, undefined);
   assert.equal(calls, 1);
   assert.equal(refreshed.state.applicationInspection?.resolveOfficialLink, false);

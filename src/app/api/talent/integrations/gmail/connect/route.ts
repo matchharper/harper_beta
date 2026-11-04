@@ -6,6 +6,7 @@ import {
   getComposioAccountStatus,
   getComposioConnectedAccount,
   getComposioGmailReadAccess,
+  getComposioGmailWriteAccess,
   getIntegrationErrorDiagnostics,
   isOwnedComposioGmailAccount,
   listActiveComposioGmailAccounts,
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     const body = await req.json().catch(() => ({}));
     const resumeImport = body.resumeImport === true;
+    const writeAccess = body.capability === "write";
     stage = "list_accounts";
     const existingAccounts = resumeImport
       ? []
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
         if (
           getComposioAccountStatus(account) === "ACTIVE" &&
           isOwnedComposioGmailAccount(account, user.id) &&
-          getComposioGmailReadAccess(account) === "granted"
+          (writeAccess ? getComposioGmailWriteAccess(account) : getComposioGmailReadAccess(account)) === "granted"
         ) {
           existingAccount = account;
           break;
@@ -65,10 +67,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const callbackUrl = new URL("/career/profile", req.nextUrl.origin);
+    const requestedReturn = writeAccess && typeof body.returnTo === "string" ? new URL(body.returnTo, req.nextUrl.origin) : null;
+    const callbackUrl = requestedReturn && requestedReturn.origin === req.nextUrl.origin && (requestedReturn.pathname === "/career" || requestedReturn.pathname.startsWith("/career/"))
+      ? requestedReturn : new URL(writeAccess ? "/career" : "/career/profile", req.nextUrl.origin);
     callbackUrl.searchParams.set("gmailConnect", "callback");
-    callbackUrl.searchParams.set("profileSection", "links");
+    if (!writeAccess) callbackUrl.searchParams.set("profileSection", "links");
     if (resumeImport) callbackUrl.searchParams.set("gmailImport", "resume");
+    if (writeAccess) callbackUrl.searchParams.set("gmailCapability", "write");
 
     stage = "create_connect_link";
     const link = await createComposioGmailConnectLink({

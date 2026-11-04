@@ -4,6 +4,34 @@ import { normalizeTalentBlockedCompanies } from "../talentOnboarding/server";
 import type { TalentAdminClient } from "../talentOnboarding/admin";
 import { fingerprint } from "./contract";
 
+/** Recheck live execution boundaries without reloading the frozen scoring input. */
+export async function loadExternalSearchAccess(
+  admin: TalentAdminClient,
+  userId: string
+) {
+  const [setting, user] = await Promise.all([
+    admin
+      .from("talent_setting")
+      .select("blocked_companies")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    admin
+      .from("talent_users")
+      .select("user_id,deleted_at")
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+  for (const r of [setting, user])
+    if (r.error) throw new Error(r.error.message);
+  if (!user.data || user.data.deleted_at)
+    throw new Error("Talent is unavailable");
+  return {
+    blockedCompanies: normalizeTalentBlockedCompanies(
+      setting.data?.blocked_companies ?? []
+    ),
+  };
+}
+
 export async function loadExternalContext(
   admin: TalentAdminClient,
   userId: string,
@@ -14,7 +42,7 @@ export async function loadExternalContext(
     fetchAllTalentContexts({ admin, userId, collection: "brief" }),
     admin
       .from("talent_behavior_contexts" as never)
-      .select("context_text,context_version")
+      .select("context_text,context_version,last_consumed_change_id")
       .eq("talent_id", userId)
       .maybeSingle(),
     admin
@@ -36,6 +64,7 @@ export async function loadExternalContext(
   const b = behavior.data as {
     context_text: string;
     context_version: number;
+    last_consumed_change_id: number;
   } | null;
   const context = {
     profile: {
@@ -94,6 +123,7 @@ export async function loadExternalContext(
     })),
     behavior_context: behaviorSnapshot?.text ?? b?.context_text ?? null,
     behavior_version: behaviorSnapshot?.version ?? b?.context_version ?? 0,
+    behavior_source_watermark: b?.last_consumed_change_id ?? 0,
     matching_preferences: {
       engagement_types: s?.engagement_types,
       blocked_companies: s?.blocked_companies,

@@ -5,10 +5,11 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { parseRoleCreationConversationMetadata } from "./roleCreationState";
 
 export async function readRoleNotificationContext(args: {
+  admin?: ReturnType<typeof getSupabaseAdmin>;
   roleId: string; workspaceId: string; user: User; currentChannelId?: string | null;
 }) {
   const settings = await fetchOrgRoleNotificationSettings(args);
-  const { data, error } = await getSupabaseAdmin().from("company_conversations")
+  const { data, error } = await (args.admin ?? getSupabaseAdmin()).from("company_conversations")
     .select("metadata").eq("company_workspace_id", args.workspaceId)
     .eq("role_id", args.roleId).contains("metadata", { scope: "role_creation" }).maybeSingle();
   if (error) throw error;

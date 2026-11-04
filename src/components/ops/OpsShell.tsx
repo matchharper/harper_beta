@@ -211,10 +211,22 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/debugging/email-test",
       },
       {
+        description: "Career Gmail 검색 쿼리와 실제 도구 결과 확인",
+        href: "/ops/debugging/career-gmail",
+        label: "Career Gmail",
+        matchPrefix: "/ops/debugging/career-gmail",
+      },
+      {
         description: "지원 폼 수집·실행 로그·비용 확인",
         href: "/ops/debugging/application-form",
         label: "지원 폼 조사",
         matchPrefix: "/ops/debugging/application-form",
+      },
+      {
+        description: "이력서 수정·질문 생성과 실제 모델 입력 확인",
+        href: "/ops/debugging/application-suggestions",
+        label: "이력서 제안",
+        matchPrefix: "/ops/debugging/application-suggestions",
       },
       {
         description: "talent call transcript 확인",

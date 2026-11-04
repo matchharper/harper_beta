@@ -13,6 +13,7 @@ export const OFFICIAL_JOBS_INTERNAL_COPY_SLUG = "internal-internal";
 export const OFFICIAL_JOBS_ONBOARDING_JOB_PARAM = "job";
 export const OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM = "job_company";
 export const OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM = "job_slug";
+export const OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM = "job_role_id";
 export const OFFICIAL_JOBS_COMPANY_NAME_MAX_LENGTH = 160;
 export const OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH = 140;
 export const OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE =
@@ -61,12 +62,14 @@ export function buildOfficialJobsCareerHref(job?: OfficialJobsCareerJob) {
   const roleTitle = normalizeOfficialJobsRoleTitle(job?.roleTitle);
   const companyName = normalizeOfficialJobsCompanyName(job?.companyName);
   const slug = String(job?.slug ?? "").trim();
+  const roleId = String(job?.roleId ?? "").trim();
 
   if (roleTitle) params.set(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM, roleTitle);
   if (companyName) {
     params.set(OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM, companyName);
   }
   if (slug) params.set(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM, slug);
+  if (roleId) params.set(OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM, roleId);
 
   return `/career?${params.toString()}`;
 }
@@ -96,6 +99,9 @@ export function buildOfficialJobsLoginHref(
     const slug = String(
       nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM) ?? ""
     ).trim();
+    const roleId = String(
+      nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM) ?? ""
+    ).trim();
 
     if (source === OFFICIAL_JOBS_LANDING_SOURCE && roleTitle) {
       params.set(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM, roleTitle);
@@ -105,6 +111,9 @@ export function buildOfficialJobsLoginHref(
     }
     if (source === OFFICIAL_JOBS_LANDING_SOURCE && slug) {
       params.set(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM, slug);
+    }
+    if (source === OFFICIAL_JOBS_LANDING_SOURCE && roleId) {
+      params.set(OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM, roleId);
     }
   } catch {
     // Keep the generic login URL if nextPath is not parseable.

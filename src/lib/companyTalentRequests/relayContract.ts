@@ -5,7 +5,7 @@ export const AUTHORIZED_MESSAGE_CONTENT_CONTRACT =
 export const COMPANY_RELAY_CONTENT_CONTRACT = `${AUTHORIZED_MESSAGE_CONTENT_CONTRACT} The user's instruction not to share private information is a restriction on Harper, not content to quote to the company. Share a document only when explicitly authorized. Describe the content included in this delivery without adding Harper's delivery mechanics or plans for other messages.`;
 
 export const COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT =
-  "This reply completes the requested delivery, not a new advisory turn. Briefly acknowledge only what was delivered, preserving the user's uncertainty and limits, then end the reply unless the user also asked a still-unanswered question. Delivery does not establish that the company read, answered, agreed, or will act at a particular time. Do not predict a response, add a likely next step, promise future work, append an invitation for another task, or repeat unconfirmed-status disclaimers.";
+  "The message was delivered to the company. Delivery does not establish that the company read, answered, agreed, or will act at a particular time.";
 
 export const COMPANY_RELAY_NOT_DELIVERED_RESPONSE_CONTRACT =
   "The message is saved but has not reached the company yet. Tell the user plainly that it has not been delivered to the company yet. Do not say or imply that it was delivered, received or confirmed by the company, and do not promise when it will arrive.";

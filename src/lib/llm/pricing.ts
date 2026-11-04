@@ -9,11 +9,13 @@
 export type LlmModelPricing = {
   cacheReadUsdPerMtok?: number;
   cacheWriteUsdPerMtok?: number;
+  cacheWrite12hUsdPerMtok?: number;
   effectiveModel?: string;
   inputUsdPerMtok: number;
   longContextInputUsdPerMtok?: number;
   longContextCacheReadUsdPerMtok?: number;
   longContextCacheWriteUsdPerMtok?: number;
+  longContextCacheWrite12hUsdPerMtok?: number;
   longContextOutputUsdPerMtok?: number;
   longContextThresholdTokens?: number;
   outputUsdPerMtok: number;
@@ -83,9 +85,11 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
   "gpt-6-luna": {
     cacheReadUsdPerMtok: 0.01,
     cacheWriteUsdPerMtok: 0.125,
+    cacheWrite12hUsdPerMtok: 0.25,
     inputUsdPerMtok: 0.1,
     longContextCacheReadUsdPerMtok: 0.02,
     longContextCacheWriteUsdPerMtok: 0.25,
+    longContextCacheWrite12hUsdPerMtok: 0.5,
     longContextInputUsdPerMtok: 0.2,
     longContextOutputUsdPerMtok: 0.75,
     longContextThresholdTokens: 272_000,

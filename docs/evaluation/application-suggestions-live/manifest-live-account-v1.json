@@ -1,0 +1,55 @@
+{
+  "task": "application-suggestions-live",
+  "datasetVersion": "live-account-v1",
+  "goldVersion": "v1",
+  "unit": "One initial suggestion batch from one selected real resume and external role; no authoring or submission",
+  "provenance": "Human-authorized read-only capture on 2026-10-29; one account, two generated documents, six external roles",
+  "goldFrozenBeforeOutput": true,
+  "goldSha256": "d6a4f6cdcd9035c26cb6686435109c566641131f2f7fff48118458b5c168cda2",
+  "rubricSha256": "99ddf050243cdaf885943948a5b5075af953549093b8c5d010566e52b319e39d",
+  "preparedSha256": "1fea5d46a16dcd7cc202b6a6479601a78a607a710f999b978c265bc49749635a",
+  "cases": [
+    {
+      "id": "ASL01",
+      "inputSha256": "c7d2953710040d67498309c61fccee39019fe8dfe23abbb272e20a4c9e4e2dba"
+    },
+    {
+      "id": "ASL02",
+      "inputSha256": "14afd5031e4b17a6fd30044f138ec2fce63e68ac39ed8b46e40367b8a7e0e850"
+    },
+    {
+      "id": "ASL03",
+      "inputSha256": "b7f80c04e40ec37003ff487e9b3084706bc0c3e058daf28de42cb41f031602a2"
+    },
+    {
+      "id": "ASL04",
+      "inputSha256": "4f15da3a3189af60704906f5d1cf1ddb664dfa26d2b98ecc96784ed3ac135541"
+    },
+    {
+      "id": "ASL05",
+      "inputSha256": "5224ab50f1e2bd70d06d9d39d054e4d540abd4f91392b39d0ea87d398b738d1f"
+    },
+    {
+      "id": "ASL06",
+      "inputSha256": "b171117269d059f8d0d266f97280accd5bb3a7d1610f595da60ec7deceee31c5"
+    }
+  ],
+  "canonicalRunner": "scripts/evalApplicationSuggestionsLive.ts",
+  "runtime": "src/lib/career/simulation/suggestionWriter.ts",
+  "model": "claude-haiku-5-5",
+  "comparisonModel": "claude-sonnet-5-5",
+  "temperatureRequested": 0.2,
+  "providerRequests": "Exact effective request parameters are in ignored runs/*/provider-exchanges.json",
+  "timeoutMs": 180000,
+  "frozenPrivateInput": "private/2026-10-29-daniel-live-v1/prepared-inputs-v1.json",
+  "rawOutput": "runs/<run-id>/",
+  "report": "private/review-report.html",
+  "export": "private/all-runs.json",
+  "limits": [
+    "Single account and selected roles, not representative accuracy",
+    "Generated documents already contain earlier model wording",
+    "Manual assistant judgments; reviewer knew earlier iterations",
+    "Each final case was sampled once; UI repeat separate",
+    "Exact captured raw records and runtime source snapshots remain private and uncommitted"
+  ]
+}

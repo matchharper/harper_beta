@@ -1,5 +1,6 @@
-// External V2 scoring projection. Shared date/fact formatting follows the Worker;
-// missing fields and editing/provenance metadata are omitted at this read boundary.
+import { formatLlmPartialDate, projectLlmDateTimes } from "@/lib/llm/promptDateTime";
+// External V2 scoring projection: career evidence only; execution/provenance
+// metadata stays in the stored snapshot. Dates use the shared web contract.
 type RecordValue = Record<string, unknown>;
 const mapping = (v: unknown): v is RecordValue =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -14,19 +15,6 @@ function hasEvidence(value: unknown): boolean {
 
 function displayValue(value: unknown): string {
   if (value === null || value === undefined) return "";
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/.test(value)) {
-    if (!/(Z|[+-]\d{2}:?\d{2})$/.test(value))
-      return value.slice(0, 16).replace("T", " ") + " (timezone unspecified)";
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) {
-      const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-      }).formatToParts(date);
-      const p = Object.fromEntries(parts.map(v => [v.type, v.value]));
-      return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute} KST`;
-    }
-  }
   return String(value);
 }
 
@@ -51,30 +39,25 @@ export function renderEvidence(value: unknown, indent = 0): string {
 
 function profileText(profile: unknown): string {
   if (!mapping(profile)) return renderEvidence(profile);
-  return Object.entries(profile).map(([key, value]) => {
-    if (!hasEvidence(value)) return "";
-    if (key === "profile" && mapping(value)) return renderEvidence(value);
-    if (["experiences", "educations"].includes(key) && Array.isArray(value)) {
-      const items = value.filter(hasEvidence).map((entry, i) => {
-        if (!mapping(entry)) return `${i + 1}. ${renderEvidence(entry)}`;
-        const start = ["startDate", "start_date", "start"].find(k => k in entry) ?? "startDate";
-        const end = ["endDate", "end_date", "end"].find(k => k in entry) ?? "endDate";
-        const facts = Object.fromEntries(Object.entries(entry).filter(([k]) => k !== start && k !== end));
-        const dates = hasEvidence(entry[start]) && hasEvidence(entry[end])
-          ? `기간: ${displayValue(entry[start])} → ${displayValue(entry[end])}`
-          : hasEvidence(entry[start]) ? `시작: ${displayValue(entry[start])}`
-          : hasEvidence(entry[end]) ? `종료: ${displayValue(entry[end])}` : "";
-        return `${i + 1}.${dates ? ` ${dates}` : ""}\n${renderEvidence(facts, 3)}`.trimEnd();
-      });
-      const title = key === "experiences" ? "경력 (종료일 미제공은 현재 재직의 확인이 아님)" : "학력";
-      return `#### ${title}\n${items.join("\n")}`;
-    }
-    if (key === "extras" && Array.isArray(value))
-      return renderEvidence({ extras: value.map(entry => mapping(entry)
-        ? Object.fromEntries(Object.entries(entry).filter(([k]) => k !== "id"))
-        : entry) });
-    return renderEvidence({ [key]: value });
-  }).filter(Boolean).join("\n\n");
+  const info = mapping(profile.profile) ? profile.profile : profile;
+  const lines = [renderEvidence(Object.fromEntries(
+    ["name", "headline", "bio", "location", "current_location"].filter(key => hasEvidence(info[key])).map(key => [key, info[key]])
+  ))];
+  for (const [key, title] of [["experiences", "경력 (종료일 미제공은 현재 재직의 확인이 아님)"], ["educations", "학력"], ["extras", "기타 활동"]]) {
+    const rows = profile[key];
+    if (!Array.isArray(rows) || !rows.some(hasEvidence)) continue;
+    lines.push(`#### ${title}`);
+    rows.filter(hasEvidence).forEach((entry, index) => {
+      if (!mapping(entry)) { lines.push(`${index + 1}. ${renderEvidence(entry)}`); return; }
+      const start = entry.startDate ?? entry.start_date ?? entry.start;
+      const end = entry.endDate ?? entry.end_date ?? entry.end;
+      const period = start && end ? `기간: ${formatLlmPartialDate(start)} → ${formatLlmPartialDate(end)}`
+        : start ? `시작: ${formatLlmPartialDate(start)}` : end ? `종료: ${formatLlmPartialDate(end)}` : "";
+      lines.push(`${index + 1}. ${[entry.role ?? entry.degree ?? entry.title, entry.company_name ?? entry.company ?? entry.school, entry.field, entry.employment_type, entry.company_location, period, typeof entry.months === "number" ? `${entry.months} months` : null, entry.date ? formatLlmPartialDate(entry.date) : null].filter(hasEvidence).join(" · ")}`);
+      for (const field of ["description", "memo"]) if (hasEvidence(entry[field])) lines.push(`${field}: ${displayValue(entry[field])}`);
+    });
+  }
+  return lines.filter(Boolean).join("\n\n");
 }
 
 function briefText(value: unknown): string {
@@ -97,7 +80,7 @@ export function talentText(talent: unknown): string {
 }
 
 export function externalScoringInput(payload: RecordValue): string {
-  return Object.entries(payload).map(([key, value]) => {
+  return Object.entries(projectLlmDateTimes(payload) as RecordValue).map(([key, value]) => {
     const text = key === "user_context" ? talentText(value) : renderEvidence(value);
     return text ? `## ${key}\n${text}` : "";
   }).filter(Boolean).join("\n\n");

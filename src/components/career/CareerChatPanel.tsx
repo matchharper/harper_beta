@@ -1,6 +1,7 @@
+import { CareerSuggestionProvider } from "./chat/CareerSuggestionComposer";
 import { InternalCallAnswersProvider } from "./chat/InternalCallAnswers";
 import {
-  ApplicationPreparationProvider,
+  ApplicationHistoryProvider,
 } from "./chat/ApplicationPreparationContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -251,6 +252,7 @@ const CareerChatPanelContent = ({
   const chatLayoutStyle = useMemo(
     () =>
       ({
+        "--career-chat-content-max-width": "760px",
         "--career-composer-height": `${composerOverlayHeight}px`,
         "--career-timeline-bottom-padding": `${
           composerOverlayHeight + TIMELINE_BOTTOM_VISIBLE_GAP_PX
@@ -263,7 +265,8 @@ const CareerChatPanelContent = ({
     <CareerWelcomeScreen />
   ) : (
     <div
-      className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+      data-career-chat-layout
+      className="relative isolate flex min-h-0 flex-1 flex-col overflow-clip [transform:translate(0)]"
       style={chatLayoutStyle}
     >
       <CareerTimelineSection
@@ -272,7 +275,7 @@ const CareerChatPanelContent = ({
       />
       <div
         ref={composerOverlayRef}
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-bg-basement via-bg-basement/10 to-transparent"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-[linear-gradient(to_bottom,transparent,white_40px)]"
       >
         <div className="pointer-events-auto">
           <CareerComposerSection
@@ -312,13 +315,14 @@ const CareerChatPanelContent = ({
 function CareerChatPanel(
   props: React.ComponentProps<typeof CareerChatPanelContent>
 ) {
-  const { conversationId } = useCareerChatPanelContext();
   return (
-    <ApplicationPreparationProvider key={conversationId ?? "none"}>
+    <ApplicationHistoryProvider>
       <InternalCallAnswersProvider>
-        <CareerChatPanelContent {...props} />
+        <CareerSuggestionProvider>
+          <CareerChatPanelContent {...props} />
+        </CareerSuggestionProvider>
       </InternalCallAnswersProvider>
-    </ApplicationPreparationProvider>
+    </ApplicationHistoryProvider>
   );
 }
 export default React.memo(CareerChatPanel);

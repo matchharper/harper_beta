@@ -74,6 +74,7 @@ import {
   OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+  OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM,
   OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
 } from "@/lib/officialJobs";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
@@ -1136,6 +1137,10 @@ const CareerNetworkOnboardingContent = () => {
     () => getSingleQueryParam(officialJobSlugParam)?.trim() || "",
     [officialJobSlugParam]
   );
+  const officialJobRoleId =
+    getSingleQueryParam(
+      router.query[OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM]
+    )?.trim() || "";
   const onboardingSteps = useMemo(() => {
     const definitions = getOnboardingSteps(t, officialJobTitle, name);
     return stepOrder.map(
@@ -2008,7 +2013,12 @@ const CareerNetworkOnboardingContent = () => {
       if (emailOnboarding) {
         query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] = emailOnboarding;
       }
-      if (officialJobTitle || officialJobCompanyName || officialJobSlug) {
+      if (
+        officialJobTitle ||
+        officialJobCompanyName ||
+        officialJobSlug ||
+        officialJobRoleId
+      ) {
         query.source = OFFICIAL_JOBS_LANDING_SOURCE;
       }
       if (officialJobCompanyName) {
@@ -2020,6 +2030,9 @@ const CareerNetworkOnboardingContent = () => {
       if (officialJobSlug) {
         query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM] = officialJobSlug;
       }
+      if (officialJobRoleId) {
+        query[OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM] = officialJobRoleId;
+      }
 
       void router.push({
         pathname: "/career",
@@ -2029,6 +2042,7 @@ const CareerNetworkOnboardingContent = () => {
     [
       logCareerEvent,
       officialJobCompanyName,
+      officialJobRoleId,
       officialJobSlug,
       officialJobTitle,
       queryClient,

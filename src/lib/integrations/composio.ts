@@ -14,6 +14,8 @@ const TRUSTED_CONNECT_HOSTS = new Set([
 
 export const COMPOSIO_GMAIL_TOOLKIT_SLUG = "gmail";
 export const COMPOSIO_GMAIL_TOOL_VERSION = "20260817_00";
+// Writing uses the inspected 2026-10-29 contract; inbox reading keeps its existing pin.
+export const COMPOSIO_GMAIL_WRITE_TOOL_VERSION = "20261029_00";
 
 export type ComposioConnectedAccount = {
   grantedScopes?: string[];
@@ -50,6 +52,25 @@ export function getComposioGmailReadAccess(account: ComposioConnectedAccount) {
       "https://www.googleapis.com/auth/gmail.modify",
     ].includes(scope)
   )
+    ? "granted"
+    : "missing";
+}
+
+export function getComposioGmailWriteAccess(
+  account: ComposioConnectedAccount,
+  action: "draft" | "send" | "read_draft" = "draft"
+) {
+  if (!account.grantedScopes) return "unknown";
+  const scopes = [
+    "https://mail.google.com/",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/gmail.compose",
+  ];
+  if (action === "send")
+    scopes.push("https://www.googleapis.com/auth/gmail.send");
+  if (action === "read_draft")
+    scopes.push("https://www.googleapis.com/auth/gmail.readonly");
+  return account.grantedScopes.some((scope) => scopes.includes(scope))
     ? "granted"
     : "missing";
 }
@@ -287,6 +308,54 @@ export function createComposioClient(
   }
 
   return {
+    async uploadGmailFile(args: {
+      name: string;
+      mimeType: string;
+      bytes: Buffer;
+      toolSlug: string;
+    }) {
+      const { createHash } = await import("node:crypto");
+      const upload = await request<{
+        key?: string;
+        new_presigned_url?: string;
+        newPresignedUrl?: string;
+        metadata?: { storage_backend?: string };
+      }>("/files/upload/request", {
+        method: "POST",
+        body: JSON.stringify({
+          toolkit_slug: "gmail",
+          tool_slug: args.toolSlug,
+          filename: args.name,
+          mimetype: args.mimeType,
+          md5: createHash("md5").update(args.bytes).digest("hex"),
+        }),
+      });
+      const destination = upload.new_presigned_url ?? upload.newPresignedUrl;
+      if (
+        !upload.key ||
+        !destination ||
+        new URL(destination).protocol !== "https:"
+      )
+        throw new ComposioApiError(
+          "Invalid attachment upload destination",
+          502
+        );
+      const response = await fetchFn(destination, {
+        method: "PUT",
+        headers: {
+          "Content-Type": args.mimeType,
+          ...(upload.metadata?.storage_backend === "azure_blob_storage"
+            ? { "x-ms-blob-type": "BlockBlob" }
+            : {}),
+        },
+        body: new Uint8Array(args.bytes),
+        redirect: "error",
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!response.ok)
+        throw new ComposioApiError("Attachment upload failed", 502);
+      return { name: args.name, mimetype: args.mimeType, s3key: upload.key };
+    },
     async createLink(args: {
       authConfigId: string;
       userId: string;
@@ -445,7 +514,7 @@ export function createComposioClient(
 // not need to implement a provider-specific listing method.
 export type ComposioClient = Omit<
   ReturnType<typeof createComposioClient>,
-  "createDirectOAuthConnection" | "listAccounts"
+  "createDirectOAuthConnection" | "listAccounts" | "uploadGmailFile"
 >;
 
 export function getComposioGmailAuthConfigId() {

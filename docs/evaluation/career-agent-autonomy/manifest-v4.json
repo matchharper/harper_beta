@@ -1,0 +1,12 @@
+{
+  "datasetVersion": "v4",
+  "createdAt": "2026-11-03",
+  "parentVersion": "v1",
+  "reason": "Targeted verification of URL import for an application request versus analysis only. Reviewed by Codex before generation; not a blind holdout.",
+  "hashes": {
+    "cases-v4.json": "cd65340c7558ca5b9ad268f09d4912e597dbd5d4ba207b5430f826e37dfdbc14",
+    "gold-v4.json": "72f060c648d6f675450532ccd995d484281244b330d70bde851482fe5e50e526"
+  },
+  "repetitions": 1,
+  "boundary": "Production model, capability runtime and schemas; isolated tool fixtures; no real application, email or database writes."
+}

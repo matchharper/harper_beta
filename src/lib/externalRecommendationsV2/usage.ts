@@ -1,5 +1,7 @@
 import { getLlmUsageContext } from "../llm/usageContext";
 import { getTalentSupabaseAdmin } from "../talentOnboarding/admin";
+import { getLlmModelPricing } from "../llm/pricing";
+import { GPT_6_LUNA_MODEL } from "../llm/modelConfig";
 
 // Decisions has endpoint-specific pricing; never price it as a normal Luna completion.
 export function directUsageCost(
@@ -28,11 +30,27 @@ export function directUsageCost(
     endpoint === "openai_decisions" &&
     typeof input === "number" &&
     Number.isFinite(input)
-  )
+  ) {
+    // https://developers.openai.com/api/docs/guides/decisions#pricing-and-availability
+    // Read/write counts are included in input_tokens. Writes replace ordinary
+    // input pricing, and omitted lifetime details use the default 30m rate.
+    const details = usage?.input_tokens_details;
+    const write12h = Number(details?.cache_write_tokens_details?.ttl_12h_tokens ?? 0);
+    const writes = Number(details?.cache_write_tokens ??
+      (Number(details?.cache_write_tokens_details?.ttl_30m_tokens ?? 0) + write12h));
+    const write30m = Math.max(0, writes - write12h);
+    const pricing = getLlmModelPricing(GPT_6_LUNA_MODEL)!;
+    const longContext = input > pricing.longContextThresholdTokens!;
+    const inputRate = longContext ? pricing.longContextInputUsdPerMtok! : pricing.inputUsdPerMtok;
+    const readRate = longContext ? pricing.longContextCacheReadUsdPerMtok! : pricing.cacheReadUsdPerMtok!;
+    const write30mRate = longContext ? pricing.longContextCacheWriteUsdPerMtok! : pricing.cacheWriteUsdPerMtok!;
+    const write12hRate = longContext ? pricing.longContextCacheWrite12hUsdPerMtok! : pricing.cacheWrite12hUsdPerMtok!;
     return {
-      usd: (Math.max(0, input - cached) * 0.1) / 1000000,
+      usd: (Math.max(0, input - cached - writes) * inputRate +
+        cached * readRate + write30m * write30mRate + write12h * write12hRate) / 1_000_000,
       status: "estimated" as const,
     };
+  }
   return { usd: null, status: "unpriced" as const };
 }
 export async function recordDirectUsage(

@@ -1,0 +1,8 @@
+{
+  "datasetVersion": "v1",
+  "provenance": "Synthetic fixtures authored before model execution; no production data.",
+  "hashes": {
+    "cases-v1.json": "c74c2ea37093cbd3a74a397ffe563dfc172e7abfe58d40c933f63bcd45fb8d19",
+    "gold-v1.json": "1948b3c3c1ca076de4e612387deb8a44864452f30be037921205d0fdce6f2b80"
+  }
+}

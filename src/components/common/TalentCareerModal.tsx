@@ -20,6 +20,9 @@ type TalentCareerModalProps = {
   onEscapeKeyDown?: React.ComponentPropsWithoutRef<
     typeof DialogPrimitive.Content
   >["onEscapeKeyDown"];
+  onPointerDownOutside?: React.ComponentPropsWithoutRef<
+    typeof DialogPrimitive.Content
+  >["onPointerDownOutside"];
   /** Set false for a side panel that allows interacting with the workspace. */
   modal?: boolean;
   showCloseButton?: boolean;
@@ -51,6 +54,7 @@ const TalentCareerModal = ({
   ariaLabel,
   closeOnBackdrop = true,
   onEscapeKeyDown,
+  onPointerDownOutside,
   modal = true,
   showCloseButton = true,
   mobileBottomSheet = false,
@@ -90,7 +94,8 @@ const TalentCareerModal = ({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           className={cn(
-            "fixed inset-0 z-80 bg-black/10 backdrop-blur-xs",
+            "fixed inset-0 z-80 bg-black/10",
+            mobileBottomSheet && "max-md:bg-black/20",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             backdropClassName
@@ -98,9 +103,10 @@ const TalentCareerModal = ({
         />
         <div
           className={cn(
-            "fixed inset-0 z-80 flex items-center justify-center px-4 py-6 sm:px-6 pointer-events-none",
-            mobileBottomSheet &&
-              "max-sm:items-end max-sm:px-0 max-sm:pb-0 max-sm:pt-6",
+            "fixed inset-0 z-80 flex items-center justify-center px-4 py-6 pointer-events-none",
+            mobileBottomSheet
+              ? "max-md:items-end max-md:px-0 max-md:pb-0 max-md:pt-6 md:px-6"
+              : "sm:px-6",
             overlayClassName
           )}
         >
@@ -122,21 +128,22 @@ const TalentCareerModal = ({
             onEscapeKeyDown={onEscapeKeyDown}
             onPointerDownOutside={(event) => {
               if (!closeOnBackdrop) event.preventDefault();
+              onPointerDownOutside?.(event);
             }}
             onInteractOutside={(event) => {
               if (!closeOnBackdrop) event.preventDefault();
             }}
             className={cn(
-              "relative flex max-h-[calc(100dvh-3rem)] w-full max-w-[720px] flex-col overflow-hidden rounded-xl border border-neutral-1000-a10 bg-bg-default shadow-[0_24px_80px_rgba(17,24,39,0.2)] outline-none pointer-events-auto",
+              "relative flex max-h-[calc(100dvh-3rem)] w-full max-w-[720px] flex-col overflow-hidden rounded-3xl border border-neutral-1000-a10 bg-bg-default shadow-[0_24px_80px_rgba(17,24,39,0.2)] outline-none pointer-events-auto",
               "data-[state=open]:animate-in data-[state=closed]:animate-out",
               "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
               "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
               mobileBottomSheet
                 ? [
-                    "max-sm:flex max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-24px)] max-sm:flex-col",
-                    "max-sm:rounded-b-none max-sm:rounded-t-[20px] max-sm:border-b-0 max-sm:pb-[env(safe-area-inset-bottom)]",
-                    "max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:slide-in-from-bottom",
-                    "max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=open]:zoom-in-100",
+                    "max-md:flex max-md:max-h-[calc(100dvh-env(safe-area-inset-top)-24px)] max-md:flex-col",
+                    "max-md:rounded-b-none max-md:rounded-t-[28px] max-md:border-b-0 max-md:pb-[env(safe-area-inset-bottom)]",
+                    "max-md:data-[state=closed]:slide-out-to-bottom max-md:data-[state=open]:slide-in-from-bottom",
+                    "max-md:data-[state=closed]:zoom-out-100 max-md:data-[state=open]:zoom-in-100",
                   ]
                 : null,
               "duration-200",
@@ -144,21 +151,23 @@ const TalentCareerModal = ({
             )}
           >
             <FloatingPortalContainer.Provider value={portalContainer}>
-              {mobileBottomSheet ? (
-                <div
-                  aria-hidden="true"
-                  className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-neutral-1000-a10 sm:hidden"
-                />
-              ) : null}
               {showCloseButton ? (
                 <DialogPrimitive.Close
                   className={cn(
-                    "absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-black/5",
+                    "absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-black/5",
+                    mobileBottomSheet &&
+                      "max-md:rounded-full max-md:border-0 max-md:bg-neutral-50 max-md:text-neutral-primary max-md:shadow-none max-md:hover:bg-bg-weak max-md:focus-visible:outline-2 max-md:focus-visible:outline-offset-2 max-md:focus-visible:outline-neutral-1000-a10",
                     closeButtonClassName
                   )}
                   aria-label={resolvedCloseButtonAriaLabel}
                 >
-                  <X className="h-4 w-4" />
+                  <X
+                    aria-hidden="true"
+                    className={cn(
+                      "h-4 w-4",
+                      mobileBottomSheet && "max-md:h-[18px] max-md:w-[18px]"
+                    )}
+                  />
                 </DialogPrimitive.Close>
               ) : null}
               {!hasTitle ? (
@@ -175,7 +184,10 @@ const TalentCareerModal = ({
                 <header
                   className={cn(
                     "shrink-0 px-4 py-5 sm:px-5",
-                    mobileBottomSheet && "max-sm:shrink-0",
+                    mobileBottomSheet && "max-md:shrink-0",
+                    mobileBottomSheet &&
+                      showCloseButton &&
+                      "max-md:pr-16 sm:max-md:pr-16",
                     headerClassName
                   )}
                 >
@@ -236,7 +248,7 @@ const TalentCareerModal = ({
               <div
                 className={cn(
                   "min-h-0 overflow-y-auto py-0",
-                  mobileBottomSheet && "max-sm:min-h-0 max-sm:overflow-y-auto",
+                  mobileBottomSheet && "max-md:min-h-0 max-md:overflow-y-auto",
                   bodyClassName
                 )}
               >
@@ -246,7 +258,7 @@ const TalentCareerModal = ({
                 <footer
                   className={cn(
                     "shrink-0 px-4 py-5 sm:px-5",
-                    mobileBottomSheet && "max-sm:shrink-0 pt-1 sm:pt-5",
+                    mobileBottomSheet && "max-md:shrink-0 pt-1 sm:pt-5",
                     footerClassName
                   )}
                 >

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "review_then_next_step",
+    "messages": [
+      {"role":"user","content":"이력서 소개 부분이 너무 딱딱해서 말하듯 자연스럽게 바꿔 줘. 지원서 제출은 내가 할게."},
+      {"role":"assistant","content":"소개 부분을 다듬어볼게요."},
+      {"role":"user","content":"다 됐어? 어디가 달라졌는지랑 이제 뭘 하면 될지 알려줘."}
+    ],
+    "context": "Verified execution: the introduction in the candidate's private resume was saved. It now connects their existing backend engineering and customer collaboration experience in everyday language, replacing abstract descriptions. No new experience or results were added. The revised document is already visible to the candidate. The candidate will submit the application themselves. No tool calls are needed for this status reply.",
+    "review": "Explain the meaningful change and useful next step compactly. Prefer bubble boundaries at changes of thought or conversational purpose, keeping related explanation together. Do not split mechanically, repeat the whole resume, or claim submission. A brief coherent reply may remain one bubble."
+  },
+  {
+    "id": "work_to_casual_chat",
+    "messages": [
+      {"role":"user","content":"소개 메일은 일단 보류하자."},
+      {"role":"assistant","content":"네, 보류할게요. 초안은 저장되어 있어요."},
+      {"role":"user","content":"오케이. 오늘은 쉬어야겠다ㅎㅎ 너도 밥은 먹고 일해라"}
+    ],
+    "context": "The introduction email is on hold at the candidate's request. No task is running or newly completed. No new user decision is needed. The candidate is casually ending today's conversation.",
+    "review": "Respond naturally to the casual closing without repeating pending work or inventing human experiences. Keep a coherent short thought together; the split preference must not turn each sentence into a bubble or add content just to split it."
+  }
+]

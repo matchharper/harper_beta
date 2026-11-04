@@ -120,23 +120,16 @@ export async function POST(req: NextRequest) {
 
     const admin = getOpportunityAdmin();
     const conversationId = String(body.conversationId ?? "").trim() || null;
-    const bodyAgentVariant = isAgentVariant(body.agentVariant)
-      ? body.agentVariant
-      : null;
-    const payloadAgentVariant = isAgentVariant(
-      body.triggerPayload?.opportunityAgentVariant
-    )
-      ? body.triggerPayload.opportunityAgentVariant
-      : null;
-    const agentVariant = bodyAgentVariant ?? payloadAgentVariant;
+    if (conversationId) {
+      const owner = await admin.from("talent_conversations").select("id").eq("id", conversationId).eq("user_id", user.id).maybeSingle();
+      if (owner.error) throw owner.error;
+      if (!owner.data) return NextResponse.json({ error: "Conversation unavailable" }, { status: 404 });
+    }
     const isLocalDev = process.env.NODE_ENV !== "production";
     const forceNew = body.forceNew === true && isLocalDev;
-    const claimForManualProcessing =
-      body.claimForManualProcessing === true && isLocalDev;
-    const triggerPayload = {
-      ...(body.triggerPayload ?? {}),
-      ...(agentVariant ? { opportunityAgentVariant: agentVariant } : {}),
-    };
+    const claimForManualProcessing = false;
+    // HTTP callers cannot forge worker source events, company obligations or consent.
+    const triggerPayload = { source: "career_user_request", instruction: "The candidate requested a Career opportunity check. Use the current context and general tools to decide useful work; this does not grant company-sharing consent." };
     if (conversationId && !forceNew) {
       const activeRun = await getActiveOpportunityRun({
         admin,

@@ -242,7 +242,7 @@ export default function CareerJobLinkImportButton() {
             payload.error ||
               t(
                 "career.history.job_link_import.failed",
-                "포지션을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+                "기회를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
               )
           );
         }
@@ -309,7 +309,7 @@ export default function CareerJobLinkImportButton() {
             ? submitError.message
             : t(
                 "career.history.job_link_import.failed",
-                "포지션을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+                "기회를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
               )
         );
       } finally {
@@ -330,7 +330,7 @@ export default function CareerJobLinkImportButton() {
 
   const buttonLabel = t(
     "career.history.job_link_import.button",
-    "포지션 링크 추가"
+    "기회 직접 추가"
   );
   const hasIncompleteRow = rows.some(
     (row) =>
@@ -363,10 +363,10 @@ export default function CareerJobLinkImportButton() {
         bodyClassName="min-h-0 overflow-y-auto"
         headerClassName="shrink-0"
         footerClassName="shrink-0"
-        title={t("career.history.job_link_import.title", "외부 포지션 저장하기")}
+        title={t("career.history.job_link_import.title", "기회 직접 추가")}
         description={t(
           "career.history.job_link_import.description",
-          "임의로 관심 포지션을 추가할 수 있습니다. 여러 개를 한 번에 저장할 수 있습니다."
+          "관심 있는 기회의 링크를 추가해 주세요. 여러 개를 한 번에 저장할 수 있어요."
         )}
         footer={
           <div className="flex items-center justify-end gap-2">
@@ -458,7 +458,7 @@ export default function CareerJobLinkImportButton() {
                         variant="transparent"
                         aria-label={t(
                           "career.history.job_link_import.remove",
-                          "포지션 삭제"
+                          "기회 삭제"
                         )}
                         onClick={() => removeRow(row.clientId)}
                         disabled={submitting}
@@ -506,7 +506,7 @@ export default function CareerJobLinkImportButton() {
                         >
                           {t(
                             "career.history.job_link_import.role_label",
-                            "포지션명"
+                            "역할 이름"
                           )}
                         </label>
                         <Input
@@ -550,7 +550,7 @@ export default function CareerJobLinkImportButton() {
             disabled={submitting || rows.length >= MAX_IMPORT_ITEMS}
           >
             <Plus className="h-3.5 w-3.5" />
-            {t("career.history.job_link_import.add", "포지션 추가")}
+            {t("career.history.job_link_import.add", "기회 추가")}
           </MuteButton>
 
           {batchLimitExceeded ? (

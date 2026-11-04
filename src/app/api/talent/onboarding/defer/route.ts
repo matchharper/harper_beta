@@ -1,4 +1,5 @@
 import { after, NextRequest, NextResponse } from "next/server";
+import { resolveCareerRequestTextChatModel } from "@/lib/career/requestTextChatModel";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildCareerInsightExtractionPrompt,
@@ -228,6 +229,7 @@ export async function POST(req: NextRequest) {
     let assistantContent = "";
     try {
       assistantContent = await runCareerOnboardingDeferClose({
+        textChatModel: resolveCareerRequestTextChatModel(req, user).model,
         messages: [
           {
             role: "system",

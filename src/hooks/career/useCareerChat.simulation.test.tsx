@@ -7,7 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import { MessagesProvider } from "@/i18n/useMessage";
 import type { ApplicationSimulation } from "@/lib/career/simulation/types";
 
-test("simulation SSE updates one card before the chat turn completes", async () => {
+test("artifact SSE updates one card before the chat turn completes", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
   const { useCareerChat } = await import("./useCareerChat");
@@ -94,7 +94,7 @@ test("simulation SSE updates one card before the chat turn completes", async () 
       void api.sendChatMessage({ text: "이 롤로 simulate 해줘" });
     });
     await act(async () => {
-      send("simulation_message", { message });
+      send("artifact_message", { message });
     });
     assert.equal(api.chatPending, true);
     assert.equal(api.messages.filter((m) => m.simulation).length, 1);
@@ -109,7 +109,7 @@ test("simulation SSE updates one card before the chat turn completes", async () 
     };
     state.steps[1].status = "running";
     await act(async () => {
-      send("simulation_message", { message });
+      send("artifact_message", { message });
     });
     assert.equal(api.chatPending, true);
     assert.equal(api.messages.filter((m) => m.simulation).length, 1);
@@ -171,6 +171,7 @@ test("browser resume acknowledgement without userMessage removes optimistic mess
     await act(async () => { root.render(<MessagesProvider locale="ko"><Harness /></MessagesProvider>); });
     await act(async () => { api.setStage("chat"); });
     await act(async () => { await api.sendChatMessage({ text: "", applicationInputSubmission: {batchId:"batch", sessionMessageId:1, expectedRevision:2} }); });
+    await act(async () => { await api.sendChatMessage({ text: "", applicationPreparationContinuation: {sessionMessageId:1, continuationId:"follow-up"} }); });
     assert.equal(api.chatPending, false);
     assert.deepEqual(api.messages, []);
     assert.deepEqual(committed, []);

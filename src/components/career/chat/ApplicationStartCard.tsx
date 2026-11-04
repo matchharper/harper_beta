@@ -132,7 +132,7 @@ export function ApplicationStartCard({
           expectedRevision: 1,
           documentId: documentId === "none" ? null : documentId,
         },
-        t("career.apply.start", "함께 지원 시작하기")
+        t("career.apply.review_resume", "이력서 점검하기")
       );
     } finally {
       setPending(false);
@@ -151,7 +151,7 @@ export function ApplicationStartCard({
       )}
       <section className="w-full max-w-[480px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating text-neutral-primary">
         <header className="font-medium p-4 pb-0">
-          {t("career.apply.title", "Harper와 준비하기")}
+          {t("career.apply.prepare_title", "Harper와 준비하기")}
         </header>
         <div className="space-y-2 p-4">
           <div className="flex items-center gap-3 rounded-lg border border-neutral-1000-a10 px-3 py-2">
@@ -262,8 +262,8 @@ export function ApplicationStartCard({
             onClick={() => void start()}
           >
             {started
-              ? t("career.apply.started", "이력서 점검을 시작했어요")
-              : t("career.apply.start", "이력서 점검하기")}
+              ? t("career.apply.review_started", "이력서 점검을 시작했어요")
+              : t("career.apply.review_resume", "이력서 점검하기")}
           </MuteButton>
         </div>
       </section>

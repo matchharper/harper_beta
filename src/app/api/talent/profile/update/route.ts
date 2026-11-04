@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { readProfileSnapshot, writeProfileSnapshot, type ProfileSnapshot } from "@/lib/career/profiles/store";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -143,6 +145,7 @@ const normalizeStructuredProfile = (
       if (!row) return null;
 
       const normalized = {
+        ...(typeof row.id === "number" && Number.isSafeInteger(row.id) ? { id: row.id } : {}),
         talent_id: userId,
         role: sanitizeSingleLineText(row.role, 240),
         description: sanitizeMultilineText(row.description, 8000),
@@ -159,7 +162,7 @@ const normalizeStructuredProfile = (
       };
 
       const hasContent = Object.entries(normalized).some(
-        ([key, value]) => key !== "talent_id" && Boolean(value)
+        ([key, value]) => key !== "talent_id" && key !== "id" && Boolean(value)
       );
       return hasContent ? normalized : null;
     })
@@ -191,6 +194,7 @@ const normalizeStructuredProfile = (
       if (!row) return null;
 
       const normalized = {
+        ...(typeof row.id === "number" && Number.isSafeInteger(row.id) ? { id: row.id } : {}),
         talent_id: userId,
         school: sanitizeSingleLineText(row.school, 240),
         degree: sanitizeSingleLineText(row.degree, 120),
@@ -203,7 +207,7 @@ const normalizeStructuredProfile = (
       };
 
       const hasContent = Object.entries(normalized).some(
-        ([key, value]) => key !== "talent_id" && Boolean(value)
+        ([key, value]) => key !== "talent_id" && key !== "id" && Boolean(value)
       );
       return hasContent ? normalized : null;
     })
@@ -231,13 +235,14 @@ const normalizeStructuredProfile = (
       if (!row) return null;
 
       const normalized = {
+        ...(typeof row.id === "string" ? { id: row.id } : {}),
         title: sanitizeSingleLineText(row.title, 240),
         description: sanitizeMultilineText(row.description, 8000),
         date: sanitizeDateText(row.date),
         memo: sanitizeMultilineText(row.memo, 2000),
       };
 
-      const hasContent = Object.values(normalized).some(Boolean);
+      const hasContent = Object.entries(normalized).some(([key,value]) => key !== "id" && Boolean(value));
       return hasContent ? normalized : null;
     })
     .filter(
@@ -425,135 +430,22 @@ export async function POST(req: NextRequest) {
       error?: string;
     } | null = null;
 
-    const { error: updateError } = await admin
-      .from("talent_users")
-      .update(updatePayload)
-      .eq("user_id", user.id);
-
-    if (updateError) {
-      await logProfileSourceError("profile_update_talent_users", updateError);
-      await notifyUnsupportedUnicodeEscapeError({
-        error: updateError,
-        metadata: profileSourceLogMetadata,
-        route: "/api/talent/profile/update",
-        stage: "talent_users.update:profile_update",
-        userId: user.id,
-      });
-      return NextResponse.json(
-        { error: updateError.message ?? "Failed to update profile" },
-        { status: 500 }
-      );
+    const currentVersion = await readProfileSnapshot({ admin, userId: user.id });
+    const nextSnapshot = structuredClone(currentVersion.snapshot);
+    nextSnapshot.talentUser = { ...nextSnapshot.talentUser, ...updatePayload } as ProfileSnapshot["talentUser"];
+    if (structuredProfile) {
+      nextSnapshot.talentExperiences = structuredProfile.talentExperiences as ProfileSnapshot["talentExperiences"];
+      nextSnapshot.talentEducations = structuredProfile.talentEducations as ProfileSnapshot["talentEducations"];
+      nextSnapshot.talentExtras = structuredProfile.talentExtras;
     }
-
+    await writeProfileSnapshot({ admin, userId: user.id, action: "update", profileId: currentVersion.profileId,
+      expectedRevision: currentVersion.revision, snapshot: nextSnapshot,
+      operationId: `profile-ui:${req.headers.get("Idempotency-Key") ?? randomUUID()}`,
+      source: { kind: "profile_ui" } });
     if (Object.prototype.hasOwnProperty.call(updatePayload, "location")) {
       await refreshTalentPreferredLocale({ admin, userId: user.id });
     }
-
-    if (structuredProfile) {
-      const db = admin as any;
-
-      const { error: expDeleteError } = await db
-        .from("talent_experiences")
-        .delete()
-        .eq("talent_id", user.id);
-      if (expDeleteError) {
-        await logProfileSourceError(
-          "profile_update_delete_talent_experiences",
-          expDeleteError
-        );
-        return NextResponse.json(
-          {
-            error:
-              expDeleteError.message ?? "Failed to replace talent experiences",
-          },
-          { status: 500 }
-        );
-      }
-
-      const { error: eduDeleteError } = await db
-        .from("talent_educations")
-        .delete()
-        .eq("talent_id", user.id);
-      if (eduDeleteError) {
-        await logProfileSourceError(
-          "profile_update_delete_talent_educations",
-          eduDeleteError
-        );
-        return NextResponse.json(
-          {
-            error:
-              eduDeleteError.message ?? "Failed to replace talent educations",
-          },
-          { status: 500 }
-        );
-      }
-
-      if (structuredProfile.talentExperiences.length > 0) {
-        const { error: expInsertError } = await db
-          .from("talent_experiences")
-          .insert(structuredProfile.talentExperiences);
-        if (expInsertError) {
-          await logProfileSourceError(
-            "profile_update_insert_talent_experiences",
-            expInsertError,
-            { experienceCount: structuredProfile.talentExperiences.length }
-          );
-          return NextResponse.json(
-            {
-              error:
-                expInsertError.message ?? "Failed to save talent experiences",
-            },
-            { status: 500 }
-          );
-        }
-      }
-
-      if (structuredProfile.talentEducations.length > 0) {
-        const { error: eduInsertError } = await db
-          .from("talent_educations")
-          .insert(structuredProfile.talentEducations);
-        if (eduInsertError) {
-          await logProfileSourceError(
-            "profile_update_insert_talent_educations",
-            eduInsertError,
-            { educationCount: structuredProfile.talentEducations.length }
-          );
-          return NextResponse.json(
-            {
-              error:
-                eduInsertError.message ?? "Failed to save talent educations",
-            },
-            { status: 500 }
-          );
-        }
-      }
-
-      const { error: extrasUpsertError } = await db
-        .from("talent_extras")
-        .upsert(
-          {
-            talent_id: user.id,
-            content: {
-              updated_at: now,
-              talent_extras: structuredProfile.talentExtras,
-            },
-          },
-          { onConflict: "talent_id" }
-        );
-      if (extrasUpsertError) {
-        await logProfileSourceError(
-          "profile_update_upsert_talent_extras",
-          extrasUpsertError,
-          { extrasCount: structuredProfile.talentExtras.length }
-        );
-        return NextResponse.json(
-          {
-            error: extrasUpsertError.message ?? "Failed to save talent extras",
-          },
-          { status: 500 }
-        );
-      }
-    } else if (shouldMergeLatestSources && existingStructuredProfile) {
+    if (shouldMergeLatestSources && existingStructuredProfile && !structuredProfile) {
       try {
         const ingestion = await mergeTalentProfileFromLatestSources({
           admin,

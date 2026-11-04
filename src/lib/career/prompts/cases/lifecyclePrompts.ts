@@ -21,7 +21,8 @@ import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/inte
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import { logger } from "@/utils/logger";
 
-export const CAREER_SESSION_START_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
+import { CAREER_SESSION_START_NO_MESSAGE_MARKER } from "@/lib/career/noMessageContent";
+export { CAREER_SESSION_START_NO_MESSAGE_MARKER } from "@/lib/career/noMessageContent";
 export const CAREER_SESSION_START_CALL_ACTION_MARKER = "[[CALL]]";
 
 function formatReengagementPendingAction(
@@ -91,8 +92,8 @@ export function buildCareerSessionStartTurnInstruction(args: {
       `위 시각 값은 모두 사용자의 현재 접속 지역 타임존(${timeZone}) 기준 24시간제다. 예를 들어 22:46을 10:46으로 변환하지 마라.`,
       "'방금'은 현재 화면 접속만 뜻한다. 이전 대화 시각과 혼동하지 말고, 이전 대화가 오늘이 아니면 그 대화를 '방금' 또는 '조금 전'이라고 표현하지 마라.",
       "중요: 위의 정확한 날짜/시각과 경과 시간은 내부 판단용 정보다. 사용자에게 정확한 날짜, 시각, 경과 시간, 시각 비교를 직접 또는 괄호로 절대 말하지 마라. '몇 시간/며칠 만에'처럼 경과 시간을 유추해서도 말하지 마라.",
-      "이번 발화의 목적은 끊긴 커리어 온보딩을 자연스럽게 이어가는 것이다.",
-      "'다시 돌아오셔서 반갑습니다', '다시 오셨네요'처럼 짧고 가벼운 재접속 인사나 아이스브레이킹은 사용해도 된다. 다만 그런 인사만 하고 발화를 끝내지 마라. 이어갈 실제 질문이 있으면 인사 뒤에 그 질문을 자연스럽게 연결하고, 질문할 필요가 없다면 인사만 보내는 대신 no-message 규칙을 따른다. 온보딩, 인터뷰, 미완료 상태는 사용자에게 설명하지 마라.",
+      "이번 발화는 다시 방문한 사용자를 자연스러운 인사로 맞이하며 새로 대화를 여는 차례다. 이전 대화는 과거 맥락이며, 마지막 답변의 뒷부분을 이어 쓰거나 과거 사용자 발화를 새 요청으로 취급하지 않는다.",
+      "이어갈 실제 질문이 있으면 인사 뒤에 자연스럽게 연결한다. 질문할 필요가 없다면 no-message 규칙을 따른다. 온보딩, 인터뷰, 미완료 상태는 사용자에게 설명하지 마라.",
       "기존 onboarding_rules, checklist/runtime state, 최근 대화의 마지막 흐름을 함께 본다. 반드시 필요한 정보가 실제로 하나 남아 있을 때만, 이미 파악한 맥락을 짧게 이어 받은 뒤 가장 중요한 질문 하나를 자연스럽게 물어라. 프로필 전체를 다시 요약하거나 이전 질문을 기계적으로 반복하지 마라.",
       `종료 기준을 이미 충족했거나, 최근 대화가 내용 확인·마무리 단계이고 지금 다시 물을 구체적인 필수 정보가 없다면 인사만 만들지 말고 정확히 ${CAREER_SESSION_START_NO_MESSAGE_MARKER}만 출력해라.`,
       "추천 공고를 새로 찾거나, 이전 추천 중 무엇이 끌리는지 묻거나, 지원 여부를 확인하는 방향으로 가지 마라.",
@@ -110,18 +111,6 @@ export function buildCareerSessionStartTurnInstruction(args: {
         ),
       ]
     : [];
-  const pendingActionCopyLines = pendingActions.length
-    ? [
-        "pending action의 대괄호 설명은 내부 의미 참고용이다. 그대로 제목이나 고유 명칭처럼 복사하지 말고 사용자가 이해할 자연스러운 말로 풀어 쓴다.",
-        ...(pendingActions.some(
-          (action) => action.kind === "career_check_in_call"
-        )
-          ? [
-              "최근 변화를 듣기 위한 통화는 프로그램명처럼 이름 붙이지 말고, Harper가 최근 달라진 점이 있는지 통화로 편하게 듣고 싶다는 취지로 제안한다.",
-            ]
-          : []),
-      ]
-    : [];
   const recentReengagementHistory = (args.recentReengagementHistory ?? [])
     .map((message) => message.replace(/\s+/g, " ").trim().slice(0, 2000))
     .filter(Boolean)
@@ -132,32 +121,15 @@ export function buildCareerSessionStartTurnInstruction(args: {
         ...recentReengagementHistory.map((message) => `- ${message}`),
       ]
     : [];
-  const proactiveSuggestionLines = [
-    "현재 맥락에 맞으면 먼저 제안할 수 있는 후보:",
-    "- 회사의 선연락을 원하면 open_to_matches 전환을 안내한다.",
-    "- 미응답 internal 추천이나 intro request가 있으면 답변을 요청한다.",
-    "- 피드백 없는 외부 추천 포지션이 있으면 피드백을 요청한다.",
-    "- 최신 이력서가 없으면 업로드를 요청한다.",
-    "- 최근 상태·니즈·맥락·선호에 변화가 있으면 알려 달라고 요청한다.",
-    "- 지금 조건으로 새로운 포지션 추천을 요청하도록 제안한다.",
-    "- 저장한 포지션이 있으면 비교하거나 지원 우선순위를 정리한다.",
-    "- 면접 준비나 커리어 의사결정이 필요하면 Harper와 함께 정리한다.",
-  ];
   return [
     "## Session re-engagement",
-    `사용자가 새 메시지를 보내지 않은 상태에서 Career에 다시 접속했다. 지금까지의 대화와 제공된 맥락을 보고 Harper가 먼저 보낼 자연스러운 ${outputLanguage} 메시지를 작성한다. 필요하면 적당히 길게 작성해도 된다.`,
-    "이것은 이전 대화에 이어서 답하는 turn이 아니라, 끊겼던 대화에 사용자가 다시 들어와 Harper가 먼저 말을 거는 새로운 re-engagement turn이다. 최근 대화는 참고만 하고 마지막 메시지에 곧바로 답하거나 직전 문장을 이어 쓰지 마라.",
-    "답변은 반드시 '다시 오셨네요' 같은 짧고 자연스러운 재접속 인사나 가벼운 아이스브레이킹으로 시작한 뒤, 현재 맥락에서 가장 유용한 제안 1~2개를 자연스럽게 연결한다.",
+    `사용자가 새 메시지를 보내지 않은 상태에서 Career에 다시 접속했다. 이번 발화는 다시 방문한 사용자를 자연스러운 인사로 맞이하며 새로 대화를 여는 차례다. 이전 대화는 과거 맥락이며, 마지막 답변의 뒷부분을 이어 쓰거나 과거 사용자 발화를 새 요청으로 취급하지 않는다. 먼저 ${outputLanguage}로 반갑게 인사를 건네고, 현재 관심사와 상황에 맞는 이야기를 자연스럽게 연결한다.`,
+    "제공된 매칭 결과와 현재 관심사·추천 이력을 보고 소개할 가치가 있는 포지션이 있다면, 말로만 기회를 언급하기보다 가능하면 upsert_opportunities로 실제 추천 목록에 반영한다. 기존 결과가 부족하거나 현재 방향과 맞지 않으면 추가 결과를 읽거나 새로 검색할 수 있다. 마지막 검색과 평가 시점, 진행 중인 작업, 최근 대화와 미결정 사항을 참고해 지금 도움이 되는 행동을 판단한다.",
     `- currentAccessAt: ${currentAccessAtLabel}`,
     `- previousChatAt: ${previousChatAtLabel}`,
-    `시각은 사용자의 현재 접속 지역 타임존(${timeZone}) 기준 24시간제이며 내부 판단용이다. 사용자에게 날짜·시각·경과 시간을 말하거나 이전 대화를 방금 일처럼 표현하지 마라.`,
+    "시각은 24시간제이며 내부 판단용이다. 사용자에게 날짜·시각·경과 시간을 말하거나 이전 대화를 방금 일처럼 표현하지 마라.",
     ...reengagementHistoryLines,
     ...pendingActionLines,
-    ...pendingActionCopyLines,
-    ...proactiveSuggestionLines,
-    "위 목록은 제안 후보일 뿐 현재 상태를 뜻하지 않는다. 제공된 맥락으로 실제 해당할 때만 한 번에 가장 유용한 1~2개를 자연스럽게 제안하고, 목록 전체를 그대로 나열하지 않는다.",
-    "최근 re-engagement history를 참고해 같은 주제·제안·표현을 두 번 연속 반복하지 말고, 현재 맥락에 맞는 다른 유용한 내용을 우선한다.",
-    "pending action이 있으면 다른 제안 후보보다 먼저 다룬다. 다른 후보는 pending action이 최근에 이미 언급되었거나 없거나 함께 언급할 가치가 있을 때 사용한다.",
     `맥락에 맞는 유용한 메시지를 만들 수 없으면 정확히 ${CAREER_SESSION_START_NO_MESSAGE_MARKER}만 출력한다.`,
     "본문에서 사용자가 바로 실행할 수 있는 선택을 제안했다면 아래 raw JSON 블록에 맞는 액션을 붙인다. 실행 선택이 없으면 블록을 생략하고 일반 CAREER_CHOICE_BUTTONS는 쓰지 않는다. 마커와 JSON은 코드 펜스 없이 출력한다.",
     CAREER_REENGAGEMENT_ACTIONS_START,
@@ -198,7 +170,7 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     "- Persistent tools may already have been used during the live call. Compare the user's statements below with current state and never repeat a write that is already reflected.",
     "- If the user disclosed a clear recommendation/contact subscription action, call `update_setting` before writing the wrap-up: stop_external for external/public postings only, stop_all for all Harper matching contact, or resume for recommendation/contact restart.",
     "- If the user's wording is a generic stop/unsubscribe that could mean either external postings only or all Harper matching contact, do not call `update_setting`; ask one clarifying question only if it fits the short follow-up.",
-    "- If the user disclosed a clear recommendation batch-size change, call `update_talent_profile` with recommendationBatchSize before writing the wrap-up.",
+    "- Use current schedules and the user’s actual request for future timing. Do not write a fixed recommendation quota into the profile.",
     "- If the user disclosed clear new durable context that is missing from current state, call `write_talent_context` before writing the wrap-up. Use `update_talent_profile` only for structured profile-row details or recommendation batch size.",
     ...(isCareerCoaching
       ? [
@@ -338,72 +310,11 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(
   args: OpportunityFeedbackFollowUpPromptArgs
 ) {
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
-  let triggerGuidance: string[];
-
-  switch (args.trigger) {
-    case CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback:
-      triggerGuidance = [
-        "External opportunity feedback:",
-        "- The user clicked like/dislike on an external opportunities.",
-        `- Write a natural ${outputLanguage} follow-up that reflects the feedback without making it feel like a system notification.`,
-        "- If there is a visible pattern in the feedback, mention it carefully as a hypothesis, not a fact.",
-        "- If the useful next step is unclear, ask exactly one preference question that would improve future external recommendations.",
-      ];
-      break;
-
-    case CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.AllRecommendedOpportunitiesCleared:
-      triggerGuidance = [
-        "All recommended opportunities cleared trigger:",
-        "- The user has just accepted or rejected the last remaining item in the New Positions tab. There are now zero remaining newly recommended opportunities.",
-        `- Say, in natural ${outputLanguage}, that there are no remaining recommended opportunities to review right now.`,
-        "- Action guide: if the previous conversation and feedback history provide enough signal, call `recommend_job_postings` to find a fresh batch based on that history; if a required preference is missing or you want confirmation about what you inferred from feedback, ask exactly one necessary question instead.",
-        "- This should feel like Harper is using the user's prior feedback, not like a hard-coded automatic refresh.",
-      ];
-      break;
-
-    case CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback:
-      triggerGuidance = [
-        "Immediate internal feedback trigger:",
-        "- The user liked or disliked an internal connection/request opportunity.",
-        "- If the internal opportunity was disliked, acknowledge that decision and do not use the acceptance guidance below. Follow any rejection-specific context provided for this turn.",
-        "- For a dislike, keep the reply proportional to the user's stated reason and the recorded outcome. Do not explain a future process unless the user needs a concrete next step.",
-        "- If the internal opportunity was liked, treat it as confirmed acceptance. Thank them briefly and do not ask whether to connect/proceed again.",
-        "- Say the acceptance is recorded and Harper will share or introduce the candidate's profile and relevant experience with the company and help make the connection.",
-        "- Use future tense until actual company sharing is verified, but do not volunteer a disclaimer that profile sharing or company connection is not immediate or confirmed. Never expose Harper's internal confirmation or handoff process. Say Harper will send progress updates by email without promising a fixed number of days.",
-        "- Frame the process as Harper mediating a better-fit connection, not as a normal application.",
-        "- If the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.",
-        "- If the accepted opportunity visibly conflicts with known preferences or needs, ask one focused question about that mismatch. Example: current location vs role location, company/domain, role scope, or timing.",
-        "예시 (실제 답변에서는 사용자 이름/회사명/역할명과 맥락에 맞게 자연스럽게 변형해라. markdown 강조와 줄바꿈을 적절히 사용해라.)",
-        "[이름]님, **[회사명] [역할명]** 연결 제안 수락해주셔서 감사해요.",
-        "",
-        "이 건은 일반적인 공고 지원이라기보다, Harper가 양쪽의 관심이 잘 맞는지 확인하고 소개를 조율하는 연결에 가까워요.",
-        "",
-        "수락 의사가 반영됐어요. 이제 Harper가 [이름]님의 프로필과 관련 경험을 회사에 잘 소개하고, 실제 연결까지 도와드릴게요.",
-        "",
-        "진행 상황이나 추가로 확인할 내용이 생기면 이메일로 안내드릴게요. 따로 지원서를 다시 넣으실 필요는 없습니다.",
-      ];
-      break;
-  }
-
   return [
-    "## Opportunity feedback proactive assistant turn",
-    `Return in ${outputLanguage}, using markdown.`,
-    "The user clicked like/dislike on one or more recommended opportunities. They did not send a new message. It is Harper's turn to proactively respond.",
-    "",
-    ...triggerGuidance,
-    "",
-    "Rules:",
-    "- Use the pending opportunity feedback context.",
-    "- You may say Harper will use this feedback as one signal when choosing future recommendations. Do not volunteer technical explanations about what was or was not saved.",
-    "- A role fit summary is context describing the opportunity. Do not infer that the user likes or dislikes its contents unless the click reason or other user evidence supports that inference.",
-    "- Exact timestamps in the feedback context are internal ordering metadata. Never repeat them to the user.",
-    "- Do not overreact to one batch of clicks. Even when two or three opportunities appear to share a company, domain, role, seniority, location, or work-mode pattern, that pattern is still only an inferred hypothesis unless the user explicitly stated it or it is already confirmed in persisted context.",
-    "- Whenever you mention an insight inferred from clicks, opportunity metadata, or role fit summaries, ask exactly one focused question in the same reply to confirm whether that interpretation is right. Until the user confirms it, do not say Harper will prioritize, deprioritize, filter, or avoid opportunities based on that inferred insight.",
-    "- An explicit feedback reason or user-written comment is direct evidence. You may say Harper will lower the priority of exactly the factor the user explicitly rejected without asking a confirmation question. Do not broaden the factor beyond what the user actually said.",
-    "- Opportunity-level feedback normally applies only to the reviewed posting or role. Exclude an entire company, or name it as a company-wide exclusion in a recommendation-tool request, only when the user's own reason/comment explicitly and unambiguously targets that company itself, its business, or its culture, or when persisted blocked-company context already contains it. An unexplained dislike, role mismatch, location/work-mode mismatch, already-applied status, expired-posting status, or an ambiguous combined label such as '회사 혹은 조건' does not authorize company-wide exclusion.",
-    "- When the user did not provide a reason, it is good to ask one concrete question that will improve matching. Example: PM 역할인데 저장하셨네요. 현재는 개발자이신데 PM으로의 전환도 관심이 있으신가요 혹은 이전에 PM으로 일하셨던 경험이 있으신가요?",
-    "- If several opportunities were disliked and no specific reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.",
-    "Important: 유저를 너무 귀찮게 만들지 마라. 새로운 추론을 답변에 포함하지 않는다면 확인 질문도 생략할 수 있고, 감사 인사와 함께 이번 피드백을 하나의 신호로 참고하겠다고만 짧게 안내해도 된다. 새로운 추론을 답변에 포함한다면 위 규칙대로 확인 질문 하나가 반드시 따라와야 한다. 질문은 한 번에 하나만 한다.",
+    "## Career turn after a saved opportunity decision",
+    `Event source: ${args.trigger}. Respond in ${outputLanguage}. The candidate responded through an opportunity button; the saved decision is their latest action in this conversation.`,
+    "Continue helping with the opportunity from the saved decision and conversation, using the shared opportunity guidance. The saved decision is already executed.",
+    "If there is nothing to say, return only [[CAREER_FEEDBACK_SILENT]].",
   ].join("\n");
 }
 

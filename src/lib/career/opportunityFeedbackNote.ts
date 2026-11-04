@@ -1,3 +1,4 @@
+import { CAREER_TURN_STOP_FACT, isCareerTurnStopped } from "./turnCancellation";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 import { formatCareerOpportunityMentionsForLlm } from "@/lib/career/opportunityMentionText";
@@ -8,6 +9,16 @@ import {
   type CareerPromptDateTimeOptions,
 } from "@/lib/career/prompts/promptUtils";
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
+import {
+  parseCareerForm,
+  parseCareerFormResponse,
+  type CareerForm,
+  type CareerFormResponse,
+} from "@/lib/career/forms/schema";
+import {
+  formatCareerFormForModel,
+  formatCareerFormResponseForModel,
+} from "@/lib/career/forms/format";
 export const TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE =
   "opportunity_feedback_note";
 export const TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE = "resume_upload_note";
@@ -60,29 +71,110 @@ export function isOpportunityFeedbackNoteMessageType(
   return messageType === TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE;
 }
 
-export function formatTalentMessageContentForLlmPrompt(
-  message: {
-    content: string | null | undefined;
-    createdAt?: string | null;
-    created_at?: string | null;
-    messageType?: string | null;
-    message_type?: string | null;
-  },
+type TalentPromptMessage = {
+  role?: string;
+  content: string | null | undefined;
+  createdAt?: string | null;
+  created_at?: string | null;
+  messageType?: string | null;
+  message_type?: string | null;
+  payload?: unknown;
+  careerForm?: CareerForm;
+  formResponse?: CareerFormResponse;
+};
+
+/** UI artifacts are reference data, never a synthetic assistant utterance. */
+export function formatTalentMessageReferenceForLlm(
+  message: TalentPromptMessage,
   options?: CareerPromptDateTimeOptions & { includeCreatedAt?: boolean }
 ) {
-  const content = sanitizeCareerPromptDateValues(
-    formatCareerMessageAttachmentsForLlm(
+  const payload =
+    message.payload &&
+    typeof message.payload === "object" &&
+    !Array.isArray(message.payload)
+      ? (message.payload as Record<string, unknown>)
+      : null;
+  if (payload?.hidden === true || message.careerForm?.hidden === true)
+    return "";
+  const type = message.message_type ?? message.messageType;
+  let reference = "";
+  if (type === "career_form" || type === "career_form_presentation") {
+    if (type === "career_form" && payload?.presentationDeferred === true)
+      return "";
+    const form = message.careerForm ?? parseCareerForm(message.payload);
+    if (form) reference = formatCareerFormForModel(form);
+  } else if (
+    type === "browser_session" &&
+    typeof payload?.session_id === "string"
+  ) {
+    reference = `Browser session: ${payload.session_id}`;
+  }
+  if (!reference) return "";
+  const createdAt = message.created_at ?? message.createdAt;
+  const time =
+    options?.includeCreatedAt && createdAt
+      ? formatCareerPromptMessageTimeLabel(createdAt, options)
+      : "";
+  return `${time ? `[${time}]\n` : ""}${reference}`;
+}
+
+export function formatTalentConversationReferencesForLlm(
+  messages: readonly TalentPromptMessage[],
+  options?: CareerPromptDateTimeOptions
+) {
+  const references = messages
+    .map((message) =>
+      formatTalentMessageReferenceForLlm(message, {
+        ...options,
+        includeCreatedAt: true,
+      })
+    )
+    .filter(Boolean);
+  return references.length
+    ? ["## Interface items shown in this conversation", ...references].join(
+        "\n\n"
+      )
+    : "";
+}
+
+export function formatTalentMessageContentForLlmPrompt(
+  message: TalentPromptMessage,
+  options?: CareerPromptDateTimeOptions & { includeCreatedAt?: boolean; preserveUserText?: boolean }
+) {
+  const payload =
+    message.payload &&
+    typeof message.payload === "object" &&
+    !Array.isArray(message.payload)
+      ? (message.payload as Record<string, unknown>)
+      : null;
+  if (payload?.hidden === true || message.careerForm?.hidden === true)
+    return "";
+  const messageType = message.message_type ?? message.messageType;
+  if (
+    messageType === "career_form" ||
+    messageType === "career_form_presentation" ||
+    messageType === "browser_session"
+  )
+    return "";
+  const projectedContent = formatCareerMessageAttachmentsForLlm(
       formatCareerOpportunityMentionsForLlm(
         stripCareerReengagementActions(
           stripOpportunityRunMarkers(String(message.content ?? ""))
         )
       )
-    ),
-    options
-  );
-  const messageType = message.message_type ?? message.messageType;
+    );
+  const content = options?.preserveUserText ? projectedContent : sanitizeCareerPromptDateValues(projectedContent, options);
   let formattedContent: string;
-  if (messageType === TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE) {
+  if (messageType === "agent_introduction_action") {
+    formattedContent = `[Verified candidate button action]\n${content}\nOpportunity: ${payload?.recommendationId}; Role: ${payload?.roleId}.\nCandidate note: ${payload?.feedbackReason ?? "none"}\nThe candidate requested introduction using the displayed material selection. Acceptance and delivery have not yet been executed by this button. Use contact_company with this exact recommendation and acceptIntroduction=true; the executor binds the reviewed selection to this action.`;
+  } else if (messageType === "career_form_response") {
+    const response =
+      message.formResponse ?? parseCareerFormResponse(message.payload);
+    // The action text and answers are original user input; do not sanitize them.
+    formattedContent = response
+      ? formatCareerFormResponseForModel(response)
+      : content;
+  } else if (messageType === TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE) {
     const normalizedContent = content.replace(/\s+/g, " ").trim();
     formattedContent = normalizedContent
       ? `${RESUME_UPLOAD_SYSTEM_ACTION_LOG_PREFIX}\nAction note: ${normalizedContent}`
@@ -95,6 +187,16 @@ export function formatTalentMessageContentForLlmPrompt(
   } else {
     formattedContent = content;
   }
+
+  const viewed = payload?.viewedOpportunity;
+  if (message.role === "user" && viewed && typeof viewed === "object" &&
+      "roleId" in viewed && typeof viewed.roleId === "string" &&
+      "label" in viewed && typeof viewed.label === "string") {
+    formattedContent += `\n\n[Opportunity open on screen when this message was sent; viewing is not acceptance or sharing consent]\n${viewed.label} (roleId: ${viewed.roleId})`;
+  }
+
+  if (isCareerTurnStopped(payload))
+    formattedContent += `\n${CAREER_TURN_STOP_FACT}`;
 
   const createdAt = message.created_at ?? message.createdAt;
   if (!options?.includeCreatedAt || !createdAt) return formattedContent;

@@ -15,17 +15,13 @@ export function buildCareerCoachingResultInstruction(
   return "Continue the active coaching conversation now. Use the topic, duration, and agenda as scope rather than reading them back or running a checklist.";
 }
 
-function formatSnapshot(activity: CareerCoachingActivity) {
-  return JSON.stringify({
-    activityMessageId: activity.messageId,
-    agenda: activity.agenda,
-    channel: activity.channel,
-    plannedMinutes: activity.plannedMinutes,
-    revision: activity.revision,
-    status: activity.status,
-    suggestedMinutes: activity.suggestedMinutes,
-    topic: activity.topic,
-  });
+export function formatCareerCoachingSnapshot(activity: CareerCoachingActivity) {
+  return [
+    `Coaching activity ${activity.messageId}; revision ${activity.revision}; ${activity.status}.`,
+    `Topic: ${activity.topic}`,
+    `Channel: ${activity.channel ?? "not selected"}; planned minutes: ${activity.plannedMinutes ?? "not selected"}; suggested minutes: ${activity.suggestedMinutes ?? "none"}.`,
+    "Agenda (source text):", ...activity.agenda.map(item => `- ${item}`),
+  ].join("\n");
 }
 
 export function buildCareerCoachingPrompt(args: {
@@ -42,17 +38,13 @@ export function buildCareerCoachingPrompt(args: {
 Create a coaching activity only when the user's current request clearly communicates that they want a focused coaching conversation now, or when they are directly continuing the explicit coaching exploration from the immediately preceding turns.
 A career-related question, request for information or advice, role or company evaluation, recommendation request, settings or document task, isolated emotional remark, vague dissatisfaction, complex topic, or old coaching history does not by itself meet that threshold. When the request is ambiguous, answer normally.
 When the user broadly asks for career strategy, help with a career concern, counseling, or coaching without naming a focused topic, first call read_career_coaching_list.
-그 중에서 지금 유저에게 도움이 될만한 대화 토픽을 먼저 제시할 수도 있고, 여러개를 제시할 수도 있다. 명확히 하나라면 바로 manage_career_coaching_activity를 호출할 수도 있다. whether they prefer 5, 10, or 20 minutes를 물어보면 좋다.
-
-항상 고정된 출력을 보여주는 시스템보다, 유저를 도와주는 인간 헤드헌터로써 도움을 준다는 생각으로 말해라. 쓸데없는 말을 해도 되고, 잡담을 해도 되고, 가벼운 농담을 해도 되고, 그냥 니 생각을 얘기하던 다 좋다.
-항상 3문단 이상 말해라.
-
-Do not choose a topic on the user's behalf or call manage_career_coaching_activity in that same turn.
+Use the catalog and known context to offer relevant topics when the focus is still unclear. Do not choose a topic on the user's behalf merely because you found it in the catalog. When the user has already chosen a focused topic, continue with that choice instead of asking them to choose it again. Let the substance of the request determine response length.
+With no saved activity, update and end are invalid and must not be called.
 Every new coaching activity must be created with suggest first; never use start to create a new activity. If the user does not answer the duration question but continues the coaching request or asks to proceed, choose the most suitable of 5, 10, or 20 minutes yourself. These are the only valid durations. A reply to the assistant's topic choices can define a useful diagnostic or decision topic even when its root cause is not known yet. Call suggest with that focused topic and duration, then wait for the user to choose call or chat from the suggestion. Use start only for an existing suggested activity after the user chooses its channel, including through the activity card; carry its topic and duration into a compact agenda. Previously known profile details or an earlier assistant-authored proposal never count as the user's choice. The current request controls this decision; past context never silently reactivates coaching.
 `;
   }
 
-  const snapshot = formatSnapshot(activity);
+  const snapshot = formatCareerCoachingSnapshot(activity);
 
   if (activity.status === "suggested") {
     return [
@@ -102,11 +94,7 @@ export function buildCareerCoachingCallOpeningInstruction(args: {
   preferredLocale?: string | null;
 }) {
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
-  const activityContext = JSON.stringify({
-    agenda: args.activity.agenda,
-    plannedMinutes: args.activity.plannedMinutes,
-    topic: args.activity.topic,
-  });
+  const activityContext = formatCareerCoachingSnapshot(args.activity);
 
   return [
     "Start the live focused coaching conversation the user just chose.",

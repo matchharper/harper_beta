@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { getToolTraceObserver } from "./toolTrace";
 import { formatToolError, throwIfToolControlError, registerToolDiagnostics, serializeToolResultForModel, prepareToolResultForModel, toolResultDiagnostics, TOOL_DIAGNOSTIC_LIMITS } from "./toolError";
 
 export type CapturedCall<T> =
@@ -17,16 +18,24 @@ export function reportToolDiagnostic(value: unknown) {
   else if (diagnostics && diagnostics.length === 32) diagnostics.push("[Additional diagnostics omitted]");
 }
 
-export async function runToolCall<T>(execute: () => Promise<T>, metadata: { callId?: string; name?: string } = {}): Promise<CapturedCall<T>> {
+export async function runToolCall<T>(execute: () => Promise<T>, metadata: { callId?: string; name?: string; input?: unknown } = {}): Promise<CapturedCall<T>> {
   const diagnostics: unknown[] = [];
+  const observe = metadata.name ? getToolTraceObserver() : undefined;
+  const trace = observe ? { executionId: crypto.randomUUID(), callId: metadata.callId, name: metadata.name! } : undefined;
+  if (observe && trace) await observe({ ...trace, phase: "started", occurredAt: new Date().toISOString(), input: metadata.input });
+  const startedAt = Date.now();
   return activeDiagnostics.run(diagnostics, async () => {
     try {
       const value = await execute();
+      if (observe && trace) await observe({ ...trace, phase: "returned", occurredAt: new Date().toISOString(), durationMs: Date.now() - startedAt, result: value, diagnostics });
       return { returned: true, value, diagnostics };
-    } catch (error) { return { returned: false, error, diagnostics }; }
+    } catch (error) {
+      if (observe && trace) await observe({ ...trace, phase: "threw", occurredAt: new Date().toISOString(), durationMs: Date.now() - startedAt, error, diagnostics });
+      return { returned: false, error, diagnostics };
+    }
     finally {
       if (diagnostics.length) {
-        try { console.warn("[tool-diagnostics]", { ...metadata, diagnostic: formatToolError(diagnostics) }); }
+        try { console.warn("[tool-diagnostics]", { callId: metadata.callId, name: metadata.name, diagnostic: formatToolError(diagnostics) }); }
         catch { /* Observability cannot replace the tool result. */ }
       }
     }

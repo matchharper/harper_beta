@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { externalScoringInput } from "./workerInputText";
 import { buildScoringInput } from "./scoringInput";
 import { buildDecisionRequest } from "./decisions";
@@ -8,16 +7,17 @@ import oldQuestions from "./fitQuestions.v3.json";
 import rubric from "./fitQuestions.v4.json";
 import { descriptionText } from "./descriptionText";
 
-test("V2 keeps Worker formatting for supplied facts, booleans, zero and timestamps", () => {
+test("V2 projects career evidence without DB metadata and preserves source prose and exact references", () => {
   const payload = {
     user_context: { profile: { profile: { headline: "Engineer" }, experiences: [
-      { role: "Lead", start_date: "2020-01", end_date: "2024-12", description: "Line one\nLine two" },
+      { id: "PRIVATE_ROW_ID", talent_id: "PRIVATE_OWNER", role: "Lead", employment_type: "contract", company_location: "London", months: 59, start_date: "2020-01", end_date: "2024-12", description: "Line one\nLine two" },
       { role: "IC", start: "2018", end: "2019" },
     ] } },
-    candidate_context: { roles: [{ id: "role-1", active: false, score: 0, timestamp: "2026-10-17T23:15:12Z", local: "2026-10-17T23:15:12" }] },
+    candidate_context: { roles: [{ id: "role-1", active: false, score: 0, observedAt: "2026-10-17T23:15:12Z", description: "2026-10-17T23:15:12", revision: "2026-10-17T23:15:12Z" }] },
   };
-  const expected = execFileSync("python3", ["-c", "import sys,json;sys.path.insert(0,'../harper_worker');from opp.matching.text import external_scoring_input;sys.stdout.write(external_scoring_input(json.load(sys.stdin)))"], { input: JSON.stringify(payload), encoding: "utf8" });
-  assert.equal(externalScoringInput(payload), expected);
+  const text = externalScoringInput(payload);
+  for (const fact of ["Lead", "contract", "London", "59 months", "2020-01 → 2024-12", "Line one\nLine two", "2018 → 2019", "active: false", "score: 0", "observedAt: 2026-10-18 08:15", "description: 2026-10-17T23:15:12", "revision: 2026-10-17T23:15:12Z"]) assert.ok(text.includes(fact), fact);
+  assert.doesNotMatch(text, /PRIVATE_ROW_ID|PRIVATE_OWNER|\[object Object\]/);
 });
 
 test("empty nested fields vanish while actual statements, false and zero survive", () => {

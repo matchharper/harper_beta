@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v3",
+  "provenance": "Same eight conversations and review criteria as v2. Corrected harness input placement to match chatTurn.ts: button event and current resource index in runtimeInstruction, not persistent memory block. No source facts or gold relaxed; frozen before v3 generation.",
+  "createdAt": "2026-11-02",
+  "hashes": {
+    "cases-v3.json": "b744b93936a504f0026aa4bcfc5f75fd59f6977408ca3b50aab3115f3e0c38db",
+    "gold-v3.json": "89ec93f524388980e8d00510bfe5f1bee0030664c752e5cd6902eed9cabc7fc1"
+  }
+}

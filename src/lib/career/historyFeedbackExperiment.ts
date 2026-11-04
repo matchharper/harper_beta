@@ -1,6 +1,8 @@
 export const HISTORY_FEEDBACK_EXPERIMENT = "career_history_feedback_actions_v1";
 export const HISTORY_FEEDBACK_VIEW_EVENT =
   "career_history_feedback_actions_viewed";
+export const HISTORY_FEEDBACK_CLICK_EVENT =
+  "career_history_feedback_actions_clicked";
 export const HISTORY_FEEDBACK_SAVED_EVENT =
   "career_history_feedback_actions_saved";
 

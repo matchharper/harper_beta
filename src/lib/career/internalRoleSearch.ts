@@ -244,7 +244,7 @@ function formatInternalRole(
     `Location: ${formatText(row.location_text)}`,
     candidateState,
     companyState,
-    row.has_priority_review_request ? "우선검토요청 등록됨" : null,
+    row.has_priority_review_request ? "과거 관심·검토 요청 기록 있음" : null,
     row.has_reconsideration_scheduled
       ? "Scheduled for reconsideration"
       : null,
@@ -293,6 +293,7 @@ function formatMatchedSourceRelationship(
 async function searchInternalRoleRows(args: {
   db: ReturnType<typeof getInternalRoleSearchClient>;
   keywords: string[];
+  roleId: string;
   userId: string;
 }) {
   return (await args.db.begin(async (tx) => {
@@ -351,26 +352,12 @@ async function searchInternalRoleRows(args: {
           LIMIT 1
         ) official_job ON true
         WHERE cr.source_type = 'internal'
+          AND (${args.roleId} = '' OR cr.role_id = NULLIF(${args.roleId}, '')::uuid)
           AND cr.status IN ('active', 'paused')
           AND COALESCE(cr.is_expired, false) = false
           AND (cr.expires_at IS NULL OR cr.expires_at > now())
           AND lower(COALESCE(cr.information->>'testOnly', 'false')) <> 'true'
-          AND NOT EXISTS (
-            SELECT 1
-            FROM public.talent_opportunity_fit hidden_fit
-            WHERE hidden_fit.talent_id = ${args.userId}::uuid
-              AND hidden_fit.opportunity_id = cr.role_id
-              AND COALESCE(hidden_fit.human_label, hidden_fit.label) = 'hold'
-              AND NOT public.talent_internal_role_reconsideration_is_pending_v1(hidden_fit)
-              AND NOT EXISTS (
-                SELECT 1
-                FROM public.talent_progress requested_progress
-                WHERE requested_progress.talent_id = ${args.userId}::uuid
-                  AND requested_progress.role_id = cr.role_id
-                  AND requested_progress.kind = ${INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND}
-                  AND requested_progress.metadata->>'withdrawnAt' IS NULL
-              )
-          )
+
       ),
       ranked AS MATERIALIZED (
         SELECT er.*, company_match.matched AS company_name_match,
@@ -399,7 +386,8 @@ async function searchInternalRoleRows(args: {
               )
           ) AS matched
         ) company_match
-        WHERE er.search_tsv @@ q.query OR company_match.matched
+        WHERE cardinality(${args.keywords}::text[]) = 0
+          OR er.search_tsv @@ q.query OR company_match.matched
         ORDER BY matched_term_count DESC, title_term_count DESC,
           company_name_match DESC, search_rank DESC NULLS LAST,
           er.posted_at DESC NULLS LAST, er.updated_at DESC NULLS LAST, er.role_id
@@ -504,6 +492,7 @@ async function searchMatchedInternalRoleRows(args: {
   company: string;
   db: ReturnType<typeof getInternalRoleSearchClient>;
   keywords: string[];
+  roleId: string;
   sourceRoleId: string;
   userId: string;
 }) {
@@ -623,6 +612,7 @@ async function searchMatchedInternalRoleRows(args: {
       ) same_company_formal_roles ON true
       CROSS JOIN combined_query query
       WHERE role.source_type = 'internal'
+        AND (${args.roleId} = '' OR role.role_id = NULLIF(${args.roleId}, '')::uuid)
         AND role.status = 'active'
         AND COALESCE(role.is_expired, false) = false
         AND (role.expires_at IS NULL OR role.expires_at > now())
@@ -723,20 +713,25 @@ export async function searchInternalRolesForCareerTool(args: {
   company?: unknown;
   keywords?: unknown;
   matchedOnly?: unknown;
+  roleId?: unknown;
   sourceRoleId?: unknown;
   userId: string;
 }): Promise<InternalRoleSearchResult> {
   const requestedKeywords = normalizeKeywords(args.keywords);
   const matchedOnly = args.matchedOnly === true;
   const company = formatText(String(args.company ?? ""), "", 120);
+  const roleId = normalizePostingRoleId(args.roleId);
+  if (args.roleId && !isPostingRoleId(roleId)) {
+    throw new Error("get_internal_roles received an invalid role_id.");
+  }
   const rawSourceRoleId = normalizePostingRoleId(args.sourceRoleId);
   const sourceRoleId =
     rawSourceRoleId && isPostingRoleId(rawSourceRoleId) ? rawSourceRoleId : "";
   if (args.sourceRoleId && !sourceRoleId) {
     throw new Error("get_internal_roles received an invalid sourceRoleId.");
   }
-  if (!matchedOnly && requestedKeywords.length === 0) {
-    throw new Error("get_internal_roles requires 1-2 keywords.");
+  if (!matchedOnly && !roleId && requestedKeywords.length === 0) {
+    throw new Error("get_internal_roles requires role_id or keywords for lookup.");
   }
 
   const db = getInternalRoleSearchClient();
@@ -749,6 +744,7 @@ export async function searchInternalRolesForCareerTool(args: {
         company,
         db,
         keywords: searchedKeywords,
+        roleId,
         sourceRoleId,
         userId: args.userId,
       }),
@@ -762,6 +758,7 @@ export async function searchInternalRolesForCareerTool(args: {
     rows = await searchInternalRoleRows({
       db,
       keywords: searchedKeywords,
+      roleId,
       userId: args.userId,
     });
   }
@@ -775,12 +772,6 @@ export async function searchInternalRolesForCareerTool(args: {
     companyName: row.company_name,
     publishedName: getCandidateVisibleCompanyName(row),
   }));
-  const hasPriorityReviewRequest = rows.some(
-    (row) => row.has_priority_review_request
-  );
-  const hasReconsiderationScheduled = rows.some(
-    (row) => row.has_reconsideration_scheduled
-  );
   const formattedRoles = rows.map((row) => {
     const sameCompanyFormalRoles =
       normalizedSameCompanyRoles.get(row.role_id) ?? [];
@@ -798,27 +789,16 @@ export async function searchInternalRolesForCareerTool(args: {
   });
   const newOptionCount = rows.filter(
     (row) =>
-      getFormalRecommendationState(row) === "not_presented" &&
-      !row.has_reconsideration_scheduled
+      getFormalRecommendationState(row) === "not_presented"
   ).length;
 
   return {
-    assistantInstruction:
-      (matchedOnly
-        ? [
-            "Matched results are private selection context, not a candidate-facing list.",
-            "Only roles with formalRecommendationState=not_presented and without the trailing Scheduled for reconsideration status may be offered; use newOptionCount, not returnedCount.",
-            "Use selectionContext and sameCompanyFormalRoles only to judge whether one option is useful, and never expose their labels, reasons, or contents.",
-            "Accepted, declined, and closed roles are history; a role scheduled for reconsideration is progress to explain, not an option.",
-            "Do not volunteer an unpresented role's name, details, link, or posting card. A question about one is not consent: ask whether the candidate wants it added for review before explaining it. If one is worth raising, offer at most one role for review; create it only after the candidate explicitly chooses it.",
-          ].join(" ") + " "
-        : "These are the internal roles found by your search. If the role you want is not listed, you can try searching once more with different terms. ") +
-      (hasPriorityReviewRequest
-        ? "When a returned role says 우선검토요청 등록됨 and the user asks about its progress, call internal_role_priority_review with action=status and that exact role id. Status only reads the request and never registers or renews it."
-        : "") +
-      (hasReconsiderationScheduled
-        ? " When a returned role says Scheduled for reconsideration, explain that the user's new information is already attached to that exact role and a fresh review is scheduled. Do not ask for the same information again or imply that the role is already a formal recommendation."
-        : ""),
+    assistantInstruction: [
+      "These are available internal roles under the supplied filters. An empty result does not establish availability outside those filters.",
+      "Selection scores and private company requirements are reasoning-only context; explain relevant public role details and ask useful candidate questions without disclosing confidential evidence.",
+      "Recommendation and introduction consent are separate. Use apply_to_internal_role for a role the user explicitly asks to apply to; use search_opportunities with source=internal and upsert_opportunities for proactive recommendations.",
+      "Prior recommendations and decisions are context for your judgment. A recommendation does not accept an introduction or share the candidate's materials.",
+    ].join(" "),
     fallbackUsed: false,
     mode: matchedOnly ? "matched" : "lookup",
     ...(matchedOnly ? { newOptionCount } : {}),

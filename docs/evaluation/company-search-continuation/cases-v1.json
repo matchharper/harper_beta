@@ -1,0 +1,165 @@
+{
+  "version": "v1",
+  "clock": "2026-10-29T08:00:00Z",
+  "cases": [
+    {
+      "id": "amended-search",
+      "history": [
+        {
+          "role": "user",
+          "content": "이 역할 채용을 시작할게요.",
+          "toolNames": []
+        },
+        {
+          "role": "assistant",
+          "content": "채용을 시작했어요. 기준에 맞는 후보를 찾아 추천해 드릴게요.",
+          "toolNames": [
+            "change_role_status"
+          ]
+        },
+        {
+          "role": "user",
+          "content": "공고는 바꾸지 말고 1년 미만으로 근무한 회사가 있는 사람은 제외해줘.",
+          "toolNames": []
+        },
+        {
+          "role": "assistant",
+          "content": "내부 기준에 반영했어요. 새 기준으로 다시 평가하고 적합한 후보를 보여드릴게요.",
+          "toolNames": [
+            "request_matching_search"
+          ]
+        },
+        {
+          "role": "user",
+          "content": "이전에 보여준 민서님은 제외해줘.",
+          "toolNames": []
+        },
+        {
+          "role": "assistant",
+          "content": "민서님을 목록에서 제외했어요.",
+          "toolNames": [
+            "decide_company_intro"
+          ]
+        }
+      ],
+      "sourceMessageId": 3,
+      "noSuitable": false,
+      "expectedIds": [
+        "00000000-0000-4000-8000-000000000011"
+      ]
+    },
+    {
+      "id": "analysis-only",
+      "history": [
+        {
+          "role": "user",
+          "content": "추천 목록에는 올리지 말고 이 기준으로 평가 결과만 알려줘.",
+          "toolNames": []
+        },
+        {
+          "role": "assistant",
+          "content": "평가 후 결과만 알려드릴게요.",
+          "toolNames": [
+            "request_matching_search"
+          ]
+        }
+      ],
+      "sourceMessageId": 1,
+      "noSuitable": false,
+      "expectedIds": []
+    },
+    {
+      "id": "later-cancellation",
+      "history": [
+        {
+          "role": "user",
+          "content": "이 역할 채용을 시작할게요.",
+          "toolNames": []
+        },
+        {
+          "role": "assistant",
+          "content": "채용을 시작했어요. 기준에 맞는 후보를 찾아 추천해 드릴게요.",
+          "toolNames": [
+            "change_role_status"
+          ]
+        },
+        {
+          "role": "user",
+          "content": "공고는 바꾸지 말고 1년 미만으로 근무한 회사가 있는 사람은 제외해줘.",
+          "toolNames": []
+        },
+        {
+          "role": "assistant",
+          "content": "내부 기준에 반영했어요. 새 기준으로 다시 평가하고 적합한 후보를 보여드릴게요.",
+          "toolNames": [
+            "request_matching_search"
+          ]
+        },
+        {
+          "role": "user",
+          "content": "이전에 보여준 민서님은 제외해줘.",
+          "toolNames": []
+        },
+        {
+          "role": "assistant",
+          "content": "민서님을 목록에서 제외했어요.",
+          "toolNames": [
+            "decide_company_intro"
+          ]
+        },
+        {
+          "role": "user",
+          "content": "채용을 잠깐 보류할게. 지금 돌고 있는 평가 결과는 받아도 새 후보 등록은 하지 마.",
+          "toolNames": []
+        }
+      ],
+      "sourceMessageId": 3,
+      "noSuitable": false,
+      "expectedIds": []
+    },
+    {
+      "id": "no-suitable-candidates",
+      "history": [
+        {
+          "role": "user",
+          "content": "이 역할 채용을 시작할게요.",
+          "toolNames": []
+        },
+        {
+          "role": "assistant",
+          "content": "채용을 시작했어요. 기준에 맞는 후보를 찾아 추천해 드릴게요.",
+          "toolNames": [
+            "change_role_status"
+          ]
+        },
+        {
+          "role": "user",
+          "content": "공고는 바꾸지 말고 1년 미만으로 근무한 회사가 있는 사람은 제외해줘.",
+          "toolNames": []
+        },
+        {
+          "role": "assistant",
+          "content": "내부 기준에 반영했어요. 새 기준으로 다시 평가하고 적합한 후보를 보여드릴게요.",
+          "toolNames": [
+            "request_matching_search"
+          ]
+        },
+        {
+          "role": "user",
+          "content": "이전에 보여준 민서님은 제외해줘.",
+          "toolNames": []
+        },
+        {
+          "role": "assistant",
+          "content": "민서님을 목록에서 제외했어요.",
+          "toolNames": [
+            "decide_company_intro"
+          ]
+        }
+      ],
+      "sourceMessageId": 3,
+      "noSuitable": true,
+      "expectedIds": []
+    }
+  ]
+}

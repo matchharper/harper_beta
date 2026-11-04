@@ -1,11 +1,11 @@
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
-import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
+import { CLAUDE_HAIKU_MODEL } from "@/lib/llm/modelConfig";
+import type { CareerTextChatModelId } from "./textChatModelConfig";
 import {
   buildCareerOpportunityFeedbackFollowUpTurnInstruction,
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
   type CareerOpportunityFeedbackFollowUpTrigger,
 } from "@/lib/career/prompts";
-import { partitionOpportunityFeedbackReasons } from "@/lib/career/opportunityFeedbackSignals";
 import {
   buildOpportunityFeedbackActivitySummary,
   fetchPendingOpportunityFeedbackActivityItems,
@@ -20,7 +20,11 @@ import {
   fetchTalentOpportunityHistoryByIds,
   type TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
-import { searchInternalRolesForCareerTool } from "@/lib/career/internalRoleSearch";
+import { CAREER_FEEDBACK_SILENT, careerFeedbackReplyId, formatSavedOpportunityDecision } from "./opportunityFeedbackEvent";
+import { dispatchCareerCheckpoint } from "./agentContinuation";
+import { deferBusyCareerAgentReply } from "./agentReplyQueue";
+import { CareerAgentReplyUnavailable } from "./agentReplyError";
+import { CareerReplyContinuation } from "./capabilities/runtime";
 import {
   fetchLatestUserAuthoredChatMessageId,
   hasUserAuthoredChatMessageAfter,
@@ -56,18 +60,12 @@ function toFeedbackActivityItem(args: {
   feedbackReason?: string | null;
   opportunity: TalentOpportunityHistoryItem;
 }): TalentOpportunityFeedbackActivityItem {
-  const reasonSignals = partitionOpportunityFeedbackReasons(
-    args.feedbackReason
-  );
   return {
     action: args.action,
     createdAt: args.opportunity.feedbackAt ?? new Date().toISOString(),
     eventId: `current:${args.opportunity.id}`,
-    fitSummary: reasonSignals.isOperationalOnly
-      ? null
-      : args.opportunity.recommendationSummary,
-    hasFeedbackReason: reasonSignals.hasReason,
-    operationalFeedbackKinds: reasonSignals.operationalKinds,
+    fitSummary: args.opportunity.recommendationSummary,
+    hasFeedbackReason: Boolean(args.feedbackReason),
     summary: buildOpportunityFeedbackActivitySummary({
       action: args.action,
       feedbackReason: args.feedbackReason,
@@ -76,10 +74,21 @@ function toFeedbackActivityItem(args: {
   };
 }
 
+const feedbackDependencies = {
+  pending: fetchPendingOpportunityFeedbackActivityItems,
+  setting: fetchTalentSetting,
+  opportunities: fetchTalentOpportunityHistoryByIds,
+  latestUser: fetchLatestUserAuthoredChatMessageId,
+  userAfter: hasUserAuthoredChatMessageAfter,
+  run: runCareerChatTurn,
+  dispatch: dispatchCareerCheckpoint,
+  defer: deferBusyCareerAgentReply,
+};
+
 export async function createTalentOpportunityFeedbackFollowUpReply(args: {
+  textChatModel?: CareerTextChatModelId;
   action?: TalentOpportunityFeedbackAction | null;
   admin: TalentAdminClient;
-  allowedToolNames?: readonly string[] | null;
   conversationId: string | null;
   feedbackReason?: string | null;
   isMobile?: boolean | null;
@@ -87,7 +96,8 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   opportunityId?: string | null;
   trigger: TalentOpportunityFeedbackReplyTrigger;
   userId: string;
-}) {
+}, dependencies: Partial<typeof feedbackDependencies> = {}) {
+  const deps = { ...feedbackDependencies, ...dependencies };
   const conversationId = String(args.conversationId ?? "").trim();
   if (!conversationId) return null;
 
@@ -98,13 +108,13 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   });
 
   const [pendingItems, talentSetting] = await Promise.all([
-    fetchPendingOpportunityFeedbackActivityItems({
+    deps.pending({
       admin: args.admin,
       conversationId,
       limit: 10,
       userId: args.userId,
     }),
-    fetchTalentSetting({
+    deps.setting({
       admin: args.admin,
       userId: args.userId,
     }),
@@ -114,7 +124,7 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
     args.opportunity ??
     (requestedOpportunityId
       ? ((
-          await fetchTalentOpportunityHistoryByIds({
+          await deps.opportunities({
             admin: args.admin,
             ids: [requestedOpportunityId],
             locale: talentSetting?.preferred_locale ?? null,
@@ -123,10 +133,10 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
         )[0] ?? null)
       : null);
   const fallbackItem =
-    opportunity && args.action
+    opportunity && (opportunity.feedback === "positive" || opportunity.feedback === "negative")
       ? toFeedbackActivityItem({
-          action: args.action,
-          feedbackReason: args.feedbackReason,
+          action: opportunity.feedback as TalentOpportunityFeedbackAction,
+          feedbackReason: opportunity.feedbackReason,
           opportunity,
         })
       : null;
@@ -160,14 +170,14 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
     ""
   );
   const latestUserMessageIdBeforeGeneration =
-    await fetchLatestUserAuthoredChatMessageId({
+    await deps.latestUser({
       admin: args.admin,
       conversationId,
       userId: args.userId,
     });
   if (
     latestFeedbackCreatedAt &&
-    (await hasUserAuthoredChatMessageAfter({
+    (await deps.userAfter({
       admin: args.admin,
       after: latestFeedbackCreatedAt,
       conversationId,
@@ -177,75 +187,44 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
     return null;
   }
 
-  let internalOpportunityRejectionContext = "";
-  if (args.action === "negative" && opportunity?.sourceType === "internal") {
-    let hasSameCompanyReviewedAlternative = false;
-    try {
-      const matchedRoles = await searchInternalRolesForCareerTool({
-        company: opportunity.companyName,
-        matchedOnly: true,
-        userId: args.userId,
-      });
-      hasSameCompanyReviewedAlternative =
-        (matchedRoles.newOptionCount ?? 0) > 0;
-    } catch (error) {
-      console.error(
-        "[Career] Failed to load other roles for internal feedback follow-up",
-        {
-          error: error instanceof Error ? error.message : String(error),
-          roleId: opportunity.roleId,
-          userId: args.userId,
-        }
-      );
-    }
-    internalOpportunityRejectionContext = [
-      "## Internal opportunity rejection follow-up",
-      "The rejection is recorded. Use the candidate's stated reason, if any, to decide whether another role belongs in this reply. Do not treat an unclear or company-level rejection as a role-level preference. Only when that reason could make one unpresented reviewed role materially more suitable, use get_internal_roles with matchedOnly=true to inspect current matches; if one is found, offer to show it without naming or describing it. Otherwise acknowledge briefly; ask one neutral question only if its answer would affect future recommendations.",
-      ...(hasSameCompanyReviewedAlternative
-        ? [
-            "One unpresented reviewed role at the same company is also available. This is availability context, not a reason to mention it.",
-          ]
-        : []),
-    ].join("\n");
-  }
-  const feedbackContext = [
-    formatOpportunityFeedbackPromptContext(items),
-    internalOpportunityRejectionContext,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-  const proactiveContext =
-    buildCareerOpportunityFeedbackFollowUpTurnInstruction({
-      preferredLocale: talentSetting?.preferred_locale ?? null,
-      trigger: args.trigger,
-    });
-
-  const result = await runCareerChatTurn({
-    allowedToolNames: args.allowedToolNames,
+  const feedbackContext = [formatOpportunityFeedbackPromptContext(items), formatSavedOpportunityDecision(opportunity)].filter(Boolean).join("\n\n");
+  // The complete event context travels with a checkpoint; a child completion
+  // resumes this same original agent rather than another feedback writer.
+  const proactiveContext = [buildCareerOpportunityFeedbackFollowUpTurnInstruction({
+    preferredLocale: talentSetting?.preferred_locale ?? null, trigger: args.trigger,
+  }), feedbackContext].join("\n\n");
+  const agentReplyId = careerFeedbackReplyId(conversationId, opportunity, items);
+  const assistantModel = opportunity?.sourceType === "external" ||
+    (!opportunity && args.trigger === CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback)
+    ? CLAUDE_HAIKU_MODEL : undefined;
+  const job = { userId: args.userId, conversationId, replyId: agentReplyId, proactiveContext, noMessageMarker: CAREER_FEEDBACK_SILENT, textChatModel: args.textChatModel, assistantModel };
+  try {
+  const result = await deps.run({
+    assistantModel,
+    textChatModel: args.textChatModel,
     admin: args.admin,
     conversationId,
     isMobile: args.isMobile,
-    pendingOpportunityFeedbackContext: feedbackContext,
+    agentReplyId,
+    pendingOpportunityFeedbackContext: "",
     proactiveContext,
-    assistantModel:
-      args.trigger ===
-      CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
-        ? CAREER_LLM_CONFIG.chat.opportunityFeedbackFollowUp.immediateInternalModel
-        : CAREER_LLM_CONFIG.chat.opportunityFeedbackFollowUp.model,
-    assistantOpenAIResponsesReasoningEffort:
-      CAREER_LLM_CONFIG.chat.opportunityFeedbackFollowUp.reasoningEffort,
-    usageLabel: "career/chat:opportunity_feedback_followup",
+    noMessageMarker: CAREER_FEEDBACK_SILENT,
+    suppressOnboarding: true,
+    onAgentCheckpoint: async checkpoint => {
+      await deps.dispatch({ admin: args.admin, userId: args.userId, conversationId, checkpoint });
+    },
+    usageLabel: "career/chat:opportunity_feedback",
     shouldInsertAssistantMessage: async () => {
       const [latestPendingItems, latestUserMessageId] = await Promise.all([
         usingFallbackOnly
           ? Promise.resolve(items)
-          : fetchPendingOpportunityFeedbackActivityItems({
+          : deps.pending({
               admin: args.admin,
               conversationId,
               limit: 10,
               userId: args.userId,
             }),
-        fetchLatestUserAuthoredChatMessageId({
+        deps.latestUser({
           admin: args.admin,
           conversationId,
           userId: args.userId,
@@ -260,4 +239,9 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   });
 
   return result.assistantMessage;
+  } catch (error) {
+    if (error instanceof CareerReplyContinuation || (error instanceof CareerAgentReplyUnavailable && error.completed)) return null;
+    if (await deps.defer(error, job)) return null;
+    throw error;
+  }
 }

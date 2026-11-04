@@ -1,3 +1,4 @@
+import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { runWebSearch } from "@/lib/tools/webSearch";
 import type { ExaSearchClient } from "@/lib/tools/exaClient";
 import { openUrlWithDocumentsCache } from "@/lib/talentOnboarding/openUrlTool";
@@ -10,7 +11,7 @@ export const WEB_SEARCH_TOOL_DEFINITION = {
   function: {
     name: "web_search",
     description:
-      "Search the web for current factual information. Use only when the answer depends on recent or external web information.",
+      TOOL_DESCRIPTIONS.web_search,
     parameters: {
       type: "object",
       properties: {
@@ -37,7 +38,7 @@ export const OPEN_URL_TOOL_DEFINITION = {
   function: {
     name: "open_url",
     description:
-      "Open a specific website URL and return page markdown. Use when the user provides a URL or asks to read, inspect, summarize, or reason about a specific webpage.",
+      TOOL_DESCRIPTIONS.open_url,
     parameters: {
       type: "object",
       properties: {

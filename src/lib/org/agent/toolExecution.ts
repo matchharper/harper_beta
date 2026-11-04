@@ -470,6 +470,9 @@ export function getOrgAgentToolStatusLabel(args: {
   status: "done" | "error" | "running";
 }) {
   const labels: Record<OrgAgentToolName, [string, string, string]> = {
+    read_agent_messages: ["에이전트의 연락 내용을 확인하는 중", "연락 내용 확인 완료", "연락 내용을 확인하지 못했습니다"],
+    contact_user: ["팀원에게 연락하는 중", "연락 처리 결과 확인", "연락을 완료하지 못했습니다"],
+    manage_agent_schedule: ["다음 작업 일정을 확인하는 중", "작업 일정 처리 완료", "작업 일정을 처리하지 못했습니다"],
     write_company_memory: ["회사 메모리를 저장하는 중", "회사 메모리 저장 완료", "회사 메모리를 저장하지 못했습니다"],
     update_email_preferences: [
       "이메일 수신 설정을 바꾸는 중",
@@ -997,6 +1000,7 @@ async function executeReadRole(args: {
     ...(include.includes("notification")
       ? {
           notification: await readRoleNotificationContext({
+            admin: args.admin,
             roleId: resolvedRoleId,
             workspaceId: args.workspaceId,
             user: args.user,
@@ -6547,6 +6551,11 @@ export async function executeOrgAgentTool(args: {
   assertOrgAgentToolAvailable(args.name);
   args.signal?.throwIfAborted();
   const input = record(args.input);
+  const {companyAgentScope}=await import("@/lib/agentContacts/companyScope");
+  if(companyAgentScope(args.admin) && (
+    (args.name==='contact_talent' && input.action!=='send_to_agent') ||
+    (args.name==='publish_role_recommendations' && !input.introductionRootId)
+  )) throw new OrgAgentToolInputError("This service event can act only on agent correspondence with an exact introduction reference.");
   if (
     input.notifyCandidateOnClosure !== undefined &&
     typeof input.notifyCandidateOnClosure !== "boolean"
@@ -6571,7 +6580,24 @@ export async function executeOrgAgentTool(args: {
       roleId,
     });
   }
+  if(args.name==='contact_talent' && ['send','create_draft'].includes(String(input.action))) {
+    const targets=Array.isArray(input.items)?input.items:[input];
+    for(const target of targets) if(target.talentId && target.roleId && !target.contactId && !target.relayId) {
+      const {data,error}=await (args.admin.from as any)('talent_opportunity_recommendation').select('agent_introduction_root_id')
+        .eq('talent_id',target.talentId).eq('role_id',target.roleId).not('agent_introduction_root_id','is',null).order('created_at',{ascending:false}).limit(1);
+      if(error) throw error;
+      if(data?.length) throw new OrgAgentToolInputError('This relationship uses agent correspondence. Read its exact introduction with read_agent_messages and use contact_talent action=send_to_agent. Existing approved contact IDs retain their delivery contract.');
+    }
+  }
   let result: Record<string, unknown>;
+
+  if (["read_agent_messages", "contact_user", "manage_agent_schedule"].includes(args.name)
+    || (args.name === "contact_talent" && input.action === "send_to_agent")
+    || (args.name === "publish_role_recommendations" && input.introductionRootId)) {
+    const {companyContactSource,executeCompanyCorrespondence}=await import("@/lib/agentContacts/companyTools");
+    return executeCompanyCorrespondence({source:companyContactSource({admin:args.admin,workspaceId,userId:args.user.id,sourceMessageId:args.currentUserMessageId}),
+      name:args.name,input,sourceMessageId:args.currentUserMessageId,conversationId:args.conversation.id,model:args.model});
+  }
 
   if (args.name === "update_email_preferences") {
     result = await updateCompanyEmailPreferences({

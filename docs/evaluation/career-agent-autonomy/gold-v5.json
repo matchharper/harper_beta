@@ -1,0 +1,22 @@
+{
+  "version": "v5",
+  "review": "Manual complete input, calls and output review. Development probes, no automatic qualitative judge.",
+  "cases": [
+    {
+      "id": "ten_independent_applications",
+      "success": [
+        "All ten independent responsibilities are durably delegated with exact targets and original authority.",
+        "No wait for the first job or promise of submission without evidence.",
+        "No unnecessary mandatory confirmation for the already delegated scope."
+      ]
+    },
+    {
+      "id": "delegate_all_pending_reviews",
+      "success": [
+        "Interpret the user message as scoped authority; route it to all ten existing works instead of starting duplicates.",
+        "Resolve obsolete confirmations; preserve the boundary on unknown personal facts.",
+        "Do not falsely claim external submissions are complete."
+      ]
+    }
+  ]
+}

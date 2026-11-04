@@ -2,15 +2,15 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Loader2 } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
+import { TabBoxes } from "@/components/ui/tab-boxes";
 import {
   useCareerProfileContext,
   useCareerSidebarContext,
 } from "../CareerSidebarContext";
 import CareerTalentContextSection from "./CareerTalentContextSection";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
-import {
-  CareerBlockedCompaniesSettingsSection,
-  CareerProfileSharingSettingsSection,
+import CareerProfileSettingsSection, {
+  CareerPreferencesSettingsSection,
 } from "../CareerProfileSettingsSection";
 import { CareerDocumentDetail } from "@/components/career/documents/CareerDocumentDetail";
 import { getCareerDocumentHref } from "@/lib/career/documentLinks";
@@ -21,9 +21,11 @@ import { useCareerT } from "@/i18n/useCareerT";
 
 const CareerProfileWorkspace = ({
   onDetailOpen,
+  onChangeView,
   view = "profile",
 }: {
   onDetailOpen?: () => void;
+  onChangeView: (view: "profile" | "documents" | "brief") => void;
   view?: "profile" | "brief" | "documents";
 }) => {
   const t = useCareerT();
@@ -178,7 +180,7 @@ const CareerProfileWorkspace = ({
           pending={talentContextsSavePending}
         />
         <div className="mt-8 md:px-1">
-          <CareerBlockedCompaniesSettingsSection />
+          <CareerPreferencesSettingsSection />
         </div>
         {showLocalMemories ? (
           <section
@@ -268,17 +270,16 @@ const CareerProfileWorkspace = ({
       </>
     ) : (
       <>
-        <CareerProfileSharingSettingsSection
-          showBlockedCompanies={false}
-          showEngagementTypes={false}
-          showLastUpdated={false}
-        />
+        <div className="mb-8">
+          <CareerProfileSettingsSection />
+        </div>
         <CareerTalentProfilePanel />
       </>
     );
 
+  let content = activeContent;
   if (workspaceDataLoading) {
-    return (
+    content = (
       <section aria-busy="true" aria-live="polite" className="px-5 py-6">
         <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
           <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
@@ -289,13 +290,11 @@ const CareerProfileWorkspace = ({
         </div>
       </section>
     );
-  }
-
-  if (view === "documents" && requestedDocumentId) {
+  } else if (view === "documents" && requestedDocumentId) {
     const document = talentDocuments.find(
       (item) => item.id === requestedDocumentId
     );
-    return (
+    content = (
       <CareerDocumentDetail
         key={requestedDocumentId}
         updatedAt={document?.updatedAt}
@@ -303,15 +302,13 @@ const CareerProfileWorkspace = ({
           id: requestedDocumentId,
           title:
             document?.fileName ??
-            t("career.profile.documents.title", "내 문서"),
+            t("career.profile.documents.title", "문서"),
         }}
         onBack={closeDocumentDetail}
       />
     );
-  }
-
-  if (view === "documents" && requestedCallNoteId) {
-    return (
+  } else if (view === "documents" && requestedCallNoteId) {
+    content = (
       <CareerCallNoteDetail
         documentId={requestedCallNoteId}
         document={callNoteDocument}
@@ -322,7 +319,25 @@ const CareerProfileWorkspace = ({
 
   return (
     <div className="my-4 flex flex-col gap-4">
-      <div className="w-full">{activeContent}</div>
+      {view !== "brief" ? (
+        <TabBoxes
+          activeValue={view}
+          onValueChange={onChangeView}
+          variant="neutral"
+          size="lg"
+          items={[
+            {
+              value: "profile",
+              label: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
+            },
+            {
+              value: "documents",
+              label: t("career.profile.career_profile_workspace.14bifvm", "내 자료"),
+            },
+          ]}
+        />
+      ) : null}
+      <div className="w-full">{content}</div>
     </div>
   );
 };

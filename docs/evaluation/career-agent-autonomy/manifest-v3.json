@@ -1,0 +1,16 @@
+{
+  "datasetVersion": "v3",
+  "createdAt": "2026-11-03",
+  "parentVersion": "v2",
+  "reason": "Remove unintended profile/document contradictions in two fixture cases; preserve v2 results and unchanged gold criteria.",
+  "guidanceRevisions": {
+    "A": "463d83cb",
+    "B": "0967d691"
+  },
+  "hashes": {
+    "cases-v3.json": "09c495b9570fc4d03532c78ee4a691449a12f906573e525210de708736991c66",
+    "gold-v3.json": "93af5cb0bfed6760344b14df7606413b8a3663e458a55603ac28f5519b76b2fc"
+  },
+  "repetitions": 2,
+  "boundary": "Same original model, runner and source replay. Only two declared fixture consistency corrections."
+}

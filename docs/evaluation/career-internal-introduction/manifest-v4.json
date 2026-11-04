@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v4",
+  "provenance": "Same v3 cases and gold; production message date projection now preserves offer-before-button chronology, and synthetic continuation condition matches chatTurn.ts. Frozen before v4 generation. Earlier timestamp-free button outputs are diagnostic, not production fidelity evidence.",
+  "createdAt": "2026-11-02",
+  "hashes": {
+    "cases-v4.json": "a7b5674c36db9d0d973a8242424b23e2b6f57d64d3b61dfc86d9a103c07605e3",
+    "gold-v4.json": "3941e6ff7966750717c081413912c8571a2cf2467d610d23f24d301156c4436c"
+  }
+}

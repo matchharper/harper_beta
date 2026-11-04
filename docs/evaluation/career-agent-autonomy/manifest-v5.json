@@ -1,0 +1,11 @@
+{
+  "datasetVersion": "v5",
+  "createdAt": "2026-11-03",
+  "parentVersion": "v1",
+  "repetitions": 1,
+  "hashes": {
+    "cases-v5.json": "db9a18f220d29440fc2291868aee8db6a0a0733ce93a11f5b263a71e927ef7d2",
+    "gold-v5.json": "0af0d426300362a4ed73976e2447a1919c6e28096f44304a147ef31cef7603aa"
+  },
+  "boundary": "Live production LLM, selector and schemas; synthetic work/form adapter; native PostgreSQL tests separately verify actual transaction contracts. No real submissions."
+}

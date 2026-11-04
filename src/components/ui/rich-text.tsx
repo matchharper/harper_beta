@@ -5,12 +5,16 @@ import React, {
   type ReactNode,
 } from "react";
 import ReactMarkdown from "react-markdown";
-import { ReferenceLink } from "@/components/ui/reference-link";
+import {
+  ReferenceLink,
+  getLinkText,
+  renderUrlLinkParagraph,
+} from "@/components/ui/reference-link";
 import remarkGfm from "remark-gfm";
+import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
 import { remarkUnderline } from "@/lib/markdown/remarkUnderline";
 import TurndownService from "turndown";
 import { POSTING_LINK_LABEL } from "@/lib/career/postingLinks";
-import { compactUrlLabel, isHarperOwnedUrl, isUrlText } from "@/lib/urlDisplay";
 import { cn } from "@/lib/utils";
 import { typographyVariants, type TypographyVariant } from "./typography";
 import {
@@ -185,104 +189,6 @@ function renderNodeWithHighlights(
   return node;
 }
 
-function getPlainText(node: ReactNode): string {
-  if (typeof node === "string" || typeof node === "number") {
-    return String(node);
-  }
-
-  if (Array.isArray(node)) {
-    return node.map(getPlainText).join("");
-  }
-
-  if (isValidElement<{ children?: ReactNode }>(node)) {
-    return getPlainText(node.props.children);
-  }
-
-  return "";
-}
-
-function isMailtoHref(value: string) {
-  return value.trim().toLowerCase().startsWith("mailto:");
-}
-
-function getMailtoLabel(value: string) {
-  const raw = value.trim();
-  if (!isMailtoHref(raw)) return raw;
-  const withoutScheme = raw.slice("mailto:".length);
-  return withoutScheme.split("?")[0] || withoutScheme;
-}
-
-function isBareUrlLinkNode(node: ReactNode, renderEmailLinksAsText = false) {
-  if (!isValidElement<{ href?: string; children?: ReactNode }>(node)) {
-    return false;
-  }
-
-  const href = node.props.href?.trim() ?? "";
-  if (!href) return false;
-  if (renderEmailLinksAsText && isMailtoHref(href)) return false;
-
-  const childText = getPlainText(node.props.children).trim();
-  return isUrlText(childText) || childText === href;
-}
-
-function isSourceLabelText(value: string) {
-  const normalized = value.replace(/\s+/g, " ").trim().toLowerCase();
-  return (
-    !normalized ||
-    normalized === "출처:" ||
-    normalized === "출처" ||
-    normalized === "sources:" ||
-    normalized === "sources" ||
-    normalized === "source:" ||
-    normalized === "source"
-  );
-}
-
-function renderUrlLinkParagraph(
-  children: ReactNode,
-  renderEmailLinksAsText = false
-): ReactNode | null {
-  const childNodes = React.Children.toArray(children);
-  let linkCount = 0;
-  let hasOtherText = false;
-  const labelParts: string[] = [];
-
-  for (const child of childNodes) {
-    if (isBareUrlLinkNode(child, renderEmailLinksAsText)) {
-      linkCount += 1;
-      continue;
-    }
-
-    const plainText = getPlainText(child);
-    if (!isSourceLabelText(plainText)) {
-      hasOtherText = true;
-      break;
-    }
-
-    const normalizedLabel = plainText.replace(/\s+/g, " ").trim();
-    if (normalizedLabel) {
-      labelParts.push(normalizedLabel);
-    }
-  }
-
-  if (linkCount === 0 || hasOtherText) return null;
-
-  return (
-    <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm leading-6 text-neutral-muted first:mt-0">
-      {labelParts.length > 0 && (
-        <span className="mr-1 text-neutral-muted">
-          {renderTextWithHighlights(labelParts.join(" "), "url-link-label")}
-        </span>
-      )}
-      {childNodes
-        .filter((child) => isBareUrlLinkNode(child, renderEmailLinksAsText))
-        .map((child, index) => (
-          <Fragment key={`url-link-${index}`}>{child}</Fragment>
-        ))}
-    </p>
-  );
-}
-
 function removeMarkdownBreakFormattingNewlines(children: ReactNode) {
   if (!Array.isArray(children)) return children;
 
@@ -325,7 +231,6 @@ export default function RichText({
   content,
   children,
   className,
-  linkClassName,
   onHarperLinkClick,
   renderEmailLinksAsText = false,
   referenceLinks = false,
@@ -336,7 +241,6 @@ export default function RichText({
   renderLink,
 }: {
   className?: string;
-  linkClassName?: string;
   onHarperLinkClick?: (href: string) => void;
   renderEmailLinksAsText?: boolean;
   /** Render external web sources as compact inline references; Markdown stays unchanged. */
@@ -390,6 +294,7 @@ export default function RichText({
       <ReactMarkdown
         remarkPlugins={[
           [remarkGfm, { singleTilde: false }],
+          ...(variant === "career" ? [remarkCjkFriendly] : []),
           remarkUnderline,
           ...(additionalRemarkPlugins ?? []),
         ]}
@@ -453,7 +358,7 @@ export default function RichText({
                 normalizedChildren,
                 renderEmailLinksAsText
               ) ?? (
-                <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm leading-6 first:mt-0">
+                <p className="mt-4 whitespace-pre-wrap wrap-break-word text-sm leading-6 first:mt-0">
                   {renderNodeWithHighlights(
                     normalizedChildren,
                     "p",
@@ -464,12 +369,12 @@ export default function RichText({
             );
           },
           ul: ({ children }) => (
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 first:mt-0">
+            <ul className="mt-4 mb-1 list-disc space-y-1 pl-5 text-sm leading-6 first:mt-0">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm leading-6 first:mt-0">
+            <ol className="mt-0 list-decimal space-y-1 pl-5 text-sm leading-6 first:mt-0">
               {children}
             </ol>
           ),
@@ -493,10 +398,10 @@ export default function RichText({
             const customLink = renderLink?.({
               href,
               children,
-              text: getPlainText(children),
+              text: getLinkText(children),
             });
             if (customLink !== undefined) return customLink;
-            const childText = getPlainText(children);
+            const childText = getLinkText(children);
             if (
               childText.trim().toLowerCase() === OPPORTUNITY_RUN_MARKER_LABEL
             ) {
@@ -510,110 +415,19 @@ export default function RichText({
             ) {
               return null;
             }
-            if (renderEmailLinksAsText && isMailtoHref(href)) {
-              const emailContent = childText.trim()
-                ? renderNodeWithHighlights(
-                    children,
-                    "email-link",
-                    trailingInlineNode
-                  )
-                : getMailtoLabel(href);
-              return (
-                <span className="wrap-break-word text-inherit">
-                  {emailContent}
-                </span>
-              );
-            }
-            if (isHarperOwnedUrl(href)) {
-              const shouldShowHrefText =
-                isUrlText(childText) ||
-                childText.trim() === href ||
-                !childText.trim();
-              const contentNode = shouldShowHrefText
-                ? compactUrlLabel(childText || href)
-                : renderNodeWithHighlights(
-                    children,
-                    "link-disabled",
-                    trailingInlineNode
-                  );
-
-              if (onHarperLinkClick) {
-                return (
-                  <button
-                    type="button"
-                    onClick={() => onHarperLinkClick(href)}
-                    title={href}
-                    className={cn(
-                      linkClassName
-                        ? "border-0 font-[inherit]"
-                        : "inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] wrap-break-word underline decoration-dotted underline-offset-2 text-neutral-primary transition-colors hover:text-neutral-muted",
-                      !linkClassName &&
-                        shouldShowHrefText &&
-                        "max-w-full px-1 py-0.5 text-[13px] font-medium leading-5",
-                      linkClassName
-                    )}
-                  >
-                    {contentNode}
-                  </button>
-                );
-              }
-
-              return (
-                <span className="wrap-break-word text-inherit" title={href}>
-                  {contentNode}
-                </span>
-              );
-            }
-
-            if (
-              (referenceLinks || variant === "career") &&
-              /^https?:\/\//i.test(href)
-            ) {
-              let hostname: string;
-              try {
-                hostname = new URL(href).hostname;
-              } catch {
-                return <span>{children}</span>;
-              }
-              const label =
-                !childText.trim() ||
-                isUrlText(childText) ||
-                childText.trim() === href
-                  ? hostname
-                  : childText.trim();
-              return (
-                <ReferenceLink
-                  href={href}
-                  hostname={hostname}
-                  label={label}
-                  className={linkClassName}
-                />
-              );
-            }
-
             return (
-              <a
+              <ReferenceLink
                 href={href}
-                target="_blank"
-                rel="noreferrer"
-                title={href}
-                aria-label={href}
-                className={cn(
-                  linkClassName ??
-                    "wrap-break-word underline decoration-dotted underline-offset-2 text-neutral-primary transition-colors hover:text-neutral-muted",
-                  !linkClassName &&
-                    (isUrlText(childText) || childText.trim() === href) &&
-                    "inline-flex max-w-full items-center px-1 py-0.5 text-[13px] font-medium leading-5"
-                )}
+                variant={
+                  referenceLinks || variant === "career"
+                    ? "assistant"
+                    : "default"
+                }
+                onHarperLinkClick={onHarperLinkClick}
+                renderEmailLinksAsText={renderEmailLinksAsText}
               >
-                {isUrlText(childText) || childText.trim() === href
-                  ? compactUrlLabel(childText || href)
-                  : renderNodeWithHighlights(
-                      children,
-                      "link",
-                      trailingInlineNode
-                    )}
-              </a>
+                {renderNodeWithHighlights(children, "link", trailingInlineNode)}
+              </ReferenceLink>
             );
           },
           blockquote: ({ children }) => (

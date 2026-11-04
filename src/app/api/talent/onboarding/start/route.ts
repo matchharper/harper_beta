@@ -1,4 +1,5 @@
 import { after, NextRequest, NextResponse } from "next/server";
+import { resolveCareerRequestTextChatModel } from "@/lib/career/requestTextChatModel";
 import {
   getSlackActivityDeviceLabel,
   notifySlackActivity,
@@ -480,6 +481,7 @@ export async function POST(req: NextRequest) {
     const preferredLocale =
       talentSetting?.preferred_locale ?? body.locale ?? cookieLocale;
     const kickoff = await generateTalentKickoff({
+      textChatModel: resolveCareerRequestTextChatModel(req, user).model,
       displayName,
       links,
       preferredLocale,

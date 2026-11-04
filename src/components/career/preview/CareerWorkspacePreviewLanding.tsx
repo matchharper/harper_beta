@@ -56,7 +56,7 @@ const previewMinutesAfter = (minutes: number) =>
 
 type CareerWorkspaceHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
-  savedStage?: "all" | "saved" | "applied" | "connected" | "closed" | "hidden";
+  savedStage?: "all" | "saved" | "applied" | "connected" | "offer" | "closed" | "hidden";
 };
 
 const mockUser = {
@@ -784,6 +784,7 @@ const CareerWorkspacePreviewLanding = ({
       historyUpdateError: "",
       onLoadMoreHistoryOpportunities: () => undefined,
       isHistoryOpportunityPageFilterLoading: () => false,
+      getHistoryOpportunityPageFilterState: () => ({ loading: false, nextOffset: null }),
       onLoadSavedStageHistoryOpportunityPages: () => undefined,
       onLoadHistoryOpportunityByRoleId: (roleId) =>
         historyOpportunities.find((item) => item.roleId === roleId) ?? null,

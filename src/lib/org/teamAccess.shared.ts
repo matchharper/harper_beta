@@ -10,6 +10,8 @@ export type OrgRoleAccess = {
   teamIds: string[];
   teamNames: string[];
   audienceRestricted?: boolean;
+  /** Server-only service execution, restricted to exact Roles. */
+  roleIds?: string[];
 };
 
 export function resolveOrgRoleAccess(membership: {

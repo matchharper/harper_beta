@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -12,8 +12,12 @@ import {
 } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
+import { cancelCareerTurnWork } from "@/lib/career/turnCancellation.server";
 
 type Body = {
+  clientRequestId?: unknown;
+  clientRequestIds?: unknown;
+  stopAll?: boolean;
   assistantMessage?: {
     content?: unknown;
     recommendationStatusAfterCharCount?: unknown;
@@ -39,10 +43,10 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as Body;
     const conversationId = String(body.conversationId ?? "").trim();
-    const userMessageId = parseMessageId(body.userMessageId);
+    let userMessageId = parseMessageId(body.userMessageId);
     const assistantContent =
       typeof body.assistantMessage?.content === "string"
-        ? stripPostgresUnsafeChars(body.assistantMessage.content).trim()
+        ? stripPostgresUnsafeChars(body.assistantMessage.content)
         : "";
     const recommendationStatusAfterCharCount =
       typeof body.assistantMessage?.recommendationStatusAfterCharCount ===
@@ -55,7 +59,8 @@ export async function POST(req: NextRequest) {
         assistantContent.length
         ? Math.floor(body.assistantMessage.recommendationStatusAfterCharCount)
         : null;
-    if (!conversationId || !userMessageId) {
+    const clientRequestId = typeof body.clientRequestId === "string" ? body.clientRequestId : "";
+    if (!conversationId || (!body.stopAll && !userMessageId && !/^[0-9a-f-]{36}$/i.test(clientRequestId))) {
       return NextResponse.json(
         { error: "conversationId and userMessageId are required" },
         { status: 400 }
@@ -63,6 +68,49 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
+    let stoppedUserMessages: TalentMessageRow[] = [];
+    if (body.stopAll) {
+      const owned = await admin.from("talent_conversations").select("id")
+        .eq("id", conversationId).eq("user_id", user.id).maybeSingle();
+      if (owned.error) throw owned.error;
+      if (!owned.data) return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+      const requestIds = [...new Set([clientRequestId, ...(Array.isArray(body.clientRequestIds) ? body.clientRequestIds : [])]
+        .filter((id): id is string => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)))];
+      const { data, error } = await (admin.rpc as any)("stop_career_conversation", {
+        p_user_id: user.id, p_conversation_id: conversationId,
+        p_client_request_ids: requestIds, p_source_message_id: userMessageId,
+      });
+      if (error) throw error;
+      stoppedUserMessages = data.userMessages;
+      after(async () => {
+        const { publishCareerInvocations } = await import("@/lib/career/work/invocations");
+        await publishCareerInvocations({ admin, userId: user.id, conversationId });
+      });
+      // The streaming path below also preserves any text already shown to the user.
+      if (!userMessageId || !assistantContent.trim()) return NextResponse.json({ ok: true,
+        userMessages: stoppedUserMessages.map(toTalentMessageResponse), userMessage: null, assistantMessage: null });
+    }
+    if (!userMessageId) {
+      const conversation = await admin.from("talent_conversations").select("id")
+        .eq("id", conversationId).eq("user_id", user.id).maybeSingle();
+      if (conversation.error) throw conversation.error;
+      if (!conversation.data) return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+      // A Stop can arrive before the first SSE event. Save that real user
+      // action before looking for its source; the inserting route checks it too.
+      const receipt = await admin.from("talent_messages").insert({
+        user_id: user.id, conversation_id: conversationId, role: "user",
+        message_type: "career_turn_stop", content: "",
+        payload: { hidden: true, clientRequestId },
+      });
+      if (receipt.error) throw receipt.error;
+      const source = await admin.from("talent_messages").select("id")
+        .eq("user_id", user.id).eq("conversation_id", conversationId).eq("role", "user")
+        .neq("message_type", "career_turn_stop").eq("payload->>clientRequestId", clientRequestId)
+        .order("id", { ascending: false }).limit(1).maybeSingle();
+      if (source.error) throw source.error;
+      if (!source.data) return NextResponse.json({ ok: true, userMessage: null, assistantMessage: null });
+      userMessageId = source.data.id;
+    }
     const { data: sourceMessage, error: sourceError } = await admin
       .from("talent_messages")
       .select("*")
@@ -83,38 +131,48 @@ export async function POST(req: NextRequest) {
     }
 
     const stoppedStatus = { state: "stopped" } as const;
-    const thinkingLogs = upsertRecommendJobPostingStatusLog(
-      sourceMessage.thinking_logs,
-      stoppedStatus
-    );
-    const { data: stoppedMessage, error: stopError } = await admin
-      .from("talent_messages")
-      .update({ thinking_logs: thinkingLogs })
-      .eq("id", userMessageId)
-      .eq("conversation_id", conversationId)
-      .eq("user_id", user.id)
-      .eq("role", "user")
-      .select("*")
-      .single();
-
-    if (stopError || !stoppedMessage) {
-      throw new Error(stopError?.message ?? "Failed to stop chat turn");
+    let current = sourceMessage;
+    let stoppedMessage: TalentMessageRow | null = null;
+    // The runtime also writes capability metadata to this payload. Preserve it
+    // with the same compare-and-swap contract used by that writer.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const currentLogs = Array.isArray(current.thinking_logs)
+        ? current.thinking_logs.filter((log): log is string => typeof log === "string") : [];
+      const thinkingLogs = splitRecommendJobPostingStatusLogs(currentLogs).latestStatus
+        ? upsertRecommendJobPostingStatusLog(current.thinking_logs, stoppedStatus)
+        : current.thinking_logs;
+      const payload = current.payload && typeof current.payload === "object" && !Array.isArray(current.payload)
+        ? current.payload : {};
+      let query = admin.from("talent_messages")
+        .update({ payload: { ...payload, careerTurnStopped: true }, thinking_logs: thinkingLogs })
+        .eq("id", userMessageId).eq("conversation_id", conversationId)
+        .eq("user_id", user.id).eq("role", "user");
+      query = current.payload === null ? query.is("payload", null)
+        : query.filter("payload", "eq", JSON.stringify(current.payload));
+      const saved = await query.select("*").maybeSingle();
+      if (saved.error) throw saved.error;
+      if (saved.data) { stoppedMessage = saved.data as TalentMessageRow; break; }
+      const fresh = await admin.from("talent_messages").select("*")
+        .eq("id", userMessageId).eq("conversation_id", conversationId)
+        .eq("user_id", user.id).eq("role", "user").single();
+      if (fresh.error) throw fresh.error;
+      current = fresh.data;
     }
+    if (!stoppedMessage) throw new Error("Chat turn changed while stopping; retry Stop");
+    await cancelCareerTurnWork({ admin, userId: user.id, conversationId, sourceMessageId: userMessageId });
 
     let stoppedAssistant: TalentMessageRow | null = null;
-    if (assistantContent) {
+    if (assistantContent.trim()) {
       const sourceLogs = Array.isArray(body.assistantMessage?.thinkingLogs)
         ? body.assistantMessage.thinkingLogs.filter(
             (log): log is string => typeof log === "string"
           )
         : [];
-      const assistantThinkingLogs = upsertRecommendJobPostingStatusLog(
-        sourceLogs,
-        {
+      const assistantThinkingLogs = splitRecommendJobPostingStatusLogs(sourceLogs).latestStatus
+        ? upsertRecommendJobPostingStatusLog(sourceLogs, {
           ...splitRecommendJobPostingStatusLogs(sourceLogs).latestStatus,
           ...stoppedStatus,
-        }
-      );
+        }) : sourceLogs;
       const { data: existingStoppedAssistant, error: existingAssistantError } =
         await admin
           .from("talent_messages")
@@ -123,6 +181,7 @@ export async function POST(req: NextRequest) {
           .eq("user_id", user.id)
           .eq("role", "assistant")
           .eq("content", assistantContent)
+          .eq("payload->>careerTurnSourceMessageId", String(userMessageId))
           .gt("id", userMessageId)
           .order("id", { ascending: true })
           .limit(1)
@@ -139,7 +198,8 @@ export async function POST(req: NextRequest) {
         const { data: updatedStoppedAssistant, error: assistantError } =
           await admin
             .from("talent_messages")
-            .update({ thinking_logs: assistantThinkingLogs })
+            .update({ thinking_logs: assistantThinkingLogs,
+              payload: { ...(existingStoppedAssistant.payload && typeof existingStoppedAssistant.payload === "object" && !Array.isArray(existingStoppedAssistant.payload) ? existingStoppedAssistant.payload : {}), careerTurnStopped: true } })
             .eq("id", existingStoppedAssistant.id)
             .eq("conversation_id", conversationId)
             .eq("user_id", user.id)
@@ -167,6 +227,7 @@ export async function POST(req: NextRequest) {
                   content: assistantContent,
                   message_type: "chat",
                   thinking_logs: assistantThinkingLogs,
+                  payload: { careerTurnStopped: true, careerTurnSourceMessageId: userMessageId },
                 },
                 isMobileRequest(req)
               )
@@ -195,6 +256,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      userMessages: stoppedUserMessages.map(toTalentMessageResponse),
       userMessage: toTalentMessageResponse(
         stoppedMessage as unknown as TalentMessageRow
       ),

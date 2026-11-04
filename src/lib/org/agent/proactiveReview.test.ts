@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createClient } from "@supabase/supabase-js";
-import { proactiveReviewWindow, enqueueDueCompanyProactiveReviews, parseProactiveReviewSchedule } from "./proactiveReview.server";
+import { proactiveReviewWindow, proactiveReviewRemainingMs, enqueueDueCompanyProactiveReviews, parseProactiveReviewSchedule } from "./proactiveReview.server";
+
+test("review uses the remaining queue budget and outreach window, not a fresh four-minute timer", () => {
+  const start = Date.parse("2026-11-04T04:00:00Z");
+  const queueDeadline = start + 1740_000;
+  assert.equal(proactiveReviewRemainingMs(queueDeadline, "2026-11-04T06:00:00Z", start + 60_000), 1680_000);
+  assert.equal(proactiveReviewRemainingMs(queueDeadline, "2026-11-04T04:03:00Z", start + 60_000), 120_000);
+  assert.throws(() => proactiveReviewRemainingMs(queueDeadline, "2026-11-04T04:03:00Z", start + 180_000));
+  assert.throws(() => proactiveReviewRemainingMs(queueDeadline, "invalid", start));
+});
 
 test("scheduled window is weekdays 13-15 KST, with no next-day catchup", () => {
   assert.equal(proactiveReviewWindow(new Date("2026-10-15T12:59:59+09:00")).due, false);

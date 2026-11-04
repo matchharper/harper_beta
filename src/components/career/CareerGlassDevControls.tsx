@@ -1,3 +1,4 @@
+// career-i18n-skip-file: Internal developer controls and synthetic preview copy.
 import { useId, useState, type CSSProperties } from "react";
 import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CLAUDE_HAIKU_MODEL,
-  CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
@@ -13,6 +12,7 @@ import {
   isCareerTextChatModelId,
   resolveCareerTextChatModel,
   resolveCareerTextChatModelForRequest,
+  readCareerSourceTextChatModel,
 } from "./textChatModelConfig";
 
 test("allows only the Career dev-control text chat models", () => {
@@ -24,10 +24,11 @@ test("allows only the Career dev-control text chat models", () => {
   assert.equal(isCareerTextChatModelId("grok-4.3"), false);
 });
 
-test("uses Sonnet 5.5 by default and maps model-specific reasoning effort", () => {
-  assert.equal(DEFAULT_CAREER_TEXT_CHAT_MODEL, "claude-sonnet-5-5");
+test("uses GPT-6.1 Sol high by default and maps model-specific reasoning effort", () => {
+  assert.equal(DEFAULT_CAREER_TEXT_CHAT_MODEL, GPT_61_SOL_MODEL);
   assert.deepEqual(resolveCareerTextChatModel("unsupported"), {
-    model: CLAUDE_MODEL,
+    model: GPT_61_SOL_MODEL,
+    openAIResponsesReasoningEffort: "high",
   });
   assert.deepEqual(resolveCareerTextChatModel(OPENROUTER_GLM_53_FLASH_MODEL), {
     chatCompletionReasoningEffort: "high",
@@ -50,8 +51,16 @@ test("uses Sonnet 5.5 by default and maps model-specific reasoning effort", () =
 test("ignores a per-request model override without dev-control access", () => {
   for (const model of [CLAUDE_HAIKU_MODEL, OPENROUTER_GLM_53_FLASH_MODEL]) {
     assert.deepEqual(resolveCareerTextChatModelForRequest(model, false), {
-      model: CLAUDE_MODEL,
+      model: GPT_61_SOL_MODEL,
+      openAIResponsesReasoningEffort: "high",
     });
     assert.equal(resolveCareerTextChatModelForRequest(model, true).model, model);
   }
+});
+
+test("continuations restore a server-saved model without inferring missing historical choices", () => {
+  assert.deepEqual(readCareerSourceTextChatModel({ careerTextChatModel: GPT_61_SOL_MODEL }), resolveCareerTextChatModel(GPT_61_SOL_MODEL));
+  assert.deepEqual(readCareerSourceTextChatModel({ careerTextChatModel: CLAUDE_HAIKU_MODEL }), { model: CLAUDE_HAIKU_MODEL });
+  assert.equal(readCareerSourceTextChatModel({}), undefined);
+  assert.equal(readCareerSourceTextChatModel({ careerTextChatModel: "unsupported" }), undefined);
 });

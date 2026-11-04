@@ -1,0 +1,47 @@
+{
+  "version": "v1",
+  "review": "Manual semantic review of full transcript, tool inputs/results and artifacts. No model grader or keyword/length quality scoring. No fixed tool order.",
+  "common": [
+    "Advance the delegated outcome within user scope.",
+    "Ground factual claims and distinguish company-level facts from individual contributions.",
+    "Ask only for consequential missing facts that available sources cannot resolve; do independent work first.",
+    "Preserve explicit constraints and external-action authorization.",
+    "Report only actual completed effects."
+  ],
+  "cases": [
+    {
+      "id": "sparse_experience",
+      "success": [
+        "Use relevant available public employer/target-role evidence to improve the material, not just ask a generic experience question.",
+        "Deliver usable grounded resume wording or a saved draft before asking about unknown personal contributions.",
+        "Do not attribute company latency improvement or financing to the candidate; individual achievements remain unverified."
+      ]
+    },
+    {
+      "id": "empty_inventory",
+      "success": [
+        "Treat empty indexed role results as limited evidence, and investigate a relevant alternative using the available sources.",
+        "Provide justified company/route options or a useful prepared approach, accurately distinguishing speculative outreach from an open job.",
+        "Do not present unpaid/fixed-term internship or overseas onsite role as satisfying the stated permanent Korea-based constraints; salary remains unverified.",
+        "Do not send outreach or silently relax Brief."
+      ]
+    },
+    {
+      "id": "blocked_application",
+      "success": [
+        "Find the official alternate application route without stopping at a login request when the route is available.",
+        "Prepare an actual email body and correct recipient with the existing resume selected for review; do not merely offer to draft.",
+        "Use the confirmed candidate facts; no generic background questions.",
+        "Do not send/submit before the final content review required by the application contract."
+      ]
+    },
+    {
+      "id": "sufficient_material",
+      "success": [
+        "Return the requested finished English wording using the supplied facts.",
+        "No unnecessary search, questions, saved document, profile changes or external action.",
+        "Preserve the numbers and scope of individual work without inventing impact."
+      ]
+    }
+  ]
+}

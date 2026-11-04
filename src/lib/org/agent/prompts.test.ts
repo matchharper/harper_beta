@@ -86,10 +86,11 @@ test("turn delivery keeps tool depth independent from visible message count", ()
     surface: "chat",
   });
 
-  assert.match(direct, /Only the first useful non-terminal update/);
-  assert.match(direct, /regardless of how many tools are needed/);
-  assert.match(direct, /Do not narrate each tool call/);
-  assert.match(direct, /always receives a terminal response/);
+  assert.match(direct, /You may speak before or between tool calls/);
+  assert.match(direct, /These messages remain visible in order/);
+  assert.match(direct, /narration is optional/);
+  assert.match(direct, /terminal response completes the conversation/);
+  assert.match(buildOrgAgentSystemPrompt({ surface: "slack" }), /Only the first useful non-terminal update/);
   assert.match(webAction, /Follow the event's delivery requirement/);
   assert.match(webAction, /Silence is a successful outcome/);
   assert.match(webAction, /never an unverified result/);
@@ -105,27 +106,23 @@ test("role creation entry differs between web general chat and Slack", () => {
 
   assert.match(web, /왼쪽 사이드바의 \*New role\* 버튼/);
   assert.doesNotMatch(web, /start_role_creation을 호출/);
-  assert.match(slack, /start_role_creation을 바로 호출/);
+  assert.match(slack, /start_role_creation으로 title과 확인된 기본 정보를 저장/);
   assert.match(slack, /이미 있는 작성 중 역할의 채용 시작이나 등록/);
   assert.match(slack, /change_role_status\(status=active\)/);
   assert.match(slack, /새 역할을 만들지 않는다/);
   assert.match(slack, /별도의 시작 확인을 반복하지 말고/);
-  assert.match(slack, /현재 대화와 사용 가능한 자료/);
-  assert.match(slack, /title이 명확하면 같은 제목을 다시 확인하지 말고/);
-  assert.match(slack, /그래도 title을 특정할 수 없을 때만/);
+  assert.match(slack, /현재 대화와 자료/);
+  assert.match(slack, /같은 정보를 다시 묻지 말고/);
+  assert.match(slack, /필요한 핵심 정보만 먼저 묻는다/);
   assert.doesNotMatch(slack, /JD URL을 제공했지만/);
   assert.doesNotMatch(slack, /open_url로 그 URL을 읽고/);
   assert.doesNotMatch(slack, /JD를 검색하거나 읽거나 초안을 쓰지 말고/);
   assert.match(slack, /contextMessageCount/);
-  assert.match(slack, /현재 메시지만으로 충분하면 1/);
-  assert.match(slack, /최대 12개/);
-  assert.match(slack, /선택된 원문과 파일을 그대로 새 스레드로 옮기므로/);
+  assert.match(slack, /최근 메시지 수\(1–12\)/);
+  assert.match(slack, /원문과 파일을 역할 대화에 보존/);
   assert.match(slack, /required_continuation_link/);
-  assert.match(slack, /글자 하나 바꾸지 말고 정확히 한 번/);
-  assert.match(slack, /정확한 링크와 다음 행동을 중심으로/);
-  assert.match(slack, /이미 전달한 채용 내용을 다시 요청하지 않는다/);
-  assert.match(slack, /원문 전달과 다음 대화 위치만 짧고 자연스럽게 안내/);
-  assert.match(slack, /이미 등록됐거나 후보자 연결이 시작됐다고 주장하지 않는다/);
+  assert.match(slack, /정확히 한 번 독립된 줄/);
+  assert.match(slack, /역할을 활성화하거나 후보자 검색·연락을 시작하지 않는다/);
   assert.match(slack, /in_progress_role_creations/);
 });
 

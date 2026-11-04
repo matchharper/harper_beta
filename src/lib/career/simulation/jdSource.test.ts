@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {readSimulationJdSource, buildSimulationRoleInput} from "./jdSource";
 import {runSimulationWorkflow} from "./workflow";
 import {SIMULATION_STEPS} from "./types";
+import {applicationRequirementsText, applicationFormText} from "./applicationFormText";
 test("JD reader distinguishes read, missing and inaccessible sources",async()=>{
  const read=await readSimulationJdSource("https://example.com/job",async url=>({url,title:"Role",markdown:"Cover letter required; portfolio optional",cached:false}));
  assert.equal(read.status,"read");
@@ -35,12 +36,60 @@ test("submission requirements and original JD pass through all three stages with
 test("saved JD is authoritative and form requirements remain separate", async () => {
  const page = await readSimulationJdSource("https://example.com/job",async url=>({url,title:"Role",markdown:"Live fallback",cached:false}));
  const form={status:"partial" as const,url:"https://example.com/apply",checkedAt:"now",fields:[],limitations:["Hidden fields unknown"]};
- const input=JSON.parse(await buildSimulationRoleInput("Example",page,async()=>({description:"Saved qualifications"}),form));
- assert.match(input.savedJd,/Saved qualifications/);
- assert.equal(input.jdPage,undefined);
- assert.equal(input.applicationForm.status,"partial");
- const fallback=JSON.parse(await buildSimulationRoleInput("Example",page,async()=>({description:""}),form));
- assert.equal(fallback.jdPage.markdown,"Live fallback");
+ const input=await buildSimulationRoleInput("Example",page,async()=>({description:"Saved qualifications"}),form);
+ assert.ok(input.includes("## Saved job description\n\nSaved qualifications"));
+ assert.ok(!input.includes("Live fallback"));
+ assert.ok(input.includes("Application form: partial"));
+ const fallback=await buildSimulationRoleInput("Example",page,async()=>({description:""}),form);
+ assert.ok(fallback.includes("## Job description from the posting"));
+ assert.ok(fallback.includes("Source: https://example.com/job"));
+ assert.ok(fallback.includes("Live fallback"));
  const empty=await readSimulationJdSource(null,async()=>{throw new Error();});
  await assert.rejects(buildSimulationRoleInput("Example",empty,async()=>({description:""})),/Neither/);
+});
+
+test("role projection preserves full source and useful company context without transport metadata", async () => {
+ const page = await readSimulationJdSource(null,async()=>{throw new Error("must not be called");});
+ const description = "Detailed role evidence.\n".repeat(2000) + "Final required qualification.";
+ const input = await buildSimulationRoleInput("Example · Nurse",page,async()=>({
+   roleId:"role-exact-reference", name:"Nurse", location:"Seoul", workMode:"On site",
+   seniority:"Experienced", compensation:"KRW 50 million", externalJdUrl:"https://example.com/job",
+   description,
+   company:{name:"Example",shortDescription:"Community hospital",description:"Provides emergency care.",hqLocation:"Seoul",foundedYear:1990,employeeCountRange:{start:51,end:200},logoUrl:"private-logo-transport"},
+   internalRequest:"private-internal-request",
+ }));
+ assert.ok(input.includes(description));
+ assert.ok(input.includes("Role reference: role-exact-reference"));
+ assert.ok(input.includes("Title: Nurse"));
+ assert.ok(input.includes("Work arrangement: On site"));
+ assert.ok(input.includes("Community hospital"));
+ assert.ok(input.includes("Provides emergency care."));
+ assert.ok(input.includes("Founded: 1990"));
+ assert.ok(input.includes("51") && input.includes("200"));
+ assert.ok(!input.includes("private-") && !input.includes("[object Object]"));
+});
+
+test("document requirements retain source instructions without browser execution metadata", () => {
+ const form = {
+   status:"partial" as const,url:"https://example.com/private-execution-url",checkedAt:"2026-10-29T01:20:30.000Z",
+   limitations:["browser-only-limitation"],submission:{status:"unsupported" as const,reason:"browser-only-access-reason"},
+   text:"Submit a resume in English.\nInclude professional affiliations when applicable.",
+   fields:[{
+     label:"Resume",type:"file",required:true,name:"browser-only-input-name",optionValue:"browser-only-option-value",
+     multiple:false,options:[],instructions:"Include relevant clinical placements.",fileTypes:[".pdf"],maxLength:null,
+   },{
+     label:"Professional credential",type:"select",required:null,options:["Registered nurse","Other"],instructions:"Use your current credential.",fileTypes:[],maxLength:200,
+   }],
+ };
+ const text=applicationRequirementsText(form);
+ assert.ok(text.includes("### Resume — required"));
+ assert.ok(text.includes("Instructions: Include relevant clinical placements."));
+ assert.ok(text.includes("Accepted files: .pdf"));
+ assert.ok(text.includes("### Professional credential — requiredness unknown"));
+ assert.ok(text.includes("Options: Registered nurse; Other"));
+ assert.ok(text.includes("Maximum characters: 200"));
+ assert.ok(text.includes(form.text));
+ assert.doesNotMatch(text,/browser-only|private-execution-url|checkedAt|partial|unsupported|2026-10-29/);
+ assert.ok(applicationFormText(form).includes("browser-only-input-name"));
+ assert.equal(applicationRequirementsText(),"");
 });
