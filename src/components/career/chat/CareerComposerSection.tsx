@@ -129,6 +129,7 @@ const selectComposerChat = (chat: CareerChatPanelCoreContextValue) => ({
   chatPending: chat.chatPending,
   onCancelChat: chat.onCancelChat,
   canStopChat: chat.canStopChat,
+  stopPending: chat.stopPending,
   sessionReengagementPending: chat.sessionReengagementPending,
   assistantTyping: chat.assistantTyping,
   opportunityFeedbackFollowUpPending: chat.opportunityFeedbackFollowUpPending,
@@ -214,6 +215,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     chatPending,
     onCancelChat,
     canStopChat,
+    stopPending,
     sessionReengagementPending,
     assistantTyping,
     opportunityFeedbackFollowUpPending,
@@ -350,7 +352,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     onboardingWrapupPending ||
     onboardingPausePending;
   const isComposerActionLocked =
-    isTextInputLocked || chatPending || assistantTyping;
+    isTextInputLocked || stopPending || chatPending || assistantTyping;
   const isComposerBusy =
     chatPending || assistantTyping || opportunityFeedbackFollowUpPending;
   const pendingActions = useCareerPendingActions({
@@ -548,7 +550,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     }
     return t(
       "career.chat.career_composer_section.017fk2m",
-      "원하는 역할이나 조건을 편하게 알려주세요. @로 기회를 선택하세요."
+      "원하는 방향을 편하게 말해주세요. @로 기회를 골라 물어볼 수 있어요."
     );
   })();
 
@@ -910,6 +912,8 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
           : undefined,
       link,
       opportunityMentions: submittedMentions,
+      viewedRoleId: router.query.tab?.[0] === "history" && typeof router.query.id === "string"
+        ? router.query.id : undefined,
       pendingAction: submittedPendingAction
         ? toCareerPendingActionReference(submittedPendingAction)
         : undefined,
@@ -1323,80 +1327,72 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     ...pendingActionMenuItems,
   ];
 
+  const composerActions = shouldShowCareerComposerRoleActions(draft) ? (
+    desktopRoleActionOpportunity ? (
+      <div key={desktopRoleActionOpportunity.id} className="hidden md:block">
+        <HistoryOpportunityRoleActions
+          item={desktopRoleActionOpportunity}
+          variant="tags"
+          visibleActions={desktopRoleActionScope === "company" ? COMPANY_DETAIL_ROLE_ACTIONS : undefined}
+        />
+      </div>
+    ) : isOnboardingDone ? (
+      <>
+        <MuteButton
+          size="sm"
+          disabled={recommendationRequestDisabled}
+          aria-busy={recommendationRequestPending || undefined}
+          onClick={() => void handleRequestMoreOpenPositions()}
+        >
+          {recommendationRequestPending
+            ? t(
+                "career.common.conversation_starters.requesting_more_open_positions",
+                "요청 중..."
+              )
+            : t(
+                "career.common.conversation_starters.more_open_positions",
+                "기회 더 찾아줘"
+              )}
+        </MuteButton>
+        <MuteButton
+          size="sm"
+          disabled={conversationStarterDisabled}
+          aria-busy={conversationStarterPending || undefined}
+          onClick={() =>
+            void handleStartConversationStarter("career_coaching")
+          }
+        >
+          {conversationStarterPending ? (
+            <Loader2
+              className="h-3 w-3 animate-spin"
+              aria-hidden="true"
+            />
+          ) : null}
+          {t(
+            "career.common.conversation_starters.1sfi8z4",
+            "커리어 상담"
+          )}
+        </MuteButton>
+      </>
+    ) : null
+  ) : null;
+
   return (
     <div
       data-vaul-no-drag=""
       className="shrink-0 px-4 pb-3 pt-2 md:px-5 md:pb-6 md:pt-0"
     >
-      <div className="relative mx-auto w-full max-w-[1120px]">
+      <div className="relative mx-auto w-full max-w-[var(--career-chat-content-max-width)]">
         <BrowserSessionDock />
         <CareerDailyExternalStatus />
         <InternalCallAnswersSlot>
-          <CareerSuggestionComposerSlot>
-            {initialOpportunitySearchStatus ? (
-              <CareerInitialOpportunitySearchStatus
-                status={initialOpportunitySearchStatus}
-                variant="composer"
-              />
-            ) : null}
-            {desktopRoleActionOpportunity &&
-            shouldShowCareerComposerRoleActions(draft) ? (
-              <div
-                key={desktopRoleActionOpportunity.id}
-                className="hidden px-2 pb-2 md:block"
-              >
-                <HistoryOpportunityRoleActions
-                  item={desktopRoleActionOpportunity}
-                  variant="tags"
-                  visibleActions={
-                    desktopRoleActionScope === "company"
-                      ? COMPANY_DETAIL_ROLE_ACTIONS
-                      : undefined
-                  }
-                />
-              </div>
-            ) : null}
-            {isOnboardingDone &&
-            !desktopRoleActionOpportunity &&
-            shouldShowCareerComposerRoleActions(draft) ? (
-              <div className="flex flex-wrap items-center gap-2 px-2 pb-2">
-                <MuteButton
-                  size="sm"
-                  disabled={recommendationRequestDisabled}
-                  aria-busy={recommendationRequestPending || undefined}
-                  onClick={() => void handleRequestMoreOpenPositions()}
-                >
-                  {recommendationRequestPending
-                    ? t(
-                        "career.common.conversation_starters.requesting_more_open_positions",
-                        "요청 중..."
-                      )
-                    : t(
-                        "career.common.conversation_starters.more_open_positions",
-                        "포지션 더 추천받기"
-                      )}
-                </MuteButton>
-                <MuteButton
-                  size="sm"
-                  disabled={conversationStarterDisabled}
-                  aria-busy={conversationStarterPending || undefined}
-                  onClick={() =>
-                    void handleStartConversationStarter("career_coaching")
-                  }
-                >
-                  {conversationStarterPending ? (
-                    <Loader2
-                      className="h-3 w-3 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                  {t(
-                    "career.common.conversation_starters.1sfi8z4",
-                    "커리어 상담"
-                  )}
-                </MuteButton>
-              </div>
-            ) : null}
+          {initialOpportunitySearchStatus ? (
+            <CareerInitialOpportunitySearchStatus
+              status={initialOpportunitySearchStatus}
+              variant="composer"
+            />
+          ) : null}
+          <CareerSuggestionComposerSlot actions={composerActions}>
             <div
               className={cn(
                 "transition-all duration-200",
@@ -1503,7 +1499,8 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                 placeholder={composerPlaceholder}
                 rows={2}
                 maxRows={CAREER_COMPOSER_MAX_ROWS}
-                disabled={isTextInputLocked}
+                disabled={isComposerActionLocked}
+                aria-busy={isComposerBusy || undefined}
                 mobileLeadingAction={
                   <ChatComposerActionMenu
                     animated={false}
@@ -1576,54 +1573,39 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                       onOpenChange={handleDesktopActionMenuOpenChange}
                       open={desktopActionMenuOpen}
                     />
-                    <ActionButton
-                      onClick={
-                        canStopChat && onCancelChat
-                          ? onCancelChat
-                          : handlePrimaryComposerAction
-                      }
-                      disabled={
-                        canStopChat && onCancelChat
-                          ? false
-                          : hasSendableDraft
-                            ? isComposerActionLocked
-                            : isComposerActionLocked ||
-                              isStartingCall ||
-                              !onStartCallMode
-                      }
-                      actionVariant="primary"
-                      buttonRadius="pill"
-                      className={cn(
-                        "px-2.5 h-9 rounded-[18px] text-neutral-00 shadow-xs",
-                        hasSendableDraft
-                          ? "border-neutral-1000-a10 bg-primary"
-                          : "border border-neutral-1000-a10 bg-primary"
-                      )}
-                      aria-label={
-                        canStopChat && onCancelChat
-                          ? t("career.chat.stop", "중단")
-                          : hasSendableDraft
-                            ? t(
-                                "career.chat.career_composer_section.send_message_aria_label",
-                                "메시지 보내기"
-                              )
-                            : t(
-                                "career.chat.career_composer_section.call_mode_aria_label",
-                                "통화 모드"
-                              )
-                      }
-                    >
+                    <div className="ml-auto flex items-center gap-2">
                       {canStopChat && onCancelChat ? (
-                        <Square className="h-3.5 w-3.5" fill="currentColor" />
-                      ) : (hasSendableDraft && isComposerBusy) ||
-                        (!hasSendableDraft && isStartingCall) ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : hasSendableDraft ? (
-                        <ArrowUp className="h-4 w-4" />
-                      ) : (
-                        <AudioLines className="h-3.5 w-3.5" />
-                      )}
-                    </ActionButton>
+                        <ActionButton
+                          onClick={onCancelChat}
+                          disabled={stopPending}
+                          actionVariant="primary"
+                          buttonRadius="pill"
+                          className="h-9 rounded-[18px] border border-neutral-1000-a10 bg-primary px-2.5 text-neutral-00 shadow-xs"
+                          aria-label={t("career.chat.stop", "중단")}
+                          aria-busy={stopPending}
+                        >
+                          {stopPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" fill="currentColor" />}
+                        </ActionButton>
+                      ) : null}
+                      {hasSendableDraft || !canStopChat ? (
+                        <ActionButton
+                          onClick={handlePrimaryComposerAction}
+                          disabled={stopPending || (hasSendableDraft
+                            ? isComposerActionLocked
+                            : isComposerActionLocked || isStartingCall || !onStartCallMode)}
+                          actionVariant="primary"
+                          buttonRadius="pill"
+                          className="h-9 rounded-[18px] border border-neutral-1000-a10 bg-primary px-2.5 text-neutral-00 shadow-xs"
+                          aria-label={hasSendableDraft
+                            ? t("career.chat.career_composer_section.send_message_aria_label", "메시지 보내기")
+                            : t("career.chat.career_composer_section.call_mode_aria_label", "통화 모드")}
+                        >
+                          {(hasSendableDraft && isComposerBusy) || (!hasSendableDraft && isStartingCall) ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : hasSendableDraft ? <ArrowUp className="h-4 w-4" /> : <AudioLines className="h-3.5 w-3.5" />}
+                        </ActionButton>
+                      ) : null}
+                    </div>
                   </div>
                 }
               />

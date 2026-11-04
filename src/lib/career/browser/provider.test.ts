@@ -13,9 +13,10 @@ process.env.BROWSER_USE_API_KEY = "fixture-key";
 test("new browser calls omit session IDs and results identify the exact references accepted for follow-up calls", () => {
   const parameters = USE_BROWSER_TOOL.parameters;
   assert.deepEqual(
-    browserInputSchema.parse({ action: "run", task: "Open the application" }),
+    browserInputSchema.parse({ action: "run", task: "Open the application", mode: "prepare" }),
     {
       action: "run",
+      mode: "prepare",
       task: "Open the application",
     }
   );

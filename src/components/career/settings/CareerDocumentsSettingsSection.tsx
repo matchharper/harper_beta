@@ -213,7 +213,7 @@ const CareerDocumentsSettingsSection = ({
         icon={<Files className="h-4 w-4" />}
         label={
           <span className="flex items-center gap-1.5">
-            {t("career.profile.documents.title", "내 문서")}
+            {t("career.profile.documents.title", "문서")}
           </span>
         }
       />
@@ -454,7 +454,7 @@ const CareerDocumentsSettingsSection = ({
                   { values: { companyName: companyRequest.companyName } }
                 )
               : hasSavedResume
-                ? t("career.common.career.0j3w14l", "새 이력서 선택")
+                ? t("career.common.career.0j3w14l", "대표 이력서 바꾸기")
                 : t("career.profile.sources.upload_resume", "이력서 업로드")
           }
           description={t(
@@ -477,11 +477,11 @@ const CareerDocumentsSettingsSection = ({
 
         <CareerProfileSourceCard
           icon={<Plus className="h-5 w-5" aria-hidden="true" />}
-          title={t("career.profile.documents.add", "추가하기")}
+          title={t("career.profile.documents.add", "다른 문서 추가")}
           meta={t("career.profile.sources.add_document", "문서 추가")}
           className="min-w-0 w-full border-dashed shadow-none md:w-full"
           onActivate={onAddDocument}
-          ariaLabel={t("career.profile.documents.add", "추가하기")}
+          ariaLabel={t("career.profile.documents.add", "다른 문서 추가")}
         />
       </div>
     </section>

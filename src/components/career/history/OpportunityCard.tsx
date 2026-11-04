@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { ClickablePanel } from "@/components/ui/clickable-panel";
 import RichText from "@/components/ui/rich-text";
+import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
 import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
@@ -27,7 +28,7 @@ const DETAIL_SECTION_CLASS =
 const titleClass = "text-[13px] font-normal text-black";
 
 // career-i18n-skip-next-line Source is translated by useCareerT below.
-const INTERNAL_CONNECTION_LABEL = "Harper 연결 제안";
+const INTERNAL_CONNECTION_LABEL = "Harper 연결";
 
 function OpportunityDescription({ item }: { item: CareerHistoryOpportunity }) {
   const t = useCareerT();
@@ -53,7 +54,7 @@ function OpportunityDescription({ item }: { item: CareerHistoryOpportunity }) {
   return (
     <section className={DETAIL_SECTION_CLASS}>
       <h4 className={titleClass}>
-        {t("career.common.career.0f24yir", "역할 설명")}
+        {t("career.common.career.0f24yir", "하는 일")}
       </h4>
       <div className="min-w-0 space-y-3">
         <div className="relative">
@@ -102,27 +103,63 @@ export default function OpportunityCard({
   item,
   expanded = true,
   onToggle,
+  onOpenDetail,
   onOpenCompanyInfo,
   onOpenLink,
   collapsedActions,
+  collapsedFooter,
+  titleClassName,
   titleAdornment,
   showUnreadIndicator = true,
+  connectionIndicator = "badge",
   actions,
 }: {
   item: CareerHistoryOpportunity;
   expanded?: boolean;
   onToggle?: () => void;
+  onOpenDetail?: () => void;
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenLink?: (item: CareerHistoryOpportunity, url: string) => void;
   collapsedActions?: ReactNode;
+  collapsedFooter?: ReactNode;
+  titleClassName?: string;
   titleAdornment?: ReactNode;
   showUnreadIndicator?: boolean;
+  connectionIndicator?: "badge" | "logo";
   actions?: ReactNode;
 }) {
   const t = useCareerT();
   const { locale } = useMessages();
   const contentId = useId();
   const isInternal = item.isInternal || item.sourceType === "internal";
+  const showLogoConnection = isInternal && connectionIndicator === "logo";
+  const connectionTooltip = t(
+    "career.history.opportunity_card.harper_connection",
+    "Harper로 연결중인 기회"
+  );
+  const companyLogo = (
+    <span
+      aria-label={showLogoConnection ? connectionTooltip : undefined}
+      tabIndex={showLogoConnection ? 0 : undefined}
+      className={cn(
+        "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md md:rounded-lg bg-white sm:size-11",
+        showLogoConnection &&
+          "border border-primary outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+      )}
+    >
+      {item.companyLogoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          alt=""
+          className="size-full object-contain"
+          loading="lazy"
+          src={item.companyLogoUrl}
+        />
+      ) : (
+        <Building2 aria-hidden className="size-5 text-neutral-muted" />
+      )}
+    </span>
+  );
   const connectionLabel =
     item.opportunityType === OpportunityType.IntroRequest
       ? getCareerOpportunityTypeLabel(item.opportunityType, t)
@@ -172,7 +209,7 @@ export default function OpportunityCard({
       )}
       data-opportunity-id={item.id}
     >
-      {isInternal ? (
+      {isInternal && connectionIndicator === "badge" ? (
         <Badge
           className="pointer-events-none absolute left-[2px] top-[-4px] z-10 bg-primary-faded text-primary"
           icon={<Handshake aria-hidden />}
@@ -183,25 +220,19 @@ export default function OpportunityCard({
         </Badge>
       ) : null}
       <OpportunityCardHeader
+        footer={!expanded ? collapsedFooter : undefined}
         contentId={contentId}
         expanded={expanded}
         label={`${item.title} · ${item.companyName}`}
         onToggle={onToggle}
+        onOpenDetail={onOpenDetail}
       >
         <span className="flex shrink-0 items-center gap-0.5">
-          <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md md:rounded-lg bg-white sm:size-11">
-            {item.companyLogoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt=""
-                className="size-full object-contain"
-                loading="lazy"
-                src={item.companyLogoUrl}
-              />
-            ) : (
-              <Building2 aria-hidden className="size-5 text-neutral-muted" />
-            )}
-          </span>
+          {showLogoConnection ? (
+            <Tooltips text={connectionTooltip}>{companyLogo}</Tooltips>
+          ) : (
+            companyLogo
+          )}
         </span>
         <div className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5">
@@ -211,7 +242,12 @@ export default function OpportunityCard({
                 className="pointer-events-none size-1.5 shrink-0 rounded-full bg-action"
               />
             ) : null}
-            <span className="block truncate text-[14px] font-normal md:font-medium leading-6 text-neutral-primary sm:text-[15px]">
+            <span
+              className={cn(
+                "block truncate text-[14px] font-normal md:font-medium leading-6 text-neutral-primary sm:text-[15px]",
+                titleClassName
+              )}
+            >
               {item.title}
             </span>
             {titleAdornment}
@@ -247,7 +283,7 @@ export default function OpportunityCard({
           </div>
         </div>
         {!expanded ? collapsedActions : null}
-        {onToggle ? (
+        {onToggle && !onOpenDetail ? (
           <ChevronRight
             aria-hidden
             className={cn(
@@ -305,7 +341,7 @@ export default function OpportunityCard({
                   >
                     {t(
                       "career.history.new_opportunity_list.harper_opinion",
-                      "Harper의 의견"
+                      "Harper가 본 점"
                     )}
                   </h4>
                   <div className="min-w-0 space-y-3">
@@ -370,7 +406,7 @@ export default function OpportunityCard({
                 variant="transparent"
                 size="sm"
               >
-                {t("career.common.career.0wohsg4", "JD 확인하기")}
+                {t("career.common.career.0wohsg4", "원문 보기")}
                 <ArrowUpRight aria-hidden className="size-3.5" />
               </MuteButton>
             </div>
@@ -387,30 +423,43 @@ export default function OpportunityCard({
 
 function OpportunityCardHeader({
   children,
+  footer,
   contentId,
   expanded,
   label,
   onToggle,
+  onOpenDetail,
 }: {
   children: ReactNode;
+  footer?: ReactNode;
   contentId: string;
   expanded: boolean;
   label: string;
   onToggle?: () => void;
+  onOpenDetail?: () => void;
 }) {
-  const className =
-    "flex min-w-0 items-center gap-3 px-3 py-4 sm:gap-4 sm:px-4";
-  return onToggle ? (
+  const rowClassName = "flex min-w-0 items-center gap-3 sm:gap-4";
+  const className = cn("min-w-0 px-3 py-4 sm:px-4", !footer && rowClassName);
+  const content = footer ? (
+    <>
+      <div className={rowClassName}>{children}</div>
+      {footer}
+    </>
+  ) : (
+    children
+  );
+  const onActivate = onOpenDetail ?? onToggle;
+  return onActivate ? (
     <ClickablePanel
-      aria-controls={contentId}
-      aria-expanded={expanded}
+      aria-controls={onOpenDetail ? undefined : contentId}
+      aria-expanded={onOpenDetail ? undefined : expanded}
       aria-label={label}
       className={cn(className, "cursor-pointer")}
-      onActivate={onToggle}
+      onActivate={onActivate}
     >
-      {children}
+      {content}
     </ClickablePanel>
   ) : (
-    <div className={className}>{children}</div>
+    <div className={className}>{content}</div>
   );
 }

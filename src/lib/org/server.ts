@@ -1,5 +1,5 @@
 import { resolveRoleSharedMaterials } from "@/lib/career/roleMaterials/store";
-import { canCacheOrgPermissions, memoOrgRequest } from "./requestScope.server";
+import { canCacheOrgPermissions, memoOrgRequest, memoOrgRead } from "./requestScope.server";
 import { invalidateOrgPermissions } from "./permissionCache.server";
 import { traceStageStep } from "@/lib/org/stageTiming.server";
 import {
@@ -1514,6 +1514,7 @@ async function fetchWorkspaceById(
   admin: SupabaseAdminClient,
   workspaceId: string
 ) {
+  return memoOrgRead(admin, ["workspace", workspaceId], async () => {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
       "company_workspace_id, company_name, published_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, signup_state, is_reviewing, locale, updated_at"
@@ -1523,6 +1524,7 @@ async function fetchWorkspaceById(
 
   if (error) throw error;
   return (data as CompanyWorkspaceRow | null) ?? null;
+  });
 }
 
 export async function fetchOrgInvitePreview(args: {
@@ -1670,6 +1672,13 @@ export async function assertOrgWorkspacePermission(args: {
   user: User;
   workspaceId: string;
 }) {
+  const { companyAgentScope } = await import("@/lib/agentContacts/companyScope");
+  const service = companyAgentScope(args.admin);
+  if (service) {
+    if (service.workspaceId !== args.workspaceId || args.permission !== "view") throw new OrgHttpError(403, "Company event does not grant this membership permission");
+    await service.assertCurrent();
+    return "admin" as const;
+  }
   const reusePermission = canCacheOrgPermissions() && !args.allowReviewSetup &&
     (args.permission === "view" || args.permission === "manage_candidates");
   if (!reusePermission) {
@@ -2569,7 +2578,8 @@ export async function fetchRoleRowsForWorkspace(
   workspaceId: string,
   user?: User
 ) {
-  return memoOrgRequest(["role-rows", user?.id, workspaceId], async () => {
+  return memoOrgRead(admin, ["role-rows", user?.id, user?.email, workspaceId], () =>
+    memoOrgRequest(["role-rows", user?.id, user?.email, workspaceId], async () => {
   const access = user ? await traceStageStep("fetchRoleRowsForWorkspace:2504", async () => (readOrgRoleAccess({ admin, user, workspaceId }))) : null;
   let query = (admin.from("company_roles" as any) as any)
     .select(
@@ -2584,7 +2594,7 @@ export async function fetchRoleRowsForWorkspace(
   if (error) throw error;
   return sortRoles((data ?? []).filter(isCompanyVisibleRole) as CompanyRoleWithInternalRow[]);
 
-  });
+  }));
 }
 
 async function fetchCustomStages(
@@ -4573,13 +4583,20 @@ async function sendOrgIntroEmail(args: {
   let introLocale: "en" | "ko" = "ko";
   let candidateProfessionalSummary: string | null = null;
   if ((!storedSubject || !storedBody) && !args.draft) {
+    const sharedMaterial = await resolveRoleSharedMaterials({
+      admin: args.admin, userId: args.candidate.talentId,
+      roleId: args.role.role_id, workspaceId: args.workspace.company_workspace_id,
+      recommendationId: args.recommendation.id,
+    });
     const [talentSettingResult, experienceResult] = await Promise.all([
       (args.admin.from("talent_setting" as any) as any)
         .select("preferred_locale, setting_locale")
         .eq("user_id", args.candidate.talentId)
         .maybeSingle(),
-      (args.admin.from("talent_experiences" as any) as any)
-        .select("company_name, role, start_date, end_date")
+      sharedMaterial?.profile_snapshot
+        ? Promise.resolve({ data: sharedMaterial.profile_snapshot.talentExperiences, error: null })
+        : (args.admin.from("talent_experiences" as any) as any)
+        .select("company_name, role, start_date, end_date, description")
         .eq("talent_id", args.candidate.talentId)
         .order("start_date", { ascending: false, nullsFirst: false }),
     ]);
@@ -4596,13 +4613,14 @@ async function sendOrgIntroEmail(args: {
         (
           experience: Pick<
             TalentExperienceRow,
-            "company_name" | "end_date" | "role" | "start_date"
+            "company_name" | "end_date" | "role" | "start_date" | "description"
           >
         ) => ({
           companyName: experience.company_name,
           endDate: experience.end_date,
           role: experience.role,
           startDate: experience.start_date,
+          description: experience.description,
         })
       )
     );

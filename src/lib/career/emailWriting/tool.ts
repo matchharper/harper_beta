@@ -1,3 +1,4 @@
+import { CareerEffectWaiting, reserveWorkEffect, readBoundEffect, bindWorkEffect } from "../externalOperations/effects";
 import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { z } from "zod";
 import { createHash } from "node:crypto";
@@ -28,6 +29,7 @@ export const WRITE_EMAIL_TOOL = {
   parameters: {
     type: "object",
     properties: {
+      effect_key: { type: "string", description: "Stable effect identity within delegated work. Reuse the same key if this is an alternative to a browser submission." },
       to: { type: "array", items: { type: "string" } },
       cc: { type: "array", items: { type: "string" } },
       bcc: { type: "array", items: { type: "string" } },
@@ -41,6 +43,7 @@ export const WRITE_EMAIL_TOOL = {
           properties: {
             document_id: { type: "string" },
             revision: { type: "integer" },
+            snapshot_id: { type: "string", description: "Exact pinned file from the reviewed form; preserves its bytes after source edits." },
           },
           required: ["document_id"],
           additionalProperties: false,
@@ -52,6 +55,7 @@ export const WRITE_EMAIL_TOOL = {
   },
 };
 export const emailInputSchema = z.object({
+  effect_key: z.string().optional(),
   to: z.array(z.string()),
   cc: z.array(z.string()).default([]),
   bcc: z.array(z.string()).default([]),
@@ -114,6 +118,9 @@ export async function executeWriteEmail(
   context: ExternalToolContext
 ) {
   const input = emailInputSchema.parse(raw);
+  const effect = await reserveWorkEffect(context, input.effect_key, input);
+  const bound = await readBoundEffect(context, effect);
+  if (bound) return { operation: bound, status: bound.status, modelOutput: `This effect already belongs to ${bound.kind} ${bound.id}; status ${bound.status}. Read that receipt before further action.` };
   const connection = await getGmailWritingConnection(context);
   if (connection.status !== "ready") {
     const result = {
@@ -187,6 +194,7 @@ export async function executeWriteEmail(
     )
       throw new Error("Gmail connection changed before dispatch");
     await assertExternalToolActive(context);
+    await bindWorkEffect(context, effect, operation);
     operation = await updateOperation(context, operation, {
       status: "dispatching",
     });
@@ -214,10 +222,14 @@ export async function executeWriteEmail(
       },
       result: {
         summary:
-          "Gmail accepted the email for sending. Recipient receipt has not been verified.",
+          "Gmail accepted the email for sending.",
       },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof CareerEffectWaiting) {
+      await updateOperation(context, operation, { status: "reserved" });
+      throw error;
+    }
     operation = await updateOperation(context, operation, {
       status: operation.status === "dispatching" ? "uncertain" : "failed",
       result: {

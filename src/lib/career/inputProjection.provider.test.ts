@@ -66,10 +66,10 @@ test("actual provider receives dedicated readable projections, not raw tool obje
       talentExperiences: [{ id: 5, role: "Engineer", company_name: "Example", start_date: "2020-01", end_date: time, description: `Original statement ${time}` },
         { id: 7, role: "Researcher", company_name: "Another", start_date: "2024-01", end_date: null, memo: "User said they left this role last month." }],
       talentEducations: [{ id: 6, degree: "BS", field: "Computer Science", school: "Example University", start_date: "2016", end_date: "2020" }], talentExtras: [] } });
-  assert.ok(profileText.includes("2020-01 · 2026-10-30 03:05"));
+  assert.ok(profileText.includes("start: 2020-01 · end: 2026-10-30 03:05"));
   assert.ok(profileText.includes("Computer Science"));
   assert.ok(profileText.includes(`Original statement ${time}`));
-  assert.ok(profileText.includes("2024-01 · null"));
+  assert.ok(profileText.includes("start: 2024-01 · end: not recorded; current employment/enrollment unconfirmed"));
   assert.ok(profileText.includes("User said they left this role last month."));
   assert.ok(profileText.includes("Other sections were not read"));
   assert.ok(!profileText.includes("not-selected@example.invalid"));

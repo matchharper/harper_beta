@@ -244,7 +244,7 @@ function formatInternalRole(
     `Location: ${formatText(row.location_text)}`,
     candidateState,
     companyState,
-    row.has_priority_review_request ? "우선검토요청 등록됨" : null,
+    row.has_priority_review_request ? "과거 관심·검토 요청 기록 있음" : null,
     row.has_reconsideration_scheduled
       ? "Scheduled for reconsideration"
       : null,

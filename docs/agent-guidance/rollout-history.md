@@ -2,6 +2,38 @@
 
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
+## 2026-11-04 로컬 변경 업로드 전 DB 보완 (웹·Worker 미배포)
+
+사용자의 배포 전 운영 DB 준비 요청에 따라 실제 함수·index와 migration 이력을 먼저 대조했다. 미반영된 로컬 `20261029090000_reuse_active_company_search`, `20261029094911_company_chat_multiple_progress_messages`, `20261104025349_career_conversation_input_batching`, `20261104033157_career_conversation_stop`을 하나의 원자적 migration `career_inbox_stop_and_company_chat_release`(운영 version `20261104035457`)로 적용했다. 동일 검색 접수 재사용, 회사 채팅 progress 메시지의 sequence별 중복 방지, Career pending 입력 일괄 접수·전체 중단의 DB 실행 계약이다. 이 네 파일을 다시 적용하지 않는다.
+
+관련 최신 함수 89개의 본문 hash가 로컬 정본과 일치한다. 이번에 변경·추가한 함수 14개는 anon/authenticated 실행 차단, service_role 실행 허용, security invoker를 유지한다. 새 메시지 unique index와 중단 입력 guard trigger를 확인했고, 보안 advisor는 적용 전후 동일하다. 회사 DB 경계 테스트 2개를 통과했다. 적용 전후 미완료 Career invocation은 0건이며 운영 작업 접수·중단·발송 테스트는 하지 않았다.
+
+웹·Worker 배포와 서버 재시작은 하지 않았다. 기존 계정 Career 일정 이관은 Worker 전환 시점에 `harper_worker/docs/career-agent-cutover.md`에 따라 수행한다. DB 준비만 완료한 기록이며 새 웹 UI·Worker 동작이 운영에 반영됐다는 의미가 아니다. Notion에 미배포 동작을 반영하지 않았다.
+
+## 2026-11-04 Career 가이드 만료 수정 (운영 DB 적용·웹/Worker 미배포)
+
+사용자의 data migration 제외 운영 DB 적용 승인으로 `career_handbook_version_consumption`(운영 version `20261104024944`, 로컬 정본 `supabase/migrations/20261104024605_career_handbook_version_consumption.sql`)을 적용했다. `consume_career_agent_handbooks` 함수 1개만 교체했다. 가이드 본문 version이 바뀌어도 실제 제공한 stable ID의 남은 횟수를 차감하며, 기존 reply claim·완료 ID에 의한 중복 방지는 유지한다. 같은 migration을 재적용하지 않는다.
+
+운영 함수의 읽기 전용 합성 입력으로 구버전 lease가 새 버전 제공 후 2→1→만료됨을 확인했다. anon/authenticated 실행 차단·service_role 실행 허용도 유지되며 해당 함수의 security advisory는 없다. 고객 데이터 이관·일괄 갱신은 없고, 기존 lease는 이후 정상 답변 완료 시 소진된다. 웹/Worker 배포·재시작은 하지 않았으므로 로컬 bubble 지침 변경은 아직 운영 미반영이다. 내부 가이드 사용 횟수 오류 수정으로 새 기능·요금·정책 변경은 없어 Notion 동기화 대상은 없다.
+
+## 2026-11-04 배포 전 점검·DB 준비 (운영 DB 적용·웹/Worker 미배포)
+
+사용자의 운영 DB 반영·추가 수정 요청으로 실제 운영 정의를 대조하고 `career_offer_agent_introductions_concurrent_work`(운영 version `20261103235538`, UTC)를 적용했다. 로컬 정본은 `20261103083918_career_opportunity_offer_stage.sql`, `20261103125705_internal_role_agent_introductions.sql`, `20261103125930_career_concurrent_work.sql`이다. Offer 저장 단계, agent 간 소개 원장·회사 일정, Career 동시 작업의 접수·claim·동시 수정·효과 멱등 경계를 준비했다. 세 migration을 하나의 transaction으로 적용했으며 **같은 migration을 재적용하지 않는다.**
+
+적용 후 함수 23개의 본문 해시가 로컬 정본과 일치하고 anon/authenticated 실행 차단·service_role 실행 권한을 확인했다. 새 테이블 3개는 RLS와 서버 전용 접근을 유지한다. 신규 보안 WARN/ERROR는 없으며 서버 전용 무정책 RLS 안내(INFO) 3건만 추가됐다. 기존 소개의 legacy 처리 계약은 유지하며 새 agent 소유 소개는 구 Worker에서 제외한다. 고객 데이터 backfill·일정 이관·실제 연락·웹/Worker 배포·재시작은 하지 않았다.
+
+로컬에서는 이메일 queue route의 Next Request 타입 오류와 Gmail 도구의 query/thread_id 누락 입력 계약을 수정했다. 바뀐 도구·일반 대화·동시 작업·현재 UI에 맞춰 실패 테스트를 정비했으며, 제거된 priority-review/instant-bulk 도구나 지원 준비 전용 모드를 복원하지 않았다. 최초 실패한 웹 26개 파일의 재검증은 102 pass·0 fail·1 opt-in PDF/browser skip이며, 소개 동의 modal도 별도로 통과했다. 내부 소개의 실제 로컬 DB rollback 통합 검증, Career 동시 작업·Offer·내부 평가 DB 검증 15개, 내부 지원 도구 9개, Worker 핵심 42개(그중 scheduled runner 18개, 추가 subtest 5개) 및 별도 PostgreSQL 17 검증 13개가 통과했다. 최종 운영 빌드는 컴파일·Next 타입 검사·444개 페이지 생성을 포함해 성공했고 변경한 제품 경로의 lint도 통과했다. 빌드 전후 제품 소스 지문이 같음을 확인하고 검사 전용 빌드 디렉터리·tsconfig 추가 항목을 작업 트리에서 정리했다. 실제 운영 LLM·수신자 메일 발송 E2E를 수행했다는 뜻은 아니다.
+
+변경된 Career 문구 23개를 직접 영어로 작성해 한·영 번역 DB에 동기화했다. 프로필 비공개를 모든 외부 추천의 중단으로 설명하던 문구와 소개 수락을 즉시 연결 완료로 설명하던 문구도 실제 계약에 맞췄다. 제품 번역 1,738개 키 검사가 통과했다. 개발 도구·합성 preview 9개 파일은 명시적인 `career-i18n-skip-file`로 제외하고 다른 namespace의 `orgT` 문구를 Career 미번역으로 잘못 검사하던 부분을 수정했다. 새 제품 동작이나 운영 정책 전환은 없으므로 Notion에는 미배포 기능을 live로 기록하지 않았다.
+
+출시 때는 웹의 새 endpoint/queue consumer가 준비된 다음 Worker scheduler 전환과 기존 계정 일정 이관을 함께 처리해야 한다. 점검 당시 온보딩 완료 계정 5,490개에 `career_check_in`이 없었다. 이 상태에서 새 scheduler만 배포하면 기존 계정의 정기 점검이 누락될 수 있다. `scripts/transition-career-agent-schedules.ts`의 dry-run 후 적용하고 `skippedActiveLegacy`는 기존 실행 완료 후 다시 처리한다. 현재 이관 RPC는 adaptive check-in을 생성/계승하며 예전 다음 시각을 일회성 review로 그대로 복사하지 않는다. Worker `docs/career-agent-cutover.md`를 현재 구현에 맞췄다. 이번 점검에서는 이관을 실행하지 않았다.
+
+## 2026-11-03 Career 일정·팔로우 준비 누락 보완 (운영 DB 적용·웹/Worker 미배포)
+
+사용자의 기존 계정·로컬 웹/Worker 테스트 중 발견한 DB 누락 수정 요청으로 `career_adaptive_check_in`(운영 `20261103052417`)과 `career_follow_preparation`(`20261103052423`)을 적용했다. 로컬 정본은 `supabase/migrations/20261102064501_career_adaptive_check_in.sql`과 `20261102080129_career_follow_preparation.sql`이다. 일정 변경 작업 식별자·체크인 필드/함수 및 팔로우 준비 캐시/claim 함수를 보완했다. 기존 일정 2건은 새 필드를 제외한 전체 행 해시가 보존됐고, service_role의 일정 변경·취소 및 없는 팔로우 claim 검증은 transaction rollback했다. 보안 점검의 신규 항목은 없다.
+
+로컬에서 대상 계정의 일정 목록 조회, 열린 포지션을 지칭한 대화, 문서 카드 미리보기를 확인했다. 일정 조회의 기존 ensure 경로가 대상 계정의 체크인 1건을 생성했으며 전체 사용자 backfill이나 일괄 큐잉은 실행하지 않았다. 오류 안내/다시 불러오기 번역은 이번에 추가한 `career.automation.load_failed`, `career.automation.update_failed`, `career.automation.retry`의 한국어·영어 6행만 DB에 반영했다. 웹·Worker 배포·운영 재시작은 하지 않았으며 로컬 UX/맥락 수정은 운영 반영으로 간주하지 않는다. 같은 migration을 재적용하지 않는다.
+
 ## 2026-11-02 첫 온보딩 추천 가이드 (운영 DB 적용·웹/Worker 미배포)
 
 사용자 요청으로 운영 migration `20261102090811` (`career_initial_recommendation_guidance`)을 적용했다. 로컬 정본은 `supabase/migrations/20261102090650_career_initial_recommendation_guidance.sql`이다. `enqueue_career_onboarding_invocation`의 새 실행 지침에 신규 가입자가 첫 온보딩을 마쳤다는 맥락과, 적합한 기회가 충분할 때 10~15개를 참고 범위로 삼도록 안내했다. 최소·최대·할당량으로 강제하지 않고 목표·선호·실제 유용성에 따라 더 적거나 많게 추천하도록 한다. 기존 원본 migration은 적용 당시 지침을 유지하고 변경은 별도 migration에만 둔다.

@@ -1,3 +1,4 @@
+// career-i18n-skip-file: Internal developer controls and synthetic preview copy.
 import React from "react";
 import { Loader2, Play, RefreshCw, RotateCcw } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";

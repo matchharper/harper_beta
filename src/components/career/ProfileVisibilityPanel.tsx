@@ -5,12 +5,13 @@ import { ConversationExamples } from "@/components/ui/conversation-examples";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerT } from "@/i18n/useCareerT";
 
-export const profileVisibilityLabels: Record<CareerProfileVisibility, string> =
-  {
-    open_to_matches: "Open to matches",
-    exceptional_only: "Exceptional only",
-    dont_share: "Don't share",
-  };
+export const getProfileVisibilityLabels = (
+  t: ReturnType<typeof useCareerT>
+): Record<CareerProfileVisibility, string> => ({
+  open_to_matches: t("career.profile.visibility.open", "Harper가 먼저 공유해요"),
+  exceptional_only: t("career.profile.visibility.review", "내가 먼저 확인해요"),
+  dont_share: t("career.profile.visibility.paused", "잠시 멈춤"),
+});
 
 export function ProfileVisibilityPanel({
   value,
@@ -26,18 +27,19 @@ export function ProfileVisibilityPanel({
   onClose: () => void;
 }) {
   const t = useCareerT();
+  const profileVisibilityLabels = getProfileVisibilityLabels(t);
   const summaries = {
     open_to_matches: t(
       "career.profile.visibility_panel.open_summary",
-      "회원님이 좋아할만한 회사가 채용을 요청했을 때, Harper가 먼저 회원님을 소개해요. 제한된 정보만 공유됩니다. 평균적으로 68% 더 많은 기회를 받아요."
+      "잘 맞는 회사에 Harper가 먼저 소개해요. 채용에 필요한 정보만 공유해요."
     ),
     exceptional_only: t(
       "career.profile.visibility_panel.exceptional_summary",
-      "회원님이 좋아할만한 회사가 채용을 요청했을 때, 회원님을 소개하기 전에 먼저 허락을 받아요."
+      "회원님이 선호할만한 회사가 채용을 요청했을 때, 회원님을 소개하기 전에 먼저 허락을 받아요."
     ),
     dont_share: t(
       "career.profile.visibility_panel.private_summary",
-      "모든 곳에 프로필을 공유하지 않아요. 모든 매칭이 중지됩니다."
+      "새로운 회사에 프로필을 공유하지 않아요."
     ),
   };
   const descriptions = {
@@ -51,7 +53,7 @@ export function ProfileVisibilityPanel({
     ),
     dont_share: t(
       "career.profile.visibility_panel.private_description",
-      "모든 매칭을 중단해요. 이미 소개된 회사는 계속 프로필을 볼 수 있어요."
+      "새로운 프로필 공유를 중단해요. 이미 소개된 회사는 계속 프로필을 볼 수 있고, 외부 공고 추천은 별도 설정에 따라 계속됩니다."
     ),
   };
   const conversations = {
@@ -60,14 +62,14 @@ export function ProfileVisibilityPanel({
         role: "assistant",
         text: t(
           "career.profile.visibility_panel.open_assistant",
-          "프로필을 보낸 회사에서 만나보고 싶다고 연락이 왔어요. 어떤 회사인지 알려드릴까요?"
+          "Sierra에 회원님을 소개했는데, 담당자인 John에게서 만나보고 싶다고 연락이 왔어요. 요청하신 조건을 맞출 수 있다고 합니다."
         ),
       },
       {
         role: "user",
         text: t(
           "career.profile.visibility_panel.open_user",
-          "응, 회사랑 포지션 알려줘."
+          "응, 만나볼게 일정 잡아줘."
         ),
       },
     ],
@@ -106,7 +108,7 @@ export function ProfileVisibilityPanel({
   } as const;
   const title = t(
     "career.profile.career_profile_settings_section.1tnqucg",
-    "프로필 공개"
+    "프로필 공유 방식"
   );
   return (
     <TalentCareerModal

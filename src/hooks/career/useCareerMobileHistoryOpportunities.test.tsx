@@ -81,6 +81,7 @@ for (const failFirst of [false, true]) {
       });
       const root = createRoot(dom.window.document.getElementById("root")!);
       const requests: { stages: string[]; offset: number }[] = [];
+      let loadAllProgress = false;
       let history!: ReturnType<typeof useCareerHistoryState>;
       let collection!: ReturnType<typeof useCareerMobileHistoryOpportunities>;
       const fetchWithAuth = async (input: RequestInfo | URL) => {
@@ -124,6 +125,8 @@ for (const failFirst of [false, true]) {
         });
         collection = useCareerMobileHistoryOpportunities({
           activeTab: tab,
+          loadAllProgress,
+          historyUpdateError: history.historyUpdateError,
           historyLoading: false,
           historyOpportunities: history.historyOpportunities,
           historyOpportunityCounts: history.historyOpportunityCounts,
@@ -156,7 +159,7 @@ for (const failFirst of [false, true]) {
         await settle();
         assert.deepEqual(
           requests,
-          [{ stages: ["applied", "connected"], offset: 0 }],
+          [{ stages: ["applied", "connected", "offer"], offset: 0 }],
           "both first pages load even before session counts arrive"
         );
         if (failFirst) {
@@ -193,6 +196,8 @@ for (const failFirst of [false, true]) {
         assert.equal(collection.hasMore, true);
         assert.equal(collection.isLoading, false);
         const beforeMore = requests.length;
+        loadAllProgress = true;
+        await render("applied");
         await act(async () => {
           collection.loadMore();
           collection.loadMore();
@@ -230,6 +235,8 @@ for (const failFirst of [false, true]) {
           "returning to the tab reuses loaded pages"
         );
         assert.equal(collection.opportunities.length, 15);
+        loadAllProgress = false;
+        await render("applied");
         await act(async () =>
           client.setQueriesData(
             { queryKey: ["career-history-opportunities"] },

@@ -71,7 +71,7 @@ Action note: ...
 | Internal call request follow-up | `/api/talent/opportunities/internal-call-request-followup` -> `createInternalOpportunityCallRequestFollowUp` | No | 동일 feedback event의 호환 adapter | 일반 Career capability 전체 | 신규 UI는 호출하지 않음. 기존 client의 재호출도 같은 reply ID로 중복 방지 |
 | Company watchlist follow follow-up | `/api/talent/company-watchlist/follow-followup` -> `createTalentCompanyFollowFollowUpReply` -> `runCareerChatTurn` | No | `buildCompanyFollowUpInstruction` | `[]` | No |
 | Gmail career history import completion | Gmail career-history queue -> `createGmailCareerHistoryFollowUpReply` -> `runCareerChatTurn` | No | `buildGmailCareerHistoryFollowUpInstruction` with the saved high-confidence application records | `[]` | No |
-| Session start greeting/re-engagement | `/api/talent/session`, `/api/talent/session/reengagement` -> `runCareerChatTurn` | Endpoint wrapper may stream status, but LLM turn itself is non-streaming | `buildCareerSessionStartTurnInstruction` | Shared Career capability runtime | No synthetic user turn |
+| Session start greeting/re-engagement | `/api/talent/session`, `/api/talent/session/reengagement` -> `runCareerChatTurn` | Dedicated endpoint streams text; session GET is non-streaming | `buildCareerSessionStartTurnInstruction` | Shared Career capability runtime | Explicit app-return event after history; no persisted user speech |
 | Voice call wrap-up | `/api/talent/chat/call-wrapup` -> `runCareerChatTurn` | No | 일반 call: `buildCareerCallWrapupTurnInstruction`; internal opportunity call: `buildInternalOpportunityCallWrapupInstruction` | `update_setting`, `update_talent_profile` | Prompt differs for internal opportunity call. Tool allowlist is the same. |
 | Onboarding completion wrap-up card | `createOnboardingCompletionMessages` / `regenerateOnboardingCompletionMessages` -> `generateOnboardingCompletionWrapupContent` | No | `buildWrapupInstruction` as `runtimeInstruction` | `update_setting`, `update_talent_profile` | No |
 | Onboarding completion next message | `generateOnboardingCompletionNextStepsContent` | No | `buildOnboardingCompletionHandoffInstruction` + shared post-onboarding guide | `[]` | `/jobs` entry opportunity and Gmail state are supplied as factual context; the LLM chooses one primary continuation. |
@@ -124,11 +124,11 @@ Tools: `[]`.
 
 Prompt builder: `buildCareerSessionStartTurnInstruction`
 
-Current local contract (2026-11-02):
+Current local contract (2026-11-04):
 
-- 사용자가 새 메시지 없이 다시 방문했다는 사실과, 반갑게 맞이하는 인사와 함께 지금 도움이 되는 커리어 행동을 이어가는 목적을 runtime context에 제공한다.
+- 사용자가 새 메시지 없이 다시 방문했다는 사실과, 자연스러운 인사로 새 대화를 여는 목적을 마지막 앱 사건 입력에 제공한다. 준비된 추천 사실은 runtime context에 유지한다.
 - 일반 Career 역할·대화 context를 재사용한다. 최근 대화, 최근 재접속 이력, 현재 pending action을 제공하며 주제별 제안 목록이나 연속 주제 금지 규칙은 넣지 않는다.
-- `runCareerChatTurn`은 실제 대화 이력만 전달한다. 사용자 발화가 없는 호출에도 합성 사용자 메시지나 새 실행 결과가 있다는 전제를 추가하지 않는다.
+- `runCareerChatTurn`은 실제 대화 역할·순서를 보존하고 그 뒤에 재접속 사건을 provider `user` 역할로 전달한다. 사건에는 앱 입력이며 사용자 발화·새 동의가 아님을 표시한다. 대화 DB에 사용자 메시지를 만들지 않고, 시스템 context에 같은 지침을 중복하지 않는다. 이전 assistant 답변을 prefill로 전달하지 않는 입력 계약이다.
 - pending action은 현재 `selectCareerReengagementPromptActions`가 반환하는 항목을 제공한다. actionKey를 정확히 사용하는 UI 실행 계약은 유지하며, 다룰 주제와 설명은 원본 LLM이 판단한다.
 - 시각은 공통 formatter로 변환한다. 쓸 메시지가 없으면 `__NO_SESSION_GREETING__`을 반환할 수 있다.
 - 온보딩 이후에는 `reengagementOpportunities.ts`가 최근 검색한 활성 매칭의 미추천·유효 공고 상위 10개를 준비한다. 최신 공고별 평가, 매칭 기준, 공고 공개 정보, 목록 revision과 마지막 시도·완료·진행 중 실행을 제공한다. 10개는 초기 context page이며 추천 개수를 제한하지 않는다.

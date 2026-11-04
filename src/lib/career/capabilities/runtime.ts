@@ -57,6 +57,8 @@ export type CareerReplyCheckpoint = {
   handbooks: CareerHandbookLease[];
   record: CareerCapabilityTurnRecord;
   waitFor?: CareerDeferredWork[];
+  /** Authenticated input rows included in this exact provider transcript. */
+  inputMessageIds?: number[];
   /** Delivery ownership and original context required to recover an unpublished continuation. */
   continuation?: {
     assistantModel?: string;
@@ -70,8 +72,13 @@ export type CareerReplyCheckpoint = {
     noMessageMarker?: string;
   };
 };
+export type CareerInputInbox = {
+  append(messages: unknown[]): Promise<boolean>;
+  messageIds(): number[];
+  save(checkpoint: CareerReplyCheckpoint): Promise<void>;
+};
 /** Executor receipts, never a model's interpretation of the conversation. */
-export type CareerDeferredWork = { kind: "external_evaluation" | "internal_evaluation" | "email_delivery"; id: string };
+export type CareerDeferredWork = { kind: "external_evaluation" | "internal_evaluation" | "email_delivery" | "browser_run" | "career_input" | "external_capacity"; id: string };
 export class CareerReplyContinuation extends Error {
   readonly [TOOL_RUNTIME_CONTROL] = true;
   constructor(readonly checkpoint: CareerReplyCheckpoint) { super("Career reply saved for continuation"); this.name = "CareerReplyContinuation"; }
@@ -143,6 +150,8 @@ export class CareerCapabilityRuntime {
       resume?: CareerReplyCheckpoint;
       continuation?: CareerReplyCheckpoint["continuation"];
       checkpoint?: (checkpoint: CareerReplyCheckpoint) => Promise<void>;
+      inputInbox?: CareerInputInbox;
+      resumeDependenciesPending?: boolean;
       usageContext?: Omit<LlmUsageContext, "requestId">;
       refreshAfterTool?: (name: string, result: unknown) => Promise<void>;
       onStep?: (data: Record<string, unknown>) => void;
@@ -202,14 +211,24 @@ export class CareerCapabilityRuntime {
   async beforeCompletion(step: CareerCapabilityStep, input: { transport: CareerReplyCheckpoint["transport"]; model?: string; messages: unknown[]; systemBlocks?: CareerReplyCheckpoint["systemBlocks"] }) {
     await this.options.checkCancellation?.();
     this.options.abortSignal?.throwIfAborted();
-    if (this.deferredWork.size || (this.options.deadlineAt !== undefined && Date.now() >= this.options.deadlineAt)) {
+    // A new user input wakes the conversation even while an earlier external
+    // operation is pending. Its running receipt remains in the transcript.
+    if (await this.options.inputInbox?.append(input.messages)) this.deferredWork.clear();
+    const shouldYield = this.deferredWork.size > 0 || (this.options.deadlineAt !== undefined && Date.now() >= this.options.deadlineAt);
+    if (shouldYield || this.options.inputInbox) {
       const checkpoint: CareerReplyCheckpoint = { version: 1, checkpointId: crypto.randomUUID(), replyId: this.replyId, ...input, systemBlocks: input.systemBlocks ?? step.systemBlocks,
         tools: step.tools, capabilityIds: [...this.loaded], handbooks: this.handbooks.snapshot(), record: { ...this.completedRecord(), status: "in_progress" },
         continuation: this.options.continuation ?? this.options.resume?.continuation,
+        ...(this.options.inputInbox ? { inputMessageIds: this.options.inputInbox.messageIds() } : {}),
         ...(this.deferredWork.size ? { waitFor: [...this.deferredWork.values()] } : {}) };
-      if (!this.options.checkpoint) throw new Error("Career reply deadline reached without a continuation store");
-      await this.options.checkpoint(checkpoint);
-      throw new CareerReplyContinuation(checkpoint);
+      if (shouldYield) {
+        if (!this.options.checkpoint) throw new Error("Career reply deadline reached without a continuation store");
+        await this.options.checkpoint(checkpoint);
+        throw new CareerReplyContinuation(checkpoint);
+      }
+      // Persist before the provider call, including completed tool results.
+      // This does not publish a continuation while the executor still owns it.
+      await this.options.inputInbox!.save(checkpoint);
     }
     this.handbooks.markInjected(step.handbooks);
   }
@@ -266,7 +285,9 @@ export class CareerCapabilityRuntime {
       ...(this.options.resume?.waitFor?.length ? [{
         key: "resumed_work", cacheable: false,
         text: [
-          baseBlocks.some(block => block.key === "career_main")
+          this.options.resumeDependenciesPending
+            ? "New user input resumed this conversation while one or more recorded dependencies were still pending. Their earlier running receipts do not establish completion:"
+            : baseBlocks.some(block => block.key === "career_main")
             ? "The original turn resumed. These recorded dependencies no longer block this invocation:"
             : "This is the resumed original turn after its recorded dependency stopped blocking it. The earlier queued/running tool receipt in the transcript is historical, not evidence that the work is still running now. Its outcome may be completed, partial, failed or cancelled. Read the current result through its ordinary read tool and continue the authorized work from that outcome; do not leave a completed dependency described as ongoing work. Resumption alone does not prove success.",
           ...this.options.resume.waitFor.map(work => `${work.kind}: ${work.id}`),
@@ -360,7 +381,7 @@ export class CareerCapabilityRuntime {
   ) {
     const pending = result && typeof result === "object" && "careerContinuation" in result
       ? result.careerContinuation as CareerDeferredWork | undefined : undefined;
-    if (pending && ["external_evaluation", "internal_evaluation", "email_delivery"].includes(pending.kind) && typeof pending.id === "string")
+    if (pending && ["external_evaluation", "internal_evaluation", "email_delivery", "browser_run", "career_input", "external_capacity"].includes(pending.kind) && typeof pending.id === "string")
       this.deferredWork.set(`${pending.kind}:${pending.id}`, pending);
     // Connection failures remain visible facts; the executor checks access on
     // each call instead of removing Gmail abilities from the next model input.

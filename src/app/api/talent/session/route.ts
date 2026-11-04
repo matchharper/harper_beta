@@ -142,6 +142,7 @@ const createEmptyHistoryCounts = () => ({
     saved: 0,
     applied: 0,
     connected: 0,
+    offer: 0,
     closed: 0,
     hidden: 0,
   },

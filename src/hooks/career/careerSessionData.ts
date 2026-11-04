@@ -33,6 +33,7 @@ const SAVED_STAGES: CareerOpportunitySavedStage[] = [
   "saved",
   "applied",
   "connected",
+  "offer",
   "closed",
   "hidden",
 ];
@@ -48,6 +49,7 @@ export const createEmptyHistoryOpportunityCounts =
       saved: 0,
       applied: 0,
       connected: 0,
+      offer: 0,
       closed: 0,
       hidden: 0,
     },
@@ -163,6 +165,7 @@ export const normalizeHistoryOpportunities = (
       item.savedStage !== "saved" &&
       item.savedStage !== "applied" &&
       item.savedStage !== "connected" &&
+      item.savedStage !== "offer" &&
       item.savedStage !== "closed" &&
       item.savedStage !== "hidden"
     ) {
@@ -207,8 +210,9 @@ export const normalizeHistoryOpportunities = (
       typeof item.upcomingMeeting !== "object" ||
       typeof item.upcomingMeeting.startAt !== "string" ||
       Number.isNaN(Date.parse(item.upcomingMeeting.startAt)) ||
-      typeof item.upcomingMeeting.endAt !== "string" ||
-      Number.isNaN(Date.parse(item.upcomingMeeting.endAt))
+      (item.upcomingMeeting.endAt != null &&
+        (typeof item.upcomingMeeting.endAt !== "string" ||
+          Number.isNaN(Date.parse(item.upcomingMeeting.endAt))))
     ) {
       item.upcomingMeeting = null;
     } else if (typeof item.upcomingMeeting.title !== "string") {

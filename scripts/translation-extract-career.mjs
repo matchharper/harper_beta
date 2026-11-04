@@ -225,6 +225,8 @@ function extractCareerMessages() {
 
   for (const filePath of files) {
     const source = fs.readFileSync(filePath, "utf8");
+    // Explicitly marked developer surfaces contain fixture copy, not shipped Career text.
+    if (/^\/\/ career-i18n-skip-file:/m.test(source)) continue;
     const sourceFile = ts.createSourceFile(
       filePath,
       source,
@@ -234,7 +236,7 @@ function extractCareerMessages() {
     );
 
     function visit(node) {
-      if (isCareerTCallExpression(node)) {
+      if (isCareerTCallExpression(node) || (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "orgT")) {
         return;
       }
 

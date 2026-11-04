@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
@@ -72,6 +72,10 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       conversationId: parsed.data.conversationId,
       input: parsed.data,
+    });
+    after(async () => {
+      const { publishCareerInvocations } = await import("@/lib/career/work/invocations");
+      await publishCareerInvocations({ admin: getTalentSupabaseAdmin(), userId: user.id, conversationId: parsed.data.conversationId });
     });
     return NextResponse.json({ message });
   } catch (error) {

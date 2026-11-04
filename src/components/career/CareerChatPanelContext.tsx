@@ -65,6 +65,7 @@ export type CareerChatPanelContextValue = {
   onCancelActiveRecommendationSearch?: () => void;
   onCancelChat?: () => void;
   canStopChat?: boolean;
+  stopPending?: boolean;
   initialChatDraft?: string;
   initialChatDraftKey?: string;
   initialChatOpportunityMention?: CareerOpportunityMention;
@@ -72,6 +73,7 @@ export type CareerChatPanelContextValue = {
   onboardingWrapupPending: boolean;
   thinkingLogsByMessageId: Record<string, string[]>;
   chatPending: boolean;
+  chatAdmissionPending?: boolean;
   sessionReengagementPending: boolean;
   sessionReengagementThinkingLogs: string[];
   sessionReengagementRecommendationStatus: CareerRecommendationSearchStatus | null;
@@ -115,6 +117,7 @@ export type CareerChatPanelContextValue = {
     link?: string;
     messageType?: TalentUserChatMessageType;
     opportunityMentions?: CareerOpportunityMention[];
+    viewedRoleId?: string;
     pendingAction?: CareerPendingActionReference;
     onSuccess?: () => void;
     onError?: () => void;

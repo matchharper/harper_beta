@@ -16,7 +16,7 @@ const base = {
 test("normal chat keeps one main contract across tool, profile, Gmail, search and coaching state", () => {
   const baseline = buildCareerConversationPromptPlan(base);
   const main = baseline.promptBlocks.find(block => block.key === "career_main")!;
-  assert.equal(main.text, buildCareerMainPrompt({ outputLanguage: "Korean", positionsTabLabel: "포지션 탭" }));
+  assert.equal(main.text, buildCareerMainPrompt({ outputLanguage: "Korean", positionsTabLabel: "새 기회" }));
   const withState = buildCareerConversationPromptPlan({
     ...base,
     profile: { resume_file_name: "resume.pdf" },
@@ -61,5 +61,21 @@ test("onboarding, voice and background calls retain their separate contracts", (
     const plan = buildCareerConversationPromptPlan({ ...base, ...overrides });
     assert.equal(plan.promptBlocks.some(block => block.key === "career_main"), false);
     assert.ok(plan.promptBlocks.some(block => block.key === "chat_core"));
+  }
+});
+
+
+test("friendly chat replaces tone at its source and keeps the execution contract", () => {
+  const professional = buildCareerConversationPromptPlan(base);
+  const friendly = buildCareerConversationPromptPlan({ ...base, conversationVersion: "friendly" });
+  const main = friendly.promptBlocks.find(b => b.key === "career_main")!.text;
+  const original = professional.promptBlocks.find(b => b.key === "career_main")!.text;
+  assert.equal(main.split("## Communication")[0], original.split("## Communication")[0]);
+  assert.ok(main.includes("해요체"));
+  assert.ok(!main.includes("Be warm, calm, professional and direct."));
+  assert.ok(friendly.promptBlocks.find(b => b.key === "career_chat_display")!.text.includes("[[bubble]]"));
+  for (const overrides of [{ channel: "voice" as const }, { backgroundInvocation: true }, { isOnboardingDone: false }]) {
+    const plan = buildCareerConversationPromptPlan({ ...base, ...overrides, conversationVersion: "friendly" });
+    assert.deepEqual(plan, buildCareerConversationPromptPlan({ ...base, ...overrides }));
   }
 });

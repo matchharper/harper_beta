@@ -326,6 +326,7 @@ const CareerMobileHomeView = ({
   const connectedPositionCount =
     historyOpportunityCounts.savedStages.applied +
     historyOpportunityCounts.savedStages.connected +
+    historyOpportunityCounts.savedStages.offer +
     historyOpportunityCounts.savedStages.closed;
   const inProgressPositionCount = savedPositionCount + connectedPositionCount;
 
@@ -522,7 +523,7 @@ const CareerMobileHomeView = ({
       {isOnboardingCompleted && (
         <section className="flex flex-row items-center justify-between gap-2">
           <SummaryCard
-            label={t("career.home.career_home_panel.0x7lgjp", "추천된 기회")}
+            label={t("career.home.career_home_panel.0x7lgjp", "새로 찾은 기회")}
             count={newPositionCount}
             icon={
               <GalleryVerticalEnd

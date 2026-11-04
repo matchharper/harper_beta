@@ -4,9 +4,18 @@ import type { CareerHistoryOpportunity } from "@/components/career/types";
 import { isCareerHistoryOpportunityExpired } from "@/components/career/history/opportunityPostingStatus";
 import {
   deriveHistoryOpportunityCounts,
+  normalizeHistoryOpportunities,
   getHistoryOpportunityBucket,
 } from "@/hooks/career/careerSessionData";
 import { OpportunityType } from "@/lib/opportunityType";
+
+test("date-only appointments survive history normalization with no end time", () => {
+  const item = createOpportunity({ id: "progress", roleId: "role", title: "Engineer", companyName: "Example", kind: "recommendation", feedback: "positive", savedStage: "offer", isAccepted: false, recommendedAt: "2026-11-03T00:00:00Z", employmentTypes: [], recommendationReasons: [], upcomingMeeting: { startAt: "2026-11-02T15:00:00Z", endAt: null, calendarDate: "2026-11-03", title: "면접" } });
+  const result = normalizeHistoryOpportunities([item]);
+  assert.equal(result.length, 1);
+  assert.deepEqual(result[0].upcomingMeeting, item.upcomingMeeting);
+  assert.equal(deriveHistoryOpportunityCounts(result).savedStages.offer, 1);
+});
 
 const createOpportunity = (
   overrides: Partial<CareerHistoryOpportunity>
@@ -32,6 +41,7 @@ test("unanswered hidden opportunities belong to the saved archive bucket", () =>
     saved: 1,
     savedStages: {
       applied: 0,
+      offer: 0,
       closed: 0,
       connected: 0,
       hidden: 1,

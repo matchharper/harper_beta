@@ -3,6 +3,14 @@ import test from "node:test";
 
 import { formatRoleContextForModel } from "./roleContextFormat";
 
+test("internal role projection does not expose active/paused status or private company request", () => {
+  for(const status of ['active','paused']) {
+    const output=formatRoleContextForModel([{found:true,roleId:'role-public',role:{sourceType:'internal',name:'Platform Engineer',status,internalRequest:'PRIVATE_COMPANY_STRATEGY',description:'Public role description'},companyDb:{name:'Company'}}]);
+    assert.match(output,/Public role description/);
+    assert.doesNotMatch(output,/Status:|PRIVATE_COMPANY_STRATEGY|active|paused/);
+  }
+});
+
 test("role context gives the Career model compact readable activity", () => {
   const output = formatRoleContextForModel([
     {

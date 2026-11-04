@@ -1,9 +1,6 @@
 import { CAREER_CHAT_ONBOARDING_TOOL_NAMES, CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES } from "@/lib/career/llmTools";
 import { browserSessionHref } from "@/lib/career/browser/links";
-import { readRoleAcceptanceMaterial, readRoleMaterials, assignRoleMaterials } from "@/lib/career/roleMaterials/store";
 import { formatDocumentToolModelResult } from "@/lib/talentOnboarding/documentToolModelResult";
-import { recordOpsCandidateDecision } from "@/lib/companyTalentRequests/server";
-import { OPS_CONTACT_REPLY_ACKNOWLEDGEMENT } from "@/lib/companyTalentRequests/opsContactContract";
 import { getCareerDocumentHref } from "@/lib/career/documentLinks";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import {
@@ -36,7 +33,6 @@ import {
 } from "./types";
 import { createHash } from "crypto";
 import { updateEmailJob } from "./store";
-import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
 import { opsEmailTestToolBlock } from "./opsTest";
 import { readCareerCapabilityCoaching } from "@/lib/career/capabilities/server";
 import { formatPromptText } from "@/lib/llm/promptText";
@@ -131,16 +127,7 @@ export function emailToolSelection(
         ].includes(t.function.name))
   );
   const tools = shared.map((tool) =>
-    tool.function.name ===
-    TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK
-      ? {
-          ...tool,
-          function: {
-            ...tool.function,
-            description: `${tool.function.description} In email, call feedback=like on the first clear acceptance before asking for final sharing confirmation, so the tool records the pending confirmation. On the user's later positive reply call it again for the same exact recommendation. Never ask for confirmation without recording it, or ask again after the tool has completed acceptance.`,
-          },
-        }
-      : tool.function.name === TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY
+    tool.function.name === TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY
         ? {
             ...tool,
             function: {
@@ -326,179 +313,14 @@ export async function executeEmailOnboardingProgress(
   };
 }
 
+/** Email uses the same original-agent introduction tools and source message as chat. */
 export async function confirmEmailAcceptance(
-  ctx: EmailJobContext,
-  input: Record<string, unknown>,
+  _ctx: EmailJobContext,
+  _input: Record<string, unknown>,
   executeDefault: () => Promise<unknown>,
-  accept: (payload: Record<string, unknown>) => Promise<unknown> = (payload) =>
-    callEmailInternalApi(
-      "/api/internal/company-talent-requests/accept-opportunity",
-      payload
-    )
+  _legacyAccept?: (payload: Record<string, unknown>) => Promise<unknown>,
 ) {
-  if (input.feedback !== "like") return executeDefault();
-  let query = (ctx.admin as any)
-    .from("talent_effective_opportunity_recommendations_v1")
-    .select("*")
-    .eq("talent_id", ctx.talentId);
-  if (
-    typeof input.opportunityId === "string" &&
-    !input.opportunityId.startsWith("posting:")
-  )
-    query = query.eq("id", input.opportunityId);
-  else if (
-    typeof input.roleId === "string" ||
-    String(input.opportunityId ?? "").startsWith("posting:")
-  )
-    query = query.eq(
-      "role_id",
-      input.roleId ?? String(input.opportunityId).slice(8)
-    );
-  else
-    return {
-      ok: false,
-      error: "exact_recommendation_required",
-      instruction:
-        "Read the shared opportunity tool to identify the exact recommendation before accepting.",
-    };
-  const { data: rows, error } = await query.limit(2);
-  if (error) throw error;
-  if (rows.length !== 1)
-    return { ok: false, error: "recommendation_not_found_or_ambiguous" };
-  const rec = rows[0];
-  const privateReply = await recordOpsCandidateDecision({
-    admin: ctx.admin as any,
-    recommendationId: rec.id,
-    sourceMessageId: ctx.sourceMessage.id,
-    talentId: ctx.talentId,
-    resume: true,
-  });
-  if (privateReply)
-    return {
-      ok: true,
-      status: "recorded",
-      skipCommonAssistantInstruction: true,
-      assistantInstruction: OPS_CONTACT_REPLY_ACKNOWLEDGEMENT,
-      modelOutput: OPS_CONTACT_REPLY_ACKNOWLEDGEMENT,
-    };
-  const role = await readRow(
-    ctx.admin,
-    "company_roles",
-    rec.role_id,
-    "role_id"
-  );
-  if (role?.source_type !== "internal") return executeDefault();
-  const information = asObject(role.information);
-  const testOnly =
-    information.testOnly === true || information.testOnly === "true";
-  if (
-    testOnly &&
-    (!Array.isArray(information.testTalentIds) ||
-      !information.testTalentIds.includes(ctx.talentId))
-  )
-    return {
-      ok: false,
-      error: "internal_opportunity_unavailable",
-      connectionAcceptanceRecorded: false,
-    };
-  if (
-    rec.opportunity_type !== "intro_request" &&
-    (!isInternalRoleCandidateDecisionAvailable(role.status) ||
-      role.is_expired === true ||
-      (role.expires_at && Date.parse(role.expires_at) <= Date.now()))
-  )
-    return {
-      ok: false,
-      error: "internal_opportunity_unavailable",
-      connectionAcceptanceRecorded: false,
-      instruction:
-        "Explain that this opportunity is no longer available; do not ask for acceptance or claim company sharing.",
-    };
-  if (
-    rec.feedback === "like" &&
-    ["connected", "accepted", "processed"].includes(rec.saved_stage)
-  )
-    return executeDefault();
-  const setting = await readRow(
-    ctx.admin,
-    "talent_setting",
-    ctx.talentId,
-    "user_id"
-  );
-  if (!setting?.is_onboarding_done)
-    return {
-      ok: false,
-      connectionAcceptanceRecorded: false,
-      requiredNextStep: {
-        type: "career_interview",
-        url: "https://matchharper.com/career/onboarding",
-      },
-      instruction:
-        "Explain that the 5-minute career interview must be completed before accepting the connection. Do not claim acceptance or company sharing.",
-    };
-  const pending = asObject(rec.email_acceptance_confirmation);
-  if (
-    rec.opportunity_type !== "intro_request" &&
-    !(
-      pending.status === "pending" &&
-      pending.conversationId === ctx.conversationId &&
-      String(pending.userMessageId) !== String(ctx.sourceMessage.id)
-    )
-  ) {
-    let materials = await readRoleMaterials({ admin: ctx.admin as any, userId: ctx.talentId, roleId: rec.role_id });
-    if (!materials.current || materials.current.action === "clear") {
-      const { data: docs, error: docsError } = await (ctx.admin as any).from("talent_documents")
-        .select("id,revision").eq("talent_id",ctx.talentId).eq("is_public",true).eq("is_deleted",false);
-      if(docsError)throw docsError;
-      await assignRoleMaterials({ admin: ctx.admin as any, userId: ctx.talentId, roleId: rec.role_id,
-        action: "set", expectedRevision: materials.current?.revision ?? 0,
-        documents: (docs ?? []).map((doc:any)=>({documentId:doc.id,revision:doc.revision??1})),
-        operationId: `email-confirmation:${ctx.sourceMessage.id}:${rec.id}`,
-        source: { userMessageId:ctx.sourceMessage.id,conversationId:ctx.conversationId,defaultAcceptance:true } });
-    }
-    const acceptanceMaterial = await readRoleAcceptanceMaterial({ admin:ctx.admin as any,userId:ctx.talentId,roleId:rec.role_id });
-    const confirmation = {
-      status: "pending",
-      acceptanceMaterial,
-      requestedAt: nowIso(),
-      conversationId: ctx.conversationId,
-      userMessageId: ctx.sourceMessage.id,
-      sourceQuote: ctx.body,
-      optionalNote: input.feedbackReason ?? null,
-    };
-    const { data, error: saveError } = await (ctx.admin as any)
-      .from("talent_opportunity_recommendation")
-      .update({
-        email_acceptance_confirmation: confirmation,
-        updated_at: nowIso(),
-      })
-      .eq("id", rec.id)
-      .eq("talent_id", ctx.talentId)
-      .eq("email_acceptance_confirmation", rec.email_acceptance_confirmation ?? {})
-      .select("id")
-      .maybeSingle();
-    if (saveError) throw saveError;
-    if (!data) return { ok: false, error: "email_confirmation_changed" };
-    return {
-      ok: true,
-      confirmationRequired: true,
-      connectionAcceptanceRecorded: false,
-      instruction:
-        "Ask for a later clear positive reply confirming acceptance and authorization to share the profile and relevant experience with the company. Explain this is the last confirmation before sharing, cancellation is welcome without disadvantage, and Harper respects prompt responses and attendance at agreed interviews. Briefly invite an optional note to the company. No acceptance or sharing has happened. Do not retry acceptance in this turn or add a staff approval step.",
-    };
-  }
-  return accept({
-    acceptanceMaterial: pending.acceptanceMaterial ?? await readRoleAcceptanceMaterial({ admin:ctx.admin as any,userId:ctx.talentId,roleId:rec.role_id }),
-    talentId: ctx.talentId,
-    recommendationId: rec.id,
-    feedbackReason: input.feedbackReason ?? pending.optionalNote ?? null,
-    emailAcceptanceConfirmation: {
-      ...pending,
-      status: "confirmed",
-      confirmedAt: nowIso(),
-      confirmedUserMessageId: ctx.sourceMessage.id,
-    },
-  });
+  return executeDefault();
 }
 
 async function executeChannelTool(

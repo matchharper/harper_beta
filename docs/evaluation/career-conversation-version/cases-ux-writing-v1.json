@@ -1,0 +1,16 @@
+[
+  {
+    "id": "current_ui_ko",
+    "locale": "ko",
+    "messages": [{"role":"user","content":"찾아준 기회랑 진행하던 기회는 어디서 봐? 이력서랑 원하는 조건도 바꾸고 싶어."}],
+    "context": "The candidate asks how to navigate the current Career UI, not for edits to be performed. No tools have run. Desktop navigation keeps New opportunities, My opportunities, Profile, Resume & links and Preferences as separate destinations. Existing opportunity states have not changed.",
+    "review": "Use the actual localized destinations. Preserve the current 진행중, 저장함 and 종료/보관 organization if describing tabs. Do not invent a merged About me page, claim to have changed data or require new tone rules."
+  },
+  {
+    "id": "opportunity_meaning_en",
+    "locale": "en",
+    "messages": [{"role":"user","content":"What's the difference between Harper intro, Apply directly and Teams interested in you? Does Interested send my application, and can Apply with Harper actually submit it?"}],
+    "context": "This is an explanation request. No application, introduction or company contact has occurred. Interested on an external opportunity records positive feedback and saves it. Apply with Harper sends the candidate's request to apply for the chosen opportunity to the Career agent, which can prepare and submit through available company hiring channels with sufficient authorization and materials. Teams interested in you is a company-initiated introduction request; a Harper recommendation alone is not company interest.",
+    "review": "Explain the real distinctions naturally using current labels. Do not equate interest with consent or an application, call all Harper recommendations employer interest, promise an introduction is guaranteed, or reduce Harper to polishing application text. Preserve accurate scope and avoid claiming completion."
+  }
+]

@@ -59,6 +59,7 @@ async function main() {
     "src/lib/career/prompts/mainPrompts.ts",
     "src/lib/career/prompts/mainPrompt2.ts",
     "src/lib/career/llm.ts",
+    "src/lib/llm/providerTrace.ts",
     "src/lib/career/textChatModelConfig.ts",
     "scripts/evaluation/careerReengagementHarness.ts",
     "scripts/evalCareerReengagementMessaging.ts",
@@ -72,6 +73,12 @@ async function main() {
     sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], {
       encoding: "utf8",
     }).trim(),
+    sourceDiffHash: createHash("sha256").update(
+      execFileSync("git", ["diff", "HEAD", "--", ...sourcePaths])
+    ).digest("hex"),
+    model: CLAUDE_HAIKU_MODEL,
+    usageLabel: "career/chat:session_reengagement",
+    requestedTemperature: 0.8,
     sourceHashes: Object.fromEntries(
       sourcePaths.map((file) => [
         file,
@@ -124,9 +131,7 @@ async function main() {
         proactiveContext,
         onTextDelta: streaming ? () => {} : undefined,
         opportunitySnapshot: evalCase.opportunitySnapshot,
-        ...(evalCase.opportunitySnapshot
-          ? { assistantModel: CLAUDE_HAIKU_MODEL }
-          : {}),
+        assistantModel: CLAUDE_HAIKU_MODEL,
         recentMessages: evalCase.recentMessages,
         structuredProfileText: evalCase.structuredProfileText,
         talentContextSection: evalCase.talentContextSection,

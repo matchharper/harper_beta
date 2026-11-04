@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -16,6 +16,8 @@ import { cancelCareerTurnWork } from "@/lib/career/turnCancellation.server";
 
 type Body = {
   clientRequestId?: unknown;
+  clientRequestIds?: unknown;
+  stopAll?: boolean;
   assistantMessage?: {
     content?: unknown;
     recommendationStatusAfterCharCount?: unknown;
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
         ? Math.floor(body.assistantMessage.recommendationStatusAfterCharCount)
         : null;
     const clientRequestId = typeof body.clientRequestId === "string" ? body.clientRequestId : "";
-    if (!conversationId || (!userMessageId && !/^[0-9a-f-]{36}$/i.test(clientRequestId))) {
+    if (!conversationId || (!body.stopAll && !userMessageId && !/^[0-9a-f-]{36}$/i.test(clientRequestId))) {
       return NextResponse.json(
         { error: "conversationId and userMessageId are required" },
         { status: 400 }
@@ -66,6 +68,28 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
+    let stoppedUserMessages: TalentMessageRow[] = [];
+    if (body.stopAll) {
+      const owned = await admin.from("talent_conversations").select("id")
+        .eq("id", conversationId).eq("user_id", user.id).maybeSingle();
+      if (owned.error) throw owned.error;
+      if (!owned.data) return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+      const requestIds = [...new Set([clientRequestId, ...(Array.isArray(body.clientRequestIds) ? body.clientRequestIds : [])]
+        .filter((id): id is string => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)))];
+      const { data, error } = await (admin.rpc as any)("stop_career_conversation", {
+        p_user_id: user.id, p_conversation_id: conversationId,
+        p_client_request_ids: requestIds, p_source_message_id: userMessageId,
+      });
+      if (error) throw error;
+      stoppedUserMessages = data.userMessages;
+      after(async () => {
+        const { publishCareerInvocations } = await import("@/lib/career/work/invocations");
+        await publishCareerInvocations({ admin, userId: user.id, conversationId });
+      });
+      // The streaming path below also preserves any text already shown to the user.
+      if (!userMessageId || !assistantContent.trim()) return NextResponse.json({ ok: true,
+        userMessages: stoppedUserMessages.map(toTalentMessageResponse), userMessage: null, assistantMessage: null });
+    }
     if (!userMessageId) {
       const conversation = await admin.from("talent_conversations").select("id")
         .eq("id", conversationId).eq("user_id", user.id).maybeSingle();
@@ -232,6 +256,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      userMessages: stoppedUserMessages.map(toTalentMessageResponse),
       userMessage: toTalentMessageResponse(
         stoppedMessage as unknown as TalentMessageRow
       ),

@@ -17,7 +17,8 @@ import {
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
-import SavedOpportunityViews from "@/components/career/history/SavedOpportunityViews";
+import ProgressOpportunityList from "@/components/career/history/ProgressOpportunityList";
+import SavedOpportunityList from "@/components/career/history/SavedOpportunityList";
 
 const noop = () => {};
 
@@ -60,6 +61,8 @@ export function CareerMobileJobsList({
 }: CareerMobileJobsListProps) {
   const t = useCareerT();
 
+  if (activeTab === "applied") return <div className="px-3" style={{paddingBottom: `${bottomReservePx}px`}}><ProgressOpportunityList items={opportunities} loading={isLoading || hasMore} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={onOpenDetail ?? noop} onStatusChange={onStatusChange} /></div>;
+
   if (isLoading && opportunities.length === 0) {
     return <CareerMobileJobsLoadingState />;
   }
@@ -77,7 +80,7 @@ export function CareerMobileJobsList({
       className="flex flex-col gap-3 px-3 pt-2"
       style={{ paddingBottom: `${bottomReservePx}px` }}
     >
-      {activeTab === "saved" ? <SavedOpportunityViews items={opportunities} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={onOpenDetail ?? noop} onApply={onApply} /> : opportunities.map((item) => (
+      {activeTab === "saved" ? <SavedOpportunityList items={opportunities} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={onOpenDetail ?? noop} onApply={onApply} /> : opportunities.map((item) => (
         <CareerMobileJobCard
           key={item.id}
           item={item}

@@ -93,6 +93,7 @@ export type CareerFormResponse = z.infer<z.ZodObject<typeof answerFields>> & {
   answers?: CareerSuggestionAnswer[];
   formSnapshot: CareerForm;
   requestId: string;
+  selectedFiles?: { itemId: string; documentId: string; revision: number | null; snapshotId: string; fileName: string }[];
 };
 
 export function parseCareerForm(value: unknown): CareerForm | undefined {
@@ -142,7 +143,8 @@ export function parseCareerFormResponse(
     formSnapshot.revision !== response.data.revision
   )
     return undefined;
-  return { ...response.data, formSnapshot };
+  const selectedFiles = z.array(z.object({ itemId: z.string(), documentId: z.string().uuid(), revision: z.number().nullable(), snapshotId: z.string().uuid(), fileName: z.string() })).safeParse(input.selectedFiles);
+  return { ...response.data, formSnapshot, ...(selectedFiles.success ? { selectedFiles: selectedFiles.data } : {}) };
 }
 
 export function getCareerFormContent(

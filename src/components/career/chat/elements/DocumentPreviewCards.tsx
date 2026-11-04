@@ -61,6 +61,7 @@ export const PreviewUI = ({
   description,
   trailing,
   wrapDescription = false,
+  disabled = false,
 }: {
   onClick?: () => void;
   icon: React.ReactNode;
@@ -68,6 +69,7 @@ export const PreviewUI = ({
   description: string;
   trailing?: React.ReactNode;
   wrapDescription?: boolean;
+  disabled?: boolean;
 }) => {
   const content = (
     <>
@@ -88,7 +90,11 @@ export const PreviewUI = ({
   const className =
     "group w-[320px] max-w-full gap-4 rounded-3xl flex flex-row items-center px-5 bg-black/4 border-none";
   return onClick ? (
-    <CardButton onClick={onClick} className={`${className} hover:bg-black/8`}>
+    <CardButton
+      onClick={onClick}
+      disabled={disabled}
+      className={`${className} hover:bg-black/8`}
+    >
       {content}
     </CardButton>
   ) : (

@@ -10,6 +10,7 @@ function fixture(options: { accepted?: boolean; completed?: boolean; checkpoint?
   const book = { id: "resume", version: findCareerHandbook("resume")!.version, remainingReplies: 2 };
   const admin = {
     rpc: async (name: string, args: any) => {
+      if (name === "read_open_career_forms") return { data: [{ id: 82, payload: { formId: 81, revision: 2, title: "검토본" } }], error: null };
       calls.push({ name, args });
       return { data: name === "claim_career_agent_turn" ? {
         accepted: options.accepted ?? true, completed: options.completed,
@@ -20,8 +21,11 @@ function fixture(options: { accepted?: boolean; completed?: boolean; checkpoint?
       const result = { data: table === "talent_external_operations"
         ? [{ id: "owned-session", kind: "browser_session", status: "human" }]
         : [{ id: 82, formId: "81", revision: "2", title: "검토본", hidden: "false" }], error: null };
-      const query: any = { then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve) };
-      for (const name of ["select", "eq", "neq", "order", "limit", "or"]) query[name] = () => query;
+      let kind: string | undefined;
+      const query: any = { then: (resolve: (value: unknown) => unknown) => Promise.resolve(kind === "delegated_work" ? { data: [], error: null } : result).then(resolve),
+        maybeSingle: async () => ({ data: null, error: null }),
+        eq: (key: string, value: string) => { if (key === "kind") kind = value; return query; } };
+      for (const name of ["select", "neq", "order", "limit", "or"]) query[name] = () => query;
       return query;
     },
   } as any;
@@ -78,6 +82,46 @@ test("resuming uses current guide counters and does not inject an expired carrie
   await localReload.release();
 });
 
+test("the claimed inbox checkpoint fences a stale wakeup and new input can resume a pending dependency", async () => {
+  const initial = fixture();
+  const first = await prepareCareerAgentTurn(initial.args);
+  const checkpoint = {
+    version: 1 as const, checkpointId: "saved", replyId: "invocation:inbox", transport: "chat" as const,
+    messages: [{ role: "tool", content: "Evaluation is still running" }],
+    tools: [], capabilityIds: [], handbooks: [], record: first.runtime.completedRecord(),
+    inputMessageIds: [10], waitFor: [{ kind: "external_evaluation" as const, id: "pending-run" }],
+  };
+  await first.release();
+  const { args, calls } = fixture({ checkpoint });
+  let pending: any[] = [];
+  const originalRpc = args.admin.rpc.bind(args.admin) as any;
+  const originalFrom = args.admin.from.bind(args.admin) as any;
+  (args.admin as any).rpc = (name: string, input: any) => {
+    if (name === "claim_career_inbox") return originalRpc("claim_career_agent_turn", input);
+    if (name === "read_career_inbox") return Promise.resolve({ data: { messages: pending, inputIds: [10, 11], deliveredIds: [10], completed: false }, error: null });
+    return originalRpc(name, input);
+  };
+  (args.admin as any).from = (table: string) => {
+    const query = originalFrom(table);
+    if (table === "external_recommendation_runs") query.maybeSingle = async () => ({ data: { status: "running" }, error: null });
+    return query;
+  };
+  const input = { ...args, inboxId: "inbox", agentReplyId: checkpoint.replyId, resumeDependenciesPending: false };
+  await assert.rejects(prepareCareerAgentTurn(input), CareerReplyContinuation);
+  assert.ok(calls.some(call => call.name === "release_career_agent_turn"));
+  pending = [{ id: 11, role: "user", content: "추가로 이 자료도 확인해줘.", message_type: "chat", payload: {}, created_at: "2026-11-04T00:00:00Z" }];
+  const resumed = await prepareCareerAgentTurn(input);
+  try {
+    assert.equal(resumed.runtime.options.resumeDependenciesPending, true);
+    const messages = structuredClone(checkpoint.messages);
+    await resumed.runtime.beforeCompletion(resumed.runtime.resolveStep(false), { transport: "chat", messages });
+    assert.equal(messages.length, 2);
+    assert.ok(messages[1].content.includes("User message 11:"));
+    assert.equal(calls.at(-1)?.name, "checkpoint_career_inbox");
+    assert.deepEqual(calls.at(-1)?.args.p_checkpoint.inputMessageIds, [10, 11]);
+  } finally { await resumed.release(); }
+});
+
 test("checkpoint persists before enqueue and a cancelled reply releases without consumption", async () => {
   const { args, calls } = fixture();
   let queued = false;
@@ -121,13 +165,13 @@ test("busy and already delivered replies do not select capabilities or execute t
   }
 });
 
-test("continuation receives later user changes with exact source identifiers and a visible history boundary", async () => {
+test("continuation receives later user changes with exact source identifiers without losing earlier unconsumed instructions", async () => {
   const { args } = fixture();
   const rows = Array.from({ length: 17 }, (_, index) => ({
     id: 70 - index, role: "user", message_type: "chat", payload: {},
     content: index === 0 ? "아직 보내지 말고 제목을 바꿔줘." : `추가 원문 ${index}`,
     created_at: "2026-10-30T03:04:05.999Z",
-  }));
+  })).reverse();
   const query: any = { then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(resolve) };
   for (const name of ["select", "eq", "gt", "order", "limit", "or"]) query[name] = () => query;
   const context = await readCareerContinuationUserContext({ ...args,
@@ -135,7 +179,7 @@ test("continuation receives later user changes with exact source identifiers and
   });
   assert.ok(context.includes("User message 70 (2026-10-30 12:04):"));
   assert.ok(context.includes("아직 보내지 말고 제목을 바꿔줘."));
-  assert.ok(context.includes("before message 55"));
+  assert.ok(context.includes("User message 54"));
   assert.ok(!context.includes("T03:04:05"));
   assert.ok(context.indexOf("User message 55") < context.indexOf("User message 70"));
 });

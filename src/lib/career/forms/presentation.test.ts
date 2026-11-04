@@ -25,33 +25,27 @@ function setup() {
   return { presenter, order, writes };
 }
 
-test("forms created before and after progress stay queued until all replies are saved", async () => {
+test("a form is durably presented before a tool wait or checkpoint, without a final flush", async () => {
   const { presenter, order, writes } = setup();
   await presenter.presentForm(form);
+  assert.deepEqual(order, ["save:40", "emit:40"]);
+  assert.equal(presenter.hasPending(), true, "the turn knows it has delivered an artifact");
+  order.push("tool:wait");
   await presenter.presentForm({ ...form, formId: 41 });
-  assert.equal(presenter.hasPending(), true);
-  assert.equal(order.length, 0);
-  order.push("save:assistant-progress");
-  order.push("tool:next");
-  await presenter.presentForm({ ...form, formId: 42 });
-  assert.deepEqual(order, ["save:assistant-progress", "tool:next"]);
-  assert.equal(writes.length, 0, "no form is visible while tools and text are still running");
-  order.push("save:final-reply", "save:completion-message");
-  await presenter.flush();
-  assert.deepEqual(order, ["save:assistant-progress", "tool:next", "save:final-reply", "save:completion-message",
-    "save:40", "emit:40", "save:41", "emit:41", "save:42", "emit:42"]);
-  assert.equal(presenter.hasPending(), false);
+  assert.equal(writes.length, 2);
   assert.equal(writes[0].p_request_id, "presentation:turn:1:40:1");
   await presenter.flush();
-  assert.equal(writes.length, 3);
+  assert.equal(writes.length, 2, "flush cannot duplicate presentations");
+  assert.equal(presenter.hasPending(), false);
 });
 
-test("a final saved reply also releases a form when no earlier prose was generated", async () => {
-  const { presenter, order } = setup();
-  await presenter.presentForm(form);
-  order.push("save:final-reply");
-  await presenter.flush();
-  assert.deepEqual(order, ["save:final-reply", "save:40", "emit:40"]);
+test("a new presenter after a checkpoint does not own the previous form's visibility", async () => {
+  const first = setup();
+  await first.presenter.presentForm(form);
+  const resumed = setup();
+  await resumed.presenter.flush();
+  assert.equal(first.writes.length, 1);
+  assert.equal(resumed.writes.length, 0);
 });
 
 test("history hides deferred source revisions but includes their presentation snapshots", async () => {

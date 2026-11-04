@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -51,6 +51,7 @@ import { fetchPendingInternalOpportunityCallRequests } from "@/lib/talentOnboard
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { OpportunityType } from "@/lib/opportunityType";
 import { OrgHttpError } from "@/lib/org/server";
+import { isPostingRoleId } from "@/lib/career/postingLinks";
 
 const POSITION_TAB_INTERACTION_SOURCE = "position_tab";
 const IMMEDIATE_FEEDBACK_FOLLOW_UP_DELAY_MS = 500;
@@ -91,6 +92,7 @@ const parseSavedStageParam = (
     value === "saved" ||
     value === "applied" ||
     value === "connected" ||
+    value === "offer" ||
     value === "closed" ||
     value === "hidden"
   ) {
@@ -358,6 +360,16 @@ export async function GET(req: NextRequest) {
       req.cookies.get("NEXT_LOCALE")?.value ??
       null;
 
+    // Batch an explicit collection without recording views, recommendations or feedback.
+    const requestedRoleIds = req.nextUrl.searchParams.get("roleIds");
+    if (requestedRoleIds !== null) {
+      const roleIds = [...new Set(requestedRoleIds.split(",").map(id => id.trim().toLowerCase()))];
+      if (!roleIds.length || !roleIds.every(isPostingRoleId))
+        return NextResponse.json({ error: "Invalid roleIds" }, { status: 400 });
+      const items = await fetchTalentOpportunityHistoryByRoleIds({ admin, locale, roleIds, userId: user.id });
+      return NextResponse.json({ ok: true, items });
+    }
+
     if (roleId) {
       await archiveEndedInternalOpportunitiesForTalent({
         admin,
@@ -427,7 +439,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
-      acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
+      acceptanceMaterial?: { materialId: string | null; assignmentRevision: number; selectionRef?: string };
       action?:
         | "feedback"
         | "saved_stage"
@@ -485,6 +497,7 @@ export async function PATCH(req: NextRequest) {
       body.savedStage !== "saved" &&
       body.savedStage !== "applied" &&
       body.savedStage !== "connected" &&
+      body.savedStage !== "offer" &&
       body.savedStage !== "closed" &&
       body.savedStage !== "hidden"
     ) {
@@ -559,6 +572,7 @@ export async function PATCH(req: NextRequest) {
 
     if (
       previousOpportunity?.sourceType === "internal" &&
+      previousOpportunity.feedback !== "positive" &&
       action === "saved_stage"
     ) {
       return NextResponse.json(
@@ -778,6 +792,19 @@ export async function PATCH(req: NextRequest) {
         },
         { status: 409 }
       );
+    }
+
+    if(action === "feedback" && body.feedback === "positive" && previousOpportunity?.sourceType === "internal") {
+      const conversationId=String(body.conversationId ?? "").trim();
+      const selectionRef=body.acceptanceMaterial?.selectionRef;
+      if(!conversationId || !selectionRef) return NextResponse.json({error:"Reload this opportunity to review its current introduction materials."},{status:409});
+      const {admitIntroductionAction}=await import("@/lib/agentContacts/introductionAction");
+      const message=await admitIntroductionAction({admin,talentId:user.id,conversationId,opportunity:previousOpportunity,selectionRef,locale:responseLocale,isMobile,feedbackReason:body.feedbackReason});
+      after(async()=>{
+        const {publishCareerInvocations}=await import("@/lib/career/work/invocations");
+        await publishCareerInvocations({admin,userId:user.id,conversationId});
+      });
+      return NextResponse.json({ok:true,accepted:true,introductionPending:true,opportunity:previousOpportunity,userMessage:toTalentMessageResponse(message as TalentMessageRow),historyShouldRefresh:true},{status:202});
     }
 
     const savedStageForUpdate =

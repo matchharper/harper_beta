@@ -1,4 +1,4 @@
-import { ArrowUp, LoaderCircle } from "lucide-react";
+import { ArrowUp, Check, LoaderCircle } from "lucide-react";
 import Image from "next/image";
 import type { ReactNode } from "react";
 
@@ -7,7 +7,7 @@ import RichText, { type RichTextVariant } from "@/components/ui/rich-text";
 import { cn } from "@/lib/utils";
 
 export const CHAT_USER_BUBBLE_CLASS =
-  "mt-1 ml-auto w-fit max-w-[min(820px,92%)] self-end rounded-[16px] rounded-br-sm bg-black px-3 py-1.5 text-neutral-00";
+  "my-6 md:my-12 ml-auto w-fit max-w-[min(820px,92%)] self-end rounded-[16px] rounded-br-sm bg-black px-3 py-1.5 text-neutral-00 font-light";
 
 export const CHAT_ASSISTANT_BUBBLE_CLASS =
   "w-fit max-w-[min(920px,100%)] self-start text-neutral-primary";
@@ -64,14 +64,11 @@ export function ChatDateDivider({
   return (
     <div
       role="separator"
-      className="flex justify-center py-2"
+      className="flex justify-center py-2 mb-4"
       aria-label={ariaLabel}
     >
       <span
-        className={cn(
-          "rounded-full bg-bg-weak px-2.5 py-0.5 text-xs font-normal text-neutral-600",
-          className
-        )}
+        className={cn("text-[13px] font-normal text-neutral-600", className)}
       >
         {label}
       </span>
@@ -104,7 +101,6 @@ export function ChatAssistantLabel({
 export function ChatAssistantContent({
   className,
   content,
-  linkClassName,
   onHarperLinkClick,
   renderEmailLinksAsText = false,
   variant,
@@ -113,7 +109,6 @@ export function ChatAssistantContent({
 }: {
   className?: string;
   content: string;
-  linkClassName?: string;
   onHarperLinkClick?: (href: string) => void;
   renderEmailLinksAsText?: boolean;
   variant?: RichTextVariant;
@@ -129,7 +124,6 @@ export function ChatAssistantContent({
       renderLink={renderLink}
       className={className}
       content={content}
-      linkClassName={linkClassName}
       onHarperLinkClick={onHarperLinkClick}
       renderEmailLinksAsText={renderEmailLinksAsText}
     />
@@ -215,6 +209,7 @@ export function ChatChoiceList({
   hint,
   keyPrefix = "choice",
   onSelect,
+  selectedValue,
   typographyClassName,
 }: {
   choices: ChatChoice[];
@@ -223,6 +218,7 @@ export function ChatChoiceList({
   hint?: ReactNode;
   keyPrefix?: string;
   onSelect?: (choice: ChatChoice, index: number) => void | Promise<void>;
+  selectedValue?: string;
   typographyClassName?: string;
 }) {
   if (choices.length === 0) return null;
@@ -240,12 +236,20 @@ export function ChatChoiceList({
           type="button"
           onClick={() => void onSelect?.(choice, index)}
           disabled={disabled || !onSelect}
+          aria-pressed={choice.value === selectedValue}
           className={cn(
-            "flex cursor-pointer min-h-11 w-full items-center justify-start rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 py-2 text-left text-base font-medium leading-5 text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-55",
-            typographyClassName
+            "flex cursor-pointer w-full items-center justify-start rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-left text-base font-medium text-neutral-primary transition-colors hover:bg-black/4 disabled:cursor-not-allowed disabled:opacity-55",
+            typographyClassName,
+            choice.value === selectedValue &&
+              "gap-2 border-black disabled:opacity-100"
           )}
         >
           <span className="wrap-break-word min-w-0">{choice.label}</span>
+          {choice.value === selectedValue ? (
+            <span aria-hidden="true" className="ml-auto flex size-4 shrink-0 items-center justify-center rounded-full bg-action text-white">
+              <Check className="size-3" strokeWidth={2.5} />
+            </span>
+          ) : null}
         </BareButton>
       ))}
       {disabled || !onSelect || !hint ? null : (

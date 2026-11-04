@@ -3,11 +3,13 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { AUTHORIZED_MESSAGE_CONTENT_CONTRACT, COMPANY_RELAY_CONTENT_CONTRACT, COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT } from "./relayContract";
 
-test("candidate message schema and policy use the same relay content contract", () => {
+test("candidate correspondence exposes authorization, meaning and observed delivery", () => {
   const tools = readFileSync(new URL("../talentOnboarding/tools.ts", import.meta.url), "utf8");
   const policy = readFileSync(new URL("../career/prompts/toolPolicyPrompt.ts", import.meta.url), "utf8");
-  assert.match(tools, /description:\s*COMPANY_RELAY_CONTENT_CONTRACT/);
-  assert.match(policy, /\$\{COMPANY_RELAY_CONTENT_CONTRACT\}/);
+  assert.match(tools, /TOOL_DESCRIPTIONS\.contact_company/);
+  const descriptions = readFileSync(new URL("../llm/toolDescriptions.ts", import.meta.url), "utf8");
+  assert.match(descriptions, /faithfully preserving qualifications, uncertainty, and refusal/);
+  assert.match(policy, /Preserve the candidate's meaning and conditions/);
   assert.match(tools, /: COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT/);
 });
 

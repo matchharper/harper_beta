@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { User } from "@supabase/supabase-js";
 import type { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { OrgHttpError } from "./httpError";
+import { memoOrgRead } from "./requestScope.server";
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 type OnboardingScope = { workspaceId: string; userId: string };
@@ -18,6 +19,7 @@ export function isReviewOnboarding(workspaceId: string, userId: string) {
 }
 
 export async function readWorkspaceReview(admin: Admin, workspaceId: string) {
+  return memoOrgRead(admin, ["workspace-review", workspaceId], async () => {
   const { data, error } = await (admin.from("company_workspace") as any)
     .select("is_reviewing")
     .eq("company_workspace_id", workspaceId)
@@ -25,6 +27,7 @@ export async function readWorkspaceReview(admin: Admin, workspaceId: string) {
   if (error) throw error;
   if (!data) throw new OrgHttpError(404, "Workspace not found");
   return data.is_reviewing === true;
+  });
 }
 
 export async function assertWorkspaceAvailable(args: {

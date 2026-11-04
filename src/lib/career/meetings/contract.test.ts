@@ -6,6 +6,8 @@ import {
   readTalentSchedules,
   readUpcomingTalentScheduleContext,
   changedTalentSchedules,
+  writeTalentSchedule,
+  formatTalentSchedules,
 } from "./server";
 import { writeCareerSchedule, collectDueCareerWork } from "../schedules/server";
 const input = {
@@ -18,6 +20,62 @@ const input = {
   content: "Bring architecture notes. https://meet.example.test/room",
   source_refs: { gmailThreadIds: ["thread-1"] },
 };
+
+test("a date-only appointment is visible throughout its day in lists and agent context", async () => {
+  const db = await setupMeetings();
+  try {
+    const admin = meetingAdmin(db);
+    const schedule = await writeTalentSchedule({
+      admin,
+      userId: owner,
+      requestId: "date-only",
+      input: {
+        ...input,
+        source_key: "manual:date-only",
+        starts_at: "2030-01-07T00:00:00+09:00",
+        ends_at: null,
+        source_refs: { calendarDate: "2030-01-07" },
+      },
+    });
+    assert.equal(schedule.confirmed_end_at, null);
+    const currentDay = await readTalentSchedules({
+      admin,
+      userId: owner,
+      upcoming: true,
+      now: new Date("2030-01-07T14:59:59Z"),
+    });
+    assert.equal(currentDay.schedules.length, 1);
+    assert.match(
+      formatTalentSchedules(currentDay),
+      /2030-01-07.*time not specified/
+    );
+    const context = await readUpcomingTalentScheduleContext({
+      admin,
+      userId: owner,
+      now: new Date("2030-01-07T06:00Z"),
+    });
+    assert.match(context, /Platform interview/);
+    const nextDay = await readTalentSchedules({
+      admin,
+      userId: owner,
+      upcoming: true,
+      now: new Date("2030-01-07T15:00:00Z"),
+    });
+    assert.equal(nextDay.schedules.length, 0);
+    assert.equal(
+      (
+        await readUpcomingTalentScheduleContext({
+          admin,
+          userId: owner,
+          now: new Date("2030-01-07T15:00:00Z"),
+        })
+      ).includes("Platform interview"),
+      false
+    );
+  } finally {
+    await db.close();
+  }
+});
 
 test("external appointment lifecycle preserves ownership, provenance, retries and company/Calendar isolation", async () => {
   const db = await setupMeetings();

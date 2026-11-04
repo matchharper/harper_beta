@@ -1,3 +1,4 @@
+import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
@@ -60,7 +61,7 @@ test("feedback suggestions load independently without requesting Gmail status", 
   const render = async () => {
     await act(async () => {
       root.render(
-        <QueryClientProvider client={client}>
+        <RouterContext.Provider value={{ query: {}, pathname: "/career", isReady: true } as any}><QueryClientProvider client={client}>
           <CareerSidebarProvider
             value={
               {
@@ -73,16 +74,16 @@ test("feedback suggestions load independently without requesting Gmail status", 
             <CareerChatPanelProvider
               value={
                 {
-                  sessionPending: false,
+                  messages: [], sessionPending: false,
                   profilePending: false,
                   profileError: "",
-                } as CareerChatPanelContextValue
+                } as unknown as CareerChatPanelContextValue
               }
             >
               <Harness />
             </CareerChatPanelProvider>
           </CareerSidebarProvider>
-        </QueryClientProvider>
+        </QueryClientProvider></RouterContext.Provider>
       );
     });
   };

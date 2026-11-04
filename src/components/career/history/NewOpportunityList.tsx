@@ -1,5 +1,5 @@
 import NewOpportunityCard from "./NewOpportunityCard";
-import CareerMatchingList from "./CareerMatchingList";
+// import CareerMatchingList from "./CareerMatchingList";
 import { Loader2 } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { MuteButton } from "@/components/ui/button";
@@ -45,8 +45,7 @@ type NewOpportunityListProps = {
 
 // Harper의 연결 섹션과 카드에 표시하는 한국어 문구는 여기에서 수정합니다.
 // career-i18n-skip-next-line Source is translated by useCareerT below.
-const INTERNAL_CONNECTION_DESCRIPTION =
-  "Harper가 회사와의 연결을 도와드리는 기회입니다.";
+const INTERNAL_CONNECTION_DESCRIPTION = "Harper가 회사에 직접 연결하는 기회예요.";
 
 const DATE_LABEL_FORMATTERS: Record<Locale, Intl.DateTimeFormat> = {
   ko: new Intl.DateTimeFormat("ko-KR", {
@@ -171,11 +170,11 @@ export default function NewOpportunityList({
         key: "internal",
         title: t(
           "career.history.new_opportunity_list.harper_suggestions",
-          "Harper의 연결"
+          "Harper 연결"
         ),
         empty: t(
           "career.history.new_opportunity_list.no_suggestions",
-          "Harper를 통해서 연결되는 기회입니다."
+          "Harper가 회사에 직접 연결하는 기회예요."
         ),
         description:
           currentInternalCount > 0
@@ -201,10 +200,10 @@ export default function NewOpportunityList({
       },
       {
         key: "external",
-        title: t("career.history.new_opportunity_list.open_positions", "Jobs"),
+        title: t("career.history.new_opportunity_list.open_positions", "직접 지원"),
         empty: t(
           "career.history.new_opportunity_list.no_open_positions",
-          "새로 추천된 포지션이 없습니다."
+          "새로 찾은 기회가 없습니다."
         ),
         description: null,
         count:
@@ -248,7 +247,7 @@ export default function NewOpportunityList({
                   {section.count}
                 </span>
               </h2>
-              {section.key === "external" ? (
+              {/* {section.key === "external" ? (
                 <CareerMatchingList
                   userId={user?.id}
                   onApply={onApply}
@@ -259,7 +258,7 @@ export default function NewOpportunityList({
                   onOpenLink={onOpenLink}
                   pendingOpportunityIds={pendingOpportunityIds}
                 />
-              ) : null}
+              ) : null} */}
             </div>
             {section.description ? (
               <SectionDescription tone="muted">
@@ -310,7 +309,7 @@ export default function NewOpportunityList({
                     <span className="mt-2 block">
                       {t(
                         "career.history.new_opportunity_list.external_recommendations_off",
-                        "현재 외부 포지션의 추천이 꺼져있습니다. Harper에게 요청하시면, 주기적으로 직접 지원하실만한 외부 공고를 찾아서 전달드립니다."
+                        "직접 지원 기회 받기가 꺼져 있어요. Harper에게 요청하면 채용 페이지에서 지원할 수 있는 기회도 찾아드려요."
                       )}
                     </span>
                   ) : null}

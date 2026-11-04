@@ -37,7 +37,7 @@ export async function acceptCareerBackgroundRun(args: { admin: TalentAdminClient
 }
 
 export async function processCareerBackgroundRun(args: { admin: TalentAdminClient; userId: string; conversationId: string; runId: string }) {
-  const deadlineAt = Date.now() + 430_000;
+  let deadlineAt = Date.now() + 430_000;
   let run = await readCareerBackgroundRun(args.admin, args.runId);
   if (run.talent_id !== args.userId || run.conversation_id !== args.conversationId) throw new Error("Background invocation owner mismatch");
   if (run.status === "completed") {
@@ -81,6 +81,18 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
     admin: args.admin, userId: args.userId, run,
   });
   const historyText = (history ?? []).map(row => `Sent email ${row.id}, ${formatLlmDateTime(row.occurred_at)} Asia/Seoul\nSubject: ${row.subject}\n${row.body_text}`).join("\n\n");
+  const {reserveAgentExecution,settleAgentExecution,AgentContactBudgetExhaustedError}=await import('@/lib/agentContacts/executionBudget');
+  const budgetAnchor=String(run.trigger_payload.agentContactBudgetAnchor ?? '');
+  const budgetKey=`career:${run.id}:${crypto.randomUUID()}`;
+  if(budgetAnchor) {
+    try {deadlineAt=Math.min(deadlineAt,Date.now()+1000*await reserveAgentExecution(budgetAnchor,budgetKey,430));}
+    catch(error) {
+      if(!(error instanceof AgentContactBudgetExhaustedError)) throw error;
+      const result=await (args.admin.rpc as any)('cancel_career_background_run',{p_run_id:run.id,p_reason:error.message});
+      if(result.error) throw result.error;
+      return;
+    }
+  }
   try {
     const execute = () => runCareerChatTurn({
       admin: args.admin, userId: args.userId, conversationId: args.conversationId, userMessage: null,
@@ -101,6 +113,8 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
   } catch (error) {
     if (error instanceof CareerReplyContinuation) return;
     if (!(error instanceof CareerAgentReplyUnavailable && error.completed)) throw error;
+  } finally {
+    if(budgetAnchor) await settleAgentExecution(budgetAnchor,budgetKey);
   }
   run = await readCareerBackgroundRun(args.admin, args.runId);
   if (run.status === "completed") await finishCareerSourceEvents({ admin: args.admin, run });

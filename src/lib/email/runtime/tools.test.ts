@@ -45,7 +45,7 @@ test("email exposes one company follow tool with list and write actions", () => 
   const follows = selected.tools.filter(tool => tool.function.name === "follow_company");
   assert.equal(follows.length, 1);
   const properties = follows[0].function.parameters.properties as Record<string, { enum?: string[] }>;
-  assert.deepEqual(properties.action.enum, ["list", "follow", "update", "unfollow"]);
+  assert.deepEqual(properties.action.enum, ["list", "read", "follow", "update", "unfollow"]);
 });
 
 test("email exposes the unified writer and projects saved resume links for the email channel", () => {
@@ -348,99 +348,17 @@ function acceptanceContext() {
   return { ctx, rec, role, setting };
 }
 
-test("internal email acceptance requires a different later message in the same conversation", async () => {
-  const { confirmEmailAcceptance } = await import("./tools");
-  const { ctx, rec } = acceptanceContext();
-  const payloads: any[] = [];
-  const accept = async (payload: any) => {
-    payloads.push(payload);
-    return { ok: true };
-  };
-  const input = {
-    opportunityId: rec.id,
-    feedback: "like",
-    feedbackReason: "Note to company",
-  };
-  const a: any = await confirmEmailAcceptance(
-    ctx,
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(a.confirmationRequired, true);
-  assert.equal(payloads.length, 0);
-  const b: any = await confirmEmailAcceptance(
-    ctx,
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(b.confirmationRequired, true);
-  assert.equal(payloads.length, 0);
-  const c: any = await confirmEmailAcceptance(
-    { ...ctx, conversationId: "another", sourceMessage: { id: 2 } as any },
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(c.confirmationRequired, true);
-  assert.equal(payloads.length, 0);
-  await confirmEmailAcceptance(
-    { ...ctx, conversationId: "another", sourceMessage: { id: 3 } as any },
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(payloads.length, 1);
-  assert.equal(payloads[0].recommendationId, rec.id);
-  assert.equal("expectedUpdatedAt" in payloads[0], false);
-  assert.equal(payloads[0].feedbackReason, "Note to company");
-  assert.equal(payloads[0].emailAcceptanceConfirmation.status, "confirmed");
-  assert.equal(
-    payloads[0].emailAcceptanceConfirmation.confirmedUserMessageId,
-    3
-  );
-});
-
-test("company Intro accepts directly, while onboarding, unavailable and isolated roles cannot accept", async () => {
-  const { confirmEmailAcceptance } = await import("./tools");
-  const { ctx, rec, role, setting } = acceptanceContext();
-  let calls = 0;
-  const accept = async () => ({ ok: true, number: ++calls });
-  const input = { opportunityId: rec.id, feedback: "like" };
-  rec.opportunity_type = "intro_request";
-  await confirmEmailAcceptance(ctx, input, async () => null, accept);
-  assert.equal(calls, 1);
-  setting.is_onboarding_done = false;
-  const incomplete: any = await confirmEmailAcceptance(
-    ctx,
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(incomplete.connectionAcceptanceRecorded, false);
-  assert.equal(calls, 1);
-  setting.is_onboarding_done = true;
-  rec.opportunity_type = "internal";
-  role.status = "ended";
-  const ended: any = await confirmEmailAcceptance(
-    ctx,
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(ended.error, "internal_opportunity_unavailable");
-  assert.equal(calls, 1);
-  role.status = "active";
-  role.information = { testOnly: true, testTalentIds: ["different"] };
-  const isolated: any = await confirmEmailAcceptance(
-    ctx,
-    input,
-    async () => null,
-    accept
-  );
-  assert.equal(isolated.error, "internal_opportunity_unavailable");
-  assert.equal(calls, 1);
+test("email delegates decisions to the same Career executor without a second confirmation state", async () => {
+  const {confirmEmailAcceptance}=await import("./tools");
+  const {ctx,rec}=acceptanceContext();
+  const original=structuredClone(rec);
+  const receipt={ok:false,modelOutput:"Internal introduction uses contact_company."};
+  let executions=0,legacyAccepts=0;
+  const result=await confirmEmailAcceptance(ctx,{opportunityId:rec.id,feedback:"like"},async()=>{executions++;return receipt;},async()=>{legacyAccepts++;});
+  assert.equal(result,receipt);
+  assert.equal(executions,1);
+  assert.equal(legacyAccepts,0);
+  assert.deepEqual(rec,original);
 });
 
 test("attachment selection never uploads an unselected file with the same name", async () => {
@@ -484,7 +402,7 @@ test("attachment selection never uploads an unselected file with the same name",
   assert.equal(resolveEmailAttachmentUploads(attachments, [null]), null);
 });
 
-test("email acceptance guidance is an adapter copy and cannot mutate the shared web tool contract", async () => {
+test("email keeps the shared introduction contract and does not add another confirmation loop", async () => {
   const { emailToolSelection } = await import("./tools");
   const { getOpenAIChatTools } = await import("@/lib/talentOnboarding/tools");
   const before = JSON.stringify(getOpenAIChatTools("chat"));
@@ -499,7 +417,8 @@ test("email acceptance guidance is an adapter copy and cannot mutate the shared 
   const tool = selection.tools.find(
     (t) => t.function.name === "update_recommended_opportunity_feedback"
   )!;
-  assert.match(tool.function.description, /records the pending confirmation/);
+  assert.match(tool.function.description, /contact_company/);
+  assert.doesNotMatch(tool.function.description, /pending confirmation/);
   for (const name of [
     "simulate_application",
     "manage_simulation_session",

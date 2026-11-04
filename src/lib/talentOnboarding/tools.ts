@@ -175,6 +175,8 @@ function opsContactToolResult(idempotent: boolean) {
 }
 
 export type TalentToolExecutionContext = {
+  workId?: string;
+  workRevision?: number;
   backgroundInvocation?: import("@/lib/career/background/types").CareerBackgroundInvocation;
   agentClaimId?: string;
   internalCallRequestId?: string | null;
@@ -203,6 +205,9 @@ export type TalentToolExecutionContext = {
   scheduleAfter?: (task: () => Promise<void>) => void;
   toolCallId?: string | null;
   userMessageId?: number | string | null;
+  /** Authenticated messages delivered together to this conversation execution. */
+  userMessageIds?: number[];
+  voiceEventId?: string;
   resumeRequestId?: string;
   userId?: string;
 };
@@ -269,6 +274,7 @@ export class TalentToolError extends Error {
 }
 
 export const TALENT_TOOL_NAMES = {
+  MANAGE_WORK: "manage_work",
   APPLY_TO_INTERNAL_ROLE: "apply_to_internal_role",
   ASSIGN_TO_ROLE: "assign_to_role",
   LIST_PROFILES: "list_profiles",
@@ -328,6 +334,7 @@ export type TalentToolName =
   (typeof TALENT_TOOL_NAMES)[keyof typeof TALENT_TOOL_NAMES];
 
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
+  TALENT_TOOL_NAMES.MANAGE_WORK,
   ...Object.keys(CAREER_AGENTIC_TOOLS),
   TALENT_TOOL_NAMES.USE_BROWSER,
   TALENT_TOOL_NAMES.SUGGEST_FORM,
@@ -915,6 +922,13 @@ export async function runGetRoleContext(args: {
     detailedRecommendations.map((item) => [item.id, item] as const)
   );
 
+  const publicInternalRoles = new Map<string, Record<string, any>>();
+  await Promise.all(args.roleIds.map(async roleId => {
+    if (roleById.get(roleId)?.source_type !== "internal") return;
+    const { data, error } = await (args.admin.rpc as any)("read_career_internal_role_v1", {p_talent:args.userId,p_role:roleId});
+    if (!error && data) publicInternalRoles.set(roleId,data);
+    else if (error && !String(error.message).includes("internal_role_unavailable")) throw new TalentToolError(error.message);
+  }));
   const roles = args.roleIds.map((roleId) => {
     const row = roleById.get(roleId);
     if (!row) {
@@ -939,7 +953,8 @@ export async function runGetRoleContext(args: {
           .filter((id): id is string => Boolean(id))
       : [];
     const testRoleAllowed = !isTestOnly || testTalentIds.includes(args.userId);
-    if (isInternalRole && !testRoleAllowed) {
+    const publicRole=publicInternalRoles.get(roleId);
+    if (isInternalRole && (!testRoleAllowed || !publicRole)) {
       return {
         found: false,
         roleId,
@@ -952,7 +967,7 @@ export async function runGetRoleContext(args: {
         )
       : undefined;
     const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
-      detailedRecommendation?.upcomingMeeting?.startAt
+      detailedRecommendation?.upcomingMeeting
     );
     const allActivities = detailedRecommendation?.talentRoleActivities ?? [];
     const recentActivity = formatTalentRoleActivitiesForPrompt(
@@ -971,9 +986,9 @@ export async function runGetRoleContext(args: {
       roleId,
       role: {
         roleId,
-        name: optionalToolString(row.name),
+        name: optionalToolString(publicRole?.name ?? row.name),
         ...(args.includeJd
-          ? { description: optionalToolString(row.description) }
+          ? { description: optionalToolString(publicRole?.description ?? row.description) }
           : {}),
         externalJdUrl: optionalToolString(row.external_jd_url),
         locationText: optionalToolString(row.location_text),
@@ -981,20 +996,12 @@ export async function runGetRoleContext(args: {
         type: normalizeRoleContextStringArray(row.type),
         seniorityLevel: optionalToolString(row.seniority_level),
         salaryRange: optionalToolString(row.salary_range),
-        status: optionalToolString(row.status),
+        ...(!isInternalRole ? {status: optionalToolString(row.status)} : {}),
         postedAt: optionalToolString(row.posted_at),
         expiresAt: optionalToolString(row.expires_at),
         sourceType: optionalToolString(row.source_type),
-        internalRequest: optionalToolString(
-          getCompanyInternalRoleRequest(
-            row.company_internal_roles as
-              | { request?: string | null }
-              | Array<{ request?: string | null }>
-              | null
-          )
-        ),
       },
-      companyDb: {
+      companyDb: publicRole ? {name:publicRole.companyName,description:publicRole.companyDescription} : {
         logoUrl: resolveCompanyLogoUrl({
           companyDbLogoUrl: optionalToolString(companyDb?.logo),
           workspaceLogoUrl: optionalToolString(workspace?.logo_url),
@@ -1272,8 +1279,8 @@ async function updateRecommendedOpportunityFeedback(args: {
       updatedAt: result.updatedAt,
       accepted: false,
       companyShared: false,
-      assistantInstruction:
-        "The internal role is saved for later in the user's interested/saved list, with no acceptance or rejection. Acknowledge briefly; do not ask for a reason or imply interest was sent to the company. The user can decide later.",
+      modelOutput:
+        "The internal role is saved for later in the candidate's saved list. No introduction acceptance, rejection, or company sharing was recorded.",
     };
   }
   if (args.feedback === "like" && !hasFormalRecommendation && requestedRoleId) {
@@ -1288,8 +1295,8 @@ async function updateRecommendedOpportunityFeedback(args: {
         ok: false,
         blocked: true,
         reason: "internal_role_review_required",
-        assistantInstruction:
-          "No introduction acceptance was recorded. First use apply_to_internal_role for the user-requested exact role, then continue from the evaluation and review recommendation. Preserve the user's actual authorization and use the selected material snapshot for acceptance.",
+        modelOutput:
+          `No saved opportunity exists for Role ${requestedRoleId}. No introduction acceptance or company sharing was recorded.`,
       };
     }
   }
@@ -1305,15 +1312,15 @@ async function updateRecommendedOpportunityFeedback(args: {
       blocked: true,
       reason: "internal_opportunity_role_ended",
       opportunity: compactOpportunityForTool(opportunity),
-      assistantInstruction: [
-        "Tell the user clearly that this Harper-connected role is no longer active and that their acceptance was not saved as an active connection request.",
-        "Apologize briefly. If the user wants another path at the same company, use get_internal_roles with matchedOnly=true and the returned company name. If a useful option exists, say only that Harper has another reviewed option and ask whether they want it added for review; do not explain, link, or show a card before it becomes a formal recommendation.",
-        "Use current role availability and do not guess why hiring ended.",
-      ].join(" "),
+      modelOutput: "This Role is no longer available for a new introduction. No introduction acceptance or company sharing was recorded. The reason it ended is not established by this result.",
     };
   }
 
   const feedback = toTalentOpportunityFeedback(args.feedback);
+  if (feedback === "positive" && resolved.opportunity?.sourceType === "internal") {
+    return {ok:false,reason:"introduction_requires_agent_contact",recommendationId:resolved.updateOpportunityId,
+      modelOutput:`No acceptance or sharing occurred. Internal introduction is executed by contact_company with recommendationId=${resolved.updateOpportunityId}, acceptIntroduction=true and your authorized introduction message to the company's agent.`};
+  }
   const savedStage =
     feedback === "positive" && resolved.opportunity?.sourceType === "internal"
       ? "connected"
@@ -2725,7 +2732,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             "Whether normalized plain-text email content is needed. Leave false when sender, subject, date, and snippet are enough.",
         },
       },
-
+      anyOf: [{ required: ["query"] }, { required: ["thread_id"] }],
       additionalProperties: false,
     },
     channels: ["chat"],
@@ -3206,7 +3213,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             formatCompanyRequestIntroProgress(item);
           const userMemo = optionalToolString(item.talentMemo);
           const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
-            detailedItem.upcomingMeeting?.startAt,
+            detailedItem.upcomingMeeting,
           );
           const recentActivity = formatTalentRoleActivitiesForPrompt(
             detailedItem.talentRoleActivities,
@@ -3234,7 +3241,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             ...(upcomingMeeting ? { upcomingMeeting } : {}),
             ...(recentActivity ? { recentActivity } : {}),
             savedStage,
-            status: item.status,
+            ...(item.sourceType==='internal' ? {} : {status:item.status}),
             summary: item.recommendationSummary,
           };
         }),
@@ -3390,6 +3397,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         query: optionalToolString(input.query) || null,
         talentId: userId,
       });
+      const {readAgentCorrespondence}=await import("@/lib/agentContacts/read");
+      const {careerContactSource}=await import("@/lib/agentContacts/careerTools");
+      const introductions=await readAgentCorrespondence(careerContactSource(context),{});
       const readableConnections =
         formatRelayableCompanyTalentConnections(connections);
       const assistantInstruction =
@@ -3400,6 +3410,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         modelOutput: [
           "status=ok",
           readableConnections,
+          introductions.modelOutput,
           `instruction=${assistantInstruction}`,
         ].join("\n"),
         ok: true,
@@ -3414,6 +3425,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
+        recommendationId: {type:"string",description:"Exact saved internal opportunity for a new introduction."},
+        acceptIntroduction: {type:"boolean",description:"Execute the candidate's explicit introduction acceptance after reviewing the Role. This shares the prepared materials or default profile and public resumes."},
+        introductionRootId: {type:"string",description:"Exact existing agent introduction for further correspondence."},
+        replyToMessageId: {type:"string",description:"Exact agent message being answered."},
+        selectionRef: {type:"string",description:"Exact material selection reference reviewed by the candidate; omit to pin current prepared/default material at a natural-language acceptance."},
         resumeConfirmed: {
           type: "boolean",
           description:
@@ -3422,13 +3438,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         relayContent: {
           type: "string",
           minLength: 1,
-          maxLength: 5000,
-          description: COMPANY_RELAY_CONTENT_CONTRACT,
+          description: "Message to the company agent for an introduction; include relevant candidate-approved context and the requested action. For a legacy mutual connection, this is the candidate-authorized relay.",
         },
         documentId: {
           type: "string",
           description:
-            "Optional exact owned resume document ID explicitly approved for sharing.",
+            "Legacy connection only: exact owned resume approved for sharing. For an agent introduction, use assign_to_role and its selectionRef.",
         },
         connectionId: {
           type: "string",
@@ -3436,11 +3451,30 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             "Exact mutual-connection ID from private context or read_company_connections.",
         },
       },
-      required: ["connectionId", "relayContent"],
+      required: ["relayContent"],
       additionalProperties: false,
     },
-    channels: ["chat"],
+    channels: ["chat", "voice"],
     async execute(input, context) {
+      if (input.recommendationId || input.introductionRootId || input.replyToMessageId) {
+        if(input.connectionId) throw new TalentToolError("Choose an agent introduction or a legacy connection, not both.");
+        if(input.documentId) throw new TalentToolError("Agent introductions share exact role materials. Use assign_to_role with the document revision, then contact_company with its selectionRef. documentId alone is only for a legacy connection.");
+        const {careerContactSource}=await import("@/lib/agentContacts/careerTools");
+        const {sendAgentContact}=await import("@/lib/agentContacts/store");
+        const {agentContactReceipt}=await import("@/lib/agentContacts/contracts");
+        const source=careerContactSource(context);
+        const result=await sendAgentContact({source,operationKey:`career:${source.backgroundRunId ?? source.voiceEventId ?? source.messageId}:contact_company:${input.recommendationId ?? input.introductionRootId ?? input.replyToMessageId}`,
+          message:String(input.relayContent ?? ""),recommendationId:optionalToolString(input.recommendationId) ?? undefined,rootId:optionalToolString(input.introductionRootId) ?? undefined,
+          replyToMessageId:optionalToolString(input.replyToMessageId) ?? undefined,acceptIntroduction:input.acceptIntroduction===true,selectionRef:optionalToolString(input.selectionRef) ?? undefined});
+        const dispatch=async()=>{
+          if(result.message.receiver_kind==='company' && result.message.receiver_job_id) {
+            const {dispatchOrgAgentWebActionJob}=await import("@/lib/org/agent/webActionTurn");
+            await dispatchOrgAgentWebActionJob({admin:context!.admin as any,jobId:result.message.receiver_job_id});
+          }
+        };
+        if(context?.scheduleAfter) context.scheduleAfter(dispatch); else await dispatch().catch(error=>console.error("[agent-contact] Dispatch recovery required",error instanceof Error?error.message:"dispatch failed"));
+        return {...agentContactReceipt(result.message,result.reused),ok:true,skipCommonAssistantInstruction:true};
+      }
       const admin = context?.admin;
       const userId = context?.userId;
       const sourceMessageId = Number(context?.userMessageId);

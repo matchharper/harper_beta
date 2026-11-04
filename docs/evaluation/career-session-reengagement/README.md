@@ -5,11 +5,11 @@
 - Frozen input: `cases-v1.json`, 합성 한국어 4건. 마지막 메시지 user/assistant × pending meeting 유/무. 개인정보·운영 DB 사용 없음.
 - Gold: `gold-v1.json`. 실행 전에 작성한 정성 rubric이며 단어나 정규식 점수로 판정하지 않는다.
 - Canonical runner: `scripts/evalCareerReengagementMessaging.ts`. 실제 `chatTurn.ts`를 실행하되 읽기 의존성은 합성 자료, 도구는 빈 목록으로 격리한다. `captureReengagementTurnInput`이 원본 호출부의 모델 인자를 포착한다. 이 인자를 실제 `runCareerChatAssistant`에 전달한다. 프롬프트·메시지 projection·provider adapter·action parser는 제품 코드를 사용한다.
-- 입력 계약: 실제 과거 메시지의 역할과 순서를 유지한다. 방문 목적·현재 사실은 runtime context에 전달한다. 가짜 사용자 요청이나 새 실행 결과를 추가하지 않는다.
-- 모델 설정: 현재 `DEFAULT_CAREER_TEXT_CHAT_MODEL` 및 reasoning 설정을 그대로 읽는다. v1 실행 당시 Sol/high, route와 같은 temperature 0.8 요청; 제공자가 지원하지 않는 필드는 제품 adapter가 처리한다.
+- 입력 계약: 실제 과거 메시지의 역할과 순서를 유지한다. 방문 목적은 이력 뒤의 명시적인 앱 사건 입력에, 준비된 추천 사실은 runtime context에 전달한다. 앱 사건은 provider `user` 역할을 사용하지만 사용자 발화·새 동의가 아님을 표시하고 대화 DB에는 저장하지 않는다. 가짜 사용자 요청이나 새 실행 결과를 추가하지 않는다.
+- 모델 설정: 현재 모든 사례가 route와 같은 `CLAUDE_HAIKU_MODEL`, `career/chat:session_reengagement` usage label의 effort, temperature 0.8 요청을 사용한다. 초기 v1 실행은 Sol/high였다. 제공자가 지원하지 않는 필드는 제품 adapter가 처리한다.
 - 기록: `runs/<run-id>/manifest.json`에 데이터·관련 소스 hash, `outputs.json`에 실제 provider 요청/응답·사용자 표시 본문을 보존한다. 디렉터리 0700, 파일 0600. 키·헤더는 기록하지 않는다.
 - v1 경계: 네트워크는 OpenAI 제공자만 허용했다. DB 쓰기·발송·배포 없음. 실제 계정, 화면, capability selector와 동적 도구 실행은 검증 범위 밖이다. 이 작은 합성 slice는 전체 Career E2E나 출시 품질을 대표하지 않는다.
-- 확인 기준: provider 입력이 chatTurn의 실제 과거 메시지와 일치하고 추가 발화가 없어야 한다. 응답은 네 사례 모두 사람이 읽고 방문 맥락·현재 항목·자연스러움·허위 실행 주장 여부를 판단한다. 버튼이 있으면 제공된 actionKey와 의미가 일치해야 한다.
+- 확인 기준: provider 입력의 과거 메시지가 chatTurn과 일치하고 마지막에 실제 재접속 사건이 한 번 있어야 한다. 사용자 요청을 지어내거나 시스템 context에 사건 지침을 중복하지 않아야 한다. 응답은 네 사례 모두 사람이 읽고 방문 맥락·현재 항목·자연스러움·허위 실행 주장 여부를 판단한다. 버튼이 있으면 제공된 actionKey와 의미가 일치해야 한다.
 
 실행:
 
@@ -45,3 +45,9 @@ TSX_TSCONFIG_PATH=scripts/tsconfig.json node --env-file=.env.local --import tsx 
 제품 경로는 `chatTurn` → re-engagement SSE → 공용 응답 reader → 기존 `CareerMessageBubble`로 연결한다. 자동 재접속, 수동 이어가기, dev 인사 버튼이 같은 reader를 사용한다. 최종 메시지와 중간 저장 메시지는 ID로 병합하며 별도 typewriter를 재생하지 않는다. 최근 6개 삭제는 기존 JSON 경로를 유지한다.
 
 관련 검증: `src/app/api/talent/session/reengagement/route.test.ts`(완료 전 delta, 자기 중간 메시지와 새 사용자 메시지의 anchor 구분), `src/hooks/career/useCareerSessionReengagement.test.tsx`(실제 bubble의 완료 전 표시·중복 방지·생략·오류·늦은 응답), `src/lib/career/reengagementStreamText.test.ts`(분할된 제어 marker), `src/lib/career/llm.reengagementStreaming.test.ts`(provider 대체 경로), 기존 streaming/progress 및 입력 harness. 운영 계정 브라우저 호출·운영 추천 저장·배포는 수행하지 않았다.
+
+## 재접속 입력 경계 수정 (2026-11-04, 로컬)
+
+기존 frozen v1 네 사례와 v4 `ready_candidates`를 재사용한다. `chatTurn`의 실제 메시지 조립, streaming/non-streaming native Haiku 요청, 기존 이력 보존과 앱 사건의 출처를 검사한다. native Anthropic도 기존 opt-in `withLlmProviderTrace`에 연결하여 최초 요청의 마지막 역할, HTTP 결과와 실제 모델을 확인한다. 인사 품질은 모델 출력 전체를 사람이 읽어 판단하며 런타임 검사·고정 인사 후처리를 두지 않는다.
+
+결과와 한계: [2026-11-04 return-event report](reports/2026-11-04-return-event.md). 실제 Haiku 5개 사례의 인사 시작과 prefill 오류 해소를 확인했으며 전체 문구 품질·운영 E2E를 통과했다는 의미는 아니다.

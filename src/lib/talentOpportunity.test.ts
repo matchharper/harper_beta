@@ -73,6 +73,13 @@ const baseItem = {
   status: "active",
 } as TalentOpportunityHistoryItem;
 
+test("agent introductions distinguish inbox acceptance from company presentation without time-based closure", () => {
+  const received=buildInternalRecommendationProgress({item:baseItem,tags:[],agentIntroductionRootId:'intro-root'});
+  assert.equal(received?.code,'agent_request_received');
+  const published=buildInternalRecommendationProgress({item:baseItem,tags:[{opportunity_id:'role-1',tag:'내부:연결대기',updated_at:'2026-07-11T05:42:24.000Z'}],agentIntroductionRootId:'intro-root'});
+  assert.equal(published?.code,'company_presentation_saved');
+});
+
 const processStoppedTags = [
   {
     opportunity_id: "role-1",
@@ -382,6 +389,7 @@ test("adds upcoming-meeting roles outside the recent opportunity limit", () => {
 });
 
 test("formats upcoming meetings in compact English KST text", () => {
+  assert.equal(formatUpcomingHarperMeetingForPrompt({ startAt: "2026-11-02T15:00:00Z", endAt: null, calendarDate: "2026-11-03", title: "Interview" }), "Upcoming appointment: 2026-11-03; time not specified.");
   assert.equal(
     formatUpcomingHarperMeetingForPrompt(
       "2026-09-07T05:00:00.000Z",
@@ -480,10 +488,12 @@ test("archive notices use the talent's saved language, not the screen language",
 });
 
 
-test("history uses actual process closure, preserving hidden entries and live final offers", () => {
+test("history fills legacy closure while preserving the user's selected progress", () => {
   const legacy = { ...baseItem, savedStage: null };
   assert.equal(resolveHistorySavedStage(legacy, processStoppedTags), "closed");
-  assert.equal(resolveHistorySavedStage({ ...legacy, savedStage: "connected" }, processStoppedTags), "closed");
+  for (const savedStage of ["saved", "applied", "connected", "offer", "closed"] as const) {
+    assert.equal(resolveHistorySavedStage({ ...legacy, savedStage, status: "ended" }, processStoppedTags), savedStage);
+  }
   assert.equal(resolveHistorySavedStage({ ...legacy, savedStage: "hidden" }, processStoppedTags), "hidden");
   assert.equal(resolveHistorySavedStage({ ...legacy, status: "ended" }, []), "closed");
   assert.equal(resolveHistorySavedStage({ ...legacy, status: "ended", savedStage: "connected" }, [{ opportunity_id: "role-1", tag: "내부:최종오퍼", updated_at: null }]), "connected");
@@ -513,7 +523,7 @@ test("stage counts include legacy internal closure and every API page", async ()
     return query;
   } } as any;
   const counts = await fetchTalentOpportunityHistoryCounts({ admin, userId: "fixture" });
-  assert.deepEqual(counts.savedStages, { saved: 1, applied: 0, connected: 0, closed: 1, hidden: 1 });
+  assert.deepEqual(counts.savedStages, { saved: 1, applied: 0, connected: 0, offer: 0, closed: 1, hidden: 1 });
   assert.deepEqual(offsets, [0, 1, 2]);
 });
 

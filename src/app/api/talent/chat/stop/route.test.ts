@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Module from "node:module";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 test("Stop API preserves partial work, ownership, concurrent metadata and pre-SSE cancellation", async () => {
   const modules = Module as unknown as { _load: (...args: any[]) => any };
@@ -13,6 +13,8 @@ test("Stop API preserves partial work, ownership, concurrent metadata and pre-SS
     { id: 90, user_id: "owner", conversation_id: "chat", role: "assistant", content: "Visible partial text", payload: { careerTurnSourceMessageId: 89 }, thinking_logs: [] },
   ];
   const cancelled: number[] = [];
+  const allStops: any[] = [];
+  const cleanup: Array<() => Promise<void>> = [];
   const admin = { from: (table: string) => {
     const filters: Array<(row: any) => boolean> = [];
     let patch: any, inserted: any;
@@ -41,8 +43,12 @@ test("Stop API preserves partial work, ownership, concurrent metadata and pre-SS
       then: (resolve: any, reject: any) => Promise.resolve(perform()).then(resolve, reject),
     };
     return q;
+  }, rpc: async (name: string, args: any) => {
+    assert.equal(name, "stop_career_conversation"); allStops.push(args);
+    return { data: { userMessages: rows.filter(row => row.role === "user" && row.message_type !== "career_turn_stop").map(row => ({ ...row, payload: { ...row.payload, careerTurnStopped: true } })) }, error: null };
   } };
   const mocks: Record<string, any> = {
+    "next/server": { NextRequest, NextResponse, after: (callback: () => Promise<void>) => cleanup.push(callback) },
     "@/lib/supabaseServer": { getRequestUser: async () => user },
     "@/lib/talentOnboarding/server": {
       getTalentSupabaseAdmin: () => admin,
@@ -94,5 +100,14 @@ test("Stop API preserves partial work, ownership, concurrent metadata and pre-SS
     assert.equal((await early.json()).userMessage, null);
     assert.equal(rows.at(-1).message_type, "career_turn_stop");
     assert.equal(rows.at(-1).payload.hidden, true);
+    const keys = Array.from({ length: 5 }, (_, i) => `00000000-0000-4000-8000-00000000000${i}`);
+    const all = await stop({ conversationId: "chat", stopAll: true, clientRequestIds: keys });
+    assert.equal(all.status, 200);
+    assert.ok((await all.json()).userMessages.every((row: any) => row.turnStopped));
+    assert.deepEqual(allStops[0], { p_user_id: "owner", p_conversation_id: "chat", p_client_request_ids: keys, p_source_message_id: null });
+    assert.equal(cleanup.length, 1, "remote cleanup is published after the durable Stop");
+    user = { id: "other" };
+    assert.equal((await stop({ conversationId: "chat", stopAll: true })).status, 404);
+    assert.equal(allStops.length, 1);
   } finally { modules._load = originalLoad; }
 });

@@ -16,7 +16,7 @@ import {
   useCareerSidebarContext,
 } from "./CareerSidebarContext";
 import { useCareerChatActivityContext } from "./CareerChatPanelContext";
-import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSection";
+import CareerProfileSharingSummary from "./CareerProfileSharingSummary";
 import type { CareerOpportunitySavedStageFilter } from "./types";
 import React from "react";
 import CareerCallCard from "./CareerCallCard";
@@ -219,38 +219,39 @@ const CareerHomePanel = (props: CareerHomePanelProps) => {
   const initialOpportunitySearchStatus =
     useInitialOpportunitySearchStatus(opportunityRun);
 
-  const { displayName, activeOpportunityLabel } = useCareerWelcomeContent();
+  const { greeting, activeOpportunityLabel } = useCareerWelcomeContent();
 
   const newPositionCount = historyOpportunityCounts.new;
   const newPositionDescription = formatCareerMessage(
     m,
-    t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
+    t("career.home.career_home_panel.0x7lgjp", "새로 찾은 기회")
   );
   const savedPositionCount = historyOpportunityCounts.savedStages.saved;
   const connectedPositionCount =
     historyOpportunityCounts.savedStages.applied +
     historyOpportunityCounts.savedStages.connected +
+    historyOpportunityCounts.savedStages.offer +
     historyOpportunityCounts.savedStages.closed;
   const inProgressPositionCount = savedPositionCount + connectedPositionCount;
   const inProgressPositionDescription = t(
     "career.home.career_home_panel.saved_positions_description",
-    "관심·진행 중인 포지션"
+    "관심·진행 중인 기회"
   );
 
   const recommendationSettingLabel = talentPreferences
     ? profileVisibility === "dont_share"
       ? t(
           "career.home.career_home_panel.1dfqgdw",
-          "새로운 추천과 회사 연결 안내를 중지한 상태예요."
+          "새 기회와 회사 연결 안내를 멈춘 상태예요."
         )
       : talentPreferences.getExternalRecommendation
         ? t(
             "career.home.career_home_panel.1dtmpgt",
-            "채용 공고와 제가 연결시켜 드릴 수 있는 기회를 함께 알려드리고 있어요."
+            "Harper 연결과 직접 지원 기회를 함께 가져오고 있어요."
           )
         : t(
             "career.home.career_home_panel.1l3sw8y",
-            "제가 연결시켜 드릴 수 있는 기회들만 알려드리고 있어요."
+            "지금은 Harper 연결 기회만 가져오고 있어요."
           )
     : null;
 
@@ -480,7 +481,7 @@ const CareerHomePanel = (props: CareerHomePanelProps) => {
   return (
     <div className="space-y-4 text-neutral-primary">
       <Text as="h2" type="head1" className="mt-8 text-center font-hedvig">
-        Welcome, <span className="text-primary">{displayName}</span>!
+        {greeting}
       </Text>
       {shouldShowProfileImportRecovery && (
         <div className="mt-2 mb-4 flex flex-col gap-3 rounded-3xl border border-info/30 bg-bg-floating px-3 py-3 text-info shadow-[0_8px_20px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)] sm:flex-row sm:items-center sm:justify-between">
@@ -557,7 +558,7 @@ const CareerHomePanel = (props: CareerHomePanelProps) => {
       {isOnboardingCompleted ? (
         <div className="mt-12 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <HomeOpportunitySummaryCard
-            title={t("career.home.career_home_panel.0sdf230", "추천된 기회")}
+            title={t("career.home.career_home_panel.0sdf230", "찾은 기회")}
             count={newPositionCount}
             description={newPositionDescription}
             buttonLabel={t("career.common.career.1nldebx", "검토하기")}
@@ -576,7 +577,7 @@ const CareerHomePanel = (props: CareerHomePanelProps) => {
             }
           />
           <HomeOpportunitySummaryCard
-            title={t("career.home.career_home_panel.11q0oj9", "저장한 포지션")}
+            title={t("career.home.career_home_panel.11q0oj9", "저장한 기회")}
             count={inProgressPositionCount}
             description={inProgressPositionDescription}
             buttonLabel={t("career.common.career.028kv4g", "상세 보기")}
@@ -592,11 +593,9 @@ const CareerHomePanel = (props: CareerHomePanelProps) => {
         </div>
       ) : null}
 
-      <div className="mt-12" />
-      <CareerProfileSharingSettingsSection
-        showEngagementTypes={false}
-        showLastUpdated={false}
-      />
+      <div className="mt-12">
+        <CareerProfileSharingSummary />
+      </div>
     </div>
   );
 };

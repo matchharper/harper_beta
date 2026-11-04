@@ -1,11 +1,19 @@
+import {
+  CAREER_BUBBLE_BREAK,
+  splitCareerMessageBubbles,
+} from "@/lib/career/conversationVersion";
 import { CareerSuggestionHistory } from "./CareerSuggestionComposer";
 import { ApplicationReviewEntry } from "./ApplicationReviewPanel";
 import { CareerFormCard } from "./CareerFormCard";
+import { CareerFormResponseHistory } from "./CareerFormResponseHistory";
 import { GmailIntegrationAction } from "./GmailIntegrationAction";
 import { extractGmailIntegrationMarker } from "@/lib/career/forms/integrationMarker";
 import { BrowserSessionLink } from "../BrowserSessionDock";
 import { extractBrowserMarkers } from "@/lib/career/browser/marker";
-import { InternalCallWriteButton, useInternalCallAnswers } from "./InternalCallAnswers";
+import {
+  InternalCallWriteButton,
+  useInternalCallAnswers,
+} from "./InternalCallAnswers";
 import { ApplicationSimulationCard } from "./elements/ApplicationSimulationCard";
 import CareerCallProposalCard from "./CareerCallProposalCard";
 import { DocumentPreviewCards } from "./elements/DocumentPreviewCards";
@@ -34,11 +42,7 @@ import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionTe
 import { stripStandalonePostingLinksFromText } from "@/lib/career/postingLinks";
 import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildChatTypewriterChunks } from "@/lib/chat/typewriter";
-import {
-  compactUrlLabel,
-  getHarperOwnedUrlRoute,
-  isHarperOwnedUrl,
-} from "@/lib/urlDisplay";
+import { getHarperOwnedUrlRoute } from "@/lib/urlDisplay";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { ChatMessageAttachmentList } from "@/components/chat/ChatMessageAttachmentList";
 import { cn } from "@/lib/utils";
@@ -53,7 +57,6 @@ import { formatCareerMessageByKey } from "@/i18n/careerMessage";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
-  CHAT_USER_BUBBLE_CLASS,
   ChatAssistantContent,
   ChatAssistantPending,
   ChatChoiceList,
@@ -65,12 +68,13 @@ import {
   type CareerReengagementAction,
 } from "@/lib/career/reengagementActions";
 import Image from "next/image";
-
-export const CAREER_MESSAGE_LINK_CLASS =
-  "inline-flex max-w-full cursor-pointer items-center align-baseline leading-5 text-left text-action no-underline wrap-break-word transition-colors hover:underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
+import { renderUserTextWithLinks } from "@/components/ui/reference-link";
+import { parseCareerInlineUi } from "@/lib/career/inlineUi";
+import CareerInlineUi, {
+  CareerInlineUiUnavailable,
+} from "./inline/CareerInlineUi";
 
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
-const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
 const CALL_ACTION_MARKER = "[[CALL]]";
 const CAREER_CHOICE_BUTTONS_START_FRAGMENT = "[[CAREER_CHOICE_BUTTONS";
 const CAREER_CHOICE_BUTTONS_PATTERN =
@@ -111,6 +115,7 @@ type Props = {
   isAssistantSpeaking?: boolean;
   choiceActionsDisabled?: boolean;
   hideAssistantChoices?: boolean;
+  selectedAssistantChoice?: string;
   isCallStartPending?: boolean;
   onSelectAssistantChoice?: (
     selection: CareerAssistantChoiceSelection
@@ -240,61 +245,6 @@ function extractInternalCallRequestMarkers(content: string) {
   };
 }
 
-function renderTextWithLinks(
-  content: string,
-  keyPrefix: string,
-  onHarperLinkClick: (href: string) => void
-): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null = null;
-
-  URL_PATTERN.lastIndex = 0;
-  while ((match = URL_PATTERN.exec(content)) !== null) {
-    const matchIndex = match.index;
-    const href = match[0] ?? "";
-    if (lastIndex < matchIndex) {
-      nodes.push(content.slice(lastIndex, matchIndex));
-    }
-    if (isHarperOwnedUrl(href)) {
-      nodes.push(
-        <BareButton
-          key={`${keyPrefix}-internal-link-${matchIndex}`}
-          type="button"
-          onClick={() => onHarperLinkClick(href)}
-          title={href}
-          className={cn(
-            "border-0 font-[inherit] text-accent-500 underline decoration-dotted underline-offset-2 hover:text-accent-500/90"
-          )}
-        >
-          {compactUrlLabel(href)}
-        </BareButton>
-      );
-      lastIndex = matchIndex + href.length;
-      continue;
-    }
-    nodes.push(
-      <a
-        key={`${keyPrefix}-link-${matchIndex}`}
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        title={href}
-        className="text-accent-500 underline decoration-dotted underline-offset-2 hover:text-accent-500/90"
-      >
-        {compactUrlLabel(href)}
-      </a>
-    );
-    lastIndex = matchIndex + href.length;
-  }
-
-  if (lastIndex < content.length) {
-    nodes.push(content.slice(lastIndex));
-  }
-
-  return nodes.length > 0 ? nodes : [content];
-}
-
 function renderHighlightedContent(
   content: string,
   onHarperLinkClick: (href: string) => void
@@ -310,7 +260,7 @@ function renderHighlightedContent(
     if (lastIndex < matchIndex) {
       nodes.push(
         <React.Fragment key={`text-${matchIndex}`}>
-          {renderTextWithLinks(
+          {renderUserTextWithLinks(
             content.slice(lastIndex, matchIndex),
             `text-${matchIndex}`,
             onHarperLinkClick
@@ -337,7 +287,7 @@ function renderHighlightedContent(
   if (lastIndex < content.length) {
     nodes.push(
       <React.Fragment key={`text-tail-${lastIndex}`}>
-        {renderTextWithLinks(
+        {renderUserTextWithLinks(
           content.slice(lastIndex),
           `text-tail-${lastIndex}`,
           onHarperLinkClick
@@ -348,7 +298,7 @@ function renderHighlightedContent(
 
   return nodes.length > 0
     ? nodes
-    : renderTextWithLinks(content, "full", onHarperLinkClick);
+    : renderUserTextWithLinks(content, "full", onHarperLinkClick);
 }
 
 function renderUserContent(
@@ -367,7 +317,8 @@ function renderUserContent(
       if (index < 0) continue;
       if (
         index < start ||
-        (index === start && mention.label.length > (selected?.label.length ?? 0))
+        (index === start &&
+          mention.label.length > (selected?.label.length ?? 0))
       ) {
         selected = mention;
         start = index;
@@ -376,7 +327,10 @@ function renderUserContent(
     if (start > cursor) {
       nodes.push(
         <React.Fragment key={`text-${cursor}`}>
-          {renderHighlightedContent(content.slice(cursor, start), onHarperLinkClick)}
+          {renderHighlightedContent(
+            content.slice(cursor, start),
+            onHarperLinkClick
+          )}
         </React.Fragment>
       );
     }
@@ -413,21 +367,23 @@ function AnimatedAssistantTypingContent({ content }: { content: string }) {
   );
 }
 
-const CareerMessageBubble = ({
+const CareerMessageBubbleContent = ({
   message,
   isUser,
   isAssistantSpeaking = false,
   choiceActionsDisabled = false,
   hideAssistantChoices = false,
+  selectedAssistantChoice,
   isCallStartPending = false,
   onSelectAssistantChoice,
   onSelectReengagementAction,
   onStartCallMode,
 }: Props) => {
   const t = useCareerT();
-  const useAssistantBubble = useCareerWorkspaceUiStore(
-    (state) => !isUser && state.assistantBubbleStyle === "bubble"
+  const friendly = useCareerWorkspaceUiStore(
+    (state) => state.conversationVersion === "friendly"
   );
+  const useAssistantBubble = !isUser && friendly;
   const callActionOpeningText = t(
     "career.chat.career_message_bubble.0jnmgxp",
     "좋아요. 최근 업데이트나 요즘 재밌게 하고 계신 일부터 편하게 들려주세요."
@@ -465,7 +421,10 @@ const CareerMessageBubble = ({
     : { actions: [], content: choiceBlockExtraction.content };
   const integrationExtraction = !isUser
     ? extractGmailIntegrationMarker(reengagementActionExtraction.content)
-    : { content: reengagementActionExtraction.content, showGmailIntegration: false };
+    : {
+        content: reengagementActionExtraction.content,
+        showGmailIntegration: false,
+      };
   const browserExtraction = !isUser
     ? extractBrowserMarkers(integrationExtraction.content)
     : { content: integrationExtraction.content, sessionIds: [] };
@@ -503,15 +462,16 @@ const CareerMessageBubble = ({
         animateEntrance={isUser && String(message.id).startsWith("temp-user-")}
         active={isAssistantSpeaking}
         className={cn(
+          isUser && "my-0 md:my-0",
           useAssistantBubble && [
-            CHAT_USER_BUBBLE_CLASS,
-            "ml-0 self-start rounded-br-[16px] rounded-bl-sm bg-black/3 text-black px-4 py-3",
+            "career-bubble-enter ml-0 my-0 self-start rounded-2xl bg-black/3 text-neutral-primary px-4 py-3",
           ],
           isUser || useAssistantBubble
             ? "max-w-[min(700px,92%)]"
             : "max-w-[min(700px,100%)] md:max-w-[min(700px,94%)]",
-          !isUser && !useAssistantBubble && !isOpportunityFeedbackNote &&
-            "max-md:rounded-[16px] max-md:rounded-bl-sm max-md:bg-[rgba(245,245,245,1)] max-md:px-3 max-md:py-1.5",
+          friendly && "md:max-w-[min(640px,92%)]",
+          // !isUser && !useAssistantBubble && !isOpportunityFeedbackNote &&
+          // "max-md:rounded-[16px] max-md:rounded-bl-sm max-md:bg-[rgba(245,245,245,1)] max-md:px-3 max-md:py-1.5",
           !isUser && (message.browserSession || message.careerForm) && "w-full",
           isOpportunityFeedbackNote
             ? cn(
@@ -552,7 +512,9 @@ const CareerMessageBubble = ({
         typographyClassName={careerTimelineMessageTextClassName}
         unstyled={isOpportunityFeedbackNote}
       >
-        {isUser ? (
+        {isUser && message.formResponse ? (
+          <CareerFormResponseHistory response={message.formResponse} />
+        ) : isUser ? (
           <div className="whitespace-pre-wrap wrap-break-word">
             {renderUserContent(
               displayContent,
@@ -577,18 +539,33 @@ const CareerMessageBubble = ({
                 variant="career"
                 content={assistantContent}
                 className={careerTimelineAssistantRichTextClassName}
-                linkClassName={CAREER_MESSAGE_LINK_CLASS}
                 onHarperLinkClick={handleHarperLinkClick}
                 renderEmailLinksAsText
               />
             )}
           </>
         )}
-        {!isUser && !message.typing && message.careerForm ? message.careerForm.kind === "suggestion" ? <CareerSuggestionHistory form={message.careerForm} /> : <CareerFormCard form={message.careerForm} /> : null}
-        {!isUser && browserExtraction.sessionIds.map((id) => <BrowserSessionLink key={id} sessionId={id} />)}
-        {!isUser && !message.typing && integrationExtraction.showGmailIntegration ? <GmailIntegrationAction /> : null}
+        {!isUser && !message.typing && message.careerForm ? (
+          message.careerForm.kind === "suggestion" ? (
+            <CareerSuggestionHistory form={message.careerForm} />
+          ) : (
+            <CareerFormCard form={message.careerForm} />
+          )
+        ) : null}
+        {!isUser &&
+          browserExtraction.sessionIds.map((id) => (
+            <BrowserSessionLink key={id} sessionId={id} />
+          ))}
+        {!isUser &&
+        !message.typing &&
+        integrationExtraction.showGmailIntegration ? (
+          <GmailIntegrationAction />
+        ) : null}
         {!isUser && !message.typing && message.applicationReviewMessageId && (
-          <ApplicationReviewEntry messageId={message.applicationReviewMessageId} inline />
+          <ApplicationReviewEntry
+            messageId={message.applicationReviewMessageId}
+            inline
+          />
         )}
         {!isUser && (
           <DocumentPreviewCards documents={documentLinks.documents} />
@@ -596,6 +573,7 @@ const CareerMessageBubble = ({
         {!isUser && !hideAssistantChoices && assistantChoices.length > 0 && (
           <ChatChoiceList
             choices={assistantChoices}
+            selectedValue={selectedAssistantChoice}
             disabled={choiceActionsDisabled || !onSelectAssistantChoice}
             hint={t(
               "career.chat.career_message_bubble.1xpjlib",
@@ -723,7 +701,10 @@ const CareerMessageBubble = ({
               />
             }
           >
-            <InternalCallWriteButton callId={marker.callId} disabled={isCallStartPending} />
+            <InternalCallWriteButton
+              callId={marker.callId}
+              disabled={isCallStartPending}
+            />
             <BareButton
               type="button"
               onClick={() =>
@@ -740,7 +721,12 @@ const CareerMessageBubble = ({
                   ),
                 })
               }
-              disabled={!onStartCallMode || isCallStartPending || internalCallAnswers.submitting || internalCallAnswers.completed.has(marker.callId)}
+              disabled={
+                !onStartCallMode ||
+                isCallStartPending ||
+                internalCallAnswers.submitting ||
+                internalCallAnswers.completed.has(marker.callId)
+              }
               className="h-9 min-w-0 flex-1 text-center inline-flex items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-sm text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             >
               <PhoneOutgoing strokeWidth={1.9} size={14} />
@@ -788,6 +774,154 @@ const CareerMessageBubble = ({
           ))}
       </ChatMessageBubbleFrame>
     </>
+  );
+};
+
+/** Keep one persisted message/action identity; only its presentation is segmented. */
+const CareerMessagePresentation = (props: Props) => {
+  const friendly = useCareerWorkspaceUiStore(
+    (state) => state.conversationVersion === "friendly"
+  );
+  const { message, isUser } = props;
+  const bubbleProps = props;
+  if (isUser) return <CareerMessageBubbleContent {...bubbleProps} />;
+  if (!friendly)
+    return (
+      <CareerMessageBubbleContent
+        {...bubbleProps}
+        message={{
+          ...message,
+          content: message.content.replaceAll(CAREER_BUBBLE_BREAK, "\n\n"),
+        }}
+      />
+    );
+
+  const parts = splitCareerMessageBubbles(
+    message.content,
+    Boolean(message.typing)
+  );
+  const form =
+    !message.typing && message.careerForm ? (
+      <div
+        className={cn(
+          "w-full max-w-[min(700px,100%)] md:max-w-[min(700px,94%)]",
+          careerTimelineMessageTextClassName
+        )}
+      >
+        {message.careerForm.kind === "suggestion" ? (
+          <CareerSuggestionHistory form={message.careerForm} />
+        ) : (
+          <CareerFormCard form={message.careerForm} />
+        )}
+      </div>
+    ) : null;
+
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-2">
+      {!parts.length && !form ? (
+        <CareerMessageBubbleContent
+          {...bubbleProps}
+          message={{
+            ...message,
+            content: "",
+            careerForm: undefined,
+          }}
+        />
+      ) : null}
+      {parts.map((content, index) => {
+        const last = index === parts.length - 1 && !message.typing;
+        return (
+          <CareerMessageBubbleContent
+            key={index}
+            {...bubbleProps}
+            message={{
+              ...message,
+              content,
+              typing: false,
+              typingMode: undefined,
+              careerForm: undefined,
+              applicationReviewMessageId: last
+                ? message.applicationReviewMessageId
+                : undefined,
+              simulation: last ? message.simulation : undefined,
+            }}
+          />
+        );
+      })}
+      {form}
+    </div>
+  );
+};
+
+/** UI references keep their position in the message, outside the text bubble's surface. */
+const CareerMessageBubble = (props: Props) => {
+  const { message, isUser } = props;
+  if (isUser || message.simulation)
+    return <CareerMessagePresentation {...props} />;
+  const parts = parseCareerInlineUi(message.content, Boolean(message.typing));
+  const hasUi = parts.some((part) => part.kind !== "text");
+  if (!hasUi) {
+    const text = parts
+      .map((part) => (part.kind === "text" ? part.content : ""))
+      .join("\n\n");
+    return (
+      <CareerMessagePresentation
+        {...props}
+        message={
+          text === message.content.trim()
+            ? message
+            : { ...message, content: text }
+        }
+      />
+    );
+  }
+  const webChat = !message.messageType || message.messageType === "chat";
+  const hasTail = Boolean(
+    message.careerForm ||
+    message.applicationReviewMessageId ||
+    message.mockInterviewOffers?.length
+  );
+  return (
+    <div className="flex w-full min-w-0 flex-col items-start gap-3">
+      {parts.map((part, index) =>
+        part.kind === "text" ? (
+          <CareerMessagePresentation
+            key={part.key}
+            {...props}
+            message={{
+              ...message,
+              content: part.content,
+              typing: index === parts.length - 1 ? message.typing : false,
+              typingMode:
+                index === parts.length - 1 ? message.typingMode : undefined,
+              careerForm: undefined,
+              applicationReviewMessageId: undefined,
+              mockInterviewOffers: undefined,
+            }}
+          />
+        ) : webChat ? (
+          <div
+            key={part.key}
+            className="w-full max-w-[700px] md:max-w-[min(700px,94%)]"
+          >
+            {part.kind === "ui" ? (
+              <CareerInlineUi
+                key={JSON.stringify(part.reference)}
+                reference={part.reference}
+              />
+            ) : (
+              <CareerInlineUiUnavailable />
+            )}
+          </div>
+        ) : null
+      )}
+      {hasTail ? (
+        <CareerMessagePresentation
+          {...props}
+          message={{ ...message, content: "" }}
+        />
+      ) : null}
+    </div>
   );
 };
 

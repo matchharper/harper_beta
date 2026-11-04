@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { executeUseBrowser, refreshBrowserExecution, observeBrowserSession, formatBrowserToolResult, formatBrowserSessionResult } from "./tool";
-import { browserUseAgents } from "../simulation/browserUseAgents";
+import { browserUseAgents, BrowserUseHttpError } from "../simulation/browserUseAgents";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { ExternalOperation } from "../externalOperations/store";
 const userId = "00000000-0000-4000-8000-000000000001",
@@ -100,6 +100,29 @@ function fixture(runStatus = "running") {
     },
   };
 }
+test("provider capacity rejection yields without an external run and resumes the same receipt", async (t) => {
+  const { rows, context } = fixture("reserved");
+  rows[0].status = "idle"; rows[0].provider_refs.workspace_id = remoteSession;
+  let dispatched = 0;
+  t.mock.method(browserUseAgents, "upload", async () => []);
+  t.mock.method(browserUseAgents, "createRun", async () => {
+    dispatched++;
+    if (dispatched === 1) throw new BrowserUseHttpError(429, "POST", "/runs", "60");
+    return { id: remoteRun, sessionId: remoteSession, status: "running" };
+  });
+  t.mock.method(browserUseAgents, "status", async () => ({ status: "running" }));
+  const input = { action: "run", session_id: sessionId, task: "Prepare this application" };
+  const first = await executeUseBrowser(input, { ...context, deadlineAt: Date.now() });
+  assert.equal(first.operation?.status, "capacity_wait");
+  assert.deepEqual(first.careerContinuation, { kind: "external_capacity", id: executionId });
+  await executeUseBrowser(input, { ...context, deadlineAt: Date.now() });
+  assert.equal(dispatched, 1);
+  rows[1].provider_refs.retry_after = "2020-01-01T00:00:00Z";
+  const resumed = await executeUseBrowser(input, { ...context, deadlineAt: Date.now() });
+  assert.equal(resumed.operation?.id, executionId);
+  assert.equal(resumed.operation?.status, "running");
+  assert.equal(dispatched, 2);
+});
 for (const replaceAttachments of [false, true]) {
   test(`resuming a browser ${replaceAttachments ? "clears attachments only for an explicit empty selection" : "preserves existing attachments when documents are omitted"}`, async (t) => {
     const { rows, messages, context } = fixture("reserved");

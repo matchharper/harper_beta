@@ -252,6 +252,7 @@ const CareerChatPanelContent = ({
   const chatLayoutStyle = useMemo(
     () =>
       ({
+        "--career-chat-content-max-width": "760px",
         "--career-composer-height": `${composerOverlayHeight}px`,
         "--career-timeline-bottom-padding": `${
           composerOverlayHeight + TIMELINE_BOTTOM_VISIBLE_GAP_PX
@@ -274,7 +275,7 @@ const CareerChatPanelContent = ({
       />
       <div
         ref={composerOverlayRef}
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-bg-basement via-bg-basement/10 to-transparent"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-[linear-gradient(to_bottom,transparent,white_40px)]"
       >
         <div className="pointer-events-auto">
           <CareerComposerSection

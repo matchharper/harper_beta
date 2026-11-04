@@ -65,7 +65,7 @@ test("Talk to Harper carries the exact linked role through login", () => {
   );
 });
 
-test("Korean official job chat draft asks to prioritize the selected role", () => {
+test("official job drafts ask for an introduction to the selected role", () => {
   const draft = buildOfficialJobsInitialChatDraft(
     JOB.roleTitle,
     JOB.companyName,
@@ -73,7 +73,7 @@ test("Korean official job chat draft asks to prioritize the selected role", () =
   );
   assert.equal(
     draft,
-    "Harper 내부 기회인 Forward Deployed Engineer에 관심 있어요. 우선적으로 검토해 주세요."
+    "Harper 내부 기회인 Forward Deployed Engineer에 관심 있어요. 연결해주세요."
   );
   assert.equal(
     draft.includes(
@@ -91,14 +91,14 @@ test("Korean official job chat draft asks to prioritize the selected role", () =
       JOB.companyName,
       "en"
     ),
-    "I'm interested in the Harper-connected Forward Deployed Engineer opportunity. Please prioritize it for review."
+    "I'm interested in the Harper-connected Forward Deployed Engineer opportunity. Please introduce me."
   );
 });
 
 test("legacy official job links retain the role-only chat draft", () => {
   assert.equal(
     buildOfficialJobsInitialChatDraft("Forward Deployed Engineer", null, "ko"),
-    "Harper 내부 기회인 Forward Deployed Engineer에 관심 있어요. 우선적으로 검토해 주세요."
+    "Harper 내부 기회인 Forward Deployed Engineer에 관심 있어요. 연결해주세요."
   );
 });
 

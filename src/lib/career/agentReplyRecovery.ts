@@ -9,8 +9,11 @@ export async function dispatchCareerAgentReplies(
   publish: (job: CareerAgentReplyJob) => Promise<unknown> = enqueueCareerAgentReply,
   deadlineAt = Date.now() + 45_000,
 ) {
-  let dispatched = 0;
-  let deferred = 0;
+  if (Date.now() >= deadlineAt) return { dispatched: 0, deferred: 0 };
+  const { publishCareerInvocations } = await import("./work/invocations");
+  const invocations = await publishCareerInvocations({ admin }, publish);
+  let dispatched = invocations.dispatched;
+  let deferred = invocations.deferred;
   while (Date.now() < deadlineAt) {
     // Twenty concurrent sends fit the existing 60-second cron. Each DB batch
     // leases its rows, so the next page/run advances even after a failed send.

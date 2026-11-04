@@ -28,6 +28,7 @@ export async function captureReengagementTurnInput(fixture: {
   timeZone?: string;
   opportunitySnapshot?: ReengagementOpportunitySnapshot;
   assistantModel?: string;
+  isOnboardingDone?: boolean;
   onTextDelta?: (delta: string) => void;
 }) {
   const toolPolicy = fixture.opportunitySnapshot
@@ -53,7 +54,9 @@ export async function captureReengagementTurnInput(fixture: {
     buildCareerConversationPromptPlan,
     REENGAGEMENT_OPPORTUNITY_PRELOAD,
     readCareerReengagementOpportunities: async () =>
-      formatCareerReengagementOpportunities(fixture.opportunitySnapshot!),
+      fixture.opportunitySnapshot
+        ? formatCareerReengagementOpportunities(fixture.opportunitySnapshot)
+        : "",
     readCareerCapabilityCoaching: async () => null,
     prepareCareerAgentTurn: async (args: any) => ({
       runtime: new CareerCapabilityRuntime({
@@ -83,7 +86,7 @@ export async function captureReengagementTurnInput(fixture: {
     buildTalentMemoryRetrievalQuery: () => "",
     fetchTalentContextPromptSnapshot: async () => ({ allBriefs: [] }),
     fetchTalentSetting: async () => ({
-      is_onboarding_done: true,
+      is_onboarding_done: fixture.isOnboardingDone ?? true,
       preferred_locale: fixture.currentPreferences.preferredLocale,
       profile_visibility: fixture.currentPreferences.profileVisibility,
       get_external_recommendation:
@@ -93,6 +96,7 @@ export async function captureReengagementTurnInput(fixture: {
         fixture.currentPreferences.recommendationBatchSize,
       status: fixture.currentPreferences.talentSettingStatus,
     }),
+    getCareerOnboardingChecklistCoverage: async () => null,
     fetchLatestTalentActivityEvent: async () => null,
     fetchCareerPostOnboardingContext: async () => null,
     fetchPendingOpportunityFeedbackPromptContext: async () => "",
@@ -173,9 +177,7 @@ export async function captureReengagementTurnInput(fixture: {
       ...(fixture.assistantModel
         ? { assistantModel: fixture.assistantModel }
         : {}),
-      ...(fixture.opportunitySnapshot
-        ? { assistantMessagePayload: { kind: "session_reengagement" } }
-        : {}),
+      assistantMessagePayload: { kind: "session_reengagement" },
       assistantTemperature: 0.8,
       onTextDelta: fixture.onTextDelta,
       proactiveContext: fixture.proactiveContext,
@@ -186,7 +188,7 @@ export async function captureReengagementTurnInput(fixture: {
       scheduleAfter: () => {
         throw new Error("Unexpected background scheduling");
       },
-      usageLabel: "eval:career-session-reengagement",
+      usageLabel: "career/chat:session_reengagement",
     });
   } catch (error) {
     if (error !== stop) throw error;

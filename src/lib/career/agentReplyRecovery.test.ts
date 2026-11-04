@@ -11,6 +11,7 @@ test("checkpoint recovery advances pages and preserves reply identity after a pu
     [],
   ];
   const admin = { rpc: async (name: string) => {
+    if (name === "claim_career_invocations") return { data: [], error: null };
     calls.push(name);
     return { data: pages.shift(), error: null };
   } } as any;

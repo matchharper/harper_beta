@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "scope": "Local real browser, real database and original model loops; isolated synthetic Harper workspace and talent. No production deployment or real external recipients.",
+  "frozenBeforeConversation": true,
+  "entry": "Normal official-jobs Career URL and its generated composer draft. Test-only roles stay excluded from public jobs.",
+  "cases": [
+    {"id":"short-consent", "inputs":["generated interest draft", "응 소개해줘"], "expect":["Initial interest saves role/card before introduction", "Short contextual consent sends one introduction with default material", "Company receiver publishes candidate and informs own team"], "visual":["composer", "role card", "company candidate/chat"]},
+    {"id":"question-roundtrip", "inputs":["이분한테 언제부터 일할 수 있는지 물어봐줘.", "2주 뒤부터 가능해요"], "expect":["Company question reaches Career conversation", "Candidate answer returns to correct company and role without another introduction"]},
+    {"id":"paused", "inputs":["generated interest draft", "지금 프로필 그대로 해줘"], "expect":["Private discovery works for paused role", "Career model and user reply do not expose paused state", "Explicit introduction can be queued normally"]},
+    {"id":"defer-and-prepare", "inputs":["generated interest draft", "아직 보내진 마. 프로필부터 좀 볼게", "장애 복구 시간을 45분에서 18분으로 줄인 것도 넣어서 보내줘"], "expect":["No company contact before later consent", "Supported achievement added to shared material before sending", "One introduction"]},
+    {"id":"button", "inputs":["generated interest draft", "소개해주세요 button and default material"], "expect":["Correct current role and material shown", "Verified button action executes original Career agent", "Repeated submission cannot duplicate contact"], "visual":["opportunity tab", "introduction form", "submitted state"]}
+  ],
+  "review": "Read full original replies and tool receipts directly; no keyword score or judge model. Capture evidence before cleanup. Report failures and unexercised paths separately.",
+  "viewport": {"width":1440,"height":1000}
+}

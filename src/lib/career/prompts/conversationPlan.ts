@@ -1,5 +1,6 @@
 import { buildCareerMainPrompt } from "./mainPrompts";
-import { CAREER_TEXT_CHAT_DISPLAY_RULES } from "./mainPrompt2";
+import type { CareerConversationVersion } from "../conversationVersion";
+import { careerTextChatDisplayRules } from "./mainPrompt2";
 import { orderCareerPromptBlocksForCaching } from "./promptCaching";
 import {
   careerPromptText,
@@ -145,6 +146,7 @@ export function buildCareerConversationPromptPlan(args: {
   postOnboardingContext?: CareerPostOnboardingContext | null;
   profile: CareerPromptProfile | null;
   promptExperiment?: CareerPromptExperiment;
+  conversationVersion?: CareerConversationVersion;
   recentActivitySummaries?: readonly CareerPromptActivitySummary[] | null;
   recentRecommendedOpportunitiesText?: string | null;
   recentConversationSection?: string;
@@ -179,7 +181,7 @@ export function buildCareerConversationPromptPlan(args: {
     args.currentPreferences?.preferredLocale
   );
   const positionsTabLabel =
-    outputLanguage === "English" ? "Jobs tab" : "포지션 탭";
+    outputLanguage === "English" ? "New opportunities" : "새 기회";
 
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
   const isMainChat = !isOnboardingActive && args.channel === "chat" && !args.backgroundInvocation;
@@ -293,9 +295,9 @@ export function buildCareerConversationPromptPlan(args: {
   if (isMainChat) {
     promptBlocks.push({
       key: "career_main",
-      text: buildCareerMainPrompt({ outputLanguage, positionsTabLabel, promptExperiment: experiment }),
+      text: buildCareerMainPrompt({ outputLanguage, positionsTabLabel, promptExperiment: experiment, conversationVersion: args.conversationVersion }),
       cacheable: true,
-    }, { key: "career_chat_display", text: CAREER_TEXT_CHAT_DISPLAY_RULES, cacheable: true });
+    }, { key: "career_chat_display", text: careerTextChatDisplayRules(args.conversationVersion), cacheable: true });
   } else {
     promptBlocks.push(coreSystemPrompt);
     promptBlocks.push(conversationGuidePrompt());

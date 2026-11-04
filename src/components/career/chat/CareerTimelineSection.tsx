@@ -1,8 +1,9 @@
+import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { ApplicationQuestionHistoryRow } from "./ApplicationQuestionHistoryRow";
 import { ApplicationReviewEntry } from "./ApplicationReviewPanel";
 import { orderApplicationMessages } from "@/lib/career/simulation/presentation";
 import { useApplicationHistory } from "./ApplicationPreparationContext";
-import { latestChoiceMessageIndex } from "@/lib/career/latestChoiceMessage";
+import { choiceRepliesByMessageId, latestChoiceMessageIndex } from "@/lib/career/latestChoiceMessage";
 import { ApplicationSimulationCard } from "./elements/ApplicationSimulationCard";
 import { ApplicationStartCard } from "./ApplicationStartCard";
 import { SimulationNextActionCard } from "./SimulationNextActionCard";
@@ -78,13 +79,15 @@ import { OnboardingCompletionWrapup } from "./elements/OnboardingCompletionWrapu
 import { OpportunityPreviewCards } from "./elements/OpportunityPreviewCards";
 import { RecommendationSearchStatusPanel } from "./elements/RecommendationSearchStatusPanel";
 import { ThinkingLogPanel } from "./elements/ThinkingLogPanel";
+import { CareerWorkActivity } from "./CareerWorkActivity";
 import { TimelinePendingPanel } from "./elements/TimelinePendingPanel";
 import {
   CareerCoachingActivityCard,
   type CareerCoachingActivityUiAction,
 } from "./CareerCoachingActivityCard";
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
-import { useMessages, type Locale } from "@/i18n/useMessage";
+import { useMessages } from "@/i18n/useMessage";
+import { formatChatDateDividerLabel } from "@/lib/chat/dateDivider";
 import { useCareerT } from "@/i18n/useCareerT";
 import Face from "@/components/common/Face";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -102,44 +105,8 @@ const HISTORY_ROLE_QUERY_KEY = "id";
 const CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE =
   // career-i18n-skip-next-line system marker comparison
   "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.";
-const MESSAGE_DATE_FORMATTERS: Record<Locale, Intl.DateTimeFormat> = {
-  ko: new Intl.DateTimeFormat("ko-KR", {
-    day: "numeric",
-    month: "long",
-    weekday: "short",
-    year: "numeric",
-  }),
-  en: new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-    weekday: "short",
-  }),
-};
-
-const MESSAGE_DATE_FALLBACK_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-  day: "numeric",
-  month: "long",
-  weekday: "short",
-  year: "numeric",
-});
-
-const parseMessageDate = (createdAt: string) => {
-  if (!createdAt) return null;
-  const date = new Date(createdAt);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-
 const getSingleQueryValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
-
-const formatMessageDateLabel = (createdAt: string, locale: Locale) => {
-  const date = parseMessageDate(createdAt);
-  return date
-    ? (
-        MESSAGE_DATE_FORMATTERS[locale] ?? MESSAGE_DATE_FALLBACK_FORMATTER
-      ).format(date)
-    : "";
-};
 
 const TimelinePanel = ({
   children,
@@ -280,9 +247,11 @@ type TimelineMessageRowProps = Omit<
 > & {
   message: CareerMessage;
   followingAssistantThinkingLogs?: string[];
+  startsNewSpeaker: boolean;
   thinkingLogs: string[];
   isLatestAssistantMessage: boolean;
   isChoiceMessage: boolean;
+  selectedAssistantChoice?: string;
   isSimulationMode: boolean;
   suppressRolePreviews: boolean;
   turnStartedAt?: string;
@@ -296,9 +265,11 @@ type TimelineMessageRowProps = Omit<
 const TimelineMessageRow = memo(function TimelineMessageRow({
   message,
   followingAssistantThinkingLogs,
+  startsNewSpeaker,
   thinkingLogs,
   isLatestAssistantMessage,
   isChoiceMessage,
+  selectedAssistantChoice,
   isSimulationMode,
   suppressRolePreviews,
   turnStartedAt,
@@ -390,7 +361,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
     <div
       data-career-message-container="true"
       data-career-message-role={message.role}
-      className={cn("group relative flex flex-col gap-2", !isUser && "mt-1")}
+      className={cn("group relative flex flex-col gap-2", startsNewSpeaker && "mt-3")}
     >
       {!isUser && textLogs.length > 0 && (
         <ThinkingLogPanel
@@ -474,6 +445,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
         <>
           <CareerMessageBubble
             message={recommendationSearchPreambleMessage}
+            selectedAssistantChoice={selectedAssistantChoice}
             isUser={false}
             choiceActionsDisabled={disableAssistantChoiceActions}
             hideAssistantChoices={isSimulationMode}
@@ -494,6 +466,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
           {recommendationSearchResultContent.length > 0 && (
             <CareerMessageBubble
               message={recommendationSearchResultMessage}
+              selectedAssistantChoice={selectedAssistantChoice}
               isUser={false}
               choiceActionsDisabled={disableAssistantChoiceActions}
               hideAssistantChoices={isSimulationMode}
@@ -516,6 +489,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
         <CareerMessageBubble
           message={message}
           isUser={isUser}
+          selectedAssistantChoice={selectedAssistantChoice}
           choiceActionsDisabled={disableAssistantChoiceActions}
           hideAssistantChoices={isSimulationMode}
           isCallStartPending={isStartingCall}
@@ -560,7 +534,6 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
         )}
       {!message.browserSession && (
         <CareerMessageActions
-          isUser={isUser}
           message={message}
           onDeleteMessage={onDeleteMessage}
         />
@@ -607,6 +580,7 @@ export const TimelineMessageList = memo(function TimelineMessageList({
     "대화 날짜"
   );
   const choiceMessageIndex = latestChoiceMessageIndex(messages);
+  const choiceReplies = choiceRepliesByMessageId(messages);
   const isSimulationMode = messages.some(
     (m) => m.simulationSession?.status === "active"
   );
@@ -644,7 +618,6 @@ export const TimelineMessageList = memo(function TimelineMessageList({
   }
   let turnStart = 0;
   let previousDateKey = "";
-  let lastUserCreatedAt: string | undefined;
   let turnStopped = false;
   let turnHasStoppedSearch = false;
   const rows: React.ReactNode[] = [];
@@ -663,16 +636,19 @@ export const TimelineMessageList = memo(function TimelineMessageList({
     const messageDateKey = getChatMessageDateKey(message.createdAt);
     const dateLabel =
       messageDateKey !== previousDateKey
-        ? formatMessageDateLabel(message.createdAt, locale)
+        ? formatChatDateDividerLabel(message.createdAt, locale)
         : "";
     if (messageDateKey) previousDateKey = messageDateKey;
-    const turnStartedAt =
-      message.role === "user" ? undefined : lastUserCreatedAt;
-    if (message.role === "user") lastUserCreatedAt = message.createdAt;
+    // A previous user message is not an execution start: autonomous greetings
+    // and resumed work may arrive much later. Only measured timing can supply
+    // a duration; message chronology must not manufacture hours of work.
     rows.push(
       <TimelineMessageRow
         key={String(message.id)}
         message={message}
+        startsNewSpeaker={
+          !dateLabel && index > 0 && messages[index - 1].role !== message.role
+        }
         followingAssistantThinkingLogs={
           messages[index + 1]?.role === "assistant"
             ? messages[index + 1].thinkingLogs
@@ -691,12 +667,12 @@ export const TimelineMessageList = memo(function TimelineMessageList({
           message.role !== "user" && index === messages.length - 1
         }
         isChoiceMessage={index === choiceMessageIndex}
+        selectedAssistantChoice={choiceReplies.get(String(message.id))}
         isSimulationMode={isSimulationMode}
         suppressRolePreviews={
           previewSuppressionCounts[turnEnds[index]] >
           previewSuppressionCounts[turnStart]
         }
-        turnStartedAt={turnStartedAt}
         showTurnStopped={
           turnStopped && !turnHasStoppedSearch && index + 1 === turnEnds[index]
         }
@@ -740,6 +716,7 @@ const CareerTimelineSection = ({
   pendingActionActivationPending = false,
 }: CareerTimelineSectionProps) => {
   const t = useCareerT();
+  const friendly = useCareerWorkspaceUiStore(state => state.conversationVersion === "friendly");
 
   const router = useRouter();
   const { m } = useMessages();
@@ -791,6 +768,7 @@ const CareerTimelineSection = ({
     onboardingWrapupPending,
     thinkingLogsByMessageId,
     chatPending,
+    chatAdmissionPending,
     sessionReengagementPending,
     sessionReengagementThinkingLogs,
     sessionReengagementRecommendationStatus,
@@ -1225,7 +1203,7 @@ const CareerTimelineSection = ({
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 pt-4 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
         style={TIMELINE_SCROLL_STYLE}
       >
-        <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
+        <div className={cn("mx-auto flex w-full max-w-[var(--career-chat-content-max-width)] flex-col gap-4 px-5 py-1", friendly && "md:px-8")}>
           <div className="mt-1 flex flex-col gap-2">
             <CareerMessageBubble
               message={{
@@ -1342,7 +1320,7 @@ const CareerTimelineSection = ({
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 pt-4 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
       style={TIMELINE_SCROLL_STYLE}
     >
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-[18px] px-5 py-1">
+      <div className={cn("mx-auto flex w-full max-w-[var(--career-chat-content-max-width)] flex-col gap-2 px-5 py-1", friendly && "md:px-8")}>
         {showLoadOlderButton && hasOlderMessages && (
           <div className="sticky top-0 z-10 flex justify-center pb-2">
             <ChatLoadOlderButton
@@ -1477,6 +1455,11 @@ const CareerTimelineSection = ({
               </span>
             </StatusMessage>
           ))}
+
+        {!sessionPending && stage !== "profile" && !onboardingWrapupPending &&
+          !callWrapUpPending && !chatPending && !assistantTyping && (
+            <CareerWorkActivity conversationId={conversationId} admitting={chatAdmissionPending} />
+          )}
 
         {profilePending && (
           <TimelinePanel className="max-w-[980px]">

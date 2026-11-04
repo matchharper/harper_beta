@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { FieldLabel } from "@/components/ui/panel";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerT } from "@/i18n/useCareerT";
-import CareerGmailSettingsRow from "./CareerGmailSettingsRow";
 import CareerProfileSourceCard from "./CareerProfileSourceCard";
 import CareerProfileSourceIcon from "./CareerProfileSourceIcon";
 import { CAREER_PROFILE_LINK_SOURCES as CAREER_LINK_ITEMS } from "@/lib/career/profileSources";
@@ -181,7 +180,7 @@ const CareerProfileLinksSettingsSection = ({
     <section>
       <FieldLabel
         icon={<Cable className="h-4 w-4" />}
-        label={t("career.common.career.1ominm4", "내 정보")}
+        label={t("career.common.career.1ominm4", "링크")}
       />
       <div className="mt-3 flex flex-wrap gap-3">
         {profileLinks.map((link, index) => {
@@ -224,7 +223,6 @@ const CareerProfileLinksSettingsSection = ({
             </Popover.Root>
           );
         })}
-        <CareerGmailSettingsRow />
         <Popover.Root
           open={editor?.anchor === "add"}
           onOpenChange={(open) => handlePopoverOpenChange("add", open)}

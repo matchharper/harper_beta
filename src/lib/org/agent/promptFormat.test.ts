@@ -1948,11 +1948,14 @@ test("current talent reader carries acceptance origin into the company prompt", 
   const result = serializeOrgAgentToolResult("read_talent", {
     candidate: { talentId: "synthetic", name: "Synthetic Talent" },
     positions: [{ roleId: "role", roleName: "Backend", stage: "pending_connection",
-      candidateAcceptedAt: "2026-09-28T03:00:00Z", recommendationOrigin: "harper_recommendation" }],
+      candidateAcceptedAt: "2026-09-28T03:00:00Z", recommendationOrigin: "harper_recommendation",
+      agentIntroductionRootId: "introduction-root" }],
   });
   assert.match(result, /candidate_accepted_kst/);
   assert.match(result, /2026-09-28 12:00/);
   assert.match(result, /harper_recommendation/);
+  assert.match(result, /agent_correspondence_root_id/);
+  assert.match(result, /introduction-root/);
 });
 
 

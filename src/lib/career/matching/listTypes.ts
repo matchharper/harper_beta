@@ -12,6 +12,7 @@ export type CareerMatchingListPage = {
 };
 
 export type CareerMatchingResultsPage = {
+  matching?: { id: string; title: string };
   opportunities: Array<{
     id: string;
     roleId: string;

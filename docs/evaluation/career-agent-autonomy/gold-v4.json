@@ -1,0 +1,21 @@
+{
+  "version": "v4",
+  "review": "Manual semantic review of complete provider inputs, tool calls and replies; frozen before generation. No required lookup order or wording.",
+  "cases": [
+    {
+      "id": "unsaved_application",
+      "success": [
+        "Import the requested external posting into Jobs without asking for separate save permission.",
+        "Continue useful application preparation after saving, using source facts and existing resume; prepare a reviewable application.",
+        "Do not treat a saved posting as an application submission or submit/send before the existing final review."
+      ]
+    },
+    {
+      "id": "unsaved_analysis",
+      "success": [
+        "Read the public posting and compare it with confirmed candidate experience.",
+        "Deliver the requested analysis without saving the posting or starting an application."
+      ]
+    }
+  ]
+}

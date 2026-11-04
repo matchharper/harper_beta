@@ -1,5 +1,7 @@
 import { runCompanyScheduledMatching } from "./scheduledMatching.server";
 import "server-only";
+import { AgentContactSupersededError } from "@/lib/agentContacts/store";
+import { AgentContactBudgetBusyError, AgentContactBudgetExhaustedError } from "@/lib/agentContacts/executionBudget";
 import { sendProactiveHiringOverview } from "@/lib/ops/autoIntroToCompanyNotifications";
 import { deliverCompanyContactEventMessages } from "./contactEvent.server";
 import { assertOrgRoleAccess, assertOrgWorkspacePermission } from "@/lib/org/server";
@@ -34,6 +36,7 @@ function retryDelay(attempt: number) {
 }
 
 async function markRetry(args: {
+  leaseOwner: string;
   attemptCount: number;
   error: unknown;
   jobId: string;
@@ -42,8 +45,11 @@ async function markRetry(args: {
   const message =
     args.error instanceof Error
       ? args.error.message.slice(0, 1_000)
+      : args.error && typeof args.error === "object" && "message" in args.error && typeof args.error.message === "string"
+      ? args.error.message.slice(0, 1_000)
       : "Company agent web-action turn failed";
-  const exhausted = args.attemptCount >= MAX_ATTEMPTS;
+  const busy = args.error instanceof AgentContactBudgetBusyError;
+  const exhausted = args.error instanceof AgentContactBudgetExhaustedError || (!busy && args.attemptCount >= MAX_ATTEMPTS);
   const delay = retryDelay(args.attemptCount);
   const { error } = await (
     admin.from("company_agent_web_action_jobs" as any) as any
@@ -54,9 +60,11 @@ async function markRetry(args: {
       locked_by: null,
       next_attempt_at: new Date(Date.now() + delay * 1_000).toISOString(),
       status: exhausted ? "failed" : "retry",
+      ...(busy ? { attempt_count: Math.max(0,args.attemptCount-1) } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", args.jobId)
+    .eq("locked_by", args.leaseOwner)
     .eq("status", "processing");
   if (error) throw error;
   if (!exhausted) throw new WebActionQueueRetryError(message, delay);
@@ -64,6 +72,8 @@ async function markRetry(args: {
 }
 
 export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { messageId: string }) {
+  // The queue route allows 1800s; reserve its last minute for delivery/receipts.
+  const executionDeadlineAt = Date.now() + 1740_000;
   const message = parseCompanyAgentWebActionQueueMessage(raw);
   if (!message) {
     throw new WebActionQueuePermanentError(
@@ -110,6 +120,15 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
   }
 
   try {
+    if (["agent_contact_received","agent_schedule_due"].includes(job.action_name)) {
+      const {runCompanyAgentEvent}=await import("@/lib/agentContacts/companyReceiver.server");
+      const result=await runCompanyAgentEvent(job);
+      const {error}=await (admin.from as any)("company_agent_web_action_jobs").update({status:result.outcome,
+        progress_message_id:result.progressMessageId,terminal_message_id:result.terminalMessageId,completed_at:new Date().toISOString(),locked_at:null,locked_by:null,last_error:null})
+        .eq("id",job.id).eq("status","processing").eq("locked_by",job.locked_by);
+      if(error) throw error;
+      return;
+    }
     const [{ data: conversation, error: conversationError }, authResult] =
       await Promise.all([
         (admin.from("company_conversations" as any) as any)
@@ -148,6 +167,7 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
       ? await getOrgWorkspaceLocale(job.company_workspace_id, admin)
       : companyUser?.locale === "ko" || companyUser?.locale === "en" ? companyUser.locale : "auto";
     const turnArgs = {
+      executionDeadlineAt,
       actionContext:
         job.action_context && typeof job.action_context === "object"
           ? job.action_context
@@ -224,7 +244,7 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
       .eq("status", "processing");
     if (completeError) throw completeError;
   } catch (error) {
-    if (error instanceof OrgAgentWebActionSupersededError) {
+    if (error instanceof OrgAgentWebActionSupersededError || error instanceof AgentContactSupersededError) {
       const now = new Date().toISOString();
       const { error: supersedeError } = await (
         admin.from("company_agent_web_action_jobs" as any) as any
@@ -238,11 +258,12 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
           updated_at: now,
         })
         .eq("id", message.jobId)
-        .eq("status", "processing");
+        .eq("status", "processing").eq("locked_by", job.locked_by);
       if (supersedeError) throw supersedeError;
       return;
     }
     return markRetry({
+      leaseOwner: job.locked_by,
       attemptCount: Number(job.attempt_count ?? 1),
       error,
       jobId: message.jobId,

@@ -709,7 +709,7 @@ export function useCareerHistoryState(args: {
 
   const patchHistoryOpportunity = useCallback(
     async (body: {
-      acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
+      acceptanceMaterial?: { materialId: string | null; assignmentRevision: number; selectionRef?: string };
       action:
         | "feedback"
         | "saved_stage"
@@ -881,7 +881,7 @@ export function useCareerHistoryState(args: {
             previousItem.savedStage ??
             getDefaultSavedStage(previousItem))
           : null;
-      const nextItem: CareerHistoryOpportunity = {
+      const nextItem: CareerHistoryOpportunity = feedback === "positive" && previousItem.sourceType === "internal" ? previousItem : {
         ...previousItem,
         ...(previousItem.listPosition && feedback === "negative" ? { listPosition: "previous" as const } : {}),
         feedback,

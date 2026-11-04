@@ -1,3 +1,5 @@
+import type { CareerHistoryOpportunity } from "@/components/career/types";
+import type { TalentMeetingSchedule } from "./meetings/types";
 type CareerMeetingDisplayLocale = "ko" | "en";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -50,10 +52,21 @@ function dateTimeParts(value: string, locale: CareerMeetingDisplayLocale) {
 }
 
 export function formatCareerMeetingDateTimeRange(args: {
+  calendarDate?: string | null;
   endAt: string | null;
   locale: CareerMeetingDisplayLocale;
   startAt: string;
 }) {
+  if (
+    args.calendarDate &&
+    Number.isFinite(Date.parse(`${args.calendarDate}T00:00:00Z`))
+  )
+    return new Intl.DateTimeFormat(args.locale === "en" ? "en-US" : "ko-KR", {
+      month: "long",
+      day: "numeric",
+      weekday: "short",
+      timeZone: "UTC",
+    }).format(new Date(`${args.calendarDate}T00:00:00Z`));
   const start = dateTimeParts(args.startAt, args.locale);
   if (!start) return null;
   const end = args.endAt ? dateTimeParts(args.endAt, args.locale) : null;
@@ -102,4 +115,48 @@ export function formatCareerActivityRelativeTime(
       ? {}
       : { year: "numeric" }),
   }).format(activityDate);
+}
+
+export function mergeCreatedAppointment(
+  item: CareerHistoryOpportunity,
+  schedule: TalentMeetingSchedule
+): CareerHistoryOpportunity {
+  if (!schedule.confirmed_start_at) return item;
+  const calendarDate =
+    typeof schedule.source_refs?.calendarDate === "string"
+      ? schedule.source_refs.calendarDate
+      : null;
+  const meeting = {
+    startAt: schedule.confirmed_start_at,
+    endAt: schedule.confirmed_end_at,
+    title: schedule.title,
+    calendarDate,
+  };
+  const today = careerMeetingToday();
+  const upcoming = calendarDate
+    ? calendarDate >= today
+    : Date.parse(meeting.startAt) >= Date.now();
+  if (!upcoming) return item;
+  if (
+    item.upcomingMeeting &&
+    (item.upcomingMeeting.calendarDate
+      ? item.upcomingMeeting.calendarDate >= today
+      : Date.parse(item.upcomingMeeting.startAt) >= Date.now()) &&
+    Date.parse(item.upcomingMeeting.startAt) < Date.parse(meeting.startAt)
+  )
+    return item;
+  return { ...item, upcomingMeeting: meeting };
+}
+
+export function careerMeetingToday(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+export function upcomingMeetingFilter(now = new Date()) {
+  return `confirmed_start_at.gte.${now.toISOString()},source_refs->>calendarDate.gte.${careerMeetingToday(now)}`;
 }

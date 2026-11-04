@@ -76,6 +76,21 @@ export function meetingAdmin(
         select: () => q,
         eq: (key: string, value: unknown) => filter(key, "=", value),
         gte: (key: string, value: unknown) => filter(key, ">=", value),
+        or(expression: string) {
+          const alternatives = expression.split(",").map((term) => {
+            const [key, value] = term.split(".gte.");
+            if (
+              !value ||
+              (key !== "confirmed_start_at" &&
+                key !== "source_refs->>calendarDate")
+            )
+              throw new Error("Unexpected test OR filter");
+            values.push(value);
+            return `${key === "confirmed_start_at" ? key : "source_refs->>'calendarDate'"} >= $${values.length}`;
+          });
+          clauses.push(`(${alternatives.join(" or ")})`);
+          return q;
+        },
         lt: (key: string, value: unknown) => filter(key, "<", value),
         in(key: string, items: unknown[]) {
           values.push(items);

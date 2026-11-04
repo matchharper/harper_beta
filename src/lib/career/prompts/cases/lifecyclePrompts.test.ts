@@ -162,8 +162,8 @@ test("session re-engagement uses readable Korean-local times and distinguishes a
   assert.match(prompt, /"type":"start_call"/);
   assert.match(prompt, /일반 CAREER_CHOICE_BUTTONS는 쓰지 않는다/);
   assert.match(prompt, /사용자가 새 메시지를 보내지 않은 상태/);
-  assert.match(prompt, /다시 방문한 사용자를 반갑게 맞이하는 인사와 함께, 지금 도움이 되는 커리어 행동/);
-  assert.match(prompt, /Harper가 먼저 보낼 Korean 메시지/);
+  assert.match(prompt, /다시 방문한 사용자를 자연스러운 인사로 맞이하며 새로 대화를 여는 차례/);
+  assert.match(prompt, /먼저 Korean로 반갑게 인사를 건네고/);
   assert.doesNotMatch(prompt, /one brief/i);
   assert.doesNotMatch(prompt, /primary pending action/);
   assert.doesNotMatch(prompt, /다른 미응답 추천이 있더라도 함께 꺼내지 않는다/);
@@ -259,7 +259,7 @@ test("session re-engagement exposes an internal opportunity call as an available
   assert.doesNotMatch(prompt, /call_123/);
 });
 
-test("incomplete onboarding re-engagement allows an icebreaker but never sends only a welcome", () => {
+test("incomplete onboarding return opens with a greeting when a question remains", () => {
   const prompt = buildCareerSessionStartTurnInstruction({
     currentAccessAt: "2026-08-25T09:24:05.960Z",
     idleMs: 31 * 60 * 60 * 1000,
@@ -268,8 +268,8 @@ test("incomplete onboarding re-engagement allows an icebreaker but never sends o
     previousChatAt: "2026-08-24T01:25:03.102495+00:00",
   });
 
-  assert.match(prompt, /재접속 인사나 아이스브레이킹은 사용해도 된다/);
-  assert.match(prompt, /그런 인사만 하고 발화를 끝내지 마라/);
+  assert.match(prompt, /자연스러운 인사로 맞이하며 새로 대화를 여는 차례/);
+  assert.match(prompt, /이어갈 실제 질문이 있으면 인사 뒤에 자연스럽게 연결/);
   assert.doesNotMatch(prompt, /재접속 자체를 인사로 알리지 마라/);
   assert.match(prompt, /__NO_SESSION_GREETING__만 출력해라/);
   assert.match(prompt, /구체적인 필수 정보가 없다면/);
@@ -354,11 +354,11 @@ test("session re-engagement supplies a pending meeting schedule", () => {
   assert.match(prompt, /"type":"open_pending_action","actionKey"/);
 });
 
-test("feedback events provide event identity, lightweight external context and the silence contract", () => {
+test("feedback events preserve the saved decision, event identity and optional silence", () => {
   for (const trigger of Object.values(CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER)) {
     const prompt = buildCareerOpportunityFeedbackFollowUpTurnInstruction({ preferredLocale: "ko", trigger });
     assert.ok(prompt.includes(`Event source: ${trigger}`));
-    assert.ok(prompt.includes("External posting feedback is a lightweight action; no follow-up is required."));
+    assert.ok(prompt.includes("The saved decision is already executed."));
     assert.ok(prompt.includes("[[CAREER_FEEDBACK_SILENT]]"));
     assert.ok(!prompt.includes("recommend_job_postings"));
     assert.ok(!prompt.includes("ask exactly one"));

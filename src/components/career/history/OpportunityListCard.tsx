@@ -104,7 +104,7 @@ const OpportunityListCard = ({
   const t = useCareerT();
   const { locale } = useMessages();
   const status = savedStatus;
-  const inProgress = status === "applied" || status === "connected";
+  const inProgress = status === "applied" || status === "connected" || status === "offer";
   const expired = isCareerHistoryOpportunityExpired(item);
   const postedAgo = formatRelativeTime(item.postedAt, locale);
   const deadline = getOpportunityDeadlineLabel(item, locale, t);
@@ -124,13 +124,7 @@ const OpportunityListCard = ({
     (item.isInternal && onInternalDecisionAction)
   );
 
-  const managementActions = item.isInternal && onInternalDecisionAction ? (
-    <InternalOpportunityDecisionMenu onCard item={item} pending={pending} onAction={(action) => onInternalDecisionAction(item, action)} />
-  ) : savedStatus && onSavedStatusChange && canChangeCareerOpportunityManagementStatus(item) ? (
-    <SavedManagementStatusDropdown status={savedStatus} disabled={pending} onChange={(status) => onSavedStatusChange(item, status)} />
-  ) : null;
-
-  if (inProgress) return <ProgressOpportunityRow item={item} pending={pending} statusLabel={getCareerOpportunityManagementStatusLabel(status, t)} actions={managementActions} onOpenDetail={onOpenDetail} />;
+  if (inProgress) return <ProgressOpportunityRow item={item} pending={pending} status={status} onStatusChange={onSavedStatusChange && canChangeCareerOpportunityManagementStatus(item) ? (next) => onSavedStatusChange(item, next) : undefined} onOpenDetail={onOpenDetail} />;
 
   return (
     <InlinePanel

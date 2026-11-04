@@ -10,7 +10,8 @@ CREATE TABLE talent_behavior_contexts(talent_id uuid,context_text text,context_v
 CREATE TABLE talent_contexts(talent_id uuid,collection text,label text,content text,revision bigint,ref text,created_at timestamptz,updated_at timestamptz,deleted_at timestamptz);
 CREATE TABLE company_workspace(company_workspace_id uuid PRIMARY KEY,company_name text,published_name text,company_description text,brief text,pitch text,company_db_id uuid);
 CREATE TABLE company_roles(role_id uuid PRIMARY KEY,company_workspace_id uuid,name text,description text,location_text text,country_code text,work_mode text,type text[],seniority_level text,salary_range text,salary_min numeric,salary_max numeric,salary_currency text,salary_period text,source_type text,status text,is_expired boolean,expires_at timestamptz,information jsonb);
-CREATE TABLE company_internal_roles(role_id uuid,request text,criteria jsonb,team_id uuid,memory text);
+CREATE TABLE company_internal_roles(role_id uuid,request text,criteria jsonb,team_id uuid,memory text,is_promote boolean DEFAULT true);
+CREATE TABLE official_jobs(id uuid DEFAULT gen_random_uuid(),role_id uuid,is_published boolean);
 CREATE TABLE company_memory_entries(id uuid,company_workspace_id uuid,scope text,label text,content text,revision bigint,updated_at timestamptz,deleted_at timestamptz,role_id uuid,team_id uuid);
 CREATE TABLE company_memories(id uuid,company_workspace_id uuid,role_id uuid,content text,updated_at timestamptz,created_at timestamptz);
 CREATE TABLE opportunity_discovery_run(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),talent_id uuid,conversation_id uuid,trigger text,run_mode text,status text,dedupe_key text UNIQUE,trigger_payload jsonb,coverage jsonb NOT NULL DEFAULT '{}',lease_token uuid,lease_heartbeat_at timestamptz,started_at timestamptz,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now(),completed_at timestamptz,last_progress_at timestamptz,error_message text);

@@ -292,7 +292,7 @@ load_handbook 결과는 ID/version/실제 글자 수/적용 시작/남은 횟수
 
 완료·취소·실패를 반영한 뒤 다음 답변이 handbook 수명을 읽는다. 장시간 모델 호출 동안 DB transaction을 열어 두지 않는다. worker의 실제 browser run은 이 대화 답변 lock 밖에서 병렬 실행하며, 이것을 대화당 지원 하나 제한으로 확장하지 않는다. source/event/reply ID와 할당한 순번으로 재시작을 연결하고 동일 실행의 외부 효과는 다시 수행하지 않는다.
 
-본문 version은 lease 시작 때 고정한다. 배포 중 책이 바뀌어도 같은 lease의 내용과 추적이 바뀌지 않도록 해당 버전 텍스트를 유지하고, 새 로드부터 새 버전을 쓴다. 안전·권한·실행 계약은 handbook이 만료돼도 없어지지 않도록 core/해당 tool policy에 둔다.
+본문은 현재 코드의 정본을 사용하고, 실제 제공한 version을 실행 기록에 남긴다. 본문 version 변경은 lease 갱신이 아니며 남은 횟수를 늘리지 않는다. 실제 제공한 handbook의 stable ID로 전달 완료 횟수를 차감하고, reply claim과 완료 ID로 중복 차감을 막는다. 이 version 변경 시 차감 계약은 `20261104024605_career_handbook_version_consumption.sql`에 구현했으며 2026-11-04 운영 migration `20261104024944`로 적용했다. 안전·권한·실행 계약은 handbook이 만료돼도 없어지지 않도록 core/해당 tool policy에 둔다.
 
 ## 9. Decisions 선로딩
 

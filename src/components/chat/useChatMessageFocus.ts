@@ -37,12 +37,12 @@ export function useChatMessageFocus(containerRef: RefObject<HTMLElement | null>,
     const cancel = () => clearTimeout(timer);
     const down = (event: PointerEvent) => {
       cancel();
+      opened = false;
       if (!mobile?.matches || (event.pointerType !== "touch" && event.pointerType !== "pen")) return;
       const target = event.target as HTMLElement;
       if (target.closest("button, a, input, textarea, select, [contenteditable=true]")) return;
       const bubble = target.closest<HTMLElement>("[data-chat-message-bubble]");
       if (!bubble || !container.contains(bubble) || bubble.hasAttribute("data-chat-message-lifted")) return;
-      opened = false;
       startX = event.clientX; startY = event.clientY;
       timer = setTimeout(() => {
         if (!bubble.isConnected) return;
@@ -59,7 +59,7 @@ export function useChatMessageFocus(containerRef: RefObject<HTMLElement | null>,
     };
     const context = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (mobile?.matches && target.closest("[data-chat-message-bubble]") && !target.closest("a, button, input, textarea")) event.preventDefault();
+      if (mobile?.matches && target.closest("[data-chat-message-bubble]:not([data-chat-message-lifted])") && !target.closest("a, button, input, textarea")) event.preventDefault();
     };
     const click = (event: MouseEvent) => {
       if (opened) { event.preventDefault(); event.stopPropagation(); opened = false; }

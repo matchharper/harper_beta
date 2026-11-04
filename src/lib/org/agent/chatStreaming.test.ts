@@ -4,6 +4,7 @@ import { openrouterClient } from "@/lib/llm/llm";
 import { runOrgAgentCompletion, runOrgAgentToolLoop } from "./chat";
 import { ORG_AGENT_GEMINI_FLASH_MODEL } from "./modelConfig";
 import { createOrgAgentTextStream } from "./textStream";
+import { OrgAgentToolInputError } from "./toolExecution";
 
 function fixture(): Parameters<typeof runOrgAgentToolLoop>[0] {
   return {
@@ -25,6 +26,45 @@ function fixture(): Parameters<typeof runOrgAgentToolLoop>[0] {
 
 const chunk = (delta: object, finish_reason: string | null = null) => ({
   choices: [{ delta, finish_reason }],
+});
+
+test("durable company events propagate execution failures instead of completing silently", async () => {
+  let completions = 0;
+  const failure = new Error("Company role permission unavailable");
+  await assert.rejects(runOrgAgentToolLoop({
+    ...fixture(), allowSilentCompletion: true, throwOnToolExecutionError: true,
+  }, {
+    complete: async (args) => {
+      completions++;
+      return { model: args.model, response: { choices: [{ message: {
+        content: "", tool_calls: [{ id: "read-1", type: "function", function: { name: "get_talents", arguments: "{}" } }],
+      } }] } };
+    },
+    executeTool: async () => { throw failure; },
+  }), (error) => error === failure);
+  assert.equal(completions, 1);
+});
+
+test("durable events still let the original model correct input errors and finish quietly", async () => {
+  let completions = 0;
+  let executions = 0;
+  const result = await runOrgAgentToolLoop({
+    ...fixture(), allowSilentCompletion: true, throwOnToolExecutionError: true,
+  }, {
+    complete: async (args) => {
+      completions++;
+      return { model: args.model, response: { choices: [{ message: {
+        content: "", ...(completions < 3 ? { tool_calls: [{ id: `read-${completions}`, type: "function", function: { name: "get_talents", arguments: "{}" } }] } : {}),
+      } }] } };
+    },
+    executeTool: async () => {
+      if (++executions === 1) throw new OrgAgentToolInputError("Exact Role required");
+      return { items: [] };
+    },
+  });
+  assert.equal(result.reply, "");
+  assert.equal(executions, 2);
+  assert.equal(completions, 3);
 });
 
 test("web loop emits the first answer token before completion, preserves signatures and executes tools once", { timeout: 5_000 }, async () => {

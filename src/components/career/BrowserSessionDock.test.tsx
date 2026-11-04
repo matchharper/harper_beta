@@ -7,7 +7,7 @@ import { MessagesProvider } from '@/i18n/useMessage';
 import { supabase } from '@/lib/supabase';
 import type { BrowserSessionViewData } from './BrowserSessionCard';
 
-test('browser stack expands one session without remounting either iframe and removes closed sessions', async () => {
+test('only the selected browser connects; scrolling preserves it and selecting another never hands off control', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost', pretendToBeVisual: true });
   const previous = new Map<string, PropertyDescriptor | undefined>();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, DOMRect: dom.window.DOMRect, HTMLElement: dom.window.HTMLElement, HTMLInputElement: dom.window.HTMLInputElement, Element: dom.window.Element, Node: dom.window.Node, Event: dom.window.Event, CustomEvent: dom.window.CustomEvent, MutationObserver: dom.window.MutationObserver, getComputedStyle: dom.window.getComputedStyle, requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window), cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })) {
@@ -32,9 +32,11 @@ test('browser stack expands one session without remounting either iframe and rem
   const render = () => root.render(<MessagesProvider locale="ko"><div style={{position:'relative'}}><BrowserSessionDockView views={visible} anchors={anchors} selectedId={selected} onSelect={id=>{selected=id;render();}} /></div></MessagesProvider>);
   try {
     await act(async () => render());
+    assert.equal(dom.window.document.querySelectorAll('iframe').length, 0);
+    await act(async () => { selected = 'first'; render(); });
     const first = dom.window.document.querySelector('[data-browser-session-id="first"] iframe');
-    const second = dom.window.document.querySelector('[data-browser-session-id="second"] iframe');
-    assert.ok(first && second);
+    assert.ok(first);
+    assert.equal(dom.window.document.querySelectorAll('iframe').length, 1);
     const placement = () => first.closest('[data-browser-placement]')!.getAttribute('data-browser-placement');
     const scroll = async (top: number) => {
       slotTop = top;
@@ -56,7 +58,7 @@ test('browser stack expands one session without remounting either iframe and rem
     assert.equal(placement(), 'dock');
     assert.equal(slot.contains(first), true, 'docking does not move or reconnect the iframe');
     assert.equal(panel.style.position, 'fixed');
-    assert.equal(panel.style.zIndex, '10', 'docked viewer stays below the composer layer');
+    assert.equal(panel.style.zIndex, '11', 'docked viewer stays below the composer layer');
     assert.equal(panel.style.transition, '');
     await scroll(100);
     assert.equal(placement(), 'inline');
@@ -74,16 +76,21 @@ test('browser stack expands one session without remounting either iframe and rem
       }));
     });
     assert.equal(first.parentElement?.getAttribute('aria-busy'), 'false');
-    assert.equal(second.parentElement?.getAttribute('aria-busy'), 'true', 'one viewer becoming ready must not mark another as connected');
     await act(async () => { selected = 'second'; render(); });
+    const second = dom.window.document.querySelector('[data-browser-session-id="second"] iframe');
+    assert.ok(second);
+    assert.equal(dom.window.document.querySelectorAll('iframe').length, 1);
+    assert.equal(second.parentElement?.getAttribute('aria-busy'), 'true', 'another viewer connects independently');
     assert.equal(dom.window.document.querySelector('[data-browser-session-id="second"]')?.getAttribute('data-browser-expanded'), 'true');
-    await act(async () => { selected = 'first'; render(); });
-    assert.equal(dom.window.document.querySelector('[data-browser-session-id="first"] iframe'), first);
-    assert.equal(dom.window.document.querySelector('[data-browser-session-id="second"] iframe'), second);
-    assert.equal(first.classList.contains('pointer-events-none'), true, 'expanding is not a browser-control handoff');
-    await act(async () => { selected = null; visible = [views[1]]; render(); });
     assert.equal(dom.window.document.querySelector('[data-browser-session-id="first"]'), null);
+    // Newly arriving sessions must not steal the chosen browser.
+    await act(async () => { visible = [...views, {...views[0], session: {...views[0].session, id: 'third'}}]; render(); });
     assert.equal(dom.window.document.querySelector('[data-browser-session-id="second"] iframe'), second);
+    await act(async () => { selected = 'first'; render(); });
+    assert.equal(dom.window.document.querySelectorAll('iframe').length, 1);
+    assert.equal(dom.window.document.querySelector('iframe')?.classList.contains('pointer-events-none'), true, 'selecting is not a browser-control handoff');
+    await act(async () => { selected = null; visible = [views[1]]; render(); });
+    assert.equal(dom.window.document.querySelectorAll('iframe').length, 0);
   } finally {
     await act(async () => root.unmount());
     // Radix restores focus on the next timer turn after unmounting its scope.

@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   const params = z
     .object({
       matchingId: z.string().uuid().optional(),
+      runId: z.string().uuid().optional(),
       locale: z.enum(["ko", "en"]).optional(),
       cursor: z.string().uuid().optional(),
       excludeRecommended: z.enum(["true", "false"]).default("true"),
@@ -31,7 +32,9 @@ export async function GET(req: NextRequest) {
       { status: 400 }
     );
   }
-  const { matchingId, cursor, excludeRecommended, locale } = params.data;
+  const { matchingId, runId, cursor, excludeRecommended, locale } = params.data;
+  if (runId && !matchingId)
+    return NextResponse.json({ error: "matchingId is required with runId" }, { status: 400 });
   try {
     const admin = getTalentSupabaseAdmin();
     if (!matchingId) {
@@ -54,7 +57,7 @@ export async function GET(req: NextRequest) {
       } satisfies CareerMatchingListPage);
     }
     const { data, error } = await matchingTable(admin, "talent_matchings")
-      .select("id")
+      .select("id, title")
       .eq("id", matchingId)
       .eq("talent_id", user.id)
       .maybeSingle();
@@ -64,10 +67,22 @@ export async function GET(req: NextRequest) {
         { error: "Matching not found" },
         { status: 404 }
       );
+    if (runId) {
+      const { data: run, error: runError } = await matchingTable(admin, "external_recommendation_runs")
+        .select("id")
+        .eq("id", runId)
+        .eq("matching_id", matchingId)
+        .eq("talent_id", user.id)
+        .eq("variant", "career_agent")
+        .maybeSingle();
+      if (runError) throw runError;
+      if (!run) return NextResponse.json({ error: "Matching run not found" }, { status: 404 });
+    }
     const page = await readExternalEvaluationResults({
       admin,
       userId: user.id,
       matchingId,
+      ...(runId ? { runId } : {}),
       cursor,
       excludePreviouslyRecommended: excludeRecommended === "true",
     });
@@ -81,6 +96,7 @@ export async function GET(req: NextRequest) {
       postings.map((posting) => [posting.roleId, posting])
     );
     return NextResponse.json({
+      matching: { id: matchingId, title: data.title ?? "" },
       opportunities: page.evaluations.map((evaluation) => {
         const posting = postingsByRoleId.get(evaluation.role_id);
         return {

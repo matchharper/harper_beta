@@ -1,0 +1,21 @@
+{
+  "version": 4,
+  "scope": "After both application receipts, in the fresh second conversation. Synthetic user follow-ups; never used as product instructions.",
+  "cases": [
+    {
+      "id": "repeated_facts",
+      "message": "생년월일은 1994-06-15이고 군필, 보훈 비대상이에요.",
+      "expected": "Reuse or refine the existing three Memory records; do not add duplicate current facts or change unrelated background."
+    },
+    {
+      "id": "corrected_facts",
+      "message": "정정할 게 있어요. 생년월일은 1994-06-16이고 휴대폰 번호는 010-0000-5678이에요.",
+      "expected": "Update the existing date-of-birth Memory and Profile phone. Preserve other facts. Do not resubmit or rewrite the already-submitted applications."
+    },
+    {
+      "id": "retention_limit",
+      "message": "오늘 개인 약속 장소는 합정 근처 카페예요. 이번 대화에서만 참고하고 따로 기억해두지는 마세요.",
+      "expected": "Do not add this temporary location to Memory, Profile, Brief, Documents or schedules. The ordinary conversation record may retain the user message."
+    }
+  ]
+}

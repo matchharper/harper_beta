@@ -32,6 +32,7 @@ import {
 } from "@/lib/org/agent/talentReference";
 import { OrgTalentReferenceBadge } from "./OrgTalentReferenceBadge";
 import { formatOrgChatMessageTime } from "@/lib/org/agent/messagePresentation";
+import { formatChatDateDividerLabel } from "@/lib/chat/dateDivider";
 import { splitOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
 import {
   convertSlackMrkdwnToWebMarkdown,
@@ -50,25 +51,9 @@ import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
 import { cn } from "@/lib/utils";
 import { getHarperOwnedUrlRoute } from "@/lib/urlDisplay";
 
-function parseDate(createdAt: string) {
-  const date = new Date(createdAt);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatDateLabel(createdAt: string, locale: "ko" | "en") {
-  const date = parseDate(createdAt);
-  if (!date) return "";
-  return new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-US", {
-    day: "numeric",
-    month: "long",
-    weekday: "short",
-    year: "numeric",
-  }).format(date);
-}
-
 export function OrgAgentDateDivider({ createdAt }: { createdAt: string }) {
   const { locale, c } = useOrgLocale();
-  const label = formatDateLabel(createdAt, locale);
+  const label = formatChatDateDividerLabel(createdAt, locale);
   return (
     <ChatDateDivider
       ariaLabel={c("대화 날짜 {p0}", "Conversation date {p0}", { p0: label })}
@@ -449,7 +434,6 @@ export function OrgAgentMessageBubble({
           hasToolWork={hasOrgAgentToolWork(message.thinkingLogs)}
           logs={localizeOrgAgentThinkingLogs(message.thinkingLogs, locale)}
           startedAt={turnStartedAt}
-          typographyClassName="text-[13px] leading-[1.65]"
         />
       )}
       {!isUser &&

@@ -1,3 +1,5 @@
+import { upcomingMeetingFilter } from "./career/meetingDisplay";
+import { formatLlmDateTime } from "./llm/promptDateTime";
 import type { OpportunitySearchItem } from "@/lib/career/opportunitySearch";
 import {
   getEstimatedAnnualSalary,
@@ -344,6 +346,7 @@ export type TalentOpportunitySavedStage =
   | "saved"
   | "applied"
   | "connected"
+  | "offer"
   | "closed"
   | "hidden";
 
@@ -369,7 +372,9 @@ export type TalentInternalRecommendationProgressCode =
   | "moved_to_another_role"
   | "rejected_by_talent"
   | "stopped_by_candidate"
-  | "waiting_to_share";
+  | "waiting_to_share"
+  | "agent_request_received"
+  | "company_presentation_saved";
 
 export type TalentInternalRecommendationProgressStage =
   | "accepted"
@@ -415,6 +420,7 @@ export type TalentOpportunityCompanyData = {
 };
 
 export type TalentOpportunityUpcomingMeeting = {
+  calendarDate?: string | null;
   endAt: string | null;
   startAt: string;
   title: string | null;
@@ -449,7 +455,7 @@ export type TalentCompanyRequestIntroProgressFacts = {
 };
 
 export type TalentOpportunityHistoryItem = {
-  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
+  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number; selectionRef?: string; profileTitle?: string; documentNames?: string[] };
   listPosition?: "current" | "previous";
   estimatedAnnualSalary?: EstimatedAnnualSalary | null;
   updatedAt?: string | null;
@@ -593,6 +599,7 @@ function normalizeSavedStage(
     value === "saved" ||
     value === "applied" ||
     value === "connected" ||
+    value === "offer" ||
     value === "closed" ||
     value === "hidden"
   ) {
@@ -634,6 +641,8 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
   TalentInternalRecommendationProgressCode,
   string
 > = {
+  agent_request_received: "회사의 에이전트에게 소개와 연결을 요청했습니다.",
+  company_presentation_saved: "회사의 에이전트가 회사의 후보 목록에 소개를 등록했습니다. 회사의 진행 결정은 아직 없습니다.",
   awaiting_company_response: "회사에게 전달되었고, 회신을 기다리고 있습니다.",
   closed_by_company:
     "회사 측에서 이번 포지션에서는 더 이상 진행하지 않기로 했습니다. 이력과 경험에 기반해 긍정적으로 검토했으나, 우선적으로 보고 있는 방향과 더 가까운 후보자와 다음 단계를 진행하게 되었다고 알려왔습니다. 또 다른 좋은 기회가 있을 때 연락드릴게요. 감사합니다.",
@@ -774,6 +783,7 @@ function resolveInternalStopReason(args: {
 }
 
 export function buildInternalRecommendationProgress(args: {
+  agentIntroductionRootId?: string | null;
   events?: TalentInternalRecommendationProgressEvent[];
   item: TalentOpportunityHistoryItem;
   tags: RawTalentOpportunityTagRow[];
@@ -828,7 +838,7 @@ export function buildInternalRecommendationProgress(args: {
   } else if (shouldCloseRole) {
     code = "closed_by_company";
   } else if (effectiveStage === "pending_connection") {
-    code = "company_acknowledged_awaiting_response";
+    code = args.agentIntroductionRootId ? "company_presentation_saved" : "company_acknowledged_awaiting_response";
   } else if (effectiveStage === "process_stopped") {
     code = "closed_by_company";
   } else if (effectiveStage === "archived") {
@@ -838,6 +848,8 @@ export function buildInternalRecommendationProgress(args: {
         : "closed_by_company";
   } else if (effectiveStage !== "accepted") {
     code = "company_next_process";
+  } else if (args.agentIntroductionRootId) {
+    code = "agent_request_received";
   } else if (
     daysSinceAccepted !== null &&
     daysSinceAccepted >= INTERNAL_RECOMMENDATION_PROGRESS_THREE_WEEKS_DAYS
@@ -1004,9 +1016,14 @@ function getPromptKstDateTimeParts(value: string | null | undefined) {
 }
 
 export function formatUpcomingHarperMeetingForPrompt(
-  value: string | null | undefined,
+  value: string | TalentOpportunityUpcomingMeeting | null | undefined,
   now = new Date()
 ) {
+  if (value && typeof value === "object") {
+    return value.calendarDate
+      ? `Upcoming appointment: ${formatLlmDateTime(value.calendarDate)}; time not specified.`
+      : `Upcoming appointment: ${formatLlmDateTime(value.startAt)} KST`;
+  }
   const parts = getPromptKstDateTimeParts(value);
   if (!parts) return "";
   const currentYear = getPromptKstDateTimeParts(now.toISOString())?.year;
@@ -1217,6 +1234,7 @@ const createEmptyHistoryCounts = (): TalentOpportunityHistoryCounts => ({
     saved: 0,
     applied: 0,
     connected: 0,
+    offer: 0,
     closed: 0,
     hidden: 0,
   },
@@ -1427,7 +1445,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
       .select("recommendation_id,confirmed_start_at")
       .eq("talent_id", args.userId)
       .eq("status", "confirmed")
-      .gte("confirmed_start_at", new Date().toISOString())
+      .or(upcomingMeetingFilter())
       .order("confirmed_start_at", { ascending: true }) as any,
   ]);
 
@@ -2091,11 +2109,11 @@ async function fetchUpcomingMeetingsForHistoryItems(args: {
   const { data, error } = await (
     args.admin.from("meeting_schedules" as any) as any
   )
-    .select("role_id,title,confirmed_start_at,confirmed_end_at")
+    .select("role_id,title,confirmed_start_at,confirmed_end_at,source_refs")
     .eq("talent_id", args.userId)
     .eq("status", "confirmed")
     .in("role_id", roleIds)
-    .gte("confirmed_start_at", new Date().toISOString())
+    .or(upcomingMeetingFilter())
     .order("confirmed_start_at", { ascending: true });
   if (error) {
     console.warn("[TalentOpportunity] failed to load upcoming meetings", {
@@ -2111,6 +2129,7 @@ async function fetchUpcomingMeetingsForHistoryItems(args: {
         startAt: row.confirmed_start_at,
         endAt: row.confirmed_end_at,
         title: row.title,
+        calendarDate: typeof row.source_refs?.calendarDate === "string" ? row.source_refs.calendarDate : null,
       });
     }
   for (const item of args.items) {
@@ -2227,6 +2246,7 @@ function normalizeTalentOpportunitySavedStageValue(value: unknown) {
   return value === "saved" ||
     value === "applied" ||
     value === "connected" ||
+    value === "offer" ||
     value === "closed" ||
     value === "hidden"
     ? value
@@ -2473,7 +2493,9 @@ export function resolveHistorySavedStage(
   item: Pick<TalentOpportunityHistoryItem, "savedStage" | "isInternal" | "feedback" | "status">,
   tags: RawTalentOpportunityTagRow[]
 ): TalentOpportunitySavedStage | null {
-  if (!item.isInternal || item.feedback !== "positive" || item.savedStage === "hidden") {
+  // Personal progress is editable. Company tags only fill legacy rows without
+  // a saved stage; they must not replace the user's persisted selection.
+  if (!item.isInternal || item.feedback !== "positive" || item.savedStage !== null) {
     return item.savedStage;
   }
   const { stage } = resolveInternalProgressStageFromTags(tags);
@@ -2493,10 +2515,12 @@ async function enrichTalentOpportunityHistoryItems(args: {
   if (args.items.length === 0) return args.items;
 
   const internalRoleIds = [...new Set(args.items.filter(item => item.sourceType === "internal").map(item => item.roleId))];
-  const materialResult = internalRoleIds.length ? await (args.admin.from("talent_current_role_materials_v1" as any) as any)
-    .select("role_id,id,revision,action").eq("talent_id",args.userId).in("role_id",internalRoleIds) : {data:[],error:null};
-  if (materialResult.error) throw materialResult.error;
-  const materials = new Map<string,{id:string;revision:number;action:string}>((materialResult.data??[]).map((row:any)=>[row.role_id,row]));
+  const {readAcceptanceSelections}=await import("@/lib/agentContacts/materialSelection");
+  const materials=await readAcceptanceSelections(args.admin,args.userId,internalRoleIds);
+  const rootRead=internalRoleIds.length ? await (args.admin.from as any)("talent_opportunity_recommendation")
+    .select("id,agent_introduction_root_id").eq("talent_id",args.userId).in("id",args.items.filter(item=>item.sourceType==='internal').map(item=>item.id)) : {data:[],error:null};
+  if(rootRead.error) throw rootRead.error;
+  const introductionRoots=new Map<string,string>((rootRead.data ?? []).filter((r:any)=>r.agent_introduction_root_id).map((r:any)=>[r.id,r.agent_introduction_root_id]));
 
   const [
     tagsByRoleId,
@@ -2522,10 +2546,7 @@ async function enrichTalentOpportunityHistoryItems(args: {
 
   return args.items.map((item) => ({
     ...item,
-    ...(item.sourceType === "internal" ? {acceptanceMaterial: {
-      materialId: materials.get(item.roleId)?.action === "set" ? materials.get(item.roleId)!.id : null,
-      assignmentRevision: materials.get(item.roleId)?.revision ?? 0,
-    }} : {}),
+    ...(item.sourceType === "internal" ? {acceptanceMaterial: materials.get(item.roleId)} : {}),
     savedStage: resolveHistorySavedStage(item, tagsByRoleId.get(item.roleId) ?? []),
     activityTimelineLoaded: Boolean(args.includeActivityTimeline),
     confirmedMeetings: confirmedMeetingsByRecommendationId.get(item.id) ?? [],
@@ -2535,6 +2556,7 @@ async function enrichTalentOpportunityHistoryItems(args: {
       item.opportunityType === OpportunityType.IntroRequest
         ? null
         : buildInternalRecommendationProgress({
+            agentIntroductionRootId: introductionRoots.get(item.id),
             events: eventsByRoleId.get(item.roleId) ?? [],
             item,
             tags: tagsByRoleId.get(item.roleId) ?? [],
@@ -3140,7 +3162,7 @@ export async function assertCurrentTalentRecommendation(args: {
 }
 
 async function acceptInternalRoleRecommendation(args: {
-  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
+  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number; selectionRef?: string; profileTitle?: string; documentNames?: string[] };
   admin: AdminClient;
   clearEmailAcceptanceConfirmation?: boolean;
   emailAcceptanceConfirmation?: Json | null;
@@ -3215,7 +3237,7 @@ async function acceptInternalRoleRecommendation(args: {
 }
 
 export async function updateTalentOpportunityHistoryItem(args: {
-  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
+  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number; selectionRef?: string; profileTitle?: string; documentNames?: string[] };
   action: "feedback" | "saved_stage" | "view" | "click" | "memo";
   admin: AdminClient;
   clearEmailAcceptanceConfirmation?: boolean;

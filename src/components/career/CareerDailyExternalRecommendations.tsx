@@ -88,7 +88,7 @@ export function TodayExternalRecommendationsCard({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] text-neutral-primary">
-          {t("career.external_daily.today", "오늘의 기회들을 확인해 보세요")}
+          {t("career.external_daily.today", "오늘 찾은 기회 보기")}
         </span>
       </span>
       <ChevronRight

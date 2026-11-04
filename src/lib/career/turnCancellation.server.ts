@@ -15,9 +15,20 @@ type TurnScope = {
   conversationId: string;
   sourceMessageId?: number | null;
   replyId?: string;
+  workId?: string;
+  workRevision?: number;
 };
 
 export async function careerTurnIsStopped(scope: TurnScope): Promise<boolean> {
+  const account = await scope.admin.from("talent_users").select("deleted_at").eq("user_id", scope.userId).maybeSingle();
+  if (account.error) throw account.error;
+  if (account.data?.deleted_at) return true;
+  if (scope.workId) {
+    const { data, error } = await (scope.admin.from as any)("talent_external_operations").select("status,revision")
+      .eq("id", scope.workId).eq("user_id", scope.userId).eq("kind", "delegated_work").maybeSingle();
+    if (error) throw error;
+    if (!data || data.status === "cancelled" || (scope.workRevision !== undefined && data.revision !== scope.workRevision && data.status !== "waiting" && data.status !== "completed")) return true;
+  }
   if (!scope.sourceMessageId) return false;
   const { data, error } = await scope.admin.from("talent_messages").select("payload")
     .eq("id", scope.sourceMessageId).eq("user_id", scope.userId)
@@ -67,7 +78,7 @@ export function watchCareerTurnCancellation(scope: TurnScope, signal?: AbortSign
 /** Reuse the executors' existing cancellation contracts. Completed results and
  * previously created schedules/settings are deliberately untouched. */
 export async function cancelCareerTurnWork(scope: TurnScope) {
-  if (!scope.sourceMessageId) return;
+  if (!scope.sourceMessageId && !scope.replyId) return;
   const replyId = scope.replyId ?? `message:${scope.sourceMessageId}`;
   const [external, internal] = await Promise.all([
     scope.admin.from("external_recommendation_runs").update({

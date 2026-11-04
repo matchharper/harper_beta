@@ -257,7 +257,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
               unnest(coalesce(setting.blocked_companies,'{}'::text[])) blocked(name)
               WHERE setting.user_id=${sqlLiteral(args.userId)}::uuid AND lower(btrim(blocked.name)) IN
                 (lower(btrim(company.company_name)),lower(btrim(coalesce(company.published_name,'')))))
-          ORDER BY role.updated_at DESC,role.role_id LIMIT ${count}`,
+          ORDER BY role.updated_at DESC,role.role_id`,
           count
         );
         roleIds = roles.map((row) => row.role_id);

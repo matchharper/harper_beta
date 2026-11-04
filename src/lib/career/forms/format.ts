@@ -49,9 +49,15 @@ export function formatCareerFormForModel(form: CareerForm): string {
 export function formatCareerFormResponseForModel(
   response: CareerFormResponse
 ): string {
+  const continuationGuidance =
+    "Harper continuation guidance (not part of the user's reply): Save or update any user facts or context worth remembering for future work with the appropriate tool, respecting the user's stated scope and retention limits.";
+  const selectedFiles = response.selectedFiles?.map(file =>
+    `Selected file for ${file.itemId}: document_id ${file.documentId}; revision ${file.revision}; snapshot_id ${file.snapshotId}; ${file.fileName}`) ?? [];
   if (response.answers)
     return [
-      `User completed form ${response.formId}, revision ${response.revision}; ${response.answers.length} item responses submitted together.`,
+      `User answered ${response.answers.length} items of form ${response.formId}, revision ${response.revision}; unanswered items may remain.`,
+      continuationGuidance,
+      ...selectedFiles,
       ...response.answers.flatMap((answer) => {
         const item = response.formSnapshot.items.find(
           (item) => item.id === answer.itemId
@@ -83,6 +89,8 @@ export function formatCareerFormResponseForModel(
   );
   return [
     `User ${response.skipped ? "skipped" : response.actionId ? "selected" : "answered"} form ${response.formId}, revision ${response.revision}${response.itemId ? `, item ${response.itemId}` : ""}${response.actionId ? `, action ${response.actionId}${action ? ` (${action.label})` : ""}` : ""}.`,
+    continuationGuidance,
+    ...selectedFiles,
     ...(action ? [`User message: ${action.message}`] : []),
     ...(response.message !== undefined
       ? [`User reply: ${response.message}`]

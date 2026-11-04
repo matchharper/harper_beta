@@ -11,7 +11,18 @@ import {
   executeApplyToInternalRole,
   formatInternalApplicationToolResult,
 } from "./tools";
+import {resolveCareerChatTools,getCareerRealtimeToolCandidates} from '../llmTools';
 afterEach(() => mock.restoreAll());
+
+test('both original Career receivers can access correspondence tools and voice can introduce',()=>{
+  const chat=resolveCareerChatTools({channel:'chat',isOnboardingDone:true});
+  const background=resolveCareerChatTools({channel:'chat',isOnboardingDone:true,background:true});
+  assert.ok(chat.toolNames.includes('read_agent_messages'));
+  assert.ok(background.toolNames.includes('read_agent_messages'));
+  assert.ok(background.toolNames.includes('contact_user'));
+  const voice=getCareerRealtimeToolCandidates('ko').map(t=>t.name);
+  for(const name of ['apply_to_internal_role','assign_to_role','contact_company','read_agent_messages']) assert.ok(voice.includes(name),name);
+});
 
 test("empty material read tells the model the exact revision needed for its first write", () => {
   const output = formatInternalApplicationToolResult("assign_to_role", { current: null, acceptedMaterials: [] });
@@ -60,6 +71,7 @@ function scenario(status = "queued", hasAssignment = true) {
     resumeRequestId: "original-reply",
     admin: {
       async rpc(name: string, input: any) {
+        if(name === "ensure_requested_internal_role_v1") return {data:{recommendationId:"requested-card",visible:true,role:{roleId:"role",name:"Engineer",companyName:"Company",description:"Public description"}},error:null};
         if (name === "read_talent_profile_v1") {
           assert.equal(input.p_talent_id, "owner");
           profileReads.push(input);
@@ -151,12 +163,10 @@ test("application evaluates the prepared profile version and queues a review wit
   assert.equal(result.assignedMaterial?.profileRevision, 1);
   assert.equal(queued[0].p_payload.profileRevision, 1);
   assert.equal(result.companyShared, false);
-  assert.equal(queued[0].p_payload.parentReplyId, "original-reply");
-  assert.equal(queued[0].p_payload.publishRecommendation, true);
-  assert.deepEqual(result.careerContinuation, {
-    kind: "internal_evaluation",
-    id: "evaluation-run",
-  });
+  assert.equal(queued[0].p_payload.parentReplyId, undefined);
+  assert.equal(queued[0].p_payload.publishRecommendation, false);
+  assert.equal(queued[0].p_payload.requestedOpportunityId, "requested-card");
+  assert.equal(result.careerContinuation, undefined);
 });
 
 test("caller profile arguments cannot override the assigned evaluation profile or owner", async () => {
@@ -174,7 +184,7 @@ test("caller profile arguments cannot override the assigned evaluation profile o
       revision: 1,
     });
     assert.equal(queued[0].p_talent, "owner");
-    assert.equal(queued[0].p_payload.publishRecommendation, true);
+    assert.equal(queued[0].p_payload.publishRecommendation, false);
   }
 });
 
@@ -193,7 +203,7 @@ test("missing or cleared preparation evaluates the current default profile", asy
   }
 });
 
-test("completed low-fit reapplication reports private evaluation and prior acceptance without accepting again", async () => {
+test("completed low-fit reapplication preserves its card and exposes only public Role facts", async () => {
   const { context, queued } = scenario("completed");
   const result = await executeApplyToInternalRole({ roleId: "role" }, context);
   assert.equal(queued.length, 1);
@@ -201,11 +211,20 @@ test("completed low-fit reapplication reports private evaluation and prior accep
     "apply_to_internal_role",
     result
   );
-  assert.match(rendered, /candidateFit: 14/);
-  assert.match(rendered, /Private assessment \(reasoning-only\)/);
-  assert.match(rendered, /reused; feedback like; saved stage connected/);
-  assert.match(rendered, /Evaluation profile profile, revision 1/);
+  assert.match(rendered, /Public description/);
+  assert.match(rendered, /requested-card/);
+  assert.doesNotMatch(rendered, /candidateFit|Private assessment|PRIVATE_TRACE|paused|internalRequest/);
   assert.doesNotMatch(rendered, /PRIVATE_TRACE|2026-10-30T|"coverage"/);
+});
+
+test("an evaluation failure cannot discard a saved user-requested opportunity",async()=>{
+  const {context}=scenario();
+  mock.method(internalEvaluationBackend,"enqueue",async()=>{throw new Error("evaluator unavailable");});
+  const result=await executeApplyToInternalRole({roleId:"role"},context);
+  assert.equal(result.recommendationId,"requested-card");
+  assert.equal(result.visible,true);
+  assert.equal(result.status,"evaluation_unavailable");
+  assert.equal(result.companyShared,false);
 });
 
 test("reading prepared materials needs authentication but no write identity, and preserves accepted pin facts", async () => {

@@ -4,6 +4,28 @@ import type { CareerReplyCheckpoint } from "./capabilities/runtime";
 
 export async function careerCheckpointIsReady(admin: TalentAdminClient, userId: string, checkpoint: CareerReplyCheckpoint) {
   for (const work of checkpoint.waitFor ?? []) {
+    if (work.kind === "external_capacity") {
+      const { readOperation } = await import("./externalOperations/store");
+      const operation = await readOperation({ admin, userId }, work.id);
+      if (operation && Date.parse(String(operation.provider_refs.retry_after)) > Date.now()) return false;
+      continue;
+    }
+    if (work.kind === "career_input") {
+      const { data, error } = await (admin.from as any)("talent_external_operations").select("status").eq("id", work.id).eq("user_id", userId).eq("kind", "career_invocation").maybeSingle();
+      if (error) throw error;
+      if (data && data.status !== "completed") return false;
+      continue;
+    }
+    if (work.kind === "browser_run") {
+      const { readOperation } = await import("./externalOperations/store");
+      const { refreshBrowserExecution } = await import("./browser/tool");
+      const current = await readOperation({ admin, userId }, work.id);
+      if (current) {
+        const observed = await refreshBrowserExecution({ admin, userId }, current);
+        if (["reserved", "preparing", "dispatching", "running", "cancelling"].includes(observed.status)) return false;
+      }
+      continue;
+    }
     const table = work.kind === "external_evaluation" ? "external_recommendation_runs"
       : work.kind === "email_delivery" ? "talent_opportunity_delivery" : "opportunity_discovery_run";
     const { data, error } = await (admin.from as any)(table).select("status")
@@ -21,6 +43,11 @@ export async function dispatchCareerCheckpoint(args: {
   publish?: (job: CareerAgentReplyJob) => Promise<unknown>;
 }) {
   if (!await careerCheckpointIsReady(args.admin, args.userId, args.checkpoint)) return { waiting: true };
+  if (args.checkpoint.replyId.startsWith("invocation:")) {
+    await (args.publish ?? enqueueCareerAgentReply)({ userId: args.userId, conversationId: args.conversationId,
+      replyId: args.checkpoint.replyId, invocationId: args.checkpoint.replyId.slice("invocation:".length), checkpointKey: args.checkpoint.checkpointId });
+    return { waiting: false };
+  }
   const source = args.checkpoint.continuation;
   if (source?.emailReplyJobId) {
     const { data, error } = await args.admin.from("email_reply_jobs").update({ status: "queued", queue_dispatched_at: null })

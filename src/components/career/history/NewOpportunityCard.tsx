@@ -18,7 +18,12 @@ import {
   getCareerPositiveActionLabel,
 } from "../opportunityTypeMeta";
 import type { CareerHistoryOpportunity } from "../types";
-import type { HistoryFeedbackVariant } from "@/lib/career/historyFeedbackExperiment";
+import {
+  HISTORY_FEEDBACK_CLICK_EVENT,
+  HISTORY_FEEDBACK_EXPERIMENT,
+  type HistoryFeedbackVariant,
+} from "@/lib/career/historyFeedbackExperiment";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import OpportunityCard from "./OpportunityCard";
 import { OpportunitySwipeRow } from "./OpportunitySwipeRow";
 
@@ -69,7 +74,23 @@ export default memo(function NewOpportunityCard({
   pending: boolean;
 }) {
   const t = useCareerT();
+  const logCareerEvent = useCareerLogEvent();
   const isInternal = item.isInternal || item.sourceType === "internal";
+  const handleFeedbackClick = (feedback: "positive" | "negative") => {
+    if (
+      !isInternal &&
+      item.sourceType === "external" &&
+      item.feedback === null
+    ) {
+      logCareerEvent(HISTORY_FEEDBACK_CLICK_EVENT, {
+        experiment: HISTORY_FEEDBACK_EXPERIMENT,
+        variant: feedbackVariant,
+        opportunityId: item.id,
+        feedback,
+      });
+    }
+    return feedback === "positive" ? onPositive(item) : onNegative(item);
+  };
   const saveHide = !isInternal && feedbackVariant === "save_hide";
   const PositiveActionIcon = saveHide
     ? Bookmark
@@ -146,7 +167,7 @@ export default memo(function NewOpportunityCard({
               <MuteButton
                 aria-label={`${item.title}: ${negativeTooltip}`}
                 disabled={pending}
-                onClick={() => onNegative(item)}
+                onClick={() => handleFeedbackClick("negative")}
                 variant="transparent"
               >
                 <NegativeActionIcon
@@ -159,7 +180,7 @@ export default memo(function NewOpportunityCard({
               <MuteButton
                 aria-label={`${item.title}: ${positiveTooltip}`}
                 disabled={pending}
-                onClick={() => onPositive(item)}
+                onClick={() => handleFeedbackClick("positive")}
                 variant="transparent"
               >
                 {pending ? (
@@ -200,7 +221,7 @@ export default memo(function NewOpportunityCard({
             ) : null}
             <MuteButton
               disabled={pending}
-              onClick={() => onNegative(item)}
+              onClick={() => handleFeedbackClick("negative")}
               size="md"
               className={actionClass}
             >
@@ -209,7 +230,7 @@ export default memo(function NewOpportunityCard({
             </MuteButton>
             <MuteButton
               disabled={pending}
-              onClick={() => onPositive(item)}
+              onClick={() => handleFeedbackClick("positive")}
               size="md"
               variant={isInternal ? "primary" : "dark"}
               className={actionClass}

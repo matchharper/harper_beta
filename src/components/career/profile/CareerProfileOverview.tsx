@@ -401,7 +401,7 @@ export const ProfileHeader = ({
               }
             >
               <FileText className="h-3.5 w-3.5 text-neutral-muted" />
-              View CV
+              {t("career.application.steps.view_resume", "이력서 보기")}
             </a>
           </MuteButton>
         )}

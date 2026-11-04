@@ -17,7 +17,7 @@ const clone = <T>(v: T): T => structuredClone(v);
 const option = (name: string, fallback: string) => { const i = process.argv.indexOf(name); return i < 0 ? fallback : process.argv[i + 1]; };
 
 async function main() {
-  const version = option("--dataset", "v4");
+  const version = option("--dataset", "v5");
   const fixture = JSON.parse(readFileSync(`${task}/cases-${version}.json`, "utf8"));
   const gold = JSON.parse(readFileSync(`${task}/gold-${version}.json`, "utf8"));
   const frozen = JSON.parse(readFileSync(`${task}/manifest-${version}.json`, "utf8"));
@@ -25,6 +25,7 @@ async function main() {
   const repeat = Number(option("--repeat", "1"));
   assert.ok(Number.isInteger(repeat) && repeat > 0);
   const only = option("--only", "").split(",").filter(Boolean);
+  assert.ok(only.every(id => fixture.cases.some((c:any) => c.id===id)), "Unknown requested case ID");
   const cases = fixture.cases.filter((c: any) => !only.length || only.includes(c.id));
   if (process.argv.includes("--validate-only")) { console.log(`Validated ${cases.length} conversations.`); return; }
   const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-${option("--label", "run")}`;
@@ -78,20 +79,23 @@ async function main() {
     const { formatRelayableCompanyTalentConnections } = await import("../src/lib/companyTalentRequests/server");
     const { formatCareerSchedules } = await import("../src/lib/career/schedules/server");
     const { buildInternalRecommendationProgress } = await import("../src/lib/talentOpportunity");
+    const {agentContactReceipt,decodeMaterialSelection}=await import("../src/lib/agentContacts/contracts");
+    const {workRpc,readWork,listWork,formatWork,workContext}=await import("../src/lib/career/work/store");
     const { withTalentToolAssistantInstruction } = await import("../src/lib/talentOnboarding/tools");
     const model = resolveCareerTextChatModel(undefined);
-    const sources = ["scripts/evalCareerInternalIntroduction.ts", "scripts/lib/careerIntroductionTestStore.ts", "src/lib/career/llm.ts", "src/lib/career/llmTools.ts", "src/lib/career/textChatModelConfig.ts", "src/lib/career/prompts/mainPrompts.ts", "src/lib/career/prompts/mainPrompt2.ts", "src/lib/career/prompts/conversationPlan.ts", "src/lib/career/prompts/conversationSections.ts", "src/lib/career/prompts/toolPolicyPrompt.ts", "src/lib/career/prompts/cases/lifecyclePrompts.ts", "src/lib/career/opportunityFeedbackEvent.ts", "src/lib/llm/toolDescriptions.ts", "src/lib/career/internalApplications/tools.ts", "src/lib/career/profiles/tools.ts", "src/lib/career/profiles/store.ts", "src/lib/career/roleMaterials/store.ts", "supabase/migrations/20261029182857_career_profile_versions_and_role_materials.sql", ...readdirSync("src/lib/career/handbooks").filter(n => n.endsWith(".ts")).map(n => `src/lib/career/handbooks/${n}`)];
+    const sources = ["scripts/evalCareerInternalIntroduction.ts", "scripts/lib/careerIntroductionTestStore.ts", "src/lib/career/llm.ts", "src/lib/career/llmTools.ts", "src/lib/career/textChatModelConfig.ts", "src/lib/career/prompts/mainPrompts.ts", "src/lib/career/prompts/mainPrompt2.ts", "src/lib/career/prompts/conversationPlan.ts", "src/lib/career/prompts/conversationSections.ts", "src/lib/career/prompts/toolPolicyPrompt.ts", "src/lib/career/prompts/cases/lifecyclePrompts.ts", "src/lib/career/opportunityFeedbackEvent.ts", "src/lib/llm/toolDescriptions.ts", "src/lib/career/internalApplications/tools.ts", "src/lib/agentContacts/contracts.ts", "src/lib/agentContacts/toolContracts.ts", "src/lib/career/work/tools.ts", "src/lib/career/work/store.ts", "supabase/migrations/20261103125930_career_concurrent_work.sql", "src/lib/career/profiles/tools.ts", "src/lib/career/profiles/store.ts", "src/lib/career/roleMaterials/store.ts", "supabase/migrations/20261029182857_career_profile_versions_and_role_materials.sql", ...readdirSync("src/lib/career/handbooks").filter(n => n.endsWith(".ts")).map(n => `src/lib/career/handbooks/${n}`)];
     save("manifest", { runId, datasetVersion: version, model, repeat, sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), dirty: true, sources: Object.fromEntries(sources.map(p => [p, hash(readFileSync(p))])), fixtureHashes: frozen.hashes, selected: cases.map((c: any) => c.id), timeoutMs: 300_000, concurrency: 2, boundary: "Real profile/material SQL and tool executors; stubbed acceptance downstream; synthetic reads/forms; no company transport." });
     const selected = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, responseLocale: "ko", hasActiveGmailIntegration: false });
     const ajv = new Ajv({ strict: false, allowUnionTypes: true });
     const validators = new Map(selected.tools.map(t => [t.function.name, ajv.compile(t.function.parameters)]));
     const runCase = async (scenario: any, iteration: number) => {
       const key = `${scenario.id}-r${iteration}`;
-      const db = await database();
+      const db = await database({workRuntime:version==='v5'});
       const calls: any[] = [], turns: any[] = [], forms: any[] = [], schedules: any[] = [], errors: string[] = [];
       let accepted = false, decisionCount = 0, turnNumber = 0;
       const currentOpportunity: any = { id: rec, roleId: role, sourceType: "internal", isInternal: true, status: "active", recommendedAt: fixture.requestTime, opportunityType: "internal_recommendation", title: fixture.role.name, companyName: fixture.role.company, feedback: null, feedbackAt: null, feedbackReason: null, isAccepted: false, savedStage: null, isExpired: false };
-      const context = () => ({ ...toolContext(db, `${key}:turn${turnNumber}`), conversationId: "00000000-0000-4000-8000-000000000099" } as any);
+      let activeWorkId:string|undefined;
+      const context = () => ({ ...toolContext(db, `${key}:turn${turnNumber}`), userMessageId:turnNumber+1,workId:activeWorkId,conversationId: "00000000-0000-4000-8000-000000000099" } as any);
       try {
         const p = scenario.profile;
         await db.query("update talent_users set name=$1,headline=$2,bio=$3,location='서울' where user_id=$4", [p.name, p.headline, p.bio, owner]);
@@ -111,13 +115,15 @@ async function main() {
           Object.assign(currentOpportunity, { feedback: "positive", feedbackAt: fixture.requestTime, isAccepted: true, savedStage: "pending_connection", acceptanceMaterial: { materialId: pin.rows[0].id, assignmentRevision: pin.rows[0].revision }, internalProgress: { code: "accepted", message: "소개를 수락했으며 Harper가 회사에 소개할 예정입니다. 회사 전달이나 응답 기록은 아직 없습니다." } });
           if (version !== "v1") {
             currentOpportunity.savedStage = "connected";
-            currentOpportunity.internalProgress = buildInternalRecommendationProgress({ item: currentOpportunity, tags: [], events: [] });
+            currentOpportunity.internalProgress = buildInternalRecommendationProgress({ item: currentOpportunity, tags: [], events: [],agentIntroductionRootId:version==="v5"?"00000000-0000-4000-8000-000000000010":undefined });
           }
         };
-        if (scenario.mode === "button") await accept({});
-        const history: any[] = [{ role: "assistant", content: `서윤님, ${fixture.role.company}의 ${fixture.role.name} 포지션은 Kubernetes 운영과 장애 대응 경험을 살릴 수 있는 기회예요. 회사에 소개해 드릴까요?\n\n[posting](${role})` }, ...(scenario.historyUser ? [{ role: "user", content: scenario.historyUser }] : [])];
+        if (scenario.mode === "button" && version !== "v5") await accept({});
+        const history: any[] = scenario.initialInterest ? [] : [{ role: "assistant", content: `서윤님, ${fixture.role.company}의 ${fixture.role.name} 포지션은 Kubernetes 운영과 장애 대응 경험을 살릴 수 있는 기회예요. 회사에 소개해 드릴까요?\n\n[posting](${role})` }, ...(scenario.historyUser ? [{ role: "user", content: scenario.historyUser }] : [])];
         for (const message of scenario.turns) {
           const event = scenario.mode === "button" && turnNumber === 0;
+          if(version==='v5') await db.query("insert into talent_messages(id,user_id,conversation_id,role,message_type,content,payload,created_at) values($1,$2,$3,'user',$4,$5,$6,$7)",[
+            turnNumber+1,owner,context().conversationId,event?'agent_introduction_action':'chat',message ?? '노바클라우드의 플랫폼 엔지니어 역할에 저를 소개해주세요.',event?{recommendationId:rec,roleId:role}:{},new Date(new Date(fixture.requestTime).getTime()+turnNumber*300_000).toISOString()]);
           const turnCallsStart = calls.length;
           const executeTool = async ({ name, input }: { name: string; input: Record<string, unknown> }) => {
             const entry: any = { turn: turnNumber, name, input: clone(input) }; calls.push(entry);
@@ -126,11 +132,32 @@ async function main() {
               if (!validate(input)) throw new Error(`Invalid tool input: ${ajv.errorsText(validate.errors)}`);
               const { _uiStatusMessage, ...args } = input as any;
               let raw: any, modelOutput = "";
-              if (CAREER_PROFILE_TOOLS[name]) {
+              if(version==='v5' && name==='manage_work') {
+                if(args.action==='start' && activeWorkId) throw new Error('Continue this work; independent work is delegated from the conversation.');
+                if(args.action==='list') {raw=await listWork(context(),args.before,args.include_closed);modelOutput=raw.works.map(formatWork).join('\n\n')||'No delegated work.';}
+                else {
+                  raw=args.action==='read' ? await readWork(context(),String(args.work_id)) : await workRpc(context(),String(args.action),{...args,source_refs:args.source_refs ?? [turnNumber+1],caller_work_id:activeWorkId ?? null});
+                  modelOutput=formatWork(raw);
+                }
+              } else if (CAREER_PROFILE_TOOLS[name]) {
                 raw = await CAREER_PROFILE_TOOLS[name].execute!(args, context()); modelOutput = formatProfileToolResult(name, raw);
               } else if (name === "assign_to_role") {
                 raw = await CAREER_INTERNAL_APPLICATION_TOOLS.assign_to_role.execute!(args, context()); modelOutput = formatInternalApplicationToolResult(name, raw);
+              } else if (version === "v5" && name === "contact_company") {
+                assert.equal(args.recommendationId,rec); assert.equal(args.acceptIntroduction,true);
+                assert.ok(!(scenario.initialInterest && turnNumber===0),'Initial exploration is not introduction acceptance');
+                assert.equal(accepted,false,"Duplicate introduction");
+                const pinned=await db.query<any>("select pin_agent_contact_material_v1($1,$2,$3,$4,$5) AS id",[owner,role,`${key}:${turnNumber}:contact`,decodeMaterialSelection(args.selectionRef)??null,{userMessageId:turnNumber+1}]);
+                await db.query("update talent_opportunity_recommendation set shared_material_id=$2 where id=$1",[rec,pinned.rows[0].id]);
+                await accept(args); decisionCount++;
+                raw=agentContactReceipt({id:"00000000-0000-4000-8000-000000000010",root_id:"00000000-0000-4000-8000-000000000010",role_id:role,recommendation_id:rec,material_id:pinned.rows[0].id,direction:"to_company",cancelled_at:null} as any);
+                modelOutput=raw.modelOutput;
+              } else if(version === "v5" && name === "apply_to_internal_role") {
+                assert.equal(args.roleId,role);
+                raw={recommendationId:rec,visible:true,role:{roleId:role,name:fixture.role.name,companyName:fixture.role.company,description:fixture.role.description,companyDescription:"클라우드 주문 서비스를 만드는 팀"},postingRoleIds:[role],status:"queued",companyShared:false};
+                modelOutput=formatInternalApplicationToolResult(name,raw);
               } else if (name === "update_recommended_opportunity_feedback") {
+                if(version === "v5") throw new Error("Internal acceptance must use contact_company");
                 assert.ok(args.opportunityId === rec || args.roleId === role, "Wrong recommendation");
                 assert.equal(args.feedback, "like"); assert.equal(accepted, false, "Duplicate acceptance");
                 await accept(args); decisionCount++;
@@ -139,13 +166,15 @@ async function main() {
               } else if (name === "read_recommended_opportunities") {
                 modelOutput = `${formatSavedOpportunityDecision(currentOpportunity)}\nPublic role: ${fixture.role.description}\nNo other opportunities. No next cursor.`;
               } else if (name === "get_role_context" || name === "get_internal_roles") {
-                modelOutput = `Role ${role}: ${fixture.role.company} / ${fixture.role.name}; internal; active.\nPublic details: ${fixture.role.description}\nPrivate employer information (reasoning-only): ${fixture.role.private}\n${formatSavedOpportunityDecision(currentOpportunity)}\nNo next cursor.`;
+                modelOutput = `Role ${role}: ${fixture.role.company} / ${fixture.role.name}; internal.\nPublic details: ${fixture.role.description}\n${formatSavedOpportunityDecision(currentOpportunity)}\nNo next cursor.`;
               } else if (name === "read_talent_context") {
                 modelOutput = "Search Brief: 서울 플랫폼 엔지니어, 주 2회 출근 가능. Memory: No other confirmed experience. No next cursor.";
               } else if (name === "read_document" || name === "list_documents") {
                 modelOutput = "No uploaded documents or additional experience evidence. No next cursor.";
               } else if (name === "read_talent_activity_events") {
                 modelOutput = `Current opportunity state: ${formatSavedOpportunityDecision(currentOpportunity)}\nNo company delivery, reply, or interview activity recorded.`;
+              } else if (name === "read_agent_messages") {
+                modelOutput=accepted ? `Introduction 00000000-0000-4000-8000-000000000010 for Role ${role}: accepted by the company agent for asynchronous processing. No response recorded.` : "No agent messages.";
               } else if (name === "read_company_connections") {
                 modelOutput = formatRelayableCompanyTalentConnections([]);
               } else if (name === "list_schedules") {
@@ -169,19 +198,21 @@ async function main() {
             `Profile index:\n${profileIndex.map(p => `${p.title}; profileId=${p.id}; revision=${p.current_revision}; default=${p.is_default}`).join("\n")}`,
             "Full profile rows are available through read_profile. No additional uploaded documents.",
             `Public role ${role}: ${fixture.role.company} / ${fixture.role.name}. ${fixture.role.description}`,
+            version==='v5' ? await workContext(context()) : '',
             formatSavedOpportunityDecision(currentOpportunity),
-            event ? buildCareerOpportunityFeedbackFollowUpTurnInstruction({ preferredLocale: "ko", trigger: "immediate_internal_feedback" }) : "",
-            event ? formatOpportunityFeedbackPromptContext([{ eventId: `event:${key}`, createdAt: fixture.requestTime, action: "positive", summary: `User accepted ${fixture.role.company} ${fixture.role.name} through the introduction button.` }]) : "",
+            event && version !== "v5" ? buildCareerOpportunityFeedbackFollowUpTurnInstruction({ preferredLocale: "ko", trigger: "immediate_internal_feedback" }) : "",
+            event && version !== "v5" ? formatOpportunityFeedbackPromptContext([{ eventId: `event:${key}`, createdAt: fixture.requestTime, action: "positive", summary: `User accepted ${fixture.role.company} ${fixture.role.name} through the introduction button.` }]) : "",
             forms.length ? `Existing forms:\n${forms.map(formatCareerFormForModel).join("\n\n")}` : "",
           ].filter(Boolean).join("\n\n");
           const signal = AbortSignal.timeout(300_000);
           const currentTurnTime = new Date(new Date(fixture.requestTime).getTime() + turnNumber * 300_000);
-          const dynamicContext = ["v3", "v4"].includes(version);
+          const dynamicContext = ["v3", "v4", "v5"].includes(version);
           const runtime = new CareerCapabilityRuntime({ mode: "progressive", replyId: `${key}:turn${turnNumber}`, eligibleTools: selected.tools, preloads: [], abortSignal: signal, promptArgs: () => ({ channel: "chat", isOnboardingDone: true, profile: null, structuredProfileText: `${p.name}; ${p.years} 플랫폼 엔지니어.\n${defaultNow.snapshot.talentUser.bio}`, talentContextSection: dynamicContext ? "Search Brief: 서울 플랫폼 엔지니어. Memory: No additional confirmed facts." : extraContext, ...(dynamicContext ? { runtimeInstruction: extraContext } : {}), requestTime: currentTurnTime, timeZone: "Asia/Seoul", currentPreferences: { preferredLocale: "ko", talentSettingStatus: "active", getExternalRecommendation: true, getInternalRecommendation: true } }) });
           const step = runtime.resolveStep(false);
-          const projectMessage = (item: any, index: number) => version === "v4" ? { role: item.role, content: formatTalentMessageContentForLlmPrompt({ ...item, created_at: item.created_at ?? new Date(new Date(fixture.requestTime).getTime() - 300_000 + index * 60_000).toISOString() }, { includeCreatedAt: true, preferredLocale: "ko", timeZone: "Asia/Seoul" }) } : item;
+          const projectMessage = (item: any, index: number) => ["v4","v5"].includes(version) ? { role: item.role, content: formatTalentMessageContentForLlmPrompt({ ...item, created_at: item.created_at ?? new Date(new Date(fixture.requestTime).getTime() - 300_000 + index * 60_000).toISOString() }, { includeCreatedAt: true, preferredLocale: "ko", timeZone: "Asia/Seoul" }) } : item;
           const messages = history.map(projectMessage).filter(item => item.content.trim());
-          if (!event) messages.push(projectMessage({ role: "user", content: message, created_at: currentTurnTime.toISOString() }, history.length));
+          if(event && version === "v5") messages.push(projectMessage({role:"user",message_type:"agent_introduction_action",content:"노바클라우드의 플랫폼 엔지니어 역할에 저를 소개해주세요.",payload:{recommendationId:rec,roleId:role,feedbackReason:scenario.historyUser ?? null},created_at:currentTurnTime.toISOString()},history.length));
+          else if (!event) messages.push(projectMessage({ role: "user", content: message, created_at: currentTurnTime.toISOString() }, history.length));
           else if (version !== "v4" || messages.at(-1)?.role !== "user") messages.push({ role: "user", content: "Continue the user's delegated work using the new execution result supplied in the runtime context." });
           let reply = "", failure: string | undefined;
           const started = Date.now();
@@ -191,6 +222,26 @@ async function main() {
           if (!event) history.push({ role: "user", content: message, created_at: currentTurnTime.toISOString() });
           history.push({ role: "assistant", content: reply, created_at: new Date(currentTurnTime.getTime() + 60_000).toISOString() });
           turns.push({ turn: turnNumber, event, user: message, reply, failure, elapsedMs: Date.now() - started, calls: calls.slice(turnCallsStart) });
+          if(version==='v5') {
+            const pending=(await db.query<any>("select * from talent_external_operations where kind='career_invocation' and parent_id is not null and status='ready' order by created_at,id")).rows;
+            for(const invocation of pending) {
+              const work=await readWork(context(),invocation.parent_id);
+              if(invocation.request.cleanup===true || ['completed','cancelled'].includes(work.status)) {
+                await db.query("update talent_external_operations set status='completed' where id=$1",[invocation.id]);
+                continue;
+              }
+              activeWorkId=invocation.parent_id;
+              const delegatedContext=await workContext(context(),activeWorkId);
+              const childStart=calls.length;
+              const childRuntime=new CareerCapabilityRuntime({mode:'progressive',replyId:`${key}:work:${invocation.id}`,eligibleTools:selected.tools,preloads:[],abortSignal:signal,promptArgs:()=>({channel:'chat',isOnboardingDone:true,profile:null,structuredProfileText:`${p.name}\n${defaultNow.snapshot.talentUser.bio}`,talentContextSection:'Search Brief: 서울 플랫폼 엔지니어. Memory: No additional confirmed facts.',runtimeInstruction:[extraContext,formatSavedOpportunityDecision(currentOpportunity),delegatedContext].join('\n\n'),requestTime:currentTurnTime,timeZone:'Asia/Seoul',currentPreferences:{preferredLocale:'ko',talentSettingStatus:'active',getInternalRecommendation:true,getExternalRecommendation:true}})});
+              const childStep=childRuntime.resolveStep(false);
+              const childReply=await scope.run({caseId:key,turn:turnNumber,model:model.model},()=>runCareerChatAssistant({primaryModel:model.model,chatCompletionReasoningEffort:model.chatCompletionReasoningEffort,openAIResponsesReasoningEffort:model.openAIResponsesReasoningEffort,responseLocale:'ko',messages:[...messages,{role:'assistant',content:reply}],tools:childStep.tools,systemBlocks:childStep.systemBlocks,toolRuntime:childRuntime,abortSignal:signal,usageLabel:`eval/internal-introduction/${key}/work`,executeTool}));
+              turns.push({turn:turnNumber,event:true,workId:activeWorkId,user:null,reply:childReply,calls:calls.slice(childStart)});
+              if(childReply) history.push({role:'assistant',content:childReply,created_at:new Date(currentTurnTime.getTime()+90_000).toISOString()});
+              await db.query("update talent_external_operations set status='completed' where id=$1",[invocation.id]);
+              activeWorkId=undefined;
+            }
+          }
           save(key, { caseId: scenario.id, iteration, turns, errors });
           process.stdout.write(JSON.stringify({ caseId: key, turn: turnNumber, toolCalls: calls.length - turnCallsStart, failure }) + "\n");
           turnNumber++;
@@ -199,6 +250,7 @@ async function main() {
         const materials = await readRoleMaterials({ admin: context().admin, userId: owner, roleId: role });
         const pinned = (await db.query<any>("select m.* from talent_role_materials m join talent_opportunity_recommendation r on r.shared_material_id=m.id where r.id=$1", [rec])).rows[0];
         const expected = gold.cases.find((c: any) => c.id === scenario.id);
+        if(expected.requiresApply && !calls.some(c=>c.name==='apply_to_internal_role' && !c.error)) errors.push('Initial interest did not save the opportunity');
         if (decisionCount !== expected.requiredDecisionCount) errors.push(`Acceptance count ${decisionCount}, expected ${expected.requiredDecisionCount}`);
         if (expected.requiresProfileWrite && !calls.some(c => c.name === "update_talent_profile" && !c.error)) errors.push("Requested profile edit was not executed");
         if (expected.requiresForm && !forms.length) errors.push("Requested question form was not created");

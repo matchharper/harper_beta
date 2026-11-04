@@ -216,8 +216,8 @@ test("PDF provider failure reaches the outcome LLM with its stage and cause befo
   state.preparation!.finalDocumentId = doc.id;
   state.preparation!.finalDocumentFingerprint = documentFingerprint(doc);
   f.set(state);
-  const query = { select: () => query, eq: () => query, order: () => query, contains: () => query,
-    limit: async () => ({ data: [], error: null }), maybeSingle: async () => ({ data: null, error: null }),
+  const query = { select: () => query, eq: () => query, not: () => query, order: () => query, contains: () => query,
+    limit: () => query, then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve), maybeSingle: async () => ({ data: null, error: null }),
     insert: () => query, single: async () => ({ data: { id: 1234 }, error: null }) };
   const originalFrom = f.store.admin.from.bind(f.store.admin);
   t.mock.method(f.store.admin, "from", ((table: string) => table === "role_application_inspections" ? originalFrom(table) : table === "talent_documents"

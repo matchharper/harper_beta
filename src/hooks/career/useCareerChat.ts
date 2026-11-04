@@ -1,3 +1,4 @@
+import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { createCareerMessageMerger } from "./careerMessageMerge";
 import type { InternalCallChatSubmission } from "@/lib/career/internalCallAnswers";
 import type { SimulationCardRequest } from "@/lib/career/simulation/session";
@@ -54,6 +55,7 @@ type SendChatArgs = {
   link?: string;
   messageType?: TalentUserChatMessageType;
   opportunityMentions?: CareerOpportunityMention[];
+  viewedRoleId?: string;
   pendingAction?: CareerPendingActionReference;
   onSuccess?: () => void;
   onError?: () => void;
@@ -69,6 +71,7 @@ type CareerChatStreamEvent = {
 };
 
 type UseCareerChatArgs = {
+  isOnboardingDone?: boolean;
   user: User | null;
   conversationId: string | null;
   sessionPending: boolean;
@@ -95,6 +98,8 @@ type UseCareerChatArgs = {
     profile: SessionResponse["talentProfile"] | undefined
   ) => void;
   persistedMessages: CareerMessage[];
+  hasDurableWork?: boolean;
+  onRequestAdmitted?: () => void | Promise<void>;
   onMessagesChanged?: (
     messages: CareerMessagePayload[]
   ) => void | Promise<void>;
@@ -113,6 +118,9 @@ const replaceMessageById = (
     (message) => String(message.id) === String(nextMessage.id)
   );
 
+  if (nextIndex < 0 && nextMessage.clientRequestId) nextIndex = messages.findIndex(
+    message => message.role === "user" && message.clientRequestId === nextMessage.clientRequestId
+  );
   if (nextIndex < 0) {
     return [...messages, nextMessage];
   }
@@ -211,6 +219,7 @@ const isAbortLikeError = (error: unknown) =>
   (error instanceof Error && error.name === "AbortError");
 
 export const useCareerChat = ({
+  isOnboardingDone,
   user,
   conversationId,
   sessionPending,
@@ -224,15 +233,20 @@ export const useCareerChat = ({
   onOnboardingChecklistProgressRefreshed,
   onTalentProfileRefreshed,
   persistedMessages,
+  onRequestAdmitted,
+  hasDurableWork = false,
   onMessagesChanged,
 }: UseCareerChatArgs) => {
   const tCareer = useCareerMessageFormatter();
   const { locale, setLocale } = useMessages();
   const textChatModel = useCareerTextChatModelStore((state) => state.model);
+  const conversationVersion = useCareerWorkspaceUiStore((state) => state.conversationVersion);
   const promptVariant = useCareerPromptVariantStore((state) => state.variant);
   const [stage, setStage] = useState<CareerStage>("profile");
   const [localMessages, setLocalMessages] = useState<CareerMessage[]>([]);
   const [chatPending, setChatPending] = useState(false);
+  const [stopPending, setStopPending] = useState(false);
+  const [admissions, setAdmissions] = useState<Record<string, number>>({});
   const [continuationMessageId, setContinuationMessageId] = useState<number | null>(null);
   const [chatError, setChatError] = useState("");
   const [assistantTyping, setAssistantTyping] = useState(false);
@@ -249,6 +263,9 @@ export const useCareerChat = ({
   const [scrollTick, setScrollTick] = useState(0);
 
   const activeThinkingLogsRef = useRef<string[]>([]);
+  const inFlightAdmissions = useRef(new Map<string, { conversationId: string; stopped: boolean }>());
+  const failedAdmissions = useRef(new Map<string, { requestId: string; body?: string }>());
+  const admissionFileIds = useRef(new WeakMap<File, string>());
   const activeConversationStarterRef = useRef<{
     remainingFollowUpTurns: number;
     starterId: CareerConversationStarterId;
@@ -263,6 +280,8 @@ export const useCareerChat = ({
   const cancelRequestedRef = useRef(false);
   const typingQueueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
+  const currentConversationRef = useRef(conversationId);
+  useEffect(() => { currentConversationRef.current = conversationId; }, [conversationId]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -287,6 +306,11 @@ export const useCareerChat = ({
     typingQueueRef.current = typingQueueRef.current.then(async () => {
       if (!mountedRef.current) return;
 
+      if (useCareerWorkspaceUiStore.getState().conversationVersion === "friendly") {
+        setLocalMessages(prev => [...prev, message]);
+        setScrollTick(t => t + 1);
+        return;
+      }
       setAssistantTyping(true);
       const id = String(message.id);
       setLocalMessages((prev) => [
@@ -445,16 +469,19 @@ export const useCareerChat = ({
   }, []);
 
   const cancelActiveChat = useCallback(() => {
-    if (cancelRequestedRef.current || cancellationSavePendingRef.current) return;
+    if (cancellationSavePendingRef.current) return;
     const sourceMessage = activeUserMessageRef.current;
     const assistantSnapshot = activeStreamAssistantRef.current;
     const assistantSnapshotId = activeStreamAssistantIdRef.current;
     const requestId = activeClientRequestIdRef.current;
     const optimisticId = activeOptimisticMessageIdRef.current;
     const activeController = abortControllerRef.current;
-    if (!conversationId || (!sourceMessage && !requestId)) return;
+    if (!conversationId) return;
+    const pendingAdmissions = [...inFlightAdmissions.current.entries()].filter(([, value]) => value.conversationId === conversationId);
+    const failedRequests = [...failedAdmissions.current.entries()].filter(([key]) => JSON.parse(key)[1] === conversationId);
 
     cancellationSavePendingRef.current = true;
+    setStopPending(true);
     setChatError("");
     void (async () => {
       let confirmed = false;
@@ -463,6 +490,8 @@ export const useCareerChat = ({
           method: "POST",
           body: JSON.stringify({
             conversationId,
+            stopAll: true,
+            clientRequestIds: [...pendingAdmissions.map(([id]) => id), ...failedRequests.map(([, value]) => value.requestId)],
             clientRequestId: requestId,
             assistantMessage: assistantSnapshot ? {
               content: assistantSnapshot.content,
@@ -475,7 +504,11 @@ export const useCareerChat = ({
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(getErrorMessage(payload, tCareer(H.messageSendFailed)));
         confirmed = true;
-        if (!mountedRef.current || activeClientRequestIdRef.current !== requestId) return;
+        for (const [, admission] of pendingAdmissions) admission.stopped = true;
+        for (const [key] of failedRequests) failedAdmissions.current.delete(key);
+        setAdmissions(current => { const next = { ...current }; delete next[conversationId]; return next; });
+        await Promise.resolve(onRequestAdmitted?.()).catch(() => undefined);
+        if (!mountedRef.current || currentConversationRef.current !== conversationId || activeClientRequestIdRef.current !== requestId) return;
 
         // Only the persisted Stop may detach the stream or mark it stopped.
         // A failed request leaves the original execution attached and retryable.
@@ -483,6 +516,12 @@ export const useCareerChat = ({
         setContinuationMessageId(null);
         markActiveChatStopped();
         const updatedUserMessage = isRecord(payload) ? toStreamMessagePayload(payload.userMessage) : null;
+        const stoppedMessages = (isRecord(payload) && Array.isArray(payload.userMessages) ? payload.userMessages : [])
+          .map(toStreamMessagePayload).filter((message): message is CareerMessagePayload => message !== null);
+        if (stoppedMessages.length) {
+          setLocalMessages(prev => stoppedMessages.reduce((messages, message) => replaceMessageById(messages, message.id, toUiMessage(message)), prev));
+          await Promise.resolve(onMessagesChanged?.(stoppedMessages)).catch(() => undefined);
+        }
         if (!updatedUserMessage) return;
         const updatedAssistantMessage = isRecord(payload) ? toStreamMessagePayload(payload.assistantMessage) : null;
         setLocalMessages((prev) => {
@@ -497,12 +536,13 @@ export const useCareerChat = ({
           updatedUserMessage, ...(updatedAssistantMessage ? [updatedAssistantMessage] : []),
         ])).catch(() => undefined);
       } catch (error) {
-        if (mountedRef.current && activeClientRequestIdRef.current === requestId)
+        if (mountedRef.current && currentConversationRef.current === conversationId && activeClientRequestIdRef.current === requestId)
           setChatError(error instanceof Error ? error.message : tCareer(H.messageSendUnexpected));
       } finally {
+        cancellationSavePendingRef.current = false;
+        setStopPending(false);
         if (confirmed) activeController?.abort();
-        if (activeClientRequestIdRef.current === requestId) {
-          cancellationSavePendingRef.current = false;
+        if (currentConversationRef.current === conversationId && activeClientRequestIdRef.current === requestId) {
           if (confirmed) {
             activeClientRequestIdRef.current = null;
             activeOptimisticMessageIdRef.current = null;
@@ -514,7 +554,7 @@ export const useCareerChat = ({
         }
       }
     })();
-  }, [conversationId, fetchWithAuth, markActiveChatStopped, onMessagesChanged, tCareer]);
+  }, [conversationId, fetchWithAuth, markActiveChatStopped, onMessagesChanged, onRequestAdmitted, tCareer]);
 
   const attachThinkingLogsToMessage = useCallback(
     (messageId: string | number) => {
@@ -641,6 +681,70 @@ export const useCareerChat = ({
 
   const sendChatMessage = useCallback(
     async (args: SendChatArgs, options?: SendChatOptions) => {
+      if (cancellationSavePendingRef.current) { args.onError?.(); return; }
+      // Independent admission never owns the global stream or abort controller.
+      // Each receipt is merged by identity, so out-of-order acknowledgements survive.
+      if ((isOnboardingDone || stage === "completed") && args.channel !== "voice" && !args.conversationStarterId && !args.coachingActivityAction && !args.internalCallAnswerSubmission && !args.simulationAction && !args.applicationPreparationContinuation && !args.applicationInputSubmission && !args.pendingAction) {
+        if (!user || !conversationId || sessionPending || options?.profilePending) { args.onError?.(); return; }
+        if (!args.text.trim() && !args.files?.length && !args.formResponseMessageId) return;
+        const fileIds = (args.files ?? []).map(file => {
+          let id = admissionFileIds.current.get(file);
+          if (!id) { id = crypto.randomUUID(); admissionFileIds.current.set(file, id); }
+          return id;
+        });
+        // Exact failed transport envelopes retain identity on an explicit retry.
+        // This does not deduplicate new successful messages by their wording.
+        const draftKey = JSON.stringify([user.id, conversationId, args.text, args.link, args.messageType,
+          args.opportunityMentions, args.viewedRoleId, args.formResponseMessageId, fileIds]);
+        const admission = failedAdmissions.current.get(draftKey) ?? { requestId: crypto.randomUUID(), body: undefined };
+        const clientRequestId = admission.requestId;
+        const pendingAdmission = { conversationId, stopped: false };
+        inFlightAdmissions.current.set(clientRequestId, pendingAdmission);
+        const tempId = `temp-user-${clientRequestId}`;
+        setLocalMessages(prev => [...prev, { id: tempId, clientRequestId, role: "user", content: args.text,
+          opportunityMentions: args.opportunityMentions, messageType: args.messageType ?? "chat", createdAt: new Date().toISOString() }]);
+        setChatError("");
+        setAdmissions(current => ({ ...current, [conversationId]: (current[conversationId] ?? 0) + 1 }));
+        try {
+          const uploadedDocumentIds: string[] = [];
+          for (const file of admission.body ? [] : args.files ?? []) {
+            const uploaded = await uploadTalentDocument({ fetchWithAuth, file, source: "chat" });
+            if (typeof uploaded?.document?.id !== "string") throw new Error(tCareer(H.documentUploadFailed));
+            uploadedDocumentIds.push(uploaded.document.id);
+          }
+          const body = admission.body ?? JSON.stringify({ durable: true, conversationId, clientRequestId, message: args.text,
+            link: args.link, messageType: args.messageType, opportunityMentions: args.opportunityMentions,
+            viewedRoleId: args.viewedRoleId, uploadedDocumentIds, formResponseMessageId: args.formResponseMessageId,
+            locale, textChatModel, conversationVersion, promptVariant, timeZone: getCareerBrowserTimeZone() });
+          admission.body = body;
+          const response = await fetchWithAuth("/api/talent/chat", { method: "POST", body });
+          const payload = await response.json();
+          if (!response.ok || !payload.userMessage) throw new Error(getErrorMessage(payload, tCareer(H.messageSendFailed)));
+          const message = payload.userMessage as CareerMessagePayload;
+          if (pendingAdmission.stopped) message.turnStopped = true;
+          failedAdmissions.current.delete(draftKey);
+          setLocalMessages(prev => replaceMessageById(prev, tempId, toUiMessage(message)));
+          await Promise.resolve(onMessagesChanged?.([message])).catch(() => undefined);
+          setScrollTick(tick => tick + 1);
+          args.onSuccess?.();
+          // Hand the immediate indicator to the durable projection before clearing it.
+          await Promise.resolve(onRequestAdmitted?.()).catch(() => undefined);
+        } catch (error) {
+          if (!pendingAdmission.stopped) failedAdmissions.current.set(draftKey, admission);
+          if (!pendingAdmission.stopped) setChatError(error instanceof Error ? error.message : tCareer(H.messageSendFailed));
+          setLocalMessages(prev => prev.filter(item => item.id !== tempId));
+          args.onError?.();
+        } finally {
+          inFlightAdmissions.current.delete(clientRequestId);
+          if (!pendingAdmission.stopped) setAdmissions(current => {
+            const next = { ...current };
+            if (next[conversationId] > 1) next[conversationId]--;
+            else delete next[conversationId];
+            return next;
+          });
+        }
+        return;
+      }
       if (
         !user ||
         !conversationId ||
@@ -756,9 +860,11 @@ export const useCareerChat = ({
             message: text,
             messageType,
             opportunityMentions: args.opportunityMentions,
+            viewedRoleId: args.viewedRoleId,
             pendingAction: args.pendingAction,
             textChatModel,
             promptVariant,
+            conversationVersion,
             timeZone: getCareerBrowserTimeZone(),
             uploadedDocumentIds,
             link,
@@ -1465,6 +1571,7 @@ export const useCareerChat = ({
     [
       appendThinkingLog,
       appendRecommendationStatusToActiveLogs,
+      isOnboardingDone,
       assistantTyping,
       attachThinkingLogsToMessage,
       chatPending,
@@ -1478,6 +1585,7 @@ export const useCareerChat = ({
       syncPreferredLocale,
       user,
       onMessagesChanged,
+      onRequestAdmitted,
       onCareerCoachingCallReady,
       onOpportunityRunChanged,
       onOpportunityRecommendationsChanged,
@@ -1490,6 +1598,7 @@ export const useCareerChat = ({
       tCareer,
       textChatModel,
       promptVariant,
+      conversationVersion,
     ]
   );
 
@@ -1526,7 +1635,9 @@ export const useCareerChat = ({
     appendMessage,
     removeMessages,
     chatPending,
-    canStopChat: chatPending || continuationPending,
+    chatAdmissionPending: Boolean(conversationId && admissions[conversationId]),
+    canStopChat: chatPending || continuationPending || hasDurableWork || Boolean(conversationId && admissions[conversationId]) || stopPending,
+    stopPending,
     toolStatusMessage,
     activeThinkingLogs,
     activeRecommendationSearchStatus,

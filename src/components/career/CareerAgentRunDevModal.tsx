@@ -1,3 +1,4 @@
+// career-i18n-skip-file: Internal developer controls and synthetic preview copy.
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";

@@ -439,7 +439,7 @@ test("resume-capable streaming retains eight calls and main's unrestricted conti
   }
 });
 
-test("a queued form is delivered at the end without calling a second writer for an empty final reply", async () => {
+test("a saved form is delivered immediately without calling a second writer for an empty final reply", async () => {
   const previousFetch = globalThis.fetch;
   const previousApiKey = process.env.ANTHROPIC_API_KEY;
   process.env.ANTHROPIC_API_KEY = "test-key";
@@ -484,7 +484,7 @@ test("a queued form is delivered at the end without calling a second writer for 
         : await runCareerChatAssistant(args);
       assert.equal(text, "");
       assert.equal(calls, 2);
-      assert.equal(deliveredArtifact, false, "the form must wait for the model to finish");
+      assert.equal(deliveredArtifact, true, "a saved form is visible before the final reply");
       await presenter.flush();
       assert.equal(deliveredArtifact, true);
     }

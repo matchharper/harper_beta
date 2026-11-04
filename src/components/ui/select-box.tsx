@@ -37,7 +37,7 @@ export function SelectBox<Value extends string = string>({
   return (
     <fieldset
       className={cn(
-        "min-w-0 rounded-3xl border-0 bg-neutral-50 px-5 disabled:opacity-50",
+        "min-w-0 rounded-3xl border-0 bg-black/4 px-5 disabled:opacity-50",
         className
       )}
       {...props}

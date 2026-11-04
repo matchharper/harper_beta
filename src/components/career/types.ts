@@ -258,6 +258,7 @@ export type CareerOpportunitySavedStage =
   | "saved"
   | "applied"
   | "connected"
+  | "offer"
   | "closed"
   | "hidden";
 
@@ -276,7 +277,9 @@ export type CareerInternalRecommendationProgressCode =
   | "moved_to_another_role"
   | "rejected_by_talent"
   | "stopped_by_candidate"
-  | "waiting_to_share";
+  | "waiting_to_share"
+  | "agent_request_received"
+  | "company_presentation_saved";
 
 export type CareerInternalRecommendationProgressStage =
   | "accepted"
@@ -329,6 +332,7 @@ export type CareerOpportunityCompanyData = {
 };
 
 export type CareerOpportunityUpcomingMeeting = {
+  calendarDate?: string | null;
   endAt: string | null;
   startAt: string;
   title: string | null;
@@ -391,7 +395,7 @@ export type CareerPreferenceFitItem = {
 };
 
 export type CareerHistoryOpportunity = {
-  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number };
+  acceptanceMaterial?: { materialId: string | null; assignmentRevision: number; selectionRef?: string; profileTitle?: string; documentNames?: string[] };
   listPosition?: "current" | "previous";
   estimatedAnnualSalary?: EstimatedAnnualSalary | null;
   updatedAt?: string | null;

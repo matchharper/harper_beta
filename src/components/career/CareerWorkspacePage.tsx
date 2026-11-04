@@ -101,7 +101,6 @@ const CareerWorkspacePage = ({
   const requestedSettingsTab =
     isRouterReady &&
     (router.query.settingsTab === "profile" ||
-      router.query.settingsTab === "resume" ||
       router.query.settingsTab === "referral" ||
       router.query.settingsTab === "account")
       ? router.query.settingsTab

@@ -731,6 +731,7 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
           "candidate_accepted",
           "candidate_accepted_kst",
           "recommendation_origin",
+          "agent_correspondence_root_id",
         ],
         positions.map((item: any) => [
           item?.roleId,
@@ -757,6 +758,7 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
           item?.candidateAccepted,
           item?.candidateAcceptedAt ? formatPromptKstDateTime(item?.candidateAcceptedAt) : null,
           item?.recommendationOrigin,
+          item?.agentIntroductionRootId,
         ]),
       )
     )] : ["positions=0"]),
@@ -1150,7 +1152,7 @@ function formatRoleSearchHistory(item: MatchingRunHistory["items"][number]) {
 export function formatMatchingRunHistory(value: MatchingRunHistory) {
   const missing = "기록 없음 (0으로 해석하지 않음)";
   const statuses: Record<string, string> = { queued: "실행 대기", running: "실행 중", delivery_pending: "회사에 결과 전달 중", succeeded: "완료", failed: "실패", skipped: "실행 건너뜀", canceled: "취소", cancelled: "취소" };
-  const triggers: Record<string, string> = { scheduled: "정기 검색", company_requested: "회사의 검색 요청", role_activated: "역할 활성화", priority_review_requested: "후보자의 우선 검토 요청", manual: "수동 실행", recovery: "복구 실행", shadow: "실제 추천 없는 검증 실행" };
+  const triggers: Record<string, string> = { scheduled: "정기 검색", company_requested: "회사의 검색 요청", role_activated: "역할 활성화", priority_review_requested: "후보자의 역할 관심 요청", manual: "수동 실행", recovery: "복구 실행", shadow: "실제 추천 없는 검증 실행" };
   const measure = (count: number | null, unit: string) => count === null ? missing : `${count}${unit}`;
   const rows = value.items.map((item, index) => [
     `### 검색 ${value.offset + index + 1} · ${formatPromptCell(statuses[item.status] ?? item.status, 50)}`,
@@ -2222,6 +2224,8 @@ export function formatOrgAgentToolResult(
   name: OrgAgentToolName,
   value: unknown
 ) {
+  if (value && typeof value === "object" && typeof (value as any).modelOutput === "string") return (value as any).modelOutput;
+  if (name === "read_agent_messages" || name === "contact_user" || name === "manage_agent_schedule") return "The operation returned no readable receipt; no delivery is established.";
   const result = asRecord(projectLlmDateTimes(projectCandidateEmailPrivacy(value)));
   if (name === "start_role_creation") {
     const requiredContinuationLink = String(

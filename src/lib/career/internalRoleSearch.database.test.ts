@@ -150,7 +150,8 @@ test("exact internal role lookup uses the tool contract and existing visibility 
     "UPDATE talent_opportunity_fit SET label='hold' WHERE opportunity_id=$1",
     [roleId]
   );
-  assert.equal((await search({ role_id: roleId })).returnedCount, 0);
+  assert.equal((await search({ role_id: roleId })).returnedCount, 1, "private fit judgments do not hide a user-chosen active Role");
+  assert.equal((await search({ role_id: roleId, matchedOnly: true })).returnedCount, 0);
   await db.query("DELETE FROM talent_opportunity_fit WHERE opportunity_id=$1", [
     roleId,
   ]);

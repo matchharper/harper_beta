@@ -1,3 +1,4 @@
+import { useCareerOpenForms } from "@/hooks/career/useCareerOpenForms";
 import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import CareerCompanyJobsDrawer from "./watchlist/CareerCompanyJobsDrawer";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
@@ -9,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/router";
+import { useQueryClient } from "@tanstack/react-query";
 import type {
   CareerInterviewProgress,
   CareerInternalOpportunityCallRequest,
@@ -168,6 +170,7 @@ export const CareerFlowProvider = ({
 }) => {
   const t = useCareerT();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { locale } = useMessages();
   const sessionReengagementState = useCareerSessionReengagementState();
   const {
@@ -399,6 +402,11 @@ export const CareerFlowProvider = ({
     },
     []
   );
+  const { data: openWork } = useCareerOpenForms(conversationId);
+  const handleRequestAdmitted = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ["career-open-forms", conversationId] }),
+    [queryClient, conversationId]
+  );
 
   const {
     stage,
@@ -408,6 +416,7 @@ export const CareerFlowProvider = ({
     appendMessage,
     removeMessages,
     chatPending,
+    chatAdmissionPending,
     chatError,
     setChatError,
     assistantTyping,
@@ -416,6 +425,7 @@ export const CareerFlowProvider = ({
     activeRecommendationSearchStatus,
     cancelActiveChat,
     canStopChat,
+    stopPending,
     onboardingWrapupPending: chatOnboardingWrapupPending,
     thinkingLogsByMessageId,
     enqueueAssistantTypewriter,
@@ -424,6 +434,7 @@ export const CareerFlowProvider = ({
     regenerateOnboardingWrapup,
     resetChatState,
   } = useCareerChat({
+    isOnboardingDone: Boolean(sessionData?.talentPreferences?.isOnboardingDone),
     user,
     conversationId,
     sessionPending: chatSessionPending,
@@ -440,6 +451,8 @@ export const CareerFlowProvider = ({
       handleOnboardingChecklistProgressRefreshed,
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
     onMessagesChanged: appendLatestMessagesToCache,
+    onRequestAdmitted: handleRequestAdmitted,
+    hasDurableWork: openWork?.canStop,
   });
 
   const visibleUnlinkedOpportunityRuns = useMemo(() => {
@@ -873,6 +886,7 @@ export const CareerFlowProvider = ({
       link?: string;
       messageType?: TalentUserChatMessageType;
       opportunityMentions?: CareerOpportunityMention[];
+      viewedRoleId?: string;
       onError?: () => void;
       onSuccess?: () => void;
     }) => {
@@ -2000,6 +2014,7 @@ export const CareerFlowProvider = ({
       onCancelActiveRecommendationSearch: cancelActiveChat,
       onCancelChat: cancelActiveChat,
       canStopChat,
+      stopPending,
       initialChatDraft:
         preparedChatDraft?.text.trim() || initialChatDraft?.trim() || undefined,
       initialChatDraftKey:
@@ -2012,6 +2027,7 @@ export const CareerFlowProvider = ({
       onboardingWrapupPending,
       thinkingLogsByMessageId,
       chatPending,
+      chatAdmissionPending,
       sessionReengagementPending,
       sessionReengagementThinkingLogs,
       sessionReengagementRecommendationStatus,
@@ -2064,6 +2080,7 @@ export const CareerFlowProvider = ({
       activeRecommendationSearchStatus,
       cancelActiveChat,
       canStopChat,
+      stopPending,
       emailOnboardingToken,
       onboardingWrapupPending,
       authLoading,
@@ -2072,6 +2089,7 @@ export const CareerFlowProvider = ({
       authPending,
       chatError,
       chatPending,
+      chatAdmissionPending,
       thinkingLogsByMessageId,
       toolStatusMessage,
       sessionReengagementThinkingLogs,

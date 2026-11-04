@@ -15,6 +15,7 @@ test("stored form renders its fields and edited itemwise answers do not skip sib
     document: dom.window.document,
     HTMLElement: dom.window.HTMLElement,
     Event: dom.window.Event,
+    CustomEvent: dom.window.CustomEvent,
     Node: dom.window.Node,
     IS_REACT_ACT_ENVIRONMENT: true,
   };

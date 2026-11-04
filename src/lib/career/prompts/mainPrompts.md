@@ -30,7 +30,7 @@
 | Gmail 지원/인터뷰 이력 가져오기 완료 | [gmailCareerHistoryReplyCore.ts](../../integrations/gmailCareerHistoryReplyCore.ts)의 `buildGmailCareerHistoryFollowUpInstruction`. 저장된 회사별 이력과 완료 알림 목적을 넣는다. 회사명 전부 언급·후속 질문 금지 등의 기존 작성 지침도 남아 있다. |
 | 예약 작업, source 변화, 평가 완료, 회사 후속 연락 의무 등 background invocation | [background/prompt.ts](../background/prompt.ts)의 `renderCareerBackgroundInvocation`. 위임 목적·source/ref/revision·평가/오류·후속 연락 사실을 넣고, 별도 background 실행·이메일 전달 계약을 적용한다. [background/server.ts](../background/server.ts)는 최근 실제 발송 이력도 제공한다. 일반 foreground 채팅과 별도 호출이다. |
 
-[chatTurn.ts](../chatTurn.ts)는 사용자 텍스트 없이 proactive context만 있는 호출에서도 실제 대화 이력을 유지한다. 호출 목적과 준비된 사실은 runtime context에 제공하며 합성 user 메시지나 새로운 동의를 만들지 않는다. 큐/비동기 재개는 원래 호출의 context와 reply 식별자를 보존한다.
+[chatTurn.ts](../chatTurn.ts)는 사용자 텍스트 없이 proactive context만 있는 호출에서도 실제 대화 이력을 유지한다. 재접속 호출은 과거 이력 뒤에 실제 앱 사건을 명시한 provider `user` 메시지를 붙여 새 턴을 연다. 이는 사용자 발화나 새로운 동의가 아니며 대화 DB에 저장하지 않는다. 재접속 지침은 이 사건 입력에 한 번만 넣고, 준비된 추천 사실은 runtime context에 둔다. 다른 proactive 호출은 기존 runtime context를 사용한다. 큐/비동기 재개는 원래 호출의 context와 reply 식별자를 보존한다.
 
 `includePostOnboardingConversationGuide=true`를 명시한 온보딩 완료 handoff에는 [postOnboardingGuide.ts](./postOnboardingGuide.ts)의 guide가 별도로 추가될 수 있다. 이는 완료 handoff 전용 예외이며, 일반 대화에서 자동으로 이어 붙이는 기본 지침이 아니다. 온보딩 산출물이라 상세는 이 문서 범위에서 제외한다.
 
@@ -55,7 +55,7 @@
 - [agentTurnRuntime.server.ts](../agentTurnRuntime.server.ts): matching·예약/팔로우·프로필·열린 브라우저·저장된 form의 현재 index. 전체 자료를 읽는 도구 안내도 포함한다. 미완료 작업 이후 사용자 메시지가 있으면 최신 변경/취소를 읽으라는 안내와 그 원문을 추가한다.
 - [opportunityFeedbackNote.ts](../opportunityFeedbackNote.ts): 버튼 피드백, 업로드, browser/form action을 실제 사용자 자유 발화와 구분해 이력에 투영한다. browser/form 상태를 읽는 도구 안내도 있다. [turnCancellation.ts](../turnCancellation.ts)는 사용자가 중지했다는 실행 사실을 제공한다.
 - [capabilities/runtime.ts](../capabilities/runtime.ts): 비동기 dependency 이후 재개하면 `resumed_work`에 대상 종류/ID를 제공한다. 저장 transcript의 과거 실행 결과와 현재 context를 함께 읽는다.
-- [chatTurn.ts](../chatTurn.ts), [chat/route.ts](../../../app/api/talent/chat/route.ts): 최근 메시지, 이전 요약, 선택된 기회/자료와 현재 업로드가 입력에 포함된다. 원본 대화 이력은 기본 프롬프트가 아니다. 사용자 발화 없는 호출에도 합성 사용자 메시지를 추가하지 않는다. 호출 목적은 `proactiveContext`에, 실제 비동기 재개 사실은 `resumed_work`와 저장된 실행 이력에 남는다.
+- [chatTurn.ts](../chatTurn.ts), [chat/route.ts](../../../app/api/talent/chat/route.ts): 최근 메시지, 이전 요약, 선택된 기회/자료와 현재 업로드가 입력에 포함된다. 원본 대화 이력은 기본 프롬프트가 아니다. 재접속에서는 `proactiveContext`의 실제 접속 사건을 마지막 provider 입력에 표시하며 사용자 원문으로 저장하지 않는다. 실제 비동기 재개 사실은 `resumed_work`와 저장된 실행 이력에 남는다.
 
 ## 도구와 handbook의 동적 로딩
 

@@ -154,15 +154,13 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasCompanyConnectionsTool
       ? [
-          "- Use `read_company_connections` when the user wants Harper to communicate with, follow up with, or ask about a company connected through Harper and the exact relationship is not already unambiguous in private context. It covers both company-first Request Intro and Harper-first recommendations that have actually reached a company-visible connection stage.",
+          "- Use `read_company_connections` when the user wants Harper to communicate with, follow up with, or ask about a company connected through Harper and the exact relationship is not already unambiguous in private context. It includes existing mutual connections and agent introduction correspondence; read the returned facts to distinguish them.",
           "- Treat the returned relationship timestamps and transport statuses as facts, not as prewritten answers. Decide what to say and whether to offer a follow-up from the whole conversation. Do not create fixed day thresholds or canned progress language.",
         ]
       : []),
     ...(hasContactCompanyTool
       ? [
-          "- Use `contact_company` only after the user clearly authorizes Harper to pass along a message, question, clarification, or follow-up through one exact returned connectionId. Preserve uncertainty and conditions in relayContent.",
-          `- ${COMPANY_RELAY_CONTENT_CONTRACT}`,
-          "- contact_company sends immediately. Confirm a successful contact naturally (for example, 전달했습니다); there is no candidate-facing scheduled-send step. Do not infer that a person read it, answered, or made a hiring decision.",
+          "- contact_company uses recommendationId with acceptIntroduction for a reviewed introduction choice, or an existing introductionRootId/replyToMessageId for authorized agent correspondence. Legacy mutual connections keep their connectionId contract. Preserve the candidate's meaning and conditions in relayContent; distinguish the agent-inbox receipt from human delivery or a hiring decision.",
         ]
       : []),
     ...(hasRoleContextTool
@@ -177,7 +175,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasUpdateRecommendedOpportunityFeedbackTool
       ? [
-          "- update_recommended_opportunity_feedback records the user's actual decision. For an internal role, like accepts introduction, dislike declines and keep saves for later. Existing explicit acceptance is sufficient; do not invent an extra approval sequence. For an external role, positive feedback saves interest and is not an application submission. That is this tool's effect, not a limit on Harper's capabilities: when the user asks to apply to a public posting, load the application handbook and relevant tools for its actual application route. Recommendation membership archive/reset is handled by upsert_opportunities and preserves these decisions.",
+          "- update_recommended_opportunity_feedback records dislike to decline, keep to save for later, or like to save external interest. Internal introduction acceptance uses contact_company with the exact recommendation after the candidate has reviewed the Role and chosen introduction; it records acceptance and submits to the company's agent. For an external posting, use the application handbook and tools for its actual application route. Recommendation membership archive/reset is handled by upsert_opportunities and preserves existing decisions.",
         ]
       : []),
     ...(toolNames.includes("apply_to_internal_role")

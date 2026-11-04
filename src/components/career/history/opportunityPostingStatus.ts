@@ -48,8 +48,11 @@ export function getOpportunityDeadlineLabel(
   const expiresAt = Date.parse(item.expiresAt);
   if (!Number.isFinite(expiresAt) || expiresAt <= now) return null;
   const remainingDays = Math.ceil((expiresAt - now) / 86_400_000);
-  if (remainingDays < 10) {
-    return t("career.history.my_opportunities.closes_in_days", "{days}일 후 마감", {
+  if (remainingDays === 1) {
+    return t("career.history.my_opportunities.closes_in_one_day", "1일 뒤 마감");
+  }
+  if (remainingDays <= 10) {
+    return t("career.history.my_opportunities.closes_in_days", "{days}일 뒤 마감", {
       values: { days: remainingDays },
     });
   }

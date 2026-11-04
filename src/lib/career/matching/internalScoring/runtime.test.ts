@@ -40,6 +40,8 @@ async function fixture(t: any) {
   await pg.exec(
     readFileSync("src/lib/career/matching/internalScoring/fixture.sql", "utf8")
   );
+  const introduction=readFileSync("supabase/migrations/20261103125705_internal_role_agent_introductions.sql","utf8");
+  await pg.exec(introduction.slice(introduction.indexOf("create function public.career_internal_role_is_readable_v1"),introduction.indexOf("create function public.read_career_internal_role_v1")));
   const migration = readFileSync(
     "supabase/migrations/20261029182857_career_profile_versions_and_role_materials.sql",
     "utf8"
@@ -148,6 +150,26 @@ function score(source: Row, stage: Stage, exclude = false) {
     ),
   });
 }
+test("a user-requested saved role evaluates original evidence before derived Behavior Context exists", async (t) => {
+  const { db, start, row, payload } = await fixture(t);
+  const recommendationId = "40000000-0000-4000-8000-000000000001";
+  await db.query("DELETE FROM talent_behavior_contexts WHERE talent_id=$1", [userId]);
+  await assert.rejects(loadInputs(db.query, userId, payload), /Current Behavior Context unavailable/);
+  await db.query("INSERT INTO talent_opportunity_recommendation(id,talent_id,role_id) VALUES($1,$2,$3)", [recommendationId,userId,roleId]);
+  const run = await start("new-user-request", { requestedOpportunityId: recommendationId, publishRecommendation: false });
+  const stages: number[] = [];
+  await executeInternalEvaluation(run.id, { db, score: async (source, stage) => {
+    assert.equal(source.behaviorContext, null);
+    assert.equal(source.behaviorContextVersion, null);
+    assert.equal(source.profile.experiences[0].description, "전체 원문");
+    stages.push(stage); return score(source, stage, true);
+  }, notify: async () => {} });
+  assert.equal((await row(run.id)).status, "completed", (await row(run.id)).error_message);
+  assert.deepEqual(stages, [1,2]);
+  assert.equal((await db.query("SELECT * FROM talent_behavior_contexts")).length, 0);
+  assert.equal((await db.query("SELECT * FROM talent_opportunity_recommendation")).length, 1);
+});
+
 test("beta owns request atomically; real publication produces only requested internal role and private evidence", async (t) => {
   const { db, start, row, payload } = await fixture(t);
   const run = await start();
@@ -245,6 +267,46 @@ test("failed second stage resumes with frozen Behavior and reuses durable first-
   });
   assert.deepEqual(stages, [2]);
   assert.equal((await row(run.id)).status, "completed");
+});
+
+test("one missing Hiring Brief preserves other Role evaluations and resumes only missing evidence", async (t) => {
+  const { db, start, row } = await fixture(t);
+  await db.query("UPDATE company_internal_roles SET request=NULL WHERE role_id=$1", [roleId]);
+  const run = await start("mixed-roles", { roleIds: [roleId, otherRole] });
+  const scored: string[] = [];
+  const execute = () => executeInternalEvaluation(run.id, { db, score: (source, stage) => {
+    scored.push(source.role.role_id); return score(source, stage);
+  }, notify: async () => {} });
+  await execute();
+  const partial = await row(run.id);
+  assert.equal(partial.status, "partial", partial.error_message);
+  assert.deepEqual(scored, [otherRole, otherRole]);
+  assert.deepEqual(partial.coverage.failures, [{ roleId, error: "role is unavailable in this workspace" }]);
+  assert.equal(partial.coverage.evaluationIds.length, 2);
+  assert.deepEqual((await db.query("SELECT role_id FROM talent_opportunity_recommendation")).map(r => r.role_id), [otherRole]);
+
+  await db.query("UPDATE company_internal_roles SET request='Recovered Hiring Brief' WHERE role_id=$1", [roleId]);
+  await control(db, userId, run.id, "resume");
+  scored.length = 0;
+  await execute();
+  const done = await row(run.id);
+  assert.equal(done.status, "completed", done.error_message);
+  assert.deepEqual(scored, [roleId, roleId]);
+  assert.deepEqual(done.coverage.failures, []);
+  assert.deepEqual(done.coverage.unavailableRoleIds, []);
+  assert.equal((await db.query("SELECT id FROM talent_opportunity_recommendation")).length, 2);
+});
+
+test("a Role detail query failure is reported without hiding or aborting other inputs", async (t) => {
+  const { db, payload } = await fixture(t);
+  const query: Query = (sql, params) => {
+    if (sql.includes("internal.request,internal.criteria") && params?.[0] === roleId)
+      return Promise.reject(new Error("Role detail connection failed"));
+    return db.query(sql, params);
+  };
+  const result = await loadInputs(query, userId, { ...payload, roleIds: [roleId, otherRole] });
+  assert.deepEqual(result.sources.map(s => s.context.roleId), [otherRole]);
+  assert.deepEqual(result.failures, [{ roleId, error: "Role detail connection failed" }]);
 });
 test("ordinary screen exclusion stops stage two; test-only/blocked roles never reach scoring", async (t) => {
   const { db, start, row } = await fixture(t);

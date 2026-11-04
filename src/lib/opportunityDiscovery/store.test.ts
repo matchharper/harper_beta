@@ -280,6 +280,15 @@ test("serializes a career chat run as active without locking conversation input"
   assert.equal("errorMessage" in (run ?? {}), false);
 });
 
+test("agent correspondence and private evaluations are not displayed as searches", () => {
+  for (const status of ["queued", "running", "completed", "failed"] as const) {
+    assert.equal(serializeOpportunityRun(createRun({ status,
+      trigger: "agent_contact_received", trigger_payload: { runContract: "career_agent_v1" },
+    })), null);
+    assert.equal(serializeOpportunityRun(createRun({ status, trigger: "career_internal_evaluation" })), null);
+  }
+});
+
 test("exposes safe terminal counts and retry state without raw coverage", () => {
   const run = serializeOpportunityRun(
     createRun({

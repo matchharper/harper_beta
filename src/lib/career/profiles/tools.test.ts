@@ -45,6 +45,7 @@ test("model profile projection retains exact revision and history without raw ti
   });
   assert.match(rendered, /profileId=profile; revision=3/);
   assert.match(rendered, /RowID=10/);
+  assert.match(rendered, /end: not recorded; current employment\/enrollment unconfirmed/);
   assert.match(rendered, /Revision 2; 2026-10-29 19:00/);
   assert.doesNotMatch(rendered, /2026-10-29T|"talentUser"|"snapshot"/);
 });

@@ -41,9 +41,11 @@ export async function readRoleMaterials(args: {
     .eq("role_id", args.roleId)
     .not("shared_material_id", "is", null);
   if (pinError) throw pinError;
+  const history = (data ?? []) as RoleMaterial[];
   return {
-    current: (data?.[0] ?? null) as RoleMaterial | null,
-    history: (data ?? []) as RoleMaterial[],
+    current: history.find(row => row.source?.defaultAcceptance !== true && row.source?.agentSnapshot !== true) ?? null,
+    latestRevision: history[0]?.revision ?? 0,
+    history,
     acceptedMaterials: pins ?? [],
   };
 }
@@ -133,10 +135,10 @@ export async function readRoleAcceptanceMaterial(args: {
   userId: string;
   roleId: string;
 }) {
-  const { current } = await readRoleMaterials(args);
+  const { current, latestRevision } = await readRoleMaterials(args);
   return {
     materialId: current?.action === "set" ? current.id : null,
-    assignmentRevision: current?.revision ?? 0,
+    assignmentRevision: latestRevision,
   };
 }
 

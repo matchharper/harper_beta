@@ -30,7 +30,7 @@ test("provider receives shared connection guidance before opportunity tools load
         const body = JSON.parse(String(init?.body));
         const system = (body.input ?? body.messages).filter((message: any) => ["system", "developer"].includes(message.role))
           .map((message: any) => typeof message.content === "string" ? message.content : message.content.map((block: any) => block.text).join("\n")).join("\n");
-        assert.equal(system.split(buildCareerMainPrompt({ outputLanguage: "English", positionsTabLabel: "Jobs tab" })).length - 1, 1);
+        assert.equal(system.split(buildCareerMainPrompt({ outputLanguage: "English", positionsTabLabel: "New opportunities" })).length - 1, 1);
         assert.ok(system.includes("Career turn after a saved opportunity decision"));
         requests++;
         return Response.json({ id: "connection-guide", model: "gpt-6.1-sol", status: "completed",

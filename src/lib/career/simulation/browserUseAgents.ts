@@ -17,6 +17,12 @@ const runSchema = z.object({
 export const browserUseTerminal = (status: string) =>
   ["completed", "failed", "cancelled"].includes(status);
 
+export class BrowserUseHttpError extends Error {
+  constructor(readonly status: number, readonly method: string, readonly path: string, readonly retryAfter?: string | null) {
+    super(`Browser Use ${method} ${path.split("?")[0]} failed (HTTP ${status})`);
+  }
+}
+
 function viewerUrl(liveUrl: string | null | undefined, interactive: boolean) {
   if (!liveUrl) return null;
   const url = new URL(liveUrl);
@@ -52,9 +58,7 @@ export const browserUseAgents = {
     });
     if (method === "DELETE" && response.status === 404) return {};
     if (!response.ok)
-      throw new Error(
-        `Browser Use ${method} ${path.split("?")[0]} failed (HTTP ${response.status})`
-      );
+      throw new BrowserUseHttpError(response.status, method, path, response.headers.get("Retry-After"));
     return response.status === 204 ? {} : z.record(z.unknown()).parse(await response.json());
   },
   async createWorkspace() {

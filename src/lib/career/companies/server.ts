@@ -99,6 +99,11 @@ export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdmin
   ).map((role: any) => role.role_id));
   for (const source of events) {
     let event = source;
+    if (event.sourceKind === 'agent_contact') {
+      const {isCareerAgentContactEventCurrent}=await import('@/lib/agentContacts/store');
+      if(!args.run.talent_id || !await isCareerAgentContactEventCurrent(event.sourceId,args.run.id,args.run.talent_id)) {changed=true;continue;}
+      current.push(event);continue;
+    }
     if (event.sourceKind === 'company_followup') {
       const { data: followup, error } = await db(args.admin).from('company_talent_followups').select('source_kind,source_id,revision,status,due_at,delivery_run_id').eq('id', event.sourceId).eq('talent_id', args.run.talent_id).maybeSingle();
       if (error) throw new Error(error.message);

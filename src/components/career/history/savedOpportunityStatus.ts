@@ -9,6 +9,7 @@ export type SavedOpportunityManagementStatus =
   | "saved"
   | "applied"
   | "connected"
+  | "offer"
   | "closed"
   | "hidden";
 
@@ -20,16 +21,31 @@ type CareerTLike = (key: string, koSource: string) => string;
 
 const fallbackCareerT: CareerTLike = (_key, koSource) => koSource;
 
-export const getMyOpportunityTab = (status: SavedOpportunityManagementStatus) => {
-  if (status === "applied" || status === "connected") return "applied";
+export const getMyOpportunityTab = (
+  status: SavedOpportunityManagementStatus
+) => {
+  if (status === "applied" || status === "connected" || status === "offer")
+    return "applied";
   if (status === "closed" || status === "hidden") return "hidden";
   return "saved";
 };
 
 export const getMyOpportunityTabs = (t: CareerTLike) => [
-  { id: "saved" as const, label: t("career.common.career_history_panel.saved_positions_tab", "저장함") },
-  { id: "applied" as const, label: t("career.common.career_history_panel.0y27adb", "진행중") },
-  { id: "hidden" as const, label: t("career.common.career_history_panel.hidden_tab", "종료/보관") },
+  {
+    id: "applied" as const,
+    label: t("career.common.career_history_panel.0y27adb", "진행중"),
+  },
+  {
+    id: "saved" as const,
+    label: t(
+      "career.common.career_history_panel.saved_positions_tab",
+      "저장함"
+    ),
+  },
+  {
+    id: "hidden" as const,
+    label: t("career.common.career_history_panel.hidden_tab", "종료/보관"),
+  },
 ];
 
 type SavedOpportunityStatusOptionsConfig = {
@@ -42,7 +58,10 @@ const getSavedOpportunityPipelineStatusOptions = (t: CareerTLike) =>
   [
     {
       id: "saved",
-      label: t("career.history.saved_opportunity_status.0obqas2", "관심 있음"),
+      label: t(
+        "career.history.saved_opportunity_status.not_applied",
+        "지원하지 않음"
+      ),
     },
     {
       id: "applied",
@@ -53,8 +72,12 @@ const getSavedOpportunityPipelineStatusOptions = (t: CareerTLike) =>
       label: t("career.history.saved_opportunity_status.connected", "진행중"),
     },
     {
+      id: "offer",
+      label: t("career.history.saved_opportunity_status.offer", "최종 합격"),
+    },
+    {
       id: "closed",
-      label: t("career.history.saved_opportunity_status.1jv953e", "진행 종료"),
+      label: t("career.history.saved_opportunity_status.ended", "종료/보관"),
     },
   ] as const satisfies readonly {
     id: Exclude<SavedOpportunityManagementStatus, "all" | "hidden">;
@@ -102,6 +125,7 @@ const isCareerOpportunitySavedStage = (
   value === "saved" ||
   value === "applied" ||
   value === "connected" ||
+  value === "offer" ||
   value === "closed" ||
   value === "hidden";
 
@@ -147,8 +171,10 @@ export const getCareerOpportunityManagementStatus = (
 };
 
 export const canChangeCareerOpportunityManagementStatus = (
-  item: Pick<CareerHistoryOpportunity, "isInternal" | "sourceType">
-) => !item.isInternal && item.sourceType !== "internal";
+  item: Pick<CareerHistoryOpportunity, "isInternal" | "sourceType" | "feedback">
+) =>
+  (!item.isInternal && item.sourceType !== "internal") ||
+  item.feedback === "positive";
 
 export const getSavedOpportunityStatusLabel = (
   status: SavedOpportunityManagementStatus,
@@ -160,46 +186,14 @@ export const getSavedOpportunityStatusLabel = (
       includeAll: true,
       includeHidden: true,
     }).find((option) => option.id === status)?.label ??
-    t("career.history.saved_opportunity_status.0obqas2", "관심 있음")
+    t("career.history.saved_opportunity_status.not_applied", "지원하지 않음")
   );
 };
 
 export const getCareerOpportunityManagementStatusOptions = (
   t: CareerTLike,
-  config: {
-    hiddenLabel?: string;
-    includeArchived?: boolean;
-  } = {}
-) =>
-  [
-    ...getSavedOpportunityStatusOptions(t, {
-      hiddenLabel:
-        config.hiddenLabel ??
-        t("career.history.saved_opportunity_status.hide_action", "보관하기"),
-      includeHidden: true,
-    }).filter(
-      (
-        option
-      ): option is {
-        id: Exclude<SavedOpportunityManagementStatus, "all">;
-        label: string;
-      } => option.id !== "all"
-    ),
-    ...(config.includeArchived
-      ? [
-          {
-            id: "archived" as const,
-            label: t(
-              "career.history.saved_opportunity_status.archived",
-              "숨긴 포지션"
-            ),
-          },
-        ]
-      : []),
-  ] as const satisfies readonly {
-    id: CareerOpportunityManagementStatus;
-    label: string;
-  }[];
+  _config: { hiddenLabel?: string; includeArchived?: boolean } = {}
+) => getSavedOpportunityPipelineStatusOptions(t);
 
 export const getCareerOpportunityManagementStatusLabel = (
   status: CareerOpportunityManagementStatus,
@@ -209,5 +203,7 @@ export const getCareerOpportunityManagementStatusLabel = (
   if (status === "archived") {
     return t("career.history.saved_opportunity_status.archived", "숨긴 포지션");
   }
+  if (status === "hidden")
+    return t("career.history.saved_opportunity_status.ended", "종료/보관");
   return getSavedOpportunityStatusLabel(status, t);
 };

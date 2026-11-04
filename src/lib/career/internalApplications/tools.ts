@@ -10,11 +10,9 @@ import {
   readRoleMaterials,
   type RoleMaterial,
 } from "../roleMaterials/store";
-import {
-  requestInternalRoleEvaluation,
-  readInternalEvaluation,
-} from "../matching/internalEvaluation";
-import { formatCareerMatchingResult } from "../matching/formatters";
+import { requestInternalRoleEvaluation } from "../matching/internalEvaluation";
+import { encodeMaterialSelection } from "@/lib/agentContacts/contracts";
+import { readAcceptanceSelections } from "@/lib/agentContacts/materialSelection";
 
 export async function executeApplyToInternalRole(
   input: Record<string, unknown>,
@@ -23,6 +21,14 @@ export async function executeApplyToInternalRole(
   const args = profileToolContext(context, "apply_to_internal_role", input),
     roleId = String(input.roleId ?? "");
   if (!roleId) throw new Error("roleId is required.");
+  const { data: opportunity, error } = await (args.admin.rpc as any)("ensure_requested_internal_role_v1", {
+    p_talent: args.userId, p_role: roleId, p_operation: args.operationId,
+    p_source: { ...args.source, backgroundRunId: context?.backgroundInvocation?.runId },
+  });
+  if (error) throw new Error(error.message);
+  // Preserve the card even if the evaluator/profile service is unavailable.
+  const saved = { ...opportunity, postingRoleIds: [roleId], companyShared: false, introductionRequested: Boolean(opportunity.introductionRootId) };
+  try {
   const assignment = await readRoleMaterials({ ...args, roleId });
   const prepared =
     assignment.current?.action === "set" ? assignment.current : null;
@@ -34,19 +40,15 @@ export async function executeApplyToInternalRole(
   const evaluation = await requestInternalRoleEvaluation({
     ...args,
     conversationId: context!.conversationId!,
-    replyId: context?.resumeRequestId ?? undefined,
     roleIds: [roleId],
     profileId: profile.profileId,
     profileRevision: profile.revision,
-    publishRecommendation: true,
+    requestedOpportunityId: opportunity.recommendationId,
     signal: context?.abortSignal,
   });
-  const completed = ["queued", "running"].includes(evaluation.status)
-    ? {}
-    : await readInternalEvaluation(args.admin, args.userId, evaluation.runId);
   return {
+    ...saved,
     ...evaluation,
-    ...completed,
     evaluatedProfile: {
       profileId: profile.profileId,
       revision: profile.revision,
@@ -60,8 +62,14 @@ export async function executeApplyToInternalRole(
             revision: assignment.current.revision,
           }
         : null,
-    companyShared: false,
   };
+  } catch (error) {
+    console.warn("[internal-application] Opportunity saved; evaluation unavailable", {
+      recommendationId: opportunity.recommendationId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { ...saved, status: "evaluation_unavailable" };
+  }
 }
 export function formatInternalApplicationToolResult(
   name: string,
@@ -70,19 +78,27 @@ export function formatInternalApplicationToolResult(
   const result = value as Record<string, any>;
   if (name === "apply_to_internal_role")
     return [
-      formatCareerMatchingResult(result),
+      `Role: ${result.role?.roleId ?? result.postingRoleIds?.[0]}; ${result.role?.name ?? ""}`,
+      `Company: ${result.role?.companyName ?? ""}`,
+      `Company description: ${result.role?.companyDescription ?? ""}`,
+      `Role description: ${result.role?.description ?? ""}`,
+      ...["location", "workMode", "compensation"].flatMap(key => result.role?.[key] ? [`${key}: ${result.role[key]}`] : []),
+      `Opportunity: ${result.recommendationId}; ${result.visible ? "in candidate opportunity list" : "existing archived opportunity; its decision was preserved"}`,
+      result.introductionRootId ? `Existing introduction: ${result.introductionRootId}; read_agent_messages contains its delivery facts.` : "",
+      `Assessment: ${result.status ?? "unavailable"}${result.runId ? `; run ${result.runId}` : ""}`,
       result.assignedMaterial
         ? `Prepared materials: ${result.assignedMaterial.materialId}; profile ${result.assignedMaterial.profileId} revision ${result.assignedMaterial.profileRevision}; assignment revision ${result.assignedMaterial.revision}`
         : "No prepared assignment; acceptance will pin the default profile.",
-      "This call evaluates and prepares a recommendation for review; it does not record introduction acceptance or share with the company. Queued/running evaluations have not completed.",
+      "Sharing scope of this call: candidate only.",
     ].join("\n");
   const current = (result.current ??
     (result.id ? result : null)) as RoleMaterial | null;
   return [
     `Role materials: ${current?.role_id ?? "-"}`,
+    result.selectionRef ? `Sharing selection reference: ${result.selectionRef}` : "",
     current
-      ? `Material ID: ${current.id}; assignment revision ${current.revision}; ${current.action === "clear" ? "preparation cleared" : "prepared"}`
-      : "No prepared materials; assignment revision 0.",
+      ? `Material ID: ${current.id}; assignment revision ${result.latestRevision ?? current.revision}; ${current.action === "clear" ? "preparation cleared" : "prepared"}`
+      : `No prepared materials; assignment revision ${result.latestRevision ?? 0}.`,
     current?.profile_id
       ? `Profile: ${current.profile_id}; revision ${current.profile_revision}`
       : "Default profile will be pinned when accepted.",
@@ -151,8 +167,12 @@ export const CAREER_INTERNAL_APPLICATION_TOOLS: Record<
         }),
         roleId = String(input.roleId ?? "");
       if (!roleId) throw new Error("roleId is required.");
-      if (input.action === "read")
-        return readRoleMaterials({ ...args, roleId });
+      if (input.action === "read") {
+        const result=await readRoleMaterials({ ...args, roleId });
+        const selectionRef=result.current?.action==='set' ? encodeMaterialSelection({materialId:result.current.id,assignmentRevision:result.latestRevision})
+          : (await readAcceptanceSelections(args.admin,args.userId,[roleId])).get(roleId)?.selectionRef;
+        return {...result,selectionRef};
+      }
       if (
         !["set", "clear"].includes(String(input.action)) ||
         typeof input.expectedRevision !== "number"
@@ -160,7 +180,7 @@ export const CAREER_INTERNAL_APPLICATION_TOOLS: Record<
         throw new Error(
           "action and expectedRevision are required. Read the current assignment first."
         );
-      return assignRoleMaterials({
+      const result=await assignRoleMaterials({
         ...args,
         roleId,
         action: input.action as "set" | "clear",
@@ -173,6 +193,9 @@ export const CAREER_INTERNAL_APPLICATION_TOOLS: Record<
             : undefined,
         documents: input.documents as any,
       });
+      const selectionRef=result.action==='set'?encodeMaterialSelection({materialId:result.id,assignmentRevision:result.revision})
+        : (await readAcceptanceSelections(args.admin,args.userId,[roleId])).get(roleId)?.selectionRef;
+      return {...result,selectionRef};
     },
   },
 };

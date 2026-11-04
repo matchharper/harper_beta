@@ -5,7 +5,8 @@ import { INPUT_CONTRACT, canonicalJson, type Row } from "./evidence";
 export async function loadRoleContext(
   query: Query,
   workspaceId: string,
-  roleId: string
+  roleId: string,
+  directTalentId?: string
 ) {
   const [row] = await query(
     `SELECT role.role_id::text,role.company_workspace_id::text,
@@ -20,12 +21,13 @@ export async function loadRoleContext(
     JOIN public.company_workspace workspace ON workspace.company_workspace_id=role.company_workspace_id
     WHERE role.role_id=$1::uuid AND role.company_workspace_id=$2::uuid
       AND lower(btrim(coalesce(role.source_type,'')))='internal'
-      AND lower(btrim(coalesce(role.status,'')))='active'
+      AND (($3::uuid IS NOT NULL AND public.career_internal_role_is_readable_v1($3::uuid,role.role_id))
+        OR ($3::uuid IS NULL AND lower(btrim(coalesce(role.status,'')))='active'
+          AND public.role_matching_slot_type_v1(role.role_id,now()) IN ('free','paid')))
       AND coalesce(role.is_expired,false)=false AND (role.expires_at IS NULL OR role.expires_at>now())
       AND nullif(btrim(internal.request),'') IS NOT NULL
-      AND public.role_matching_slot_type_v1(role.role_id,now()) IN ('free','paid')
-      AND coalesce(lower(btrim(role.information->>'testOnly')),'') NOT IN ('true','1','yes','on')`,
-    [roleId, workspaceId]
+      AND ($3::uuid IS NOT NULL OR coalesce(lower(btrim(role.information->>'testOnly')),'') NOT IN ('true','1','yes','on'))`,
+    [roleId, workspaceId, directTalentId ?? null]
   );
   if (!row) throw new Error("role is unavailable in this workspace");
   const memory = await query(
@@ -42,6 +44,7 @@ export async function loadRoleContext(
   return {
     workspaceId,
     roleId,
+    directTalentId,
     version: row.version,
     briefSnapshot: row.brief_snapshot,
     role: Object.fromEntries(
@@ -90,12 +93,21 @@ export async function loadInputs(
   query: Query,
   talentId: string,
   payload: Row
-): Promise<{ sources: FrozenInput[]; unavailableRoleIds: string[] }> {
+): Promise<{ sources: FrozenInput[]; unavailableRoleIds: string[]; failures: Array<{ roleId: string; error: string }> }> {
+  const direct = typeof payload.requestedOpportunityId === "string";
+  if (direct) {
+    const [card] = await query(`SELECT id FROM public.talent_opportunity_recommendation WHERE id=$1::uuid
+      AND talent_id=$2::uuid AND role_id=ANY($3::uuid[])`, [payload.requestedOpportunityId, talentId, payload.roleIds]);
+    if (!card) throw new Error("Requested opportunity unavailable");
+  }
   const [behavior] = await query(
     `SELECT context_text,context_version FROM public.talent_behavior_contexts WHERE talent_id=$1::uuid`,
     [talentId]
   );
-  if (!behavior?.context_text || !behavior.context_version)
+  // A newly registered user can choose a role before any derived Behavior
+  // Context exists. Evaluate that explicit request from the available original
+  // profile/Brief; do not invent a summary or block private discovery on it.
+  if (!direct && (!behavior?.context_text || !behavior.context_version))
     throw new Error("Current Behavior Context unavailable");
   const [selected] = await query(
     `SELECT public.read_talent_profile_v1($1::uuid,$2::uuid,$3::bigint) AS profile`,
@@ -105,22 +117,23 @@ export async function loadInputs(
   if (!profile) throw new Error("Profile revision unavailable");
   const [eligible] = await query(
     `SELECT t.user_id FROM public.talent_users t JOIN public.talent_setting setting ON setting.user_id=t.user_id
-    WHERE t.user_id=$1::uuid AND t.deleted_at IS NULL AND ${profileEligible}
-      AND coalesce(setting.profile_visibility,'')<>'dont_share' AND coalesce(setting.get_internal_recommendation,true)`,
-    [talentId]
+    WHERE t.user_id=$1::uuid AND t.deleted_at IS NULL AND ($2::boolean OR (${profileEligible}
+      AND coalesce(setting.profile_visibility,'')<>'dont_share' AND coalesce(setting.get_internal_recommendation,true)))`,
+    [talentId, direct]
   );
   if (!eligible) throw new Error("Profile unavailable for internal evaluation");
   const roles = await query(
     `SELECT role.role_id::text,role.company_workspace_id::text
     FROM public.company_roles role JOIN public.company_workspace company USING(company_workspace_id)
-    WHERE role.role_id=ANY($1::uuid[]) AND role.status='active' AND role.source_type='internal'
+    WHERE role.role_id=ANY($1::uuid[]) AND role.source_type='internal'
+      AND (($3::boolean AND public.career_internal_role_is_readable_v1($2::uuid,role.role_id)) OR (NOT $3::boolean AND role.status='active'
       AND NOT coalesce(role.is_expired,false) AND (role.expires_at IS NULL OR role.expires_at>now())
       AND coalesce(lower(btrim(role.information->>'testOnly')),'') NOT IN ('true','1','yes','on')
       AND public.role_matching_slot_type_v1(role.role_id,now()) IN ('free','paid')
       AND NOT EXISTS(SELECT 1 FROM public.talent_setting setting,unnest(coalesce(setting.blocked_companies,'{}'::text[])) blocked(name)
-        WHERE setting.user_id=$2::uuid AND lower(btrim(blocked.name)) IN (lower(btrim(company.company_name)),lower(btrim(coalesce(company.published_name,'')))))
+        WHERE setting.user_id=$2::uuid AND lower(btrim(blocked.name)) IN (lower(btrim(company.company_name)),lower(btrim(coalesce(company.published_name,'')))))))
     ORDER BY role.role_id`,
-    [payload.roleIds, talentId]
+    [payload.roleIds, talentId, direct]
   );
   const briefs = await query(
     `SELECT talent_id::text,label,content,revision,ref,created_at,updated_at
@@ -130,12 +143,15 @@ export async function loadInputs(
   const searchBrief = briefs.map(({ talent_id: _owner, ...row }) => row);
   const user = profile.snapshot.talentUser ?? {};
   const sources: FrozenInput[] = [];
+  const failures: Array<{ roleId: string; error: string }> = [];
   for (const row of roles) {
-    const context = await loadRoleContext(
-      query,
-      row.company_workspace_id,
-      row.role_id
-    );
+    let context: FrozenInput["context"];
+    try {
+      context = await loadRoleContext(query, row.company_workspace_id, row.role_id, direct ? talentId : undefined);
+    } catch (error) {
+      failures.push({ roleId: row.role_id, error: error instanceof Error ? error.message : String(error) });
+      continue;
+    }
     sources.push({
       context,
       source: {
@@ -151,19 +167,20 @@ export async function loadInputs(
           extra: profile.snapshot.talentExtras ?? [],
         },
         searchBrief,
-        behaviorContext: behavior.context_text,
-        behaviorContextVersion: Number(behavior.context_version),
+        behaviorContext: behavior?.context_text ?? null,
+        behaviorContextVersion: behavior?.context_version == null ? null : Number(behavior.context_version),
         inputContractVersion: INPUT_CONTRACT,
         role: context.role,
         companyMemory: context.companyMemory,
         sourceProfileId: profile.profileId,
         sourceProfileRevision: profile.revision,
-        evidenceScope: profile.isDefault ? "default" : "candidate_private",
+        evidenceScope: "candidate_private_context",
       },
     });
   }
   return {
     sources,
+    failures,
     unavailableRoleIds: (payload.roleIds as string[]).filter(
       (id) => !sources.some((s) => s.context.roleId === id)
     ),
@@ -174,21 +191,23 @@ export async function assertInput(query: Query, input: FrozenInput) {
   const current = await loadRoleContext(
     query,
     context.workspaceId,
-    context.roleId
+    context.roleId,
+    context.directTalentId
   );
   const [owned] = await query(
     `SELECT 1 FROM public.talent_profiles p JOIN public.talent_profile_revisions v ON v.profile_id=p.id
     JOIN public.talent_users t ON t.user_id=p.talent_id JOIN public.talent_setting setting ON setting.user_id=t.user_id
     WHERE p.id=$1::uuid AND p.talent_id=$2::uuid AND v.revision=$3::bigint
-      AND t.deleted_at IS NULL AND ${profileEligible}
+      AND t.deleted_at IS NULL AND ($5::boolean OR (${profileEligible}
       AND coalesce(setting.profile_visibility,'')<>'dont_share' AND coalesce(setting.get_internal_recommendation,true)
       AND NOT EXISTS(SELECT 1 FROM public.company_workspace company,unnest(coalesce(setting.blocked_companies,'{}'::text[])) blocked(name)
-        WHERE company.company_workspace_id=$4::uuid AND lower(btrim(blocked.name)) IN (lower(btrim(company.company_name)),lower(btrim(coalesce(company.published_name,'')))))`,
+        WHERE company.company_workspace_id=$4::uuid AND lower(btrim(blocked.name)) IN (lower(btrim(company.company_name)),lower(btrim(coalesce(company.published_name,'')))))))`,
     [
       source.sourceProfileId,
       source.talentId,
       source.sourceProfileRevision,
       context.workspaceId,
+      Boolean(context.directTalentId),
     ]
   );
   if (

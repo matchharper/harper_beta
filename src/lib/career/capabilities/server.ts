@@ -38,6 +38,7 @@ import { selectCareerPreloads, type CareerPreloadSelection, type CareerSelectorI
 import { normalizeCareerHandbookLeases, type CareerHandbookLease } from "../handbooks/registry";
 import type { CareerCapabilityTurnRecord } from "./lease";
 import { withLlmUsageContext } from "@/lib/llm/usageContext";
+import { readCareerConversationVersion } from "../conversationVersion";
 import { readCareerPromptExperiment } from "../prompts/promptExperiment";
 
 export function isCareerCapabilityTurn(args: {
@@ -112,6 +113,7 @@ export async function readCareerCapabilityCoaching(args: {
 }
 
 export async function createCareerCapabilityTurn(args: {
+  workId?: string;
   admin: TalentAdminClient;
   userId: string;
   conversationId: string;
@@ -135,6 +137,8 @@ export async function createCareerCapabilityTurn(args: {
   resume?: CareerReplyCheckpoint;
   continuation?: CareerReplyCheckpoint["continuation"];
   checkpoint?: (checkpoint: CareerReplyCheckpoint) => Promise<void>;
+  inputInbox?: ConstructorParameters<typeof CareerCapabilityRuntime>[0]["inputInbox"];
+  resumeDependenciesPending?: boolean;
   persistCompletion?: (record: CareerCapabilityTurnRecord, handbooks: CareerHandbookLease[]) => Promise<void>;
 }) {
   const { admin, userId, conversationId, sourceMessage } = args;
@@ -153,6 +157,9 @@ export async function createCareerCapabilityTurn(args: {
       .eq("conversation_id", conversationId)
       .eq("role", "user");
   const promptArgs = { ...args.promptArgs };
+  const conversationVersion = sourceMessage
+    ? readCareerConversationVersion(sourceMessage.payload)
+    : promptArgs.conversationVersion;
   const promptExperiment = promptArgs.channel === "chat" && promptArgs.isOnboardingDone && !promptArgs.backgroundInvocation
     ? readCareerPromptExperiment(sourceMessage?.payload) : undefined;
   let refreshedUserContext: Partial<CareerCapabilityPromptArgs> = {};
@@ -195,6 +202,7 @@ export async function createCareerCapabilityTurn(args: {
     getEligibleTools: args.getEligibleTools,
     promptArgs: () => {
       const current = { ...promptArgs, ...args.getPromptArgs?.(), ...refreshedUserContext,
+        conversationVersion,
         ...(promptExperiment ? { promptExperiment } : {}),
       };
       if (coachingRefreshed) {
@@ -211,6 +219,8 @@ export async function createCareerCapabilityTurn(args: {
     abortSignal: args.abortSignal, checkCancellation: args.checkCancellation,
     deadlineAt: args.deadlineAt, resume: args.resume, checkpoint: args.checkpoint,
     continuation: args.continuation,
+    inputInbox: args.inputInbox,
+    resumeDependenciesPending: args.resumeDependenciesPending,
     usageContext,
     refreshAfterTool: async (name, result) => {
       if (name === "manage_career_coaching_activity") {
@@ -313,7 +323,7 @@ export async function createCareerCapabilityTurn(args: {
     await args.persistCompletion?.(completionRecord, outcome.delivered === false
       ? runtime.handbooks.snapshot() : runtime.handbooks.afterDeliveredReply());
     completed = true;
-    if (!sourceMessage) return;
+    if (!sourceMessage || args.workId) return;
     // Compare-and-swap preserves concurrent writers' unrelated payload fields.
     try {
       for (let attempt = 0; attempt < 3; attempt++) {

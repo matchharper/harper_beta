@@ -29,6 +29,7 @@ test("ordinary chat exposes general research and authoring regardless of legacy 
     channel: "chat",
   });
   for (const name of [
+    "manage_work",
     "save_job_posting",
     "upsert_document",
     "update_talent_profile",

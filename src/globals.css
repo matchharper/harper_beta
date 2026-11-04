@@ -1313,20 +1313,28 @@
   }
 }
 
+/* All bubbles of the message share the same copy/delete target. */
+@media (min-width: 768px) {
+  [data-career-message-container][data-career-message-role="assistant"]:has(> [data-career-message-actions-open]) [data-chat-message-bubble] {
+    background-color: var(--color-neutral-400);
+  }
+}
+
 /* The actual message enters the top layer; its React parent and contents stay intact. */
 [data-chat-message-lifted]::backdrop {
   background: transparent;
   pointer-events: none;
 }
 [data-chat-message-lifted] {
-  -webkit-touch-callout: none;
-  user-select: none;
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
 }
 [data-chat-message-lifted] :is(a, button, input, textarea, select, [contenteditable]) {
   pointer-events: none;
 }
 @media (max-width: 767px) {
-  [data-career-message-container] [data-chat-message-bubble] {
+  [data-career-message-container] [data-chat-message-bubble]:not([data-chat-message-lifted]) {
     -webkit-touch-callout: none;
     user-select: none;
   }
@@ -1375,4 +1383,16 @@
     animation-duration: 0s;
     animation-delay: 0s;
   }
+}
+
+/* Friendly Career chat reveals complete bubbles instead of individual tokens. */
+@keyframes career-bubble-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.career-bubble-enter {
+  animation: career-bubble-enter 260ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .career-bubble-enter { animation: none; }
 }

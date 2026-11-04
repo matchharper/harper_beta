@@ -1,3 +1,6 @@
+import { withEffectWaiting } from "./externalOperations/effects";
+import { CAREER_WORK_TOOLS } from "./work/tools";
+import { CAREER_CONTACT_TOOLS } from "@/lib/agentContacts/careerTools";
 import { TALENT_MEETING_TOOLS } from "./meetings/tools";
 import { createHash } from "node:crypto";
 import type { TalentToolDefinition, TalentToolExecutionContext } from "@/lib/talentOnboarding/tools";
@@ -23,6 +26,7 @@ function projectedTools(tools: Record<string, TalentToolDefinition>, format: (na
 }
 
 export const CAREER_AGENTIC_TOOLS: Record<string, TalentToolDefinition> = {
+  ...CAREER_CONTACT_TOOLS,
   ...projectedTools(CAREER_PROFILE_TOOLS, formatProfileToolResult),
   ...projectedTools(CAREER_INTERNAL_APPLICATION_TOOLS, formatInternalApplicationToolResult),
   ...projectedTools(CAREER_MATCHING_TOOLS, (_name, value) => formatCareerMatchingResult(value)),
@@ -42,12 +46,16 @@ function executionContext(context: TalentToolExecutionContext | undefined, name:
     userMessageId: Number(context.userMessageId) > 0 ? Number(context.userMessageId) : undefined,
     requestId: `${context.resumeRequestId ?? context.userMessageId ?? context.toolCallId}:${name}:${commandHash}`,
     signal: context.abortSignal,
+    workId: context.workId,
+    claimId: context.agentClaimId,
+    workRevision: context.workRevision,
     deadlineAt: context.deadlineAt,
   };
 }
 
 export const CAREER_GENERAL_TOOLS: Record<string, TalentToolDefinition> = {
   ...CAREER_AGENTIC_TOOLS,
+  ...CAREER_WORK_TOOLS,
   suggest_form: {
     ...suggestFormTool.function,
     channels: ["chat"],
@@ -61,16 +69,20 @@ export const CAREER_GENERAL_TOOLS: Record<string, TalentToolDefinition> = {
     ...USE_BROWSER_TOOL,
     channels: ["chat"],
     async execute(input, context) {
-      const result = await executeUseBrowser(
-        input, executionContext(context, "use_browser", input), context?.onArtifactMessage
-      );
-      if (result.message && input.action !== "run") context?.onArtifactMessage?.(result.message);
-      return result;
+      const result = await withEffectWaiting(() => executeUseBrowser(
+        input, { ...executionContext(context, "use_browser", input),
+          ...(["run", "read"].includes(String(input.action)) ? { deadlineAt: Date.now() } : {}) }, context?.onArtifactMessage
+      ));
+      if ("message" in result && result.message && input.action !== "run") context?.onArtifactMessage?.(result.message);
+      const operation = "operation" in result ? result.operation : undefined;
+      const pending = operation && ["running", "cancelling"].includes(operation.status) ? operation
+        : "operations" in result ? result.operations?.find(op => op.kind === "browser_run" && ["running", "cancelling"].includes(op.status)) : undefined;
+      return { ...result, ...(pending ? { careerContinuation: { kind: "browser_run", id: pending.id } } : {}) };
     },
   },
   write_email: {
     ...WRITE_EMAIL_TOOL,
     channels: ["chat"],
-    execute: (input, context) => executeWriteEmail(input, executionContext(context, "write_email", input)),
+    execute: (input, context) => withEffectWaiting(() => executeWriteEmail(input, executionContext(context, "write_email", input))),
   },
 };

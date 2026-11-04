@@ -11,6 +11,7 @@ import {
 import {
   fetchTalentOpportunityHistoryByIds,
   fetchTalentPostingCardsByRoleIds,
+  type TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
 import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
 import { hydrateOpportunityRunsForMessages } from "@/lib/opportunityDiscovery/store";
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest) {
       .filter((id): id is number => typeof id === "number");
     const previewByMessageId = new Map<
       number,
-      Awaited<ReturnType<typeof fetchTalentOpportunityHistoryByIds>>
+      TalentOpportunityHistoryItem[]
     >();
     const postingRoleIdsByMessageId = new Map<number, string[]>();
 
@@ -288,6 +289,12 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ ok: true, deletedMessageId: messageId, hiddenFormId: formId });
       }
     }
+
+    const retainedSource = await (admin.rpc as any)("hide_career_work_source", {
+      p_user_id: user.id, p_conversation_id: conversationId, p_message_id: messageId,
+    });
+    if (retainedSource.error) throw retainedSource.error;
+    if (retainedSource.data) return NextResponse.json({ ok: true, deletedMessageId: messageId });
 
     const cleanupResults = await Promise.all([
       (admin.from("talent_opportunity_chat_preview" as any) as any)

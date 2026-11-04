@@ -1,3 +1,4 @@
+import { upcomingMeetingFilter } from "../meetingDisplay";
 import { CronDate } from "cron-parser";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { Json } from "@/types/database.types";
@@ -15,6 +16,8 @@ export async function readTalentSchedules(args: {
   from?: string;
   until?: string;
   includeCancelled?: boolean;
+  upcoming?: boolean;
+  now?: Date;
   offset?: number;
   limit?: number;
 }) {
@@ -31,6 +34,7 @@ export async function readTalentSchedules(args: {
   else if (!args.includeCancelled) query = query.eq("status", "confirmed");
   if (args.sourceKey) query = query.eq("source_key", args.sourceKey);
   if (args.roleId) query = query.eq("role_id", args.roleId);
+  if (args.upcoming) query = query.or(upcomingMeetingFilter(args.now));
   if (args.from) query = query.gte("confirmed_start_at", args.from);
   if (args.until) query = query.lt("confirmed_start_at", args.until);
   const { data, error, count } = await query
@@ -111,7 +115,9 @@ export function formatTalentSchedules(result: {
           ? `Related position: ${row.role.company_workspace?.company_name ?? ""} / ${row.role.name}`
           : "",
         row.role_id ? `Role ID: ${row.role_id}` : "No linked Role.",
-        `Start: ${row.confirmed_start_at ? formatLlmDateTime(row.confirmed_start_at) : "unconfirmed"}; end: ${row.confirmed_end_at ? formatLlmDateTime(row.confirmed_end_at) : "unknown"}; event timezone: ${row.timezone}.`,
+        row.source_refs?.calendarDate
+          ? `Date: ${formatLlmDateTime(row.source_refs.calendarDate)}; time not specified.`
+          : `Start: ${row.confirmed_start_at ? formatLlmDateTime(row.confirmed_start_at) : "unconfirmed"}; end: ${row.confirmed_end_at ? formatLlmDateTime(row.confirmed_end_at) : "unknown"}; event timezone: ${row.timezone}.`,
         row.content,
         row.calendar?.conference_url
           ? `Meeting link: ${row.calendar.conference_url}`
@@ -150,7 +156,7 @@ export async function readUpcomingTalentScheduleContext(args: {
   do {
     const page = await readTalentSchedules({
       ...args,
-      from: now.toISOString(),
+      upcoming: true,
       until: until.toISOString(),
       offset,
     });

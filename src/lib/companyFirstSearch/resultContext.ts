@@ -51,7 +51,7 @@ export function buildCompanyMatchingResultContext(
       ? selected > 0
         ? [
             "- 지금 회사에 소개해도 좋겠다고 판단한 사람들이 아래에 있다.",
-            "- 일반 선제 제안은 후보자의 관심을 아직 확인하지 않았다. 본인이 우선 검토를 요청한 사람은 아래에 그 사실이 표시된다. 어느 쪽도 역할 수락이나 연결 완료를 의미하지 않는다. 회사가 만나 보고 싶은 사람을 고르면 Harper가 본인에게 역할 수락 의사를 묻는다.",
+            "- 일반 선제 제안은 후보자의 관심을 아직 확인하지 않았다. 본인이 이 역할에 관심을 표현한 사람은 아래에 그 사실이 표시된다. 어느 쪽도 역할 수락이나 연결 완료를 의미하지 않는다. 회사가 만나 보고 싶은 사람을 고르면 Harper가 본인에게 역할 수락 의사를 묻는다.",
           ]
         : input.interactiveSearch ? [
             ...(input.interactiveSearch.selectionMethod === "evaluation_only" ? [
@@ -127,7 +127,7 @@ export function buildCompanyMatchingResultContext(
           : `  - 이 회사와 잘 맞을 수 있다고 본 이유: ${candidate.reason}`
       );
       if (candidate.candidateRequestedReview) {
-        lines.push("  - 후보자 본인이 이 역할의 우선 검토를 요청했다. 이 사실을 소개할 때 가볍게 함께 알릴 수 있다. 역할 수락이나 회사의 Intro 요청은 아니다.");
+        lines.push("  - 후보자 본인이 이 역할에 관심을 표현했다. 이 사실을 소개할 때 가볍게 함께 알릴 수 있다. 역할 수락이나 회사의 Intro 요청은 아니다.");
       }
     }
   }

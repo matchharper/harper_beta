@@ -114,7 +114,7 @@ test("Gmail debugger enforces internal self access and the actual tool schema, p
       [],
       {},
       { query: 5 },
-      { query: "in:inbox", max_results: 11 },
+      { query: "in:inbox", max_results: 501 },
       { query: "in:inbox", include_content: "true" },
       { query: "in:inbox", userId: "someone-else" },
       { query: "in:inbox", name: "write_email" },

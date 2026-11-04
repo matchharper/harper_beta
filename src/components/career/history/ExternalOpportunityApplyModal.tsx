@@ -61,7 +61,7 @@ export default function ExternalOpportunityApplyModal({
       title={t("career.history.external_application.apply", "지원하기")}
       description={t(
         "career.history.external_application.description",
-        "Harper와 이 포지션의 지원을 같이 준비할 수 있습니다."
+        "Harper에게 최종 지원까지 요청할 수 있습니다."
       )}
       bodyClassName="px-4 sm:px-5"
       footer={
@@ -84,8 +84,9 @@ export default function ExternalOpportunityApplyModal({
           >
             {t(
               "career.history.external_application.direct",
-              "사이트에서 직접 지원하기"
+              "채용 페이지에서 지원"
             )}
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
           </MuteButton>
           <ApplyWithHarperButton
             item={item}

@@ -1,3 +1,5 @@
+import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
@@ -47,19 +49,20 @@ test("external application choices persist distinct stages, retry failed saves a
   const { CareerChatPanelProvider } = require("../CareerChatPanelContext");
   const { MessagesProvider } = require("@/i18n/useMessage");
   const { supabase: browserSupabase } = require("@/lib/supabase");
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const root = createRoot(dom.window.document.getElementById("root")!);
   const events: string[] = [];
   let save: (stage: "saved" | "applied") => Promise<boolean> = async () => true;
   let finishChat: () => void = () => {};
   const context = {
     user: { id: "fixture-user" },
-    conversationId: "fixture-conversation",
+    messages: [], conversationId: "fixture-conversation",
     stage: "completed",
     isOnboardingDone: true,
     onSendChatMessage: (
       args: Parameters<CareerChatPanelContextValue["onSendChatMessage"]>[0]
     ) => {
-      assert.equal(args.text, "Example · Engineer에 하퍼와 함께 지원하고 싶어. 지원 준비를 시작해줘.");
+      assert.equal(args.text, "Example · Engineer에 지원해줘.");
       assert.deepEqual(args.opportunityMentions, [
         { label: "Example · Engineer", roleId: "external-role" },
       ]);
@@ -68,7 +71,7 @@ test("external application choices persist distinct stages, retry failed saves a
         finishChat = resolve;
       });
     },
-  } as CareerChatPanelContextValue;
+  } as unknown as CareerChatPanelContextValue;
   const item = {
     id: "external-opportunity",
     roleId: "external-role",
@@ -84,7 +87,7 @@ test("external application choices persist distinct stages, retry failed saves a
   ) =>
     act(async () =>
       root.render(
-        <MessagesProvider locale={locale}>
+        <RouterContext.Provider value={{ query: {}, pathname: "/career", isReady: true } as any}><QueryClientProvider client={queryClient}><MessagesProvider locale={locale}>
           <CareerChatPanelProvider value={context}>
             <ExternalOpportunityApplyModal
               key={key}
@@ -104,7 +107,7 @@ test("external application choices persist distinct stages, retry failed saves a
               onOpenChat={() => events.push("chat")}
             />
           </CareerChatPanelProvider>
-        </MessagesProvider>
+        </MessagesProvider></QueryClientProvider></RouterContext.Provider>
       )
     );
   const button = (label: string) => {
@@ -116,7 +119,7 @@ test("external application choices persist distinct stages, retry failed saves a
   };
   try {
     await render("direct");
-    assert.ok(button("사이트에서 직접 지원하기").classList.contains("w-full"));
+    assert.ok(button("채용 페이지에서 지원").classList.contains("w-full"));
     assert.ok(button("Harper와 지원하기").classList.contains("w-full"));
     let finishSave: (result: boolean) => void = () => {};
     save = () =>
@@ -124,11 +127,11 @@ test("external application choices persist distinct stages, retry failed saves a
         finishSave = resolve;
       });
     await act(async () => {
-      button("사이트에서 직접 지원하기").click();
-      button("사이트에서 직접 지원하기").click();
+      button("채용 페이지에서 지원").click();
+      button("채용 페이지에서 지원").click();
     });
     assert.deepEqual(events, ["posting", "save:applied"]);
-    assert.equal(button("사이트에서 직접 지원하기").disabled, true);
+    assert.equal(button("채용 페이지에서 지원").disabled, true);
     assert.equal(button("Harper와 지원하기").disabled, true);
     await act(async () => finishSave(true));
     assert.deepEqual(events, [
@@ -168,14 +171,14 @@ test("external application choices persist distinct stages, retry failed saves a
     events.length = 0;
     await render("failed-direct");
     save = async () => false;
-    await act(async () => button("사이트에서 직접 지원하기").click());
+    await act(async () => button("채용 페이지에서 지원").click());
     assert.deepEqual(events, ["posting", "save:applied"]);
 
     events.length = 0;
     await render("pending", "en", true);
-    assert.equal(button("Apply directly on the website").disabled, true);
+    assert.equal(button("Apply on company site").disabled, true);
     assert.equal(button("Apply with Harper").disabled, true);
-    await act(async () => button("Apply directly on the website").click());
+    await act(async () => button("Apply on company site").click());
     assert.deepEqual(events, []);
   } finally {
     await act(async () => {

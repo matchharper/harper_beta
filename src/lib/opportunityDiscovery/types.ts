@@ -13,6 +13,8 @@ export type OpportunityDiscoveryTrigger =
   | "conversation_completed"
   | "immediate_opportunity_requested"
   | "all_batch_feedback_submitted"
+  | "agent_contact_received"
+  | "career_internal_evaluation"
   | "periodic_refresh_due";
 
 export type OpportunityRunMode = "initial" | "immediate" | "refine" | "refresh";

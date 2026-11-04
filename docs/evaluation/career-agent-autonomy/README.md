@@ -1,5 +1,11 @@
 # Career agent autonomy
 
+## v5: concurrent delegation and chat authority
+
+`cases-v5.json`, `gold-v5.json`, and `manifest-v5.json` freeze two synthetic development probes before generation: ten distinct application requests in one message, and delegation of ten already prepared reviews through chat. The evaluation unit is a complete foreground agent turn, including all work/form calls and the final reply. It uses the production model, selector, prompts, tool schemas and loop. A memory adapter records durable work and form effects with production projections; it does not execute child agents or real submissions. Native PostgreSQL tests in `src/lib/career/work/database.test.ts` separately verify the actual admission, revision, approval and dispatch transactions.
+
+Run `NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v5 --repeat 1 --label concurrent-work`. Inspect complete provider inputs and outputs manually against frozen semantic criteria. All ten responsibilities must be accounted for, explicit scoped delegation must not create another mandatory confirmation, and submission completion must not be invented. Tool counts are diagnostics. No automatic qualitative judge or hidden retries. Existing owner-only ignored artifacts and network isolation apply. These probes cannot establish production delivery, browser recovery, or general reliability. The removed top-level registry was read at `463d83cb^`; its deletion is preserved.
+
 Current product selection: **C**, by the user's 2026-11-03 decision. See [selection and A rollback](../../agent-guidance/career-guidance-selection.md) for the exact references and scoped rollback patch. The comparison below remains historical evidence; it is not an active production A/B switch.
 
 Compare the current Career agent after making web tools core with a simplified general guidance configuration. The evaluation unit is the first complete assistant turn, including its live capability selector, tool loop, intermediate text, final reply and saved artifacts. Four cases cover sparse experience, empty indexed opportunity results, a blocked application route and sufficient material requiring no extra research.
@@ -68,3 +74,34 @@ NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-serv
 ```
 
 [C retained-guidance report](reports/2026-11-03-retained-guidance.md) records the restoration/deletion diff and the two completed trials. Both initial attempts failed before model output because of connection errors; those artifacts are preserved. After connectivity recovered, the same two cases were each executed once with unchanged product guidance and data. The completed runs did not repeat B's unnecessary file creation or email-language error. The Atlas case still asked for company identification without web research, so this does not establish improved research autonomy.
+
+## Targeted action-outcome wording check (2026-11-03)
+
+The main prompt's preparation/execution/delivery distinctions were condensed into grounding action outcomes in tool-confirmed facts. Async result reads and duplicate-execution prevention remain. Successful Gmail sends now report acceptance for sending without a routine recipient-receipt disclaimer; failure and uncertain-send results are unchanged.
+
+The unchanged v2 `recruiter_reply` and `unavailable_source` fixtures ran once each with current product defaults (`gpt-6.1-sol`, high reasoning), using `--dataset v2 --only recruiter_reply,unavailable_source --repeat 1 --label outcome-evidence-cleanup`. Exact requests, outputs, source snapshots and the dirty-workspace diff are in ignored `runs/2026-11-03T07-52-53-434Z-outcome-evidence-cleanup/`. Provider requests contain the revised main prompt. External actions remain isolated by the existing fixture adapter.
+
+- The recruiter case produced the requested English draft with the supplied availability and no tool calls, but still added an unsolicited non-send statement. This change has **not** established elimination of that behavior.
+- The unavailable-source case read the saved evidence, attempted public retrieval, disclosed the missing company-specific evidence and delivered useful interview preparation without inventing company facts or candidate cost savings. Necessary uncertainty remained visible.
+- These are two post-change observations, not a before/after frequency comparison. They do not exercise real Gmail delivery. The existing email-tool and main-prompt tests passed 11/11; an initial test invocation lacked the import-time OpenAI credential and was rerun with a synthetic test key. No deployment was performed.
+
+## v4: external posting import for application requests (2026-11-03)
+
+Two new synthetic URL-only requests reuse the v1 application source facts: applying to an unsaved posting and analyzing the same posting. `cases-v4.json`, `gold-v4.json` and `manifest-v4.json` were frozen before generation. These are targeted development probes reviewed by Codex, not a blind holdout. The fixture's optional `roleStored=false` omits the selected role and ID from model context until import; existing datasets retain their selected-role context. The save adapter records the import and returns identifiers without any real DB or external action. Existing save/import unit tests separately exercise the production importer.
+
+The product change updates the save tool description and both capability catalog entries. No main prompt, handbook, execution permission or model configuration changes are part of this task. Read actual provider inputs and full output manually: the application request should import and continue preparation without a save-permission question; analysis alone should remain analysis. Neither case should send an application before final review. Each case runs once under the same defaults, network boundary and artifact retention as the canonical runner above.
+
+```sh
+NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v4 --repeat 1 --label application-posting-import
+```
+
+This checks agent behavior with synthetic tool observations, not real website submission or production persistence. Two trials do not establish general reliability or a before/after improvement rate.
+
+The run `runs/2026-11-03T09-19-37-993Z-application-posting-import/` completed both cases with `gpt-6.1-sol` / high reasoning. Manual review of the full provider requests, calls and replies confirmed:
+
+- The application case queried existing recommendations, imported the unsaved URL without a save-permission question, researched the official application route, and prepared a review form with the returned role ID, email body and exact resume revision. No external send/submission was attempted. Completion took 38.3 seconds.
+- The analysis case read public sources and the resume, then delivered a grounded fit analysis. It made no save or application calls and no mutations. Completion took 36.6 seconds.
+- Actual provider requests contained the revised capability descriptions and `save_job_posting` schema description. Both cases met their targeted semantic criteria. These post-change observations are not a controlled comparison.
+- The production importer and capability/tool suites passed 36 tests in total. The first test invocation could not import two suites because synthetic DB environment variables were missing; those two suites passed after supplying test-only values. No production writes, sends or deployment occurred.
+
+[2026-11-03 concurrent work report](reports/2026-11-03-concurrent-work.md) records the initial missing-tool failure, its source correction, the unchanged-v5 rerun, exact replies and the distinction between model delegation, native DB checks, local UI checks and unperformed external submissions.

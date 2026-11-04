@@ -7,6 +7,10 @@ import ts from "typescript";
 function harness(anonymous = false) {
   const writes: { table: string; filters: Record<string, unknown> }[] = [];
   const admin = {
+    async rpc(name: string) {
+      assert.equal(name, "hide_career_work_source");
+      return { data: false, error: null };
+    },
     from(table: string) {
       const filters: Record<string, unknown> = {};
       const query = {
@@ -57,6 +61,8 @@ function harness(anonymous = false) {
     "@/lib/talentOpportunity": {},
     "@/lib/career/postingLinks": {},
     "@/lib/opportunityDiscovery/store": {},
+    "@/lib/career/forms/server": {},
+    "@/lib/career/forms/schema": {},
   };
   const source = ts.transpileModule(
     readFileSync(new URL("./route.ts", import.meta.url), "utf8"),

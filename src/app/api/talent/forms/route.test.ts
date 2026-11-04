@@ -65,6 +65,7 @@ const answers: CareerSuggestionAnswer[] = [
 // Only authentication and database transport are fixture-backed.
 function harness(savedForm = form, anonymous = false) {
   const messages = new Map<string, any>();
+  const continuations: (() => Promise<void>)[] = [];
   const row = {
     id: 42,
     user_id: "owner",
@@ -120,6 +121,7 @@ function harness(savedForm = form, anonymous = false) {
   };
   const dependencies: Record<string, unknown> = {
     "next/server": {
+      after: (work: () => Promise<void>) => { continuations.push(work); },
       NextResponse: {
         json: (body: unknown, init?: { status: number }) => ({
           body,
@@ -163,6 +165,7 @@ function harness(savedForm = form, anonymous = false) {
   });
   return {
     messages,
+    continuations,
     post: (body: unknown) => loaded.exports.POST({ json: async () => body }),
   };
 }
@@ -175,11 +178,12 @@ const batch = () => ({
   requestId: "one-completed-batch",
 });
 
-test("one complete suggestion batch saves the exact message for ordinary chat without a queue dependency", async () => {
+test("one complete suggestion batch saves the exact message and schedules the durable continuation", async () => {
   const app = harness();
   const result = await app.post(batch());
   assert.equal(result.status, 200);
   assert.equal(app.messages.size, 1);
+  assert.equal(app.continuations.length, 1);
   assert.deepEqual(result.body.message.formResponse.answers, answers);
   const message = result.body.message;
   assert.ok(message.content.includes(answers[0].message!));
@@ -188,7 +192,7 @@ test("one complete suggestion batch saves the exact message for ordinary chat wi
   assert.match(message.content, /사용자가 직접 수정한 문장/);
   assert.match(message.content, /건너뛰기/);
   const providerInput = formatTalentMessageContentForLlmPrompt(message);
-  assert.match(providerInput, /4 item responses submitted together/);
+  assert.match(providerInput, /User answered 4 items of form/);
   assert.ok(providerInput.includes(answers[0].message!));
   assert.match(providerInput, /개인의 기여를 정확히/);
   assert.match(providerInput, /action yes.*적용/);
@@ -198,11 +202,10 @@ test("one complete suggestion batch saves the exact message for ordinary chat wi
   assert.doesNotMatch(providerInput, /"formSnapshot"|"answers"/);
 });
 
-test("incomplete, duplicate, mixed or invalid item responses never write", async () => {
+test("duplicate, mixed or invalid item responses never write", async () => {
   const app = harness();
   const invalid = [
     { ...batch(), answers: undefined, ...answers[0] },
-    { ...batch(), answers: answers.slice(0, 3) },
     { ...batch(), answers: [...answers.slice(0, 3), answers[0]] },
     {
       ...batch(),
@@ -266,4 +269,13 @@ test("ordinary review forms continue to save their action immediately", async ()
   assert.equal(app.messages.size, 1);
   assert.equal(result.body.message.content, review.positive!.message);
   assert.equal(result.body.message.formResponse.answers, undefined);
+});
+
+test("partial suggestion responses retain unanswered siblings", async () => {
+  const app = harness();
+  const result = await app.post({ ...batch(), answers: answers.slice(0, 2) });
+  assert.equal(result.status, 200);
+  assert.equal(app.messages.size, 1);
+  assert.deepEqual(result.body.message.formResponse.answers, answers.slice(0, 2));
+  assert.match(formatTalentMessageContentForLlmPrompt(result.body.message), /unanswered items may remain/);
 });

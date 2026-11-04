@@ -15,21 +15,18 @@ import type {
   CareerOpportunityType,
 } from "@/components/career/types";
 import { useCareerT } from "@/i18n/useCareerT";
-import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
+import CareerOpportunityTabs from "@/components/career/history/CareerOpportunityTabs";
 import {
   getCareerOpportunityManagementStatus,
-  getMyOpportunityTabs,
   type CareerOpportunityManagementStatus,
 } from "@/components/career/history/savedOpportunityStatus";
 import { CareerMobileJobsList } from "@/components/career/mobile/jobs/CareerMobileJobsList";
 import type {
   JobsDisplayTab,
   JobsStatusCounts,
-  JobsStatusTab,
 } from "@/components/career/mobile/jobs/types";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import CareerJobLinkImportButton from "@/components/career/history/CareerJobLinkImportButton";
-import { SavedOpportunityViewPicker } from "@/components/career/history/SavedOpportunityViews";
 
 type CareerMobileJobsViewProps = {
   onChangeWorkspaceTab: (tab: CareerWorkspaceTab) => void;
@@ -143,7 +140,7 @@ export default function CareerMobileJobsView({
         onChangeTopBarOption(nextOption);
         return;
       }
-      if (nextOption === "inbox") {
+      if (nextOption === "inbox" || nextOption === "history") {
         setTab("new");
         return;
       }
@@ -158,26 +155,11 @@ export default function CareerMobileJobsView({
     [onChangeTopBarOption, onChangeWorkspaceTab, setTab, tab]
   );
 
-  const statusTabItems: TabBoxItem<JobsStatusTab>[] = [
-    ...getMyOpportunityTabs(t),
-    {
-      id: "archived" as const,
-      label: t(
-        "career.history.saved_opportunity_status.archived",
-        "숨긴 포지션"
-      ),
-    },
-  ].map((option) => ({
-    label: option.label,
-    count: statusCounts[option.id],
-    value: option.id,
-  }));
-
   return (
     <CareerMobileShell
       header={
         <CareerMobileTopBar
-          activeTab={isInboxTab ? "inbox" : "jobs"}
+          activeTab="history"
           options={workspaceTabOptions}
           onChangeTab={handleTopBarChange}
           profilePicture={profilePicture}
@@ -193,26 +175,19 @@ export default function CareerMobileJobsView({
       }
     >
       <div className="relative flex flex-1 flex-col">
-        {!isInboxTab ? (
-          <div className="sticky top-0 z-20 flex flex-col bg-transparent">
-            <div className="from-bg-default from-50% to-bg-white/0 px-3 py-3">
-              <TabBoxes
-                activeValue={tab}
-                items={statusTabItems}
-                onValueChange={setTab}
-                size="lg"
-                variant="neutral"
-                className="[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-              />
+        <div className="sticky top-0 z-20 flex flex-col bg-transparent">
+          <CareerOpportunityTabs
+            activeTab={tab}
+            counts={statusCounts}
+            onChange={setTab}
+            className="from-bg-default from-50% to-bg-white/0 px-3 py-3"
+          />
+          {!detailOpportunity && tab === "saved" ? (
+            <div className="flex justify-end bg-transparent px-3 py-2">
+              <CareerJobLinkImportButton />
             </div>
-            {!detailOpportunity && tab === "saved" ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-transparent px-3 py-2">
-                <SavedOpportunityViewPicker />
-                <CareerJobLinkImportButton />
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+          ) : null}
+        </div>
 
         <div className="relative flex flex-1 flex-col text-sm">
           {isInboxTab ? (

@@ -1,4 +1,3 @@
-import UpcomingAppointments from "./UpcomingAppointments";
 import { CareerTodayExternalRecommendations } from "./CareerDailyExternalRecommendations";
 import {
   CalendarClock,
@@ -295,45 +294,18 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
         />
       );
     }
-    if (action.kind === "career_check_in_call") {
-      return (
-        <TaskRow
-          key={action.id}
-          icon={<PhoneCall className="h-4 w-4" />}
-          title={t("career.tasks.check_in", "Harper와 5분 통화")}
-          description={t(
-            "career.tasks.check_in_description",
-            "최근 상황이나 달라진 조건을 가볍게 이야기해요."
-          )}
-          action={callAction(action)}
-        />
-      );
-    }
     return null;
   });
-  if (
-    !tasks.suggestions.some((action) => action.kind === "career_check_in_call")
-  ) {
+  if (!showCompletedState) {
     suggestions.push(
       <TaskRow
         key="check-in"
         icon={<PhoneCall className="h-4 w-4" />}
-        title={
-          showCompletedState
-            ? t("career.tasks.check_in", "Harper와 5분 통화")
-            : t("career.tasks.onboarding_call", "5분 커리어 인터뷰로 시작해요")
-        }
-        description={
-          showCompletedState
-            ? t(
-                "career.tasks.check_in_description",
-                "최근 상황이나 달라진 조건을 가볍게 이야기해요."
-              )
-            : t(
-                "career.tasks.onboarding_call_description",
-                "경험과 원하는 조건을 알려주시면 맞는 기회를 찾기 시작해요."
-              )
-        }
+        title={t("career.tasks.onboarding_call", "5분 커리어 인터뷰로 시작해요")}
+        description={t(
+          "career.tasks.onboarding_call_description",
+          "경험과 원하는 조건을 알려주시면 맞는 기회를 찾기 시작해요."
+        )}
         action={callAction()}
       />
     );
@@ -542,7 +514,7 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
                       size="sm"
                     />
                   }
-                  meta={`${action.companyName} · ${action.isCompanyIntro ? t("career.tasks.intro_request", "회사의 Intro 요청") : t("career.tasks.harper_offer", "Harper 연결 제안")}`}
+                  meta={`${action.companyName} · ${action.isCompanyIntro ? t("career.tasks.intro_request", "먼저 온 관심") : t("career.tasks.harper_offer", "Harper 연결")}`}
                   title={action.roleTitle}
                   description={
                     action.recommendationSummary ??
@@ -568,7 +540,7 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
       ),
     },
     suggestions: {
-      title: t("career.tasks.suggestions", "Harper 제안"),
+      title: t("career.tasks.suggestions", "이어서 해볼 것"),
       count: 0,
       content: (
         <>
@@ -612,7 +584,7 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
               }
               title={t(
                 "career.tasks.feedback_request",
-                "추천에 대한 피드백을 남겨주세요"
+                "기회에 대한 생각 남기기"
               )}
               description={t(
                 "career.tasks.feedback_request_description",
@@ -628,7 +600,7 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
                     )
                   }
                 >
-                  {t("career.tasks.review_recommendations", "추천 확인하기")}
+                  {t("career.tasks.review_recommendations", "찾은 기회 보기")}
                   <ChevronRight className="h-3.5 w-3.5" />
                 </MuteButton>
               }
@@ -638,7 +610,7 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
       ),
     },
     working: {
-      title: t("career.tasks.working", "Harper가 하는 중"),
+      title: t("career.tasks.working", "Harper가 하고 있는 일"),
       count: 0,
       content: (
         <>
@@ -748,12 +720,12 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
                         )
                       : t(
                           "career.tasks.priority_review_requested",
-                          "우선 검토를 요청했어요"
+                          "관심 있는 기회로 저장했어요"
                         )
               }
               description={t(
                 "career.tasks.priority_review_waiting",
-                "회사의 인재 목록에 전달했고, 적절한 타이밍에 잘 소개할 수 있게 기다리고 있어요."
+                "관심 있는 역할의 정보를 살펴보고 있어요. 소개를 원하시면 저에게 말씀해 주세요."
               )}
               action={
                 <>
@@ -814,10 +786,6 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
           <CareerHomePanel variant="onboarding" onOpenChat={onOpenChat} />
         </div>
       )}
-      <UpcomingAppointments
-        enabled={completed}
-        onOpenRole={(roleId) => onOpenOpportunity(roleId, "saved")}
-      />
       {tasks.error ? (
         <div
           role="status"

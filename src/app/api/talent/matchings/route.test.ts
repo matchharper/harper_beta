@@ -8,7 +8,8 @@ import { z } from "zod";
 const matchingId = "00000000-0000-4000-8000-000000000007";
 const cursor = "00000000-0000-4000-8000-000000000008";
 
-function harness({ anonymous = false, owned = true, missingPosting = false } = {}) {
+function harness({ anonymous = false, owned = true, missingPosting = false, runOwned = true } = {}) {
+  let table = "";
   const filters: Record<string, unknown> = {};
   const calls: Array<Record<string, unknown>> = [];
   const query = {
@@ -18,7 +19,7 @@ function harness({ anonymous = false, owned = true, missingPosting = false } = {
       return query;
     },
     maybeSingle: async () => ({
-      data: owned ? { id: matchingId } : null,
+      data: (table === "external_recommendation_runs" ? runOwned : owned) ? { id: matchingId, title: "AI roles" } : null,
       error: null,
     }),
   };
@@ -52,7 +53,7 @@ function harness({ anonymous = false, owned = true, missingPosting = false } = {
       },
     },
     "@/lib/career/matching/store": {
-      matchingTable: () => query,
+      matchingTable: (_admin: unknown, name: string) => { table = name; return query; },
       listMatchings: async (args: Record<string, unknown>) => {
         calls.push(args);
         return {
@@ -131,6 +132,20 @@ test("matching API rejects anonymous and malformed requests before reading data"
   assert.equal((await invalid.get("matchingId=invalid")).status, 400);
   assert.equal((await invalid.get("cursor=invalid")).status, 400);
   assert.equal(invalid.calls.length, 0);
+});
+
+test("matching run references must belong to both the authenticated user and the selected matching", async () => {
+  const denied = harness({ runOwned: false });
+  assert.equal((await denied.get(`matchingId=${matchingId}&runId=${cursor}`)).status, 404);
+  assert.equal(denied.calls.length, 0);
+  assert.equal(denied.filters.talent_id, "owner");
+  assert.equal(denied.filters.matching_id, matchingId);
+  const allowed = harness();
+  const result = await allowed.get(`matchingId=${matchingId}&runId=${cursor}`);
+  assert.equal(result.status, 200);
+  assert.equal(allowed.calls[0].runId, cursor);
+  assert.equal(result.body.matching.title, "AI roles");
+  assert.equal((await allowed.get(`runId=${cursor}`)).status, 400);
 });
 
 test("matching API refuses another user's matching before loading evaluations", async () => {

@@ -175,8 +175,9 @@ async function fetchLatestConversationSummary(args: {
   admin: TalentAdminClient;
   conversationId: string;
   userId: string;
+  beforeMessageId?: number;
 }) {
-  const { data, error } = await ((
+  let query = ((
     args.admin.from("talent_conversation_summaries" as any) as any
   )
     .select(SUMMARY_ROW_SELECT)
@@ -186,6 +187,8 @@ async function fetchLatestConversationSummary(args: {
     .order("to_message_id", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(SUMMARY_LOOKUP_LIMIT) as any);
+  if (args.beforeMessageId !== undefined) query = query.lt("to_message_id", args.beforeMessageId);
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(
@@ -354,6 +357,7 @@ async function fetchRecentVisibleSummaryMessages(args: {
   admin: TalentAdminClient;
   conversationId: string;
   limit: number;
+  pendingUserMessageId?: number;
 }) {
   const targetLimit = Math.max(
     1,
@@ -367,6 +371,7 @@ async function fetchRecentVisibleSummaryMessages(args: {
         admin: args.admin,
         conversationId: args.conversationId,
         limit: fetchLimit,
+        userMessagesBeforeId: args.pendingUserMessageId,
       })
     ).filter(isVisibleSummaryRecentMessage);
 
@@ -394,16 +399,18 @@ export async function fetchRecentMessagesWithSummary(args: {
   fallbackLimit?: number;
   recentLimit?: number;
   userId: string;
+  pendingUserMessageId?: number;
 }) {
   const recentLimit = Math.max(
     MIN_RECENT_RAW_MESSAGES,
     Math.min(args.recentLimit ?? DEFAULT_RECENT_MESSAGE_LIMIT, 40)
   );
-  const latestSummary = await fetchLatestConversationSummary(args);
+  const latestSummary = await fetchLatestConversationSummary({ ...args, beforeMessageId: args.pendingUserMessageId });
   if (!latestSummary) {
     return fetchRecentVisibleSummaryMessages({
       admin: args.admin,
       conversationId: args.conversationId,
+      pendingUserMessageId: args.pendingUserMessageId,
       limit: Math.max(
         recentLimit,
         Math.min(
@@ -419,6 +426,7 @@ export async function fetchRecentMessagesWithSummary(args: {
       admin: args.admin,
       afterMessageId: latestSummary.to_message_id,
       conversationId: args.conversationId,
+      userMessagesBeforeId: args.pendingUserMessageId,
     })
   ).filter(
     (message) =>

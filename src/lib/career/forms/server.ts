@@ -27,7 +27,7 @@ import {
 type Admin = ReturnType<typeof getTalentSupabaseAdmin>;
 type Scope = { admin: Admin; userId: string; conversationId: string };
 const formInputSchema = z.object({
-  action: z.enum(["create", "update", "read", "list", "present"]),
+  action: z.enum(["create", "update", "read", "list", "present", "resolve"]),
   formId: z.number().int().positive().optional(),
   revision: z.number().int().positive().optional(),
   expectedRevision: z.number().int().positive().optional(),
@@ -55,7 +55,7 @@ export const suggestFormTool = {
       properties: {
         action: {
           type: "string",
-          enum: ["create", "update", "read", "list", "present"],
+          enum: ["create", "update", "read", "list", "present", "resolve"],
         },
         formId: { type: "integer" },
         revision: { type: "integer" },
@@ -105,7 +105,7 @@ export const suggestFormTool = {
             negative: actionProperties,
             relatedRefs: {
               description:
-                "Non-visible resource references needed to execute the chosen action, such as browser_session, role, document or URL. These remain available when the form is read or answered.",
+                "Non-visible resource references needed to execute the chosen action, such as browser_session, role, document, URL or work. An answer wakes every active work reference. Preserve existing work links when reusing a shared question; all references must belong to this conversation.",
               type: "array",
               items: {
                 type: "object",
@@ -241,11 +241,19 @@ export async function executeSuggestForm(
   args: Scope & {
     input: unknown;
     requestId?: string;
+    workId?: string;
     presentForm?: (form: CareerForm) => Promise<void>;
     onMessage?: (message: TalentMessageResponse) => void | Promise<void>;
   }
 ) {
   const input = formInputSchema.parse(args.input);
+  if (input.action === "resolve") {
+    if (!input.formId || !input.revision) throw new Error("Exact form revision required");
+    await writeForm(args, { p_action: "resolve", p_form_id: input.formId, p_revision: input.revision,
+      p_payload: { reason: "Handled in the conversation", sourceRequestId: args.requestId }, p_request_id: args.requestId });
+    return { ok: true, modelOutput: `Form ${input.formId} revision ${input.revision} no longer needs user input. This does not submit an application.` };
+  }
+
   if (input.action === "list") {
     const result = await listCareerForms({
       ...args,
@@ -306,6 +314,7 @@ export async function executeSuggestForm(
     };
   }
   if (!input.form) throw new Error("form is required");
+  if (args.workId) input.form.relatedRefs = [...(input.form.relatedRefs ?? []).filter(ref => ref.type !== "work" || ref.id !== args.workId), { type: "work", id: args.workId }];
   await assertConversation(args);
   await assertDocumentOwnership(
     args,
@@ -314,6 +323,17 @@ export async function executeSuggestForm(
       return typeof content.documentId === "string" ? [content.documentId] : [];
     })
   );
+  // A review is a real file snapshot, not merely a pointer to a mutable document.
+  const { prepareAttachments } = await import("../externalOperations/attachments");
+  for (const item of input.form.items) {
+    const content = getCareerFormContent(item);
+    if (typeof content.documentId !== "string") continue;
+    const [file] = await prepareAttachments(args, [{ document_id: content.documentId,
+      ...(typeof content.revision === "number" ? { revision: content.revision } : {}),
+      ...(typeof content.snapshot_id === "string" ? { snapshot_id: content.snapshot_id } : {}),
+    }]);
+    item.content = { ...content, revision: file.revision, snapshot_id: file.snapshotId, fileName: file.name };
+  }
   if (input.action === "update" && (!input.formId || !input.expectedRevision))
     throw new Error("formId and expectedRevision are required for update");
   const row = await writeForm(args, {
@@ -374,6 +394,11 @@ function validateResponse(
 
 export async function respondToCareerForm(args: Scope & { input: unknown }) {
   const input = careerFormResponseInputSchema.parse(args.input);
+  const previous = await args.admin.from("talent_messages").select("*")
+    .eq("user_id", args.userId).eq("conversation_id", args.conversationId).eq("message_type", "career_form_response")
+    .eq("payload->>requestId", input.requestId).maybeSingle();
+  if (previous.error) throw previous.error;
+  if (previous.data) return toTalentMessageResponse(previous.data as TalentMessageRow);
   const { form } = await readCareerForm({
     ...args,
     formId: input.formId,
@@ -383,7 +408,7 @@ export async function respondToCareerForm(args: Scope & { input: unknown }) {
   if (form.kind === "suggestion") {
     if (!input.answers?.length)
       throw new Error(
-        "Submit suggestion responses together after all items are handled"
+        "At least one suggestion answer is required"
       );
     if (
       input.itemId ||
@@ -394,20 +419,16 @@ export async function respondToCareerForm(args: Scope & { input: unknown }) {
     )
       throw new Error("A suggestion batch cannot include a separate response");
     const ids = new Set(input.answers.map((answer) => answer.itemId));
-    // Each displayed item has exactly one user choice in this immutable revision.
-    // This prevents partial/duplicate batches from starting an agent turn.
+    // Partial answers wake only the linked work; duplicate or foreign IDs are invalid.
     if (
       ids.size !== input.answers.length ||
-      ids.size !== form.items.length ||
-      form.items.some((item) => !ids.has(item.id))
+      input.answers.some(answer => !form.items.some(item => item.id === answer.itemId))
     )
       throw new Error(
-        "Suggestion responses must cover every form item exactly once"
+        "Each submitted answer must identify a distinct current form item"
       );
     for (const answer of input.answers) validateResponse(form, answer);
-    answers = form.items.map(
-      (item) => input.answers!.find((answer) => answer.itemId === item.id)!
-    );
+    answers = input.answers;
   } else {
     if (input.answers)
       throw new Error(
@@ -443,6 +464,20 @@ export async function respondToCareerForm(args: Scope & { input: unknown }) {
           values: input.values,
         }),
   };
+  // The submitted selection is pinned independently of later document edits.
+  const selectedFiles: NonNullable<CareerFormResponse["selectedFiles"]> = [];
+  for (const answer of submitted) for (const item of form.items) {
+    const documentId = answer.values[item.id];
+    if (item.type !== "document" || typeof documentId !== "string" || !documentId) continue;
+    const content = getCareerFormContent(item);
+    const { prepareAttachments } = await import("../externalOperations/attachments");
+    const [file] = await prepareAttachments({ ...args, requestId: input.requestId }, [{ document_id: documentId,
+      ...(documentId === content.documentId && typeof content.snapshot_id === "string" ? { snapshot_id: content.snapshot_id } : {}),
+    }]);
+    if (!file.snapshotId) throw new Error("Selected file could not be pinned");
+    selectedFiles.push({ itemId: item.id, documentId, revision: file.revision ?? null, snapshotId: file.snapshotId, fileName: file.name });
+  }
+  if (selectedFiles.length) response.selectedFiles = selectedFiles;
   const row = await writeForm(args, {
     p_action: "respond",
     p_form_id: form.formId,
@@ -466,7 +501,7 @@ export async function hideCareerForm(scope: Scope & { formId: number }) {
   return writeForm(scope, { p_action: "hide", p_form_id: scope.formId });
 }
 
-/** Queue forms until all assistant messages for this turn have been saved. */
+/** Persist each presentation before yielding; no in-memory list is the only reader. */
 export function createCareerFormPresenter(
   scope: Scope,
   onMessage: (message: TalentMessageResponse) => void | Promise<void>,
@@ -487,13 +522,11 @@ export function createCareerFormPresenter(
   return {
     hasPending: () => pending.length > 0,
     presentForm: async (form: CareerForm) => {
+      await present(form);
       pending.push(form);
     },
     flush: async () => {
-      while (pending.length) {
-        await present(pending[0]);
-        pending.shift();
-      }
+      pending.length = 0;
     },
   };
 }

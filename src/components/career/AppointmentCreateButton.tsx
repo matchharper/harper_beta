@@ -1,73 +1,75 @@
 import { useId, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { CalendarPlus, Loader2 } from "lucide-react";
+import { ko, enUS } from "date-fns/locale";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerT } from "@/i18n/useCareerT";
+import { useMessages } from "@/i18n/useMessage";
+import { useAuthStore } from "@/store/useAuthStore";
 import type { TalentMeetingSchedule } from "@/lib/career/meetings/types";
+import { mergeCreatedAppointment } from "@/lib/career/meetingDisplay";
+import type { CareerHistoryOpportunity } from "./types";
 
 type Props = {
   roleId: string;
   positionTitle: string;
   companyName: string;
   onCreated?: (schedule: TalentMeetingSchedule) => void;
+  subtle?: boolean;
 };
 
-function AppointmentCreateModal({
+function AppointmentForm({
   roleId,
-  positionTitle,
-  companyName,
   onCreated,
   onClose,
-}: Props & { onClose: () => void }) {
+  onPendingChange,
+}: Props & {
+  onClose: () => void;
+  onPendingChange: (pending: boolean) => void;
+}) {
   const t = useCareerT();
+  const { locale } = useMessages();
   const formId = useId();
   const { fetchWithAuth } = useCareerApi();
+  const userId = useAuthStore((s) => s.session?.user.id);
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
+  const [date, setDate] = useState<Date>();
   const [content, setContent] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<{ body: string; id: string } | null>(null);
   const submitting = useRef(false);
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (submitting.current) return;
-    const startsAt = new Date(start),
-      endsAt = end ? new Date(end) : null;
-    if (
-      !title.trim() ||
-      !Number.isFinite(startsAt.getTime()) ||
-      (endsAt && (!Number.isFinite(endsAt.getTime()) || endsAt <= startsAt))
-    ) {
-      setError(
-        t(
-          "career.meetings.invalid_time",
-          "제목과 시작 시간을 입력하고, 종료 시간은 시작 시간 이후로 선택해 주세요."
-        )
-      );
-      return;
-    }
+    if (submitting.current || !title.trim() || !date) return;
+    const calendarDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     const input = {
       roleId,
       title: title.trim(),
-      startsAt: startsAt.toISOString(),
-      endsAt: endsAt?.toISOString() ?? null,
+      calendarDate,
+      startsAt: `${calendarDate}T00:00:00+09:00`,
+      endsAt: null,
       content,
-      timezone,
+      timezone: "Asia/Seoul",
     };
     const body = JSON.stringify(input);
     if (request.current?.body !== body)
       request.current = { body, id: crypto.randomUUID() };
     submitting.current = true;
     setPending(true);
+    onPendingChange(true);
     setError("");
     try {
       const response = await fetchWithAuth("/api/talent/meeting-schedules", {
@@ -79,12 +81,29 @@ function AppointmentCreateModal({
       const { schedule } = (await response.json()) as {
         schedule: TalentMeetingSchedule;
       };
+      // Saved stage pages live in this history cache too. Refetching its query only
+      // reloads New Opportunities, so update every cached occurrence of this role.
+      if (userId)
+        queryClient.setQueriesData<
+          InfiniteData<{ items: CareerHistoryOpportunity[] }>
+        >({ queryKey: ["career-history-opportunities", userId] }, (data) =>
+          data
+            ? {
+                ...data,
+                pages: data.pages.map((page) => ({
+                  ...page,
+                  items: page.items.map((item) =>
+                    item.roleId === roleId
+                      ? mergeCreatedAppointment(item, schedule)
+                      : item
+                  ),
+                })),
+              }
+            : data
+        );
       onCreated?.(schedule);
       void queryClient.invalidateQueries({
-        queryKey: ["career-meeting-schedules"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["career-history-opportunities"],
+        queryKey: ["career-meeting-schedules", userId],
       });
       onClose();
     } catch {
@@ -97,122 +116,122 @@ function AppointmentCreateModal({
     } finally {
       submitting.current = false;
       setPending(false);
+      onPendingChange(false);
     }
   };
-
   return (
-    <TalentCareerModal
-      open
-      onClose={() => {
-        if (!pending) onClose();
-      }}
-      mobileBottomSheet
-      panelClassName="max-w-[480px]"
-      headerClassName="[&_h2]:text-sm [&_h2]:font-normal"
-      bodyClassName="px-5 pb-2"
-      footerClassName="flex justify-end"
-      title={t("career.meetings.add", "일정 추가")}
-      description={
-        <span>
-          {companyName} · {positionTitle}
-        </span>
-      }
-      footer={
-        <MuteButton
-          variant="dark"
-          size="sm"
-          type="submit"
-          form={formId}
+    <form onSubmit={submit} className="space-y-4">
+      <label
+        htmlFor={`${formId}-title`}
+        className="grid gap-1.5 text-[13px] text-neutral-primary"
+      >
+        {t("career.meetings.event_label", "일정")}
+        <Input
+          id={`${formId}-title`}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
           disabled={pending}
-        >
-          {pending && <Loader2 className="size-4 animate-spin" />}
-          {t("career.meetings.save", "일정 저장")}
-        </MuteButton>
-      }
-    >
-      <form id={formId} onSubmit={submit} className="space-y-4">
-        <label
-          className="grid gap-2 text-[13px] text-neutral-primary"
-          htmlFor={`${formId}-title`}
-        >
-          {t("career.meetings.title", "일정 이름")}
-          <Input
-            id={`${formId}-title`}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-            disabled={pending}
-            autoFocus
-          />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label
-            className="grid min-w-0 gap-2 text-[13px] text-neutral-primary"
-            htmlFor={`${formId}-start`}
-          >
-            {t("career.meetings.start", "시작")}
-            <Input
-              id={`${formId}-start`}
-              type="datetime-local"
-              className="min-w-0"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-              required
-              disabled={pending}
-            />
-          </label>
-          <label
-            className="grid min-w-0 gap-2 text-[13px] text-neutral-primary"
-            htmlFor={`${formId}-end`}
-          >
-            {t("career.meetings.end_optional", "종료 (선택)")}
-            <Input
-              id={`${formId}-end`}
-              type="datetime-local"
-              className="min-w-0"
-              value={end}
-              min={start}
-              onChange={(e) => setEnd(e.target.value)}
-              disabled={pending}
-            />
-          </label>
-        </div>
-        <p className="text-xs text-neutral-muted">{timezone}</p>
-        <label
-          className="grid gap-2 text-[13px] text-neutral-primary"
-          htmlFor={`${formId}-content`}
-        >
-          {t("career.meetings.notes", "준비할 내용 · 메모")}
-          <Textarea
-            id={`${formId}-content`}
-            rows={3}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            disabled={pending}
-          />
-        </label>
-        {error && (
-          <p role="alert" className="text-sm text-critical">
-            {error}
-          </p>
-        )}
-      </form>
-    </TalentCareerModal>
+        />
+      </label>
+      <Calendar
+        mode="single"
+        selected={date}
+        onSelect={setDate}
+        locale={locale === "ko" ? ko : enUS}
+        disabled={pending}
+        className="rounded-lg bg-bg-floating p-0"
+      />
+      <label
+        htmlFor={`${formId}-content`}
+        className="grid gap-1.5 text-[13px] text-neutral-primary"
+      >
+        {t("career.meetings.content_label", "내용")}
+        <Textarea
+          id={`${formId}-content`}
+          rows={2}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          disabled={pending}
+        />
+      </label>
+      {error && (
+        <p role="alert" className="text-sm text-critical">
+          {error}
+        </p>
+      )}
+      <MuteButton
+        type="submit"
+        variant="dark"
+        className="w-full"
+        disabled={pending || !title.trim() || !date}
+      >
+        {pending && <Loader2 aria-hidden className="size-4 animate-spin" />}
+        {t("career.meetings.save", "일정 저장")}
+      </MuteButton>
+    </form>
   );
 }
 
 export default function AppointmentCreateButton(props: Props) {
   const t = useCareerT();
+  const mobile = useIsMobile();
   const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const changeOpen = (next: boolean) => {
+    if (!pending) setOpen(next);
+  };
+  const trigger = (
+    <MuteButton
+      onClick={mobile ? () => setOpen(true) : undefined}
+      size="sm"
+      variant={props.subtle ? "transparent" : "default"}
+      className="shrink-0"
+    >
+      <CalendarPlus aria-hidden strokeWidth={1.5} className="size-3.5" />
+      {t("career.meetings.add", "일정 추가")}
+    </MuteButton>
+  );
+  const form = (
+    <AppointmentForm
+      {...props}
+      onPendingChange={setPending}
+      onClose={() => setOpen(false)}
+    />
+  );
   return (
-    <>
-      <MuteButton onClick={() => setOpen(true)} size="sm" className="shrink-0">
-        <CalendarPlus aria-hidden strokeWidth={1.5} className="size-3.5" />
-        {t("career.meetings.add", "일정 추가")}
-      </MuteButton>
-      {open && (
-        <AppointmentCreateModal {...props} onClose={() => setOpen(false)} />
+    <div
+      data-career-card-action="true"
+      className="shrink-0"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {mobile ? (
+        <>
+          {trigger}
+          <TalentCareerModal
+            open={open}
+            onClose={() => changeOpen(false)}
+            mobileBottomSheet
+            ariaLabel={t("career.meetings.add", "일정 추가")}
+            bodyClassName="px-5 pb-6 pt-12"
+          >
+            {open && form}
+          </TalentCareerModal>
+        </>
+      ) : (
+        <Popover open={open} onOpenChange={changeOpen}>
+          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+          <PopoverContent
+            align="end"
+            side="bottom"
+            sideOffset={8}
+            className="w-[320px] max-w-[calc(100vw-24px)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-4"
+            aria-label={t("career.meetings.add", "일정 추가")}
+          >
+            {form}
+          </PopoverContent>
+        </Popover>
       )}
-    </>
+    </div>
   );
 }

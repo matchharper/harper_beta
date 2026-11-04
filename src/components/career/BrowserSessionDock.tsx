@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -18,10 +17,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Monitor } from "lucide-react";
-import { MuteButton } from "@/components/ui/button";
+import { PreviewUI } from "./chat/elements/DocumentPreviewCards";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerT } from "@/i18n/useCareerT";
-import { latestBrowserRequest } from "@/lib/career/browser/marker";
 import { useBrowserSessionPlacement } from "./useBrowserSessionPlacement";
 import type { CareerMessage } from "./types";
 import {
@@ -77,7 +75,7 @@ export function BrowserSessionProvider({
   const linkedSession = browserSessionFromQuery(router.query.browserSession);
   const automatic = linkedSession
     ? { key: `email-link:${linkedSession}`, sessionId: linkedSession }
-    : latestBrowserRequest(messages);
+    : null;
   const [selection, setSelection] = useState<{
     seenKey: string | null;
     id: string | null;
@@ -180,18 +178,19 @@ export function BrowserSessionLink({ sessionId }: { sessionId: string }) {
   const t = useCareerT();
   const closed = dock?.closedSessionId === sessionId;
   return (
-    <MuteButton
-      data-browser-trigger
-      size="sm"
-      className="my-2 w-fit"
-      disabled={!dock || closed}
-      onClick={() => dock?.select(sessionId)}
-    >
-      <Monitor className="size-4" />
-      {closed
-        ? t("career.browser.closed", "종료된 브라우저")
-        : t("career.application.browser.open", "브라우저 열기")}
-    </MuteButton>
+    <div data-browser-trigger className="my-2 max-w-full">
+      <PreviewUI
+        icon={<Monitor className="h-5 w-5 text-neutral-soft" />}
+        title={t("career.application.browser.title", "Harper의 브라우저")}
+        description={
+          closed
+            ? t("career.browser.closed", "종료된 브라우저")
+            : t("career.application.browser.open", "브라우저 열기")
+        }
+        disabled={!dock || closed}
+        onClick={() => dock?.select(sessionId)}
+      />
+    </div>
   );
 }
 
@@ -203,7 +202,8 @@ export function BrowserSessionAnchor({ sessionId }: { sessionId: string }) {
     (node: HTMLDivElement | null) => register?.(sessionId, node),
     [register, sessionId]
   );
-  const active = dock?.views.some((view) => view.session.id === sessionId);
+  const active = dock?.selectedId === sessionId &&
+    dock.views.some((view) => view.session.id === sessionId);
   if (!active) return <BrowserSessionLink sessionId={sessionId} />;
   return (
     <div
@@ -211,7 +211,7 @@ export function BrowserSessionAnchor({ sessionId }: { sessionId: string }) {
       data-browser-inline-anchor={sessionId}
       className="max-w-full"
       style={{
-        width: dock?.selectedId === sessionId ? 720 : 320,
+        width: 720,
         minHeight: 160,
       }}
     />
@@ -252,16 +252,13 @@ export function BrowserSessionDockView({
   const layout =
     dock?.closest<HTMLElement>("[data-career-chat-layout]") ??
     dock?.parentElement;
-  const order = [...views].sort(
-    (a, b) =>
-      Number(b.session.id === selectedId) - Number(a.session.id === selectedId)
-  );
+  const selected = views.find((view) => view.session.id === selectedId);
   return (
     <>
       <div ref={setDock} className="absolute right-0 top-0 h-0 w-0" />
       {dock &&
         layout &&
-        [...order].reverse().map((view) => {
+        (selected ? [selected] : []).map((view) => {
           const inlineAnchor = anchors?.get(view.session.id) ?? null;
           // Wait for the actual message slot, so the iframe mounts there just once.
           if (inlineSessionIds?.has(view.session.id) && !inlineAnchor)
@@ -269,10 +266,9 @@ export function BrowserSessionDockView({
           return createPortal(
             <BrowserSessionFloatingPanel
               view={view}
-              number={views.length > 1 ? views.indexOf(view) + 1 : undefined}
-              depth={order.indexOf(view)}
-              count={views.length}
-              expanded={selectedId === view.session.id}
+              depth={0}
+              count={1}
+              expanded
               onExpand={(open) => onSelect(open ? view.session.id : null)}
               onChanged={onChanged}
               dock={dock}

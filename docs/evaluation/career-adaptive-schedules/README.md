@@ -1,6 +1,6 @@
 # Career adaptive schedules
 
-Objective: verify that the original Career agent can revise or resume its persistent check-in using current conversation and recorded change history, while preserving explicit user pauses and arbitrary saved cadences. Three days is only the initial database seed.
+Objective: verify that the original Career agent can revise or resume its persistent check-in using current conversation and recorded change history, while preserving explicit user pauses and arbitrary saved cadences. A recurring check every three days is the recommended default; user preferences, current goals and ongoing work can warrant a different cadence.
 
 Local verification: [2026-11-02 results and limitations](results-2026-11-02.md).
 

@@ -1,0 +1,15 @@
+{
+  "version": "company-followup-replay-v1",
+  "input": "이분 경력에서 최근에 개선한 성과가 뭐야?",
+  "sourceDirectory": "runs/natural-e2e-v1",
+  "initialRequest": "provider-1793718836725-c983ff17-f82c-4139-86ff-d2e54551b7ff-request.json",
+  "source": "Synthetic local E2E company message 244; recorded authorized read results from that same turn, before fixture cleanup.",
+  "expected": [
+    "Complete an answer about the candidate's recorded professional achievements, using the existing shared profile.",
+    "Distinguish the recorded recovery-time improvement from its unrecorded event date; do not invent current employment or achievement timing.",
+    "Do not contact anyone, change a stage or alter a profile to answer this read-only question."
+  ],
+  "boundary": "Original company tool loop and provider; captured initial reference context and exact recorded read results. No database, browser or delivery effects. Missing fixture reads fail explicitly.",
+  "review": "Manual full-answer review, no keyword score or judge model; retain failures.",
+  "frozenBeforeReplay": true
+}

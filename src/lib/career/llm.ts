@@ -1,4 +1,5 @@
 import { formatToolResultText } from "@/lib/llm/promptText";
+import { tracedLlmFetch } from "@/lib/llm/providerTrace";
 import { DEFAULT_CAREER_TEXT_CHAT_MODEL, resolveCareerTextChatModel, careerTextAssistantModelOptions, isCareerTextChatModelId, type CareerTextChatModelId } from "./textChatModelConfig";
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import {
@@ -884,7 +885,7 @@ async function createAnthropicMessage(args: {
     usageLabel: args.usageLabel,
   });
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await tracedLlmFetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -1005,7 +1006,7 @@ async function createAnthropicMessageStreamResponse(args: {
     usageLabel: args.usageLabel,
   });
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await tracedLlmFetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -1558,15 +1559,16 @@ async function runCareerChatAssistantImpl(args: {
     "xhigh";
   const outputLanguage = getCareerPromptLanguageName(args.responseLocale);
   const fallbackWithExistingClient = (
-    activeModelConfig: CareerAssistantModelConfig = modelConfig
+    activeModelConfig: CareerAssistantModelConfig = modelConfig,
+    currentMessages: TalentChatMessage[] = args.messages
   ) => {
     const systemPrompt = flattenCareerSystemBlocks(args.systemBlocks);
     const fallbackMessages: TalentChatMessage[] = [
       { role: "system", content: systemPrompt },
-      ...args.messages,
+      ...currentMessages,
     ];
 
-    if (args.tools.length > 0) {
+    if (args.tools.length > 0 || args.toolRuntime) {
       return runTalentAssistantToolLoop({
         formatToolFailure: formatCareerToolFailure,
         getSystemPrompt: () => flattenCareerSystemBlocks(args.systemBlocks),
@@ -1636,8 +1638,8 @@ async function runCareerChatAssistantImpl(args: {
     let pendingToolResultAttribution: string[] = [];
     let executedToolNamesForPolicy: string[] = [];
 
-    if (args.tools.length === 0) {
-      await args.toolRuntime?.options.checkCancellation?.();
+    if (args.tools.length === 0 && !args.toolRuntime) {
+      args.abortSignal?.throwIfAborted();
       const text = await createAnthropicMessageText({
       abortSignal: args.abortSignal,
         messages: workingMessages,
@@ -1648,7 +1650,6 @@ async function runCareerChatAssistantImpl(args: {
       });
       if (text || args.hasDeliveredArtifact?.()) return text;
       return recoverVisibleTextFromAnthropicMessages({
-      checkCancellation: args.toolRuntime?.options.checkCancellation,
       abortSignal: args.abortSignal,
         messages: workingMessages,
         modelConfig,
@@ -2027,7 +2028,8 @@ async function runCareerChatAssistantImpl(args: {
       fallbackReason: nativeFallback.fallback?.reason ?? null,
       model: modelConfig.primaryModel,
     });
-    return fallbackWithExistingClient(nativeFallback.modelConfig);
+    return fallbackWithExistingClient(nativeFallback.modelConfig,
+      workingMessages.map(message => ({ role: message.role, content: stringifyAnthropicContent(message.content) })));
   }
 }
 
@@ -2136,7 +2138,7 @@ async function runCareerChatAssistantStreamImpl(args: {
   };
   const usageLabel = args.usageLabel ?? "career/chat:assistant";
   const temperature = args.temperature ?? CAREER_LLM_CONFIG.chat.temperature;
-  const streamWithExistingClient = (activeModelConfig = modelConfig) => {
+  const streamWithExistingClient = (activeModelConfig = modelConfig, currentMessages: TalentChatMessage[] = args.messages) => {
     const systemPrompt = flattenCareerSystemBlocks(args.systemBlocks);
     return runTalentAssistantToolLoop({
       formatToolFailure: formatCareerToolFailure,
@@ -2154,7 +2156,7 @@ async function runCareerChatAssistantStreamImpl(args: {
           }
         : {}),
       executeTool: args.executeTool,
-      messages: [{ role: "system", content: systemPrompt }, ...args.messages],
+      messages: [{ role: "system", content: systemPrompt }, ...currentMessages],
       modelConfig: activeModelConfig,
       onAssistantMessage: args.onAssistantMessage,
       onStopToolStart: args.onStopToolStart
@@ -2207,8 +2209,8 @@ async function runCareerChatAssistantStreamImpl(args: {
   let activeSystemBlocksForRecovery = args.systemBlocks;
 
   try {
-    if (args.tools.length === 0) {
-      await args.toolRuntime?.options.checkCancellation?.();
+    if (args.tools.length === 0 && !args.toolRuntime) {
+      args.abortSignal?.throwIfAborted();
       const text = await createAnthropicMessageStream({
       abortSignal: args.abortSignal,
         messages: workingMessages,
@@ -2220,7 +2222,6 @@ async function runCareerChatAssistantStreamImpl(args: {
       });
       if (text || args.hasDeliveredArtifact?.()) return text;
       return recoverVisibleTextFromAnthropicMessages({
-      checkCancellation: args.toolRuntime?.options.checkCancellation,
       abortSignal: args.abortSignal,
         messages: workingMessages,
         modelConfig,
@@ -2667,7 +2668,8 @@ async function runCareerChatAssistantStreamImpl(args: {
       fallbackReason: nativeFallback.fallback?.reason ?? null,
       model: modelConfig.primaryModel,
     });
-    return streamWithExistingClient(nativeFallback.modelConfig);
+    return streamWithExistingClient(nativeFallback.modelConfig,
+      workingMessages.map(message => ({ role: message.role, content: stringifyAnthropicContent(message.content) })));
   }
 }
 

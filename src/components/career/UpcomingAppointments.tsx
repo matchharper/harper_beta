@@ -36,6 +36,10 @@ export function AppointmentList({
               <span className="block text-[14px] font-normal leading-5 text-action-strong">
                 {formatCareerMeetingDateTimeRange({
                   startAt: meeting.confirmed_start_at ?? "",
+                  calendarDate:
+                    typeof meeting.source_refs?.calendarDate === "string"
+                      ? meeting.source_refs.calendarDate
+                      : null,
                   endAt: meeting.confirmed_end_at,
                   locale,
                 })}
@@ -116,9 +120,7 @@ export default function UpcomingAppointments({
     return null;
   return (
     <section
-      className={
-        position ? "my-3 rounded-lg bg-action-faded/50 px-3 py-3" : "mb-6"
-      }
+      className={position ? "rounded-xl bg-bg-weak/60 p-5 sm:p-6" : "mb-6"}
     >
       <SectionHeader className="flex-row flex-wrap items-center justify-between">
         <SectionTitle as="h2" type="title" className="text-[13px] font-normal">
@@ -140,6 +142,7 @@ export default function UpcomingAppointments({
             <p className="text-[14px] font-normal leading-5 text-action-strong">
               {formatCareerMeetingDateTimeRange({
                 startAt: pendingMeeting.startAt,
+                calendarDate: pendingMeeting.calendarDate,
                 endAt: pendingMeeting.endAt,
                 locale,
               })}

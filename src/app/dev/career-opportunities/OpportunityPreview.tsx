@@ -86,7 +86,10 @@ export default function OpportunityPreview() {
   }, [query]);
 
   return (
-    <MessagesProvider locale="ko" persistPreference={false}>
+    <MessagesProvider
+      locale={ready && new URLSearchParams(window.location.search).get("locale") === "en" ? "en" : "ko"}
+      persistPreference={false}
+    >
       <div className="flex h-dvh flex-col bg-bg-default text-neutral-primary">
         <header className="flex min-h-11 shrink-0 items-center gap-3 overflow-x-auto border-b border-neutral-1000-a10 px-3 py-1.5 text-xs">
           <span className="shrink-0 text-neutral-muted">
@@ -146,6 +149,16 @@ export default function OpportunityPreview() {
             const anchor = (event.target as HTMLElement).closest("a");
             if (anchor) {
               event.preventDefault();
+              const href = new URL(anchor.href, window.location.origin);
+              const opensPreviewSettings =
+                href.pathname === "/career/preview" &&
+                href.searchParams.get("panel") === "settings";
+              if (opensPreviewSettings) {
+                void router.push({
+                  pathname: "/career/preview",
+                  query: Object.fromEntries(href.searchParams),
+                });
+              }
             }
           }}
         >
@@ -158,11 +171,13 @@ export default function OpportunityPreview() {
                 initialTab="history"
                 initialOpportunities={previewOpportunities}
                 historyContent={
-                  <PreviewHistoryPanel
-                    key={scenario}
-                    mode={mode}
-                    scenario={scenario}
-                  />
+                  mode === "proposal" ? (
+                    <PreviewHistoryPanel
+                      key={scenario}
+                      mode={mode}
+                      scenario={scenario}
+                    />
+                  ) : undefined
                 }
               />
             </RouterContext.Provider>

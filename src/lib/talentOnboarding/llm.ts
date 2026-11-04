@@ -399,7 +399,7 @@ export async function runTalentAssistantToolLoop(args: {
     usageLabel,
   } = args;
 
-  if (tools.length === 0 && !onTextDelta) {
+  if (tools.length === 0 && !args.toolRuntime && !onTextDelta) {
     return runTalentAssistantCompletion({
       anthropicOverloadFallbackModel:
         modelConfig?.anthropicOverloadFallbackModel,
@@ -413,7 +413,7 @@ export async function runTalentAssistantToolLoop(args: {
     });
   }
 
-  if (tools.length === 0) {
+  if (tools.length === 0 && !args.toolRuntime) {
     args.abortSignal?.throwIfAborted();
     const response = await createTalentChatCompletion({
       abortSignal: args.abortSignal,

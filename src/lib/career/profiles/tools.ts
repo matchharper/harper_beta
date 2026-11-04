@@ -42,6 +42,7 @@ export function profileToolContext(
       conversationId: context.conversationId,
       userMessageId: context.userMessageId,
       toolCallId: context.toolCallId,
+      voiceEventId: context.voiceEventId,
     },
   };
 }
@@ -251,7 +252,7 @@ export function formatProfileToolResult(name: string, value: unknown): string {
             "Current profile. Profile variants, revision identifiers and version history are unavailable.",
           ]
         : [
-            `Profile: ${profile.title}; profileId=${profile.profileId}; revision=${profile.revision}${profile.isDefault ? "; default" : ""}${profile.isArchived ? "; archived" : ""}; times: Asia/Seoul`,
+            `Profile${profile.title ? `: ${profile.title}` : ""}; profileId=${profile.profileId}; revision=${profile.revision}${profile.isDefault ? "; default" : ""}${profile.isArchived ? "; archived" : ""}; times: Asia/Seoul`,
             ...(profile.purpose ? [`Purpose: ${profile.purpose}`] : []),
           ]),
     ];
@@ -291,7 +292,7 @@ export function formatProfileToolResult(name: string, value: unknown): string {
     for (const raw of rows) {
       const row = raw as unknown as Record<string, any>;
       lines.push(
-        `- RowID=${row.id}; ${[row.role ?? row.degree ?? row.title, row.company_name ?? row.school, row.field, row.employment_type, row.company_location, row.start_date ? formatLlmPartialDate(row.start_date) : null, row.end_date === null ? "null" : row.end_date ? formatLlmPartialDate(row.end_date) : null, typeof row.months === "number" ? `${row.months} months` : null, row.date ? formatLlmPartialDate(row.date) : null].filter(Boolean).join(" · ")}`
+        `- RowID=${row.id}; ${[row.role ?? row.degree ?? row.title, row.company_name ?? row.school, row.field, row.employment_type, row.company_location, row.start_date ? `start: ${formatLlmPartialDate(row.start_date)}` : null, label !== "Other" ? `end: ${row.end_date ? formatLlmPartialDate(row.end_date) : "not recorded; current employment/enrollment unconfirmed"}` : null, typeof row.months === "number" ? `${row.months} months` : null, row.date ? formatLlmPartialDate(row.date) : null].filter(Boolean).join(" · ")}`
       );
       if (row.description) lines.push(`  ${row.description}`);
       if (row.memo) lines.push(`  Private memo: ${row.memo}`);

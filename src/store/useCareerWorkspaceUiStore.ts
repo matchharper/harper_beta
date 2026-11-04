@@ -1,3 +1,4 @@
+import type { CareerConversationVersion } from "@/lib/career/conversationVersion";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { CareerHistoryOpportunity } from "@/components/career/types";
@@ -23,10 +24,8 @@ type CareerWorkspaceUiStoreState = {
   setLastMyOpportunitiesTab: (
     tab: "saved" | "applied" | "hidden" | "archived"
   ) => void;
-  savedOpportunityView: "card1" | "card2" | "table";
-  setSavedOpportunityView: (view: "card1" | "card2" | "table") => void;
-  assistantBubbleStyle: "current" | "bubble";
-  setAssistantBubbleStyle: (style: "current" | "bubble") => void;
+  conversationVersion: CareerConversationVersion;
+  setConversationVersion: (version: CareerConversationVersion) => void;
   chatPanelWidthPct: number;
   desktopSidebarCollapsed: boolean;
   companyJobsOpportunity: CareerHistoryOpportunity | null;
@@ -51,12 +50,8 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
       lastMyOpportunitiesTab: "saved",
       setLastMyOpportunitiesTab: (lastMyOpportunitiesTab) =>
         set({ lastMyOpportunitiesTab }),
-      savedOpportunityView: "card1",
-      setSavedOpportunityView: (savedOpportunityView) =>
-        set({ savedOpportunityView }),
-      assistantBubbleStyle: "current",
-      setAssistantBubbleStyle: (assistantBubbleStyle) =>
-        set({ assistantBubbleStyle }),
+      conversationVersion: "professional",
+      setConversationVersion: (conversationVersion) => set({ conversationVersion }),
       chatPanelWidthPct: CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
       desktopSidebarCollapsed: false,
       companyJobsOpportunity: null,
@@ -83,7 +78,7 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         lastMyOpportunitiesTab: state.lastMyOpportunitiesTab,
-        savedOpportunityView: state.savedOpportunityView,
+        conversationVersion: state.conversationVersion,
         chatPanelWidthPct: state.chatPanelWidthPct,
         desktopSidebarCollapsed: state.desktopSidebarCollapsed,
       }),
@@ -93,17 +88,13 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
 
         return {
           ...currentState,
+          conversationVersion: state?.conversationVersion === "friendly" ? "friendly" : "professional",
           lastMyOpportunitiesTab:
             state?.lastMyOpportunitiesTab === "applied" ||
             state?.lastMyOpportunitiesTab === "hidden" ||
             state?.lastMyOpportunitiesTab === "archived"
               ? state.lastMyOpportunitiesTab
               : "saved",
-          savedOpportunityView:
-            state?.savedOpportunityView === "card2" ||
-            state?.savedOpportunityView === "table"
-              ? state.savedOpportunityView
-              : "card1",
           chatPanelWidthPct: normalizeCareerChatPanelWidthPct(
             state?.chatPanelWidthPct
           ),

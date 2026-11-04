@@ -120,7 +120,7 @@ test("explicit reinspection recovers a failed read and retains answers without a
   const refreshed = await refreshApplicationInspection(f.store, 10, 9, inspect);
   assert.equal(refreshed.state.applicationForm?.submission?.status, "supported");
   assert.equal(refreshed.state.preparation?.responses.Q.text, "Built APIs");
-  assert.equal(refreshed.state.preparation?.finalDocumentId, null);
+  assert.equal(refreshed.state.preparation?.finalDocumentId, "saved-resume", "reinspection preserves the selected document");
   assert.equal(refreshed.state.browser, undefined);
   assert.equal(calls, 1);
   assert.equal(refreshed.state.applicationInspection?.resolveOfficialLink, false);

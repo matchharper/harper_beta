@@ -216,11 +216,11 @@ export function buildKnownPreferencesSection(
   if (typeof prefs.profileVisibility === "string" && prefs.profileVisibility) {
     if (prefs.profileVisibility === "open_to_matches") {
       lines.push(
-        "- Internal opportunity visibility: open to company-initiated profile-review offers."
+        "- Proactive profile sharing: Harper may share the profile with fitting companies, which can express interest afterward."
       );
     } else if (prefs.profileVisibility === "exceptional_only") {
       lines.push(
-        "- Internal opportunity visibility: only exceptional company-initiated profile-review offers are allowed."
+        "- Proactive profile sharing: ask the candidate before introducing them to a company."
       );
     } else if (prefs.profileVisibility === "dont_share") {
       lines.push(
@@ -248,11 +248,11 @@ export function buildKnownPreferencesSection(
     );
     if (prefs.profileVisibility === "open_to_matches") {
       lines.push(
-        "- Open to matches means the user may still receive directly connectable opportunity suggestions and company-initiated connection offers after a company reviews the profile."
+        "- The user may still receive Harper intro opportunities and company-initiated interest after a company reviews the shared profile."
       );
     } else {
       lines.push(
-        "- Not Open to matches means directly connectable opportunities should be Harper-suggested only, not company-initiated profile-review offers."
+        "- Harper can suggest intro opportunities privately; the current setting does not allow proactive company profile sharing."
       );
     }
   }

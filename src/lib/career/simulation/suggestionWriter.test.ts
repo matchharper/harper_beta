@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CLAUDE_HAIKU_MODEL, GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
-import { DEFAULT_CAREER_TEXT_CHAT_MODEL } from "../textChatModelConfig";
+import { DEFAULT_CAREER_TEXT_CHAT_MODEL, resolveCareerTextChatModel } from "../textChatModelConfig";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
   suggestionsOutputSchema,
@@ -45,7 +45,7 @@ test("suggestions use the shared chat default and inherit model-specific setting
         );
         assert.equal(
           request.openAIResponsesReasoningEffort,
-          model === GPT_6_LUNA_MODEL ? "xhigh" : undefined
+          resolveCareerTextChatModel(model).openAIResponsesReasoningEffort
         );
         assert.equal(
           request.modelConfig?.fallbackModel,

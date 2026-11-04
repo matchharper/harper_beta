@@ -13,6 +13,8 @@ export async function requestInternalRoleEvaluation(args: {
   profileId?: string;
   profileRevision?: number;
   publishRecommendation?: boolean;
+  /** Existing private card from a direct request; do not suspend its parent reply. */
+  requestedOpportunityId?: string;
   signal?: AbortSignal;
   sourceEvents?: unknown[];
   preparationRunId?: string;
@@ -35,13 +37,19 @@ export async function requestInternalRoleEvaluation(args: {
       profileId: profile.profileId,
       profileRevision: profile.revision,
       publishRecommendation: args.publishRecommendation ?? false,
+      requestedOpportunityId: args.requestedOpportunityId,
       parentReplyId: args.replyId,
       sourceEvents: args.sourceEvents ?? [],
       preparationRunId: args.preparationRunId,
     },
   });
-  if (run.status === "handed_off")
-    await internalEvaluationBackend.publish(run.id);
+  if (run.status === "handed_off") {
+    try { await internalEvaluationBackend.publish(run.id); }
+    catch(error) {
+      // The durable evaluator outbox owns retry. Preserve the actual saved run receipt.
+      console.error("[internal-evaluation] Queue dispatch recovery required",{runId:run.id,error:error instanceof Error?error.message:String(error)});
+    }
+  }
   const status = receiptStatus(run);
   return {
     runId: run.id,
@@ -50,7 +58,7 @@ export async function requestInternalRoleEvaluation(args: {
     roleIds: args.roleIds,
     profileId: profile.profileId,
     profileRevision: profile.revision,
-    careerContinuation: ["queued", "running"].includes(status)
+    careerContinuation: !args.requestedOpportunityId && ["queued", "running"].includes(status)
       ? { kind: "internal_evaluation", id: run.id }
       : undefined,
   };

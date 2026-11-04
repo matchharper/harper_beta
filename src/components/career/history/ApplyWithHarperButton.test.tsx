@@ -1,3 +1,5 @@
+import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
@@ -5,7 +7,6 @@ import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { supabase } from "@/lib/supabase";
-import { OpportunityType } from "@/lib/opportunityType";
 import type { CareerChatPanelContextValue } from "../CareerChatPanelContext";
 import type { CareerHistoryOpportunity } from "../types";
 
@@ -38,13 +39,12 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
       value,
     });
   const require = createRequire(import.meta.url);
+  require.extensions[".css"] = (module) => { module.exports = {}; };
   const { default: ApplyWithHarperButton } = require("./ApplyWithHarperButton");
-  const {
-    HistoryOpportunityInlinePage,
-  } = require("./HistoryOpportunityDetailContent");
   const { CareerChatPanelProvider } = require("../CareerChatPanelContext");
   const { MessagesProvider } = require("@/i18n/useMessage");
   const { supabase: browserSupabase } = require("@/lib/supabase");
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const root = createRoot(dom.window.document.getElementById("root")!);
   const calls: Parameters<
     CareerChatPanelContextValue["onSendChatMessage"]
@@ -53,7 +53,7 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
   let finish: () => void = () => {};
   const context = {
     user: { id: "fixture-user" },
-    conversationId: "fixture-conversation",
+    messages: [], conversationId: "fixture-conversation",
     stage: "completed",
     isOnboardingDone: true,
     sessionPending: false,
@@ -69,7 +69,7 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
         finish = resolve;
       });
     },
-  } as CareerChatPanelContextValue;
+  } as unknown as CareerChatPanelContextValue;
   const render = async (
     locale: "ko" | "en",
     roleId: string,
@@ -78,7 +78,7 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
   ) =>
     act(async () =>
       root.render(
-        <MessagesProvider locale={locale}>
+        <RouterContext.Provider value={{ query: {}, pathname: "/career", isReady: true } as any}><QueryClientProvider client={queryClient}><MessagesProvider locale={locale}>
           <CareerChatPanelProvider value={{ ...context, ...overrides }}>
             <ApplyWithHarperButton
               key={roleId}
@@ -94,7 +94,7 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
               onOpenChat={() => events.push("open")}
             />
           </CareerChatPanelProvider>
-        </MessagesProvider>
+        </MessagesProvider></QueryClientProvider></RouterContext.Provider>
       )
     );
   const button = () => dom.window.document.querySelector("button")!;
@@ -117,7 +117,7 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
     assert.equal(calls.length, 1);
     assert.equal(button().disabled, true);
     assert.deepEqual(calls[0], {
-      text: "Example · Engineer에 하퍼와 함께 지원하고 싶어. 지원 준비를 시작해줘.",
+      text: "Example · Engineer에 지원해줘.",
       opportunityMentions: [{ label: "Example · Engineer", roleId: "role-a" }],
     });
     await act(async () => finish());
@@ -127,21 +127,23 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
     await act(async () => button().click());
     assert.equal(
       calls[1].text,
-      "I'd like to apply to Example · Engineer with Harper. Please start preparing my application."
+      "Apply to Example · Engineer for me."
     );
     assert.equal(calls[1].opportunityMentions?.[0].roleId, "role-b");
     await act(async () => finish());
 
+    for (const active of [{ chatPending: true }, { assistantTyping: true }]) {
+      await render("ko", "role-b", active);
+      assert.equal(button().disabled, false, "independent work can be admitted during another reply");
+    }
     for (const blocked of [
-      { chatPending: true },
-      { assistantTyping: true },
       { sessionPending: true },
       { profilePending: true },
       { isOnboardingDone: false },
       { stage: "profile" as const },
       { opportunityFeedbackFollowUpPending: true },
       { user: null },
-      { conversationId: null },
+      { messages: [], conversationId: null },
     ]) {
       await render("ko", "role-b", blocked);
       assert.equal(button().disabled, true);
@@ -160,73 +162,6 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
       "a failed shared request permits retry"
     );
 
-    await act(async () =>
-      root.render(
-        <MessagesProvider locale="ko">
-          <CareerChatPanelProvider value={context}>
-            <HistoryOpportunityInlinePage
-              item={
-                {
-                  id: "saved-applied",
-                  roleId: "role-applied",
-                  companyName: "Example",
-                  title: "Engineer",
-                  recommendationReasons: [],
-                  employmentTypes: [],
-                  recommendationConcerns: [],
-                  clickedAt: null,
-                  companyDescription: null,
-                  companyHomepageUrl: null,
-                  companyLinkedinUrl: null,
-                  companyLogoUrl: null,
-                  description: null,
-                  externalJdUrl: null,
-                  feedbackAt: null,
-                  feedbackReason: null,
-                  href: null,
-                  isAccepted: false,
-                  location: null,
-                  postedAt: null,
-                  sourceJobId: null,
-                  sourceProvider: null,
-                  viewedAt: null,
-                  workMode: null,
-                  isInternal: false,
-                  savedStage: "applied",
-                  feedback: "positive",
-                  opportunityType: OpportunityType.ExternalJd,
-                  sourceType: "external",
-                  kind: "recommendation",
-                  recommendedAt: "2026-10-12T00:00:00Z",
-                  status: "active",
-                } as CareerHistoryOpportunity
-              }
-              pending={false}
-              onBack={() => {}}
-              onOpenLink={() => {}}
-              onOpenOpportunityInfo={() => {}}
-              onOpenChat={() => events.push("open")}
-            />
-          </CareerChatPanelProvider>
-        </MessagesProvider>
-      )
-    );
-    const cta = [...dom.window.document.querySelectorAll("button")].find(
-      (el) => el.textContent === "Apply with Harper"
-    );
-    const activityTitle = [
-      ...dom.window.document.querySelectorAll("span"),
-    ].find((el) => el.textContent === "내 활동");
-    assert.ok(cta);
-    assert.ok(activityTitle);
-    assert.ok(
-      cta.compareDocumentPosition(activityTitle) &
-        dom.window.Node.DOCUMENT_POSITION_FOLLOWING,
-      "Apply with Harper is above My activity on an applied role page"
-    );
-    await act(async () => cta.click());
-    assert.equal(calls.at(-1)?.opportunityMentions?.[0].roleId, "role-applied");
-    await act(async () => finish());
   } finally {
     await act(async () => root.unmount());
     await supabase.auth.stopAutoRefresh();

@@ -1155,7 +1155,7 @@ const CareerTalentProfilePanel = ({
             {"- "}
             {t(
               "career.profile.company_visible_description",
-              "회사에 보여지는 프로필입니다"
+              "회사에 보이는 프로필"
             )}
           </span>
         </div>

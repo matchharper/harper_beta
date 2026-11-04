@@ -63,25 +63,24 @@ matchingId chooses one list; omitted means default list. allLists true explicitl
 add/restore/replace/reset require the exact current list revision supplied in matching context or by read_matching/list_matchings; read again after reset or another edit. New external publication requires both roleId and its exact evaluationId from completed evaluation results. Historical fit-cache entries have no publication reference; search_opportunities with exact roleIds obtains one. Internal new publication requires evaluationIds and sourceRunId.`,
 
   // src/lib/talentOnboarding/tools.ts
-  update_recommended_opportunity_feedback: `Record a decision on one exact recommendation: like accepts an internal introduction or saves external interest, dislike declines, keep saves an internal role for later. Acceptance pins the exact assigned profile/documents, or the default if none were prepared. Complete any user-requested pre-introduction preparation and assign the intended versions before accepting; later edits do not replace the pinned materials.
-
-Use apply_to_internal_role for a requested internal evaluation and upsert_opportunities for recommendation membership.`,
+  update_recommended_opportunity_feedback: `Record a decision on one exact recommendation: dislike declines, keep saves an internal role for later, and like saves external interest. Internal introduction acceptance uses contact_company with the exact recommendation after the candidate has reviewed the Role and asks to be introduced. That tool pins prepared materials or the default profile and public documents and submits to the company agent. apply_to_internal_role saves an initially requested internal opportunity and evaluates it independently.`,
 
   // 외부 공고·지원 관련
   // src/lib/talentOnboarding/tools.ts
-  save_job_posting: `Save one specific external public job posting to this user's Jobs, using the same import as adding a link in history.
-저장해달라고 할 때 하거나, 지원해달라고 링크를 줄 때 internal role이 아니라면 저장 후 지원해주면 좋다. A link, question or request for analysis alone does not authorize saving. Not for Harper-connected/internal roles.
+  save_job_posting: `Import one external public job posting from its URL into this user's Jobs. Use for a requested save or to save an external posting the user asked to apply to when it is not yet in their Jobs. The application request includes this preparation; a separate save confirmation is unnecessary.
+
+Creates or reuses the posting and the user's recommendation, preserving existing application progress. Returns roleId, recommendationId and savedStage. Use the returned roleId to continue the requested application with the application tools and handbook; saving alone does not submit an application. Harper-connected/internal roles use the internal role tools.
 
 If extraction is incomplete, the result includes the retrieved page body and actual retrieval failures. Read that body as source data, identify the exact job title and hiring company, then continue the authorized save with the same URL and those fields. Ask the user only for facts unavailable from the source; do not treat an empty summary as an unreadable page.`,
 
   // src/lib/career/browser/tool.ts
   use_browser: `Operate a persistent browser primarily for job applications. Write the actual task yourself, including the user's requested outcome and authority.
 
-run carries out the task or continues the same session after user login, and returns its observation in this tool call. When human-only interaction is needed, it also makes the browser available to the user.
+run starts or continues a task and returns a durable execution receipt. Pending runs suspend only their owning work; read the completed observation when resumed. When human-only interaction is needed, it also makes the browser available to the user.
 
-read/list inspect current or interrupted executions when needed. handoff interrupts the active task at its current page for a user-requested takeover; it does not navigate to login. close stops the browser and clears transferred files.
+read/list inspect current or interrupted executions when needed. handoff interrupts the active task at its current page for a user-requested takeover; it does not navigate to login. release stops an idle browser while preserving workspace files; close also clears transferred files.
 
-The browser automatically closes 10 minutes after its last run; saved forms and logical session references remain available to continue the work. Several roles may use separate sessions.
+Browsers are short-lived and may expire while waiting for the user. Preserve observed questions, answers and pinned attachments; restore them in a new browser and recheck account, fields and current conditions. A saved session does not guarantee preserved login or page state. Prepare mode cannot submit; execute mode requires actual user authority and a stable effect_key shared with any email alternative. Separate work uses separate browser workspaces.
 
 Do not use for ordinary search when web_search/open_url suffice. An uncertain run may have acted externally: read it rather than resubmitting.
 
@@ -96,14 +95,14 @@ With matchedOnly=true, return active roles supported by recommend=true, an effec
 Results can be narrowed by a public company name and identify roles already scheduled for reconsideration. This only reads stored decisions and never reruns fit.`,
 
   // src/lib/career/internalApplications/tools.ts
-  apply_to_internal_role: `For a user-requested exact internal Role, pass roleId to evaluate both fit stages and add/reuse a recommendation for review. Evaluation uses the profile version already assigned to this Role, otherwise the current default profile.
+  apply_to_internal_role: `For initial interest in an exact internal Role, including a request from a public job page to introduce the candidate, save/reuse the private opportunity immediately and enqueue any needed evaluation. Evaluation uses the assigned profile version or current default; a low score or evaluation failure never removes this user-requested opportunity. The result includes public Role/company facts and its roleId for a posting card. It contains no internal hiring status or private company criteria.
 
-This does not accept or share. Use search_opportunities and upsert_opportunities for proactive recommendations.`,
+This first step does not request an introduction or share with the company. Present the Role in context with its posting card so the candidate can inspect it. A subsequent explicit request or introduction button authorizes contact_company(acceptIntroduction=true). Use search_opportunities and upsert_opportunities for proactive recommendations.`,
 
   // src/lib/career/internalApplications/tools.ts
   assign_to_role: `Read, replace, or clear the preparation materials for an internal Role. Read first and use its assignment revision as expectedRevision for set/clear (0 when none exists). Set snapshots exact profile/document revisions; documents-only freezes the current default profile.
 
-Clear changes preparation only, not accepted sharing. The candidate must separately accept introduction.`,
+The result includes selectionRef for the exact selected versions. Clear changes preparation only, not accepted sharing. An accepted introduction shares updates only through a later authorized contact_company with that selectionRef.`,
 
   // 회사 탐색·팔로우·연락 관련
   // src/lib/career/companies/tools.ts
@@ -118,12 +117,16 @@ Company scope includes all linked organizations; workspace scope includes only t
 This does not grant company sharing permission or affect company search ranking.`,
 
   // src/lib/talentOnboarding/tools.ts
-  read_company_connections: `Read companies and Roles where Harper has a verified mutual connection between this user and the company. This includes an accepted company Request Intro, a Harper recommendation actually handed to the company, and a company contact that reached the user.
+  read_company_connections: `Read companies and Roles with existing mutual connections or agent introduction correspondence for this user. An agent request is not yet a mutual connection. This includes an accepted company Request Intro, a Harper recommendation actually handed to the company, and a company contact that reached the user.
 
 Use it when the user wants Harper to ask, follow up, clarify, pass along information, or identify which connected company they mean. The result reports durable relationship facts and the latest relay transport status without deciding what Harper should say.`,
 
   // src/lib/talentOnboarding/tools.ts
-  contact_company: `Send one user-authorized message immediately to a company through a verified mutual connection. It may be a response, follow-up, clarification, question, or proactive update and does not require an earlier company question or reply identifier. Use the exact connectionId from current private context or read_company_connections.
+  contact_company: `An introduction begins here only after the candidate accepts a previously presented introduction proposal or selects its introduction button. Initial Role interest, even phrased as an introduction request, uses apply_to_internal_role first; a saved recommendation is not proof that the candidate reviewed the proposal.
+
+Send an authorized message to the company's agent asynchronously. For an explicit introduction acceptance after the Role was presented, use recommendationId and acceptIntroduction=true. This atomically pins the assigned materials (otherwise the default profile and public resumes), records acceptance, and deposits the request in the company agent inbox. The company's agent decides how to help its company; this receipt does not establish human notification or a completed connection. Preparation with assign_to_role is optional when useful; private Brief and Memory are not shared.
+
+For further questions, replies or authorized updates, use introductionRootId or replyToMessageId from read_agent_messages. selectionRef shares an exact newly reviewed material selection. A legacy mutual connection or ops-contact can still use connectionId. Do not combine target forms.
 
 relayContent is the substantive information the user wants Harper to pass along, faithfully preserving qualifications, uncertainty, and refusal. If the intended company or Role is ambiguous, clarify before sending.`,
 
@@ -145,13 +148,13 @@ Other edits save an immutable revision and expectedRevision detects concurrent c
 This reads only and does not change profile, settings, recommendations, or sharing.`,
 
   // src/lib/talentOnboarding/tools.ts
-  write_talent_context: `Save or correct durable user context after onboarding. Put current opportunity-search criteria and premises that the user can review in Search Brief; put other context worth remembering for future conversations or opportunity judgment in Memory.
+  write_talent_context: `Save or correct user facts and context worth reusing after onboarding. Memory is the default collection for information about the user that can help future conversations or tasks. Put current opportunity-search criteria and premises that the user can review in Search Brief.
 
 Save facts stated by the user or supported by verified sources, preserving their subject, source and uncertainty. An inference does not establish personal experience, contribution or preference. When a saved fact is corrected or no longer true, update or delete that row instead of appending a conflicting current fact; keep a past event only when it remains useful as history.
 
 For each new Memory, choose importance 3 if it can materially change matching, 2 if it is useful supporting context, or 1 if it mainly preserves conversational continuity. For a Brief, do not repeat its label in content.
 
-Read the existing rows and the user's meaning together. Preserve strength, exceptions, uncertainty, and known timing. A reply to an earlier Harper question is handled with this same tool. Read exact prior contact wording when its scope is unclear. Save a one-role exception as a scoped Brief fact, never as a global preference.
+Read the existing rows and the user's meaning together, retrieving related records when needed to distinguish a new fact from a repetition or correction. Preserve exact values needed for reuse, strength, exceptions, uncertainty, and known timing; respect the user's stated retention limits. A reply to an earlier Harper question, including a form response, is handled with this same tool. Read exact prior contact wording when its scope is unclear. Save a one-role exception as a scoped Brief fact, never as a global preference.
 
 Successful Brief changes automatically refresh matching; do not call a separate re-evaluation tool. Do not duplicate one fact across both collections.
 
@@ -194,13 +197,13 @@ Use suggestion for itemwise edits/questions in the chat composer. Within suggest
 
 Use form for a prefilled editable review card in the conversation with final action buttons. Each item has a stable id, arbitrary label, optional description, renderer type and content. Users can also reply in their own words or skip suggestion items without choosing a supplied action.
 
-Suggestion answers and decisions are collected locally; after every item is handled, all responses are submitted as one user message and resume you once. Use document items for selectable attachments. Put execution references in relatedRefs; visible items contain the information the user reviews.
+Each answered suggestion item is saved and resumes its linked work without waiting for other items or forms. Use document items for selectable attachments. Put execution references in relatedRefs; visible items contain the information the user reviews.
 
 Proposal buttons belong to individual change items; form-level buttons belong to review forms. Positive/negative actions carry the exact user message selected on click.
 
-A completed suggestion batch or a review-form action saves the exact reviewed revision, edited values and selected messages, then resumes you to carry out the chosen actions with the appropriate tools. The form tool itself does not execute that action.
+A partial suggestion response or a review-form action records the exact reviewed revision, edited values and selected messages in the conversation, then resumes you to carry out the chosen actions with the appropriate tools. Recording a response does not update Profile, Search Brief or Memory, or execute the chosen action.
 
-Revisions are immutable; update requires expectedRevision. read includes recorded responses. present redisplays an exact saved revision.`,
+Revisions are immutable; update requires expectedRevision. read includes recorded responses. present redisplays an exact saved revision. resolve closes an exact revision when a conversational answer, changed request or existing delegation removes the need for a click; it does not execute the requested work. Ordinary chat remains available while forms are open.`,
 
   // 웹 검색·페이지 조회 관련
   // src/lib/agentTools/web.ts
@@ -217,7 +220,7 @@ The server determines the user and connected account; never ask for or infer an 
 
   // src/lib/career/emailWriting/tool.ts
   write_email: `Send an email.
-For an important email, you may use suggest_form with form.kind: "form" to let the user review and confirm the subject and body before sending.
+Use existing scoped delegation and approvals; use a review form when the user asked to review or authority is unresolved. In delegated work, provide a stable effect_key and reuse it across retries and browser/email alternatives.
 Gmail permission is required; if unavailable, explain and show [[integration:gmail]].
 An uncertain send may already have reached Gmail; inspect Gmail instead of retrying the send.`,
 

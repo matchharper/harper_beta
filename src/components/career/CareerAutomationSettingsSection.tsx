@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useCareerApi } from '@/hooks/career/useCareerApi';
 import { useCareerT } from '@/i18n/useCareerT';
-import { Button } from '@/components/ui/button';
+import { MuteButton as Button } from '@/components/ui/button';
 import type { CareerSchedule } from '@/lib/career/schedules/server';
 import type { CompanyFollow } from '@/lib/career/companies/server';
 
@@ -14,6 +14,7 @@ export function CareerAutomationSettingsSection() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const scheduleStatus = (item: CareerSchedule) => {
     if (item.status === 'active' && item.next_run_at) return new Intl.DateTimeFormat(undefined, { timeZone: item.timezone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.next_run_at));
     if (item.status === 'paused') return t('career.automation.paused', '일시 중지');
@@ -30,9 +31,10 @@ export function CareerAutomationSettingsSection() {
       if (!responses[0].ok || !responses[1].ok) throw new Error(savedSchedules.error ?? savedFollows.error);
       setSchedules(savedSchedules.schedules); setScheduleOffset(savedSchedules.nextOffset);
       setFollows(savedFollows.follows); setFollowOffset(savedFollows.nextOffset);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+      setLoadFailed(false);
+    } catch { setLoadFailed(true); setError(t('career.automation.load_failed', '일정과 팔로우를 불러오지 못했어요. 다시 시도해 주세요.')); }
     finally { setLoading(false); }
-  }, [fetchWithAuth]);
+  }, [fetchWithAuth, t]);
   useEffect(() => { void load(); }, [load]);
   const mutate = async (kind: 'schedule' | 'follow', id: string, revision: number, action: string) => {
     setBusy(id); setError('');
@@ -44,7 +46,7 @@ export function CareerAutomationSettingsSection() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error);
       await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    } catch { setError(t('career.automation.update_failed', '변경하지 못했어요. 새로 불러온 뒤 다시 시도해 주세요.')); }
     finally { setBusy(null); }
   };
   const loadMore = async (kind: 'schedule' | 'follow') => {
@@ -57,15 +59,16 @@ export function CareerAutomationSettingsSection() {
       if (!response.ok) throw new Error(payload.error);
       if (kind === 'schedule') { setSchedules(rows => [...rows, ...payload.schedules]); setScheduleOffset(payload.nextOffset); }
       else { setFollows(rows => [...rows, ...payload.follows]); setFollowOffset(payload.nextOffset); }
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    } catch { setError(t('career.automation.load_failed', '일정과 팔로우를 불러오지 못했어요. 다시 시도해 주세요.')); }
     finally { setBusy(null); }
   };
   if (loading) return <p className="text-sm text-neutral-muted">{t('career.automation.loading', '불러오는 중…')}</p>;
   return <div className="space-y-8">
     {error && <p role="alert" className="text-sm text-critical">{error}</p>}
+    {error && <Button size="sm" onClick={() => void load()}>{t('career.automation.retry', '다시 불러오기')}</Button>}
     <section>
       <h3 className="mb-3 text-sm font-medium text-neutral-primary">{t('career.automation.schedules', '예약된 작업')}</h3>
-      {!schedules.length && <p className="text-sm text-neutral-muted">{t('career.automation.no_schedules', '예약된 작업이 없습니다.')}</p>}
+      {!loadFailed && !schedules.length && <p className="text-sm text-neutral-muted">{t('career.automation.no_schedules', '예약된 작업이 없습니다.')}</p>}
       <div className="divide-y divide-neutral-300">
         {schedules.map(item => <div key={item.id} className="flex flex-wrap items-start justify-between gap-3 py-4">
           <details className="min-w-0 flex-1"><summary className="cursor-pointer text-sm text-neutral-primary">{item.title}</summary>
@@ -83,7 +86,7 @@ export function CareerAutomationSettingsSection() {
     </section>
     <section>
       <h3 className="mb-3 text-sm font-medium text-neutral-primary">{t('career.automation.follows', '팔로우하는 회사')}</h3>
-      {!follows.length && <p className="text-sm text-neutral-muted">{t('career.automation.no_follows', '팔로우하는 회사가 없습니다.')}</p>}
+      {!loadFailed && !follows.length && <p className="text-sm text-neutral-muted">{t('career.automation.no_follows', '팔로우하는 회사가 없습니다.')}</p>}
       <div className="divide-y divide-neutral-300">
         {follows.map(item => <div key={item.id} className="flex items-start justify-between gap-3 py-4">
           <div><p className="text-sm text-neutral-primary">{item.workspace?.company_name ?? item.company?.name}</p>

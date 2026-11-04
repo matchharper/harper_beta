@@ -8,6 +8,7 @@ export const CAREER_CORE_TOOLS = [
   "open_url",
   // A form is a conversation/review surface, so it stays available like text.
   "suggest_form",
+  "manage_work",
 ] as const;
 
 export const CAREER_CONDITIONAL_TOOLS = [] as const;
@@ -30,7 +31,7 @@ export const CAREER_CAPABILITIES = [
     id: "opportunities",
     turns: 3,
     summary:
-      "Record the user's acceptance, rejection or save-for-later decision on an exact recommendation; a reply alone does not persist it. Read roles and prior recommendations, manage matching criteria and search/evaluate external or internal opportunities. Searching does not publish. Add, reorder, archive, restore, replace or reset recommendation lists while preserving independent saved/applied/connected decisions. No fixed count or quality quota.",
+      "Record the user's acceptance, rejection or save-for-later decision on an exact recommendation; a reply alone does not persist it. Import an external posting from its URL for a requested save or application. Read roles and prior recommendations, manage matching criteria and search/evaluate external or internal opportunities. Searching does not publish. Add, reorder, archive, restore, replace or reset recommendation lists while preserving independent saved/applied/connected decisions. No fixed count or quality quota.",
     tools: [
       ["list_matchings", "read the current and past matching index"],
       [
@@ -51,7 +52,7 @@ export const CAREER_CAPABILITIES = [
       ],
       [
         "save_job_posting",
-        "add a specific external posting to Jobs on request; a URL question alone is not a save request",
+        "import an external posting from its URL for a requested save or application, preserving existing progress",
       ],
       [
         "read_recommended_opportunities",
@@ -59,11 +60,11 @@ export const CAREER_CAPABILITIES = [
       ],
       [
         "get_role_context",
-        "read exact role details, public evidence and private reasoning-only requirements",
+        "read exact public role details and the candidate's opportunity history",
       ],
       [
         "update_recommended_opportunity_feedback",
-        "accept an internal introduction, decline, or save for later; save external interest",
+        "decline an introduction, save for later, or save external interest; contact_company accepts an internal introduction",
       ],
       ["get_internal_roles", "find Harper-connected roles"],
     ],
@@ -72,7 +73,7 @@ export const CAREER_CAPABILITIES = [
     id: "internal_applications",
     turns: 3,
     summary:
-      "Help the user pursue an exact internal Role. apply_to_internal_role evaluates both fit stages and creates a review recommendation; it does not accept or share. Prepare exact profile/document snapshots with assign_to_role. Introduction acceptance separately pins those materials for company readers.",
+      "Help the user pursue an exact internal Role. apply_to_internal_role saves the private opportunity immediately and starts any missing evaluation independently. It does not introduce or share. After the candidate has reviewed the Role and requests introduction, contact_company accepts the request, pins prepared materials or the default profile/public documents, and contacts the company agent.",
     tools: [
       [
         "apply_to_internal_role",
@@ -129,12 +130,14 @@ export const CAREER_CAPABILITIES = [
     id: "company_contact",
     turns: 2,
     summary:
-      "Read company connections and convey authorized messages or questions through them. Load before handling company correspondence. Delivery does not establish readership or a reply.",
+      "Request an accepted introduction through the company's agent; read and answer correspondence before or after mutual connection. Share only authorized material. Agent receipt, human notification and connection completion are separate facts.",
     tools: [
       ["read_company_connections", "read current company connections"],
+      ["read_agent_messages", "read agent correspondence and shared material references"],
+      ["contact_user", "deliver a message to this candidate from background work"],
       [
         "contact_company",
-        "convey an authorized message through an exact connection",
+        "submit an introduction or follow-up to the company agent, or relay through an existing mutual connection",
       ],
     ],
   },
@@ -168,7 +171,7 @@ export const CAREER_CAPABILITIES = [
     id: "browser",
     turns: 1,
     summary:
-      "Use a browser mainly to investigate or carry out job applications, including attachments, consents, email verification and submission after the final review communicated through the current channel. Save a specific external posting to Jobs on request. Hand a live browser to the user only for actions Harper cannot perform, such as login, then continue in the same session. Prefer public search/URL reading when that suffices. The application handbook provides guidance.",
+      "Use a browser mainly to investigate or carry out job applications, including attachments, consents, email verification and submission after the final review communicated through the current channel. Import an external posting into Jobs for a requested save or application when it is not yet saved. Hand a live browser to the user only for actions Harper cannot perform, such as login, then continue in the same session. Prefer public search/URL reading when that suffices. The application handbook provides guidance.",
     tools: [
       [
         "use_browser",
@@ -176,7 +179,7 @@ export const CAREER_CAPABILITIES = [
       ],
       [
         "save_job_posting",
-        "add a specific external posting to Jobs on request; a URL question alone is not a save request",
+        "import an external posting from its URL for a requested save or application, preserving existing progress",
       ],
     ],
   },

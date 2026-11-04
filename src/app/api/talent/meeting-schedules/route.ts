@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       admin: getTalentSupabaseAdmin(),
       userId: user.id,
       roleId,
-      from: new Date().toISOString(),
+      upcoming: true,
       offset,
     });
     return NextResponse.json(result);
@@ -58,6 +58,17 @@ export async function POST(req: NextRequest) {
     typeof body.startsAt !== "string" ||
     !Number.isFinite(Date.parse(body.startsAt)) ||
     typeof body.timezone !== "string" ||
+    (body.calendarDate != null &&
+      (typeof body.calendarDate !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(body.calendarDate) ||
+        !Number.isFinite(Date.parse(`${body.calendarDate}T00:00:00Z`)) ||
+        new Date(`${body.calendarDate}T00:00:00Z`)
+          .toISOString()
+          .slice(0, 10) !== body.calendarDate ||
+        body.endsAt != null ||
+        body.timezone !== "Asia/Seoul" ||
+        Date.parse(body.startsAt) !==
+          Date.parse(`${body.calendarDate}T00:00:00+09:00`))) ||
     (body.content !== undefined && typeof body.content !== "string") ||
     (body.endsAt != null &&
       (typeof body.endsAt !== "string" ||
@@ -99,6 +110,9 @@ export async function POST(req: NextRequest) {
         timezone: body.timezone,
         starts_at: body.startsAt,
         ends_at: body.endsAt ?? null,
+        ...(body.calendarDate
+          ? { source_refs: { calendarDate: body.calendarDate } }
+          : {}),
       },
     });
     return NextResponse.json({ schedule }, { status: 201 });

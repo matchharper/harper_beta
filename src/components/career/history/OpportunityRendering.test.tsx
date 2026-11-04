@@ -68,12 +68,8 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
     await import("../mobile/jobs/CareerMobileJobsList");
   const { default: SavedOpportunityBoard } =
     await import("./SavedOpportunityBoard");
-  const { default: SavedOpportunityViews } =
-    await import("./SavedOpportunityViews");
-  const { useCareerWorkspaceUiStore } =
-    await import("@/store/useCareerWorkspaceUiStore");
-  const originalView =
-    useCareerWorkspaceUiStore.getState().savedOpportunityView;
+  const { default: SavedOpportunityList } =
+    await import("./SavedOpportunityList");
   const dom = new JSDOM("<div id='root'></div>", {
     url: "http://localhost",
     pretendToBeVisual: true,
@@ -220,39 +216,50 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
 
     const applied: CareerHistoryOpportunity[] = [];
     const closed = { ...second, status: "deleted" };
-    for (const view of ["card1", "card2", "table"] as const) {
-      await act(async () =>
-        useCareerWorkspaceUiStore.setState({ savedOpportunityView: view })
-      );
-      await render(
-        <SavedOpportunityViews
-          items={[first, closed]}
-          onOpenDetail={onOpenDetail}
-          onApply={(item) => applied.push(item)}
-        />
-      );
-      await act(async () =>
-        (container.querySelector('[role="button"]') as HTMLElement).click()
-      );
-      assert.equal(opened.pop(), first, `${view} opens the selected position`);
-      const applyButtons = [...container.querySelectorAll("button")].filter(
-        (button) => button.textContent === "지원하기"
-      );
-      assert.equal(applyButtons.length, 2);
-      await act(async () => applyButtons[0].click());
-      assert.equal(
-        applied.pop(),
-        first,
-        `${view} uses the existing application flow`
-      );
-      assert.equal(opened.length, 0, "applying must not also open details");
-      assert.equal(
-        applyButtons[1].disabled,
-        true,
-        `${view} cannot apply to a closed position`
-      );
-      assert.ok(container.textContent?.includes("마감됨"));
-    }
+    await render(
+      <SavedOpportunityList
+        items={[first, closed]}
+        onOpenDetail={onOpenDetail}
+        onApply={(item) => applied.push(item)}
+      />
+    );
+    await act(async () =>
+      (container.querySelector('[role="button"]') as HTMLElement).click()
+    );
+    assert.equal(opened.pop(), first, "saved row opens the selected position");
+    const applyButtons = [...container.querySelectorAll("button")].filter(
+      (button) => button.textContent === "지원하기"
+    );
+    assert.equal(applyButtons.length, 2);
+    await act(async () => applyButtons[0].click());
+    assert.equal(
+      applied.pop(),
+      first,
+      "saved row uses the existing application flow"
+    );
+    assert.equal(opened.length, 0, "applying must not also open details");
+    assert.equal(
+      applyButtons[1].disabled,
+      true,
+      "saved row cannot apply to a closed position"
+    );
+    assert.ok(container.textContent?.includes("마감됨"));
+    const savedRow = container.querySelector(
+      '[data-opportunity-id="first"] [role="button"]'
+    ) as HTMLElement;
+    assert.equal(savedRow.hasAttribute("aria-expanded"), false);
+    assert.equal(savedRow.hasAttribute("aria-controls"), false);
+    assert.equal(container.querySelector(".lucide-chevron-right"), null);
+    assert.equal(
+      container.querySelector(".lucide-thumbs-up, .lucide-thumbs-down"),
+      null
+    );
+    await act(async () =>
+      savedRow.dispatchEvent(
+        new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    );
+    assert.equal(opened.pop(), first, "keyboard activation opens details");
 
     const column = {
       hasMore: false,
@@ -270,6 +277,7 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
           saved: 2,
           applied: 0,
           connected: 0,
+          offer: 0,
           closed: 0,
           hidden: 0,
         }}
@@ -277,6 +285,7 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
           saved: column,
           applied: column,
           connected: column,
+          offer: column,
           closed: column,
         }}
         onOpenDetail={onOpenDetail}
@@ -314,7 +323,6 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
     unchanged(before, "dropping a board card");
   } finally {
     await act(async () => root.unmount());
-    useCareerWorkspaceUiStore.setState({ savedOpportunityView: originalView });
     dom.window.close();
     if (previousCssLoader) require.extensions[".css"] = previousCssLoader;
     else delete require.extensions[".css"];

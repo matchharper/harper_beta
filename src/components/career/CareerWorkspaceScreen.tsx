@@ -1,15 +1,15 @@
+import { useOpportunityStatusChange } from "@/hooks/career/useOpportunityStatusChange";
 import { getHistoryOpportunityBucket, isSavedHistoryOpportunity } from "@/hooks/career/careerSessionData";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import { useEventCallback } from "@/hooks/useEventCallback";
 import {
   BriefcaseBusiness,
-  Files,
   Inbox,
   Loader2,
   SlidersHorizontal,
+  TextSelect,
   User,
   LucideSquareDashedKanban,
-  TextSelect,
   Undo2,
 } from "lucide-react";
 import { useRouter } from "next/router";
@@ -30,7 +30,6 @@ import {
   useCareerSidebarContext,
 } from "@/components/career/CareerSidebarContext";
 import CareerWorkspaceNav, {
-  CareerNewOpportunityIcon,
   getCareerDesktopNavLabels,
   type CareerDesktopNavTab,
   type CareerWorkspaceTab,
@@ -63,6 +62,7 @@ import {
 } from "@/store/useCareerWorkspaceUiStore";
 import {
   useCareerMobileHistoryOpportunities,
+  getJobsTabTotal,
   isOpportunityInJobsTab,
   type CareerMobileHistoryJobsTab,
 } from "@/hooks/career/useCareerMobileHistoryOpportunities";
@@ -159,6 +159,7 @@ const getInitialMobileHistoryJobsTab = (
   if (
     historyTarget.savedStage === "applied" ||
     historyTarget.savedStage === "connected" ||
+    historyTarget.savedStage === "offer" ||
     historyTarget.savedStage === "closed" ||
     historyTarget.savedStage === "hidden"
   ) {
@@ -189,31 +190,18 @@ const getMobileWorkspaceTabOptions = (
     icon: Inbox,
   },
   {
-    id: "inbox",
-    label: t("career.workspace.new_opportunities", "새 기회"),
-    icon: CareerNewOpportunityIcon,
-  },
-  {
-    id: "jobs",
-    label: t("career.workspace.my_opportunities", "내 기회"),
+    id: "history",
+    label: t("career.workspace.opportunities", "기회"),
     icon: BriefcaseBusiness,
   },
   {
     id: "profile",
-    label: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
+    label: t("career.workspace.my_information", "내 정보"),
     icon: User,
   },
   {
-    id: "documents",
-    label: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
-    icon: Files,
-  },
-  {
     id: "brief",
-    label: t(
-      "career.profile.career_profile_workspace.search_brief_tab",
-      "선호 기준"
-    ),
+    label: t("career.profile.career_profile_workspace.search_brief_tab", "원하는 조건"),
     icon: TextSelect,
   },
 ];
@@ -250,7 +238,7 @@ const CareerWorkspaceContent = React.memo(function CareerWorkspaceContent({
   if (activeTab === "history") {
     return (
       <CareerCanvas className="min-h-full">
-        {historyContent ?? <CareerHistoryPanel navigationMode="sidebar" />}
+        {historyContent ?? <CareerHistoryPanel />}
       </CareerCanvas>
     );
   }
@@ -290,6 +278,7 @@ const CareerWorkspaceContent = React.memo(function CareerWorkspaceContent({
   return (
     <CareerCanvas>
       <CareerProfileWorkspace
+        onChangeView={onChangeTab}
         view={
           activeTab === "documents"
             ? "documents"
@@ -477,12 +466,10 @@ const CareerWorkspaceRoot = ({
     if (store.lastMyOpportunitiesTab !== tab) store.setLastMyOpportunitiesTab(tab);
   }, [activeTab, requestedHistoryTab, router.isReady, router.query.savedStage]);
   const desktopNavTab: CareerDesktopNavTab | null =
-    desktopActiveTab === "history"
-      ? requestedHistoryTab === "saved" || requestedHistoryTab === "archived"
-        ? "saved"
-        : "new"
-      : desktopActiveTab === "watchlist"
-        ? null
+    desktopActiveTab === "watchlist"
+      ? null
+      : desktopActiveTab === "documents"
+        ? "profile"
         : desktopActiveTab;
   const rightPanelTitle = desktopNavTab
     ? getCareerDesktopNavLabels(t)[desktopNavTab]
@@ -525,11 +512,9 @@ const CareerWorkspaceRoot = ({
         pendingInternalRoleFeedbackCount={pendingInternalRoleFeedbackCount}
         unreadExternalRoleCount={unreadExternalRoleCount}
         onChangeTab={(tab) => {
-          if (tab === "new" || tab === "saved") {
+          if (tab === "history") {
             handleChangeTab("history", {
-              historyTarget: tab === "saved"
-                ? getLastMyOpportunitiesTarget()
-                : { historyTab: "new" },
+              historyTarget: { historyTab: "new" },
             });
           } else {
             handleChangeTab(tab);
@@ -896,6 +881,8 @@ const CareerWorkspaceMobileHistoryView = ({
     loadMore: loadMoreFilteredOpportunities,
     opportunities: filteredOpportunities,
   } = useCareerMobileHistoryOpportunities({
+    loadAllProgress: true,
+    historyUpdateError,
     activeTab: jobsTab,
     historyLoading,
     historyOpportunities,
@@ -906,21 +893,15 @@ const CareerWorkspaceMobileHistoryView = ({
   });
   const mobileJobsStatusCounts = useMemo(
     () => ({
-      applied: historyOpportunityCounts.savedStages.applied + historyOpportunityCounts.savedStages.connected,
+      new: getJobsTabTotal("new", historyOpportunityCounts),
+      applied: getJobsTabTotal("applied", historyOpportunityCounts),
       archived: historyOpportunityCounts.archived,
       closed: historyOpportunityCounts.savedStages.closed,
       connected: historyOpportunityCounts.savedStages.connected,
       hidden: historyOpportunityCounts.savedStages.hidden + historyOpportunityCounts.savedStages.closed,
       saved: historyOpportunityCounts.savedStages.saved,
     }),
-    [
-      historyOpportunityCounts.archived,
-      historyOpportunityCounts.savedStages.applied,
-      historyOpportunityCounts.savedStages.closed,
-      historyOpportunityCounts.savedStages.connected,
-      historyOpportunityCounts.savedStages.hidden,
-      historyOpportunityCounts.savedStages.saved,
-    ]
+    [historyOpportunityCounts]
   );
   const pendingOpportunityIds = useMemo(
     () => new Set(historyUpdatingOpportunityIds),
@@ -1008,7 +989,7 @@ const CareerWorkspaceMobileHistoryView = ({
 
   const handleMobileNavigationChange = useCallback(
     (nextOption: CareerMobileTopBarOptionId) => {
-      if (nextOption === "inbox") {
+      if (nextOption === "inbox" || nextOption === "history") {
         workspaceNavigationPendingRef.current = false;
         handleChangeJobsTab("new");
         return;
@@ -1222,40 +1203,14 @@ const CareerWorkspaceMobileHistoryView = ({
     });
   }, [jobsTab, updateMobileHistoryLocation]);
 
-  const handleStatusChange = useEventCallback(
-    (
-      item: CareerHistoryOpportunity,
-      status: CareerOpportunityManagementStatus,
-    ) => {
-      if (!canChangeCareerOpportunityManagementStatus(item)) return;
-      if (getCareerOpportunityManagementStatus(item) === status) return;
-
-      logCareerEvent(`click_mobile_history_status_${status}`);
-
-      if (status === "archived") {
-        requestNegativeFeedback(item);
-        return;
-      }
-
-      const savedStage = getSavedStageForManagementStatus(status);
-      if (!savedStage) return;
-
-      if (
-        item.feedback === "positive" ||
-        (savedStage === "hidden" &&
-          item.sourceType === "external" &&
-          item.feedback === null)
-      ) {
-        void onUpdateHistoryOpportunitySavedStage(item.id, savedStage);
-        return;
-      }
-
-      void onUpdateHistoryOpportunityFeedback(item.id, "positive", {
-        interactionSource: "position_tab",
-        savedStage,
-      });
+  const handleStatusChange = useOpportunityStatusChange({
+    update: onUpdateHistoryOpportunitySavedStage,
+    navigate: (status, item) => {
+      const target = getMyOpportunityTab(status);
+      updateMobileHistoryLocation(target, {mode:"replace", roleId: target === "applied" && requestedRoleId ? item.roleId : null});
     },
-  );
+    openChat: () => setChatOpen(true),
+  });
 
   const handleOpenLink = useEventCallback(
     (item: CareerHistoryOpportunity, url: string | null | undefined) => {
@@ -1376,7 +1331,7 @@ const CareerWorkspaceMobileHistoryView = ({
       />
       <CareerMobileChatLauncher
         navigation={{
-          activeTab: jobsTab === "new" ? "inbox" : "jobs",
+          activeTab: "history",
           onChangeTab: handleMobileNavigationChange,
           options: workspaceTabOptions,
         }}
@@ -1532,7 +1487,6 @@ const CareerWorkspaceMobileLayout = ({
   decisionCount: number;
 }) => {
   const t = useCareerT();
-  const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
   const { onOpenSettings, onLogout } = useCareerSidebarContext();
   const {
@@ -1584,7 +1538,7 @@ const CareerWorkspaceMobileLayout = ({
   );
   const handleTopBarOptionChange = useCallback(
     (nextOption: CareerMobileTopBarOptionId) => {
-      if (nextOption === "inbox") {
+      if (nextOption === "inbox" || nextOption === "history") {
         handleChangeTab("history", { historyTarget: { historyTab: "new" } });
         return;
       }
@@ -1605,7 +1559,7 @@ const CareerWorkspaceMobileLayout = ({
       baseWorkspaceTabOptions.map((option) =>
         option.id === "tasks" && decisionCount > 0
           ? { ...option, badgeCount: decisionCount }
-          : option.id === "inbox"
+          : option.id === "history"
             ? {
                 ...option,
                 badgeCount:
@@ -1628,11 +1582,8 @@ const CareerWorkspaceMobileLayout = ({
   );
 
   const mobileNavigationTab =
-    activeTab === "history"
-      ? getSingleQueryValue(router.query.historyTab) === "saved" ||
-        getSingleQueryValue(router.query.historyTab) === "archived"
-        ? "jobs"
-        : "inbox"
+    activeTab === "documents"
+      ? "profile"
       : activeTab;
   const mobileHeader = (
     <CareerMobileTopBar
@@ -1710,6 +1661,7 @@ const CareerWorkspaceMobileLayout = ({
                   ) : (
                     <div className="px-4 pb-[140px] pt-2">
                       <CareerProfileWorkspace
+                        onChangeView={handleChangeTab}
                         view={
                           activeTab === "documents"
                             ? "documents"

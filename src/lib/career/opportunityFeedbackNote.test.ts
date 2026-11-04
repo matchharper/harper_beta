@@ -3,6 +3,19 @@ import test from "node:test";
 
 import { formatTalentMessageContentForLlmPrompt, formatTalentMessageReferenceForLlm } from "./opportunityFeedbackNote";
 
+test("a vague user message retains its observed screen context without rewriting the user's words", () => {
+  const content = "여기는 어떤 일을 하는 곳이에요?";
+  const message = { role: "user", content, payload: { viewedOpportunity: {
+    roleId: "00000000-0000-4000-8000-000000000001", label: "Example · Engineer",
+  } } };
+  const formatted = formatTalentMessageContentForLlmPrompt(message);
+  assert.ok(formatted.startsWith(content));
+  assert.match(formatted, /Example · Engineer/);
+  assert.match(formatted, /viewing is not acceptance or sharing consent/);
+  assert.equal(message.content, content);
+  assert.equal(formatTalentMessageContentForLlmPrompt({ ...message, payload: {} }), content);
+});
+
 test("browser cards remain visible to the model without passing viewer credentials", () => {
   const formatted = formatTalentMessageReferenceForLlm({
     content: "", message_type: "browser_session",

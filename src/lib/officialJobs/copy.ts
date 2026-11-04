@@ -43,9 +43,9 @@ export const OFFICIAL_JOBS_COPY = {
       //   "이 역할에서 시작해, Harper와 다음 커리어 기회까지 함께 살펴보세요.",
     },
     initialChatDraft:
-      "Harper 내부 기회인 {role}에 관심 있어요. 우선적으로 검토해 주세요.",
+      "Harper 내부 기회인 {role}에 관심 있어요. 연결해주세요.",
     initialChatDraftWithCompany:
-      "Harper 내부 기회인 {role}에 관심 있어요. 우선적으로 검토해 주세요.",
+      "Harper 내부 기회인 {role}에 관심 있어요. 연결해주세요.",
     detail: {
       backToList: "역할 목록",
       facts: {
@@ -100,9 +100,9 @@ export const OFFICIAL_JOBS_COPY = {
       //   "Start with this role, then explore what’s next in your career with Harper.",
     },
     initialChatDraft:
-      "I'm interested in the Harper-connected {role} opportunity. Please prioritize it for review.",
+      "I'm interested in the Harper-connected {role} opportunity. Please introduce me.",
     initialChatDraftWithCompany:
-      "I'm interested in the Harper-connected {role} opportunity. Please prioritize it for review.",
+      "I'm interested in the Harper-connected {role} opportunity. Please introduce me.",
     detail: {
       backToList: "All roles",
       facts: {

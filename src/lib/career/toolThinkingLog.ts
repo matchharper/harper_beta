@@ -49,7 +49,7 @@ export function getCareerToolStartThinkingLog(
       return careerT(
         locale,
         "career.chat.tool.internal_role_priority_review.start",
-        "포지션 우선 검토 요청을 처리하고 있습니다."
+        "관심 있는 내부 기회를 확인하고 있습니다."
       );
     case "record_internal_fit_reevaluation_information":
     case "request_internal_role_reconsideration":

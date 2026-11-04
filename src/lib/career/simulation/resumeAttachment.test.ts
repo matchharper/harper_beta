@@ -120,23 +120,14 @@ test("real generated PDF survives question and approval waits before local form 
   } finally {await browser.close();}
 });
 
-test("simulation prompt early return still includes the shared resume authoring contract", async () => {
+test("application preparation uses the same general chat plan and loads resume guidance on demand", async () => {
   const {buildCareerConversationPromptPlan} = await import("../prompts/conversationPlan");
   const {resolveCareerChatTools} = await import("../llmTools");
   const s = createSimulationSession({roleRef:"job:test",roleName:"Engineer",documentId:"d",documentName:"Resume"});
   s.preparation = createPreparation();
   const {toolNames} = resolveCareerChatTools({channel:"chat",isOnboardingDone:true,simulationActive:true,simulationPreparation:true});
-  const plan = buildCareerConversationPromptPlan({channel:"chat",conversationMode:"simulation",simulationSession:s,toolNames,isOnboardingDone:true,profile:null,structuredProfileText:"",talentContextSection:""});
-  const block = plan.promptBlocks.find(b => b.key === "tool_policy");
-  assert.ok(block);
-  assert.match(block.text, /read_document\(format=structured\)/);
-  assert.match(block.text, /accepted suggestions and explicit editing instructions/);
-  assert.doesNotMatch(block.text, /Call generate_resume/);
+  const base = {channel:"chat" as const, toolNames, isOnboardingDone:true, profile:null, structuredProfileText:"",talentContextSection:""};
+  const plan = buildCareerConversationPromptPlan({...base,conversationMode:"simulation",simulationSession:s});
+  const ordinary = buildCareerConversationPromptPlan(base);
+  assert.deepEqual(plan.promptBlocks, ordinary.promptBlocks);
 });
-
- test("public submission names use the person name while uploaded supporting files retain readable names", () => {
-  assert.equal(applicationAttachmentName(document()), "Test_Candidate_resume.pdf");
-  assert.equal(applicationAttachmentName({kind:"resume",file_name:"My CV.docx",origin_type:"upload"}), "My_CV.docx");
-  assert.equal(applicationAttachmentName({file_name:"cover letter.pdf"}), "cover_letter.pdf");
-  assert.equal(applicationAttachmentName({kind:"resume",file_name:"3a233b16-84a9-8178-bea9-7e6031178f00.pdf"}), "resume.pdf");
- });

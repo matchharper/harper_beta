@@ -25,6 +25,9 @@ export type ExternalToolContext = {
   userId: string;
   conversationId: string;
   userMessageId?: number;
+  workId?: string;
+  workRevision?: number;
+  claimId?: string;
   requestId: string;
   signal?: AbortSignal;
   /** Request budget; yielding observation preserves the already dispatched run. */
@@ -86,6 +89,7 @@ export async function createOperation(
       p_request: {
         ...args.request,
         source_message_id: context.userMessageId ?? null,
+        work_id: context.workId ?? null,
       },
     }
   );

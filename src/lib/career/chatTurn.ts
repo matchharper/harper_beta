@@ -168,6 +168,10 @@ export type CareerTextTurnAdapter = {
 };
 
 export type RunCareerChatTurnArgs = {
+  inboxId?: string;
+  resumeDependenciesPending?: boolean;
+  workId?: string;
+  workRevision?: number;
   backgroundInvocation?: import("./background/types").CareerBackgroundInvocation;
   scheduleAfter?: (task: () => Promise<void>) => void;
   adapter?: CareerTextTurnAdapter;
@@ -176,6 +180,7 @@ export type RunCareerChatTurnArgs = {
   abortSignal?: AbortSignal;
   deadlineAt?: number;
   onAgentCheckpoint?: (checkpoint: CareerReplyCheckpoint) => Promise<void>;
+  onAgentTurnStarted?: (claimId: string) => Promise<void>;
   onArtifactMessage?: (message: TalentMessageResponse) => void;
   admin: TalentAdminClient;
   assistantMessagePayload?: TalentMessageRow["payload"];
@@ -193,7 +198,7 @@ export type RunCareerChatTurnArgs = {
   link?: string | null;
   noMessageMarker?: string;
   onRecommendationStatus?: (status: RecommendJobPostingStatus) => void;
-  onThinkingLog?: (status: string) => void;
+  onThinkingLog?: (status: string, logs: string[]) => void;
   onTextDelta?: (delta: string) => void | Promise<void>;
   pendingOpportunityFeedbackContext?: string | null;
   proactiveContext?: string | null;
@@ -611,10 +616,9 @@ export async function runCareerChatTurn(
       })
     : null;
   const isSessionReengagement =
-    !isOnboardingActiveForTurn &&
     (args.assistantMessagePayload as { kind?: string } | null)?.kind ===
       "session_reengagement";
-  const reengagementOpportunities = isSessionReengagement
+  const reengagementOpportunities = isSessionReengagement && !isOnboardingActiveForTurn
     ? await readCareerReengagementOpportunities({
         admin,
         userId,
@@ -732,13 +736,14 @@ export async function runCareerChatTurn(
     admin,
     conversationId,
     recentLimit: 16,
+    pendingUserMessageId: args.inboxId ? existingSourceMessage?.id : undefined,
     userId,
   });
 
   // The source identifies authorization and usage; it is not a history cutoff.
   // Current Career conversation includes work delivered while an external run
   // was in flight. Email adapters retain their existing inbound-message window.
-  const sourceWindow = includeCareerSourceMessage(
+  const sourceWindow = args.inboxId ? recentMessages : includeCareerSourceMessage(
     args.adapter
       ? recentMessages.filter(item => Number(item.id) <= Number(args.adapter!.sourceMessage.id))
       : recentMessages,
@@ -760,6 +765,16 @@ export async function runCareerChatTurn(
       }),
     }))
     .filter((item) => item.content.trim().length > 0);
+
+  if (isSessionReengagement && proactiveContext) {
+    // A real app event opens a new model turn after the historical transcript.
+    // Ending on an assistant message would be an unsupported Claude prefill.
+    // This transport message is never persisted as candidate speech/consent.
+    llmMessages.push({
+      role: "user",
+      content: `Application event (not a user-authored message or new authorization):\n\n${proactiveContext}`,
+    });
+  }
 
   const defaultToolSelection = resolveCareerChatTools({
     background: Boolean(args.backgroundInvocation),
@@ -832,7 +847,7 @@ export async function runCareerChatTurn(
       postOnboardingContext,
       profile,
       runtimeInstruction: [
-        turnRuntimeInstruction,
+        isSessionReengagement ? reengagementOpportunities : turnRuntimeInstruction,
         formatTalentConversationReferencesForLlm(sourceWindow, {
           preferredLocale: responseLocale,
           timeZone: args.timeZone,
@@ -850,6 +865,10 @@ export async function runCareerChatTurn(
     admin, userId, conversationId, sourceMessage: insertedUserMessage, mode: capabilityMode,
     eligibleTools: toolSelection.tools, promptArgs: capabilityPromptArgs,
     agentReplyId: args.agentReplyId,
+    inboxId: args.inboxId,
+    resumeDependenciesPending: args.resumeDependenciesPending,
+    workId: args.workId,
+    workRevision: args.workRevision,
     backgroundRunId: args.backgroundInvocation?.runId,
     sourceMessageCursor: args.backgroundInvocation?.sourceMessageCursor,
     ...(args.backgroundInvocation ? { selectionSnapshot: {
@@ -887,6 +906,7 @@ export async function runCareerChatTurn(
     ? watchCareerTurnCancellation({ admin, userId, conversationId, sourceMessageId: insertedUserMessage.id }, args.abortSignal) : undefined;
   args = { ...args, abortSignal: capabilityTurn?.runtime.abortSignal ?? standaloneCancellation?.signal ?? args.abortSignal };
   try {
+  if (capabilityTurn) await args.onAgentTurnStarted?.(capabilityTurn.claimId);
   await standaloneCancellation?.check();
   const initialCapabilityStep = capabilityTurn?.runtime.resolveStep(false);
   if (initialCapabilityStep) toolDefinitions = initialCapabilityStep.tools;
@@ -918,7 +938,7 @@ export async function runCareerChatTurn(
     thinkingLogs = appendThinkingLog(thinkingLogs, status);
     const currentLast = thinkingLogs[thinkingLogs.length - 1];
     if (currentLast && currentLast !== previousLast) {
-      onThinkingLog?.(currentLast);
+      onThinkingLog?.(currentLast, thinkingLogs);
     }
   };
   const recordRecommendationStatus = (
@@ -1010,9 +1030,12 @@ export async function runCareerChatTurn(
         responseLocale,
         registerProcessClosureNotices,
         scheduleAfter,
-        userMessageId: insertedUserMessage?.id ?? null,
+        userMessageId: capabilityTurn?.runtime.options.inputInbox?.messageIds().at(-1) ?? insertedUserMessage?.id ?? null,
+        userMessageIds: capabilityTurn?.runtime.options.inputInbox?.messageIds(),
         resumeRequestId: capabilityTurn?.replyId ?? args.agentReplyId,
         backgroundInvocation: args.backgroundInvocation,
+        workId: args.workId,
+        workRevision: args.workRevision,
         agentClaimId: capabilityTurn?.claimId,
         abortSignal: args.abortSignal,
         deadlineAt: capabilityTurn?.runtime.deadlineAt ?? args.deadlineAt,
@@ -1225,7 +1248,10 @@ export async function runCareerChatTurn(
   if (recommendationReceiptRef.current) {
     assistantTextSource = recommendationReceiptRef.current.answerDraft;
   }
-  if (!assistantTextSource && (!args.adapter || args.adapter.artifactsVisible === true) && (artifactMessages.size > 0 || formPresenter.hasPending())) {
+  if (!assistantTextSource && (!args.adapter || args.adapter.artifactsVisible === true) && (!isOnboardingActiveForTurn || artifactMessages.size > 0 || formPresenter.hasPending())) {
+    // An empty final message can follow already delivered progress, a form or
+    // delegated work. A second writer without that execution transcript/tools
+    // would invent a new account of what happened.
     await formPresenter.flush();
     await capabilityTurn?.complete();
     await commitDeliveredProcessClosureNotices({

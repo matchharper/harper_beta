@@ -14,7 +14,7 @@ import React, { KeyboardEvent, useMemo, useState } from "react";
 import { useCareerProfileContext } from "./CareerSidebarContext";
 import {
   ProfileVisibilityPanel,
-  profileVisibilityLabels,
+  getProfileVisibilityLabels,
 } from "./ProfileVisibilityPanel";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import type {
@@ -45,7 +45,7 @@ const getEngagementTypeOptions = (
 ): EngagementTypeOption[] => [
   {
     value: "full_time",
-    label: "Full-time Role",
+    label: t("career.profile.engagement.full_time", "풀타임"),
     description: t(
       "career.profile.career_profile_settings_section.engagement_full_time",
       "정규직/풀타임 역할까지 열려 있어요."
@@ -54,7 +54,7 @@ const getEngagementTypeOptions = (
   },
   {
     value: "fractional",
-    label: "Fractional / Part-time",
+    label: t("career.profile.engagement.fractional", "파트타임·프로젝트"),
     description: t(
       "career.profile.career_profile_settings_section.engagement_fractional",
       "현업을 유지하면서 파트타임·프로젝트 형태로 참여할 수 있어요."
@@ -63,7 +63,7 @@ const getEngagementTypeOptions = (
   },
   {
     value: "advisor",
-    label: "Technical Advisor",
+    label: t("career.profile.engagement.advisor", "어드바이저"),
     description: t(
       "career.profile.career_profile_settings_section.engagement_advisor",
       "전략적·기술적 자문 역할도 검토할 수 있어요."
@@ -83,17 +83,20 @@ const formatUpdatedAt = (value: string, locale: Locale) => {
 };
 
 export const CareerProfileSharingSettingsSection = ({
+  disabled = false,
   showBlockedCompanies = true,
   showEngagementTypes = true,
   showLastUpdated = true,
   showProfileVisibility = true,
 }: {
+  disabled?: boolean;
   showBlockedCompanies?: boolean;
   showEngagementTypes?: boolean;
   showLastUpdated?: boolean;
   showProfileVisibility?: boolean;
 }) => {
   const t = useCareerT();
+  const profileVisibilityLabels = getProfileVisibilityLabels(t);
 
   const { locale } = useMessages();
   const logCareerEvent = useCareerLogEvent();
@@ -153,6 +156,7 @@ export const CareerProfileSharingSettingsSection = ({
     value: CareerProfileVisibility
   ) => {
     if (
+      disabled ||
       settingsLoading ||
       isSavePending ||
       profileVisibilitySavePending ||
@@ -254,7 +258,7 @@ export const CareerProfileSharingSettingsSection = ({
           </div>
         ) : null}
 
-        <div className="mb-12">
+        <div className="space-y-8">
           {showProfileVisibility ? (
             // hint={t(
             //   "career.common.career.1bbxwls",
@@ -267,7 +271,10 @@ export const CareerProfileSharingSettingsSection = ({
               aria-haspopup="dialog"
               aria-expanded={profileVisibilityPanelOpen}
               disabled={
-                settingsLoading || isSavePending || profileVisibilitySavePending
+                disabled ||
+                settingsLoading ||
+                isSavePending ||
+                profileVisibilitySavePending
               }
               onClick={() => setProfileVisibilityPanelOpen(true)}
             >
@@ -275,7 +282,7 @@ export const CareerProfileSharingSettingsSection = ({
                 <span>
                   {t(
                     "career.profile.career_profile_settings_section.1tnqucg",
-                    "프로필 공개"
+                    "프로필 공유 방식"
                   )}{" "}
                   :
                 </span>
@@ -290,11 +297,11 @@ export const CareerProfileSharingSettingsSection = ({
           {showEngagementTypes ? (
             <Field
               label={
-                <span className="inline-flex items-center gap-2 mt-8">
+                <span className="inline-flex items-center gap-2">
                   <span>
                     {t(
                       "career.profile.career_profile_settings_section.engagement_types_label",
-                      "관심 기회 형태"
+                      "근무 형태"
                     )}
                   </span>
                   {engagementTypesSavePending ? (
@@ -305,10 +312,6 @@ export const CareerProfileSharingSettingsSection = ({
                   ) : null}
                 </span>
               }
-              hint={t(
-                "career.profile.career_profile_settings_section.engagement_types_hint",
-                "지금 열려있는 기회를 모두 선택해주세요."
-              )}
             >
               <TooltipProvider delayDuration={100}>
                 <div className="grid gap-2 md:grid-cols-3">
@@ -361,7 +364,7 @@ export const CareerProfileSharingSettingsSection = ({
                   <span>
                     {t(
                       "career.profile.career_profile_settings_section.0o48hts",
-                      "차단 기업"
+                      "제외할 회사"
                     )}
                   </span>
                   {blockedCompaniesSavePending ? (
@@ -516,12 +519,15 @@ export const CareerProfileSharingSettingsSection = ({
 };
 
 const CareerProfileSettingsSection = () => (
-  <CareerProfileSharingSettingsSection />
+  <CareerProfileSharingSettingsSection
+    showBlockedCompanies={false}
+    showEngagementTypes={false}
+    showLastUpdated={false}
+  />
 );
 
-export const CareerBlockedCompaniesSettingsSection = () => (
+export const CareerPreferencesSettingsSection = () => (
   <CareerProfileSharingSettingsSection
-    showEngagementTypes={false}
     showLastUpdated={false}
     showProfileVisibility={false}
   />

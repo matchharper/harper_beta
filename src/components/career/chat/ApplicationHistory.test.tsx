@@ -1,3 +1,5 @@
+import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 import { act } from "react";
@@ -60,14 +62,15 @@ test("historical active applications hydrate cards without reopening a mode or c
     history = useApplicationHistory();
     return null;
   }
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const root = createRoot(dom.window.document.getElementById("root")!);
   const render = (chatPending: boolean) =>
     root.render(
-      <MessagesProvider locale="ko">
+      <RouterContext.Provider value={{ query: {}, pathname: "/career", isReady: true } as any}><QueryClientProvider client={queryClient}><MessagesProvider locale="ko">
         <CareerChatPanelProvider
           value={
             {
-              conversationId: "conversation",
+              messages: [], conversationId: "conversation",
               chatPending,
               onSendChatMessage: async () => {
                 sends++;
@@ -79,7 +82,7 @@ test("historical active applications hydrate cards without reopening a mode or c
             <Capture />
           </ApplicationHistoryProvider>
         </CareerChatPanelProvider>
-      </MessagesProvider>
+      </MessagesProvider></QueryClientProvider></RouterContext.Provider>
     );
   try {
     await act(async () => render(false));

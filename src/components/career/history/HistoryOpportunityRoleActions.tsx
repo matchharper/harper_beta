@@ -181,7 +181,7 @@ export default function HistoryOpportunityRoleActions({
     <section
       aria-label={t(
         "career.history.job_actions.aria_label",
-        "이 포지션으로 할 수 있는 일"
+        "이 기회로 할 수 있는 일"
       )}
       className={cn("", className)}
     >
@@ -226,7 +226,7 @@ export default function HistoryOpportunityRoleActions({
             >
               {t(
                 "career.history.job_actions.same_company",
-                "같은 회사의 다른 포지션"
+                "이 회사의 다른 기회"
               )}
             </RoleActionButton>
           </motion.div>
@@ -253,7 +253,7 @@ export default function HistoryOpportunityRoleActions({
             >
               {t(
                 "career.history.job_actions.company_overview",
-                "회사 간단 소개"
+                "회사 한눈에 보기"
               )}
             </RoleActionButton>
           </motion.div>
@@ -279,7 +279,7 @@ export default function HistoryOpportunityRoleActions({
                 >
                   {t(
                     "career.history.job_actions.mock_interview",
-                    "모의 인터뷰 해보기"
+                    "모의 면접 해보기"
                   )}
                 </RoleActionButton>
               )}

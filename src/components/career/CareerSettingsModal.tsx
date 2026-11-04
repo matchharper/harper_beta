@@ -1,10 +1,8 @@
 import { CareerAutomationSettingsSection } from "./CareerAutomationSettingsSection";
 import {
-  AlarmClock,
   AlertTriangle,
   ArrowLeft,
   ChevronRight,
-  FileText,
   Loader2,
   LogOut,
   Settings2,
@@ -23,9 +21,10 @@ import {
   useCareerProfileContext,
   useCareerSidebarContext,
 } from "./CareerSidebarContext";
-import CareerProfileSettingsSection from "./CareerProfileSettingsSection";
+import CareerOpportunitySettingsSection from "./settings/CareerOpportunitySettingsSection";
+import CareerLanguageSetting from "./settings/CareerLanguageSetting";
+import { CareerSettingRow as SettingRow } from "./settings/CareerSettingRow";
 import { CareerReferralSettingsSection } from "./referral/CareerReferralModal";
-import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettingsSection";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
@@ -43,13 +42,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { AppleSwitch } from "@/components/ui/switch";
-import type { CareerTalentPreferences } from "./types";
-import {
-  getAccountSubscriptionConfirmationKind,
-  type AccountSubscriptionConfirmationKind,
-  type AccountSubscriptionSettings,
-} from "@/lib/career/accountSubscriptions";
 import CareerReferralAttentionDot from "./referral/CareerReferralAttentionDot";
 import {
   markCareerReferralSeen,
@@ -58,7 +50,6 @@ import {
 
 export type CareerSettingsTab =
   | "profile"
-  | "resume"
   | "referral"
   | "account"
   | "automation";
@@ -78,58 +69,8 @@ const SettingsTabPanel = ({
   title: React.ReactNode;
 }) => (
   <div className="relative min-h-full px-4 pb-6 pt-4 md:px-8 md:py-7">
-    <h2 className="text-base font-medium text-neutral-primary">{title}</h2>
-    <div className="mt-5">{children}</div>
-  </div>
-);
-
-const SettingRow = ({
-  action,
-  desc,
-  mobileActionPlacement = "stacked",
-  title,
-  variant = "default",
-}: {
-  action: React.ReactNode;
-  desc?: React.ReactNode;
-  mobileActionPlacement?: "stacked" | "trailing";
-  title: React.ReactNode;
-  variant?: "default" | "critical";
-}) => (
-  <div
-    className={[
-      "flex gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between sm:gap-8",
-      mobileActionPlacement === "trailing"
-        ? "flex-row items-center justify-between"
-        : "flex-col",
-    ].join(" ")}
-  >
-    <div className="min-w-0 flex-1 sm:py-1.5">
-      <h3
-        className={[
-          "text-sm font-normal",
-          variant === "critical" ? "text-critical" : "text-neutral-primary",
-        ].join(" ")}
-      >
-        {title}
-      </h3>
-      {desc && (
-        <p className="mt-1 text-sm font-normal leading-5 text-neutral-muted">
-          {desc}
-        </p>
-      )}
-    </div>
-    <div
-      className={[
-        "shrink-0 sm:max-w-[360px]",
-        React.isValidElement(action) &&
-        (action.type === "input" || action.type === "textarea")
-          ? "w-full"
-          : "",
-      ].join(" ")}
-    >
-      {action}
-    </div>
+    <h2 className="hidden text-base font-medium text-neutral-primary md:block">{title}</h2>
+    <div className="md:mt-5">{children}</div>
   </div>
 );
 
@@ -140,24 +81,17 @@ const getSettingsTabs = (
   const tabs: SettingsTabDefinition[] = [
     {
       key: "profile",
-      label: t("career.settings.career_settings_modal.0tdjt8e", "프로필 설정"),
+      label: t("career.settings.career_settings_modal.0tdjt8e", "기회 설정"),
       Icon: Settings2,
-    },
-    {
-      key: "resume",
-      label: t(
-        "career.settings.career_settings_modal.1u81q4e",
-        "내 이력서/링크"
-      ),
-      Icon: FileText,
     },
   ];
 
   tabs.push({
-    key: "automation",
-    label: t("career.automation.tab", "일정 및 팔로우"),
-    Icon: AlarmClock,
+    key: "account",
+    label: t("career.settings.career_settings_modal.1lbfn2i", "계정"),
+    Icon: UserCircle2,
   });
+
   if (showReferralEntryPoints) {
     tabs.push({
       key: "referral",
@@ -165,12 +99,6 @@ const getSettingsTabs = (
       Icon: UserRoundPlus,
     });
   }
-
-  tabs.push({
-    key: "account",
-    label: t("career.settings.career_settings_modal.1lbfn2i", "계정 관리"),
-    Icon: UserCircle2,
-  });
 
   return tabs;
 };
@@ -205,13 +133,6 @@ type AccountProfilePayload = {
     name?: string | null;
     user_id?: string | null;
   } | null;
-};
-
-type AccountSubscriptionsPayload = {
-  accountSubscriptions?: AccountSubscriptionSettings;
-  error?: string;
-  preferences?: CareerTalentPreferences;
-  preferencesUpdatedAt?: string | null;
 };
 
 const AccountDeleteConfirmDialog = ({
@@ -475,28 +396,18 @@ const AccountDeleteConfirmDialog = ({
 const AccountSection = ({
   email,
   name,
-  onAccountSubscriptionsUpdated,
   onLogout,
   onProfileSaved,
-  profileVisibility,
-  talentPreferences,
   userId,
 }: {
   email: string;
   name: string;
-  onAccountSubscriptionsUpdated: (args: {
-    harperEnabled: boolean;
-    preferences: CareerTalentPreferences;
-    preferencesUpdatedAt: string | null;
-  }) => void;
   onLogout: () => void | Promise<void>;
   onProfileSaved: (profile: {
     email: string | null;
     name: string | null;
     user_id: string;
   }) => void;
-  profileVisibility: "open_to_matches" | "exceptional_only" | "dont_share";
-  talentPreferences: CareerTalentPreferences | null;
   userId: string;
 }) => (
   <AccountSectionContent
@@ -505,11 +416,8 @@ const AccountSection = ({
     )}`}
     email={email}
     name={name}
-    onAccountSubscriptionsUpdated={onAccountSubscriptionsUpdated}
     onLogout={onLogout}
     onProfileSaved={onProfileSaved}
-    profileVisibility={profileVisibility}
-    talentPreferences={talentPreferences}
     userId={userId}
   />
 );
@@ -517,28 +425,18 @@ const AccountSection = ({
 const AccountSectionContent = ({
   email,
   name,
-  onAccountSubscriptionsUpdated,
   onLogout,
   onProfileSaved,
-  profileVisibility,
-  talentPreferences,
   userId,
 }: {
   email: string;
   name: string;
-  onAccountSubscriptionsUpdated: (args: {
-    harperEnabled: boolean;
-    preferences: CareerTalentPreferences;
-    preferencesUpdatedAt: string | null;
-  }) => void;
   onLogout: () => void | Promise<void>;
   onProfileSaved: (profile: {
     email: string | null;
     name: string | null;
     user_id: string;
   }) => void;
-  profileVisibility: "open_to_matches" | "exceptional_only" | "dont_share";
-  talentPreferences: CareerTalentPreferences | null;
   userId: string;
 }) => {
   const t = useCareerT();
@@ -565,18 +463,6 @@ const AccountSectionContent = ({
   const [savePending, setSavePending] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveInfo, setSaveInfo] = useState("");
-  const [subscriptionSettings, setSubscriptionSettings] =
-    useState<AccountSubscriptionSettings>(() => ({
-      getExternalRecommendation:
-        talentPreferences?.getExternalRecommendation ?? true,
-      harperEnabled: profileVisibility !== "dont_share",
-    }));
-  const [subscriptionPending, setSubscriptionPending] = useState(false);
-  const [subscriptionError, setSubscriptionError] = useState("");
-  const [subscriptionConfirmKind, setSubscriptionConfirmKind] =
-    useState<AccountSubscriptionConfirmationKind | null>(null);
-  const [pendingSubscriptionSettings, setPendingSubscriptionSettings] =
-    useState<AccountSubscriptionSettings | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -589,53 +475,6 @@ const AccountSectionContent = ({
 
   const normalizedDraftName = normalizeAccountFieldName(draftName);
   const hasAccountChanges = normalizedDraftName !== savedProfile.name;
-  const subscriptionConfirmCopy =
-    subscriptionConfirmKind === "pause_all"
-      ? {
-          cancel: t(
-            "career.settings.career_settings_modal.pause_cancel",
-            "계속 사용하기"
-          ),
-          closeAria: t(
-            "career.settings.career_settings_modal.pause_close_aria",
-            "사용 중지 확인 닫기"
-          ),
-          confirm: t(
-            "career.settings.career_settings_modal.pause_confirm",
-            "사용 중지하기"
-          ),
-          description: t(
-            "career.settings.career_settings_modal.pause_description",
-            "이제 Harper가 외부 포지션을 주기적으로 추천하거나 새로운 연결 기회를 먼저 알려드리지 않습니다. 계정, 프로필, 이력서와 대화 기록은 그대로 보관되며 언제든 다시 켤 수 있습니다."
-          ),
-          title: t(
-            "career.settings.career_settings_modal.pause_title",
-            "Harper 사용을 잠시 중지할까요?"
-          ),
-        }
-      : {
-          cancel: t(
-            "career.settings.career_settings_modal.external_recommendation_off_cancel",
-            "계속 추천받기"
-          ),
-          closeAria: t(
-            "career.settings.career_settings_modal.external_recommendation_off_close_aria",
-            "외부 포지션 추천 중지 확인 닫기"
-          ),
-          confirm: t(
-            "career.settings.career_settings_modal.external_recommendation_off_confirm",
-            "외부 추천 끄기"
-          ),
-          description: t(
-            "career.settings.career_settings_modal.external_recommendation_off_description",
-            "외부 포지션은 더 이상 주기적으로 추천하지 않습니다. 다만 Harper를 통해 연결 가능한 적절한 내부 기회가 있으면 계속 추천해 드립니다."
-          ),
-          title: t(
-            "career.settings.career_settings_modal.external_recommendation_off_title",
-            "외부 포지션 추천을 끌까요?"
-          ),
-        };
-
   const handleSaveAccount = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (savePending || !hasAccountChanges) return;
@@ -707,118 +546,6 @@ const AccountSectionContent = ({
     } finally {
       setSavePending(false);
     }
-  };
-
-  const persistAccountSubscriptions = async (
-    nextSettings: AccountSubscriptionSettings
-  ) => {
-    if (subscriptionPending) return false;
-
-    const previousSettings = subscriptionSettings;
-    const requestBody = {
-      getExternalRecommendation: nextSettings.getExternalRecommendation,
-      ...(nextSettings.harperEnabled === previousSettings.harperEnabled
-        ? {}
-        : { harperEnabled: nextSettings.harperEnabled }),
-    };
-    setSubscriptionPending(true);
-    setSubscriptionError("");
-    setSubscriptionSettings(nextSettings);
-
-    try {
-      const response = await fetchWithAuth("/api/talent/preferences", {
-        method: "POST",
-        body: JSON.stringify(requestBody),
-      });
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as AccountSubscriptionsPayload;
-
-      if (
-        !response.ok ||
-        !payload.accountSubscriptions ||
-        !payload.preferences
-      ) {
-        throw new Error(
-          t(
-            "career.settings.career_settings_modal.subscription_update_failed",
-            "사용 설정을 변경하지 못했습니다. 잠시 후 다시 시도해 주세요."
-          )
-        );
-      }
-
-      setSubscriptionSettings(payload.accountSubscriptions);
-      onAccountSubscriptionsUpdated({
-        harperEnabled: payload.accountSubscriptions.harperEnabled,
-        preferences: payload.preferences,
-        preferencesUpdatedAt: payload.preferencesUpdatedAt ?? null,
-      });
-      setSubscriptionConfirmKind(null);
-      setPendingSubscriptionSettings(null);
-      logCareerEvent("confirm_settings_account_subscriptions_update");
-      return true;
-    } catch (error) {
-      setSubscriptionSettings(previousSettings);
-      setSubscriptionError(
-        error instanceof Error
-          ? error.message
-          : t(
-              "career.settings.career_settings_modal.subscription_update_failed",
-              "사용 설정을 변경하지 못했습니다. 잠시 후 다시 시도해 주세요."
-            )
-      );
-      return false;
-    } finally {
-      setSubscriptionPending(false);
-    }
-  };
-
-  const requestAccountSubscriptionUpdate = (
-    nextSettings: AccountSubscriptionSettings
-  ) => {
-    const confirmationKind = getAccountSubscriptionConfirmationKind({
-      current: subscriptionSettings,
-      next: nextSettings,
-    });
-    if (confirmationKind) {
-      setSubscriptionError("");
-      setPendingSubscriptionSettings(nextSettings);
-      setSubscriptionConfirmKind(confirmationKind);
-      return;
-    }
-
-    void persistAccountSubscriptions(nextSettings);
-  };
-
-  const handleHarperEnabledChange = (checked: boolean) => {
-    if (subscriptionPending || checked === subscriptionSettings.harperEnabled) {
-      return;
-    }
-    logCareerEvent(`click_settings_harper_enabled_${checked ? "on" : "off"}`);
-
-    const nextSettings = {
-      getExternalRecommendation: checked,
-      harperEnabled: checked,
-    };
-    requestAccountSubscriptionUpdate(nextSettings);
-  };
-
-  const handleExternalRecommendationChange = (checked: boolean) => {
-    if (
-      subscriptionPending ||
-      checked === subscriptionSettings.getExternalRecommendation
-    ) {
-      return;
-    }
-    logCareerEvent(
-      `click_settings_external_recommendations_${checked ? "on" : "off"}`
-    );
-
-    const nextSettings = {
-      getExternalRecommendation: checked,
-      harperEnabled: subscriptionSettings.harperEnabled,
-    };
-    requestAccountSubscriptionUpdate(nextSettings);
   };
 
   const handleOpenDeleteConfirm = () => {
@@ -965,6 +692,8 @@ const AccountSectionContent = ({
           </div>
         ) : null}
 
+        <CareerLanguageSetting />
+
         <SettingRow
           title={t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
           action={
@@ -983,60 +712,6 @@ const AccountSectionContent = ({
             </div>
           }
         />
-
-        <SettingRow
-          mobileActionPlacement="trailing"
-          title={t(
-            "career.settings.career_settings_modal.harper_enabled_title",
-            "Harper 사용"
-          )}
-          desc={t(
-            "career.settings.career_settings_modal.harper_enabled_description",
-            "off시 계정과 데이터는 그대로 두고 새로운 매칭과 연결 기회 안내를 멈춥니다."
-          )}
-          action={
-            <div className="flex min-h-9 items-center gap-2 sm:justify-end">
-              <AppleSwitch
-                checked={subscriptionSettings.harperEnabled}
-                disabled={subscriptionPending}
-                onCheckedChange={handleHarperEnabledChange}
-                aria-label={t(
-                  "career.settings.career_settings_modal.harper_enabled_title",
-                  "Harper 사용"
-                )}
-              />
-            </div>
-          }
-        />
-
-        <SettingRow
-          mobileActionPlacement="trailing"
-          title={t(
-            "career.settings.career_settings_modal.external_recommendation_title",
-            "외부 포지션 주기적으로 추천받기"
-          )}
-          action={
-            <div className="flex min-h-9 items-center gap-2 sm:justify-end">
-              <AppleSwitch
-                checked={subscriptionSettings.getExternalRecommendation}
-                disabled={subscriptionPending}
-                onCheckedChange={handleExternalRecommendationChange}
-                aria-label={t(
-                  "career.settings.career_settings_modal.external_recommendation_title",
-                  "외부 포지션 주기적으로 추천받기"
-                )}
-              />
-            </div>
-          }
-        />
-
-        {subscriptionError && subscriptionConfirmKind === null ? (
-          <div className="py-4 sm:ml-auto sm:w-[360px]">
-            <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
-              {subscriptionError}
-            </p>
-          </div>
-        ) : null}
 
         <SettingRow
           title={t(
@@ -1093,67 +768,6 @@ const AccountSectionContent = ({
         }}
       />
 
-      <TalentCareerModal
-        open={subscriptionConfirmKind !== null}
-        onClose={() => {
-          if (subscriptionPending) return;
-          setSubscriptionConfirmKind(null);
-          setPendingSubscriptionSettings(null);
-          setSubscriptionError("");
-        }}
-        closeOnBackdrop={!subscriptionPending}
-        showCloseButton={!subscriptionPending}
-        mobileBottomSheet
-        closeButtonAriaLabel={subscriptionConfirmCopy.closeAria}
-        title={subscriptionConfirmCopy.title}
-        description={subscriptionConfirmCopy.description}
-        headerClassName="border-b-0"
-        panelClassName="max-w-[420px] border-neutral-1000-a10 bg-bg-floating"
-        bodyClassName={subscriptionError ? "px-5 pt-5" : undefined}
-        footer={
-          <div className="flex justify-end gap-2">
-            <MuteButton
-              type="button"
-              size="md"
-              onClick={() => {
-                setSubscriptionConfirmKind(null);
-                setPendingSubscriptionSettings(null);
-                setSubscriptionError("");
-              }}
-              disabled={subscriptionPending}
-            >
-              {subscriptionConfirmCopy.cancel}
-            </MuteButton>
-            <MuteButton
-              type="button"
-              variant="dark"
-              size="md"
-              onClick={() => {
-                if (!pendingSubscriptionSettings) return;
-                void persistAccountSubscriptions(pendingSubscriptionSettings);
-              }}
-              disabled={subscriptionPending}
-            >
-              {subscriptionPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : null}
-              {subscriptionPending
-                ? t(
-                    "career.settings.career_settings_modal.subscription_updating",
-                    "변경 중"
-                  )
-                : subscriptionConfirmCopy.confirm}
-            </MuteButton>
-          </div>
-        }
-      >
-        {subscriptionError ? (
-          <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
-            {subscriptionError}
-          </p>
-        ) : null}
-      </TalentCareerModal>
-
       <CareerEmailChangeModal
         currentEmail={savedProfile.email}
         onChanged={(profile) => {
@@ -1187,32 +801,21 @@ const renderSection = (
     userId: string;
   },
   onLogout: () => void | Promise<void>,
-  onAccountSubscriptionsUpdated: (args: {
-    harperEnabled: boolean;
-    preferences: CareerTalentPreferences;
-    preferencesUpdatedAt: string | null;
-  }) => void,
   onProfileSaved: (profile: {
     email: string | null;
     name: string | null;
     user_id: string;
-  }) => void,
-  profileVisibility: "open_to_matches" | "exceptional_only" | "dont_share",
-  talentPreferences: CareerTalentPreferences | null
+  }) => void
 ) => {
   if (tab === "automation") return <CareerAutomationSettingsSection />;
-  if (tab === "profile") return <CareerProfileSettingsSection />;
-  if (tab === "resume") return <CareerResumeLinksSettingsSection />;
+  if (tab === "profile") return <CareerOpportunitySettingsSection />;
   if (tab === "referral") return <CareerReferralSettingsSection />;
   return (
     <AccountSection
       email={account.email}
       name={account.name}
-      onAccountSubscriptionsUpdated={onAccountSubscriptionsUpdated}
       onLogout={onLogout}
       onProfileSaved={onProfileSaved}
-      profileVisibility={profileVisibility}
-      talentPreferences={talentPreferences}
       userId={account.userId}
     />
   );
@@ -1231,11 +834,8 @@ const CareerSettingsModal = ({
   const logCareerEvent = useCareerLogEvent();
   const { onLogout } = useCareerSidebarContext();
   const {
-    onAccountSubscriptionsUpdated,
     onUpdateAccountProfile,
     preferredLocale,
-    profileVisibility,
-    talentPreferences,
     talentProfile,
     user,
   } = useCareerProfileContext();
@@ -1306,15 +906,7 @@ const CareerSettingsModal = ({
 
     return (
       <SettingsTabPanel title={title}>
-        {renderSection(
-          tab,
-          account,
-          onLogout,
-          onAccountSubscriptionsUpdated,
-          onUpdateAccountProfile,
-          profileVisibility,
-          talentPreferences
-        )}
+        {renderSection(tab, account, onLogout, onUpdateAccountProfile)}
       </SettingsTabPanel>
     );
   };

@@ -37,14 +37,13 @@ export default function ApplyWithHarperButton({
     chat.stage === "profile" ||
     chat.sessionPending ||
     chat.profilePending ||
-    chat.chatPending ||
-    chat.assistantTyping ||
     chat.opportunityFeedbackFollowUpPending;
 
   if (
     item.isInternal ||
     item.sourceType === "internal" ||
     item.savedStage === "connected" ||
+    item.savedStage === "offer" ||
     item.savedStage === "closed" ||
     item.status === "ended" ||
     item.status === "deleted"

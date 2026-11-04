@@ -51,13 +51,14 @@ export async function fetchMessagesAfterId(args: {
   admin: TalentAdminClient;
   afterMessageId: number;
   conversationId: string;
+  userMessagesBeforeId?: number;
 }) {
   const pageSize = 100;
   const messages: TalentMessageRow[] = [];
   let cursor = args.afterMessageId;
 
   while (true) {
-    const { data, error } = await args.admin
+    let query = args.admin
       .from("talent_messages")
       .select(
         "id, conversation_id, user_id, role, content, message_type, payload, thinking_logs, created_at"
@@ -66,6 +67,8 @@ export async function fetchMessagesAfterId(args: {
       .gt("id", cursor)
       .order("id", { ascending: true })
       .limit(pageSize);
+    if (args.userMessagesBeforeId !== undefined) query = query.or(`role.neq.user,id.lt.${args.userMessagesBeforeId}`);
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(
@@ -326,9 +329,10 @@ export async function fetchRecentMessages(args: {
   admin: TalentAdminClient;
   conversationId: string;
   limit?: number;
+  userMessagesBeforeId?: number;
 }) {
   const { admin, conversationId, limit = 24 } = args;
-  const { data, error } = await admin
+  let query = admin
     .from("talent_messages")
     .select(
       "id, conversation_id, user_id, role, content, message_type, payload, thinking_logs, created_at"
@@ -341,6 +345,8 @@ export async function fetchRecentMessages(args: {
     .or("payload->>hidden.is.null,payload->>hidden.eq.false")
     .order("id", { ascending: false })
     .limit(limit);
+  if (args.userMessagesBeforeId !== undefined) query = query.or(`role.neq.user,id.lt.${args.userMessagesBeforeId}`);
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(error.message ?? "Failed to load recent talent_messages");

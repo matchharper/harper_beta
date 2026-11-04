@@ -171,14 +171,23 @@ export async function executeInternalEvaluation(
         sources = sources.filter((s) =>
           payload.roleIds.includes(s.context.roleId)
         );
-      if (!sources) {
+      // A failed Role read must not discard other frozen inputs. On resume, only
+      // retry those reads; successful stages keep their original evidence/cache.
+      const retryRoleIds = (coverage.inputFailures ?? []).map((failure: Row) => failure.roleId)
+        .filter((id: string) => payload.roleIds.includes(id));
+      if (!sources || retryRoleIds.length) {
         const loaded =
           payload.preparationRunId && !payload.roleIds.length
-            ? { sources: [], unavailableRoleIds: [] }
-            : await loadInputs(db.query, run.talent_id, payload);
-        sources = loaded.sources;
+            ? { sources: [], unavailableRoleIds: [], failures: [] }
+            : await loadInputs(db.query, run.talent_id, sources ? { ...payload, roleIds: retryRoleIds } : payload);
+        sources = [...(sources ?? []), ...loaded.sources];
+        failures.push(...loaded.failures);
+        coverage.inputFailures = loaded.failures;
         coverage.frozenInputs = sources;
-        coverage.unavailableRoleIds = loaded.unavailableRoleIds;
+        coverage.unavailableRoleIds = [...new Set([
+          ...(coverage.unavailableRoleIds ?? []).filter((id: string) => !retryRoleIds.includes(id)),
+          ...loaded.unavailableRoleIds,
+        ])];
         await saveCoverage(db, run, coverage);
       }
       let index = 0;
@@ -203,7 +212,7 @@ export async function executeInternalEvaluation(
               records.push({ ...first, roleId });
               await persist();
               if (
-                payload.publishRecommendation ||
+                payload.publishRecommendation || payload.requestedOpportunityId ||
                 first.assessment.proceedToStage2
               ) {
                 signal.throwIfAborted();
@@ -229,6 +238,18 @@ export async function executeInternalEvaluation(
       // Publication and follow handoff share the owner lock with cancellation.
       await db.transaction(async (query) => {
         await assertOwner(query, run, true);
+        if (payload.requestedOpportunityId) {
+          // Only attach evidence: membership, feedback and company consent may
+          // have changed while evaluation ran and belong to their own writers.
+          await query(`UPDATE public.talent_opportunity_recommendation SET evidence=coalesce(evidence,'[]'::jsonb)||$4::jsonb
+            WHERE id=$1::uuid AND talent_id=$2::uuid AND role_id=ANY($3::uuid[])
+              AND NOT coalesce(evidence,'[]'::jsonb) @> $5::jsonb`, [
+            payload.requestedOpportunityId, run.talent_id, payload.roleIds,
+            JSON.stringify([{ sourceRunId: run.id, evaluationIds: records.map(r => r.evaluationId) }]),
+            JSON.stringify([{ sourceRunId: run.id }]),
+          ]);
+          coverage.recommendations = [{ recommendationId: payload.requestedOpportunityId, roleId: payload.roleIds[0], created: false }];
+        }
         if (payload.publishRecommendation) {
           coverage.recommendations = [];
           for (const roleId of payload.roleIds) {
@@ -279,7 +300,7 @@ export async function executeInternalEvaluation(
             run.id,
             run.lease_token,
             failures.length
-              ? payload.sourceEvents?.length
+              ? payload.sourceEvents?.length || !records.length
                 ? "failed"
                 : "partial"
               : "completed",

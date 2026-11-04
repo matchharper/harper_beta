@@ -4,6 +4,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { convertSlackMrkdwnToWebMarkdown } from "@/lib/org/agent/navigationMarkdown";
 import RichText from "./rich-text";
 
+test("Career emphasis next to a Korean particle does not expose Markdown delimiters", () => {
+  const html = renderToStaticMarkup(<RichText variant="career" content="**오늘 오전 11시 16분(한국 시간)**에 보내드릴게요." />);
+  assert.match(html, /<strong[^>]*>오늘 오전 11시 16분\(한국 시간\)<\/strong>에/);
+  assert.doesNotMatch(html, /\*\*/);
+});
+
 test("Slack candidate introductions keep divider lines from turning full sections into headings", () => {
   const html = renderToStaticMarkup(
     <RichText
@@ -216,7 +222,7 @@ test("reference mode does not enable unsafe protocols or raw HTML", () => {
   );
 });
 
-test("Career Markdown has a larger medium H1 and open-edge tables, without changing the default", () => {
+test("Career tables have open edges while both variants share heading typography", () => {
   const content =
     "# Fieldguide\n\n| 시점 | 투자금 |\n|---|---:|\n| 2026년 | 100원 |";
   const career = renderToStaticMarkup(
@@ -229,6 +235,6 @@ test("Career Markdown has a larger medium H1 and open-edge tables, without chang
   assert.match(career, /tr:last-child&gt;td\]:border-b-0/);
   assert.match(career, /<td style="text-align:right"/);
   assert.doesNotMatch(career, /class="border border-/);
-  assert.match(standard, /text-base font-semibold/);
-  assert.doesNotMatch(standard, /first:pl-0|last:pr-0|text-xl/);
+  assert.match(standard, /<h1[^>]*text-xl font-medium/);
+  assert.doesNotMatch(standard, /first:pl-0|last:pr-0/);
 });

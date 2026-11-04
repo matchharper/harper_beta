@@ -10,6 +10,7 @@ import { dispatchCareerCheckpoint } from "./agentContinuation";
 import { CareerTurnCancelled } from "./turnCancellation.server";
 
 const jobSchema = z.object({
+  invocationId: z.string().uuid().optional(),
   assistantModel: z.string().optional(),
   textChatModel: z.enum(CAREER_TEXT_CHAT_MODEL_IDS).optional(),
   userId: z.string().uuid(),
@@ -29,6 +30,10 @@ export async function processCareerAgentReply(raw: unknown) {
     .select("id").eq("id", job.conversationId).eq("user_id", job.userId).maybeSingle();
   if (error) throw error;
   if (!conversation) return;
+  if (job.invocationId) {
+    const { processCareerInvocation } = await import("./work/invocations");
+    return processCareerInvocation({ admin, userId: job.userId, conversationId: job.conversationId }, job.invocationId);
+  }
   if (job.backgroundRunId) return processCareerBackgroundRun({ admin, userId: job.userId, conversationId: job.conversationId, runId: job.backgroundRunId });
   let source: TalentMessageRow | undefined;
   if (job.sourceMessageId) {

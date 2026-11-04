@@ -72,6 +72,7 @@ export function isOpportunityFeedbackNoteMessageType(
 }
 
 type TalentPromptMessage = {
+  role?: string;
   content: string | null | undefined;
   createdAt?: string | null;
   created_at?: string | null;
@@ -138,7 +139,7 @@ export function formatTalentConversationReferencesForLlm(
 
 export function formatTalentMessageContentForLlmPrompt(
   message: TalentPromptMessage,
-  options?: CareerPromptDateTimeOptions & { includeCreatedAt?: boolean }
+  options?: CareerPromptDateTimeOptions & { includeCreatedAt?: boolean; preserveUserText?: boolean }
 ) {
   const payload =
     message.payload &&
@@ -155,18 +156,18 @@ export function formatTalentMessageContentForLlmPrompt(
     messageType === "browser_session"
   )
     return "";
-  const content = sanitizeCareerPromptDateValues(
-    formatCareerMessageAttachmentsForLlm(
+  const projectedContent = formatCareerMessageAttachmentsForLlm(
       formatCareerOpportunityMentionsForLlm(
         stripCareerReengagementActions(
           stripOpportunityRunMarkers(String(message.content ?? ""))
         )
       )
-    ),
-    options
-  );
+    );
+  const content = options?.preserveUserText ? projectedContent : sanitizeCareerPromptDateValues(projectedContent, options);
   let formattedContent: string;
-  if (messageType === "career_form_response") {
+  if (messageType === "agent_introduction_action") {
+    formattedContent = `[Verified candidate button action]\n${content}\nOpportunity: ${payload?.recommendationId}; Role: ${payload?.roleId}.\nCandidate note: ${payload?.feedbackReason ?? "none"}\nThe candidate requested introduction using the displayed material selection. Acceptance and delivery have not yet been executed by this button. Use contact_company with this exact recommendation and acceptIntroduction=true; the executor binds the reviewed selection to this action.`;
+  } else if (messageType === "career_form_response") {
     const response =
       message.formResponse ?? parseCareerFormResponse(message.payload);
     // The action text and answers are original user input; do not sanitize them.
@@ -185,6 +186,13 @@ export function formatTalentMessageContentForLlmPrompt(
       : OPPORTUNITY_FEEDBACK_SYSTEM_ACTION_LOG_PREFIX;
   } else {
     formattedContent = content;
+  }
+
+  const viewed = payload?.viewedOpportunity;
+  if (message.role === "user" && viewed && typeof viewed === "object" &&
+      "roleId" in viewed && typeof viewed.roleId === "string" &&
+      "label" in viewed && typeof viewed.label === "string") {
+    formattedContent += `\n\n[Opportunity open on screen when this message was sent; viewing is not acceptance or sharing consent]\n${viewed.label} (roleId: ${viewed.roleId})`;
   }
 
   if (isCareerTurnStopped(payload))

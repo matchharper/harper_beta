@@ -25,7 +25,7 @@ Harper can:
 
 Company follows prepare shared hiring-announcement evidence and new role assessments for scheduled Career checks. Use the supplied evidence and saved assessments; research further when a relevant fact is missing. Following does not create a separate contact cadence, override a paused schedule, imply introduction consent or promise company-side priority. For company updates, focus on actual new or expanded hiring campaigns relevant to the candidate; general company, funding and product news alone are not a reason to contact. Existing assessments are historical evidence, reused without automatic reevaluation when a profile or Brief changes. Read or explicitly request an evaluation when the current task needs it.
 
-The persistent Career check-in remains saved when paused. As the user’s goals or ongoing work change, read its current timing, instructions and change history and use the schedules capability to adjust or resume it when useful. An agent-managed pause can be revisited through the current conversation without a request for a particular frequency. Preserve explicit user restrictions and contact settings. Choose timing from context; the initial saved interval is not a required cadence. Modify the existing check-in rather than creating another one.
+The persistent Career check-in remains saved when paused. As the user’s goals or ongoing work change, read its current timing, instructions and change history and use the schedules capability to adjust or resume it when useful. An agent-managed pause can be revisited through the current conversation without a request for a particular frequency. Preserve explicit user restrictions and contact settings. A recurring check every three days is a suitable default; choose a different cadence when user preferences, current goals or ongoing work warrant it. Modify the existing check-in rather than creating another one.
 
 Why Harper is different?
 - Candidates often receive irrelevant outreach because recruiters do not deeply understand their domain, abilities, or preferences.
@@ -90,9 +90,6 @@ Ask for information that helps the current work. In exploratory conversation, a 
 
 // 레거시 채널의 링크 출력 계약.
 export const CAREER_HARPER_LINK_OUTPUT_RULE = `- Do not output Markdown links, HTML \`<a>\` tags, or raw clickable URLs for Harper-owned domains (\`matchharper.com\`, \`www.matchharper.com\`, or any subdomain). If you need to point to an internal Harper page, describe the location in plain text instead, such as \`Career > Profile\`.`;
-
-
-
 
 // 첫 방문 온보딩에서 표시하는 한국어 인사 문구. LLM 지침이 아닌 화면용 텍스트.
 export const CAREER_FIRST_VISIT_TEXT_KO = `
@@ -177,10 +174,6 @@ export const CAREER_ONBOARDING_CONVERSATION_PROMPT = `${CAREER_ONBOARDING_GUIDAN
 - ${TALENT_ONBOARDING_DONE_MARKER}는 시스템 처리를 위한 마커다. 사용자에게 읽어주거나 설명하지 마라.
 `;
 
-
-
-
-
 // 온보딩 음성 통화에서만 사용. 일반 채팅의 응답 지침과 별도로 선택.
 export const CAREER_CORE_RESPONSE_GUIDANCE_PROMPT_FOR_ONBOARDING_CALL = `
 ## Turn response policy
@@ -250,11 +243,6 @@ Rules:
 - When enough useful context has been collected, summarize briefly and close naturally instead of forcing more questions.
 `.trim();
 
-
-
-
-
-
 // 음성 대화의 정보 추출 전용 프롬프트에 포함. 일회성 탐색을 지속적인 선호로 저장하지 않도록 안내.
 export const TRANSIENT_SEARCH_INSIGHT_GUARD = `
 ## Transient search guard
@@ -275,14 +263,14 @@ type CareerKickoffFallbackByLocale = Record<
 // 온보딩 시작 인사 생성에 실패했을 때 사용하는 언어별 대체 문구.
 export const CAREER_KICKOFF_FALLBACK: CareerKickoffFallbackByLocale = {
   ko: {
-    acknowledgement: "하퍼와 함께 해주셔서 감사합니다.",
+    acknowledgement: "하퍼와 함께 해주셔서 감사해요.",
     insight:
-      "제가 항상 더 좋은 기회를 찾고 연결시켜드릴 수 있도록 노력할게요. 거기에 앞서, 회원님이 선호하시는게 어떤건지 먼저 알려주시면 도움이 될 것 같아요.",
+      "제가 항상 더 좋은 기회를 찾고 연결시켜드릴 수 있도록 노력할게요. 거기에 앞서, 회원님이 선호하시는게 어떤건지 먼저 알려주시면 도움이 될 것 같아요!",
   },
   en: {
     acknowledgement: "Thanks for starting with Harper.",
     insight:
-      "I'll keep looking for stronger opportunities and direct connections for you. Before that, it would help to understand what kind of opportunities you prefer.",
+      "I'll keep looking for stronger opportunities and direct connections for you. Before that, it would help to understand what kind of opportunities you prefer!",
   },
 };
 

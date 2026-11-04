@@ -124,7 +124,7 @@ const CareerCallNoteDetail = ({
             onClick={onBack}
             className="shrink-0 font-medium text-neutral-muted transition-colors hover:text-neutral-primary"
           >
-            {t("career.profile.documents.title", "내 문서")}
+            {t("career.profile.documents.title", "문서")}
           </BareButton>
           <ChevronRight className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
           <span

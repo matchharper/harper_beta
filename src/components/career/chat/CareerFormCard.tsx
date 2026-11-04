@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,9 @@ import {
 } from "@/lib/career/forms/schema";
 import { formatCareerFormValue } from "@/lib/career/forms/format";
 import { PreparationDocumentPicker } from "./PreparationDocumentPicker";
+import { useApplicationComposerDraft } from "./useApplicationComposerDraft";
+import { careerFormValueSchema } from "@/lib/career/forms/schema";
+import { useCareerOpenForms } from "@/hooks/career/useCareerOpenForms";
 
 export type CareerFormSubmission = Pick<
   CareerFormResponse,
@@ -69,12 +72,14 @@ export function CareerFormField({
   id,
   value,
   disabled,
+  readOnly = false,
   onChange,
 }: {
   item: CareerFormItem;
   id: string;
   value: CareerFormValue | undefined;
   disabled: boolean;
+  readOnly?: boolean;
   onChange: (value: CareerFormValue) => void;
 }) {
   const content = getCareerFormContent(item);
@@ -158,8 +163,11 @@ export function CareerFormField({
     return (
       <PreparationDocumentPicker
         id={id}
+        readOnly={readOnly}
         disabled={disabled}
         selectedId={typeof value === "string" ? value : undefined}
+        snapshotId={value === content.documentId && typeof content.snapshot_id === "string" ? content.snapshot_id : undefined}
+        snapshotName={value === content.documentId && typeof content.fileName === "string" ? content.fileName : undefined}
         onPick={onChange}
       />
     );
@@ -191,21 +199,18 @@ export function CareerFormView({
   responses?: CareerFormResponse[];
   onRespond: (submission: CareerFormSubmission) => void | Promise<void>;
 }) {
-  const [values, setValues] = useState(() => getCareerFormInitialValues(form));
-  const edited = useRef(new Set<string>());
-  useEffect(() => {
-    setValues((current) => {
-      const next = { ...current };
-      for (const response of responses)
-        if (response.revision === form.revision)
-          for (const [id, value] of Object.entries(response.values))
-            if (!edited.current.has(id)) next[id] = value;
-      return next;
-    });
-  }, [form.revision, responses]);
+  const context = useOptionalCareerChatPanelContext();
+  const instanceId = useId();
+  const [draft, setDraft] = useApplicationComposerDraft<CareerFormValue>(
+    `harper-form:${context?.user?.id}:${context?.conversationId}:${form.formId}:${form.revision}`,
+    (value): value is CareerFormValue => careerFormValueSchema.safeParse(value).success
+  );
+  const values = { ...getCareerFormInitialValues(form) };
+  for (const response of responses)
+    if (response.revision === form.revision) Object.assign(values, response.values);
+  Object.assign(values, draft);
   const setValue = (id: string, value: CareerFormValue) => {
-    edited.current.add(id);
-    setValues((current) => ({ ...current, [id]: value }));
+    setDraft(current => ({ ...current, [id]: value }));
   };
   const actions = (
     positive?: CareerFormAction,
@@ -244,7 +249,7 @@ export function CareerFormView({
     <section
       data-career-form-id={form.formId}
       data-career-form-revision={form.revision}
-      className="my-3 w-full max-w-[640px] space-y-5 rounded-3xl bg-black/4 p-4"
+      className="w-full max-w-[640px] space-y-5 rounded-3xl bg-black/4 p-4"
     >
       {form.title ? (
         <h3 className="text-base font-normal text-neutral-primary">
@@ -253,7 +258,7 @@ export function CareerFormView({
       ) : null}
       {form.items.map((item) => {
         const content = getCareerFormContent(item);
-        const id = `career-form-${form.formId}-${form.revision}-${item.id}`;
+        const id = `career-form-${form.formId}-${form.revision}-${instanceId}-${item.id}`;
         const response = responses
           .filter(
             (entry) =>
@@ -285,6 +290,7 @@ export function CareerFormView({
             ) : null}
             <CareerFormField
               item={item}
+              readOnly={!form.positive && !form.negative && !item.positive && !item.negative}
               id={id}
               disabled={disabled}
               value={values[item.id]}
@@ -320,6 +326,10 @@ export function useCareerFormController(form: CareerForm) {
   } | null>(null);
   const responseLock = useRef(false);
   const conversationId = context?.conversationId;
+  const openForms = useCareerOpenForms(conversationId);
+  const [identity, setIdentity] = useApplicationComposerDraft<string>(
+    `harper-form-response:${context?.user?.id}:${conversationId}:${form.formId}:${form.revision}`
+  );
   useEffect(() => {
     if (!conversationId || form.hidden) return;
     const controller = new AbortController();
@@ -357,8 +367,9 @@ export function useCareerFormController(form: CareerForm) {
     if (requestId || pendingRequest.current?.signature !== signature)
       pendingRequest.current = {
         signature,
-        requestId: requestId ?? crypto.randomUUID(),
+        requestId: requestId ?? (identity.signature === signature ? identity.requestId : undefined) ?? crypto.randomUUID(),
       };
+    setIdentity(pendingRequest.current!);
     let responseSaved = false;
     try {
       const response = await fetchWithAuth("/api/talent/forms", {
@@ -390,20 +401,8 @@ export function useCareerFormController(form: CareerForm) {
       });
       if (!response.ok)
         throw new Error(payload.error);
-      let continued = false;
-      await context.onSendChatMessage({
-        text: message.content,
-        formResponseMessageId: Number(message.id),
-        onSuccess: () => { continued = true; },
-      });
-      if (!continued)
-        setError(t(
-          "career.forms.continueError",
-          "응답은 저장됐지만 대화를 이어가지 못했어요. 다시 눌러 주세요."
-        ));
-      // Keep the request identity for an unchanged click, including retries
-      // after a lost response. Editing this form creates a new request.
-      return continued;
+      void queryClient.invalidateQueries({ queryKey: ["career-open-forms", conversationId] });
+      return true;
     } catch {
       setError(
         responseSaved ? t(
@@ -422,7 +421,8 @@ export function useCareerFormController(form: CareerForm) {
   };
   return {
     responses,
-    disabled: !context || !context.user || !conversationId || pending,
+    disabled: !context || !context.user || !conversationId || pending ||
+      Boolean(openForms.data && !openForms.data.forms.some(item => item.formId === form.formId && item.revision === form.revision)),
     pending,
     respond,
     error,

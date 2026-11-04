@@ -8,6 +8,7 @@ import { formatCareerFormForModel } from "@/lib/career/forms/format";
 import { applyProfileEdits, formatProfileToolResult } from "@/lib/career/profiles/tools";
 import { formatCareerMatchingResult } from "@/lib/career/matching/formatters";
 import { formatPromptText } from "@/lib/llm/promptText";
+import { formatWork } from "@/lib/career/work/store";
 
 export const fixtureId = (n: number) => `70000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const clone = <T>(value: T): T => structuredClone(value);
@@ -66,14 +67,18 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
   };
   const profile: any = { profileId: fixtureId(101), title: "기본 프로필", revision: 1, isDefault: true,
     snapshot: { talentUser: { ...scenario.profile, user_id: userId }, talentExperiences: clone(rows.talent_experiences), talentEducations: [], talentExtras: [] } };
-  const profiles = [profile], forms: any[] = [], contextWrites: any[] = [], externalAttempts: any[] = [], mutations: any[] = [];
+  const profiles = [profile], forms: any[] = clone(scenario.forms ?? []), contextWrites: any[] = [], externalAttempts: any[] = [], mutations: any[] = [];
+  const works: any[] = clone(scenario.works ?? []);
   const matchings: any[] = scenario.matching ? [{ ...scenario.matching, criteria: { scope: scenario.brief } }] : [];
   const calls: any[] = [];
+  let roleStored = Boolean(scenario.role) && scenario.roleStored !== false;
   const profileText = () => formatProfileToolResult("read_profile", profile);
   const contextText = () => `Search Brief:\n${scenario.brief}\nMemory:\n${scenario.memory}`;
   const referencesText = () => [
     "Saved document index:", ...rows.talent_documents.filter(d => !d.is_deleted).map(d => `Document ${d.id}; ${d.file_name}; revision ${d.revision}; ${d.origin_type}.`),
-    ...(scenario.role ? [`Current selected opportunity:\n${formatPromptText(scenario.role)}`] : []),
+    ...(scenario.roles ? [`Saved opportunities:\n${formatPromptText(scenario.roles)}`] : []),
+    ...(scenario.works || scenario.roles ? ["Authenticated current user message ID: 1.", ...works.map(formatWork), ...forms.map(formatCareerFormForModel)] : []),
+    ...(roleStored ? [`Current selected opportunity:\n${formatPromptText(scenario.role)}`] : []),
     ...(matchings.length ? [`Matching index:\n${formatCareerMatchingResult({ matchings, listRevision: "list-1" })}`] : []),
   ].join("\n");
   const projected = (name: string, raw: any) => withTalentToolAssistantInstruction(withCompactTalentToolModelResult(name, raw));
@@ -82,7 +87,25 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
     const { _uiStatusMessage, ...args } = input;
     let raw: any;
     try {
-      if (name === "web_search") {
+      if (name === "manage_work") {
+        let found = works.find(w => w.id === args.work_id);
+        if (args.action === "start") {
+          found = works.find(w => w.idempotency_key === args.identity);
+          if (!found) {
+            assert.ok(args.identity && args.instruction);
+            found = { id: fixtureId(900 + works.length), user_id: userId, conversation_id: fixtureId(2), kind: "delegated_work", parent_id: null,
+              status: "ready", revision: 1, idempotency_key: args.identity, request: { target: args.target, instruction: args.instruction, source_refs: args.source_refs ?? [1] }, result: {}, provider_refs: {}, created_at: requestTime, updated_at: requestTime };
+            works.push(found);
+          }
+        } else if (!["list", "read"].includes(args.action)) {
+          assert.ok(found); assert.equal(found.revision, args.expected_revision);
+          found.status = ({ update: "ready", wait: "waiting", finish: "completed", cancel: "cancelled" } as any)[args.action];
+          found.revision++; found.request.change = args.instruction;
+          found.request.source_refs = [...(found.request.source_refs ?? []), ...(args.source_refs ?? [1])];
+          found.result = { note: args.note, refs: args.refs };
+        }
+        raw = { work: found, works, modelOutput: (args.action === "list" ? works : [found]).filter(Boolean).map(formatWork).join("\n\n") };
+      } else if (name === "web_search") {
         const terms = String(args.query).toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
         // A fixed lexical index, not an answer script or a query-intent classifier.
         const results = scenario.pages.map((page: any, index: number) => ({ page, index,
@@ -108,6 +131,10 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
           const form = { ...careerFormDraftSchema.parse(args.form), formId: prior?.formId ?? forms.length + 1, revision: (prior?.revision ?? 0) + 1 };
           if (prior) forms.splice(forms.indexOf(prior), 1, form); else forms.push(form);
           raw = { ok: true, formId: form.formId, revision: form.revision, modelOutput: formatCareerFormForModel(form as any) };
+        } else if (args.action === "resolve") {
+          const found = forms.find(form => form.formId === args.formId);
+          assert.ok(found); assert.equal(found.revision, args.revision); found.hidden = true;
+          raw = { ok: true, modelOutput: `Form ${found.formId} resolved.` };
         } else {
           const found = args.action === "list" ? forms : forms.filter(form => form.formId === args.formId);
           raw = { ok: true, modelOutput: found.map(form => formatCareerFormForModel(form)).join("\n\n") || "No saved forms." };
@@ -136,8 +163,8 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
       } else if (name === "search_opportunities") {
         raw = { runId: fixtureId(601), source: args.source, status: "completed", roleIds: [], evaluations: [], evaluationCount: 0, remainingEvaluationCount: 0, expiredRoleCount: 0, failures: [] };
         raw.modelOutput = formatCareerMatchingResult(raw);
-      } else if (name === "get_role_context") raw = { modelOutput: scenario.role ? formatPromptText(scenario.role) : "No selected role or current role record." };
-      else if (name === "read_recommended_opportunities" || name === "get_internal_roles") raw = { modelOutput: "No recorded recommendations or internal roles in this account snapshot. No next page." };
+      } else if (name === "get_role_context") raw = { modelOutput: scenario.roles ? formatPromptText(scenario.roles.find((role: any) => role.id === (args.role_id ?? args.roleId)) ?? scenario.roles) : roleStored ? formatPromptText(scenario.role) : "No selected role or current role record." };
+      else if (name === "read_recommended_opportunities" || name === "get_internal_roles") raw = { modelOutput: scenario.roles ? formatPromptText(scenario.roles) : "No recorded recommendations or internal roles in this account snapshot. No next page." };
       else if (name === "search_companies") raw = { modelOutput: "No matching canonical company record. No next page." };
       else if (["read_company_connections", "read_talent_activity_events", "list_schedules", "read_talent_schedules"].includes(name)) raw = { modelOutput: "No saved records. No next page." };
       else if (name === "search_connected_gmail") raw = { status: scenario.gmail ? "ok" : "not_connected", emails: [], nextPageToken: null };
@@ -145,7 +172,9 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
         assert.ok(scenario.role, "No known public posting");
         const page = scenario.pages.find((p: any) => p.url === (args.url ?? args.postingUrl));
         assert.ok(page, "Posting source unavailable");
-        mutations.push({ name, args }); raw = { ok: true, roleId: scenario.role.id, title: scenario.role.title, companyName: scenario.role.company, url: page.url };
+        const created = !roleStored;
+        roleStored = true;
+        mutations.push({ name, args }); raw = { ok: true, roleId: scenario.role.id, recommendationId: fixtureId(801), created, savedStage: "saved", title: scenario.role.title, companyName: scenario.role.company, url: page.url };
       } else if (name === "use_browser") {
         const page = scenario.pages.find((p: any) => p.url === args.url);
         raw = { status: "completed", session_id: fixtureId(701), execution_id: fixtureId(702),
@@ -157,5 +186,5 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
     } catch (error) { call.error = error instanceof Error ? error.message : String(error); throw error; }
   };
   return { execute, profileText, contextText, referencesText, calls,
-    state: () => clone({ documents: rows.talent_documents, profiles, forms, matchings, contextWrites, externalAttempts, mutations }) };
+    state: () => clone({ documents: rows.talent_documents, profiles, forms, works, matchings, contextWrites, externalAttempts, mutations }) };
 }

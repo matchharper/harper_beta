@@ -42,6 +42,7 @@ export const getHistoryFiltersForJobsTab = (
     return [
       { historyTab: "saved", savedStage: "applied" },
       { historyTab: "saved", savedStage: "connected" },
+      { historyTab: "saved", savedStage: "offer" },
     ];
   }
   if (tab === "connected") {
@@ -69,7 +70,11 @@ export const getJobsTabTotal = (
   if (tab === "new") return counts.new;
   if (tab === "saved") return counts.savedStages.saved;
   if (tab === "applied")
-    return counts.savedStages.applied + counts.savedStages.connected;
+    return (
+      counts.savedStages.applied +
+      counts.savedStages.connected +
+      (counts.savedStages.offer ?? 0)
+    );
   if (tab === "connected") return counts.savedStages.connected;
   if (tab === "closed") return counts.savedStages.closed;
   if (tab === "hidden")
@@ -87,7 +92,8 @@ export const isOpportunityInJobsTab = (
   if (!isSavedHistoryOpportunity(item)) return false;
   const status = getSavedOpportunityManagementStatus(item);
   if (tab === "saved") return status === "saved";
-  if (tab === "applied") return status === "applied" || status === "connected";
+  if (tab === "applied")
+    return status === "applied" || status === "connected" || status === "offer";
   if (tab === "hidden") return status === "closed" || status === "hidden";
   return status === tab;
 };
@@ -106,6 +112,8 @@ const sortOpportunitiesForJobsTab =
 
 export function useCareerMobileHistoryOpportunities(args: {
   enabled?: boolean;
+  loadAllProgress?: boolean;
+  historyUpdateError?: string;
   activeTab: CareerMobileHistoryJobsTab;
   historyLoading: boolean;
   historyOpportunities: CareerHistoryOpportunity[];
@@ -122,6 +130,8 @@ export function useCareerMobileHistoryOpportunities(args: {
 }) {
   const {
     enabled = true,
+    loadAllProgress = false,
+    historyUpdateError = "",
     activeTab,
     historyLoading,
     historyOpportunities,
@@ -217,12 +227,23 @@ export function useCareerMobileHistoryOpportunities(args: {
   }, [enabled, historyLoading, pages, requestPages]);
 
   useEffect(() => {
-    if (!enabled || historyLoading) return;
+    if (!enabled || historyLoading || historyUpdateError) return;
     const initial = pages.filter(
-      (page) => page.needsInitialPage && !page.loading
+      (page) =>
+        (page.needsInitialPage ||
+          (loadAllProgress && activeTab === "applied" && page.hasMore)) &&
+        !page.loading
     );
     if (initial.length) void requestPages(initial.map((page) => page.filter));
-  }, [enabled, historyLoading, pages, requestPages]);
+  }, [
+    activeTab,
+    enabled,
+    historyLoading,
+    historyUpdateError,
+    loadAllProgress,
+    pages,
+    requestPages,
+  ]);
 
   return {
     hasMore: pages.some((page) => page.hasMore),

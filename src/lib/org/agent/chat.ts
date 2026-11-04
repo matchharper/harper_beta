@@ -584,6 +584,8 @@ export type OrgAgentLoopDependencies = {
 export async function runOrgAgentToolLoop(
   args: {
     allowSilentCompletion?: boolean;
+    /** Durable event callers must retain execution failures for queue recovery. */
+    throwOnToolExecutionError?: boolean;
     backgroundOrigin?: "scheduled_review" | "scheduled_matching";
     /** A Harper event or assignment, not a live company message (e.g. a web action event). */
     harperInitiated?: boolean;
@@ -1076,6 +1078,8 @@ export async function runOrgAgentToolLoop(
         const isInputError =
           error instanceof OrgAgentToolInputError ||
           (error instanceof OrgHttpError && error.status < 500);
+        if (args.throwOnToolExecutionError && !isInputError && !billingNotice)
+          throw error;
         const errorMessage = billingNotice
           ? "This action is blocked; repeating the same request will not resolve it."
           : error;

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "at": "2026-11-03T15:26:14.131Z",
+  "kind": "diagnostic-local-e2e-with-iterative-fixes",
+  "baseCommit": "24ab32f192bf8dccdf54e33b9763a4093802e6d1",
+  "dirtyCheckout": true,
+  "dataset": "natural-e2e-v1.json",
+  "datasetSha256": "356cbe2375bec79521a80daba148a3c6ce4f4ce17ffc01dd8704691f97ea4208",
+  "frozenBeforeExecution": true,
+  "followups": "Exploratory paused English consent, email, company acceptance, and an aborted company profile question; see report.",
+  "modelOverrides": false,
+  "observedModels": [
+    "gpt-6.1-sol",
+    "google/gemini-3.8-flash",
+    "claude-sonnet-5-5"
+  ],
+  "network": "Local DB/app/capture mail; real model providers. No production mutations or external human recipients.",
+  "review": "Manual full-reply and actual effect review; no judge model or keyword score.",
+  "sourceHashesAtCompletion": {
+    "scripts/localE2e/introductionConversation.mjs": "3de1f596f777f2f5ad3a39f5d3a253a8e356b98301d731cc207de8bdcf1fdb7f",
+    "scripts/localE2e/introductionEvidence.mjs": "5d36e89fa272e691a35b13911c16ddf1354cf6343f822a4dae04fa1c371c472f",
+    "scripts/localE2e/cleanupIntroductions.mjs": "ecf5dcdc3472368d0ad0f11280dc14bb7b476144e8f51cd4594f2af3a9c547a1",
+    "src/lib/career/work/invocations.ts": "984f9f20ba447c69197d152059ab269952a12e95080ace92722bcfd38b5cef1d",
+    "src/lib/career/matching/internalScoring/inputs.ts": "2f5ebb3e59396030e5cb91c529ace2fd1158e9ddc4cfdc99bbd6a6c56bd2ffcd",
+    "src/lib/career/matching/internalScoring/runtime.test.ts": "1d15e2f0924c2ce56a5d4f6b8c24d1162cb24a160ae4597084dc6bc69b76192f",
+    "src/hooks/career/useCareerOpenForms.ts": "634cfb28a77a5d7926cfb9520952f6881024a07d4170248cc2743fc0dddd7f61",
+    "src/lib/org/agent/roleNotificationContext.ts": "8640a8973d5fb70ee922b6df80c49b03097a5440b9d64b60e98026c509cc9162",
+    "src/lib/org/roleNotifications.ts": "b99bf47ab68cdc69a701cf9de0fed5a3461b10394f4b8cfcabf8ab98434c9898",
+    "src/lib/org/agent/toolExecution.ts": "07b3f6e8816828872ac59fa1423e8fe2bd82d33552c620bb8cb1dedd54bf68a2",
+    "src/lib/org/agent/webActionProcessor.server.ts": "fbeda48aa441e2af21d1b1f99694aa1f7fe8777e48e799716eadf7f1b7b95a0c",
+    "src/lib/career/profiles/tools.ts": "1e174a6689eb185b6d4f0b5a1ef685553c5254557e6f2ed1f00f2252d9915ac7",
+    "src/lib/org/agent/data.ts": "85a39e3815a380bdf1eed099faf16b60a6456d4db62cf9081a75c1e399699395",
+    "src/lib/org/agent/promptFormat.ts": "c654d3ed2ab011a2d43da97322806894809ab492ff62d41f09eb9a7e5bf3c746",
+    "src/lib/opportunityDiscovery/store.ts": "eb72e9abb0392bfe7cc941d9784d29c9763429bbdd83a7006b641a971307c2b4",
+    "src/lib/opportunityDiscovery/types.ts": "5232887f4461e93a6cc890bf095fdfb76bd0256be0dfbfb7725f84f59ff96bf6",
+    "src/lib/org/server.ts": "315eafd74cf5fb87ab243e7a6b7bcf44a4d3f91d57e5c685fa605ee1f1f43091",
+    "src/lib/org/introEmailProfessionalSummary.ts": "c4ff580c42f44900886548855d49d042e8c265d42364764b0794363cafb8d405"
+  },
+  "evidence": "runs/natural-e2e-v1",
+  "report": "natural-e2e-2026-11-04.md"
+}

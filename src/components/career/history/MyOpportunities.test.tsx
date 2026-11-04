@@ -14,7 +14,10 @@ import {
   getMyOpportunityTabs,
 } from "./savedOpportunityStatus";
 import { getOpportunityDeadlineLabel } from "./opportunityPostingStatus";
-import OpportunityListCard from "./OpportunityListCard";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+require.extensions[".css"] = (module) => { module.exports = {}; };
+const OpportunityListCard = require("./OpportunityListCard").default;
 import type { CareerHistoryOpportunity } from "../types";
 
 const day = 86_400_000;
@@ -74,7 +77,7 @@ test("My Opportunities groups application and archive stages without moving expi
   assert.equal(getMyOpportunityTab("closed"), "hidden");
   assert.deepEqual(
     getMyOpportunityTabs((_key, source) => source).map((x) => x.label),
-    ["저장함", "진행중", "종료/보관"]
+    ["진행중", "저장함", "종료/보관"]
   );
   assert.deepEqual(
     getHistoryFiltersForJobsTab("hidden").map((x) => x.savedStage),
@@ -85,16 +88,24 @@ test("My Opportunities groups application and archive stages without moving expi
 test("deadline labels cover the ten-day boundary, missing dates and expired dates", () => {
   assert.equal(
     getOpportunityDeadlineLabel({ expiresAt: iso(9) }, "ko", undefined, now),
-    "9일 후 마감"
+    "9일 뒤 마감"
   );
   const exactDate = new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
     month: "numeric",
     day: "numeric",
-  }).format(new Date(iso(10)));
+  }).format(new Date(iso(11)));
   assert.equal(
     getOpportunityDeadlineLabel({ expiresAt: iso(10) }, "ko", undefined, now),
+    "10일 뒤 마감"
+  );
+  assert.equal(
+    getOpportunityDeadlineLabel({ expiresAt: iso(11) }, "ko", undefined, now),
     exactDate
+  );
+  assert.equal(
+    getOpportunityDeadlineLabel({ expiresAt: iso(1) }, "ko", undefined, now),
+    "1일 뒤 마감"
   );
   assert.equal(
     getOpportunityDeadlineLabel({ expiresAt: null }, "ko", undefined, now),
@@ -126,13 +137,13 @@ function card(item: CareerHistoryOpportunity, locale: "ko" | "en" = "ko") {
 test("cards use posting age and deadline, hide onsite and recommendation age, and show progress instead of dates", () => {
   const saved = card(fixture("saved"));
   assert.match(saved, /에 게시됨/);
-  assert.match(saved, /5일 후 마감/);
+  assert.match(saved, /5일 뒤 마감/);
   assert.doesNotMatch(saved, /onsite|2시간 전/);
-  assert.ok(saved.indexOf("에 게시됨") < saved.indexOf("5일 후 마감"));
+  assert.ok(saved.indexOf("에 게시됨") < saved.indexOf("5일 뒤 마감"));
   assert.match(card(fixture("saved", { isExpired: true })), /마감됨/);
   assert.doesNotMatch(
     card(fixture("saved", { postedAt: null, expiresAt: null })),
-    /게시됨|후 마감/
+    /게시됨|뒤 마감/
   );
   for (const [stage, label] of [
     ["applied", "지원함"],
@@ -140,7 +151,7 @@ test("cards use posting age and deadline, hide onsite and recommendation age, an
   ] as const) {
     const html = card(fixture(stage, { isExpired: true }));
     assert.match(html, new RegExp(label));
-    assert.doesNotMatch(html, /게시됨|후 마감|마감됨/);
+    assert.doesNotMatch(html, /게시됨|뒤 마감|마감됨/);
   }
   const english = card(fixture("saved"), "en");
   assert.match(english, /Posted /);

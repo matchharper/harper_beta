@@ -53,7 +53,7 @@ const InternalRoleDecisionBanner = ({
     primaryRole?.title.trim() ||
     t(
       "career.home.internal_role_decision_banner.fallback_role",
-      "새로운 내부 연결 제안"
+      "새로운 Harper 연결 기회"
     );
   const companyName = primaryRole?.companyName.trim() ?? "";
   const roleTitleWithCompany = companyName

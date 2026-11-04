@@ -96,8 +96,8 @@ test("writes changed criteria before starting a recommendation run", () => {
 test("internal role discovery, review publication and introduction consent stay separate", () => {
   const prompt = buildCareerToolPolicyPrompt({ channel: "chat", toolNames: ["get_internal_roles", "get_role_context", "apply_to_internal_role", "update_recommended_opportunity_feedback"] });
   assert.match(prompt, /apply_to_internal_role/);
-  assert.match(prompt, /Existing explicit acceptance is sufficient/);
-  assert.match(prompt, /assigning materials do not create consent/);
+  assert.match(prompt, /after the candidate has reviewed the Role and chosen introduction/);
+  assert.match(prompt, /initial review request is not introduction acceptance/);
   assert.doesNotMatch(prompt, /internal_role_priority_review|feedback=`review`|not yet roles to explain/);
 });
 
@@ -134,8 +134,7 @@ test("unified document policy includes native actions and loads resume guidance 
   assert.match(prompt, /Read the current document before edits/);
   assert.match(prompt, /stable entry IDs and the current revision/);
   assert.match(prompt, /Preserve unrelated content for scoped edits/);
-  assert.match(prompt, /Saved content is not a generated PDF or an external submission/);
-  assert.match(prompt, /document reference can be used for attachments/);
+  assert.match(prompt, /Both support PDF download/);
   assert.doesNotMatch(prompt, /generate_resume/);
 });
 

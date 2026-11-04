@@ -12,14 +12,15 @@ import {
   applicationAttachmentName,
   documentFingerprint,
 } from "@/lib/career/simulation/resumeAttachment";
-import type { ExternalToolContext } from "./store";
+import { createOperation, readOperation, updateOperation, type ExternalToolContext } from "./store";
 export const attachmentRefSchema = z.object({
   document_id: z.string().uuid(),
   revision: z.number().int().optional(),
+  snapshot_id: z.string().uuid().optional(),
 });
 export type AttachmentRef = z.infer<typeof attachmentRefSchema>;
 export async function prepareAttachments(
-  context: Pick<ExternalToolContext, "admin" | "userId">,
+  context: Pick<ExternalToolContext, "admin" | "userId"> & Partial<Pick<ExternalToolContext, "conversationId" | "requestId" | "workId" | "userMessageId">>,
   references: AttachmentRef[]
 ) {
   const attachments = [];
@@ -32,6 +33,13 @@ export async function prepareAttachments(
       });
     const doc = await read();
     if (!doc) throw new Error("Attachment unavailable");
+    if (reference.snapshot_id) {
+      const pinned = await readPinnedAttachment(context, reference.snapshot_id);
+      if (pinned.documentId !== doc.id || (reference.revision !== undefined && pinned.revision !== reference.revision))
+        throw new Error("Attachment snapshot does not match the selected document revision");
+      attachments.push(pinned);
+      continue;
+    }
     if (reference.revision !== undefined && reference.revision !== doc.revision)
       throw new Error("Attachment revision changed");
     const fingerprint = documentFingerprint(doc);
@@ -67,7 +75,7 @@ export async function prepareAttachments(
     if (!latest || documentFingerprint(latest) !== fingerprint)
       throw new Error("Attachment changed during export");
     if (!bytes.length) throw new Error("Attachment is empty");
-    attachments.push({
+    const file = {
       documentId: doc.id,
       revision: doc.revision,
       name: applicationAttachmentName(doc),
@@ -77,7 +85,44 @@ export async function prepareAttachments(
       bytes,
       fingerprint,
       contentHash: createHash("sha256").update(bytes).digest("hex"),
-    });
+      snapshotId: undefined as string | undefined,
+    };
+    if (context.conversationId) {
+      const scope = { ...context, conversationId: context.conversationId, requestId: context.requestId ?? `attachment:${doc.id}:${file.contentHash}` };
+      let snapshot = await createOperation(scope, { kind: "attachment_snapshot",
+        idempotencyKey: `${doc.id}:${doc.revision}:${file.contentHash}`, request: {
+          document_id: doc.id, revision: doc.revision, name: file.name, mimeType: file.mimeType, fingerprint, contentHash: file.contentHash,
+        } });
+      if (snapshot.status !== "ready") {
+        const path = `${context.userId}/agent-attachments/${snapshot.id}`;
+        const upload = await context.admin.storage.from(TALENT_RESUME_BUCKET).upload(path, bytes, { contentType: file.mimeType, upsert: false });
+        if (upload.error && !["409", "Duplicate"].includes(String((upload.error as any).statusCode ?? (upload.error as any).error))) throw upload.error;
+        try {
+          snapshot = await updateOperation(context, snapshot, { status: "ready", provider_refs: { storage_path: path } });
+        } catch (error) {
+          const current = await readOperation(context, snapshot.id);
+          if (!current || current.status !== "ready" || current.request.contentHash !== file.contentHash) throw error;
+          snapshot = current;
+        }
+      }
+      file.snapshotId = snapshot.id;
+    }
+    attachments.push(file);
   }
   return attachments;
+}
+
+export async function readPinnedAttachment(context: Pick<ExternalToolContext, "admin" | "userId">, snapshotId: string) {
+  const snapshot = await readOperation(context, snapshotId);
+  if (!snapshot || snapshot.kind !== "attachment_snapshot" || snapshot.status !== "ready") throw new Error("Attachment snapshot unavailable");
+  // A retained file never bypasses explicit source deletion or ownership.
+  const doc = await fetchTalentDocument({ admin: context.admin, userId: context.userId, documentId: String(snapshot.request.document_id) });
+  if (!doc) throw new Error("Attachment source was removed");
+  const { data, error } = await context.admin.storage.from(TALENT_RESUME_BUCKET).download(String(snapshot.provider_refs.storage_path));
+  if (error || !data) throw new Error("Attachment snapshot unavailable");
+  const bytes = Buffer.from(await data.arrayBuffer());
+  if (createHash("sha256").update(bytes).digest("hex") !== snapshot.request.contentHash) throw new Error("Attachment snapshot integrity mismatch");
+  return { documentId: doc.id, revision: snapshot.request.revision as number | null,
+    name: String(snapshot.request.name), mimeType: String(snapshot.request.mimeType), bytes,
+    fingerprint: String(snapshot.request.fingerprint), contentHash: String(snapshot.request.contentHash), snapshotId: snapshot.id };
 }

@@ -103,6 +103,7 @@ import {
 import {
   fetchRecentRecommendedOpportunitiesForPrompt,
   fetchTalentOpportunityHistoryByIds,
+  fetchTalentOpportunityHistoryByRoleIds,
   fetchTalentPostingCardsByRoleIds,
   formatRecentRecommendedOpportunitiesForPrompt,
   type TalentOpportunityHistoryItem,
@@ -151,6 +152,7 @@ import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { resolveCareerTextChatModelForRequest } from "@/lib/career/textChatModelConfig";
 import { resolveCareerRequestTextChatModel } from "@/lib/career/requestTextChatModel";
+import { resolveCareerConversationVersion } from "@/lib/career/conversationVersion";
 import { loadCareerPromptExperiment } from "@/lib/career/prompts/promptExperiment.server";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 import {
@@ -164,6 +166,7 @@ import type { TalentMessageResponse } from "@/lib/talentOnboarding/models";
 export const maxDuration = 480;
 
 type Body = {
+  durable?: boolean;
   internalCallAnswerSubmission?: unknown;
   clientRequestId?: string;
   channel?: string;
@@ -178,9 +181,11 @@ type Body = {
   message?: string;
   messageType?: unknown;
   opportunityMentions?: unknown;
+  viewedRoleId?: unknown;
   pendingAction?: unknown;
   textChatModel?: unknown;
   promptVariant?: unknown;
+  conversationVersion?: unknown;
   timeZone?: string;
   uploadedDocumentIds?: unknown;
   link?: string;
@@ -695,7 +700,9 @@ export async function POST(req: NextRequest) {
     const textChatModel = requestChannel === "chat"
       ? resolveCareerRequestTextChatModel(req, user, body.textChatModel)
       : resolveCareerTextChatModelForRequest(undefined, false);
-    const promptExperiment = await loadCareerPromptExperiment(body.promptVariant,
+    const conversationVersion = resolveCareerConversationVersion(body.conversationVersion,
+      requestChannel === "chat" && canUseCareerDevControls(user.email));
+    const promptExperiment = await loadCareerPromptExperiment(conversationVersion === "professional" ? body.promptVariant : undefined,
       requestChannel === "chat" && Boolean(talentSetting?.is_onboarding_done) && canUseCareerDevControls(user.email));
     const uploadedDocuments = await fetchTalentDocumentsByIds({
       admin,
@@ -918,6 +925,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Resolve the displayed role through the same owner-scoped reader as the UI.
+    // Viewing supplies context, not a recommendation decision or sharing consent.
+    const viewedRoleId = typeof body.viewedRoleId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.viewedRoleId)
+      ? body.viewedRoleId : null;
+    const [viewedOpportunity] = viewedRoleId
+      ? await fetchTalentOpportunityHistoryByRoleIds({
+          admin, userId: user.id, locale: responseLocale, roleIds: [viewedRoleId],
+        })
+      : [];
     const effectiveOpportunityMentions = selectedInternalOpportunity
       ? normalizeCareerOpportunityMentions([
           ...opportunityMentions.filter(
@@ -948,6 +965,25 @@ export async function POST(req: NextRequest) {
       isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
     });
     executionSignal.throwIfAborted();
+    // A saved form response already owns a durable wakeup, including requests
+    // from a tab opened before this release. Never start a second inline reply.
+    if (trackCapabilities && (body.durable === true || savedFormResponse) && !savedInternalCallAnswers && !coachingActivityAction && !conversationStarterId) {
+      const { data, error } = savedFormResponse ? { data: savedFormResponse, error: null } : await (admin.rpc as any)("admit_career_request", {
+        p_user_id: user.id, p_conversation_id: conversationId, p_content: normalizedContent,
+        p_message_type: userMessageType, p_is_mobile: isMobile,
+        p_payload: { ...initialCareerCapabilityPayload(capabilityMode), careerTextChatModel: textChatModel.model,
+          careerConversationVersion: conversationVersion, clientRequestId: body.clientRequestId ?? crypto.randomUUID(),
+          ...(promptExperiment ? { careerPromptExperiment: promptExperiment } : {}),
+          ...(viewedOpportunity ? { viewedOpportunity: { roleId: viewedOpportunity.roleId, label: `${viewedOpportunity.companyName} · ${viewedOpportunity.title}` } } : {}),
+        },
+      });
+      if (error) throw error;
+      after(async () => {
+        const { publishCareerInvocations } = await import("@/lib/career/work/invocations");
+        await publishCareerInvocations({ admin, userId: user.id, conversationId });
+      });
+      return NextResponse.json({ ok: true, accepted: true, userMessage: toResponseMessage(data as TalentMessageRow) }, { status: 202 });
+    }
     const { data: insertedUserMessage, error: userMessageError } = savedFormResponse || savedInternalCallAnswers
       ? { data: savedFormResponse ?? savedInternalCallAnswers!.message, error: null }
       : await admin
@@ -963,6 +999,11 @@ export async function POST(req: NextRequest) {
             payload: {
               ...(trackCapabilities ? initialCareerCapabilityPayload(capabilityMode) : {}),
               careerTextChatModel: textChatModel.model,
+              careerConversationVersion: conversationVersion,
+              ...(viewedOpportunity ? { viewedOpportunity: {
+                roleId: viewedOpportunity.roleId,
+                label: `${viewedOpportunity.companyName} · ${viewedOpportunity.title}`,
+              } } : {}),
               ...(body.clientRequestId ? { clientRequestId: body.clientRequestId } : {}),
               ...(promptExperiment ? { careerPromptExperiment: promptExperiment } : {}),
             },
@@ -1001,6 +1042,7 @@ export async function POST(req: NextRequest) {
       const payload = {
         ...(storedPayload && typeof storedPayload === "object" && !Array.isArray(storedPayload) ? storedPayload : {}),
         careerTextChatModel: textChatModel.model,
+        careerConversationVersion: conversationVersion,
         ...(body.clientRequestId ? { clientRequestId: body.clientRequestId } : {}),
         careerPromptExperiment: promptExperiment ?? null,
       };
@@ -1016,7 +1058,7 @@ export async function POST(req: NextRequest) {
         .eq("message_type", "career_turn_stop").eq("payload->>clientRequestId", body.clientRequestId)
         .limit(1).maybeSingle();
       if (stop.error) throw stop.error;
-      if (stop.data) {
+      if (stop.data || ((insertedUserMessage as TalentMessageRow).payload as { careerTurnStopped?: boolean } | null)?.careerTurnStopped) {
         const payload = (insertedUserMessage as TalentMessageRow).payload;
         const saved = await admin.from("talent_messages").update({ payload: {
           ...(payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {}), careerTurnStopped: true,
@@ -1196,6 +1238,7 @@ export async function POST(req: NextRequest) {
       .join("\n\n");
     const currentPromptArgs = (): Parameters<typeof buildCareerConversationPromptPlan>[0] => ({
         activeInternalFitHoldQuestion,
+        conversationVersion,
         careerCoachingActivity,
         channel: "chat",
         companyTalentRequestText:
@@ -1867,6 +1910,13 @@ export async function POST(req: NextRequest) {
                 assistantError.message ?? "Failed to insert assistant message"
               );
             }
+
+            // Reconcile the streamed placeholder with its durable ID before
+            // onboarding extraction or other post-processing refreshes history.
+            send("assistant_message", {
+              message: toResponseMessage(insertedAssistantMessage as TalentMessageRow),
+              continuing: true,
+            });
 
             await commitDeliveredProcessClosureNotices({
               admin,

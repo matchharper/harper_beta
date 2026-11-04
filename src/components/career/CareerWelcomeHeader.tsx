@@ -1,19 +1,14 @@
 import { Text } from "@/components/ui/text";
-import { formatCareerMessage } from "@/i18n/careerMessage";
 import { useCareerT } from "@/i18n/useCareerT";
-import { useMessages } from "@/i18n/useMessage";
 import {
   useCareerProfileContext,
   useCareerSidebarContext,
 } from "./CareerSidebarContext";
 import { cn } from "@/lib/cn";
 
-const countFormatter = new Intl.NumberFormat("ko-KR");
-
 export const useCareerWelcomeContent = () => {
   const t = useCareerT();
-  const { m } = useMessages();
-  const { activeCompanyRoleCount, user } = useCareerSidebarContext();
+  const { user } = useCareerSidebarContext();
   const { talentProfile } = useCareerProfileContext();
 
   const displayName =
@@ -22,25 +17,15 @@ export const useCareerWelcomeContent = () => {
     user?.user_metadata?.name ??
     (typeof user?.email === "string" ? user.email.split("@")[0] : "Candidate");
 
-  const activeOpportunityLabel =
-    activeCompanyRoleCount > 0
-      ? formatCareerMessage(
-          m,
-          t(
-            "career.home.career_home_panel.1jcg4hg",
-            "현재 Harper 네트워크에서 {count}개의 기회를 스캔하고 있습니다. 매일매일 더 많은 기회를 발견합니다."
-          ),
-          { count: countFormatter.format(activeCompanyRoleCount * 2) }
-        )
-      : formatCareerMessage(
-          m,
-          t(
-            "career.home.career_home_panel.0rlf0ya",
-            "현재 Harper는 새로운 기회를 계속 탐색하고 있습니다."
-          )
-        );
+  const activeOpportunityLabel = t(
+    "career.home.career_home_panel.0rlf0ya",
+    "지금도 새 기회를 살펴보고 있어요."
+  );
+  const greeting = t("career.home.welcome", "{name}님, 반가워요", {
+    values: { name: displayName },
+  });
 
-  return { displayName, activeOpportunityLabel };
+  return { displayName, greeting, activeOpportunityLabel };
 };
 
 export default function CareerWelcomeHeader({
@@ -48,7 +33,7 @@ export default function CareerWelcomeHeader({
 }: {
   align?: "center" | "left";
 }) {
-  const { displayName, activeOpportunityLabel } = useCareerWelcomeContent();
+  const { greeting, activeOpportunityLabel } = useCareerWelcomeContent();
 
   return (
     <div className={cn("mb-8 space-y-2", align === "left" && "text-left")}>
@@ -57,7 +42,7 @@ export default function CareerWelcomeHeader({
         type="head2"
         className={cn("font-hedvig", align === "left" && "text-left")}
       >
-        Welcome, <span className="text-primary">{displayName}</span>!
+        {greeting}
       </Text>
       <Text
         type="desc"

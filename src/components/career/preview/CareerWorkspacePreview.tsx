@@ -1,3 +1,4 @@
+// career-i18n-skip-file: Internal developer controls and synthetic preview copy.
 import type { User } from "@supabase/supabase-js";
 import { useRouter } from "next/router";
 import {
@@ -66,7 +67,7 @@ const previewMinutesAfter = (minutes: number) =>
 type CareerWorkspaceHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
   roleId?: string;
-  savedStage?: "all" | "saved" | "applied" | "connected" | "closed" | "hidden";
+  savedStage?: "all" | "saved" | "applied" | "connected" | "offer" | "closed" | "hidden";
 };
 
 const mockUser = {
@@ -1722,8 +1723,19 @@ const CareerWorkspacePreview = ({
           onChangeTab={handleWorkspaceTabChange}
         />
         <CareerSettingsModal
-          open={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
+          initialTab={router.query.settingsTab === "profile" ? "profile" : null}
+          open={isSettingsOpen || router.query.panel === "settings"}
+          onClose={() => {
+            setIsSettingsOpen(false);
+            if (router.query.panel !== "settings") return;
+            const query = { ...router.query };
+            delete query.panel;
+            delete query.settingsTab;
+            void router.replace({ pathname: router.pathname, query }, undefined, {
+              shallow: true,
+              scroll: false,
+            });
+          }}
         />
       </CareerSidebarProvider>
     </CareerChatPanelProvider>

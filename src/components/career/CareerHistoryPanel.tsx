@@ -1,7 +1,8 @@
+import ProgressOpportunityList from "./history/ProgressOpportunityList";
+import { useOpportunityStatusChange } from "@/hooks/career/useOpportunityStatusChange";
 import { useEventCallback } from "@/hooks/useEventCallback";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import {
-  Archive,
   ArrowRight,
   BriefcaseBusiness,
   ClipboardCheck,
@@ -26,7 +27,7 @@ import {
   useCareerHistoryContext,
   useCareerSidebarContext,
 } from "./CareerSidebarContext";
-import CareerInPageTabs, { type CareerInPageTabItem } from "./CareerInPageTabs";
+import CareerOpportunityTabs from "./history/CareerOpportunityTabs";
 import { PrimaryButton, BareButton, MuteButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlinePanel } from "@/components/ui/panel";
@@ -64,11 +65,9 @@ import CareerCompanyDetailDrawer from "./watchlist/CareerCompanyDetailDrawer";
 import InternalConnectionAcceptanceModal from "./InternalConnectionAcceptanceModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
-import { Tooltips } from "@/components/ui/tooltip";
 import {
   canChangeCareerOpportunityManagementStatus,
   getMyOpportunityTab,
-  getMyOpportunityTabs,
   getCareerOpportunityManagementStatus,
   getSavedOpportunityManagementStatus,
   getSavedOpportunityStatusFromQuery,
@@ -79,7 +78,7 @@ import {
 } from "./history/savedOpportunityStatus";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
-import SavedOpportunityViews, { SavedOpportunityViewPicker } from "./history/SavedOpportunityViews";
+import SavedOpportunityList from "./history/SavedOpportunityList";
 import { getJobsTabTotal, useCareerMobileHistoryOpportunities } from "@/hooks/career/useCareerMobileHistoryOpportunities";
 import {
   InternalOpportunityDecisionChangeModal,
@@ -123,11 +122,6 @@ const isCareerHistoryPanelPathname = (path: string) => {
 
 const getOpportunityUrlRoleId = (item: CareerHistoryOpportunity | null) =>
   String(item?.roleId ?? "").trim();
-
-const getHistoryDisplayTabs = (t: ReturnType<typeof useCareerT>) => [
-  { id: "new" as const, label: t("career.common.career_history_panel.02i826z", "새 포지션") },
-  ...getMyOpportunityTabs(t),
-];
 
 const compareRecommendedAtDesc = (
   left: CareerHistoryOpportunity,
@@ -197,7 +191,7 @@ export const getOpportunityTypeLabel = (
     ? t(
         "career.history.job_link_import.source_label",
         // career-i18n-skip-next-line: localized fallback for exported helper.
-        "직접 추가한 포지션"
+        "직접 추가한 기회"
       )
     : getCareerOpportunityTypeLabel(item.opportunityType, t);
 
@@ -542,21 +536,8 @@ const HistoryEmptyStatePanel = ({
   );
 };
 
-type CareerHistoryPanelProps = {
-  navigationMode?: "tabs" | "sidebar";
-};
-
-const CareerHistoryPanel = ({
-  navigationMode = "tabs",
-}: CareerHistoryPanelProps) => {
+const CareerHistoryPanel = () => {
   const t = useCareerT();
-  const historyDisplayTabs = useMemo(
-    () =>
-      getHistoryDisplayTabs(t).filter(
-        ({ id }) => navigationMode !== "sidebar" || id !== "new"
-      ),
-    [navigationMode, t]
-  );
   const logCareerEvent = useCareerLogEvent();
   const router = useRouter();
   const {
@@ -622,8 +603,6 @@ const CareerHistoryPanel = ({
   const activeTab: HistoryTabId = isHistoryTabId(requestedHistoryTab)
     ? requestedHistoryTab
     : "new";
-  const showHistoryNavigation =
-    navigationMode !== "sidebar" || activeTab !== "new";
   const activeSavedStatus = getSavedOpportunityStatusFromQuery(
     currentSavedStageQuery
   );
@@ -1139,37 +1118,14 @@ const CareerHistoryPanel = ({
     [],
   );
 
-  const handleSavedStatusChange = useEventCallback(
-    (
-      item: CareerHistoryOpportunity,
-      status: CareerOpportunityManagementStatus,
-    ) => {
-      if (!canChangeCareerOpportunityManagementStatus(item)) return;
-      if (getCareerOpportunityManagementStatus(item) === status) return;
-
-      logCareerEvent(`click_history_saved_status_${status}`);
-
-      if (status === "archived") {
-        updateFeedbackForItem(item, "negative");
-        return;
-      }
-
-      const savedStage = getSavedStageForManagementStatus(status);
-      if (!savedStage) return;
-
-      if (
-        item.feedback === "positive" ||
-        (savedStage === "hidden" &&
-          item.sourceType === "external" &&
-          item.feedback === null)
-      ) {
-        void onUpdateHistoryOpportunitySavedStage(item.id, savedStage);
-        return;
-      }
-
-      updateFeedbackForItem(item, "positive", { savedStage });
+  const handleSavedStatusChange = useOpportunityStatusChange({
+    update: onUpdateHistoryOpportunitySavedStage,
+    navigate: (status, item) => {
+      const target = getMyOpportunityTab(status);
+      updateHistoryLocation("saved", target, {mode: "replace", roleId: target === "applied" && getNormalizedQueryValue(currentRoleQuery) ? item.roleId : null});
     },
-  );
+    openChat: () => openChatTab("click_history_offer"),
+  });
 
   const handlePositiveAction = useEventCallback(
     (item: CareerHistoryOpportunity) => {
@@ -1230,12 +1186,6 @@ const CareerHistoryPanel = ({
     updateFeedbackForItem,
   ]);
 
-  const tabs = useMemo<CareerInPageTabItem<HistoryDisplayTabId>[]>(
-    () => historyDisplayTabs.map(({ id, label }) => ({
-      id, label, count: getJobsTabTotal(id, historyOpportunityCounts),
-    })),
-    [historyDisplayTabs, historyOpportunityCounts]
-  );
   const activeDisplayTab: HistoryDisplayTabId = activeTab === "saved"
     ? getMyOpportunityTab(activeSavedStatus)
     : activeTab;
@@ -1373,6 +1323,8 @@ const CareerHistoryPanel = ({
     isLoading: listLoading,
     loadMore: loadMoreListItems,
   } = useCareerMobileHistoryOpportunities({
+    loadAllProgress: true,
+    historyUpdateError,
     enabled: activeTab !== "new",
     activeTab: activeDisplayTab,
     historyLoading,
@@ -1410,23 +1362,56 @@ const CareerHistoryPanel = ({
       ? "matching"
       : "onboarding";
 
+  const historyNavigation = (
+    <CareerOpportunityTabs
+      activeTab={activeDisplayTab}
+      counts={{
+        new: getJobsTabTotal("new", historyOpportunityCounts),
+        applied: getJobsTabTotal("applied", historyOpportunityCounts),
+        saved: getJobsTabTotal("saved", historyOpportunityCounts),
+      }}
+      onChange={handleDisplayTabChange}
+      className="my-4"
+      actions={activeTab !== "new" ? (
+        <OpportunitySearch
+          userId={user?.id}
+          items={historyOpportunities}
+          complete={!historyLoading &&
+            historyOpportunities.filter(isSavedOpportunity).length >= historyOpportunityCounts.saved &&
+            archivedItems.length >= historyOpportunityCounts.archived}
+          onSelect={(item) => {
+            updateHistoryLocation(
+              isSavedHistoryOpportunity(item) ? "saved" : "archived",
+              item.savedStage ?? "all",
+              { roleId: item.roleId }
+            );
+          }}
+        />
+      ) : null}
+    />
+  );
+
   if (historyLoading && activeTab === "new") {
     return (
-      <section className="px-5 py-6">
-        <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
-          <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
-          {t(
-            "career.common.career_history_panel.0s3czqf",
-            "저장된 정보를 불러오는 중입니다..."
-          )}
-        </div>
-      </section>
+      <div className="flex min-h-full flex-col">
+        {historyNavigation}
+        <section className="px-5 py-6">
+          <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
+            <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
+            {t(
+              "career.common.career_history_panel.0s3czqf",
+              "저장된 정보를 불러오는 중입니다..."
+            )}
+          </div>
+        </section>
+      </div>
     );
   }
 
   if (activeTab === "new" && !hasKnownHistoryOpportunities && !historyUpdateError) {
     return (
       <div className="flex min-h-full flex-col">
+        {historyNavigation}
         <div className="my-4 flex justify-end">
           <CareerJobLinkImportButton />
         </div>
@@ -1443,58 +1428,7 @@ const CareerHistoryPanel = ({
 
   return (
     <div className="flex min-h-full flex-col">
-      {showHistoryNavigation && (
-        <div className="my-4 flex flex-wrap items-center justify-between gap-3">
-          <CareerInPageTabs
-            items={tabs.filter(({ id }) => id !== "hidden")}
-            activeId={activeDisplayTab}
-            onChange={handleDisplayTabChange}
-          />
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {activeTab !== "new" ? (
-              <OpportunitySearch
-                userId={user?.id}
-                items={historyOpportunities}
-                complete={!historyLoading &&
-                  historyOpportunities.filter(isSavedOpportunity).length >= historyOpportunityCounts.saved &&
-                  archivedItems.length >= historyOpportunityCounts.archived}
-                onSelect={(item) => {
-                  updateHistoryLocation(
-                    isSavedHistoryOpportunity(item) ? "saved" : "archived",
-                    item.savedStage ?? "all",
-                    { roleId: item.roleId }
-                  );
-                }}
-              />
-            ) : null}
-            <CareerInPageTabs
-              items={tabs.filter(({ id }) => id === "hidden")}
-              activeId={activeDisplayTab}
-              onChange={handleDisplayTabChange}
-            />
-            <Tooltips
-              text={t(
-                "career.common.career_history_panel.archived_tooltip",
-                "숨긴 포지션"
-              )}
-            >
-              <BareButton
-                type="button"
-                aria-label={"숨긴 포지션"}
-                onClick={() => handleDisplayTabChange("archived")}
-                className={cn(
-                  "inline-flex h-7 min-w-7 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a05 px-2 text-[12px] font-medium transition-colors",
-                  activeDisplayTab === "archived"
-                    ? "bg-bg-floating text-neutral-primary"
-                    : "bg-bg-weak/80 text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
-                )}
-              >
-                <Archive className="h-3.5 w-3.5" />
-              </BareButton>
-            </Tooltips>
-          </div>
-        </div>
-      )}
+      {historyNavigation}
 
       <div className="relative flex flex-1 flex-col gap-6">
         <div className="min-w-0 flex-1">
@@ -1572,18 +1506,20 @@ const CareerHistoryPanel = ({
           {activeTab !== "new" && !showInlineOpportunityPage && (
             <div className="space-y-4">
               {activeDisplayTab === "saved" ? (
-                <div className="flex flex-wrap items-center justify-between gap-3"><SavedOpportunityViewPicker /><CareerJobLinkImportButton /></div>
+                <div className="flex justify-end"><CareerJobLinkImportButton /></div>
               ) : null}
-              {listInitialLoading ? (
+              {listInitialLoading && activeDisplayTab !== "applied" ? (
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3" aria-busy="true">
                   <Skeleton className="h-36 w-full rounded-lg" />
                   <Skeleton className="h-36 w-full rounded-lg" />
                 </div>
               ) : null}
-              {listItems.length > 0 ? activeDisplayTab === "saved" ? (
-                <SavedOpportunityViews items={listItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onApply={(item) => item.isInternal ? handlePositiveAction(item) : handleApplyOpportunity(item)} />
+              {activeDisplayTab === "applied" ? (
+                <ProgressOpportunityList items={listItems} loading={listLoading || hasMoreListItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onStatusChange={handleSavedStatusChange} />
+              ) : listItems.length > 0 ? activeDisplayTab === "saved" ? (
+                <SavedOpportunityList items={listItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onApply={(item) => item.isInternal ? handlePositiveAction(item) : handleApplyOpportunity(item)} />
               ) : (
-                <div className={cn("grid items-stretch gap-3", activeDisplayTab === "applied" ? "grid-cols-1" : "grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))]")}>
+                <div className={cn("grid items-stretch gap-3", "grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))]")}>
                   {listItems.map((item) => (
                     <OpportunityListCard
                       key={item.id}
@@ -1653,7 +1589,7 @@ const CareerHistoryPanel = ({
           onOpenChat={() => {
             feedbackRoleQueryIgnoreRef.current = null;
             updateHistoryLocation("saved", "saved", {
-              roleId: getOpportunityUrlRoleId(externalApplyOpportunity),
+              roleId: requestedRoleId,
             });
           }}
         />
