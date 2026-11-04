@@ -7,7 +7,10 @@ export const second = "44444444-4444-4444-8444-444444444444";
 export const role = "55555555-5555-4555-8555-555555555555";
 export const roleTwo = "66666666-6666-4666-8666-666666666666";
 export const fixture = `
-create role anon; create role authenticated; create role service_role; create role harper_worker bypassrls;
+do $$begin create role anon; exception when duplicate_object then null; end$$;
+do $$begin create role authenticated; exception when duplicate_object then null; end$$;
+do $$begin create role service_role; exception when duplicate_object then null; end$$;
+do $$begin create role harper_worker bypassrls; exception when duplicate_object then null; end$$;
 create table talent_users(user_id uuid primary key,deleted_at timestamptz,name text,headline text,bio text,location text,current_location jsonb);
 create table talent_conversations(id uuid primary key,user_id uuid);
 create table talent_messages(id bigint primary key,user_id uuid,role text,content text,created_at timestamptz default now(),message_type text default 'chat',payload jsonb default '{}');
@@ -27,17 +30,20 @@ create function company_role_search_brief_version_v1(uuid) returns bigint langua
 create table company_memory_entries(id bigint,revision bigint,company_workspace_id uuid,deleted_at timestamptz);
 create table company_memories(id bigint,updated_at timestamptz,company_workspace_id uuid);
 create table opportunity_scheduler_state(talent_id uuid,next_check_at timestamptz);
+create table talent_opportunity_delivery(talent_id uuid,status text,sent_at timestamptz);
 create table company_talent_followups(id uuid primary key,talent_id uuid,revision bigint default 1);
 insert into talent_users(user_id) values('${owner}'),('${other}');
 insert into company_db values(1,'Example');
 insert into company_workspace(company_workspace_id,company_db_id) values('${workspace}',1),('${second}',1);
 insert into talent_setting values('${owner}','open_to_matches',true,true,'{}','active'),('${other}','open_to_matches',true,true,'{}','stopped');
 alter table talent_setting add column is_onboarding_done boolean default false;
+alter table talent_setting add column periodic_interval_days integer default 3;
+alter table talent_setting add column created_at timestamptz default now();
+alter table talent_users add column created_at timestamptz default now();
 alter table talent_external_operations add column created_at timestamptz default now();
 insert into company_roles values('${role}','${workspace}','internal','Engineer','active',false,null,'{}'),('${roleTwo}','${second}','external','Designer','active',false,null,'{}');
 `;
-export async function setup() {
-  const db = new PGlite();
+export async function setup(db = new PGlite()) {
   await db.exec(fixture);
   await db.exec(
     await readFile(
@@ -52,6 +58,15 @@ export async function setup() {
     await readFile(
       new URL(
         "../../../../supabase/migrations/20261102064501_career_adaptive_check_in.sql",
+        import.meta.url
+      ),
+      "utf8"
+    )
+  );
+  await db.exec(
+    await readFile(
+      new URL(
+        "../../../../supabase/migrations/20261104044947_preserve_career_schedule_cutover.sql",
         import.meta.url
       ),
       "utf8"
