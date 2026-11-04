@@ -88,7 +88,7 @@
     "free-email-domains": "1.12.21",
     "google-auth-library": "10.6.1",
     "js-tiktoken": "1.0.21",
-    "jsdom": "^27.4.0",
+    "jsdom": "26.1.0",
     "lucide-react": "^1.57.0",
     "mammoth": "^1.12.0",
     "motion": "^12.33.0",
