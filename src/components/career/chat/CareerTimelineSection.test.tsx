@@ -1,3 +1,4 @@
+import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
@@ -86,6 +87,7 @@ test("opens message actions on right-click and resets delete confirmation on dis
   })) as unknown as typeof window.matchMedia;
   const { MessagesProvider } = await import("@/i18n/useMessage");
   const { CareerMessageActions } = await import("./CareerMessageActions");
+  useCareerWorkspaceUiStore.setState({ conversationVersion: "friendly" });
   const { useToastStore } = await import("@/store/useToastStore");
 
   const actEnvironment = globalThis as typeof globalThis & {
@@ -235,8 +237,18 @@ test("opens message actions on right-click and resets delete confirmation on dis
     assert.equal(deleteCallCount, 0);
     await act(async () => getConfirmButton()?.click());
     assert.equal(deleteCallCount, 1);
+    await act(async () => useCareerWorkspaceUiStore.setState({ conversationVersion: "professional" }));
+    const hoverActions = container.querySelector('[data-career-message-actions="true"]');
+    assert.ok(hoverActions?.className.includes("group-hover:opacity-100"));
+    assert.ok(hoverActions?.querySelector("time"));
+    assert.ok(hoverActions?.querySelector('[aria-label="메시지 복사"]'));
+    const contextEvent = new dom.window.MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    await act(async () => messageBubble.dispatchEvent(contextEvent));
+    assert.equal(contextEvent.defaultPrevented, false);
+    assert.equal(dom.window.document.querySelector('[data-career-message-actions-open="true"]'), null);
   } finally {
     await act(async () => root.unmount());
+    useCareerWorkspaceUiStore.setState({ conversationVersion: "professional" });
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
     if (previousDocument) {
       Object.defineProperty(globalThis, "document", previousDocument);

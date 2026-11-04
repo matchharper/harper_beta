@@ -73,6 +73,10 @@ test("friendly chat replaces tone at its source and keeps the execution contract
   const original = professional.promptBlocks.find(b => b.key === "career_main")!.text;
   assert.equal(main.split("## Communication")[0], original.split("## Communication")[0]);
   assert.ok(main.includes("해요체"));
+  assert.ok(original.includes("해요체"));
+  assert.ok(original.includes("friendly personal chat"));
+  assert.ok(!original.includes("Keep chat compact"));
+  assert.ok(!professional.promptBlocks.find(b => b.key === "career_chat_display")!.text.includes("[[bubble]]"));
   assert.ok(!main.includes("Be warm, calm, professional and direct."));
   assert.ok(friendly.promptBlocks.find(b => b.key === "career_chat_display")!.text.includes("[[bubble]]"));
   for (const overrides of [{ channel: "voice" as const }, { backgroundInvocation: true }, { isOnboardingDone: false }]) {

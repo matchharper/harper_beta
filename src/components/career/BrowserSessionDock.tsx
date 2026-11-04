@@ -31,7 +31,16 @@ type SessionSummary = BrowserSessionViewData["session"] & {
   browserAvailability?: BrowserSessionViewData["browserAvailability"];
   liveUrl?: string | null;
 };
+const PREVIEW_SESSION_ID = "dev-browser-preview";
+const PREVIEW_VIEW: BrowserSessionViewData = {
+  session: { id: PREVIEW_SESSION_ID, status: "running", revision: 0 },
+  liveUrl: null,
+  executions: [],
+};
+
 type BrowserDockContext = {
+  preview: boolean;
+  setPreview: (open: boolean) => void;
   views: BrowserSessionViewData[];
   selectedId: string | null;
   select: (id: string | null) => void;
@@ -54,6 +63,7 @@ export function BrowserSessionProvider({
   messages: CareerMessage[];
   children: ReactNode;
 }) {
+  const [preview, setPreview] = useState(false);
   const [anchors, setAnchors] = useState<ReadonlyMap<string, HTMLElement>>(
     () => new Map()
   );
@@ -142,8 +152,10 @@ export function BrowserSessionProvider({
   return (
     <BrowserDockContext.Provider
       value={{
-        views,
-        selectedId,
+        views: preview ? [...views, PREVIEW_VIEW] : views,
+        selectedId: preview ? PREVIEW_SESSION_ID : selectedId,
+        preview,
+        setPreview,
         anchors,
         inlineSessionIds: new Set(
           messages.flatMap((message) =>
@@ -157,7 +169,10 @@ export function BrowserSessionProvider({
             selectedQuery.data.browserAvailability === "stopped")
             ? selectedQuery.data.session.id
             : null,
-        select: (id) => setSelection({ seenKey: automaticKey, id }),
+        select: (id) => {
+          setPreview(false);
+          if (!preview || id) setSelection({ seenKey: automaticKey, id });
+        },
         refresh: async () => {
           await Promise.all([
             client.invalidateQueries({ queryKey }),
@@ -171,6 +186,12 @@ export function BrowserSessionProvider({
       {children}
     </BrowserDockContext.Provider>
   );
+}
+
+/** Local-only dev preview; never creates a browser session or calls its actions. */
+export function useBrowserSessionDevPreview() {
+  const dock = useContext(BrowserDockContext);
+  return { open: dock?.preview ?? false, setOpen: dock?.setPreview };
 }
 
 export function BrowserSessionLink({ sessionId }: { sessionId: string }) {
@@ -202,7 +223,8 @@ export function BrowserSessionAnchor({ sessionId }: { sessionId: string }) {
     (node: HTMLDivElement | null) => register?.(sessionId, node),
     [register, sessionId]
   );
-  const active = dock?.selectedId === sessionId &&
+  const active =
+    dock?.selectedId === sessionId &&
     dock.views.some((view) => view.session.id === sessionId);
   if (!active) return <BrowserSessionLink sessionId={sessionId} />;
   return (
@@ -223,6 +245,7 @@ export function BrowserSessionDock() {
   if (!dock) return null;
   return (
     <BrowserSessionDockView
+      preview={dock.preview}
       views={dock.views}
       selectedId={dock.selectedId}
       onSelect={dock.select}
@@ -240,6 +263,7 @@ export function BrowserSessionDockView({
   onChanged,
   anchors,
   inlineSessionIds,
+  preview = false,
 }: {
   views: BrowserSessionViewData[];
   selectedId: string | null;
@@ -247,6 +271,7 @@ export function BrowserSessionDockView({
   onChanged?: () => Promise<unknown>;
   anchors?: ReadonlyMap<string, HTMLElement>;
   inlineSessionIds?: ReadonlySet<string>;
+  preview?: boolean;
 }) {
   const [dock, setDock] = useState<HTMLDivElement | null>(null);
   const layout =
@@ -269,6 +294,7 @@ export function BrowserSessionDockView({
               depth={0}
               count={1}
               expanded
+              preview={preview}
               onExpand={(open) => onSelect(open ? view.session.id : null)}
               onChanged={onChanged}
               dock={dock}
@@ -295,13 +321,16 @@ function BrowserSessionFloatingPanel({
 }) {
   const t = useCareerT();
   const [content, setContent] = useState<HTMLDivElement | null>(null);
-  const { inline } = useBrowserSessionPlacement({
+  const [collapsedPreference, setCollapsedPreference] = useState<
+    boolean | null
+  >(null);
+  const { inline, collapsed } = useBrowserSessionPlacement({
     dock,
     layout,
     inlineAnchor,
     content,
     depth: props.depth,
-    expanded: props.expanded,
+    collapsed: collapsedPreference,
   });
   return (
     <Dialog open={props.expanded} onOpenChange={props.onExpand} modal={false}>
@@ -310,15 +339,7 @@ function BrowserSessionFloatingPanel({
         forceMount
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}
-        onInteractOutside={(event) => {
-          if (
-            event.target instanceof Element &&
-            event.target.closest(
-              "[data-browser-trigger], [data-browser-session-id]"
-            )
-          )
-            event.preventDefault();
-        }}
+        onInteractOutside={(event) => event.preventDefault()}
         aria-describedby={undefined}
         data-browser-placement={inline ? "inline" : "dock"}
         className="overflow-y-auto rounded-3xl shadow-xl outline-none"
@@ -326,7 +347,14 @@ function BrowserSessionFloatingPanel({
         <DialogTitle className="sr-only">
           {t("career.browser.title", "지원 브라우저")}
         </DialogTitle>
-        <BrowserPopup {...props} />
+        <BrowserPopup
+          {...props}
+          expanded={!collapsed}
+          collapsed={collapsed}
+          onToggleCollapsed={
+            !inline ? () => setCollapsedPreference(!collapsed) : undefined
+          }
+        />
       </DialogPanelContent>
     </Dialog>
   );
@@ -338,9 +366,15 @@ function BrowserPopup({
   expanded,
   onExpand,
   onChanged,
+  collapsed = false,
+  onToggleCollapsed,
+  preview = false,
 }: {
   view: BrowserSessionViewData;
   number?: number;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+  preview?: boolean;
   depth: number;
   count: number;
   expanded: boolean;
@@ -352,6 +386,10 @@ function BrowserPopup({
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const act = async (action: "handoff" | "close") => {
+    if (preview) {
+      if (action === "close") onExpand(false);
+      return;
+    }
     if (busy) return;
     setBusy(true);
     setFailed(false);
@@ -380,7 +418,9 @@ function BrowserPopup({
         busy={busy}
         onAction={act}
         expanded={expanded}
-        onExpand={() => onExpand(!expanded)}
+        onExpand={onToggleCollapsed}
+        collapsed={collapsed}
+        preview={preview}
         number={number}
         error={
           failed

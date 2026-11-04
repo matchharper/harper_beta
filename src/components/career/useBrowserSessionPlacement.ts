@@ -9,24 +9,30 @@ export function useBrowserSessionPlacement({
   inlineAnchor,
   content,
   depth,
-  expanded,
+  collapsed,
 }: {
   dock: HTMLElement;
   layout: HTMLElement;
   inlineAnchor: HTMLElement | null;
   content: HTMLElement | null;
   depth: number;
-  expanded: boolean;
+  collapsed: boolean | null;
 }) {
-  const [inline, setInline] = useState(Boolean(inlineAnchor));
+  const [placement, setPlacement] = useState({
+    inline: Boolean(inlineAnchor),
+    mobile: false,
+  });
   useLayoutEffect(() => {
     if (!content) return;
     return observePlacement(
-      { dock, layout, inlineAnchor, content, depth, expanded },
-      setInline
+      { dock, layout, inlineAnchor, content, depth, collapsed },
+      setPlacement
     );
-  }, [dock, layout, inlineAnchor, content, depth, expanded]);
-  return { inline };
+  }, [dock, layout, inlineAnchor, content, depth, collapsed]);
+  return {
+    inline: placement.inline,
+    collapsed: !placement.inline && (collapsed ?? placement.mobile),
+  };
 }
 
 // DOM measurements and positioning belong to the observer, outside React render.
@@ -37,19 +43,23 @@ function observePlacement(
     inlineAnchor,
     content,
     depth,
-    expanded,
+    collapsed,
   }: {
     dock: HTMLElement;
     layout: HTMLElement;
     inlineAnchor: HTMLElement | null;
     content: HTMLElement;
     depth: number;
-    expanded: boolean;
+    collapsed: boolean | null;
   },
-  setInline: React.Dispatch<React.SetStateAction<boolean>>
+  setPlacement: React.Dispatch<
+    React.SetStateAction<{ inline: boolean; mobile: boolean }>
+  >
 ) {
   const viewport = inlineAnchor?.closest<HTMLElement>("[data-career-timeline]");
   const update = () => {
+    const mobile = window.innerWidth < 768;
+    const isCollapsed = collapsed ?? mobile;
     const rect = inlineAnchor?.getBoundingClientRect();
     const bounds = viewport?.getBoundingClientRect();
     const visible = Boolean(
@@ -78,21 +88,26 @@ function observePlacement(
         inlineAnchor.style.height = `${content.offsetHeight}px`;
       const parent = layout.getBoundingClientRect();
       const anchor = dock.getBoundingClientRect();
-      const width = Math.min(
-        expanded ? 720 : 320,
-        Math.max(0, parent.width - 32)
+      const width = Math.min(320, Math.max(0, parent.width - 32));
+      const top = Math.max(
+        12,
+        (window.visualViewport?.offsetTop ?? 0) - parent.top + 12
       );
       const bottom = anchor.top - parent.top - 12 - depth * 40;
       Object.assign(content.style, {
         position: "fixed",
         width: `${width}px`,
-        maxHeight: `${Math.max(0, bottom - 16)}px`,
-        zIndex: expanded ? "11" : "10",
-        left: `${Math.max(16, Math.min(anchor.right - parent.left - width - depth * 12, parent.width - width - 16))}px`,
+        maxHeight: `${Math.max(0, mobile ? Math.min(parent.height, window.visualViewport?.height ?? window.innerHeight) - top - 16 : bottom - 16)}px`,
+        zIndex: isCollapsed ? "10" : "11",
+        left: `${mobile ? (parent.width - width) / 2 : Math.max(16, Math.min(anchor.right - parent.left - width - depth * 12, parent.width - width - 16))}px`,
       });
-      content.style.top = `${Math.max(16, bottom - content.offsetHeight)}px`;
+      content.style.top = `${mobile ? top : Math.max(16, bottom - content.offsetHeight)}px`;
     }
-    setInline((current) => (current === visible ? current : visible));
+    setPlacement((current) =>
+      current.inline === visible && current.mobile === mobile
+        ? current
+        : { inline: visible, mobile }
+    );
   };
   update();
   const resize =
@@ -111,11 +126,13 @@ function observePlacement(
   });
   window.addEventListener("resize", update);
   window.visualViewport?.addEventListener("resize", update);
+  window.visualViewport?.addEventListener("scroll", update);
   return () => {
     resize?.disconnect();
     intersection?.disconnect();
     document.removeEventListener("scroll", update, true);
     window.removeEventListener("resize", update);
     window.visualViewport?.removeEventListener("resize", update);
+    window.visualViewport?.removeEventListener("scroll", update);
   };
 }

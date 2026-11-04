@@ -363,15 +363,15 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
       data-career-message-role={message.role}
       className={cn("group relative flex flex-col gap-2", startsNewSpeaker && "mt-3")}
     >
-      {!isUser && textLogs.length > 0 && (
+      {!isUser && (textLogs.length > 0 || message.workPending) && (
         <ThinkingLogPanel
           active={
-            isAssistantStreamActive ||
+            message.workPending || isAssistantStreamActive ||
             (isOnboardingCompletionWrapup && onboardingWrapupPending)
           }
-          completedAt={message.createdAt}
+          completedAt={message.workCompletedAt ?? message.createdAt}
           logs={textLogs}
-          startedAt={turnStartedAt}
+          startedAt={message.workStartedAt ?? turnStartedAt}
         />
       )}
       {!isUser &&
@@ -542,7 +542,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
   );
 
   return (
-    <Fragment key={String(message.id)}>
+    <Fragment key={message.workReplyId ?? String(message.id)}>
       {dateLabel && (
         <TimelineDateDivider ariaPrefix={dateAriaPrefix} label={dateLabel} />
       )}
@@ -644,7 +644,7 @@ export const TimelineMessageList = memo(function TimelineMessageList({
     // a duration; message chronology must not manufacture hours of work.
     rows.push(
       <TimelineMessageRow
-        key={String(message.id)}
+        key={message.workReplyId ?? String(message.id)}
         message={message}
         startsNewSpeaker={
           !dateLabel && index > 0 && messages[index - 1].role !== message.role
@@ -1458,7 +1458,7 @@ const CareerTimelineSection = ({
 
         {!sessionPending && stage !== "profile" && !onboardingWrapupPending &&
           !callWrapUpPending && !chatPending && !assistantTyping && (
-            <CareerWorkActivity conversationId={conversationId} admitting={chatAdmissionPending} />
+            <CareerWorkActivity conversationId={conversationId} admitting={chatAdmissionPending} visibleReplyIds={messages.filter(message => message.workPending).map(message => message.workReplyId ?? "")} />
           )}
 
         {profilePending && (

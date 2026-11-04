@@ -45,6 +45,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "@aws-sdk/client-billing": "^3.1093.0",
     "@aws-sdk/client-cost-explorer": "^3.1093.0",
     "@base-ui/react": "^1.6.0",

@@ -65,14 +65,14 @@ test("progress survives overlapping callbacks, hides waits for a newer reply, an
   first.record(["늦게 도착한 이전 로그"]);
   await first.flush();
   assert.deepEqual(projectCareerWorkActivity(row), [
-    { id: "invocation", logs: [] },
+    { id: "invocation", logs: [], startedAt: row.result.activity.startedAt },
   ]);
   resumed.record(["지원 페이지 확인 중"]);
   await resumed.checkpoint({
     waitFor: [{ kind: "browser_run", id: "browser" }],
   } as CareerReplyCheckpoint);
   assert.deepEqual(projectCareerWorkActivity(row), [
-    { id: "invocation", logs: ["지원 페이지 확인 중"] },
+    { id: "invocation", logs: ["지원 페이지 확인 중"], startedAt: row.result.activity.startedAt },
   ]);
   row = { ...row, status: "completed", result: {} };
   resumed.record(["완료 후 늦은 로그"]);

@@ -898,6 +898,8 @@ export const useCareerChat = ({
             activeStreamAssistantIdRef.current = streamAssistantId;
             const streamAssistant: CareerMessage = {
               id: streamAssistantId,
+              ...(conversationVersion === "professional" && realUserMessage ? { workReplyId: `message:${realUserMessage.id}` } : {}),
+              workStartedAt: new Date().toISOString(),
               suppressRolePreviews,
               role: "assistant",
               content: "",
@@ -1228,6 +1230,16 @@ export const useCareerChat = ({
                 setOnboardingWrapupPending(false);
                 setScrollTick((t) => t + 1);
               }
+              return;
+            }
+
+            if (event === "assistant_progress") {
+              const payload = isRecord(data) ? toStreamMessagePayload(data.message) : null;
+              if (!payload) return;
+              ensureStreamAssistant();
+              setLocalMessages(prev => prev.map(item => String(item.id) === streamAssistantId
+                ? { ...item, workReplyId: payload.workReplyId, workStartedAt: payload.workStartedAt, workPending: true }
+                : item));
               return;
             }
 

@@ -233,14 +233,18 @@ Career 브라우저 팝업은 Dev controls의 `BrowserPreviewFrame`과 동일한
 
 Career의 범용 `BrowserSessionDock`은 사용자가 선택한 브라우저 하나만 실제 대화 행 안에 마운트한다.
 대화 안에서는 일반 문서 흐름으로 스크롤되며 좌표 추적·이동 애니메이션·wheel 전달을 쓰지 않는다.
-행이 완전히 화면 밖으로 나가면 같은 DOM/iframe의 위치만 composer 오른쪽 위로 고정하고,
+행이 완전히 화면 밖으로 나가면 같은 DOM/iframe의 위치만 데스크톱에서는 composer 오른쪽 위로,
+데스크톱 고정 화면은 너비 320px의 작은 미리보기로 표시하고,
+모바일에서는 채팅 영역 최상단 중앙으로 고정한다. 모바일 고정 화면은 기본적으로 접혀 있으며,
+헤더에서 접기·펼치기를 전환해도 iframe 연결과 원래 행의 높이는 유지한다.
+Dev controls의 `지원 중 미리보기`는 대화 행을 추가하지 않고 같은 고정 팝업을 빈 화면으로 바로 표시하며 실제 세션이나 지원 요청을 만들지 않는다.
 행이 다시 보이면 원래 흐름으로 돌아온다. 고정된 동안 원래 행의 높이를 유지한다.
 채팅 컨테이너가 fixed 좌표와 stacking context를 소유한다. 브라우저는 이 안의 z-10(선택된 고정 화면은 z-11),
 composer는 z-20을 사용하므로 입력창·메뉴·모달 앞으로 튀어나오지 않는다.
 다른 브라우저는 대화의 열기 버튼으로 남긴다. 스크롤 이동은 같은 iframe을 유지하며,
 다른 세션을 선택하면 뷰어만 연결한다. 선택 변경이나 뷰어 닫기가 원격 작업을 취소하지 않는다.
 Dev controls와 같은 `BrowserPreviewSurface`를 사용하고, shared `Dialog`의 `modal={false}`와
-`DialogPanelContent`가 포털 없이 바깥 클릭·Escape·focus를 처리한다.
+`DialogPanelContent`가 포털 없이 Escape·focus를 처리한다. 대화 영역을 누르거나 터치 스크롤해도 뷰어는 유지한다.
 Harper의 `[[browser:session_id]]`는 대화에 열기 버튼을 남기며 현재 선택을 바꾸지 않는다.
 마커는 화면 표시만 바꾸며 제어권을 넘기거나 실행을 중단하지 않는다.
 읽기 전용 화면을 기본으로 사용하며 human 상태의 펼친 화면에서만 직접 입력한다.
@@ -804,7 +808,12 @@ Career `suggest_form`은 저장 즉시 원본과 `career_form_presentation`으�
 ### Career conversation version preview
 
 Career Dev Controls의 기존 “Harper 메시지 스타일” 자리는 “Career 버전” 두 선택지로 바뀐다.
-1은 현재 전문적인 텍스트 대화, 2는 친근하고 간결한 텍스트 대화와 버블 UI를 함께 선택한다.
+1은 기존 텍스트 UI에 친근한 해요체를 사용하고, 2는 친근하고 간결한 텍스트 대화와 버블 UI를 함께 선택한다.
+버전 1에는 분량 축소나 버블 분할 지침을 추가하지 않는다. 데스크톱 버전 1의 복사·삭제·시간은
+메시지 아래 hover/focus 액션으로 표시하고, 버전 2는 우클릭 메뉴를 유지한다.
+일반 텍스트 대화의 버전 1은 같은 실행의 도구 전후 발화를 기존 메시지 하나에 누적한다.
+진행 중 본문은 Working 아래에 표시하며 실행 식별자를 React key로 유지한다.
+Working/Worked 시간은 저장된 실제 실행 시작·종료 시각을 사용하고 진행 중에는 초 단위로 갱신한다.
 선택은 `useCareerWorkspaceUiStore`에 브라우저별로 저장하며, 서버가 dev 권한을 확인한 값만
 해당 사용자 메시지 payload에 기록해 같은 turn의 재개에서도 유지한다. 별도 개발용 prompt
 파일 override 선택 시 버전 1로 전환하며, 버전 선택 시 파일 override는 해제한다.

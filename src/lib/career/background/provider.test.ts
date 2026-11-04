@@ -5,6 +5,7 @@ import { dispatchCareerCheckpoint } from "../agentContinuation";
 import { CAREER_DELIVERY_TOOLS } from "./delivery";
 import { renderCareerBackgroundInvocation } from "./prompt";
 import { DEFAULT_CAREER_TEXT_CHAT_MODEL } from "../textChatModelConfig";
+import { CLAUDE_HAIKU_MODEL, GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { withToolTrace, type ToolTraceEvent } from "@/lib/llm/toolTrace";
 
 test("company follow context identifies the exact evaluation to read without exposing raw payloads", () => {
@@ -28,10 +29,14 @@ test("company follow context identifies the exact evaluation to read without exp
 
 // Capture the actual provider request after the common serializer and dynamic
 // capability policy have run; no live LLM or mail service is contacted.
-test("background provider waits durably for evaluation and resumes the same transcript with compact results", async () => {
+for (const model of [DEFAULT_CAREER_TEXT_CHAT_MODEL, CLAUDE_HAIKU_MODEL, GPT_6_LUNA_MODEL]) {
+test(`background provider ${model} waits durably and resumes the same model and transcript`, async () => {
   const originalFetch = globalThis.fetch;
   const oldKey = process.env.OPENAI_API_KEY;
+  const oldAnthropicKey = process.env.ANTHROPIC_API_KEY;
   process.env.OPENAI_API_KEY = "test-key";
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  const anthropic = model === CLAUDE_HAIKU_MODEL;
   try {
     const { runCareerChatAssistant } = await import("../llm");
     const tools = ["search_opportunities", "read_matching"].map(name => ({ type: "function" as const, function: { name, description: name, parameters: { type: "object", properties: {} } } }));
@@ -45,19 +50,31 @@ test("background provider waits durably for evaluation and resumes the same tran
     globalThis.fetch = async (url, init) => {
       if (String(url).includes("/rest/v1/")) return Response.json([]);
       const body = JSON.parse(String(init?.body)); requests++;
-      assert.equal(body.model, DEFAULT_CAREER_TEXT_CHAT_MODEL);
-      assert.equal(body.reasoning?.effort ?? body.reasoning_effort, "high");
+      assert.equal(body.model, model);
+      if (anthropic) {
+        assert.equal(String(url), "https://api.anthropic.com/v1/messages");
+        assert.equal(new Headers(init?.headers).get("x-stainless-lang"), "js");
+        assert.equal(body.output_config, undefined);
+        assert.equal(body.thinking, undefined);
+      } else {
+        assert.equal(String(url), "https://api.openai.com/v1/responses");
+        assert.equal(body.reasoning?.effort ?? body.reasoning_effort, "high");
+      }
       const input = body.input ?? body.messages;
-      const rendered = JSON.stringify(input);
+      const rendered = JSON.stringify([body.system, input]);
       assert.ok(rendered.includes("Background mode"));
       assert.ok(!rendered.includes("Each message remains visible"));
       assert.ok(!rendered.includes("PRIVATE_DB_SENTINEL"));
       assert.ok(!rendered.includes("현재 기준은 3일마다"));
-      assert.ok(!input.some((message: any) => message.role === "user"), "a server event must not fabricate a user instruction");
+      assert.ok(!input.some((message: any) => message.role === "user" && typeof message.content === "string"), "a server event must not fabricate a user instruction");
       if (requests === 3) assert.ok(rendered.includes("Evaluation eval-1 queued; read matching match-1 after completion."));
       if (requests === 4) assert.ok(rendered.includes("Matching match-1, revision 2: role-1 evaluated. No recommendation published."));
       const call = requests === 1 ? "load_career_capabilities" : requests === 2 ? "search_opportunities" : "read_matching";
-      return Response.json({ id: `r${requests}`, model: DEFAULT_CAREER_TEXT_CHAT_MODEL, status: "completed", output: requests < 4
+      if (anthropic) return Response.json({ id: `r${requests}`, model, stop_reason: requests < 4 ? "tool_use" : "end_turn",
+        content: requests < 4
+          ? [{ type: "tool_use", id: `call-${requests}`, name: call, input: requests === 1 ? { capabilities: ["opportunities"] } : {} }]
+          : [{ type: "text", text: "No contact needed." }], usage: { input_tokens: 1, output_tokens: 1 } });
+      return Response.json({ id: `r${requests}`, model, status: "completed", output: requests < 4
         ? [{ type: "function_call", call_id: `call-${requests}`, name: call, arguments: requests === 1 ? '{"capabilities":["opportunities"]}' : "{}" }]
         : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "No contact needed." }] }], usage: { input_tokens: 1, output_tokens: 1 } });
     };
@@ -71,11 +88,11 @@ test("background provider waits durably for evaluation and resumes the same tran
     const trace: ToolTraceEvent[] = [];
     const invoke = (runtime: CareerCapabilityRuntime) => {
       const step = runtime.resolveStep(false);
-      return withToolTrace(async event => { trace.push(event); }, () => runCareerChatAssistant({ messages: [], toolRuntime: runtime, tools: step.tools, systemBlocks: step.systemBlocks, executeTool }));
+      return withToolTrace(async event => { trace.push(event); }, () => runCareerChatAssistant({ primaryModel: saved ? "claude-sonnet-5-5" : model, anthropicEffort: anthropic ? null : undefined, openAIResponsesReasoningEffort: "high", messages: [], toolRuntime: runtime, tools: step.tools, systemBlocks: step.systemBlocks, executeTool }));
     };
     await assert.rejects(invoke(new CareerCapabilityRuntime(options)), CareerReplyContinuation);
     assert.equal(requests, 2);
-    assert.equal(saved?.model, DEFAULT_CAREER_TEXT_CHAT_MODEL);
+    assert.equal(saved?.model, model);
     assert.deepEqual(saved?.waitFor, [{ kind: "external_evaluation", id: "eval-1" }]);
     assert.equal(saved?.continuation?.backgroundRunId, "owned-run");
     assert.equal(await invoke(new CareerCapabilityRuntime({ ...options, resume: saved })), "No contact needed.");
@@ -86,8 +103,10 @@ test("background provider waits durably for evaluation and resumes the same tran
   } finally {
     globalThis.fetch = originalFetch;
     if (oldKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = oldKey;
+    if (oldAnthropicKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = oldAnthropicKey;
   }
 });
+}
 
 test("queued child does not wake its parent; completion preserves background delivery ownership", async () => {
   let status = "queued";

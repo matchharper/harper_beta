@@ -78,11 +78,19 @@ export const toUiMessage = (message: {
   recommendationSearchRelation?: CareerMessage["recommendationSearchRelation"];
   recommendationSearchRun?: CareerMessage["recommendationSearchRun"];
   recommendationStatusAfterCharCount?: number | null;
+  workReplyId?: string;
+  workStartedAt?: string;
+  workCompletedAt?: string;
+  workPending?: boolean;
   thinkingLogs?: unknown;
   turnStopped?: boolean;
   turnPending?: boolean;
   clientRequestId?: string;
 }): CareerMessage => ({
+  workReplyId: message.workReplyId,
+  workStartedAt: message.workStartedAt,
+  workCompletedAt: message.workCompletedAt,
+  workPending: message.workPending,
   turnStopped: message.turnStopped,
   turnPending: message.turnPending,
   clientRequestId: message.clientRequestId,

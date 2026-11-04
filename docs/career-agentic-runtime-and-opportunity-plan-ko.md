@@ -83,6 +83,8 @@ flowchart TD
 
 ### 런타임 배치 결정
 
+코드 설정: 예약으로 깨어나는 `career_schedule_due` 실행은 웹 서버 환경 변수 `CAREER_SCHEDULED_AGENT_MODEL`을 사용하며, 미설정·빈 값이면 `gpt-6-luna`를 사용한다. 예약 실행의 OpenAI Responses reasoning effort는 `high`다. 일반 대화·회사 사건으로 깨어나는 실행은 기존 대화 모델 선택을 유지한다. 저장된 checkpoint를 재개할 때는 기존 모델·transcript를 유지한다. 이 설정 설명은 운영 배포 완료를 뜻하지 않는다.
+
 새 Python 대화 agent를 만들지 않는다. beta의 서버 전용 background adapter/endpoint와 기존 reply queue가 논리 invocation·tool transcript·continuation을 소유한다. Opportunity scheduler는 due/source 실행을 멱등 접수하고, Python Worker 슬롯은 실제 전문 평가·기존 전달 작업을 수행할 때만 점유한다. 새 endpoint의 인증·run ownership·lease fencing은 서버에서 확인한다.
 
 장기 평가가 필요하면 원본 agent가 정확한 tool call/checkpoint와 평가 job 참조를 저장하고 실행 claim을 반납한다. Python job은 자체 run/lease로 평가를 완료한 뒤 같은 논리 reply ID를 재개한다. 부모의 대기를 완료로 처리하지 않고, 이미 수행한 도구를 다시 실행하지 않는다. 현재 Worker는 같은 사용자의 다른 running run이 있으면 claim을 막으며 평가 writer도 running lease를 요구하므로, 부모를 running으로 둔 채 자식을 기다리는 구조를 그대로 사용해서는 안 된다. 평가 job의 실행 소유권과 논리 agent의 대기를 구분하는 것이 전환 범위다.

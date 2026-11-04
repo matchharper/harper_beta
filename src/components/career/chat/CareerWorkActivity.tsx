@@ -21,8 +21,17 @@ export function CareerWorkActivityStatus({
           : ("done" as const),
     }))
   );
-  return logs.length ? (
-    <ChatThinkingLogPanel active hasToolWork logs={logs} />
+  const startedAt = activities
+    .map((activity) => activity.startedAt)
+    .filter(Boolean)
+    .sort()[0];
+  return logs.length || startedAt ? (
+    <ChatThinkingLogPanel
+      active
+      hasToolWork={logs.length > 0}
+      logs={logs}
+      startedAt={startedAt}
+    />
   ) : (
     <div role="status" className="text-neutral-muted">
       <span className="career-thinking-shimmer inline-block text-sm font-medium">
@@ -35,9 +44,11 @@ export function CareerWorkActivityStatus({
 export function CareerWorkActivity({
   conversationId,
   admitting,
+  visibleReplyIds = [],
 }: {
   conversationId?: string | null;
   admitting?: boolean;
+  visibleReplyIds?: string[];
 }) {
   const { data, isError } = useCareerOpenForms(conversationId);
   const t = useCareerT();
@@ -52,7 +63,9 @@ export function CareerWorkActivity({
         </div>
       )}
       <CareerWorkActivityStatus
-        activities={data?.activities}
+        activities={data?.activities?.filter(
+          (activity) => !visibleReplyIds.includes(`invocation:${activity.id}`)
+        )}
         admitting={admitting}
       />
     </>

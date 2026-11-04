@@ -516,6 +516,10 @@ export type CareerMessage = {
   recommendationSearchRelation?: OpportunityRunMarkerRelation | null;
   recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
+  workReplyId?: string;
+  workStartedAt?: string;
+  workCompletedAt?: string;
+  workPending?: boolean;
   thinkingLogs?: string[];
   turnStopped?: boolean;
   turnPending?: boolean;
@@ -550,6 +554,10 @@ export type CareerMessagePayload = {
   recommendationSearchRelation?: OpportunityRunMarkerRelation | null;
   recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
+  workReplyId?: string;
+  workStartedAt?: string;
+  workCompletedAt?: string;
+  workPending?: boolean;
   thinkingLogs?: string[];
   turnStopped?: boolean;
   turnPending?: boolean;

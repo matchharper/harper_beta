@@ -13,6 +13,7 @@ import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { runToolCall, unwrapToolCall } from "@/lib/llm/toolExecution";
 import { prepareFollowedCompanies, readPreparedFollowContext, shouldPrepareFollowedCompanies } from "../companies/preparation";
 import { withCareerBackgroundToolTrace } from "./toolTrace.server";
+import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 
 export async function readCareerBackgroundRun(admin: TalentAdminClient, runId: string) {
   const { data, error } = await (admin.from as any)("opportunity_discovery_run").select("*").eq("id", runId).single();
@@ -97,6 +98,10 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
     const execute = () => runCareerChatTurn({
       admin: args.admin, userId: args.userId, conversationId: args.conversationId, userMessage: null,
       agentReplyId: invocation.replyId,
+      assistantModel: run.trigger === "career_schedule_due"
+        ? process.env.CAREER_SCHEDULED_AGENT_MODEL?.trim() || GPT_6_LUNA_MODEL
+        : undefined,
+      assistantOpenAIResponsesReasoningEffort: run.trigger === "career_schedule_due" ? "high" : undefined,
       backgroundInvocation: {
         runId: run.id,
         meetingScheduleVersions: inboxContext.meetingScheduleVersions,

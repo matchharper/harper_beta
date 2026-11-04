@@ -85,7 +85,7 @@ test("shows Working during tool execution and Worked with elapsed time after com
   );
 
   assert.match(workingHtml, />Working</);
-  assert.match(workedHtml, /Worked · 8m 4s/);
+  assert.match(workedHtml, /Worked for 8m 4s/);
 });
 
 test("application question wait reuses the work panel without an active spinner", () => {

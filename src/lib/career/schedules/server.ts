@@ -322,6 +322,9 @@ export async function collectDueCareerSchedules(args: {
   now?: Date;
   limit?: number;
 }) {
+  // Zero capacity defers collection without advancing any saved occurrence.
+  // The dispatch endpoint still performs recovery and delivery maintenance.
+  if (args.limit === 0) return { runIds: [] as string[] };
   const now = args.now ?? new Date();
   const { data, error } = await database(args.admin)
     .from("talent_agent_schedules")

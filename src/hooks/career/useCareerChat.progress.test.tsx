@@ -7,7 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import { MessagesProvider } from "@/i18n/useMessage";
 import type { CareerMessagePayload } from "@/components/career/types";
 
-test("progress messages survive further tools, failure, and history hydration without ending the turn", async () => {
+for (const merged of [false, true]) test(`progress messages survive further tools, failure, and history hydration (${merged ? "merged" : "separate"})`, async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
   const { useCareerChat } = await import("./useCareerChat");
@@ -29,7 +29,7 @@ test("progress messages survive further tools, failure, and history hydration wi
       fetchWithAuth: async () => new Response(new ReadableStream({ start(c) { controller = c; } }),
         { headers: { "Content-Type": "text/event-stream" } }),
     });
-    return <>{chat.messages.map(message => <p key={message.id}>{message.content}</p>)}</>;
+    return <>{chat.messages.map(message => <p key={message.workReplyId ?? message.id}>{message.content}</p>)}</>;
   }
   const root = createRoot(dom.window.document.getElementById("root")!);
   const emit = async (event: string, data: unknown) => act(async () => {
@@ -43,19 +43,25 @@ test("progress messages survive further tools, failure, and history hydration wi
     await act(async () => chat.setStage("chat"));
     await act(async () => { pending = chat.sendChatMessage({ text: "자료를 확인해줘" }); });
     await emit("user_message", { message: { ...message(1, "자료를 확인해줘"), role: "user" } });
+    let cumulative = "";
     for (const [id, text] of [[2, "자료부터 확인할게요."], [3, "관련 경험을 찾았어요. 추가 내용을 확인할게요."]] as const) {
-      await emit("text_delta", { delta: text });
+      await emit("text_delta", { delta: (merged && cumulative ? "\n\n" : "") + text });
+      cumulative = [cumulative, text].filter(Boolean).join("\n\n");
       assert.ok(dom.window.document.body.textContent?.includes(text));
-      await emit("assistant_message", { message: message(id, text), continuing: true });
+      await emit(merged ? "assistant_progress" : "assistant_message", {
+        message: merged ? { ...message(2, cumulative), workReplyId: "message:1", workPending: true } : message(id, text), continuing: true });
       assert.equal(chat.chatPending, true);
       await emit("tool_status", { message: "자료 확인 중" });
-      assert.equal(chat.messages.filter(item => item.content === text).length, 1);
+      assert.equal(chat.messages.filter(item => item.content === (merged ? cumulative : text)).length, 1);
     }
-    assert.deepEqual([...saved.keys()], [1, 2, 3]);
+    if (merged) {
+      await emit("assistant_message", { message: { ...message(2, cumulative), workReplyId: "message:1", workPending: false } });
+    }
+    assert.deepEqual([...saved.keys()], merged ? [1, 2] : [1, 2, 3]);
     await emit("error", { error: "연결이 끊겼습니다" });
     await act(async () => { controller.close(); await pending; });
     assert.equal(chat.chatPending, false);
-    assert.equal(chat.messages.filter(item => item.role === "assistant" && item.content).length, 2);
+    assert.equal(chat.messages.filter(item => item.role === "assistant" && item.content).length, merged ? 1 : 2);
     // Read the same persisted rows back as a fresh page would.
     history.push(...[...saved.values()].map(item => ({ ...item, id: String(item.id) })) as typeof history);
     await act(async () => root.render(<MessagesProvider locale="ko"><Harness key="reloaded" /></MessagesProvider>));

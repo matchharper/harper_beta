@@ -11,7 +11,7 @@ import {
   ScanSearch,
   Send,
 } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 
 import { BareButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -119,17 +119,21 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
   startedAt,
   statusLabel: statusLabelOverride,
 }: ChatThinkingLogPanelProps) {
-  const [expanded, setExpanded] = useState(active);
+  const [expanded, setExpanded] = useState(false);
   const isExpanded = active || expanded;
-  const duration =
-    !active && hasToolWork
-      ? formatChatWorkDuration(startedAt, completedAt)
-      : null;
+  const [now, setNow] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    if (!active || !startedAt) return;
+    setNow(new Date().toISOString());
+    const timer = setInterval(() => setNow(new Date().toISOString()), 1000);
+    return () => clearInterval(timer);
+  }, [active, startedAt]);
+  const duration = formatChatWorkDuration(startedAt, active ? now : completedAt);
   const statusLabel =
     statusLabelOverride ??
     (hasToolWork ? (active ? "Working" : "Worked") : "Thinking");
 
-  if (logs.length === 0) return null;
+  if (logs.length === 0 && !startedAt) return null;
 
   return (
     <div

@@ -141,6 +141,10 @@ export type TalentMessageResponse = {
   messageType: string;
   coachingActivity?: CareerCoachingActivity;
   createdAt: string;
+  workReplyId?: string;
+  workStartedAt?: string;
+  workCompletedAt?: string;
+  workPending?: boolean;
   thinkingLogs: string[];
   turnStopped?: boolean;
   turnPending?: boolean;
@@ -160,6 +164,7 @@ export function normalizeTalentMessageThinkingLogs(value: unknown): string[] {
 export function toTalentMessageResponse(
   item: TalentMessageRow
 ): TalentMessageResponse {
+  const payload = item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) ? item.payload : {};
   const coachingActivity =
     item.message_type === "career_coaching_activity"
       ? // Avoid importing the activity module here: that module already uses this serializer.
@@ -197,6 +202,10 @@ export function toTalentMessageResponse(
     messageType: item.message_type ?? "chat",
     createdAt: item.created_at,
     turnPending: !isCareerTurnStopped(item.payload) && item.role === "user" && !!item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && !!item.payload.careerCapabilityTurn && typeof item.payload.careerCapabilityTurn === "object" && !Array.isArray(item.payload.careerCapabilityTurn) && item.payload.careerCapabilityTurn.status === "in_progress",
+    workReplyId: typeof payload.careerTextReplyId === "string" ? payload.careerTextReplyId : undefined,
+    workStartedAt: typeof payload.workStartedAt === "string" ? payload.workStartedAt : undefined,
+    workCompletedAt: typeof payload.workCompletedAt === "string" ? payload.workCompletedAt : undefined,
+    workPending: payload.workPending === true && !isCareerTurnStopped(item.payload),
     thinkingLogs: normalizeTalentMessageThinkingLogs(item.thinking_logs),
     clientRequestId: item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && typeof item.payload.clientRequestId === "string" ? item.payload.clientRequestId : undefined,
     turnStopped: isCareerTurnStopped(item.payload),

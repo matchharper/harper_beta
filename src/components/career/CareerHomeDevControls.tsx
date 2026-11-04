@@ -56,6 +56,7 @@ import {
   CAREER_PROMPT_VARIANTS,
 } from "@/lib/career/prompts/promptExperiment";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
+import { useBrowserSessionDevPreview } from "./BrowserSessionDock";
 import CareerGlassDevControls from "./CareerGlassDevControls";
 import { GmailIntegrationActionContent } from "./chat/GmailIntegrationAction";
 import type {
@@ -203,6 +204,7 @@ export default function CareerHomeDevControls({
   const setConversationVersion = useCareerWorkspaceUiStore(
     (state) => state.setConversationVersion
   );
+  const browserPreview = useBrowserSessionDevPreview();
   const [browserUseOpen, setBrowserUseOpen] = React.useState(false);
   const [pendingActionsOpen, setPendingActionsOpen] = React.useState(false);
   const { fetchWithAuth } = useCareerApi();
@@ -803,10 +805,21 @@ export default function CareerHomeDevControls({
           onClose={() => setBackgroundRunModalOpen(false)}
         />
       ) : null}
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <MuteButton onClick={() => setBrowserUseOpen(true)}>
           <Play className="size-3.5" />
           Browser Use
+        </MuteButton>
+        <MuteButton
+          aria-pressed={browserPreview.open}
+          disabled={!browserPreview.setOpen}
+          onClick={() => {
+            browserPreview.setOpen?.(!browserPreview.open);
+            if (!browserPreview.open) onOpenChat();
+          }}
+        >
+          <Play className="size-3.5" />
+          지원 중 미리보기
         </MuteButton>
       </div>
       {browserUseOpen ? (

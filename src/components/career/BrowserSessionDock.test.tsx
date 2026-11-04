@@ -29,9 +29,10 @@ test('only the selected browser connects; scrolling preserves it and selecting a
   viewport.getBoundingClientRect = () => new dom.window.DOMRect(0, 50, 800, 500);
   slot.getBoundingClientRect = () => new dom.window.DOMRect(20, slotTop, 320, 250);
   const anchors = new Map([['first', slot]]);
-  const render = () => root.render(<MessagesProvider locale="ko"><div style={{position:'relative'}}><BrowserSessionDockView views={visible} anchors={anchors} selectedId={selected} onSelect={id=>{selected=id;render();}} /></div></MessagesProvider>);
+  const render = () => root.render(<MessagesProvider locale="ko"><div data-career-chat-layout style={{position:'relative'}}><BrowserSessionDockView views={visible} anchors={anchors} selectedId={selected} onSelect={id=>{selected=id;render();}} /></div></MessagesProvider>);
   try {
     await act(async () => render());
+    dom.window.document.querySelector<HTMLElement>('[data-career-chat-layout]')!.getBoundingClientRect = () => new dom.window.DOMRect(0, 0, 800, 800);
     assert.equal(dom.window.document.querySelectorAll('iframe').length, 0);
     await act(async () => { selected = 'first'; render(); });
     const first = dom.window.document.querySelector('[data-browser-session-id="first"] iframe');
@@ -58,11 +59,32 @@ test('only the selected browser connects; scrolling preserves it and selecting a
     assert.equal(placement(), 'dock');
     assert.equal(slot.contains(first), true, 'docking does not move or reconnect the iframe');
     assert.equal(panel.style.position, 'fixed');
+    assert.equal(panel.style.width, '320px', 'desktop docking starts as a small preview');
     assert.equal(panel.style.zIndex, '11', 'docked viewer stays below the composer layer');
     assert.equal(panel.style.transition, '');
+    // Mobile docks start folded; expanding/folding must retain the same live iframe.
+    Object.defineProperty(dom.window, 'innerWidth', { configurable: true, value: 390 });
+    await act(async () => { dom.window.dispatchEvent(new dom.window.Event('resize')); });
+    const browser = first.closest('[data-browser-session-id]')!;
+    assert.equal(browser.getAttribute('data-browser-expanded'), 'false');
+    assert.ok(first.closest('[hidden]'));
+    assert.equal(panel.style.top, '12px');
+    const toggle = () => panel.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    await act(async () => toggle().click());
+    assert.equal(browser.getAttribute('data-browser-expanded'), 'true');
+    assert.equal(panel.style.width, '320px', 'mobile expansion keeps the folded width');
+    assert.equal(panel.style.top, '12px', 'mobile expansion grows downward from the same top');
+    assert.equal(first.closest('[hidden]'), null);
+    await act(async () => toggle().click());
+    assert.equal(browser.getAttribute('data-browser-expanded'), 'false');
+    assert.equal(panel.querySelector('iframe'), first);
+    Object.defineProperty(dom.window, 'innerWidth', { configurable: true, value: 1024 });
+    await act(async () => { dom.window.dispatchEvent(new dom.window.Event('resize')); });
+
     await scroll(100);
     assert.equal(placement(), 'inline');
     assert.equal(dom.window.document.querySelector('[data-browser-session-id="first"] iframe'), first);
+    assert.equal(first.closest('[hidden]'), null, 'returning to the conversation expands the viewer');
     await scroll(550); // Below the visible timeline also docks.
     assert.equal(placement(), 'dock');
     await scroll(549);

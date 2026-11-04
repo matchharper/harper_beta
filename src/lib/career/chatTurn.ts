@@ -1,3 +1,5 @@
+import { createCareerAssistantMessageWriter } from "./assistantMessageWriter";
+import { readCareerConversationVersion } from "./conversationVersion";
 import { readCareerReengagementOpportunities, REENGAGEMENT_OPPORTUNITY_PRELOAD } from "./reengagementOpportunities";
 import { createCareerFormPresenter } from "./forms/server";
 import { watchCareerTurnCancellation } from "./turnCancellation.server";
@@ -187,6 +189,7 @@ export type RunCareerChatTurnArgs = {
   assistantMessagePayload?: TalentMessageRow["payload"];
   allowedToolNames?: readonly string[] | null;
   assistantModel?: string;
+  assistantAnthropicEffort?: Parameters<typeof runCareerChatAssistant>[0]["anthropicEffort"];
   textChatModel?: CareerTextChatModelId;
   assistantChatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   assistantMessagePrefix?: string | null;
@@ -906,6 +909,7 @@ export async function runCareerChatTurn(
   const standaloneCancellation = !capabilityTurn && insertedUserMessage
     ? watchCareerTurnCancellation({ admin, userId, conversationId, sourceMessageId: insertedUserMessage.id }, args.abortSignal) : undefined;
   args = { ...args, abortSignal: capabilityTurn?.runtime.abortSignal ?? standaloneCancellation?.signal ?? args.abortSignal };
+  let messageWriter: Awaited<ReturnType<typeof createCareerAssistantMessageWriter>> | null = null;
   try {
   if (capabilityTurn) await args.onAgentTurnStarted?.(capabilityTurn.claimId);
   await standaloneCancellation?.check();
@@ -1066,6 +1070,17 @@ export async function runCareerChatTurn(
     return result;
   };
 
+  const mergeAssistantText = !noMessageMarker && !isOnboardingActiveForTurn && !args.adapter && !args.backgroundInvocation && requestChannel === "chat" &&
+    assistantMessageType === "chat" && readCareerConversationVersion(insertedUserMessage?.payload) === "professional";
+  messageWriter = mergeAssistantText ? await createCareerAssistantMessageWriter({
+    admin, userId, conversationId, isMobile,
+    replyId: capabilityTurn?.replyId ?? args.agentReplyId ?? `message:${insertedUserMessage?.id ?? requestStartedAt}`,
+    startedAt: new Date(requestStartedAt).toISOString(),
+    check: async () => {
+      await (capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check)?.();
+      return shouldInsertAssistantMessage ? shouldInsertAssistantMessage() : true;
+    },
+  }) : null;
   let assistantText: string;
   try {
     const assistantArgs: Parameters<typeof runCareerChatAssistant>[0] = {
@@ -1079,13 +1094,18 @@ export async function runCareerChatTurn(
         ));
         if (!content.trim()) return;
         if (shouldInsertAssistantMessage && !(await shouldInsertAssistantMessage())) return;
+        if (messageWriter) {
+          const row = await messageWriter.progress(content, thinkingLogs);
+          if (row) onArtifactMessage(toTalentMessageResponse(row));
+          return;
+        }
         const row = args.adapter
           ? await args.adapter.persistAssistant({ content, notices: [] })
           : await (async () => {
               const { data, error } = await admin.from("talent_messages").insert(withIsMobile({
                 conversation_id: conversationId, user_id: userId, role: "assistant", content,
                 message_type: "chat", thinking_logs: thinkingLogs,
-                ...(sourceModel ? { payload: { careerTextChatModel: sourceModel.model } } : {}),
+                payload: { ...(sourceModel ? { careerTextChatModel: sourceModel.model } : {}), workStartedAt: new Date(requestStartedAt).toISOString(), workCompletedAt: new Date().toISOString() },
               }, isMobile)).select("*").single();
               if (error || !data) throw new Error(error?.message ?? "Failed to save assistant progress");
               return data as TalentMessageRow;
@@ -1141,6 +1161,7 @@ export async function runCareerChatTurn(
       openAIResponsesReasoningEffort:
         args.assistantOpenAIResponsesReasoningEffort ?? sourceModel?.openAIResponsesReasoningEffort,
       primaryModel: assistantModel,
+      anthropicEffort: args.assistantAnthropicEffort,
       responseLocale,
       stopAfterToolNames: toolSelection.stopAfterToolNames,
       systemBlocks,
@@ -1148,14 +1169,24 @@ export async function runCareerChatTurn(
       tools: toolDefinitions,
       usageLabel: args.usageLabel,
     };
-    assistantText = args.onTextDelta
+    assistantText = args.onTextDelta || (messageWriter && !args.transformAssistantTextBeforeInsert)
       ? await runCareerChatAssistantStream({
           ...assistantArgs,
-          onTextDelta: args.onTextDelta,
-          onToolStart: ({ name }) => assistantArgs.onToolStart?.({ name, input: {} }),
+          onTextDelta: async (delta) => {
+            await args.onTextDelta?.(delta);
+            const row = !args.transformAssistantTextBeforeInsert && await messageWriter?.delta(stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(delta)), thinkingLogs);
+            if (row) onArtifactMessage(toTalentMessageResponse(row));
+          },
+          onToolStart: async ({ name }) => {
+            assistantArgs.onToolStart?.({ name, input: {} });
+            const row = await messageWriter?.logs(thinkingLogs);
+            if (row) onArtifactMessage(toTalentMessageResponse(row));
+          },
         })
       : await runCareerChatAssistant(assistantArgs);
   } catch (error) {
+    const row = await messageWriter?.interrupt().catch(() => null);
+    if (row) onArtifactMessage(toTalentMessageResponse(row));
     throwIfToolControlError(error);
     args.abortSignal?.throwIfAborted();
     const receipt = recommendationReceiptRef.current;
@@ -1253,6 +1284,8 @@ export async function runCareerChatTurn(
     // An empty final message can follow already delivered progress, a form or
     // delegated work. A second writer without that execution transcript/tools
     // would invent a new account of what happened.
+    const row = await messageWriter?.finish("", thinkingLogs);
+    if (row) onArtifactMessage(toTalentMessageResponse(row));
     await formPresenter.flush();
     await capabilityTurn?.complete();
     await commitDeliveredProcessClosureNotices({
@@ -1266,6 +1299,7 @@ export async function runCareerChatTurn(
           checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
           abortSignal: args.abortSignal,
         primaryModel: assistantModel,
+        anthropicEffort: args.assistantAnthropicEffort,
         latestUserMessage: normalizedContent || proactiveContext,
         messages: llmMessages,
         responseLocale,
@@ -1328,6 +1362,7 @@ export async function runCareerChatTurn(
           checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
           abortSignal: args.abortSignal,
         primaryModel: assistantModel,
+        anthropicEffort: args.assistantAnthropicEffort,
         latestUserMessage: normalizedContent || proactiveContext,
         messages: llmMessages,
         responseLocale,
@@ -1399,6 +1434,12 @@ export async function runCareerChatTurn(
 
   const { data: insertedAssistantMessage, error: assistantError } = args.adapter
     ? { data: await args.adapter.persistAssistant({ content: safeAssistantText, notices: Array.from(pendingProcessClosureNotices.values()), agentTurn: capabilityTurn?.getCompletionPayload() }), error: null }
+    : messageWriter
+      ? { data: await messageWriter.finish(safeAssistantText, thinkingLogs, {
+          ...(args.assistantMessagePayload as Record<string, unknown> ?? {}),
+          ...(sourceModel ? { careerTextChatModel: sourceModel.model } : {}),
+          ...(capabilityTurn ? { agentTurn: capabilityTurn.getCompletionPayload() } : {}),
+        }), error: null }
     : await admin
     .from("talent_messages")
     .insert(
@@ -1413,6 +1454,7 @@ export async function runCareerChatTurn(
             ? { payload: {
                 ...(args.assistantMessagePayload as Record<string, unknown> ?? {}),
                 ...(sourceModel ? { careerTextChatModel: sourceModel.model } : {}),
+                workStartedAt: new Date(requestStartedAt).toISOString(), workCompletedAt: new Date().toISOString(),
                 ...(capabilityTurn ? { agentTurn: capabilityTurn.getCompletionPayload() } : {}),
               } as TalentMessageRow["payload"] }
             : {}),
@@ -1424,7 +1466,7 @@ export async function runCareerChatTurn(
     .select("*")
     .single();
 
-  if (assistantError) {
+  if (assistantError || !insertedAssistantMessage) {
     await notifyUnsupportedUnicodeEscapeError({
       conversationId,
       error: assistantError,
@@ -1439,7 +1481,7 @@ export async function runCareerChatTurn(
       userId,
     });
     throw new Error(
-      assistantError.message ?? "Failed to insert assistant message"
+      assistantError?.message ?? "Failed to insert assistant message"
     );
   }
 
@@ -1583,6 +1625,7 @@ export async function runCareerChatTurn(
       recommendationSearchRun,
     }
   );  } finally {
+    await messageWriter?.interrupt().catch(() => undefined);
     standaloneCancellation?.dispose();
     await capabilityTurn?.release().catch(error => {
       console.warn("[TalentChatTurn] Failed to release agent reply", {

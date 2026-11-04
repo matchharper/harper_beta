@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { X } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import {
   BrowserPreviewAction,
   BrowserPreviewSurface,
@@ -25,6 +25,8 @@ export function BrowserSessionView({
   expanded,
   onExpand,
   number,
+  collapsed = false,
+  preview = false,
 }: {
   view?: BrowserSessionViewData;
   busy?: boolean;
@@ -33,6 +35,8 @@ export function BrowserSessionView({
   expanded?: boolean;
   onExpand?: () => void;
   number?: number;
+  collapsed?: boolean;
+  preview?: boolean;
 }) {
   const t = useCareerT();
   const human =
@@ -53,26 +57,53 @@ export function BrowserSessionView({
   return (
     <BrowserPreviewSurface
       liveUrl={!closed && !stopped ? (view?.liveUrl ?? null) : null}
-      loading={!error}
-      showViewport={Boolean(view?.liveUrl) && !closed && !stopped}
+      loading={!error && !preview}
+      showViewport={(preview || Boolean(view?.liveUrl)) && !closed && !stopped}
+      showViewportControls={false}
+      collapsed={collapsed}
       expanded={expanded ?? true}
       onExpand={onExpand}
       interactive={human && (expanded ?? true)}
       title={number ? `${number} · ${title}` : title}
       status={status}
       headerActions={
-        !closed && view ? (
-          <MuteButton
-            type="button"
-            variant="transparent"
-            size="sm"
-            disabled={busy}
-            onClick={() => void onAction("close")}
-            aria-label={t("career.browser.close", "닫기")}
-          >
-            <X className="size-4" />
-          </MuteButton>
-        ) : null
+        <>
+          {onExpand ? (
+            <MuteButton
+              type="button"
+              variant="transparent"
+              size="sm"
+              onClick={onExpand}
+              aria-expanded={!collapsed}
+              aria-label={
+                collapsed
+                  ? t("career.application.browser.expand", "브라우저 화면 확대")
+                  : t(
+                      "career.application.browser.collapse",
+                      "브라우저 화면 축소"
+                    )
+              }
+            >
+              {collapsed ? (
+                <ChevronDown className="size-4" />
+              ) : (
+                <ChevronUp className="size-4" />
+              )}
+            </MuteButton>
+          ) : null}
+          {!closed && view ? (
+            <MuteButton
+              type="button"
+              variant="transparent"
+              size="sm"
+              disabled={busy}
+              onClick={() => void onAction("close")}
+              aria-label={t("career.browser.close", "닫기")}
+            >
+              <X className="size-4" />
+            </MuteButton>
+          ) : null}
+        </>
       }
     >
       {!closed &&
@@ -82,7 +113,7 @@ export function BrowserSessionView({
       view.session.status !== "human" ? (
         <BrowserPreviewAction
           type="button"
-          disabled={busy}
+          disabled={busy || preview}
           onClick={() => void onAction("handoff")}
         >
           {t("career.browser.handoff", "직접 조작")}
@@ -95,7 +126,7 @@ export function BrowserSessionView({
           </a>
         </BrowserPreviewAction>
       ) : null}
-      {!view?.liveUrl && !closed && !stopped && !error ? (
+      {!preview && !view?.liveUrl && !closed && !stopped && !error ? (
         <p className="text-sm text-neutral-muted">
           {view
             ? t(

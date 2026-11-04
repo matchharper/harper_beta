@@ -45,7 +45,7 @@ export function useCareerOpenForms(conversationId?: string | null) {
       lastObserved.current?.conversationId === conversationId
         ? lastObserved.current
         : undefined;
-    if (query.data.latestMessageId !== prior?.messageId) {
+    if (query.data.latestMessageId !== prior?.messageId || query.data.activities?.length || query.data.completionCursor !== prior?.completionCursor) {
       void queryClient.invalidateQueries(
         { queryKey: ["career-message-history", conversationId] },
         { cancelRefetch: false }
@@ -73,6 +73,6 @@ export function useCareerOpenForms(conversationId?: string | null) {
       messageId: query.data.latestMessageId,
       completionCursor: query.data.completionCursor,
     };
-  }, [conversationId, query.data, queryClient]);
+  }, [conversationId, query.data, query.dataUpdatedAt, queryClient]);
   return query;
 }

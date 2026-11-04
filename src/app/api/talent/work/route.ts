@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
         id: string;
         cleanup?: boolean;
         cleanup_browser_session?: string;
-        activity?: { logs?: unknown; waitingForReply?: boolean };
+        activity?: { logs?: unknown; startedAt?: string; waitingForReply?: boolean };
       }) =>
         projectCareerWorkActivity({
           id: row.id,

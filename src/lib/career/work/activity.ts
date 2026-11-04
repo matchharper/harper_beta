@@ -1,13 +1,13 @@
 import type { CareerReplyCheckpoint } from "../capabilities/runtime";
 import type { WorkScope } from "./store";
 
-export type CareerWorkActivity = { id: string; logs: string[] };
+export type CareerWorkActivity = { id: string; logs: string[]; startedAt?: string };
 
 /** Only public tool labels used by chat SSE; never the saved model transcript. */
 export function projectCareerWorkActivity(row: {
   id: string;
   request?: { cleanup?: boolean; cleanup_browser_session?: string };
-  result?: { activity?: { logs?: unknown; waitingForReply?: boolean } };
+  result?: { activity?: { logs?: unknown; startedAt?: string; waitingForReply?: boolean } };
 }): CareerWorkActivity[] {
   if (
     row.request?.cleanup ||
@@ -19,6 +19,7 @@ export function projectCareerWorkActivity(row: {
   return [
     {
       id: row.id,
+      ...(row.result?.activity?.startedAt ? { startedAt: row.result.activity.startedAt } : {}),
       logs: Array.isArray(logs)
         ? logs.filter((log): log is string => typeof log === "string")
         : [],
@@ -33,10 +34,11 @@ export function createCareerInvocationActivity(
 ) {
   let attemptId: string | undefined;
   let logs: string[] = [];
+  let startedAt: string;
   let writes = Promise.resolve();
   const save = (waitingForReply: boolean, starting = false) => {
     if (!attemptId) return writes;
-    const activity = { attemptId, logs: [...logs], waitingForReply };
+    const activity = { attemptId, startedAt, logs: [...logs], waitingForReply };
     writes = writes
       .then(async () => {
         let query = (scope.admin.from as any)("talent_external_operations")
@@ -63,6 +65,7 @@ export function createCareerInvocationActivity(
   return {
     start(claimId: string) {
       attemptId = claimId;
+      startedAt = new Date().toISOString();
       return save(false, true);
     },
     record(nextLogs: string[]) {

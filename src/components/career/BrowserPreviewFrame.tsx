@@ -25,7 +25,9 @@ export function BrowserPreviewSurface({
   status,
   interactive = false,
   showViewport = true,
+  showViewportControls = true,
   headerActions,
+  collapsed = false,
   children,
 }: {
   liveUrl: string | null;
@@ -36,14 +38,16 @@ export function BrowserPreviewSurface({
   status?: string;
   interactive?: boolean;
   showViewport?: boolean;
+  showViewportControls?: boolean;
   headerActions?: ReactNode;
+  collapsed?: boolean;
   children?: ReactNode;
 }) {
   const { iframeRef, ratio } = useLiveBrowserViewport(liveUrl);
   const t = useCareerT();
   const expand = t("career.application.browser.expand", "브라우저 화면 확대");
   return (
-    <section className="space-y-2.5 rounded-3xl bg-bg-weak p-3 shadow-xl">
+    <section className="flex flex-col gap-2.5 rounded-3xl bg-bg-weak p-2 shadow-xl">
       <div className="flex items-center gap-2.5">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-neutral-1000-a05">
           <Monitor className="size-5 text-neutral-primary" aria-hidden="true" />
@@ -62,14 +66,13 @@ export function BrowserPreviewSurface({
               title
             )}
           </h3>
-          {status ? (
-            <p className="text-xs leading-5 text-action">{status}</p>
-          ) : null}
+          {status ? <p className="text-xs text-action">{status}</p> : null}
         </div>
         {headerActions}
       </div>
       {showViewport ? (
         <div
+          hidden={collapsed}
           className="relative aspect-video overflow-hidden rounded-xl border border-neutral-1000-a05 bg-bg-floating"
           style={interactive && ratio ? { aspectRatio: ratio } : undefined}
         >
@@ -106,7 +109,7 @@ export function BrowserPreviewSurface({
               </div>
             ) : null}
           </div>
-          {onExpand ? (
+          {onExpand && showViewportControls ? (
             expanded ? (
               <MuteButton
                 className="absolute right-2 top-2 cursor-pointer"
@@ -135,7 +138,9 @@ export function BrowserPreviewSurface({
           ) : null}
         </div>
       ) : null}
-      {children}
+      <div hidden={collapsed} className="space-y-2.5">
+        {children}
+      </div>
     </section>
   );
 }
