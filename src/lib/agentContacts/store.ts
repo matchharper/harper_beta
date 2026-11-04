@@ -210,11 +210,33 @@ export async function isCareerAgentContactEventCurrent(
   });
 }
 
+/** Scoring belongs to the backend outbox, using the exact accepted profile pin. */
+async function enqueueContactEvaluation(query: Query, message: AgentContactMessage) {
+  if (message.direction !== "to_company" || !message.material_id) return;
+  const [material] = await query(
+    "SELECT profile_id,profile_revision FROM public.talent_role_materials WHERE id=$1::uuid AND talent_id=$2::uuid AND role_id=$3::uuid",
+    [message.material_id, message.talent_id, message.role_id]
+  );
+  if (!material) throw new Error("Shared material unavailable");
+  const { enqueue } = await import("@/lib/career/matching/internalScoring/repository");
+  await enqueue({ query, transaction: async work => work(query) }, {
+    userId: message.talent_id,
+    conversationId: message.source.kind === "career" ? message.source.conversationId : undefined,
+    operationId: `agent-contact:${message.recommendation_id}:${message.material_id}`,
+    payload: {
+      runContract: "career_internal_evaluation_v1",
+      roleIds: [message.role_id], profileId: material.profile_id, profileRevision: Number(material.profile_revision),
+      requestedOpportunityId: message.recommendation_id, publishRecommendation: false,
+    },
+  });
+}
+
 /** Called inside the same transaction as mailbox insertion. Queue publication is recoverable. */
 export async function enqueueAgentContactReceiver(
   query: Query,
   message: AgentContactMessage
 ) {
+  await enqueueContactEvaluation(query, message);
   if (message.receiver_job_id) return message;
   if (message.direction === "to_company") {
     const [job] = await query(
@@ -361,6 +383,7 @@ export async function sendAgentContact(
         existing.company_workspace_id !== rec.company_workspace_id
       )
         throw new Error("Operation key belongs to another relationship");
+      await enqueueContactEvaluation(query, existing as AgentContactMessage);
       return { message: existing as AgentContactMessage, reused: true };
     }
     if (args.acceptIntroduction && args.source.kind !== "career")
@@ -391,8 +414,10 @@ export async function sendAgentContact(
         "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid AND cancelled_at IS NULL",
         [rec.agent_introduction_root_id]
       );
-      if (current && rec.feedback === "like" && rec.saved_stage !== "closed")
+      if (current && rec.feedback === "like" && rec.saved_stage !== "closed") {
+        await enqueueContactEvaluation(query, current as AgentContactMessage);
         return { message: current as AgentContactMessage, reused: true };
+      }
     }
     // Intake can stop without changing the recipient contract or stranding accepted work.
     if (

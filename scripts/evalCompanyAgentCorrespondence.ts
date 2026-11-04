@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { formatIntroductionContext } from "../src/lib/agentContacts/introductionContext";
 import { companyAgentEventPrompt } from "../src/lib/agentContacts/contracts";
 
 config({ path: ".env.local", quiet: true });
@@ -10,16 +11,22 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = "https://evaluation.invalid";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "synthetic";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "synthetic";
 const task = "docs/evaluation/career-internal-introduction";
+const dataset = process.argv[2] ?? "v1";
+if (!["v1", "v2", "v3"].includes(dataset)) throw Error("Unknown registered company fixture version");
 const fixture = JSON.parse(
-  readFileSync(`${task}/company-agent-v1.json`, "utf8")
+  readFileSync(`${task}/company-agent-${dataset}.json`, "utf8")
 );
 const frozen = JSON.parse(
-  readFileSync(`${task}/company-agent-manifest-v1.json`, "utf8")
+  readFileSync(`${task}/company-agent-manifest-${dataset}.json`, "utf8")
 );
+const onlyIndex = process.argv.indexOf("--only");
+const only = onlyIndex < 0 ? [] : process.argv[onlyIndex + 1].split(",");
+assert.ok(only.every(id => fixture.cases.some((scenario: any) => scenario.id === id)), "Unknown company case ID");
+const cases = fixture.cases.filter((scenario: any) => !only.length || only.includes(scenario.id));
 const hash = (v: string | Buffer) =>
   createHash("sha256").update(v).digest("hex");
 assert.equal(
-  hash(readFileSync(`${task}/company-agent-v1.json`)),
+  hash(readFileSync(`${task}/company-agent-${dataset}.json`)),
   frozen.inputHash
 );
 const dir = `${task}/runs/company-${new Date().toISOString().replace(/[:.]/g, "-")}`;
@@ -59,15 +66,19 @@ async function main() {
     await import("../src/lib/org/agent/modelConfig");
   const model = resolveOrgAgentModel(undefined).model;
   const sourcePaths = [
+    "scripts/evalCompanyAgentCorrespondence.ts",
     "src/lib/org/agent/chat.ts",
     "src/lib/org/agent/tools.ts",
     "src/lib/org/agent/capabilities/policies.ts",
+    "src/lib/org/agent/capabilities/registry.ts",
     "src/lib/org/agent/promptFormat.ts",
     "src/lib/agentContacts/contracts.ts",
+    "src/lib/agentContacts/introductionContext.ts",
     "src/lib/agentContacts/companyReceiver.server.ts",
   ];
   save("manifest", {
-    dataset: "company-agent-v1",
+    dataset: `company-agent-${dataset}`,
+    selected: cases.map((scenario: any) => scenario.id),
     model,
     createdAt: new Date().toISOString(),
     sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], {
@@ -83,7 +94,7 @@ async function main() {
       "Actual company loop, prompt, schemas and formatters; synthetic context and effects; provider network only.",
   });
   const results = [];
-  for (const scenario of fixture.cases) {
+  for (const scenario of cases) {
     const calls: any[] = [],
       completions: any[] = [];
     const context = {
@@ -101,7 +112,7 @@ async function main() {
       rolesText: `Role ${fixture.roleId}: 플랫폼 엔지니어. 공개 JD: Kubernetes, Terraform, SLO와 온콜 운영. 회사 내부 검토: ${fixture.privateCompanyContext}`,
       completeRoleRequestIds: [],
       recentRecommendationsText: scenario.existingPresentation
-        ? "This exact introduction is already published to the Role inbox and was notified to the team."
+        ? (scenario.existingNotification === false ? "The candidate profile is already published to the Role inbox. The team has not been notified of the new candidate response." : "This exact introduction is already published to the Role inbox and was notified to the team.")
         : "No presentation yet for this introduction.",
       recentContactsText: scenario.history,
       conversationMessages: [],
@@ -114,7 +125,8 @@ async function main() {
       pendingUpdateText: "-",
       recentToolContextText: "-",
     } as any;
-    const event = `Incoming message ${fixture.messageId}; introduction ${fixture.rootId}; Role ${fixture.roleId}.\nCandidate 김서윤; shared material profile: Platform Engineer, Kubernetes 운영 6년, Terraform, SLO와 온콜 runbook 직접 작성. Candidate approved this profile for this introduction.\n${scenario.incoming}`;
+    const relationship = scenario.origin ? formatIntroductionContext({ rootId: fixture.rootId, talentId: fixture.talentId, roleId: fixture.roleId, recommendationId: fixture.recommendationId, candidateName: "김서윤", origin: scenario.origin }) + "\n" : "";
+    const event = relationship + `Incoming message ${fixture.messageId}; introduction ${fixture.rootId}; Role ${fixture.roleId}.\nCandidate 김서윤; shared material profile: Platform Engineer, Kubernetes 운영 6년, Terraform, SLO와 온콜 runbook 직접 작성. Candidate approved this profile for this introduction.\n${scenario.incoming}`;
     let failure: string | undefined;
     try {
       const result = await runOrgAgentToolLoop(

@@ -9,7 +9,6 @@ import {
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
 import {
-  archiveEndedInternalOpportunitiesForTalent,
   assertCurrentTalentRecommendation,
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryByRoleIds,
@@ -337,6 +336,10 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
+    if (req.nextUrl.searchParams.get("summary") === "true") {
+      const counts = await fetchTalentOpportunityHistoryCounts({ admin, userId: user.id });
+      return NextResponse.json({ ok: true, counts });
+    }
     const limit = parsePositiveIntegerParam(
       req.nextUrl.searchParams.get("limit"),
       10,
@@ -371,10 +374,6 @@ export async function GET(req: NextRequest) {
     }
 
     if (roleId) {
-      await archiveEndedInternalOpportunitiesForTalent({
-        admin,
-        userId: user.id,
-      });
       const items = await fetchTalentOpportunityHistoryByRoleIds({
         admin,
         includeActivityTimeline: true,
@@ -395,6 +394,7 @@ export async function GET(req: NextRequest) {
 
     if (historyTab === "saved" && savedStages.length > 0) {
       const stagePages = await fetchTalentOpportunitySavedStageHistoryPages({
+        includeCounts: false,
         admin,
         limit,
         locale,
@@ -411,6 +411,7 @@ export async function GET(req: NextRequest) {
     }
 
     const page = await fetchTalentOpportunityHistoryPage({
+      includeCounts: false,
       admin,
       historyTab,
       latestFirst,

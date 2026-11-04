@@ -44,9 +44,10 @@ function PositiveActionIconView({
   icon: Icon,
   className = "size-4",
 }: {
-  icon: LucideIcon;
+  icon: LucideIcon | null;
   className?: string;
 }) {
+  if (!Icon) return null;
   if (Icon === Handshake) return <AnimatedHandshake className={className} />;
   return <Icon aria-hidden className={className} />;
 }
@@ -188,11 +189,13 @@ export default memo(function NewOpportunityCard({
                     aria-hidden
                     className="size-3.5 md:size-4 animate-spin"
                   />
-                ) : (
+                ) : PositiveActionIcon ? (
                   <PositiveActionIconView
                     icon={PositiveActionIcon}
                     className="size-3.5 md:size-4"
                   />
+                ) : (
+                  positiveLabel
                 )}
               </MuteButton>
             </Tooltips>

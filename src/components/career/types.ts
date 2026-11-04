@@ -594,7 +594,7 @@ export type SessionResponse = {
   };
   historyItems?: CareerHistoryItem[];
   historyOpportunitiesIncluded?: boolean;
-  historyOpportunityCounts?: CareerHistoryOpportunityCounts;
+  historyOpportunityCounts?: CareerHistoryOpportunityCounts | null;
   historyOpportunities?: CareerHistoryOpportunity[];
   talentPreferences?: CareerTalentPreferences | null;
   talentInsights?: CareerTalentInsights | null;

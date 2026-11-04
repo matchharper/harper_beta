@@ -31,7 +31,7 @@ export const CAREER_CAPABILITIES = [
     id: "opportunities",
     turns: 3,
     summary:
-      "Record the user's acceptance, rejection or save-for-later decision on an exact recommendation; a reply alone does not persist it. Import an external posting from its URL for a requested save or application. Read roles and prior recommendations, manage matching criteria and search/evaluate external or internal opportunities. Searching does not publish. Add, reorder, archive, restore, replace or reset recommendation lists while preserving independent saved/applied/connected decisions. No fixed count or quality quota.",
+      "Record the user's acceptance, rejection or save-for-later decision on an exact recommendation; a reply alone does not persist it. Import an external posting from its URL for a requested save or application. Read roles and prior recommendations, manage matching criteria, search/evaluate external opportunities and discover Harper-connected roles. Searching does not publish. Add, reorder, archive, restore, replace or reset recommendation lists while preserving independent saved/applied/connected decisions. No fixed count or quality quota.",
     tools: [
       ["list_matchings", "read the current and past matching index"],
       [
@@ -73,11 +73,11 @@ export const CAREER_CAPABILITIES = [
     id: "internal_applications",
     turns: 3,
     summary:
-      "Help the user pursue an exact internal Role. apply_to_internal_role saves the private opportunity immediately and starts any missing evaluation independently. It does not introduce or share. After the candidate has reviewed the Role and requests introduction, contact_company accepts the request, pins prepared materials or the default profile/public documents, and contacts the company agent.",
+      "Help the user pursue an exact internal Role. apply_to_internal_role saves the private opportunity immediately. It does not introduce or share. After the candidate has reviewed the Role and requests introduction, use company_contact → contact_company with recommendationId and acceptIntroduction=true to request the introduction and share prepared materials or the default profile/public documents.",
     tools: [
       [
         "apply_to_internal_role",
-        "evaluate and add an explicitly requested internal Role for review",
+        "save an explicitly requested internal Role for review",
       ],
       [
         "assign_to_role",
@@ -89,13 +89,13 @@ export const CAREER_CAPABILITIES = [
     id: "companies",
     turns: 2,
     summary:
-      "Resolve a company by name or URL and save interest in its exact company/workspace scope. Scheduled Career checks prepare shared hiring-announcement sources and new role assessments for followed companies. Changes do not start separate contact runs; timing and pauses use the existing Career schedule. Unfollow removes the saved interest and preserves history.",
+      "Follow several companies by name or workspace ID in one call, including companies absent from the directory. Optionally find workspaces by name or URL. Read, update or unfollow existing subscriptions. Scheduled Career checks receive follow names, user instructions and follow dates, with current roles and assessments where linked. Changes do not start separate contact runs; timing and pauses use the existing Career schedule. Unfollow removes the saved interest and preserves history.",
     tools: [
       [
         "search_companies",
-        "resolve company identities and available source coverage",
+        "find company workspaces by name or URL",
       ],
-      ["follow_company", "list follows, read prepared hiring evidence and paginated roles, follow, update or unfollow a company"],
+      ["follow_company", "list follows, read follow facts and paginated roles, follow, update or unfollow a company"],
     ],
   },
   {
@@ -130,14 +130,14 @@ export const CAREER_CAPABILITIES = [
     id: "company_contact",
     turns: 2,
     summary:
-      "Request an accepted introduction through the company's agent; read and answer correspondence before or after mutual connection. Share only authorized material. Agent receipt, human notification and connection completion are separate facts.",
+      "Communicate with company agents for the user's delegated purpose, including questions, requests, replies and shared updates. Read current relationships and correspondence; share only authorized material. Agent receipt, human notification and connection completion are separate facts.",
     tools: [
       ["read_company_connections", "read current company connections"],
       ["read_agent_messages", "read agent correspondence and shared material references"],
       ["contact_user", "deliver a message to this candidate from background work"],
       [
         "contact_company",
-        "submit an introduction or follow-up to the company agent, or relay through an existing mutual connection",
+        "send a message to the company agent, or through an existing mutual connection",
       ],
     ],
   },

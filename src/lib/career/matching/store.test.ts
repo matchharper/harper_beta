@@ -51,6 +51,8 @@ async function database() {
       "utf8"
     )
   );
+  await db.exec("create function public.read_career_internal_role_v1(uuid,uuid) returns jsonb language sql as 'select jsonb_build_object(''roleId'',$2)';");
+  await db.exec(await readFile("supabase/migrations/20261104062544_career_internal_opportunity_publication.sql", "utf8"));
   await db.query("insert into talent_users values($1,null)", [id(1)]);
   await db.query("insert into company_workspace values($1,$2,true)", [
     id(2),
@@ -768,7 +770,7 @@ test("superseded recommendation and role lookup both restore the canonical Intro
     await db.close();
   }
 });
-test("model projection retains private IDs and boundaries without raw JSON or ISO timestamps", () => {
+test("legacy internal matching receipts never become model-visible scoring context", () => {
   const output = formatCareerMatchingResult({
     runId: id(7),
     source: "internal",
@@ -786,10 +788,8 @@ test("model projection retains private IDs and boundaries without raw JSON or IS
     ],
     evaluationCursor: id(9),
   });
-  assert.match(output, /Private assessment/);
-  assert.match(output, /2026-10-30 03:00/);
-  assert.match(output, /evaluationCursor/);
-  assert.doesNotMatch(output, /2026-10-29T/);
+  assert.match(output, /get_internal_roles/);
+  assert.doesNotMatch(output, new RegExp(`${id(7)}|${id(9)}|assessment|mutualFit|evaluation|partial`, "i"));
 });
 
 test("registered tool returns the dedicated projection at the actual model boundary", async () => {
@@ -841,4 +841,23 @@ test("registered tool returns the dedicated projection at the actual model bound
     "write_career_matching",
     "career_opportunity_list_revision",
   ]);
+});
+
+
+test("an internal suggestion publishes atomically without model-supplied assessment references", async () => {
+  const db = await database();
+  try {
+    await db.query("update company_roles set source_type='internal' where role_id=$1",[id(3)]);
+    const revision=(await db.query<any>("select career_opportunity_list_revision($1) value",[id(1)])).rows[0].value;
+    const command={action:"add",expectedRevision:revision,items:[{roleId:id(3),explanation:"Public role context"}]};
+    const first=(await db.query<any>("select write_career_opportunities($1,'internal-publish',$2) value",[id(1),JSON.stringify(command)])).rows[0].value;
+    const repeated=(await db.query<any>("select write_career_opportunities($1,'internal-publish',$2) value",[id(1),JSON.stringify(command)])).rows[0].value;
+    assert.deepEqual(repeated,first);
+    const rec=(await db.query<any>("select * from talent_opportunity_recommendation")).rows[0];
+    assert.equal(rec.opportunity_type,"internal_recommendation");
+    assert.equal(rec.fit_summary,"Public role context");
+    assert.equal(rec.feedback,null);
+    assert.equal((await db.query<any>("select count(*) n from talent_opportunity_memberships")).rows[0].n,1);
+    await assert.rejects(db.query("select write_career_opportunities($1,'stale',$2)",[id(1),JSON.stringify(command)]),/List changed/);
+  } finally { await db.close(); }
 });

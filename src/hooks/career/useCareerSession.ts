@@ -73,7 +73,9 @@ export const useCareerSession = ({
   const normalizedEmailOnboardingToken = emailOnboardingToken?.trim() || null;
   const requestLocale = useMemo(
     () =>
-      typeof window === "undefined" ? locale : getInitialClientLocalePreference(),
+      typeof window === "undefined"
+        ? locale
+        : getInitialClientLocalePreference(),
     [locale]
   );
   const queryKey = useMemo(
@@ -97,30 +99,45 @@ export const useCareerSession = ({
   );
 
   const fetchSession = useCallback(async () => {
-    const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
-      method: "POST",
-      body: JSON.stringify({
-        ...getCareerSignupAttributionPayload(),
-        emailOnboardingToken: normalizedEmailOnboardingToken || undefined,
-        inviteToken: normalizedInviteToken || undefined,
-        locale: requestLocale,
-        mail: normalizedMail || undefined,
-      }),
-    });
-    if (!bootstrapRes.ok) {
-      const payload = await bootstrapRes.json().catch(() => ({}));
-      throw new Error(
-        getErrorMessage(payload, tCareer(H.sessionBootstrapFailed))
-      );
-    }
-    const bootstrapPayload = await bootstrapRes.json().catch(() => ({}));
-    if (bootstrapPayload?.created === true) {
-      trackSignUp({
-        flow: "career_session",
-        method: "email_or_existing_session",
-      });
-    }
+    await queryClient.ensureQueryData({
+      queryKey: [
+        "career-bootstrap",
+        userId,
+        normalizedInviteToken,
+        normalizedMail,
+        normalizedEmailOnboardingToken,
+        requestLocale,
+      ],
+      staleTime: Infinity,
+      gcTime: CAREER_SESSION_GC_TIME,
+      queryFn: async () => {
+        const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
+          method: "POST",
+          body: JSON.stringify({
+            ...getCareerSignupAttributionPayload(),
+            emailOnboardingToken: normalizedEmailOnboardingToken || undefined,
+            inviteToken: normalizedInviteToken || undefined,
+            locale: requestLocale,
+            mail: normalizedMail || undefined,
+          }),
+        });
+        if (!bootstrapRes.ok) {
+          const payload = await bootstrapRes.json().catch(() => ({}));
+          throw new Error(
+            getErrorMessage(payload, tCareer(H.sessionBootstrapFailed))
+          );
+        }
+        const bootstrapPayload = await bootstrapRes.json().catch(() => ({}));
+        if (bootstrapPayload?.created === true) {
+          trackSignUp({
+            flow: "career_session",
+            method: "email_or_existing_session",
+          });
+        }
 
+        return true;
+      },
+    });
     const sessionParams = new URLSearchParams({
       locale: requestLocale,
       messageLimit: "20",
@@ -138,6 +155,8 @@ export const useCareerSession = ({
 
     return payload;
   }, [
+    queryClient,
+    userId,
     fetchWithAuth,
     normalizedEmailOnboardingToken,
     normalizedInviteToken,

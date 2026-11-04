@@ -10,6 +10,7 @@ export type CareerAgentReplyJob = {
   userId: string;
   conversationId: string;
   sourceMessageId?: number;
+  sourceMessageCursor?: number;
   replyId: string;
   proactiveContext?: string;
   noMessageMarker?: string;

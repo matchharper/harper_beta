@@ -38,7 +38,6 @@ export async function requestInternalRoleEvaluation(args: {
       profileRevision: profile.revision,
       publishRecommendation: args.publishRecommendation ?? false,
       requestedOpportunityId: args.requestedOpportunityId,
-      parentReplyId: args.replyId,
       sourceEvents: args.sourceEvents ?? [],
       preparationRunId: args.preparationRunId,
     },
@@ -58,9 +57,7 @@ export async function requestInternalRoleEvaluation(args: {
     roleIds: args.roleIds,
     profileId: profile.profileId,
     profileRevision: profile.revision,
-    careerContinuation: !args.requestedOpportunityId && ["queued", "running"].includes(status)
-      ? { kind: "internal_evaluation", id: run.id }
-      : undefined,
+
   };
 }
 export async function controlInternalEvaluation(args: {
@@ -81,9 +78,7 @@ export async function controlInternalEvaluation(args: {
     status,
     source: "internal",
     roleIds: run.trigger_payload?.roleIds,
-    careerContinuation: ["queued", "running"].includes(status)
-      ? { kind: "internal_evaluation", id: run.id }
-      : undefined,
+
   };
 }
 export async function readInternalEvaluation(

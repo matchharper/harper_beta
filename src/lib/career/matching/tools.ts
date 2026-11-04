@@ -11,17 +11,10 @@ import {
   upsertOpportunities,
   readExternalEvaluation,
 } from "./store";
-import { executeSql } from "@/lib/externalRecommendationsV2/retrieval";
-import { sqlLiteral } from "@/lib/talentOnboarding/jobPostingRecommendations";
 import {
   requestExternalMatchingSearch,
   controlExternalMatchingSearch,
 } from "./externalSearch";
-import {
-  requestInternalRoleEvaluation,
-  controlInternalEvaluation,
-  readInternalEvaluation,
-} from "./internalEvaluation";
 const str = { type: "string" },
   num = { type: "integer" },
   strings = { type: "array", items: str };
@@ -170,12 +163,11 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
     "search_opportunities",
     TOOL_DESCRIPTIONS.search_opportunities,
     {
-      source: { type: "string", enum: ["external", "internal"] },
+      source: { type: "string", enum: ["external"] },
       action: { type: "string", enum: ["search", "read", "resume", "cancel"] },
       runId: str,
       matchingId: str,
       roleIds: strings,
-      companyWorkspaceId: str,
       plan,
       evaluationLimit: num,
       targetSalaryKrw: { type: "number" },
@@ -186,6 +178,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
     },
     ["source"],
     async (i, c) => {
+      if (i.source !== "external") throw new Error("Use get_internal_roles to read Harper-connected roles and apply_to_internal_role to save an opportunity.");
       const args = profileToolContext(c, "search_opportunities", i, {
         readOnly: Boolean(
           i.runId && i.action !== "resume" && i.action !== "cancel"
@@ -193,27 +186,13 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
       });
       if (i.runId) {
         if (i.action === "resume" || i.action === "cancel")
-          return i.source === "internal"
-            ? controlInternalEvaluation({
-                ...args,
-                runId: i.runId,
-                action: i.action,
-              })
-            : controlExternalMatchingSearch({
+          return controlExternalMatchingSearch({
                 ...args,
                 runId: i.runId,
                 action: i.action,
                 signal: c?.abortSignal,
                 deadlineAt: c?.deadlineAt,
               });
-        if (i.source === "internal")
-          return readInternalEvaluation(
-            args.admin,
-            args.userId,
-            i.runId,
-            i.cursor,
-            i.limit
-          );
         return readExternalEvaluation({
           ...args,
           runId: i.runId,
@@ -238,39 +217,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
           signal: c?.abortSignal,
           deadlineAt: c?.deadlineAt,
         });
-      let roleIds = i.roleIds as string[] | undefined;
-      if (!roleIds?.length) {
-        const count = i.evaluationLimit ?? 50;
-        if (!Number.isInteger(count) || count < 1)
-          throw new Error("Evaluation limit must be a positive integer.");
-        const roles = await executeSql<{ role_id: string }>(
-          args.admin,
-          `
-          SELECT role.role_id FROM public.company_roles role
-          JOIN public.company_workspace company USING(company_workspace_id)
-          WHERE role.source_type='internal' AND role.status='active'
-            AND NOT coalesce(role.is_expired,false) AND (role.expires_at IS NULL OR role.expires_at>now())
-            AND coalesce(lower(btrim(role.information->>'testOnly')),'') NOT IN ('true','1','yes','on')
-            AND public.role_matching_slot_type_v1(role.role_id,now()) IN ('free','paid')
-            ${i.companyWorkspaceId ? `AND role.company_workspace_id=${sqlLiteral(i.companyWorkspaceId)}::uuid` : ""}
-            AND NOT EXISTS(SELECT 1 FROM public.talent_setting setting,
-              unnest(coalesce(setting.blocked_companies,'{}'::text[])) blocked(name)
-              WHERE setting.user_id=${sqlLiteral(args.userId)}::uuid AND lower(btrim(blocked.name)) IN
-                (lower(btrim(company.company_name)),lower(btrim(coalesce(company.published_name,'')))))
-          ORDER BY role.updated_at DESC,role.role_id`,
-          count
-        );
-        roleIds = roles.map((row) => row.role_id);
-      }
-      return requestInternalRoleEvaluation({
-        ...args,
-        roleIds: roleIds ?? [],
-        conversationId: c?.conversationId,
-        replyId: c?.resumeRequestId ?? undefined,
-        profileId: i.profileId,
-        profileRevision: i.profileRevision,
-        signal: c?.abortSignal,
-      });
+
     }
   ),
   upsert_opportunities: tool(
@@ -290,10 +237,8 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
           type: "object",
           properties: {
             recommendationId: { ...str, description: "Exact existing recommendation ID. Every item needs this or roleId; an evaluation ID alone does not identify the membership." },
-            roleId: { ...str, description: "Exact Role ID from the evaluation or recommendation; required for a new publication." },
+            roleId: { ...str, description: "Exact Role ID; required for a new publication." },
             evaluationId: { ...str, description: "Required for a new external recommendation: the exact selected evaluation ID for this role. A roleId or historical fit score alone cannot publish it." },
-            evaluationIds: { ...strings, description: "Internal publication: exact assessment IDs for this role from the completed internal run." },
-            sourceRunId: { ...str, description: "Exact run that produced the selected internal assessments; required for new internal publication." },
             explanation: str,
             rank: num,
           },

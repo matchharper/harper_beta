@@ -22,8 +22,8 @@ const ShortcutKey = ({ children }: { children: React.ReactNode }) => (
   </kbd>
 );
 
-const ShortcutPositiveActionIcon = ({ icon: Icon }: { icon: LucideIcon }) => (
-  <Icon className="h-3 w-3" />
+const ShortcutPositiveActionIcon = ({ icon: Icon }: { icon: LucideIcon | null }) => (
+  Icon ? <Icon className="h-3 w-3" /> : null
 );
 
 const ShortcutActionButton = ({

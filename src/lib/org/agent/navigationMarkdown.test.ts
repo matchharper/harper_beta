@@ -7,8 +7,38 @@ import {
   renderOrgAgentWebLinks,
 } from "@/lib/org/agent/navigationMarkdown";
 import { parseHarperSlackChoiceMarkers } from "@/lib/org/slackChoiceButtons";
+import { readOrgTalentReferenceHref } from "./talentReference";
+import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 
 const workspaceId = "workspace-1";
+
+test("dev navigation and shared link builders use the configured custom domain", (t) => {
+  const previous = process.env.NEXT_PUBLIC_SITE_URL;
+  process.env.NEXT_PUBLIC_SITE_URL = "https://dev.matchharper.com";
+  t.after(() => {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = previous;
+  });
+
+  const rendered = renderOrgAgentWebLinks({
+    markdown: "[Home](home) [Roles](roles) [Team](team) [Role](role:role-1) [Candidate](talent:talent-1)",
+    workspaceId,
+    roleId: "role-1",
+  });
+  const hrefs = [...rendered.matchAll(/\]\((https:[^)]+)\)/g)].map(match => match[1]);
+  assert.equal(hrefs.length, 5);
+  for (const href of hrefs) {
+    const url = new URL(href);
+    assert.equal(url.origin, "https://dev.matchharper.com");
+    assert.equal(url.searchParams.get("orgId"), workspaceId);
+  }
+  assert.deepEqual(readOrgTalentReferenceHref(hrefs[4], workspaceId), {
+    talentId: "talent-1", roleId: "role-1", recommendationId: null,
+  });
+  assert.equal(readOrgTalentReferenceHref(hrefs[4], "another-workspace"), null);
+  assert.equal(getPublicSiteUrlFromRequest(new Request("https://preview.vercel.app/api/org/invitations")),
+    "https://dev.matchharper.com");
+});
 
 test("company-side LLM private navigation markers become Harper web links", () => {
   const markdown = [

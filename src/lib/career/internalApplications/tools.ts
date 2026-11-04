@@ -28,48 +28,31 @@ export async function executeApplyToInternalRole(
   if (error) throw new Error(error.message);
   // Preserve the card even if the evaluator/profile service is unavailable.
   const saved = { ...opportunity, postingRoleIds: [roleId], companyShared: false, introductionRequested: Boolean(opportunity.introductionRootId) };
+  let assignedMaterial: {
+    materialId: string; profileId: string | null; profileRevision: number | null; revision: number;
+  } | null | undefined;
   try {
-  const assignment = await readRoleMaterials({ ...args, roleId });
-  const prepared =
-    assignment.current?.action === "set" ? assignment.current : null;
-  const profile = await readProfileSnapshot({
-    ...args,
-    profileId: prepared?.profile_id ?? undefined,
-    revision: prepared?.profile_revision ?? undefined,
-  });
-  const evaluation = await requestInternalRoleEvaluation({
-    ...args,
-    conversationId: context!.conversationId!,
-    roleIds: [roleId],
-    profileId: profile.profileId,
-    profileRevision: profile.revision,
-    requestedOpportunityId: opportunity.recommendationId,
-    signal: context?.abortSignal,
-  });
-  return {
-    ...saved,
-    ...evaluation,
-    evaluatedProfile: {
-      profileId: profile.profileId,
-      revision: profile.revision,
-    },
-    assignedMaterial:
-      assignment.current?.action === "set"
-        ? {
-            materialId: assignment.current.id,
-            profileId: assignment.current.profile_id,
-            profileRevision: assignment.current.profile_revision,
-            revision: assignment.current.revision,
-          }
-        : null,
-  };
+    const assignment = await readRoleMaterials({ ...args, roleId });
+    const prepared = assignment.current?.action === "set" ? assignment.current : null;
+    assignedMaterial = prepared ? {
+      materialId: prepared.id, profileId: prepared.profile_id,
+      profileRevision: prepared.profile_revision, revision: prepared.revision,
+    } : null;
+    const profile = await readProfileSnapshot({
+      ...args, profileId: prepared?.profile_id ?? undefined, revision: prepared?.profile_revision ?? undefined,
+    });
+    await requestInternalRoleEvaluation({
+      ...args, conversationId: context!.conversationId!, roleIds: [roleId],
+      profileId: profile.profileId, profileRevision: profile.revision,
+      requestedOpportunityId: opportunity.recommendationId, signal: context?.abortSignal,
+    });
   } catch (error) {
-    console.warn("[internal-application] Opportunity saved; evaluation unavailable", {
+    console.warn("[internal-application] Opportunity saved; background preparation unavailable", {
       recommendationId: opportunity.recommendationId,
       error: error instanceof Error ? error.message : String(error),
     });
-    return { ...saved, status: "evaluation_unavailable" };
   }
+  return { ...saved, ...(assignedMaterial !== undefined ? { assignedMaterial } : {}) };
 }
 export function formatInternalApplicationToolResult(
   name: string,
@@ -85,10 +68,11 @@ export function formatInternalApplicationToolResult(
       ...["location", "workMode", "compensation"].flatMap(key => result.role?.[key] ? [`${key}: ${result.role[key]}`] : []),
       `Opportunity: ${result.recommendationId}; ${result.visible ? "in candidate opportunity list" : "existing archived opportunity; its decision was preserved"}`,
       result.introductionRootId ? `Existing introduction: ${result.introductionRootId}; read_agent_messages contains its delivery facts.` : "",
-      `Assessment: ${result.status ?? "unavailable"}${result.runId ? `; run ${result.runId}` : ""}`,
       result.assignedMaterial
         ? `Prepared materials: ${result.assignedMaterial.materialId}; profile ${result.assignedMaterial.profileId} revision ${result.assignedMaterial.profileRevision}; assignment revision ${result.assignedMaterial.revision}`
-        : "No prepared assignment; acceptance will pin the default profile.",
+        : result.assignedMaterial === null
+          ? "No prepared assignment; acceptance will pin the default profile."
+          : "Prepared materials were not read; assign_to_role can read the current selection.",
       "Sharing scope of this call: candidate only.",
     ].join("\n");
   const current = (result.current ??

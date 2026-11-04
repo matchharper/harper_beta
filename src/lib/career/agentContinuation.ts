@@ -3,6 +3,9 @@ import { enqueueCareerAgentReply, type CareerAgentReplyJob } from "./agentReplyQ
 import type { CareerReplyCheckpoint } from "./capabilities/runtime";
 
 export async function careerCheckpointIsReady(admin: TalentAdminClient, userId: string, checkpoint: CareerReplyCheckpoint) {
+  // These legacy transcripts contain a retired private tool contract. Let the
+  // claimed runtime retire them without waiting for or replaying that transcript.
+  if (checkpoint.waitFor?.some(work => work.kind === "internal_evaluation")) return true;
   for (const work of checkpoint.waitFor ?? []) {
     if (work.kind === "external_capacity") {
       const { readOperation } = await import("./externalOperations/store");
@@ -66,6 +69,7 @@ export async function dispatchCareerCheckpoint(args: {
     ...(source?.assistantModel ? { assistantModel: source.assistantModel } : {}),
     ...(source?.textChatModel ? { textChatModel: source.textChatModel } : {}),
     ...(source?.sourceMessageId ? { sourceMessageId: source.sourceMessageId } : {}),
+    ...(source?.sourceMessageCursor !== undefined ? { sourceMessageCursor: source.sourceMessageCursor } : {}),
     ...(source?.backgroundRunId ? { backgroundRunId: source.backgroundRunId } : {}),
     ...(source?.runtimeInstruction ? { proactiveContext: source.runtimeInstruction } : {}),
     ...(source?.noMessageMarker ? { noMessageMarker: source.noMessageMarker } : {}),

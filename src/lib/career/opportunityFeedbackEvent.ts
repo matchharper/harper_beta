@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
 import type { TalentOpportunityFeedbackActivityItem } from "@/lib/talentOnboarding/activityEvents";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
+import { formatOpportunityOrigin } from "@/lib/agentContacts/introductionContext";
 
 export const CAREER_FEEDBACK_SILENT = "[[CAREER_FEEDBACK_SILENT]]";
 
@@ -15,7 +16,7 @@ export function formatOpportunityDecisionReceipt(args: {
     `Decision saved: ${args.feedback}; recommendation ${opportunity?.id ?? "unavailable"}; role ${opportunity?.roleId ?? "unavailable"}.`,
     opportunity ? `${opportunity.companyName} / ${opportunity.title}; ${opportunity.sourceType}.` : "",
     args.feedback === "like" && opportunity?.sourceType === "internal"
-      ? "The candidate has accepted Harper's introduction to this company using the materials pinned at acceptance."
+      ? "The candidate authorized this introduction using the materials pinned at their decision."
       : args.feedback === "like" ? "External posting saved as an interested opportunity. This action did not submit an application."
       : args.feedback === "keep" ? "Saved for later without accepting or declining an introduction."
       : "The candidate's rejection is recorded for this exact opportunity.",
@@ -42,6 +43,7 @@ export function formatSavedOpportunityDecision(opportunity: TalentOpportunityHis
     "## Current saved opportunity",
     `Recommendation ${opportunity.id}; role ${opportunity.roleId}; ${opportunity.sourceType}; type ${opportunity.opportunityType}.`,
     `${opportunity.companyName} / ${opportunity.title}`,
+    formatOpportunityOrigin(opportunity.opportunityType),
     `Saved decision: ${opportunity.feedback === "positive" ? opportunity.sourceType === "internal" ? "introduction accepted" : "interested in external posting" : opportunity.feedback === "negative" ? "declined" : opportunity.feedback === "keep" ? "saved for later" : "no decision"}.`,
     opportunity.isExpired ? "This opportunity has expired." : "",
     opportunity.feedbackAt ? `Decision time: ${formatLlmDateTime(opportunity.feedbackAt)}.` : "",

@@ -1,0 +1,61 @@
+{
+  "version": "v6",
+  "requestTime": "2026-11-02T09:00:00+09:00",
+  "role": {
+    "name": "플랫폼 엔지니어",
+    "company": "노바클라우드",
+    "description": "주문 서비스의 Kubernetes 인프라와 SLO를 운영하고 장애 대응 체계를 개선합니다. Terraform 기반 배포 자동화, 온콜 운영 경험을 찾습니다. 팀 관리 경력은 필수가 아닙니다.",
+    "private": "온콜 개선을 직접 주도한 경험을 추가로 확인하면 유용함. 회사 비공개 정보이며 후보자에게 인용하지 않음."
+  },
+  "cases": [
+    {
+      "id": "job_initial_then_introduce",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "initialInterest": true,
+      "turns": [
+        "Harper 내부 기회인 노바클라우드의 플랫폼 엔지니어에 관심 있어요. 연결해주세요.",
+        "네, 설명 확인했어요. 소개해주세요."
+      ]
+    },
+    {
+      "id": "ordinary_company_question",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "네, 노바클라우드에 소개해주세요.",
+        "아, 원격 근무는 주 몇 회 가능한지 물어봐줘."
+      ]
+    },
+    {
+      "id": "company_intro_response",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "네, 프로필 공유하고 연결 진행해주세요."
+      ],
+      "companyIntro": true
+    }
+  ],
+  "progressSource": "Production agent introduction progress projection; button admission has not yet accepted.",
+  "contextPlacement": "Current decision, resource index and UI event use production runtimeInstruction; persistent Brief/Memory use talentContextSection.",
+  "messageProjection": "Production formatTalentMessageContentForLlmPrompt; verified agent_introduction_action carries exact candidate intent."
+}

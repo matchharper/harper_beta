@@ -1,8 +1,5 @@
 import {
-  BriefcaseBusiness,
   ChevronRight,
-  Clock3,
-  Handshake,
   Loader2,
   Plus,
   Save,
@@ -10,7 +7,7 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import React, { KeyboardEvent, useMemo, useState } from "react";
+import React, { KeyboardEvent, useState } from "react";
 import { useCareerProfileContext } from "./CareerSidebarContext";
 import {
   ProfileVisibilityPanel,
@@ -18,59 +15,13 @@ import {
 } from "./ProfileVisibilityPanel";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import type {
-  CareerEngagementType,
   CareerProfileVisibility,
 } from "@/hooks/career/useCareerTalentSettings";
-import { ActionButton, ChoiceCard, MuteButton } from "@/components/ui/button";
+import { ActionButton, MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/panel";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
-
-type EngagementTypeOption = {
-  value: CareerEngagementType;
-  label: string;
-  description: string;
-  Icon: React.ComponentType<{ className?: string }>;
-};
-
-const getEngagementTypeOptions = (
-  t: ReturnType<typeof useCareerT>
-): EngagementTypeOption[] => [
-  {
-    value: "full_time",
-    label: t("career.profile.engagement.full_time", "풀타임"),
-    description: t(
-      "career.profile.career_profile_settings_section.engagement_full_time",
-      "정규직/풀타임 역할까지 열려 있어요."
-    ),
-    Icon: BriefcaseBusiness,
-  },
-  {
-    value: "fractional",
-    label: t("career.profile.engagement.fractional", "파트타임·프로젝트"),
-    description: t(
-      "career.profile.career_profile_settings_section.engagement_fractional",
-      "현업을 유지하면서 파트타임·프로젝트 형태로 참여할 수 있어요."
-    ),
-    Icon: Clock3,
-  },
-  {
-    value: "advisor",
-    label: t("career.profile.engagement.advisor", "어드바이저"),
-    description: t(
-      "career.profile.career_profile_settings_section.engagement_advisor",
-      "전략적·기술적 자문 역할도 검토할 수 있어요."
-    ),
-    Icon: Handshake,
-  },
-];
 
 const formatUpdatedAt = (value: string, locale: Locale) => {
   return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
@@ -85,13 +36,11 @@ const formatUpdatedAt = (value: string, locale: Locale) => {
 export const CareerProfileSharingSettingsSection = ({
   disabled = false,
   showBlockedCompanies = true,
-  showEngagementTypes = true,
   showLastUpdated = true,
   showProfileVisibility = true,
 }: {
   disabled?: boolean;
   showBlockedCompanies?: boolean;
-  showEngagementTypes?: boolean;
   showLastUpdated?: boolean;
   showProfileVisibility?: boolean;
 }) => {
@@ -106,11 +55,9 @@ export const CareerProfileSharingSettingsSection = ({
     settingsError,
     settingsUpdatedAt,
     profileVisibility,
-    engagementTypes,
     blockedCompanies,
     hasUnsavedTalentSettingsChanges,
     onProfileVisibilityChange,
-    onEngagementTypesChange,
     onAddBlockedCompany,
     onRemoveBlockedCompany,
     onSaveTalentSettings,
@@ -118,8 +65,6 @@ export const CareerProfileSharingSettingsSection = ({
   } = useCareerProfileContext();
   const [blockedCompanyDraft, setBlockedCompanyDraft] = useState("");
   const [profileVisibilitySavePending, setProfileVisibilitySavePending] =
-    useState(false);
-  const [engagementTypesSavePending, setEngagementTypesSavePending] =
     useState(false);
   const [profileVisibilityPanelOpen, setProfileVisibilityPanelOpen] =
     useState(false);
@@ -129,11 +74,6 @@ export const CareerProfileSharingSettingsSection = ({
   const hasUnsavedChanges = hasUnsavedTalentSettingsChanges;
   const canSaveProfileSettings = hasUnsavedChanges && !settingsLoading;
   const saveError = settingsError;
-  const engagementTypeOptions = useMemo(() => getEngagementTypeOptions(t), [t]);
-  const selectedEngagementTypes = useMemo(
-    () => new Set<CareerEngagementType>(engagementTypes),
-    [engagementTypes]
-  );
   const lastUpdatedLabel = settingsUpdatedAt
     ? formatUpdatedAt(settingsUpdatedAt, locale)
     : t(
@@ -170,30 +110,6 @@ export const CareerProfileSharingSettingsSection = ({
       await onProfileVisibilityChange(value);
     } finally {
       setProfileVisibilitySavePending(false);
-    }
-  };
-
-  const handleEngagementTypeToggle = async (value: CareerEngagementType) => {
-    if (settingsLoading || isSavePending || engagementTypesSavePending) {
-      return;
-    }
-
-    const nextSelected = new Set(selectedEngagementTypes);
-    if (nextSelected.has(value)) {
-      nextSelected.delete(value);
-    } else {
-      nextSelected.add(value);
-    }
-    const nextEngagementTypes = engagementTypeOptions
-      .map((option) => option.value)
-      .filter((optionValue) => nextSelected.has(optionValue));
-
-    logCareerEvent(`click_profile_settings_engagement_type_${value}`);
-    setEngagementTypesSavePending(true);
-    try {
-      await onEngagementTypesChange(nextEngagementTypes);
-    } finally {
-      setEngagementTypesSavePending(false);
     }
   };
 
@@ -292,69 +208,6 @@ export const CareerProfileSharingSettingsSection = ({
               </span>
               <ChevronRight aria-hidden="true" className="h-4 w-4" />
             </MuteButton>
-          ) : null}
-
-          {showEngagementTypes ? (
-            <Field
-              label={
-                <span className="inline-flex items-center gap-2">
-                  <span>
-                    {t(
-                      "career.profile.career_profile_settings_section.engagement_types_label",
-                      "근무 형태"
-                    )}
-                  </span>
-                  {engagementTypesSavePending ? (
-                    <Loader2
-                      className="h-3.5 w-3.5 animate-spin text-neutral-muted"
-                      aria-label={"관심 기회 형태 저장 중"}
-                    />
-                  ) : null}
-                </span>
-              }
-            >
-              <TooltipProvider delayDuration={100}>
-                <div className="grid gap-2 md:grid-cols-3">
-                  {engagementTypeOptions.map((option) => {
-                    const isSelected = selectedEngagementTypes.has(
-                      option.value
-                    );
-
-                    return (
-                      <Tooltip key={option.value}>
-                        <TooltipTrigger asChild>
-                          <ChoiceCard
-                            onClick={() =>
-                              void handleEngagementTypeToggle(option.value)
-                            }
-                            disabled={
-                              settingsLoading ||
-                              isSavePending ||
-                              engagementTypesSavePending
-                            }
-                            selected={isSelected}
-                            aria-pressed={isSelected}
-                            className="h-11 justify-center whitespace-nowrap px-3 text-center text-sm font-medium"
-                          >
-                            <option.Icon className="h-4 w-4" />
-                            <span>{option.label}</span>
-                          </ChoiceCard>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          sideOffset={0}
-                          showArrow
-                          arrowClassName="bg-black fill-black"
-                          className="max-w-80 rounded-lg bg-black text-white"
-                        >
-                          {option.description}
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })}
-                </div>
-              </TooltipProvider>
-            </Field>
           ) : null}
 
           {showBlockedCompanies ? (
@@ -468,7 +321,7 @@ export const CareerProfileSharingSettingsSection = ({
 
         {hasUnsavedChanges &&
           !profileVisibilitySavePending &&
-          !engagementTypesSavePending &&
+          !isSavePending &&
           !blockedCompaniesSavePending && (
             <div className="fixed bottom-4 right-4 flex justify-end gap-2">
               <ActionButton
@@ -521,7 +374,6 @@ export const CareerProfileSharingSettingsSection = ({
 const CareerProfileSettingsSection = () => (
   <CareerProfileSharingSettingsSection
     showBlockedCompanies={false}
-    showEngagementTypes={false}
     showLastUpdated={false}
   />
 );

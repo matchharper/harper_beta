@@ -1,4 +1,5 @@
 import { formatLlmDateTime, PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
+import { formatOpportunityOrigin } from "@/lib/agentContacts/introductionContext";
 
 function optionalToolString(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -57,10 +58,11 @@ export function formatRoleContextForModel(roles: readonly Record<string, unknown
         company?.hqLocation ? `Company HQ: ${company.hqLocation}` : null,
         detailLine("Company size", employeeCountRangeText(company?.employeeCountRange)),
         recommendation?.recommendedAt ? `Recommended: ${formatLlmDateTime(recommendation.recommendedAt)}` : null,
-        recommendation?.fitSummary ? `Recommendation: ${recommendation.fitSummary}` : null,
-        detailLine("Fit reasons", recommendation?.fitReasons),
-        detailLine("Tradeoffs", recommendation?.tradeoffs),
-        detailLine("Preference fit", recommendation?.preferenceFit),
+        formatOpportunityOrigin(recommendation?.opportunityType),
+        role?.sourceType !== "internal" && recommendation?.fitSummary ? `Recommendation: ${recommendation.fitSummary}` : null,
+        role?.sourceType !== "internal" ? detailLine("Fit reasons", recommendation?.fitReasons) : null,
+        role?.sourceType !== "internal" ? detailLine("Tradeoffs", recommendation?.tradeoffs) : null,
+        role?.sourceType !== "internal" ? detailLine("Preference fit", recommendation?.preferenceFit) : null,
         recommendation?.feedback ? `Your feedback: ${recommendation.feedback}` : null,
         recommendation?.feedbackReason ? `Your feedback reason: ${recommendation.feedbackReason}` : null,
         recommendation?.savedStage ? `Saved stage: ${recommendation.savedStage}` : null,
@@ -69,7 +71,7 @@ export function formatRoleContextForModel(roles: readonly Record<string, unknown
         activityPage
           ? `Activity page: offset ${activityPage.offset ?? 0}, limit ${activityPage.limit ?? 10}, hasMore ${activityPage.hasMore === true}`
           : null,
-        item.reconsiderationScheduled ? "Reconsideration scheduled: true" : null,
+
       ];
       return lines.filter(Boolean).join("\n");
     })

@@ -2,7 +2,7 @@ import OpportunityStatusDropdown from "./OpportunityStatusDropdown";
 import ApplicationPreparationSteps from "./ApplicationPreparationSteps";
 import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
 import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
-import React, { ReactNode } from "react";
+import React, { useState, type ComponentProps, type ReactNode } from "react";
 import {
   CareerOpportunityType,
   type CareerCallStartRequest,
@@ -21,7 +21,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   Building2,
-  ChevronDown,
   ChevronRight,
   Dot,
   FileText,
@@ -53,7 +52,7 @@ import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
 import NewOpportunityCompanyRoleSwitcher from "./NewOpportunityCompanyRoleSwitcher";
 import HistoryOpportunityRoleActions from "./HistoryOpportunityRoleActions";
 import OpportunityCard from "./OpportunityCard";
-import ProgressOpportunityRow from "./ProgressOpportunityRow";
+import { OpportunityAppointmentSummary } from "./ProgressOpportunityRow";
 import HistoryOpportunityDetailActions from "./HistoryOpportunityDetailActions";
 
 export { getKnownCompanyDataText, parseFundingStageLabel };
@@ -544,6 +543,22 @@ const HistoryOpportunityAdditionalDetails = ({
   );
 };
 
+const OpportunityDetailCard = ({
+  defaultExpanded,
+  ...props
+}: Omit<ComponentProps<typeof OpportunityCard>, "expanded" | "onToggle"> & {
+  defaultExpanded: boolean;
+}) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  return (
+    <OpportunityCard
+      {...props}
+      expanded={expanded}
+      onToggle={() => setExpanded((current) => !current)}
+    />
+  );
+};
+
 export const HistoryOpportunityInlinePage = ({
   className,
   item,
@@ -586,12 +601,29 @@ export const HistoryOpportunityInlinePage = ({
 }) => {
   const t = useCareerT();
   const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
-  const inProgress = savedStatus === "applied" || savedStatus === "connected" || savedStatus === "offer";
+  const inProgress =
+    savedStatus === "applied" || savedStatus === "connected" || savedStatus === "offer";
   const opportunityCard = (
-    <OpportunityCard
+    <OpportunityDetailCard
       key={item.id}
       item={item}
+      defaultExpanded={!inProgress}
       showUnreadIndicator={false}
+      connectionIndicator="logo"
+      headerActions={
+        savedStatus ? (
+          <OpportunityStatusDropdown
+            disabled={pending}
+            status={savedStatus}
+            onChange={canChangeStatus ? onSavedStatusChange : undefined}
+          />
+        ) : undefined
+      }
+      headerFooter={
+        inProgress ? (
+          <OpportunityAppointmentSummary item={item} showAppointmentCreate />
+        ) : undefined
+      }
       onOpenCompanyInfo={onOpenCompanyInfo}
       onOpenLink={(_, url) => onOpenLink(url)}
       actions={
@@ -626,30 +658,15 @@ export const HistoryOpportunityInlinePage = ({
             {item.title}
           </span>
         </nav>
-
-        {!inProgress && savedStatus && onSavedStatusChange && canChangeStatus ? (
-          <div className="flex max-w-full justify-start sm:justify-end">
-            <OpportunityStatusDropdown
-              disabled={pending}
-              status={savedStatus}
-              onChange={onSavedStatusChange}
-            />
-          </div>
-        ) : null}
       </div>
+
+      <header>
+        <h1 className="sr-only">{item.title}</h1>
+        {opportunityCard}
+      </header>
 
       {inProgress ? (
         <>
-          <header>
-            <h1 className="sr-only">{item.title}</h1>
-            <ProgressOpportunityRow
-              item={item}
-              status={savedStatus}
-              pending={pending}
-              onStatusChange={canChangeStatus ? onSavedStatusChange : undefined}
-              showAppointmentCreate
-            />
-          </header>
           <UpcomingAppointments roleId={item.roleId} />
           {item.talentMemo && (
             <section className="mb-3 space-y-1.5">
@@ -661,11 +678,8 @@ export const HistoryOpportunityInlinePage = ({
               </RichText>
             </section>
           )}
-
         </>
-      ) : (
-        opportunityCard
-      )}
+      ) : null}
 
       <ApplicationPreparationSteps
         key={item.roleId}
@@ -680,20 +694,7 @@ export const HistoryOpportunityInlinePage = ({
         onAddTalentMemo={onUpdateTalentMemo}
       />
 
-      {inProgress ? (
-        <details
-          key={`jd-${item.id}`}
-          className="group/jd mt-12 border-t border-neutral-1000-a05 pt-6 sm:mt-16"
-        >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-normal text-neutral-muted [&::-webkit-details-marker]:hidden">
-            <span className="flex items-center gap-2">
-              {t("career.history.progress.job_details", "공고 상세 정보")}
-            </span>
-            <ChevronDown className="size-4 transition-transform group-open/jd:rotate-180" />
-          </summary>
-          <div className="mt-4">{opportunityCard}</div>
-        </details>
-      ) : (
+      {!inProgress ? (
         <HistoryOpportunityRoleActions
           key={`actions-${item.id}`}
           className={cn("mt-10", !roleActionsOnDesktop && "md:hidden")}
@@ -701,7 +702,7 @@ export const HistoryOpportunityInlinePage = ({
           onOpenChat={onOpenChat}
           onStartMockInterview={onStartMockInterview}
         />
-      )}
+      ) : null}
     </section>
   );
 };

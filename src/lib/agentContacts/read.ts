@@ -2,6 +2,8 @@ import { formatProfileToolResult } from "@/lib/career/profiles/tools";
 import { formatAgentContacts, type AgentContactSource } from "./contracts";
 import { agentContactDatabase, readAgentContacts } from "./store";
 import type { Database } from "@/lib/career/matching/internalScoring/database";
+import { readIntroductionContexts } from "./introductionContext.server";
+import { formatIntroductionContext } from "./introductionContext";
 
 export async function readAgentCorrespondence(
   source: AgentContactSource,
@@ -30,6 +32,7 @@ export async function readAgentCorrespondence(
   // Only the company's own delivery facts for introductions already authorized above.
   // Provider status is not evidence that a team member read the email.
   const roots = [...new Set(page.messages.map((message) => message.root_id))];
+  const introductions = await readIntroductionContexts(db.query, roots);
   const deliveryPageSize = 30;
   const deliveries =
     source.kind !== "career" && roots.length
@@ -52,9 +55,11 @@ export async function readAgentCorrespondence(
       : null;
   return {
     ...page,
+    introductions,
     deliveries: deliveries.slice(0, deliveryPageSize),
     nextDeliveryOffset,
     modelOutput: [
+      ...introductions.map(formatIntroductionContext),
       formatAgentContacts(page.messages, page.nextOffset),
       ...deliveries
         .slice(0, deliveryPageSize)

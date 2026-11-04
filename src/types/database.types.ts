@@ -10416,7 +10416,8 @@ export type Database = {
       }
       talent_company_follow: {
         Row: {
-          company_db_id: number
+          company_db_id: number | null
+          company_name: string | null
           company_workspace_id: string | null
           conversation_id: string | null
           created_at: string
@@ -10430,7 +10431,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          company_db_id: number
+          company_db_id?: number | null
+          company_name?: string | null
           company_workspace_id?: string | null
           conversation_id?: string | null
           created_at?: string
@@ -10444,7 +10446,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          company_db_id?: number
+          company_db_id?: number | null
+          company_name?: string | null
           company_workspace_id?: string | null
           conversation_id?: string | null
           created_at?: string

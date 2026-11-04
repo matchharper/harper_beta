@@ -132,28 +132,11 @@ const hasTalentFirstSubmission = (
     hasProfileResumeLink(profile?.resume_links)
   );
 
-const createEmptyHistoryCounts = () => ({
-  archived: 0,
-  new: 0,
-  newInternal: 0,
-  newExternalUnread: 0,
-  saved: 0,
-  savedStages: {
-    saved: 0,
-    applied: 0,
-    connected: 0,
-    offer: 0,
-    closed: 0,
-    hidden: 0,
-  },
-  total: 0,
-});
-
 const createEmptyHistoryPage = (
   limit: number,
   offset: number
 ): TalentOpportunityHistoryPage => ({
-  counts: createEmptyHistoryCounts(),
+  counts: null,
   items: [],
   limit,
   nextOffset: null,
@@ -434,7 +417,7 @@ export async function GET(req: NextRequest) {
     );
     const historyOpportunitiesIncluded = opportunityLimit > 0;
     const shouldLoadOpportunityPage =
-      historyOpportunitiesIncluded || beforeMessageId === null;
+      historyOpportunitiesIncluded;
     const historyFetchLimit = historyOpportunitiesIncluded
       ? opportunityLimit
       : 0;

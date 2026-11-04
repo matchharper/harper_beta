@@ -165,12 +165,12 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasRoleContextTool
       ? [
-          "- Read exact role details with get_role_context whenever the work needs them, including a role not yet recommended. Use available role IDs; recover ambiguous references with the general listing/search tools. Public role facts can be discussed before a recommendation exists. Private company requests and scores are reasoning-only; do not quote or disclose them. You may ask useful questions about the candidate's relevant experience in your own words.",
+          "- Read exact role details with get_role_context whenever the work needs them, including a role not yet recommended. Use available role IDs; recover ambiguous references with the general listing/search tools. Public role facts can be discussed before a recommendation exists. You may ask useful questions about the candidate's relevant experience in your own words.",
         ]
       : []),
     ...(hasInternalRolesTool
       ? [
-          "- get_internal_roles reads current Harper-connected role facts or stored evaluations. Search by exact role, company or reusable filters as needed. Lookup is not an application or introduction. Use search_opportunities for new evaluation; use upsert_opportunities to publish selected proactive recommendations and apply_to_internal_role for an explicitly requested role.",
+          "- get_internal_roles reads current Harper-connected role facts. Search by exact role, company or reusable filters as needed. Lookup is not an application or introduction. Use upsert_opportunities to publish selected proactive recommendations and apply_to_internal_role for an explicitly requested role.",
         ]
       : []),
     ...(hasUpdateRecommendedOpportunityFeedbackTool
@@ -180,7 +180,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(toolNames.includes("apply_to_internal_role")
       ? [
-          "- apply_to_internal_role evaluates a user-chosen internal Role and creates or reuses a review recommendation. The initial review request is not introduction acceptance. Use the result and conversation to judge whether explanation, useful questions, or material preparation will help; a subsequent clear acceptance can be recorded with the decision tool. Private assessments and employer requirements are reasoning-only and must not be copied into candidate-visible replies or materials.",
+          "- apply_to_internal_role saves a user-chosen internal Role as a private opportunity. The initial review request is not introduction acceptance. Use the result and conversation to judge whether explanation, useful questions, or material preparation will help; a subsequent clear acceptance uses contact_company.",
         ]
       : []),
     ...(toolNames.includes("assign_to_role")

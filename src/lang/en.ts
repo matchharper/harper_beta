@@ -492,6 +492,7 @@ export const en = {
     generating: "Generating summary...",
   },
   career: {
+    "career.chat.work_status_unavailable": "Could not check work status. Reconnecting…",
     "career.announcement.close": "Close announcement",
     "career.announcement.preview.fourth_description": "Pick up where you left off with updates you haven’t seen yet.",
     "career.announcement.preview.fourth_title": "Good to see you again",
