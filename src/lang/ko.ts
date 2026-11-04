@@ -511,6 +511,7 @@ export const ko = {
     generating: "후보자를 파악하는 중입니다...",
   },
   career: {
+    "career.chat.work_status_unavailable": "작업 상태를 확인하지 못했어요. 다시 연결하고 있어요.",
     "career.announcement.close": "안내 닫기",
     "career.announcement.preview.fourth_description": "지난번에 보지 않은 소식부터 이어서 살펴보세요.",
     "career.announcement.preview.fourth_title": "다시 만나 반가워요",

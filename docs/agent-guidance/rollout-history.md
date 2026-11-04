@@ -2,6 +2,35 @@
 
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
+
+## 2026-11-04 Career 종료 이력 기록 분리 (운영 DB 적용·웹/Worker 미배포)
+
+사용자의 종료 알림용 DB migration 적용 요청으로 `career_opportunity_read_lifecycle`(운영 version `20261104080151`)을 적용했다. 로컬 정본은 `supabase/migrations/20261104071842_career_opportunity_read_lifecycle.sql`이다. 같은 migration을 다시 적용하지 않는다.
+
+내부 Role이 종료 상태로 바뀔 때 응답하지 않았고 숨기지 않은 현재 추천의 기존 종료 활동 이력을 기록한다. 조회에서 이 작업을 제거한 로컬 코드와 연결되는 변경이며 이메일·채팅의 실제 안내 발송을 뜻하지 않는다. 추천 ID에서 얻은 동일한 활동 ID를 새 종료 trigger와 기존 archive RPC가 공유해 구·신 코드 공존 및 재실행 시 종료 이력을 중복 생성하지 않는다. 기존 RPC의 보관 처리와 서버 전용 실행 권한은 유지했다. 새 trigger는 추천 상태를 수정하거나 Talent advisory lock을 획득하지 않는다.
+
+격리된 DB 테스트 4개에서 조회 무쓰기, 종료·재개, 구 RPC와의 중복 방지, 기존 종료 Role의 구 RPC 처리 등을 확인했다. 운영 함수 2개의 본문 hash가 로컬 정본과 일치하고 trigger 활성화, anon/authenticated 실행 차단·service_role 실행 허용을 확인했다. 보안 advisor 219개 항목은 적용 전후 동일하며 신규 항목은 없다. migration에는 기존 데이터 backfill이나 Role 상태 변경이 없으며 실제 후보자 종료·발송 테스트는 수행하지 않았다.
+
+이번 작업에서는 웹·Worker를 배포하거나 재시작하지 않았다. Notion의 역할·후속 연락·인재 상태 문서를 확인했으며 실제 안내 조건·발송 정책 변경 없이 내부 활동 기록 시점을 옮기는 변경이므로 제품 문서는 수정하지 않았다. 로컬의 조회 성능·Working 표시 개선까지 운영 웹에 반영됐다는 의미는 아니다.
+
+## 2026-11-04 회사명 팔로우 저장 (운영 DB 적용·웹/Worker 미배포)
+
+사용자의 명시적인 운영 DB 적용 요청으로 `career_company_name_follows`(운영 version `20261104074256`)를 적용했다. 로컬 정본은 `supabase/migrations/20261104073028_career_company_name_follows.sql`이다. 회사명만 있는 팔로우를 기존 테이블과 쓰기 RPC에서 지원하며, 기존 company/workspace 식별자·소유권·revision·멱등 처리 계약을 유지한다. 같은 migration을 다시 적용하지 않는다.
+
+운영 DB에서 회사명 저장·동일 요청 재실행·동일 이름 중복 방지·지시 수정·오래된 revision 거부·언팔로우를 transaction 안에서 확인하고 전부 rollback했다. 기존 팔로우는 적용 전후 총 65건/활성 58건이며 검증용 잔여 행은 0건이다. RLS, 유효한 unique index, anon/authenticated RPC 실행 차단·service_role 실행 허용을 확인했다. 적용 전후 보안 advisor에서 해당 테이블/RPC 관련 항목은 없다.
+
+로컬 코드는 정기 실행 전 고정 쿼리 웹 검색과 검색 캐시 주입을 제거했다. 원본 Career LLM에 회사명·사용자 지시·팔로우 시점을 전달하고 기존 workspace 공고 조회·평가는 유지한다. 웹/Worker 배포·재시작·실제 사용자 연락은 하지 않았으므로, 사전 검색 제거가 운영 코드에 반영됐다는 의미는 아니다. Notion 동기화 범위를 검토했으며 DB 저장 계약 선반영만으로 새 제품 동작 전체가 제공되는 것은 아니므로 제품 문서는 변경하지 않았다.
+
+## 2026-11-04 내부 기회 평가 비공개·대기 요청 취소 (운영 DB 적용·웹/Worker 미배포)
+
+사용자의 운영 DB 반영 요청으로 `career_internal_opportunity_publication`(운영 version `20261104065855`)과 `career_pending_reply_cancellation`(`20261104065904`)을 적용했다. 로컬 정본은 각각 `supabase/migrations/20261104062544_career_internal_opportunity_publication.sql`, `supabase/migrations/20261104063319_career_pending_reply_cancellation.sql`이다. 적용 전 기존 함수 두 개의 본문이 직전 정본과 같고 신규 취소 함수가 없음을 확인했다. 두 migration을 다시 적용하지 않는다.
+
+`write_career_opportunities`는 공개·소유권·차단·test-only 경계를 유지하면서 내부 기회를 평가 ID 없이 저장할 수 있다. `complete_career_follow_evaluation`은 내부 평가 후속 실행에 평가 ID·결과를 넣지 않는다. `cancel_career_pending_reply`는 소유자·checkpoint 버전을 검증하고 해당 대기 응답만 종료하며 정리 작업을 접수한다. 이 적용에서 기존 요청을 실제 취소하거나 고객 데이터를 이관하지 않았다.
+
+운영 함수 3개의 본문이 로컬 정본과 일치하고 SECURITY INVOKER·빈 search_path·anon/authenticated 실행 차단·service_role 실행 허용을 확인했다. 팔로우 완료 함수의 기존 harper_worker 실행 권한도 유지한다. service_role로 없는 사용자/대화의 실행 거부와 빈 팔로우 입력의 무작업 종료를 검증한 뒤 transaction rollback했다. 보안 advisor는 관측 시각을 제외한 기존 219개 항목과 동일하며 신규 항목은 없다.
+
+웹·Worker 코드 배포·재시작·실제 소개/연락은 하지 않았다. 내부 평가의 LLM 입력 제거와 일반 도구를 통한 대기 요청 취소의 전체 동작은 후속 코드 배포가 필요하다. Notion 동기화 범위를 검토했으며 이번 DB 준비만으로 새 사용자 기능 전체가 제공되는 것은 아니므로 제품 문서를 변경하지 않았다.
+
 ## 2026-11-04 로컬 변경 업로드 전 DB 보완 (웹·Worker 미배포)
 
 사용자의 배포 전 운영 DB 준비 요청에 따라 실제 함수·index와 migration 이력을 먼저 대조했다. 미반영된 로컬 `20261029090000_reuse_active_company_search`, `20261029094911_company_chat_multiple_progress_messages`, `20261104025349_career_conversation_input_batching`, `20261104033157_career_conversation_stop`을 하나의 원자적 migration `career_inbox_stop_and_company_chat_release`(운영 version `20261104035457`)로 적용했다. 동일 검색 접수 재사용, 회사 채팅 progress 메시지의 sequence별 중복 방지, Career pending 입력 일괄 접수·전체 중단의 DB 실행 계약이다. 이 네 파일을 다시 적용하지 않는다.

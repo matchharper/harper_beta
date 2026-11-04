@@ -108,6 +108,8 @@ export default function OpportunityCard({
   onOpenLink,
   collapsedActions,
   collapsedFooter,
+  headerActions,
+  headerFooter,
   titleClassName,
   titleAdornment,
   showUnreadIndicator = true,
@@ -122,6 +124,8 @@ export default function OpportunityCard({
   onOpenLink?: (item: CareerHistoryOpportunity, url: string) => void;
   collapsedActions?: ReactNode;
   collapsedFooter?: ReactNode;
+  headerActions?: ReactNode;
+  headerFooter?: ReactNode;
   titleClassName?: string;
   titleAdornment?: ReactNode;
   showUnreadIndicator?: boolean;
@@ -212,7 +216,6 @@ export default function OpportunityCard({
       {isInternal && connectionIndicator === "badge" ? (
         <Badge
           className="pointer-events-none absolute left-[2px] top-[-4px] z-10 bg-primary-faded text-primary"
-          icon={<Handshake aria-hidden />}
           size="sm"
           variant="faded"
         >
@@ -220,7 +223,7 @@ export default function OpportunityCard({
         </Badge>
       ) : null}
       <OpportunityCardHeader
-        footer={!expanded ? collapsedFooter : undefined}
+        footer={headerFooter ?? (!expanded ? collapsedFooter : undefined)}
         contentId={contentId}
         expanded={expanded}
         label={`${item.title} · ${item.companyName}`}
@@ -282,7 +285,7 @@ export default function OpportunityCard({
             ) : null}
           </div>
         </div>
-        {!expanded ? collapsedActions : null}
+        {headerActions ?? (!expanded ? collapsedActions : null)}
         {onToggle && !onOpenDetail ? (
           <ChevronRight
             aria-hidden

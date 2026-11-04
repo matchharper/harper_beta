@@ -1,3 +1,4 @@
+import { useCareerT } from "@/i18n/useCareerT";
 import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
 import { useCareerOpenForms } from "@/hooks/career/useCareerOpenForms";
 import type { CareerWorkActivity as WorkActivity } from "@/lib/career/work/activity";
@@ -38,11 +39,22 @@ export function CareerWorkActivity({
   conversationId?: string | null;
   admitting?: boolean;
 }) {
-  const { data } = useCareerOpenForms(conversationId);
+  const { data, isError } = useCareerOpenForms(conversationId);
+  const t = useCareerT();
   return (
-    <CareerWorkActivityStatus
-      activities={data?.activities}
-      admitting={admitting}
-    />
+    <>
+      {isError && !admitting && (
+        <div role="status" className="text-sm text-neutral-muted">
+          {t(
+            "career.chat.work_status_unavailable",
+            "작업 상태를 확인하지 못했어요. 다시 연결하고 있어요."
+          )}
+        </div>
+      )}
+      <CareerWorkActivityStatus
+        activities={data?.activities}
+        admitting={admitting}
+      />
+    </>
   );
 }

@@ -276,7 +276,8 @@ test("saved board recovers an exhausted page after cache loss and keeps it throu
   const saved = { ...opportunity, feedback: "positive" as const, savedStage: "saved" as const };
   let requests = 0;
   let hook!: ReturnType<typeof useCareerHistoryState>;
-  const fetchWithAuth: FetchWithAuth = async () => {
+  const fetchWithAuth: FetchWithAuth = async (url) => {
+    if (url.includes("summary=true")) return Response.json({ counts: { total: 1, new: 0, saved: 1, archived: 0, newInternal: 0, newExternalUnread: 0, savedStages: { saved: 1, applied: 0, connected: 0, offer: 0, closed: 0, hidden: 0 } } });
     requests += 1;
     return Response.json({ savedStagePages: { saved: { items: [saved], nextOffset: null } } });
   };

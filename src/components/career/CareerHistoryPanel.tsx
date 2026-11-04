@@ -1509,7 +1509,7 @@ const CareerHistoryPanel = () => {
                 <div className="flex justify-end"><CareerJobLinkImportButton /></div>
               ) : null}
               {listInitialLoading && activeDisplayTab !== "applied" ? (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3" aria-busy="true">
+                <div className="grid grid-cols-1 gap-3" aria-busy="true">
                   <Skeleton className="h-36 w-full rounded-lg" />
                   <Skeleton className="h-36 w-full rounded-lg" />
                 </div>

@@ -7,6 +7,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useInfiniteQuery,
+  useQuery,
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
@@ -202,6 +203,21 @@ export function useCareerHistoryState(args: {
     useState<CareerHistoryOpportunityCounts | null>(null);
   const [historyUpdatingOpportunityIds, setHistoryUpdatingOpportunityIds] =
     useState<string[]>([]);
+  const summary = useQuery({
+    queryKey: ["career-history-summary", userId, locale],
+    enabled: enabled && Boolean(userId) && historyUpdatingOpportunityIds.length === 0,
+    staleTime: 30_000,
+    queryFn: async ({ signal }) => {
+      const response = await fetchWithAuth("/api/talent/opportunities?summary=true", { signal });
+      if (!response.ok) throw new Error("Opportunity summary unavailable");
+      const counts = normalizeHistoryOpportunityCounts((await response.json()).counts);
+      if (!counts) throw new Error("Opportunity summary unavailable");
+      return counts;
+    },
+  });
+  useEffect(() => {
+    if (summary.data) setHistoryOpportunityCounts(summary.data);
+  }, [summary.data]);
   const [historyUpdateError, setHistoryUpdateError] = useState("");
   const [filteredPageState, setFilteredPageState] =
     useState<FilteredPageStateMap>({});
@@ -695,11 +711,13 @@ export function useCareerHistoryState(args: {
   );
 
   const beginHistoryUpdate = useCallback((opportunityId: string) => {
+    // An older in-flight summary cannot replace counts after this mutation.
+    void queryClient.cancelQueries({ queryKey: ["career-history-summary", userId, locale] });
     setHistoryUpdateError("");
     setHistoryUpdatingOpportunityIds((current) =>
       current.includes(opportunityId) ? current : [...current, opportunityId]
     );
-  }, []);
+  }, [queryClient, userId, locale]);
 
   const endHistoryUpdate = useCallback((opportunityId: string) => {
     setHistoryUpdatingOpportunityIds((current) =>
@@ -1259,6 +1277,7 @@ export function useCareerHistoryState(args: {
       if (!currentItem || currentItem.viewedAt) return;
       const now = new Date().toISOString();
 
+      void queryClient.cancelQueries({ queryKey: ["career-history-summary", userId, locale] });
       const viewedItem = { ...currentItem, viewedAt: now };
       updateHistoryOpportunityLocally(normalizedOpportunityId, () => viewedItem);
       applyHistoryOpportunityCountsTransition(currentItem, viewedItem);
@@ -1281,6 +1300,9 @@ export function useCareerHistoryState(args: {
     [
       applyHistoryOpportunityCountsTransition,
       historyOpportunityById,
+      queryClient,
+      userId,
+      locale,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       tCareer,
@@ -1333,7 +1355,7 @@ export function useCareerHistoryState(args: {
         queryKey,
         (current) => mergeRefreshedHistoryFirstPage(current, firstPage)
       );
-      setHistoryOpportunityCounts(firstPage.counts);
+      if (firstPage.counts) setHistoryOpportunityCounts(firstPage.counts);
       setHistoryLoaded(true);
       setHistoryUpdatingOpportunityIds([]);
       setHistoryUpdateError("");
@@ -1350,6 +1372,7 @@ export function useCareerHistoryState(args: {
   const refreshLatestHistoryOpportunities = useCallback(
     async (roleId?: string | null) => {
       if (!enabled || !userId) return;
+      void queryClient.invalidateQueries({ queryKey: ["career-history-summary", userId] });
 
       try {
         const normalizedRoleId = String(roleId ?? "").trim();
@@ -1419,7 +1442,7 @@ export function useCareerHistoryState(args: {
             return { ...merged, pages };
           }
         );
-        setHistoryOpportunityCounts(firstPage.counts);
+        if (firstPage.counts) setHistoryOpportunityCounts(firstPage.counts);
         setHistoryLoaded(true);
         setHistoryUpdateError("");
         void queryClient.invalidateQueries({

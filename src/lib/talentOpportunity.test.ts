@@ -5,7 +5,6 @@ import {
   buildInternalRecommendationProgress,
   resolveHistorySavedStage,
   fetchTalentOpportunityHistoryPage,
-  fetchTalentOpportunityHistoryCounts,
   fetchTalentOpportunitySavedStageHistoryPages,
   formatRecentRecommendedOpportunitiesForPrompt,
   formatRecommendationTimeForPrompt,
@@ -448,46 +447,6 @@ test("formats only the latest 10 role activities as compact text", () => {
   assert.doesNotMatch(text, /\{|\"kind\"|\"metadata\"/);
 });
 
-test("archive notices use the talent's saved language, not the screen language", async () => {
-  const rpcCalls: Array<{ args: unknown; name: string }> = [];
-  const admin = {
-    // Stop right after the archive step; only its arguments matter here.
-    from() {
-      throw new Error("stop after archive");
-    },
-    async rpc(name: string, args: unknown) {
-      rpcCalls.push({ args, name });
-      return { data: 0, error: null };
-    },
-  } as any;
-
-  await assert.rejects(
-    fetchTalentOpportunityHistoryPage({ admin, locale: "en", userId: "talent-1" }),
-    /stop after archive/
-  );
-  await assert.rejects(
-    fetchTalentOpportunitySavedStageHistoryPages({
-      admin,
-      locale: "en",
-      savedStages: ["saved"],
-      userId: "talent-1",
-    }),
-    /stop after archive/
-  );
-
-  assert.deepEqual(rpcCalls, [
-    {
-      args: { p_locale: null, p_talent_id: "talent-1" },
-      name: "archive_ended_internal_opportunities_for_talent",
-    },
-    {
-      args: { p_locale: null, p_talent_id: "talent-1" },
-      name: "archive_ended_internal_opportunities_for_talent",
-    },
-  ]);
-});
-
-
 test("history fills legacy closure while preserving the user's selected progress", () => {
   const legacy = { ...baseItem, savedStage: null };
   assert.equal(resolveHistorySavedStage(legacy, processStoppedTags), "closed");
@@ -501,56 +460,77 @@ test("history fills legacy closure while preserving the user's selected progress
 });
 
 
-test("stage counts include legacy internal closure and every API page", async () => {
-  const rows = [
-    { role_id: "external", feedback: "like", saved_stage: "saved", opportunity_type: OpportunityType.ExternalJd, company_role: { source_type: "external", status: "active" } },
-    { role_id: "role-1", feedback: "like", saved_stage: "accepted", opportunity_type: OpportunityType.InternalRecommendation, company_role: { source_type: "internal", status: "active" } },
-    { role_id: "hidden", feedback: null, saved_stage: "hidden", opportunity_type: OpportunityType.ExternalJd, company_role: { source_type: "external", status: "active" } },
-  ];
-  const offsets: number[] = [];
-  const admin = { from(table: string) {
-    let head = false;
-    let offset = 0;
-    const query: any = {
-      select(_fields: string, options?: { head?: boolean }) { head = Boolean(options?.head); return query; },
-      eq() { return query; }, is() { return query; }, or() { return query; }, in() { return query; }, order() { return query; },
-      range(start: number) { offset = start; offsets.push(start); return query; },
-      then(resolve: (value: unknown) => unknown) {
-        return Promise.resolve(resolve({ error: null, count: head ? 0 : rows.length,
-          data: head ? null : table === "talent_opportunity_tag" ? processStoppedTags : rows.slice(offset, offset + 1) }));
-      },
-    };
-    return query;
-  } } as any;
-  const counts = await fetchTalentOpportunityHistoryCounts({ admin, userId: "fixture" });
-  assert.deepEqual(counts.savedStages, { saved: 1, applied: 0, connected: 0, offer: 0, closed: 1, hidden: 1 });
-  assert.deepEqual(offsets, [0, 1, 2]);
+test("page reads hydrate only the selected page and do not count or archive", async () => {
+  const calls: string[] = [];
+  const selected = Array.from({ length: 11 }, (_, i) => ({ id: `rec-${i}`, role_id: `role-${i}`, list_position: "current", saved_stage: null }));
+  const admin = {
+    async rpc(name: string, args: { sql_query: string }) {
+      calls.push(name);
+      assert.equal(name, "set_timeout_and_execute_raw_sql");
+      assert.match(args.sql_query, /LIMIT 11/);
+      return { data: [[{ items: selected }]], error: null };
+    },
+    from(table: string) {
+      assert.equal(table, "talent_opportunity_recommendation");
+      return { select() { return this; }, eq() { return this; },
+        async in(_column: string, ids: string[]) {
+          assert.equal(ids.length, 10);
+          return { data: [], error: null };
+        } };
+    },
+  } as any;
+  const page = await fetchTalentOpportunityHistoryPage({ admin, userId: "00000000-0000-4000-8000-000000000001", historyTab: "new", limit: 10, includeCounts: false });
+  assert.equal(page.counts, null);
+  assert.equal(page.nextOffset, 10);
+  assert.equal(calls.length, 1);
 });
 
-test("new opportunity list and counts send filters excluding saved decisions", async () => {
-  const { createClient } = await import("@supabase/supabase-js");
-  const urls: URL[] = [];
-  const admin = createClient("http://fixture.invalid", "fixture", {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { fetch: async (input, init) => {
-      const url = new URL(String(input));
-      urls.push(url);
-      const totalQuery = init?.method === "HEAD" && !url.searchParams.has("list_position") && !url.searchParams.has("or");
-      return new Response(init?.method === "HEAD" ? null : JSON.stringify(url.pathname.includes("/rpc/") ? 0 : []), {
-        status: 200,
-        headers: { "content-type": "application/json", "content-range": totalQuery ? "*/5" : "*/0" },
-      });
-    } },
-  });
-  const page = await fetchTalentOpportunityHistoryPage({ admin: admin as never, historyTab: "new", userId: "fixture", limit: 10 });
-  assert.equal(page.counts.total, 5, "total includes saved cards without double counting archived saved cards");
-  const newQueries = urls.filter(url => url.searchParams.get("list_position") === "eq.current");
-  assert.ok(newQueries.length >= 4, "both the list and three new counts must be filtered");
-  for (const url of newQueries) {
-    assert.equal(url.searchParams.get("talent_id"), "eq.fixture");
-    assert.deepEqual(url.searchParams.getAll("or"), [
-      "(feedback.is.null,feedback.eq.dislike)",
-      "(saved_stage.is.null,saved_stage.neq.hidden)",
-    ]);
-  }
+test("a failed summary stays unknown, rather than returning zero counts", async () => {
+  const admin = { rpc: async () => ({ data: null, error: { message: "unavailable" } }) } as any;
+  const page = await fetchTalentOpportunityHistoryPage({ admin, userId: "owner", limit: 0 });
+  assert.equal(page.counts, null);
 });
+
+test("saved stage batches share one index read and hydrate only each requested page", async () => {
+  let rpcCalls = 0;
+  const row = (id: string) => ({ id, role_id: id, list_position: "current", saved_stage: "saved" });
+  const admin = {
+    async rpc(name: string) {
+      rpcCalls++;
+      assert.equal(name, "set_timeout_and_execute_raw_sql");
+      return { data: [[{ pages: { saved: [row("a"), row("b"), row("c")], connected: [row("d")] } }]], error: null };
+    },
+    from(table: string) {
+      assert.equal(table, "talent_opportunity_recommendation");
+      return { select() { return this; }, eq() { return this; },
+        async in(_column: string, ids: string[]) {
+          assert.deepEqual(ids, ["a", "b", "d"]);
+          return { data: [], error: null };
+        } };
+    },
+  } as any;
+  const result = await fetchTalentOpportunitySavedStageHistoryPages({ admin, userId: "00000000-0000-4000-8000-000000000001", savedStages: ["saved", "connected"], limit: 2, includeCounts: false });
+  assert.equal(rpcCalls, 1);
+  assert.equal(result.counts, null);
+  assert.equal(result.pages.saved?.nextOffset, 2);
+  assert.equal(result.pages.connected?.nextOffset, null);
+});
+
+for (const currentStage of ["offer", null]) {
+  test(`a concurrent progress change to ${currentStage} is not overwritten by the earlier page index`, async () => {
+    const { fetchTalentOpportunitySearchItems } = await import("./talentOpportunity");
+    const id = "00000000-0000-4000-8000-000000000001";
+    const current = { id, role_id: id, created_at: "2026-11-01", opportunity_type: "external_jd", feedback: "like", saved_stage: currentStage,
+      company_role: { name: "Engineer", source_type: "external", status: "active", company_workspace: { company_name: "Example" } } };
+    const admin = {
+      rpc: async () => ({ data: [[{ items: [{ id, role_id: id, list_position: "current", saved_stage: "saved" }] }]], error: null }),
+      from(table: string) {
+        const query: any = { select() { return this; }, eq() { return this; }, in() { return this; }, order() { return this; }, range() { return this; },
+          then(resolve: (value: unknown) => unknown) { return Promise.resolve(resolve({ data: table === "talent_opportunity_recommendation" ? [current] : [], error: null })); } };
+        return query;
+      },
+    } as any;
+    const items = await fetchTalentOpportunitySearchItems({ admin, userId: id });
+    assert.equal(items[0].savedStage, currentStage);
+  });
+}

@@ -9,8 +9,6 @@ export type FollowCompany = {
   revision: number;
   name: string;
   website: string | null;
-  researchName: string;
-  researchWebsite: string | null;
   companyDbId: number | null;
   workspaceId: string | null;
   scope: string;
@@ -50,7 +48,7 @@ export async function readFollowInventory(
     admin,
     `
     WITH follows AS MATERIALIZED (
-      SELECT f.*,coalesce(w.company_name,c.name) name,coalesce(w.homepage_url,c.website_url) website,coalesce(c.name,w.company_name) research_name,coalesce(c.website_url,w.homepage_url) research_website
+      SELECT f.*,coalesce(w.company_name,c.name,f.company_name) name,coalesce(w.homepage_url,c.website_url) website
       FROM public.talent_company_follow f
       JOIN public.talent_users t ON t.user_id=f.talent_id AND t.deleted_at IS NULL
       LEFT JOIN public.company_db c ON c.id=f.company_db_id
@@ -59,7 +57,7 @@ export async function readFollowInventory(
       WHERE f.talent_id=${owner} AND f.unfollowed_at IS NULL
         AND ((coalesce(s.get_external_recommendation,true) AND s.status IS DISTINCT FROM 'stopped') OR (coalesce(s.get_internal_recommendation,true) AND coalesce(s.profile_visibility,'')<>'dont_share'))
         AND NOT EXISTS(SELECT 1 FROM unnest(coalesce(s.blocked_companies,'{}'::text[])) b(name)
-          WHERE lower(btrim(b.name)) IN (lower(btrim(c.name)),lower(btrim(w.company_name)),lower(btrim(w.published_name)),w.company_workspace_id::text))
+          WHERE lower(btrim(b.name)) IN (lower(btrim(f.company_name)),lower(btrim(c.name)),lower(btrim(w.company_name)),lower(btrim(w.published_name)),w.company_workspace_id::text))
     ), roles AS MATERIALIZED (
       SELECT cr.role_id,cr.source_type,cr.name,cr.posted_at,cr.created_at,cw.company_name,array_agg(f.id::text ORDER BY f.id) follow_ids
       FROM follows f JOIN public.company_workspace cw ON
@@ -79,7 +77,7 @@ export async function readFollowInventory(
     )
     SELECT
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',id,'revision',revision,'name',name,'website',website,
-        'researchName',research_name,'researchWebsite',research_website,'companyDbId',company_db_id,'workspaceId',company_workspace_id,'scope',scope,'instruction',instruction,'followedAt',followed_at)
+        'companyDbId',company_db_id,'workspaceId',company_workspace_id,'scope',scope,'instruction',instruction,'followedAt',followed_at)
         ORDER BY id) FROM follows),'[]'::jsonb) companies,
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',r.role_id,'followIds',r.follow_ids,'source',r.source_type,
         'name',r.name,'company',r.company_name,'postedAt',r.posted_at,'createdAt',r.created_at,

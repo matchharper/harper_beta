@@ -20,15 +20,26 @@ export type TabBoxesProps<T extends string> = Omit<
   React.HTMLAttributes<HTMLDivElement>,
   "onChange"
 > & {
-  activeValue: T;
   getItemClassName?: (item: TabBoxItem<T>, selected: boolean) => string;
   itemClassName?: string;
   items: readonly TabBoxItem<T>[];
   listClassName?: string;
-  onValueChange: (value: T) => void;
   size?: TabBoxesSize;
   variant?: TabBoxesVariant;
-};
+} & (
+    | {
+        selectionMode?: "single";
+        activeValue: T;
+        activeValues?: never;
+        onValueChange: (value: T) => void;
+      }
+    | {
+        selectionMode: "multiple";
+        activeValue?: never;
+        activeValues: readonly T[];
+        onValueChange: (values: T[]) => void;
+      }
+  );
 
 const tabBoxSizeClassNames: Record<TabBoxesSize, string> = {
   xs: "min-h-10 min-w-[104px] px-3 py-2",
@@ -53,36 +64,60 @@ const tabBoxCountClassNames: Record<TabBoxesSize, string> = {
 
 export function TabBoxes<T extends string>({
   activeValue,
+  activeValues,
+  "aria-label": ariaLabel,
   className,
   getItemClassName,
   itemClassName,
   items,
   listClassName,
   onValueChange,
+  selectionMode,
   size = "md",
   variant = "default",
   ...props
 }: TabBoxesProps<T>) {
   const isNeutral = variant === "neutral";
+  const isMultiple = selectionMode === "multiple";
 
   return (
     <div className={cn("w-full overflow-x-auto", className)} {...props}>
       <div
-        role="tablist"
+        role={isMultiple ? "group" : "tablist"}
+        aria-label={ariaLabel}
         className={cn("flex min-w-max flex-row gap-2", listClassName)}
       >
         {items.map((item) => {
-          const selected = item.value === activeValue;
+          const selected = isMultiple
+            ? activeValues.includes(item.value)
+            : item.value === activeValue;
           const countContent = item.countLabel ?? item.count;
 
           return (
             <BareButton
               key={item.value}
               type="button"
-              role="tab"
-              aria-selected={selected}
+              role={isMultiple ? undefined : "tab"}
+              aria-selected={isMultiple ? undefined : selected}
+              aria-pressed={isMultiple ? selected : undefined}
               disabled={item.disabled}
-              onClick={() => onValueChange(item.value)}
+              onClick={() => {
+                if (isMultiple) {
+                  onValueChange(
+                    selected
+                      ? activeValues.filter((value) => value !== item.value)
+                      : items
+                          .filter(
+                            (option) =>
+                              option.value === item.value ||
+                              activeValues.includes(option.value)
+                          )
+                          .map((option) => option.value)
+                  );
+                } else {
+                  onValueChange(item.value);
+                }
+              }}
               className={cn(
                 "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55",
                 isNeutral

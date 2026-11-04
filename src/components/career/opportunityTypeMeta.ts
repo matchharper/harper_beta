@@ -69,7 +69,7 @@ type CareerOpportunityTypeMeta = {
   negativeActionLabel: string;
   negativeFeedback: CareerOpportunityNegativeFeedbackMeta;
   panelToneClassName: string;
-  positiveActionIcon: LucideIcon;
+  positiveActionIcon: LucideIcon | null;
   positiveActionLabel: string;
   savedStageLabels: {
     applied: string;
@@ -274,7 +274,7 @@ const buildCareerOpportunityTypeMeta = (
       requiresComment: false,
     },
     panelToneClassName: "bg-bg-floating",
-    positiveActionIcon: Handshake,
+    positiveActionIcon: null,
     positiveActionLabel: t(
       "career.common.opportunity_type_meta.1n5sz4w",
       "연결 요청"

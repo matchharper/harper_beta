@@ -177,6 +177,7 @@ export type RunCareerChatTurnArgs = {
   adapter?: CareerTextTurnAdapter;
   existingSourceMessage?: TalentMessageRow;
   agentReplyId?: string;
+  sourceMessageCursor?: number;
   abortSignal?: AbortSignal;
   deadlineAt?: number;
   onAgentCheckpoint?: (checkpoint: CareerReplyCheckpoint) => Promise<void>;
@@ -870,7 +871,7 @@ export async function runCareerChatTurn(
     workId: args.workId,
     workRevision: args.workRevision,
     backgroundRunId: args.backgroundInvocation?.runId,
-    sourceMessageCursor: args.backgroundInvocation?.sourceMessageCursor,
+    sourceMessageCursor: args.backgroundInvocation?.sourceMessageCursor ?? args.sourceMessageCursor,
     ...(args.backgroundInvocation ? { selectionSnapshot: {
       capabilityIds: ["schedules", "career_delivery"],
       handbookIds: ["proactive_career"], status: "selected" as const, elapsedMs: 0,

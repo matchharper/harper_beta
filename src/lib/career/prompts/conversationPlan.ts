@@ -469,16 +469,9 @@ ${args.gmailCapability === "not_connected"
 
   const optionalFollowUpOpportunitiesSection =
     isMainChat
-      ? (args.activeInternalFitHoldQuestion
-        ? `## Private matching clarification
-fitId: ${args.activeInternalFitHoldQuestion.fitId}
-summary: ${args.activeInternalFitHoldQuestion.summary}`
-        : "")
+      ? ""
       : buildOptionalFollowUpOpportunitiesSection({
-      activeInternalFitHoldQuestion: args.activeInternalFitHoldQuestion,
-      canRecordInternalFitHoldQuestion: normalizedToolNames.includes(
-        "record_internal_fit_reevaluation_information"
-      ),
+
       isConversationCompletedOpportunityRunActive:
         args.isConversationCompletedOpportunityRunActive,
       isOnboardingActive,

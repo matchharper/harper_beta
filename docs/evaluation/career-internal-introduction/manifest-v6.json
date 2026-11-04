@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v6",
+  "provenance": "Generic company-agent correspondence and recorded introduction origin. Three synthetic conversations reuse v5 initial-interest flow and add an ordinary follow-up question and a company-originated Intro response. Gold frozen before generation; current original prompts and schemas, actual local profile/material SQL, synthetic delivery boundary.",
+  "createdAt": "2026-11-04",
+  "hashes": {
+    "cases-v6.json": "976636bb183a1d74dacbfe708ea1504f3f546f607712d8beff0257f0ce0178c1",
+    "gold-v6.json": "c48c382ee7dea8bcf5c981f78ba90bfb4607618db06485ba8d560411fee52c09"
+  }
+}

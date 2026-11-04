@@ -18,6 +18,7 @@ const option = (name: string, fallback: string) => { const i = process.argv.inde
 
 async function main() {
   const version = option("--dataset", "v5");
+  const agentInbox = ["v5", "v6"].includes(version);
   const fixture = JSON.parse(readFileSync(`${task}/cases-${version}.json`, "utf8"));
   const gold = JSON.parse(readFileSync(`${task}/gold-${version}.json`, "utf8"));
   const frozen = JSON.parse(readFileSync(`${task}/manifest-${version}.json`, "utf8"));
@@ -83,17 +84,17 @@ async function main() {
     const {workRpc,readWork,listWork,formatWork,workContext}=await import("../src/lib/career/work/store");
     const { withTalentToolAssistantInstruction } = await import("../src/lib/talentOnboarding/tools");
     const model = resolveCareerTextChatModel(undefined);
-    const sources = ["scripts/evalCareerInternalIntroduction.ts", "scripts/lib/careerIntroductionTestStore.ts", "src/lib/career/llm.ts", "src/lib/career/llmTools.ts", "src/lib/career/textChatModelConfig.ts", "src/lib/career/prompts/mainPrompts.ts", "src/lib/career/prompts/mainPrompt2.ts", "src/lib/career/prompts/conversationPlan.ts", "src/lib/career/prompts/conversationSections.ts", "src/lib/career/prompts/toolPolicyPrompt.ts", "src/lib/career/prompts/cases/lifecyclePrompts.ts", "src/lib/career/opportunityFeedbackEvent.ts", "src/lib/llm/toolDescriptions.ts", "src/lib/career/internalApplications/tools.ts", "src/lib/agentContacts/contracts.ts", "src/lib/agentContacts/toolContracts.ts", "src/lib/career/work/tools.ts", "src/lib/career/work/store.ts", "supabase/migrations/20261103125930_career_concurrent_work.sql", "src/lib/career/profiles/tools.ts", "src/lib/career/profiles/store.ts", "src/lib/career/roleMaterials/store.ts", "supabase/migrations/20261029182857_career_profile_versions_and_role_materials.sql", ...readdirSync("src/lib/career/handbooks").filter(n => n.endsWith(".ts")).map(n => `src/lib/career/handbooks/${n}`)];
+    const sources = ["scripts/evalCareerInternalIntroduction.ts", "scripts/lib/careerIntroductionTestStore.ts", "src/lib/career/llm.ts", "src/lib/career/llmTools.ts", "src/lib/career/textChatModelConfig.ts", "src/lib/career/prompts/mainPrompts.ts", "src/lib/career/prompts/mainPrompt2.ts", "src/lib/career/prompts/conversationPlan.ts", "src/lib/career/prompts/conversationSections.ts", "src/lib/career/prompts/toolPolicyPrompt.ts", "src/lib/career/prompts/cases/lifecyclePrompts.ts", "src/lib/career/opportunityFeedbackEvent.ts", "src/lib/career/capabilities/registry.ts", "src/lib/talentOnboarding/tools.ts", "src/lib/talentOnboarding/roleContextFormat.ts", "src/lib/agentContacts/introductionContext.ts", "src/lib/llm/toolDescriptions.ts", "src/lib/career/internalApplications/tools.ts", "src/lib/agentContacts/contracts.ts", "src/lib/agentContacts/toolContracts.ts", "src/lib/career/work/tools.ts", "src/lib/career/work/store.ts", "supabase/migrations/20261103125930_career_concurrent_work.sql", "src/lib/career/profiles/tools.ts", "src/lib/career/profiles/store.ts", "src/lib/career/roleMaterials/store.ts", "supabase/migrations/20261029182857_career_profile_versions_and_role_materials.sql", ...readdirSync("src/lib/career/handbooks").filter(n => n.endsWith(".ts")).map(n => `src/lib/career/handbooks/${n}`)];
     save("manifest", { runId, datasetVersion: version, model, repeat, sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), dirty: true, sources: Object.fromEntries(sources.map(p => [p, hash(readFileSync(p))])), fixtureHashes: frozen.hashes, selected: cases.map((c: any) => c.id), timeoutMs: 300_000, concurrency: 2, boundary: "Real profile/material SQL and tool executors; stubbed acceptance downstream; synthetic reads/forms; no company transport." });
     const selected = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, responseLocale: "ko", hasActiveGmailIntegration: false });
     const ajv = new Ajv({ strict: false, allowUnionTypes: true });
     const validators = new Map(selected.tools.map(t => [t.function.name, ajv.compile(t.function.parameters)]));
     const runCase = async (scenario: any, iteration: number) => {
       const key = `${scenario.id}-r${iteration}`;
-      const db = await database({workRuntime:version==='v5'});
+      const db = await database({workRuntime:agentInbox});
       const calls: any[] = [], turns: any[] = [], forms: any[] = [], schedules: any[] = [], errors: string[] = [];
       let accepted = false, decisionCount = 0, turnNumber = 0;
-      const currentOpportunity: any = { id: rec, roleId: role, sourceType: "internal", isInternal: true, status: "active", recommendedAt: fixture.requestTime, opportunityType: "internal_recommendation", title: fixture.role.name, companyName: fixture.role.company, feedback: null, feedbackAt: null, feedbackReason: null, isAccepted: false, savedStage: null, isExpired: false };
+      const currentOpportunity: any = { id: rec, roleId: role, sourceType: "internal", isInternal: true, status: "active", recommendedAt: fixture.requestTime, opportunityType: scenario.companyIntro ? "intro_request" : "internal_recommendation", title: fixture.role.name, companyName: fixture.role.company, feedback: null, feedbackAt: null, feedbackReason: null, isAccepted: false, savedStage: null, isExpired: false };
       let activeWorkId:string|undefined;
       const context = () => ({ ...toolContext(db, `${key}:turn${turnNumber}`), userMessageId:turnNumber+1,workId:activeWorkId,conversationId: "00000000-0000-4000-8000-000000000099" } as any);
       try {
@@ -115,14 +116,14 @@ async function main() {
           Object.assign(currentOpportunity, { feedback: "positive", feedbackAt: fixture.requestTime, isAccepted: true, savedStage: "pending_connection", acceptanceMaterial: { materialId: pin.rows[0].id, assignmentRevision: pin.rows[0].revision }, internalProgress: { code: "accepted", message: "소개를 수락했으며 Harper가 회사에 소개할 예정입니다. 회사 전달이나 응답 기록은 아직 없습니다." } });
           if (version !== "v1") {
             currentOpportunity.savedStage = "connected";
-            currentOpportunity.internalProgress = buildInternalRecommendationProgress({ item: currentOpportunity, tags: [], events: [],agentIntroductionRootId:version==="v5"?"00000000-0000-4000-8000-000000000010":undefined });
+            currentOpportunity.internalProgress = buildInternalRecommendationProgress({ item: currentOpportunity, tags: [], events: [],agentIntroductionRootId:agentInbox?"00000000-0000-4000-8000-000000000010":undefined });
           }
         };
-        if (scenario.mode === "button" && version !== "v5") await accept({});
-        const history: any[] = scenario.initialInterest ? [] : [{ role: "assistant", content: `서윤님, ${fixture.role.company}의 ${fixture.role.name} 포지션은 Kubernetes 운영과 장애 대응 경험을 살릴 수 있는 기회예요. 회사에 소개해 드릴까요?\n\n[posting](${role})` }, ...(scenario.historyUser ? [{ role: "user", content: scenario.historyUser }] : [])];
+        if (scenario.mode === "button" && !agentInbox) await accept({});
+        const history: any[] = scenario.initialInterest ? [] : [{ role: "assistant", content: (scenario.companyIntro ? `${fixture.role.company}에서 ${fixture.role.name} 역할로 서윤님께 Intro를 요청했어요. 프로필을 공유하고 연결을 진행할까요?` : `서윤님, ${fixture.role.company}의 ${fixture.role.name} 포지션은 Kubernetes 운영과 장애 대응 경험을 살릴 수 있는 기회예요. 회사에 소개해 드릴까요?\n\n[posting](${role})`) }, ...(scenario.historyUser ? [{ role: "user", content: scenario.historyUser }] : [])];
         for (const message of scenario.turns) {
           const event = scenario.mode === "button" && turnNumber === 0;
-          if(version==='v5') await db.query("insert into talent_messages(id,user_id,conversation_id,role,message_type,content,payload,created_at) values($1,$2,$3,'user',$4,$5,$6,$7)",[
+          if(agentInbox) await db.query("insert into talent_messages(id,user_id,conversation_id,role,message_type,content,payload,created_at) values($1,$2,$3,'user',$4,$5,$6,$7)",[
             turnNumber+1,owner,context().conversationId,event?'agent_introduction_action':'chat',message ?? '노바클라우드의 플랫폼 엔지니어 역할에 저를 소개해주세요.',event?{recommendationId:rec,roleId:role}:{},new Date(new Date(fixture.requestTime).getTime()+turnNumber*300_000).toISOString()]);
           const turnCallsStart = calls.length;
           const executeTool = async ({ name, input }: { name: string; input: Record<string, unknown> }) => {
@@ -132,7 +133,7 @@ async function main() {
               if (!validate(input)) throw new Error(`Invalid tool input: ${ajv.errorsText(validate.errors)}`);
               const { _uiStatusMessage, ...args } = input as any;
               let raw: any, modelOutput = "";
-              if(version==='v5' && name==='manage_work') {
+              if(agentInbox && name==='manage_work') {
                 if(args.action==='start' && activeWorkId) throw new Error('Continue this work; independent work is delegated from the conversation.');
                 if(args.action==='list') {raw=await listWork(context(),args.before,args.include_closed);modelOutput=raw.works.map(formatWork).join('\n\n')||'No delegated work.';}
                 else {
@@ -143,8 +144,15 @@ async function main() {
                 raw = await CAREER_PROFILE_TOOLS[name].execute!(args, context()); modelOutput = formatProfileToolResult(name, raw);
               } else if (name === "assign_to_role") {
                 raw = await CAREER_INTERNAL_APPLICATION_TOOLS.assign_to_role.execute!(args, context()); modelOutput = formatInternalApplicationToolResult(name, raw);
-              } else if (version === "v5" && name === "contact_company") {
-                assert.equal(args.recommendationId,rec); assert.equal(args.acceptIntroduction,true);
+              } else if (agentInbox && name === "contact_company") {
+                if (args.acceptIntroduction !== true) {
+                  assert.equal(accepted, true, "No existing correspondence");
+                  assert.equal(args.introductionRootId ?? args.replyToMessageId, "00000000-0000-4000-8000-000000000010");
+                  assert.ok(args.relayContent);
+                  raw=agentContactReceipt({id:"00000000-0000-4000-8000-000000000011",root_id:"00000000-0000-4000-8000-000000000010",role_id:role,recommendation_id:rec,direction:"to_company",cancelled_at:null} as any);
+                  modelOutput=raw.modelOutput;
+                } else {
+                assert.equal(args.recommendationId,rec);
                 assert.ok(!(scenario.initialInterest && turnNumber===0),'Initial exploration is not introduction acceptance');
                 assert.equal(accepted,false,"Duplicate introduction");
                 const pinned=await db.query<any>("select pin_agent_contact_material_v1($1,$2,$3,$4,$5) AS id",[owner,role,`${key}:${turnNumber}:contact`,decodeMaterialSelection(args.selectionRef)??null,{userMessageId:turnNumber+1}]);
@@ -152,12 +160,13 @@ async function main() {
                 await accept(args); decisionCount++;
                 raw=agentContactReceipt({id:"00000000-0000-4000-8000-000000000010",root_id:"00000000-0000-4000-8000-000000000010",role_id:role,recommendation_id:rec,material_id:pinned.rows[0].id,direction:"to_company",cancelled_at:null} as any);
                 modelOutput=raw.modelOutput;
-              } else if(version === "v5" && name === "apply_to_internal_role") {
+                }
+              } else if(agentInbox && name === "apply_to_internal_role") {
                 assert.equal(args.roleId,role);
                 raw={recommendationId:rec,visible:true,role:{roleId:role,name:fixture.role.name,companyName:fixture.role.company,description:fixture.role.description,companyDescription:"클라우드 주문 서비스를 만드는 팀"},postingRoleIds:[role],status:"queued",companyShared:false};
                 modelOutput=formatInternalApplicationToolResult(name,raw);
               } else if (name === "update_recommended_opportunity_feedback") {
-                if(version === "v5") throw new Error("Internal acceptance must use contact_company");
+                if(agentInbox) throw new Error("Internal acceptance must use contact_company");
                 assert.ok(args.opportunityId === rec || args.roleId === role, "Wrong recommendation");
                 assert.equal(args.feedback, "like"); assert.equal(accepted, false, "Duplicate acceptance");
                 await accept(args); decisionCount++;
@@ -198,20 +207,20 @@ async function main() {
             `Profile index:\n${profileIndex.map(p => `${p.title}; profileId=${p.id}; revision=${p.current_revision}; default=${p.is_default}`).join("\n")}`,
             "Full profile rows are available through read_profile. No additional uploaded documents.",
             `Public role ${role}: ${fixture.role.company} / ${fixture.role.name}. ${fixture.role.description}`,
-            version==='v5' ? await workContext(context()) : '',
+            agentInbox ? await workContext(context()) : '',
             formatSavedOpportunityDecision(currentOpportunity),
-            event && version !== "v5" ? buildCareerOpportunityFeedbackFollowUpTurnInstruction({ preferredLocale: "ko", trigger: "immediate_internal_feedback" }) : "",
-            event && version !== "v5" ? formatOpportunityFeedbackPromptContext([{ eventId: `event:${key}`, createdAt: fixture.requestTime, action: "positive", summary: `User accepted ${fixture.role.company} ${fixture.role.name} through the introduction button.` }]) : "",
+            event && !agentInbox ? buildCareerOpportunityFeedbackFollowUpTurnInstruction({ preferredLocale: "ko", trigger: "immediate_internal_feedback" }) : "",
+            event && !agentInbox ? formatOpportunityFeedbackPromptContext([{ eventId: `event:${key}`, createdAt: fixture.requestTime, action: "positive", summary: `User accepted ${fixture.role.company} ${fixture.role.name} through the introduction button.` }]) : "",
             forms.length ? `Existing forms:\n${forms.map(formatCareerFormForModel).join("\n\n")}` : "",
           ].filter(Boolean).join("\n\n");
           const signal = AbortSignal.timeout(300_000);
           const currentTurnTime = new Date(new Date(fixture.requestTime).getTime() + turnNumber * 300_000);
-          const dynamicContext = ["v3", "v4", "v5"].includes(version);
+          const dynamicContext = ["v3", "v4", "v5", "v6"].includes(version);
           const runtime = new CareerCapabilityRuntime({ mode: "progressive", replyId: `${key}:turn${turnNumber}`, eligibleTools: selected.tools, preloads: [], abortSignal: signal, promptArgs: () => ({ channel: "chat", isOnboardingDone: true, profile: null, structuredProfileText: `${p.name}; ${p.years} 플랫폼 엔지니어.\n${defaultNow.snapshot.talentUser.bio}`, talentContextSection: dynamicContext ? "Search Brief: 서울 플랫폼 엔지니어. Memory: No additional confirmed facts." : extraContext, ...(dynamicContext ? { runtimeInstruction: extraContext } : {}), requestTime: currentTurnTime, timeZone: "Asia/Seoul", currentPreferences: { preferredLocale: "ko", talentSettingStatus: "active", getExternalRecommendation: true, getInternalRecommendation: true } }) });
           const step = runtime.resolveStep(false);
-          const projectMessage = (item: any, index: number) => ["v4","v5"].includes(version) ? { role: item.role, content: formatTalentMessageContentForLlmPrompt({ ...item, created_at: item.created_at ?? new Date(new Date(fixture.requestTime).getTime() - 300_000 + index * 60_000).toISOString() }, { includeCreatedAt: true, preferredLocale: "ko", timeZone: "Asia/Seoul" }) } : item;
+          const projectMessage = (item: any, index: number) => ["v4","v5","v6"].includes(version) ? { role: item.role, content: formatTalentMessageContentForLlmPrompt({ ...item, created_at: item.created_at ?? new Date(new Date(fixture.requestTime).getTime() - 300_000 + index * 60_000).toISOString() }, { includeCreatedAt: true, preferredLocale: "ko", timeZone: "Asia/Seoul" }) } : item;
           const messages = history.map(projectMessage).filter(item => item.content.trim());
-          if(event && version === "v5") messages.push(projectMessage({role:"user",message_type:"agent_introduction_action",content:"노바클라우드의 플랫폼 엔지니어 역할에 저를 소개해주세요.",payload:{recommendationId:rec,roleId:role,feedbackReason:scenario.historyUser ?? null},created_at:currentTurnTime.toISOString()},history.length));
+          if(event && agentInbox) messages.push(projectMessage({role:"user",message_type:"agent_introduction_action",content:"노바클라우드의 플랫폼 엔지니어 역할에 저를 소개해주세요.",payload:{recommendationId:rec,roleId:role,feedbackReason:scenario.historyUser ?? null},created_at:currentTurnTime.toISOString()},history.length));
           else if (!event) messages.push(projectMessage({ role: "user", content: message, created_at: currentTurnTime.toISOString() }, history.length));
           else if (version !== "v4" || messages.at(-1)?.role !== "user") messages.push({ role: "user", content: "Continue the user's delegated work using the new execution result supplied in the runtime context." });
           let reply = "", failure: string | undefined;
@@ -222,7 +231,7 @@ async function main() {
           if (!event) history.push({ role: "user", content: message, created_at: currentTurnTime.toISOString() });
           history.push({ role: "assistant", content: reply, created_at: new Date(currentTurnTime.getTime() + 60_000).toISOString() });
           turns.push({ turn: turnNumber, event, user: message, reply, failure, elapsedMs: Date.now() - started, calls: calls.slice(turnCallsStart) });
-          if(version==='v5') {
+          if(agentInbox) {
             const pending=(await db.query<any>("select * from talent_external_operations where kind='career_invocation' and parent_id is not null and status='ready' order by created_at,id")).rows;
             for(const invocation of pending) {
               const work=await readWork(context(),invocation.parent_id);
@@ -251,6 +260,7 @@ async function main() {
         const pinned = (await db.query<any>("select m.* from talent_role_materials m join talent_opportunity_recommendation r on r.shared_material_id=m.id where r.id=$1", [rec])).rows[0];
         const expected = gold.cases.find((c: any) => c.id === scenario.id);
         if(expected.requiresApply && !calls.some(c=>c.name==='apply_to_internal_role' && !c.error)) errors.push('Initial interest did not save the opportunity');
+        if (expected.requiresCorrespondence && !calls.some(c => c.name === "contact_company" && c.input.acceptIntroduction !== true && !c.error)) errors.push("Ordinary company correspondence was not sent");
         if (decisionCount !== expected.requiredDecisionCount) errors.push(`Acceptance count ${decisionCount}, expected ${expected.requiredDecisionCount}`);
         if (expected.requiresProfileWrite && !calls.some(c => c.name === "update_talent_profile" && !c.error)) errors.push("Requested profile edit was not executed");
         if (expected.requiresForm && !forms.length) errors.push("Requested question form was not created");

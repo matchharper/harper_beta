@@ -110,7 +110,6 @@ import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalO
 import { isPriorityReviewInboxArchived } from "@/lib/career/priorityReviewProgress";
 import {
   hasPendingInternalRoleReconsideration,
-  isInternalRoleCandidateReadable,
   isInternalRoleReconsiderationEligible,
   isInternalRoleCandidateVisible,
   isInternalRolePriorityReviewRecommendable,
@@ -836,7 +835,7 @@ export async function runGetRoleContext(args: {
     )
     .in("role_id", args.roleIds);
   if (args.externalFactsOnly) roleQuery.eq("source_type", "external");
-  const [roleResponse, recommendationResponse, fitResponse] = await Promise.all(
+  const [roleResponse, recommendationResponse] = await Promise.all(
     [
       roleQuery,
       args.externalFactsOnly ? Promise.resolve({ data: [], error: null }) : (args.admin.from("talent_opportunity_recommendation" as any) as any)
@@ -844,12 +843,7 @@ export async function runGetRoleContext(args: {
         .eq("talent_id", args.userId)
         .in("role_id", args.roleIds)
         .order("created_at", { ascending: false }),
-      args.externalFactsOnly ? Promise.resolve({ data: [], error: null }) : (args.admin.from("talent_role_fit_with_selection_v1" as any) as any)
-        .select(
-          "opportunity_id, fit_contract_version, candidate_visible, expires_at, label, human_label, recommend, role_fit, candidate_fit, company_fit, reevaluation_criteria, reevaluation_checked_at"
-        )
-        .eq("talent_id", args.userId)
-        .in("opportunity_id", args.roleIds),
+
     ]
   );
 
@@ -864,15 +858,8 @@ export async function runGetRoleContext(args: {
         "Failed to load role recommendation context."
     );
   }
-  if (fitResponse.error) {
-    throw new TalentToolError(
-      fitResponse.error.message ?? "Failed to verify internal role access."
-    );
-  }
-
   const roleRows = asToolRecordArray(roleResponse.data);
   const recommendationRows = asToolRecordArray(recommendationResponse.data);
-  const fitRows = asToolRecordArray(fitResponse.data);
   const roleById = new Map(
     roleRows
       .map((row) => [optionalToolString(row.role_id), row] as const)
@@ -881,15 +868,6 @@ export async function runGetRoleContext(args: {
       )
   );
   const recommendationsByRoleId = new Map<string, Record<string, unknown>[]>();
-  const readableFitByRoleId = new Map<string, Record<string, unknown>>();
-
-  for (const row of fitRows) {
-    const roleId = optionalToolString(row.opportunity_id);
-    if (roleId && isInternalRoleCandidateReadable(row)) {
-      readableFitByRoleId.set(roleId, row);
-    }
-  }
-
   for (const row of recommendationRows) {
     const roleId = optionalToolString(row.role_id);
     if (!roleId) continue;
@@ -1026,10 +1004,12 @@ export async function runGetRoleContext(args: {
             opportunityType: optionalToolString(
               latestRecommendation.opportunity_type
             ),
-            fitSummary: optionalToolString(latestRecommendation.fit_summary),
-            fitReasons: latestRecommendation.fit_reasons ?? [],
-            tradeoffs: latestRecommendation.tradeoffs ?? [],
-            preferenceFit: latestRecommendation.preference_fit ?? null,
+            ...(!isInternalRole ? {
+              fitSummary: optionalToolString(latestRecommendation.fit_summary),
+              fitReasons: latestRecommendation.fit_reasons ?? [],
+              tradeoffs: latestRecommendation.tradeoffs ?? [],
+              preferenceFit: latestRecommendation.preference_fit ?? null,
+            } : {}),
             recommendedAt: optionalToolString(latestRecommendation.created_at),
             feedback: optionalToolString(latestRecommendation.feedback),
             feedbackReason: optionalToolString(
@@ -1045,9 +1025,6 @@ export async function runGetRoleContext(args: {
             },
           }
         : null,
-      reconsiderationScheduled: hasPendingInternalRoleReconsideration(
-        readableFitByRoleId.get(roleId)
-      ),
     };
   });
 
@@ -3230,7 +3207,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             jdURL: item.externalJdUrl,
             recommendedAt:
               formatCompactToolDate(item.recommendedAt) ?? item.recommendedAt,
-            recommendationReasons: item.recommendationReasons.slice(0, 5),
+            ...(item.sourceType === "internal" ? {} : { recommendationReasons: item.recommendationReasons.slice(0, 5) }),
             feedback: item.feedback,
             ...(!recentActivity && userMemo ? { userMemo } : {}),
             ...(feedbackReason ? { feedbackReason } : {}),
@@ -3242,7 +3219,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             ...(recentActivity ? { recentActivity } : {}),
             savedStage,
             ...(item.sourceType==='internal' ? {} : {status:item.status}),
-            summary: item.recommendationSummary,
+            ...(item.sourceType === "internal" ? {} : { summary: item.recommendationSummary }),
           };
         }),
       };
@@ -3263,7 +3240,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         keywords: {
           type: "array",
           description:
-            "One or two natural search expressions for the role title or company. Default lookup includes partial word matches and normalizes English word forms; roles matching more query terms and terms in the title rank first. Use distinctive role/company terms rather than broad location words. Related results are search candidates, not confirmed matches to the requested posting. With matchedOnly=true, words within each expression remain ANDed and expressions are ORed against stored fit-supported roles. If results do not identify the requested role, refine the terms; a limited keyword search is not proof that Harper has no connection to the posting.",
+            "One or two natural search expressions for the role title or company. Default lookup includes partial word matches and normalizes English word forms; roles matching more query terms and terms in the title rank first. Use distinctive role/company terms rather than broad location words. Related results are search candidates, not confirmed matches to the requested posting. With matchedOnly=true, words within each expression remain ANDed and expressions are ORed against available suggestions. If results do not identify the requested role, refine the terms; a limited keyword search is not proof that Harper has no connection to the posting.",
           items: {
             type: "string",
           },
@@ -3273,7 +3250,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         matchedOnly: {
           type: "boolean",
           description:
-            "Set true only when the user asks about other roles supported by Harper's stored fit signals, wants to compare adjacent roles, or needs another viable role at the same company. This includes role-and-company fit when candidate preference fit is middle, but always excludes candidate preference unfit. Omit or use false for ordinary public lookup.",
+            "Set true to read the user's available suggestions for comparison or discovery. Omit or use false for ordinary public lookup.",
         },
         company: {
           type: "string",
@@ -3426,7 +3403,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       type: "object",
       properties: {
         recommendationId: {type:"string",description:"Exact saved internal opportunity for a new introduction."},
-        acceptIntroduction: {type:"boolean",description:"Execute the candidate's explicit introduction acceptance after reviewing the Role. This shares the prepared materials or default profile and public resumes."},
+        acceptIntroduction: {type:"boolean",description:"Start the introduction the candidate requested after reviewing this Role. Records consent and shares prepared materials or the default profile and public resumes. Omit for ordinary correspondence."},
         introductionRootId: {type:"string",description:"Exact existing agent introduction for further correspondence."},
         replyToMessageId: {type:"string",description:"Exact agent message being answered."},
         selectionRef: {type:"string",description:"Exact material selection reference reviewed by the candidate; omit to pin current prepared/default material at a natural-language acceptance."},
@@ -3438,7 +3415,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         relayContent: {
           type: "string",
           minLength: 1,
-          description: "Message to the company agent for an introduction; include relevant candidate-approved context and the requested action. For a legacy mutual connection, this is the candidate-authorized relay.",
+          description: "Your message to the company agent within the user's delegated purpose and sharing permissions. For a legacy mutual connection, this is the candidate-authorized relay.",
         },
         documentId: {
           type: "string",

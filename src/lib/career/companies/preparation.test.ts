@@ -2,11 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { followDatabase, followAdmin, id } from "./preparation.testSupport";
 import { readFollowInventory } from "./inventory";
-import { refreshHiringNews, formatHiringNews } from "./hiringNews";
 import {
   prepareFollowedCompanies,
   rolesNeedingEvaluation,
   formatFollowOverview,
+  formatFollowRoles,
   readPreparedFollowContext,
 } from "./preparation";
 import { CAREER_COMPANY_TOOLS } from "./tools";
@@ -72,60 +72,6 @@ test("saved positive and negative assessments are reused regardless of age; only
     []
   );
 });
-test("one shared search for multiple followers, concurrent requests and successful empty results", async (t) => {
-  const { db, admin } = await fixture(t);
-  const a = (await readFollowInventory(admin, id(1))).companies[0],
-    b = (await readFollowInventory(admin, id(2))).companies[0];
-  let calls = 0;
-  const search = async (args: any) => {
-    calls++;
-    return { query: args.query, results: [] };
-  };
-  await Promise.all([
-    refreshHiringNews({ admin, company: a, search }),
-    refreshHiringNews({ admin, company: b, search }),
-  ]);
-  const result = await refreshHiringNews({ admin, company: b, search });
-  assert.equal(calls, 1);
-  assert.match(formatHiringNews(result), /returned no sources/);
-  await db.exec(
-    `update company_hiring_search_cache set refresh_after=now()-interval '1 day'`
-  );
-  await refreshHiringNews({ admin, company: a, search });
-  assert.equal(calls, 2);
-});
-test("failed search keeps prior evidence and backs off instead of claiming no news or charging every follower", async (t) => {
-  const { db, admin } = await fixture(t),
-    company = (await readFollowInventory(admin, id(1))).companies[0];
-  await refreshHiringNews({
-    admin,
-    company,
-    search: async (args) => ({
-      query: args.query,
-      results: [
-        {
-          title: "Hiring drive",
-          url: "https://atlas.example/jobs",
-          highlights: ["Applications open"],
-          publishedDate: "2026-11-01",
-        },
-      ],
-    }),
-  });
-  await db.exec(
-    `update company_hiring_search_cache set refresh_after=now()-interval '1 day'`
-  );
-  let calls = 0;
-  const search = async () => {
-    calls++;
-    throw new Error("Search outage");
-  };
-  const failed = await refreshHiringNews({ admin, company, search });
-  await refreshHiringNews({ admin, company, search });
-  assert.equal(calls, 1);
-  assert.match(formatHiringNews(failed), /Latest refresh failed/);
-  assert.match(formatHiringNews(failed), /Hiring drive/);
-});
 test("preparation waits on existing jobs, survives retries, and never creates another contact occurrence", async (t) => {
   const { db, admin } = await fixture(t);
   const readRun = async (n = 40) =>
@@ -138,7 +84,6 @@ test("preparation waits on existing jobs, survives retries, and never creates an
   let calls = 0;
   const deps = {
     inventory: readFollowInventory,
-    news: async () => null,
     external: async (args: any) => {
       calls++;
       assert.deepEqual(args.roleIds, [id(30), id(31)]);
@@ -297,7 +242,6 @@ test("unrelated reminders do not prepare followed companies; explicit developer 
       calls++;
       return { companies: [], roles: [] };
     },
-    news: async () => null,
     external: async () => {
       throw Error("unexpected");
     },
@@ -354,7 +298,6 @@ test("a later enqueue failure cannot release a still-running paid evaluation", a
   ).rows[0];
   const result = await prepareFollowedCompanies({ admin, run }, {
     inventory: readFollowInventory,
-    news: async () => null,
     external: async () => {
       await db.exec(
         `insert into external_recommendation_runs values('${id(60)}','${id(1)}','queued',null)`
@@ -391,7 +334,6 @@ test("a lost enqueue response recovers the durable child before releasing the pa
   let enqueues = 0;
   const deps = {
     inventory: readFollowInventory,
-    news: async () => null,
     external: async (args: any) => {
       enqueues++;
       await db.query(
@@ -451,7 +393,6 @@ test("recovery after the first child was committed still enqueues the missing so
   let internalCalls = 0;
   const deps = {
     inventory: readFollowInventory,
-    news: async () => null,
     external: async () => {
       throw Error("Existing external evaluation must not be started again");
     },
@@ -495,4 +436,40 @@ test("recovery after the first child was committed still enqueues the missing so
     true
   );
   assert.equal(internalCalls, 1);
+});
+
+
+test("internal follow context omits every scoring identifier and outcome", async t => {
+  const {db,admin}=await fixture(t);
+  await db.exec(`update company_roles set source_type='internal' where role_id='${id(30)}';
+    insert into company_role_candidate_evaluations values('${id(70)}','${id(1)}','${id(30)}','${id(71)}','{"fit":{"mutualFit":3},"proceedToStage2":false,"reason":"PRIVATE_SCORING"}',1,now());`);
+  const result=await CAREER_COMPANY_TOOLS.follow_company.execute!({action:"read",follow_id:id(20)}, {admin,userId:id(1)} as any) as any;
+  assert.match(result.modelOutput,/Platform engineer/);
+  const internalOnly = formatFollowRoles((await readFollowInventory(admin,id(1))).roles.filter(r=>r.source === "internal"));
+  assert.match(internalOnly,/Platform engineer/);
+  assert.doesNotMatch(internalOnly,/evaluat|assess|PRIVATE_SCORING|mutualFit/i);
+  assert.doesNotMatch(result.modelOutput,new RegExp(`PRIVATE_SCORING|${id(70)}|${id(71)}|proceedToStage2|mutualFit: 3`));
+});
+
+
+test("a transient inventory failure remains retryable and its error is available in context", async (t) => {
+  const { db, admin } = await fixture(t);
+  const readRun = async () => (await db.query<any>("select * from opportunity_discovery_run where id=$1", [id(40)])).rows[0];
+  let fail = true;
+  const deps = {
+    inventory: async () => {
+      if (fail) throw new Error("Follow inventory unavailable");
+      return { companies: [], roles: [] };
+    },
+    external: async () => { throw new Error("Unexpected evaluation"); },
+    internal: async () => { throw new Error("Unexpected evaluation"); },
+  };
+  const failed = await prepareFollowedCompanies({ admin, run: await readRun() }, deps);
+  assert.equal(failed.ready, false);
+  assert.equal(failed.state.status, "waiting");
+  assert.match(await readPreparedFollowContext(admin, id(1), failed.state), /preparation incomplete: Follow inventory unavailable/);
+  fail = false;
+  const recovered = await prepareFollowedCompanies({ admin, run: await readRun() }, deps);
+  assert.equal(recovered.ready, true);
+  assert.equal(recovered.state.error, null);
 });

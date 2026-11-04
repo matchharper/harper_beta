@@ -13,7 +13,7 @@ import {
   isInternalRoleCandidateDecisionAvailable,
   type CareerInternalOpportunityDecisionAction,
 } from "@/lib/career/internalOpportunityDecision";
-import { getCareerPositiveActionLabel } from "../opportunityTypeMeta";
+import { getCareerPositiveActionIcon, getCareerPositiveActionLabel } from "../opportunityTypeMeta";
 import type { CareerHistoryOpportunity } from "../types";
 import { isCareerHistoryOpportunityExpired } from "./opportunityPostingStatus";
 import {
@@ -76,7 +76,9 @@ export default function HistoryOpportunityDetailActions({
                 variant="primary"
                 onClick={() => onKeepDecision("accept")}
               >
-                <AnimatedHandshake className="size-3.5" />
+                {getCareerPositiveActionIcon(item.opportunityType) ? (
+                  <AnimatedHandshake className="size-3.5" />
+                ) : null}
                 {getCareerPositiveActionLabel(item.opportunityType, t)}
               </MuteButton>
             ) : null}

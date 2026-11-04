@@ -10,17 +10,16 @@ import { withToolTrace, type ToolTraceEvent } from "@/lib/llm/toolTrace";
 test("company follow context identifies the exact evaluation to read without exposing raw payloads", () => {
   const rendered = renderCareerBackgroundInvocation({
     id: "follow-run", talent_id: "owner", conversation_id: "conversation", status: "handed_off",
-    trigger: "company_follow", created_at: "2026-10-30T01:02:03Z",
+    trigger: "career_company_follow_changed", created_at: "2026-10-30T01:02:03Z",
     trigger_payload: {
+      instruction: "Review the newly assessed roles PRIVATE_GENERATED_INSTRUCTION",
       evaluationId: "evaluation-run", roleIds: ["assessed-role"],
       evaluationEvidence: { source: "internal", evaluationIds: ["saved-evaluation"], privateRaw: "PRIVATE_DB_SENTINEL" },
       sourceEvents: [{ sourceKind: "company_follow", sourceId: "follow", revision: "source-revision", roleSource: "internal", roleIds: ["source-role"], occurredAt: "2026-10-29T01:02:03Z" }],
     },
   });
-  assert.match(rendered, /runId: evaluation-run/);
-  assert.match(rendered, /action=read, source=internal/);
-  assert.match(rendered, /Newly assessed roles for the agent to consider: assessed-role/);
-  assert.match(rendered, /Immutable evaluation references: saved-evaluation/);
+  assert.doesNotMatch(rendered, /evaluation-run|source=internal|saved-evaluation|Newly assessed|PRIVATE_GENERATED_INSTRUCTION/);
+  assert.match(rendered, /Roles for the agent to consider: assessed-role/);
   assert.match(rendered, /revision source-revision/);
   assert.match(rendered, /2026-10-30 10:02/);
   assert.ok(!rendered.includes("PRIVATE_DB_SENTINEL"));

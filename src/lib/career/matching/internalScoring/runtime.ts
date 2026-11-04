@@ -61,19 +61,7 @@ async function admittedPayload(db: Database, run: Row) {
 
 export async function notifyInternalEvaluation(db: Database, run: Row) {
   if (run.status === "handed_off" || run.coverage?.completionNotifiedAt) return;
-  const { getTalentSupabaseAdmin } =
-    await import("@/lib/talentOnboarding/admin");
-  const admin = getTalentSupabaseAdmin();
-  if (run.trigger_payload?.parentReplyId && run.conversation_id) {
-    const { resumeCareerAgentAfterWork } =
-      await import("../../agentContinuation");
-    await resumeCareerAgentAfterWork({
-      admin,
-      userId: run.talent_id,
-      conversationId: run.conversation_id,
-      replyId: run.trigger_payload.parentReplyId,
-    });
-  }
+  // Internal scoring is backend work; completion must never wake the Career LLM.
   await db.query(
     `UPDATE public.opportunity_discovery_run SET coverage=coverage||jsonb_build_object('completionNotifiedAt',now())
     WHERE id=$1::uuid AND status=$2 AND lease_token IS NOT DISTINCT FROM $3::uuid`,

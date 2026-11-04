@@ -7,34 +7,72 @@ import type { CareerWorkActivity } from "@/lib/career/work/activity";
 export function useCareerOpenForms(conversationId?: string | null) {
   const { fetchWithAuth } = useCareerApi();
   const queryClient = useQueryClient();
-  const lastObserved = useRef<string | undefined>(undefined);
+  const lastObserved = useRef<
+    | {
+        conversationId?: string | null;
+        messageId: number | null;
+        completionCursor: string | null;
+      }
+    | undefined
+  >(undefined);
   const query = useQuery({
     queryKey: ["career-open-forms", conversationId],
     enabled: Boolean(conversationId),
     queryFn: async () => {
-      const response = await fetchWithAuth(`/api/talent/work?conversationId=${encodeURIComponent(conversationId!)}`);
+      const response = await fetchWithAuth(
+        `/api/talent/work?conversationId=${encodeURIComponent(conversationId!)}`
+      );
       if (!response.ok) throw new Error("Work status unavailable");
-      return await response.json() as { forms: CareerForm[]; latestMessageId: number | null; pending: number; canStop?: boolean; retrying?: boolean; activities?: CareerWorkActivity[] };
+      return (await response.json()) as {
+        completionCursor: string | null;
+        forms: CareerForm[];
+        latestMessageId: number | null;
+        pending: number;
+        canStop?: boolean;
+        retrying?: boolean;
+        activities?: CareerWorkActivity[];
+      };
     },
-    refetchInterval: query => query.state.data?.activities?.length ? 1000 : 5000,
+    refetchInterval: (query) =>
+      query.state.data?.activities?.length ? 1000 : 5000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
   useEffect(() => {
     if (!query.data) return;
-    const stamp = `${conversationId}:${query.data.latestMessageId}:${query.data.pending}`;
-    if (stamp !== lastObserved.current) {
-      const changed = lastObserved.current !== undefined;
-      lastObserved.current = stamp;
-      void queryClient.invalidateQueries({ queryKey: ["career-message-history", conversationId] });
-      // Durable turns can change opportunities after the POST has returned.
-      // Refresh their existing projections when execution advances, including
-      // work that completes silently, so an accepted offer is not left actionable.
-      if (changed) for (const key of ["career-session", "career-history-opportunities", "career-pending-actions", "career-task-progress"]) {
-        void queryClient.invalidateQueries({ queryKey: [key] });
+    const prior =
+      lastObserved.current?.conversationId === conversationId
+        ? lastObserved.current
+        : undefined;
+    if (query.data.latestMessageId !== prior?.messageId) {
+      void queryClient.invalidateQueries(
+        { queryKey: ["career-message-history", conversationId] },
+        { cancelRefetch: false }
+      );
+    }
+    // Realtime handles recommendation changes while a turn runs. Reconcile the
+    // other projections from the durable completion cursor, including silent
+    // work that starts and finishes entirely between two polls.
+    if (prior && query.data.completionCursor !== prior.completionCursor) {
+      for (const key of [
+        "career-session",
+        "career-history-opportunities",
+        "career-history-summary",
+        "career-task-progress",
+        "career-pending-actions",
+      ]) {
+        void queryClient.invalidateQueries(
+          { queryKey: [key] },
+          { cancelRefetch: false }
+        );
       }
     }
+    lastObserved.current = {
+      conversationId,
+      messageId: query.data.latestMessageId,
+      completionCursor: query.data.completionCursor,
+    };
   }, [conversationId, query.data, queryClient]);
   return query;
 }

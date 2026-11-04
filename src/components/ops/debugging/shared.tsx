@@ -16,6 +16,7 @@ export type DebugTabId =
   | "actionLogs"
   | "calls"
   | "companyAnswerRetrieval"
+  | "companySearch"
   | "cost"
   | "emails"
   | "emailTest"
@@ -32,6 +33,7 @@ export function debugTabTitle(tab: DebugTabId) {
   if (tab === "careerGmail") return "Career Gmail";
   if (tab === "calls") return "콜 로그";
   if (tab === "companyAnswerRetrieval") return "Company Answer Retrieval";
+  if (tab === "companySearch") return "회사 검색";
   if (tab === "cost") return "비용";
   if (tab === "matching") return "매칭 품질";
   if (tab === "orgAgentTools") return "Company-side LLM Tool";
@@ -49,6 +51,7 @@ export function debugTabDescription(tab: DebugTabId) {
     return "talent_calls별로 저장된 통화 transcript와 wrap-up 메시지를 확인합니다.";
   }
   if (tab === "companyAnswerRetrieval") return "";
+  if (tab === "companySearch") return "";
   if (tab === "cost") {
     return "Claude, OpenAI, OpenRouter, Exa, EC2 비용과 현재 credit을 확인합니다.";
   }
