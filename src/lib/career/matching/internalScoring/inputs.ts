@@ -13,7 +13,7 @@ export async function loadRoleContext(
     role.name,role.description,role.location_text,role.country_code,role.work_mode,role.type,
     role.seniority_level,role.salary_range,role.salary_min,role.salary_max,
     role.salary_currency,role.salary_period,internal.request,internal.criteria,
-    internal.team_id::text,internal.memory AS legacy_role_memory,workspace.company_name,
+    internal.team_id::text,workspace.company_name,
     coalesce(workspace.company_description,workspace.brief,workspace.pitch,'') AS company_description,
     public.company_role_search_brief_version_v1(role.role_id) AS version,
     public.company_role_search_brief_snapshot_v1(role.role_id) AS brief_snapshot
@@ -30,17 +30,6 @@ export async function loadRoleContext(
     [roleId, workspaceId, directTalentId ?? null]
   );
   if (!row) throw new Error("role is unavailable in this workspace");
-  const memory = await query(
-    `SELECT id AS ref,scope,label,content,revision,updated_at FROM public.company_memory_entries
-    WHERE company_workspace_id=$1::uuid AND deleted_at IS NULL
-      AND (scope='company' OR (scope='role' AND role_id=$2::uuid) OR (scope='team' AND team_id=$3::uuid)) ORDER BY id`,
-    [workspaceId, roleId, row.team_id]
-  );
-  const legacy = await query(
-    `SELECT content,role_id,updated_at FROM public.company_memories
-    WHERE company_workspace_id=$1::uuid AND (role_id IS NULL OR role_id=$2::uuid) ORDER BY created_at,id`,
-    [workspaceId, roleId]
-  );
   return {
     workspaceId,
     roleId,
@@ -55,28 +44,12 @@ export async function loadRoleContext(
             "team_id",
             "company_workspace_id",
             "brief_snapshot",
-            "legacy_role_memory",
           ].includes(k)
       )
     ),
-    companyMemory: [
-      ...memory,
-      ...(row.legacy_role_memory
-        ? [
-            {
-              scope: "role",
-              content: row.legacy_role_memory,
-              source: "legacy role memory",
-            },
-          ]
-        : []),
-      ...legacy.map((item) => ({
-        scope: item.role_id ? "role" : "company",
-        content: item.content,
-        updated_at: item.updated_at,
-        source: "legacy memory",
-      })),
-    ],
+    // Company Memory is the company's private context; Career-side scoring does
+    // not read it. The field stays (empty) so the Worker input contract is unchanged.
+    companyMemory: [],
   };
 }
 export const profileEligible = `(setting.is_onboarding_done IS TRUE
