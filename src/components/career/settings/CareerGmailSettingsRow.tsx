@@ -250,7 +250,7 @@ const CareerGmailSettingsRow = () => {
               {t("career.profile.sources.connected", "연동")}
             </Badge>
           ) : showPrimaryConnectAction ? (
-            <span className="inline-flex rounded-[6px] bg-primary px-2 py-1 text-[11px] font-medium leading-none text-neutral-00">
+            <span className="inline-flex rounded-md bg-primary px-2 py-1 text-[11px] font-medium leading-none text-neutral-00">
               {statusText}
             </span>
           ) : null

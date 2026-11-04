@@ -31,7 +31,7 @@ export function useBrowserSessionPlacement({
   }, [dock, layout, inlineAnchor, content, depth, collapsed]);
   return {
     inline: placement.inline,
-    collapsed: !placement.inline && (collapsed ?? placement.mobile),
+    collapsed: collapsed ?? placement.mobile,
   };
 }
 
@@ -57,13 +57,16 @@ function observePlacement(
   >
 ) {
   const viewport = inlineAnchor?.closest<HTMLElement>("[data-career-timeline]");
+  let wasInline: boolean | undefined;
+  let animation: Animation | undefined;
   const update = () => {
+    const before = content.getBoundingClientRect();
     const mobile = window.innerWidth < 768;
     const isCollapsed = collapsed ?? mobile;
     const rect = inlineAnchor?.getBoundingClientRect();
     const bounds = viewport?.getBoundingClientRect();
     const visible = Boolean(
-      rect &&
+      !mobile && rect &&
       bounds &&
       rect.width > 0 &&
       rect.height > 0 &&
@@ -72,37 +75,51 @@ function observePlacement(
       rect.right > Math.max(0, bounds.left) &&
       rect.left < Math.min(window.innerWidth, bounds.right)
     );
-    if (visible) {
+    const parent = layout.getBoundingClientRect();
+    const anchor = dock.getBoundingClientRect();
+    if (visible && rect) {
       Object.assign(content.style, {
-        position: "relative",
-        left: "",
-        top: "",
-        width: "100%",
-        maxHeight: "calc(100dvh - 160px)",
-        zIndex: "auto",
+        position: "fixed", left: `${rect.left - parent.left}px`,
+        top: `${rect.top - parent.top}px`, width: `${rect.width}px`,
+        maxHeight: "calc(100dvh - 160px)", zIndex: "10",
       });
-      if (inlineAnchor) inlineAnchor.style.height = "";
-    } else {
-      // Reserve the natural row height before taking the same node out of flow.
-      if (inlineAnchor && content.style.position !== "fixed")
+      if (inlineAnchor) {
+        // Once measured, reserve the actual popup height, including its folded
+        // state. The initial placeholder must not leave space before the footer.
+        inlineAnchor.style.minHeight = "0px";
         inlineAnchor.style.height = `${content.offsetHeight}px`;
-      const parent = layout.getBoundingClientRect();
-      const anchor = dock.getBoundingClientRect();
+      }
+    } else {
+      if (inlineAnchor) {
+        if (mobile) {
+          inlineAnchor.style.minHeight = "";
+          inlineAnchor.style.height = "0px";
+        }
+        else if (wasInline) inlineAnchor.style.height = `${before.height}px`;
+      }
       const width = Math.min(320, Math.max(0, parent.width - 32));
-      const top = Math.max(
-        12,
-        (window.visualViewport?.offsetTop ?? 0) - parent.top + 12
-      );
+      const top = Math.max(12, (window.visualViewport?.offsetTop ?? 0) - parent.top + 12);
       const bottom = anchor.top - parent.top - 12 - depth * 40;
       Object.assign(content.style, {
-        position: "fixed",
-        width: `${width}px`,
+        position: "fixed", width: `${width}px`,
         maxHeight: `${Math.max(0, mobile ? Math.min(parent.height, window.visualViewport?.height ?? window.innerHeight) - top - 16 : bottom - 16)}px`,
         zIndex: isCollapsed ? "10" : "11",
         left: `${mobile ? (parent.width - width) / 2 : Math.max(16, Math.min(anchor.right - parent.left - width - depth * 12, parent.width - width - 16))}px`,
       });
-      content.style.top = `${mobile ? top : Math.max(16, bottom - content.offsetHeight)}px`;
+      content.style.top = `${mobile ? top + depth * 56 : Math.max(16, bottom - content.offsetHeight)}px`;
     }
+    // Animate only the change of placement. Native scrolling never trails the
+    // pointer, and changing the slot cannot remount the live browser viewer.
+    if (wasInline !== undefined && wasInline !== visible && before.width &&
+        content.animate && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      animation?.cancel();
+      const after = content.getBoundingClientRect();
+      if (after.width && after.height) animation = content.animate([
+        { transformOrigin: "top left", transform: `translate(${before.left - after.left}px, ${before.top - after.top}px) scale(${before.width / after.width}, ${before.height / after.height})` },
+        { transformOrigin: "top left", transform: "none" },
+      ], { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    }
+    wasInline = visible;
     setPlacement((current) =>
       current.inline === visible && current.mobile === mobile
         ? current
@@ -114,6 +131,15 @@ function observePlacement(
     typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
   for (const element of [inlineAnchor, viewport, dock, content, layout])
     if (element) resize?.observe(element);
+  // Text/tool output can move an anchor without resizing the anchor itself.
+  // Observe the conversation flow as well as scroll/viewport geometry.
+  for (const child of Array.from(viewport?.children ?? [])) resize?.observe(child);
+  let frame: number | undefined;
+  const mutation = typeof MutationObserver === "undefined" || !viewport ? null : new MutationObserver(() => {
+    for (const child of Array.from(viewport.children)) resize?.observe(child);
+    if (frame === undefined) frame = requestAnimationFrame(() => { frame = undefined; update(); });
+  });
+  if (viewport) mutation?.observe(viewport, { childList: true, subtree: true, characterData: true });
   const intersection =
     typeof IntersectionObserver === "undefined"
       ? null
@@ -128,6 +154,9 @@ function observePlacement(
   window.visualViewport?.addEventListener("resize", update);
   window.visualViewport?.addEventListener("scroll", update);
   return () => {
+    animation?.cancel();
+    mutation?.disconnect();
+    if (frame !== undefined) cancelAnimationFrame(frame);
     resize?.disconnect();
     intersection?.disconnect();
     document.removeEventListener("scroll", update, true);

@@ -56,7 +56,7 @@ const MultiSelects = ({
             setIsDirty(true);
             handleSelect(option);
           }}
-          className={`flex flex-row transition-all duration-200 items-center gap-2 cursor-pointer border-2 py-2 px-3 min-w-[160px] md:min-w-[200px] rounded-[4px]
+          className={`flex flex-row transition-all duration-200 items-center gap-2 cursor-pointer border-2 py-2 px-3 min-w-[160px] md:min-w-[200px] rounded-sm
               ${
                 selects.includes(option)
                   ? "bg-info-faded  hover:bg-info-faded border-info/30"
@@ -65,7 +65,7 @@ const MultiSelects = ({
               `}
         >
           {showOptionNumbers && index < 9 ? (
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-[4px] border border-neutral-1000-a05 bg-bg-default text-[11px] font-semibold text-neutral-muted">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-sm border border-neutral-1000-a05 bg-bg-default text-[11px] font-semibold text-neutral-muted">
               {index + 1}
             </span>
           ) : null}

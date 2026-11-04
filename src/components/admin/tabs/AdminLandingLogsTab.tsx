@@ -69,19 +69,19 @@ export default function AdminLandingLogsTab({
       />
 
       <div
-        className="mb-4 border border-black/10 p-4 text-[13px] text-black/80"
-        style={{ borderRadius: 0 }}
+        className="mb-4 border border-stroke p-4 text-[13px] text-neutral-primary/80"
+        style={{ borderRadius: "var(--radius-admin)" }}
       >
-        <div className="font-semibold text-black mb-1">Loaded user summary</div>
+        <div className="font-semibold text-neutral-primary mb-1">Loaded user summary</div>
         <div className="leading-6">
           전체 유저:{" "}
-          <span className="text-black font-medium">
+          <span className="text-neutral-primary font-medium">
             {landingSummary.totalUsers}
           </span>{" "}
           · 디바이스:{" "}
-          <span className="text-black font-medium">{deviceFilterLabel}</span> ·
+          <span className="text-neutral-primary font-medium">{deviceFilterLabel}</span> ·
           스크롤 다운:{" "}
-          <span className="text-black font-medium">
+          <span className="text-neutral-primary font-medium">
             {landingSummary.scrolledUsers}
           </span>{" "}
           (
@@ -90,7 +90,7 @@ export default function AdminLandingLogsTab({
             landingSummary.totalUsers
           )}
           ) · click_*_start:{" "}
-          <span className="text-black font-medium">
+          <span className="text-neutral-primary font-medium">
             {landingSummary.startClickedUsers}
           </span>{" "}
           (
@@ -99,7 +99,7 @@ export default function AdminLandingLogsTab({
             landingSummary.totalUsers
           )}
           ) · 로그인:{" "}
-          <span className="text-black font-medium">
+          <span className="text-neutral-primary font-medium">
             {landingSummary.loggedInUsers}
           </span>{" "}
           (
@@ -112,17 +112,17 @@ export default function AdminLandingLogsTab({
       </div>
 
       <div
-        className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-        style={{ borderRadius: 0 }}
+        className="mb-4 border border-stroke p-4 text-[12px] text-neutral-primary/80"
+        style={{ borderRadius: "var(--radius-admin)" }}
       >
-        <div className="font-semibold text-black mb-2">
+        <div className="font-semibold text-neutral-primary mb-2">
           AB Test summary (abtest_type)
         </div>
         {abtestSummary.length === 0 ? (
-          <div className="text-black/55">No AB test data.</div>
+          <div className="text-neutral-primary/55">No AB test data.</div>
         ) : (
           <div className="space-y-1">
-            <div className="grid grid-cols-[1.6fr_0.7fr_1fr_1fr_1fr_1fr] gap-2 font-semibold border-b border-black/10 pb-1">
+            <div className="grid grid-cols-[1.6fr_0.7fr_1fr_1fr_1fr_1fr] gap-2 font-semibold border-b border-stroke pb-1">
               <div>abtest_type</div>
               <div className="text-right">Users</div>
               <div className="text-right">Scroll</div>
@@ -160,34 +160,34 @@ export default function AdminLandingLogsTab({
       </div>
 
       <div
-        className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-        style={{ borderRadius: 0 }}
+        className="mb-4 border border-stroke p-4 text-[12px] text-neutral-primary/80"
+        style={{ borderRadius: "var(--radius-admin)" }}
       >
-        <div className="font-semibold text-black mb-2">
+        <div className="font-semibold text-neutral-primary mb-2">
           Section reach summary (abtest_type)
         </div>
         {sectionProgressSummary.length === 0 ? (
-          <div className="text-black/55">No section view data.</div>
+          <div className="text-neutral-primary/55">No section view data.</div>
         ) : (
           <div className="space-y-3">
             {sectionProgressSummary.map((item) => (
               <div
                 key={item.abtestType}
-                className="border-t border-black/10 pt-3 first:border-t-0 first:pt-0"
+                className="border-t border-stroke pt-3 first:border-t-0 first:pt-0"
               >
-                <div className="font-semibold text-black">
+                <div className="font-semibold text-neutral-primary">
                   {item.abtestType}
                 </div>
-                <div className="mt-1 text-black/55">
+                <div className="mt-1 text-neutral-primary/55">
                   Users: {item.totalUsers}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {item.sections.map((section) => (
                     <div
                       key={`${item.abtestType}-${section.sectionName}`}
-                      className="border border-black/10 px-2 py-1"
+                      className="border border-stroke px-2 py-1"
                     >
-                      <span className="font-medium text-black">
+                      <span className="font-medium text-neutral-primary">
                         {formatSectionName(section.sectionName)}
                       </span>{" "}
                       · {section.userCount} (
@@ -202,17 +202,17 @@ export default function AdminLandingLogsTab({
       </div>
 
       <div className="mb-4 flex items-center justify-between w-full">
-        <div className="text-[12px] text-black/55">
-          Loaded logs: <span className="text-black">{logs.length}</span> ·
-          Users: <span className="text-black">{grouped.length}</span> · Device:{" "}
-          <span className="text-black">{deviceFilterLabel}</span>
+        <div className="text-[12px] text-neutral-primary/55">
+          Loaded logs: <span className="text-neutral-primary">{logs.length}</span> ·
+          Users: <span className="text-neutral-primary">{grouped.length}</span> · Device:{" "}
+          <span className="text-neutral-primary">{deviceFilterLabel}</span>
         </div>
 
         {(loadingMore || loading) && (
           <Loading
             size="sm"
             label="Loading…"
-            className="text-[12px] text-black/55"
+            className="text-[12px] text-neutral-primary/55"
             inline={true}
           />
         )}
@@ -220,17 +220,17 @@ export default function AdminLandingLogsTab({
 
       {error ? (
         <div
-          className="border border-black/15 bg-black/5 p-4 text-[13px] flex items-start justify-between gap-4"
-          style={{ borderRadius: 0 }}
+          className="border border-stroke-strong/15 bg-surface-tint p-4 text-[13px] flex items-start justify-between gap-4"
+          style={{ borderRadius: "var(--radius-admin)" }}
         >
           <div>
             <div className="font-semibold">Error</div>
-            <div className="text-black/70 mt-1">{error}</div>
+            <div className="text-neutral-primary/70 mt-1">{error}</div>
           </div>
           <BareButton
             onClick={onRefresh}
-            className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/5"
-            style={{ borderRadius: 0 }}
+            className="h-9 px-3 text-[13px] border border-stroke-strong/15 hover:border-stroke-strong/30 hover:bg-surface-tint"
+            style={{ borderRadius: "var(--radius-admin)" }}
           >
             Retry
           </BareButton>
@@ -238,19 +238,19 @@ export default function AdminLandingLogsTab({
       ) : null}
 
       <div
-        className="border border-black/10 w-full"
-        style={{ borderRadius: 0 }}
+        className="border border-stroke w-full"
+        style={{ borderRadius: "var(--radius-admin)" }}
       >
         {loading ? (
           <Loading
             size="sm"
             label="Loading…"
-            className="p-6 text-[13px] text-black/55"
+            className="p-6 text-[13px] text-neutral-primary/55"
           />
         ) : grouped.length === 0 ? (
           <div className="p-10 text-center">
             <div className="text-[14px] font-semibold">No logs</div>
-            <div className="text-[13px] text-black/55 mt-2">
+            <div className="text-[13px] text-neutral-primary/55 mt-2">
               No landing logs yet.
             </div>
           </div>
@@ -258,21 +258,21 @@ export default function AdminLandingLogsTab({
           grouped.map((group) => (
             <div
               key={group.local_id}
-              className="border-t border-black/10 first:border-t-0 w-full"
+              className="border-t border-stroke first:border-t-0 w-full"
             >
               <div className="px-5 py-4 w-full">
                 <div className="text-[14px] font-semibold">
                   local_id: {group.local_id} - {group.country_lang}
                 </div>
-                <div className="text-[12px] text-black/55 mt-1">
+                <div className="text-[12px] text-neutral-primary/55 mt-1">
                   entry: {formatKST(group.entryTime)} · abtest:{" "}
                   {group.abtest_type}
                 </div>
 
-                <div className="mt-3 text-[13px] text-black/80 w-full space-y-1">
+                <div className="mt-3 text-[13px] text-neutral-primary/80 w-full space-y-1">
                   {group.logs.map((log) => (
                     <div key={log.id} className="flex gap-2 w-full">
-                      <span className="text-black/50">•</span>
+                      <span className="text-neutral-primary/50">•</span>
                       {isLandingLogEntryType(log.type) ? (
                         `${log.type} (${formatKST(log.created_at)})`
                       ) : (
@@ -292,7 +292,7 @@ export default function AdminLandingLogsTab({
 
       <div ref={sentinelRef} className="h-10" />
 
-      <div className="mt-4 text-[12px] text-black/45">
+      <div className="mt-4 text-[12px] text-neutral-primary/45">
         {hasMore ? "Scroll to load more…" : "No more rows."}
       </div>
     </>

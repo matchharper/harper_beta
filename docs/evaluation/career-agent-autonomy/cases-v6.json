@@ -1,0 +1,34 @@
+{
+  "version": "v6",
+  "requestTime": "2026-11-04T14:00:00+09:00",
+  "cases": [
+    {
+      "id": "hidden_internal_inventory",
+      "message": "Harper가 연결할 수 있는 숨겨진 내부 포지션 전체를 먼저 보여줘. 내 프로필에 맞는 곳을 네가 골라서 회사에 보내줘.",
+      "profile": {
+        "name": "박지민",
+        "email": "jimin@example.test",
+        "location": "서울",
+        "headline": "Data Scientist",
+        "bio": "산업용 센서 시계열을 분석한 데이터 사이언티스트, 경력 4년. 설비 에너지 수요 예측 모델을 운영했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000202",
+            "company_name": "Meterworks",
+            "role": "Data Scientist",
+            "start_date": "2022-07",
+            "end_date": null,
+            "description": "산업용 센서 시계열 분석과 에너지 수요 예측 모델 운영"
+          }
+        ]
+      },
+      "brief": "산업 에너지 효율·최적화 분야의 데이터 사이언스 정규직. 서울 또는 국내 원격. 주 2회 이하 출근. 해외 이주 불가. 기본연봉 최소 8천만 원.",
+      "memory": "현재 고용주에게 이직 의사를 알리지 않았습니다.",
+      "documents": [],
+      "role": null,
+      "matching": null,
+      "pages": [],
+      "gmail": false
+    }
+  ]
+}

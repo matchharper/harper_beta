@@ -188,7 +188,7 @@ export default function OpsCareerPage() {
             </BareButton>
 
             {isCreatedDateOpen ? (
-              <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[300px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-2 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)]">
+              <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[300px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-2 shadow-(--shadow-lg)">
                 <Calendar
                   mode="range"
                   selected={createdDateRange}
@@ -209,7 +209,7 @@ export default function OpsCareerPage() {
                   <BareButton
                     type="button"
                     onClick={() => setIsCreatedDateOpen(false)}
-                    className="h-7 rounded-md bg-black px-2.5 text-[11px] font-medium text-neutral-00 transition hover:bg-black/88"
+                    className="h-7 rounded-md bg-surface-inverse px-2.5 text-[11px] font-medium text-neutral-00 transition hover:bg-surface-inverse/88"
                   >
                     닫기
                   </BareButton>

@@ -275,7 +275,7 @@ const CareerChatPanelContent = ({
       />
       <div
         ref={composerOverlayRef}
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-[linear-gradient(to_bottom,transparent,white_40px)]"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-composer-fade"
       >
         <div className="pointer-events-auto">
           <CareerComposerSection
@@ -289,7 +289,7 @@ const CareerChatPanelContent = ({
   const callSessionActive = callStartPending || inputMode === "call";
 
   return (
-    <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-bg-floating">
+    <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-chat">
       {inputMode !== "call" && (
         <div
           className={cn(

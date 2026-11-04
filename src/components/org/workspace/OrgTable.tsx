@@ -15,7 +15,7 @@ export function OrgTable({
   ...props
 }: ComponentProps<typeof Table>) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-black/8">
+    <div className="overflow-hidden rounded-2xl border border-stroke-strong/8">
       <Table className={className} {...props} />
     </div>
   );
@@ -27,7 +27,7 @@ export function OrgTableHeader({
 }: ComponentProps<typeof TableHeader>) {
   return (
     <TableHeader
-      className={cn("bg-black/5 border-b border-black/8", className)}
+      className={cn("bg-surface-tint border-b border-stroke-strong/8", className)}
       {...props}
     />
   );
@@ -38,7 +38,7 @@ export function OrgTableRow({
 }: ComponentProps<typeof TableRow>) {
   return (
     <TableRow
-      className={cn("border-black/0 hover:bg-transparent", className)}
+      className={cn("border-stroke-strong/0 hover:bg-transparent", className)}
       {...props}
     />
   );

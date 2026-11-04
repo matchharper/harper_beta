@@ -312,7 +312,7 @@ export default function ReferralPayoutPage() {
             Harper
           </Link>
 
-          <section className="overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating shadow-sm">
+          <section className="overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating shadow-(--shadow-sm)">
             <header className="border-b border-neutral-1000-a10 px-5 py-6 sm:px-8 sm:py-8">
               <div className="mb-4">
                 <LockKeyhole className="h-5 w-5" aria-hidden />

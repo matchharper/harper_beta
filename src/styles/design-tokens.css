@@ -1,0 +1,368 @@
+/* Appearance source of truth. Palette lives in globals.css.
+ * Foundation → semantic surface → component. Override on :root to include portals;
+ * override a component token on that component for a local exception.
+ * Layout, geometry of icons/avatars, and third-party brand artwork are independent.
+ */
+@theme static {
+  /* Shape, elevation and type. Tailwind utilities remain composable. */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --radius-sheet: 28px;
+  --radius-pill: 9999px;
+  --color-shadow: #000000;
+  --shadow-xs: 0 1px 2px color-mix(in srgb, var(--color-shadow) 5%, transparent);
+  --shadow-sm:
+    0 1px 3px color-mix(in srgb, var(--color-shadow) 10%, transparent),
+    0 1px 2px color-mix(in srgb, var(--color-shadow) 6%, transparent);
+  --shadow-md:
+    0 4px 6px -1px color-mix(in srgb, var(--color-shadow) 10%, transparent),
+    0 2px 4px -2px color-mix(in srgb, var(--color-shadow) 10%, transparent);
+  --shadow-lg:
+    0 10px 15px -3px color-mix(in srgb, var(--color-shadow) 10%, transparent),
+    0 4px 6px -4px color-mix(in srgb, var(--color-shadow) 10%, transparent);
+  --shadow-xl:
+    0 20px 25px -5px color-mix(in srgb, var(--color-shadow) 10%, transparent),
+    0 8px 10px -6px color-mix(in srgb, var(--color-shadow) 10%, transparent);
+  --shadow-2xl: 0 25px 50px -12px
+    color-mix(in srgb, var(--color-shadow) 25%, transparent);
+  --font-weight-light: 300;
+  --font-weight-book: 350;
+  --font-weight-normal: 400;
+  --font-weight-regular: var(--font-weight-normal);
+  --font-weight-book-medium: 450;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --blur-xs: 4px;
+  --blur-sm: 8px;
+  --blur-md: 12px;
+  --blur-lg: 16px;
+  --blur-xl: 24px;
+  --blur-2xl: 40px;
+  --blur-3xl: 64px;
+  --font-weight-body: var(--font-weight-normal);
+  --font-weight-heading: var(--font-weight-medium);
+  --font-weight-label: var(--font-weight-medium);
+  --font-weight-control: var(--font-weight-normal);
+  --color-on-inverse: var(--color-neutral-00);
+  --color-surface-inverse: var(--color-neutral-1000);
+  --color-surface-inverse-hover: var(--color-neutral-900);
+  --color-surface-inverse-pressed: var(--color-neutral-800);
+  --color-stroke-subtle: var(--color-neutral-1000-a05);
+  --color-stroke: var(--color-neutral-1000-a10);
+  --color-stroke-strong: var(--color-neutral-800);
+  --color-stroke-focus: var(--color-neutral-400);
+  --color-focus-ring: var(--color-neutral-1000-a10);
+  --color-interaction-hover: color-mix(
+    in srgb,
+    var(--color-neutral-primary) 3%,
+    transparent
+  );
+  --color-interaction-pressed: var(--color-bg-weak);
+  --color-interaction-selected: var(--color-bg-weak);
+  --color-link-hover: var(--color-blue-700);
+
+  /* Shared surfaces. Components below can diverge without changing siblings. */
+  --color-surface: #ffffff;
+  --color-surface-foreground: var(--color-neutral-primary);
+  --color-surface-border: var(--color-stroke-subtle);
+  --background-image-surface-image: none;
+  --radius-surface: var(--radius-lg);
+  --shadow-surface: var(--shadow-sm);
+  --blur-surface: 0px;
+  --surface-border-width: 1px;
+  --color-overlay: color-mix(in srgb, var(--color-shadow) 16%, transparent);
+  --blur-overlay: 2px;
+
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-surface-foreground);
+  --color-card-border: var(--color-surface-border);
+  --color-card-hover: var(--color-interaction-hover);
+  --color-card-selected: var(--color-interaction-selected);
+  --background-image-card-image: var(--background-image-surface-image);
+  --radius-card: var(--radius-surface);
+  --shadow-card: var(--shadow-surface);
+  --blur-card: var(--blur-surface);
+  --card-border-width: var(--surface-border-width);
+
+  /* Opportunity rows keep their original flat, collapsed/expanded surfaces. */
+  --color-opportunity: var(--color-neutral-50);
+  --color-opportunity-expanded: var(--color-surface);
+  --color-opportunity-foreground: var(--color-neutral-primary);
+  --color-opportunity-border: color-mix(
+    in srgb,
+    var(--color-stroke-subtle) 50%,
+    transparent
+  );
+  --background-image-opportunity-image: var(--background-image-surface-image);
+  --radius-opportunity: var(--radius-lg);
+  --shadow-opportunity: 0 0 #0000;
+  --blur-opportunity: var(--blur-surface);
+  --opportunity-border-width: var(--surface-border-width);
+
+  --color-modal: var(--color-surface);
+  --color-modal-foreground: var(--color-surface-foreground);
+  --color-modal-border: var(--color-surface-border);
+  --background-image-modal-image: var(--background-image-surface-image);
+  --radius-modal: var(--radius-3xl);
+  --shadow-modal: 0 24px 80px
+    color-mix(in srgb, var(--color-shadow) 20%, transparent);
+  --blur-modal: var(--blur-surface);
+  --modal-border-width: var(--surface-border-width);
+
+  --color-menu: var(--color-surface);
+  --color-menu-foreground: var(--color-surface-foreground);
+  --color-menu-border: var(--color-surface-border);
+  --color-menu-hover: var(--color-interaction-hover);
+  --color-menu-selected: var(--color-interaction-selected);
+  --background-image-menu-image: var(--background-image-surface-image);
+  --radius-menu: var(--radius-surface);
+  --radius-menu-item: var(--radius-md);
+  --shadow-menu: 0 18px 40px
+    color-mix(in srgb, var(--color-shadow) 12%, transparent);
+  --blur-menu: var(--blur-surface);
+  --menu-border-width: var(--surface-border-width);
+
+  --color-popover: var(--color-menu);
+  --color-popover-foreground: var(--color-menu-foreground);
+  --color-popover-border: var(--color-menu-border);
+  --background-image-popover-image: var(--background-image-menu-image);
+  --radius-popover: var(--radius-menu);
+  --shadow-popover: var(--shadow-menu);
+  --blur-popover: var(--blur-menu);
+  --popover-border-width: var(--menu-border-width);
+
+  --color-control: var(--color-surface);
+  --color-control-foreground: var(--color-neutral-primary);
+  --color-control-border: var(--color-stroke);
+  --color-control-focus: var(--color-control);
+  --color-control-disabled: var(--color-bg-weak);
+  --color-control-faded: var(--color-bg-weak);
+  --color-control-checked: var(--color-surface-inverse);
+  --color-control-mark: var(--color-on-inverse);
+  --background-image-control-image: var(--background-image-surface-image);
+  --radius-control: var(--radius-md);
+  --radius-checkbox: var(--radius-sm);
+  --shadow-control: 0 0 #0000;
+  --blur-control: var(--blur-surface);
+  --control-border-width: var(--surface-border-width);
+
+  --color-button: var(--color-control);
+  --color-button-foreground: var(--color-control-foreground);
+  --color-button-border: var(--color-control-border);
+  --color-button-hover: var(--color-interaction-hover);
+  --color-button-pressed: var(--color-interaction-pressed);
+  --color-button-selected: var(--color-interaction-selected);
+  --color-button-selected-border: var(--color-stroke-strong);
+  --background-image-button-image: var(--background-image-surface-image);
+  --radius-button: var(--radius-control);
+  --shadow-button: var(--shadow-xs);
+  --blur-button: var(--blur-surface);
+  --button-border-width: var(--surface-border-width);
+  --font-weight-button: var(--font-weight-control);
+
+  --color-composer: color-mix(in srgb, var(--color-surface) 50%, transparent);
+  --color-composer-border: var(--color-stroke-subtle);
+  --color-composer-border-mobile: var(--color-surface);
+  --color-composer-foreground: var(--color-neutral-primary);
+  --background-image-composer-image: var(--background-image-surface-image);
+  --background-image-composer-fade: linear-gradient(
+    to bottom,
+    transparent,
+    var(--color-bg-basement) 40px
+  );
+  --radius-composer: var(--radius-xl);
+  --radius-composer-collapsed: var(--radius-pill);
+  --shadow-composer: 0 2px 12px
+    color-mix(in srgb, var(--color-shadow) 8%, transparent);
+  --blur-composer: 8px;
+  --composer-border-width: var(--surface-border-width);
+  --font-weight-composer: var(--font-weight-body);
+
+  --color-message-user: var(--color-surface-inverse);
+  --color-message-user-foreground: var(--color-on-inverse);
+  --color-message-assistant: color-mix(
+    in srgb,
+    var(--color-neutral-primary) 4%,
+    transparent
+  );
+  --color-message-assistant-foreground: var(--color-neutral-primary);
+  --color-message-selected: var(--color-neutral-400);
+  --color-message-lifted: var(--color-bg-weak);
+  --radius-message: var(--radius-xl);
+  --radius-message-tail: var(--radius-sm);
+  --message-lift-filter: drop-shadow(
+    0 12px 24px color-mix(in srgb, var(--color-shadow) 12%, transparent)
+  );
+  --shadow-message: 0 0 #0000;
+  --blur-message: var(--blur-surface);
+
+  --color-tab-list: var(--color-bg-weak);
+  --color-tab-neutral: color-mix(in srgb, var(--color-black) 4%, transparent);
+  --shadow-tab-list: 0 0 #0000;
+  --blur-tab-list: var(--blur-surface);
+  --color-tab: var(--color-neutral-muted);
+  --color-tab-selected: var(--color-neutral-primary);
+  --color-tab-selected-bg: var(--color-surface);
+  --color-tab-indicator: var(--color-stroke-strong);
+  --radius-tab-list: var(--radius-lg);
+  --radius-tab: var(--radius-md);
+  --shadow-tab-selected: 0 0 #0000;
+  --font-weight-tab: var(--font-weight-label);
+
+  --color-badge: var(--color-bg-weak);
+  --shadow-badge: 0 0 #0000;
+  --blur-badge: var(--blur-surface);
+  --color-badge-foreground: var(--color-neutral-primary);
+  --radius-badge: var(--radius-md);
+  --font-weight-badge: var(--font-weight-label);
+
+  --color-tooltip: var(--color-surface-inverse);
+  --color-tooltip-foreground: var(--color-on-inverse);
+  --color-tooltip-light: var(--color-popover);
+  --color-tooltip-light-foreground: var(--color-popover-foreground);
+  --radius-tooltip: var(--radius-md);
+  --shadow-tooltip: var(--shadow-popover);
+  --blur-tooltip: var(--blur-popover);
+
+  --color-toast: var(--color-surface);
+  --background-image-toast-image: var(--background-image-surface-image);
+  --color-toast-foreground: var(--color-surface-foreground);
+  --color-toast-border: var(--color-surface-border);
+  --radius-toast: var(--radius-pill);
+  --shadow-toast: var(--shadow-lg);
+  --blur-toast: var(--blur-surface);
+
+  --color-switch-track: var(--color-neutral-400);
+  --color-switch-checked: var(--color-control-checked);
+  --color-switch-thumb: var(--color-control-mark);
+  --shadow-switch-thumb: var(--shadow-sm);
+
+  --color-chat: var(--color-bg-basement);
+  --color-workspace: var(--color-bg-default);
+  --color-sidebar: var(--color-bg-basement);
+  --background-image-workspace-image: none;
+  --color-skeleton: var(--color-bg-weak);
+  --color-progress-track: var(--color-bg-weak);
+  --color-progress-fill: var(--color-primary);
+  --color-avatar: var(--color-bg-weak);
+  --color-avatar-foreground: var(--color-neutral-muted);
+
+  /* Illustration and external-product samples have independent color roles. */
+  --color-marketing-accent: #b4ff78;
+  --color-marketing-nav: #444444aa;
+  --color-marketing-panel: #111113;
+  --color-marketing-overlay: #0d0d0dcc;
+  --shadow-marketing-glow: 0 12px 40px
+    color-mix(in srgb, var(--color-marketing-accent) 25%, transparent);
+  --color-contribution-0: #131b24;
+  --color-contribution-1: #003b11;
+  --color-contribution-2: #006f24;
+  --color-contribution-3: #00a335;
+  --color-contribution-4: #00d753;
+  --color-mock-ink: #202124;
+  --color-mock-muted: #5f6368;
+  --color-mock-soft: #8a8d91;
+  --color-mock-weak: #f1f3f4;
+  --color-mock-surface: #eef3fb;
+  --color-mock-link: #1a73e8;
+  --color-mock-border: #c9cccf;
+  --color-mock-selected: #bfe7ff;
+  --color-mock-critical: #d93025;
+  --color-mock-positive: #1bcb5d;
+  --color-brand-linkedin: #0a66c2;
+  --color-chart-cost: #e38b2c;
+  --color-chart-baseline: #44505e;
+  --color-surface-tint: color-mix(
+    in srgb,
+    var(--color-neutral-primary) 4%,
+    transparent
+  );
+  --shadow-panel-slide: -12px 0 32px -12px
+    color-mix(in srgb, var(--color-shadow) 12%, transparent);
+  --shadow-inset-highlight: inset 0 1px 0
+    color-mix(in srgb, var(--color-bg-floating) 75%, transparent);
+  --shadow-outline: 0 0 0 1px var(--color-stroke);
+  --shadow-dock: 0 -8px 24px
+    color-mix(in srgb, var(--color-shadow) 6%, transparent);
+
+  --color-grid: var(--color-bg-floating);
+  --color-grid-foreground: var(--color-neutral-primary);
+  --color-grid-border: var(--color-neutral-400);
+  --color-grid-border-subtle: var(--color-neutral-300);
+  --color-grid-header: var(--color-bg-weak);
+  --color-grid-muted: var(--color-neutral-muted);
+  --color-grid-accent: var(--color-action);
+  --color-grid-hover: var(--color-action-faded);
+  --color-grid-selected: var(--color-action-faded);
+  --color-grid-link: var(--color-link);
+
+  --liquid-glass-filter: blur(18px) saturate(180%) contrast(1.04);
+  --liquid-glass-bg: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.38),
+    rgba(255, 255, 255, 0.12)
+  );
+  --liquid-glass-border: rgba(255, 255, 255, 0.42);
+  --liquid-glass-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.56),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.16), 0 18px 50px rgba(31, 28, 24, 0.13);
+  --liquid-glass-fallback-bg: rgba(255, 255, 255, 0.82);
+  --liquid-glass-highlight: radial-gradient(
+    circle at 20% 0%,
+    color-mix(in srgb, var(--color-bg-floating) 65%, transparent),
+    transparent 45%
+  );
+  --background-image-call-orb: linear-gradient(
+    45deg,
+    #6d28d9,
+    #8b5cf6,
+    #c084fc,
+    #e879f9,
+    #f472b6
+  );
+  --background-image-photo-scrim: linear-gradient(
+    180deg,
+    rgb(0 0 0 / 4%) 0%,
+    rgb(0 0 0 / 30%) 44%,
+    rgb(0 0 0 / 80%) 100%
+  );
+  --color-chart-claude: #c15f3c;
+  --color-chart-openai: #10a37f;
+  --color-chart-openrouter: #6d5bd0;
+  --color-chart-exa: #3478f6;
+  --color-chart-cyan: #0891b2;
+  --color-chart-pink: #be4890;
+  --color-chart-olive: #71852c;
+  --color-chart-slate: #64748b;
+  --color-chart-brown: #9c6b42;
+  --checkbox-check-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.75 8.25 6.75 11.25 12.25 5.75' stroke='white' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --checkbox-indeterminate-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 8H12' stroke='white' stroke-width='1.9' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  /* Texture, animation and compact administrative surfaces. */
+  --color-lofi: #fdfaf3;
+  --background-image-lofi:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.25'/%3E%3C/svg%3E"),
+    radial-gradient(rgba(255, 255, 255, 0.28) 0.5px, transparent 0.5px),
+    radial-gradient(rgba(46, 23, 6, 0.055) 0.45px, transparent 0.45px);
+  --background-image-wavy-underline: url("data:image/svg+xml,%3Csvg width='20' height='8' viewBox='0 0 20 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 4 Q5 0 10 4 T20 4' fill='none' stroke='%23a68a6d' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  --shadow-todo-rest:
+    0 0 0 1px color-mix(in srgb, var(--color-action) 30%, transparent),
+    0 0 6px 0 color-mix(in srgb, var(--color-action) 20%, transparent);
+  --shadow-todo-peak:
+    0 0 0 1px color-mix(in srgb, var(--color-action) 60%, transparent),
+    0 0 16px 3px color-mix(in srgb, var(--color-action) 40%, transparent);
+  --shadow-todo-static:
+    0 0 0 1px color-mix(in srgb, var(--color-action) 50%, transparent),
+    0 0 12px 2px color-mix(in srgb, var(--color-action) 30%, transparent);
+  --color-thinking: var(--color-neutral-primary);
+  --color-interview-shimmer: #f5ecdd;
+  --color-interview-shimmer-highlight: #fffaf0;
+  --color-pattern-line: #e9eaef55;
+  --radius-admin: 0px;
+}

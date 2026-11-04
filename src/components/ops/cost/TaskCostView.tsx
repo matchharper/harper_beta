@@ -161,7 +161,7 @@ export function TaskCostView({ data }: { data: OpsTaskCostResponse }) {
                     0
                   );
                   return (
-                    <div className="min-w-[250px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-3 text-xs text-neutral-primary shadow-lg">
+                    <div className="min-w-[250px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-3 text-xs text-neutral-primary shadow-(--shadow-lg)">
                       <div className="mb-2 flex justify-between gap-4 font-medium">
                         <span>{String(label)}</span>
                         <span>{money(dayTotal)}</span>

@@ -95,13 +95,17 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
     }
   }
   try {
+    const scheduled = ["career_schedule_due", "career_daily_due"].includes(run.trigger) ||
+      (run.trigger === "career_source_reconciled" &&
+        (run.trigger_payload.sourceEvents ?? []).some((event: any) => event.sourceKind === "schedule" || event.dailySourceId) &&
+        !(run.trigger_payload.sourceEvents ?? []).some((event: any) => event.sourceKind === "agent_contact"));
     const execute = () => runCareerChatTurn({
       admin: args.admin, userId: args.userId, conversationId: args.conversationId, userMessage: null,
       agentReplyId: invocation.replyId,
-      assistantModel: run.trigger === "career_schedule_due"
+      assistantModel: scheduled
         ? process.env.CAREER_SCHEDULED_AGENT_MODEL?.trim() || GPT_6_LUNA_MODEL
         : undefined,
-      assistantOpenAIResponsesReasoningEffort: run.trigger === "career_schedule_due" ? "high" : undefined,
+      assistantOpenAIResponsesReasoningEffort: scheduled ? "high" : undefined,
       backgroundInvocation: {
         runId: run.id,
         meetingScheduleVersions: inboxContext.meetingScheduleVersions,

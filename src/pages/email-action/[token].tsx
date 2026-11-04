@@ -343,7 +343,7 @@ export default function CompanyEmailActionPage() {
         <meta name="robots" content="noindex,nofollow" />
         <meta name="referrer" content="no-referrer" />
       </Head>
-      <div className="mx-auto w-full max-w-lg rounded-xl border border-neutral-1000-a05 bg-bg-floating p-5 shadow-sm sm:p-6">
+      <div className="mx-auto w-full max-w-lg rounded-xl border border-neutral-1000-a05 bg-bg-floating p-5 shadow-(--shadow-sm) sm:p-6">
         {content}
       </div>
     </main>

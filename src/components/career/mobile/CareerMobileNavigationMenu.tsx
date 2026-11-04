@@ -95,7 +95,7 @@ export default function CareerMobileNavigationMenu({
                   onChangeTab(option.id);
                 }}
                 className={cn(
-                  "flex h-11 w-full items-center justify-start gap-2.5 rounded-md px-2.5 text-[14.5px] font-normal text-neutral-primary",
+                  "flex h-11 w-full items-center justify-start gap-2.5 rounded-button px-2.5 text-[14.5px] font-normal text-neutral-primary",
                   active &&
                     "bg-neutral-300/70 text-neutral-primary hover:bg-neutral-200"
                 )}

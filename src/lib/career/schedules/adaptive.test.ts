@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { setup, localAdmin, owner, other, write } from "./testSupport";
+import { localAdmin, owner, other, write } from "./testSupport";
+import { setupDaily as setup } from "./dailyTestSupport";
 import {
   collectDueCareerWork,
   formatCareerSchedules,
@@ -149,7 +150,7 @@ test("editing instructions with unchanged timing preserves the next execution", 
   }
 });
 
-test("Worker onboarding can initialize or adopt a check-in without gaining schedule editing authority", async () => {
+test("Worker onboarding initializes external discovery and preserves an existing keyed reservation without cadence editing authority", async () => {
   const db = await setup();
   try {
     const legacy = await write(
@@ -165,6 +166,8 @@ test("Worker onboarding can initialize or adopt a check-in without gaining sched
       "worker-adoption",
       other
     );
+    // The earlier cutover has already attached this key before the daily migration.
+    await db.query("update talent_agent_schedules set schedule_key='career_check_in' where id=$1",[legacy.id]);
     // Existing Worker access to the onboarding tables, without superuser access.
     await db.exec(
       "grant select on talent_users, talent_setting to harper_worker; grant update on talent_setting to harper_worker; set role harper_worker;"
@@ -327,6 +330,7 @@ test("the old paused check-in is always in context even behind more than twelve 
       },
       "user-pause"
     );
+    await db.query("update talent_agent_schedules set schedule_key='career_check_in' where id=$1",[old.id]);
     await db.query(
       "update talent_setting set is_onboarding_done=true where user_id=$1",
       [owner]
@@ -411,7 +415,7 @@ test("intervals cross month boundaries exactly and quiet occurrences keep their 
         [due.runIds[0]]
       )
     ).rows[0];
-    assert.equal(run.trigger_payload.contactScope, "career_check_in");
+    assert.equal(run.trigger_payload.contactScope, "external_recommendations");
     assert.equal(run.trigger_payload.sourceEvents[0].intervalDays, 8);
     assert.equal((await collectDueCareerWork({ admin })).runIds.length, 0);
     await db.query(
@@ -543,17 +547,7 @@ test("contact opt-outs remain separate from schedule existence or resumption", a
         next_run_at: "2020-01-01T00:00:00Z",
       },
     });
-    const runId = (await collectDueCareerWork({ admin })).runIds[0];
-    const run = (
-      await db.query<any>(
-        "select * from opportunity_discovery_run where id=$1",
-        [runId]
-      )
-    ).rows[0];
-    await assert.rejects(
-      assertCareerSourceEventsCurrent({ admin, run }),
-      CareerSourceChangedError
-    );
+    assert.deepEqual((await collectDueCareerWork({ admin })).runIds, []);
     const setting = (
       await db.query<any>("select * from talent_setting where user_id=$1", [
         owner,

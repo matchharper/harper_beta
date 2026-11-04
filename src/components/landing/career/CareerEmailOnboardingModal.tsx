@@ -112,9 +112,9 @@ export default function CareerEmailOnboardingModal({
         type="button"
         aria-label="메일 온보딩 모달 닫기"
         onClick={handleClose}
-        className="absolute inset-0 bg-beige900/20 backdrop-blur-[3px]"
+        className="absolute inset-0 bg-beige900/20 backdrop-blur-xs"
       />
-      <div className="relative z-10 w-full max-w-[440px] rounded-[18px] border border-beige900/10 bg-beige50 p-5 text-left shadow-[0_24px_80px_rgba(37,20,6,0.22)] sm:p-6">
+      <div className="relative z-10 w-full max-w-[440px] rounded-xl border border-beige900/10 bg-beige50 p-5 text-left shadow-(--shadow-modal) sm:p-6">
         <button
           type="button"
           onClick={handleClose}
@@ -127,7 +127,7 @@ export default function CareerEmailOnboardingModal({
 
         {submitted ? (
           <div role="status" aria-live="polite" className="pr-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-beige900/10 bg-white/75 text-beige900">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-beige900/10 bg-bg-floating/75 text-beige900">
               <MailCheck className="h-4 w-4" />
             </div>
             <h2 className="mt-5 text-[22px] font-semibold tracking-[-0.04em] text-beige900">
@@ -162,12 +162,12 @@ export default function CareerEmailOnboardingModal({
                 autoComplete="email"
                 placeholder="이메일 주소"
                 disabled={submitting}
-                className="h-12 w-full rounded-[10px] border border-beige900/12 bg-white/75 px-4 text-[15px] font-medium text-beige900 outline-none transition placeholder:text-beige900/32 focus:border-beige900/28 focus:bg-white focus:ring-2 focus:ring-beige900/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-12 w-full rounded-md border border-beige900/12 bg-bg-floating/75 px-4 text-[15px] font-medium text-beige900 outline-none transition placeholder:text-beige900/32 focus:border-beige900/28 focus:bg-bg-floating focus:ring-2 focus:ring-beige900/10 disabled:cursor-not-allowed disabled:opacity-60"
                 required
               />
 
               {error ? (
-                <p className="rounded-[8px] border border-[#d35400]/20 bg-white/75 px-3 py-2 text-[12px] font-medium leading-5 text-[#b94800]">
+                <p className="rounded-md border border-primary/20 bg-bg-floating/75 px-3 py-2 text-[12px] font-medium leading-5 text-primary">
                   {error}
                 </p>
               ) : null}
@@ -175,7 +175,7 @@ export default function CareerEmailOnboardingModal({
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-beige900 px-4 text-[15px] font-semibold text-beige50 shadow-[0_12px_24px_rgba(37,20,6,0.13)] transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-beige900 px-4 text-[15px] font-semibold text-beige50 shadow-(--shadow-modal) transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" />

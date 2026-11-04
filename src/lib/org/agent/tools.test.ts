@@ -726,7 +726,7 @@ test("read_talent has no ordinary batch ceiling and keeps resume output availabi
   );
 });
 
-test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
+test("candidate contact exposes immediate agent correspondence and legacy delivery", () => {
   const enabled: string[] = getEnabledOrgAgentTools().map(
     (item) => item.function.name
   );
@@ -739,6 +739,7 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   );
   const parameters = contactTalent?.function.parameters as any;
   assert.deepEqual(parameters.properties.action.enum, [
+    "send_to_agent",
     "create_draft",
     "send",
     "revise_draft",
@@ -771,9 +772,15 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   assert.equal(parameters.properties.presentedDrafts.type, "boolean");
   assert.equal(parameters.properties.relayId.type, "string");
   assert.equal(parameters.properties.messageContent.type, "string");
+  assert.equal(parameters.properties.introductionRootId.type, "string");
+  assert.equal(parameters.properties.replyToMessageId.type, "string");
+  assert.match(contactTalent?.function.description ?? "", /immediately queues the candidate agent/);
+  assert.match(contactTalent?.function.description ?? "", /questions, information, requests or replies/);
+  assert.match(contactTalent?.function.description ?? "", /does not wait for daily processing/);
   assert.match(contactTalent?.function.description ?? "", /talentId \+ roleId \+ messageContent/);
   assert.match(contactTalent?.function.description ?? "", /never changes candidate interest, sharing consent, or pipeline stage/);
   const policy = COMPANY_CAPABILITY_POLICIES.candidate_contact;
+  assert.match(policy, /Agent correspondence uses send_to_agent under the existing company authorization/);
   for (const fact of ["lightweight reply or routine follow-up", "new first outreach", "one company review", "create_draft", "revise_draft", "expectedRevision", "presentedDrafts=true", "five-minute delay", "Never regenerate approved copy", "already queued", "immediate", "Cancel only", "list_contacts/read_contact", "partial", "idempotency"]) {
     assert.ok(policy.includes(fact === "partial" ? "completed/incomplete" : fact), fact);
   }

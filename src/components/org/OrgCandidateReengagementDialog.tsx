@@ -54,7 +54,7 @@ export function OrgCandidateReengagementDialog({
         if (!pending) onCancel();
       }}
       open={open}
-      panelClassName="max-w-lg border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-lg  "
       showCloseButton={!pending}
       title={c(
         "후보자에게 종료 안내가 전달됐어요",

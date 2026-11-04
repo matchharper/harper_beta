@@ -42,7 +42,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-full items-center justify-between gap-2 whitespace-nowrap rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-sm font-normal text-neutral-primary outline-none transition-[border-color,background-color,box-shadow] duration-200 hover:bg-bg-weak focus-visible:border-neutral-400 focus-visible:ring-2 focus-visible:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:bg-bg-weak disabled:text-neutral-disabled disabled:opacity-70 data-[size=default]:h-10 data-[size=sm]:h-8 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "flex w-full items-center justify-between gap-2 whitespace-nowrap rounded-control border-(length:--control-border-width) border-control-border bg-control bg-control-image text-control-foreground shadow-(--shadow-control) backdrop-blur-control px-3 text-sm font-control outline-none transition-[border-color,background-color,box-shadow] duration-200 hover:bg-bg-weak focus-visible:border-stroke-focus focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:bg-control-disabled disabled:text-neutral-disabled disabled:opacity-70 data-[size=default]:h-10 data-[size=sm]:h-8 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className
       )}
       {...props}
@@ -91,7 +91,7 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "relative max-h-[min(20rem,var(--available-height))] w-[var(--anchor-width)] min-w-32 origin-[var(--transform-origin)] overflow-x-hidden overflow-y-auto rounded-md border border-neutral-1000-a10 bg-bg-floating p-1 text-neutral-primary shadow-xl outline-none transition-[transform,opacity] data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
+            "relative max-h-[min(20rem,var(--available-height))] w-[var(--anchor-width)] min-w-32 origin-[var(--transform-origin)] overflow-x-hidden overflow-y-auto rounded-menu border-(length:--menu-border-width) border-menu-border bg-menu bg-menu-image text-menu-foreground shadow-(--shadow-menu) backdrop-blur-menu p-1 outline-none transition-[transform,opacity] data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
             className
           )}
           {...props}
@@ -130,7 +130,7 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex w-full cursor-default select-none items-center rounded px-2.5 py-2 pr-8 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-bg-weak data-[highlighted]:text-neutral-primary",
+        "relative flex w-full cursor-default select-none items-center rounded-menu-item px-2.5 py-2 pr-8 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-menu-hover data-[highlighted]:text-menu-foreground",
         className
       )}
       {...props}
@@ -169,7 +169,7 @@ function SelectScrollUpButton({
     <SelectPrimitive.ScrollUpArrow
       data-slot="select-scroll-up-button"
       className={cn(
-        "sticky top-0 z-10 flex h-6 w-full cursor-default items-center justify-center bg-bg-floating text-neutral-muted",
+        "sticky top-0 z-10 flex h-6 w-full cursor-default items-center justify-center bg-menu text-neutral-muted",
         className
       )}
       {...props}
@@ -187,7 +187,7 @@ function SelectScrollDownButton({
     <SelectPrimitive.ScrollDownArrow
       data-slot="select-scroll-down-button"
       className={cn(
-        "sticky bottom-0 z-10 flex h-6 w-full cursor-default items-center justify-center bg-bg-floating text-neutral-muted",
+        "sticky bottom-0 z-10 flex h-6 w-full cursor-default items-center justify-center bg-menu text-neutral-muted",
         className
       )}
       {...props}

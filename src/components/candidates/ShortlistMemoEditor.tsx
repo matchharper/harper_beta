@@ -128,7 +128,7 @@ export default function ShortlistMemoEditor({
       )}
     >
       {/* {!isEditing && hasMemo && (
-        <div className="absolute top-0 -left-px h-full bg-accent-300 w-0.5 rounded-[1px]"></div>
+        <div className="absolute top-0 -left-px h-full bg-accent-300 w-0.5 rounded-xs"></div>
       )} */}
       {!isEditing ? (
         <>

@@ -57,7 +57,7 @@ const SharedChatPanel = ({
   });
 
   return (
-    <div className="flex h-screen w-full min-w-[390px] max-w-[460px] flex-col border-r border-neutral-00/10 bg-black font-sans text-neutral-00 lg:w-[30%]">
+    <div className="flex h-screen w-full min-w-[390px] max-w-[460px] flex-col border-r border-neutral-00/10 bg-surface-inverse font-sans text-neutral-00 lg:w-[30%]">
       {/* Header (fixed) */}
       <div className="flex items-center justify-between flex-none h-14 px-4 text-neutral-00/90">
         <div className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-neutral-00/90 transition-all duration-200">

@@ -503,7 +503,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
           </h1>
 
           <form className="mt-6 md:mt-8 w-full max-w-[640px]">
-            <div className="w-full relative rounded-3xl p-2 bg-bg-default border border-neutral-1000-a05 shadow-sm">
+            <div className="w-full relative rounded-3xl p-2 bg-bg-default border border-neutral-1000-a05 shadow-(--shadow-sm)">
               <ChatAttachmentDraftList
                 attachments={attachments}
                 className="mb-2"
@@ -578,11 +578,11 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                   onClick={onSubmit}
                   disabled={!canSend}
                   className={[
-                    "inline-flex items-center justify-center rounded-[12px] cursor-pointer hover:opacity-90",
+                    "inline-flex items-center justify-center rounded-lg cursor-pointer hover:opacity-90",
                     "h-11 w-11 md:h-9 md:w-9",
                     canSend
-                      ? "bg-black text-neutral-00 cursor-not-allowed"
-                      : "bg-black/50 text-neutral-00",
+                      ? "bg-surface-inverse text-neutral-00 cursor-not-allowed"
+                      : "bg-surface-inverse/50 text-neutral-00",
                     "transition active:scale-[0.98]",
                   ].join(" ")}
                   aria-label="Send"

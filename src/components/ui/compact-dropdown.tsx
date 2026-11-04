@@ -44,7 +44,7 @@ export function CompactDropdown<T extends string>({
           aria-label={ariaLabel}
           disabled={disabled}
           className={cn(
-            "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[13px] font-normal text-neutral-primary outline-none hover:bg-bg-weak focus-visible:border-neutral-400 focus-visible:ring-2 focus-visible:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:bg-bg-weak disabled:text-neutral-disabled disabled:opacity-70",
+            "flex h-8 w-full items-center justify-between gap-2 rounded-control border-(length:--control-border-width) border-control-border bg-control bg-control-image text-control-foreground shadow-(--shadow-control) backdrop-blur-control px-2.5 text-[13px] font-control outline-none hover:bg-bg-weak focus-visible:border-stroke-focus focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:bg-control-disabled disabled:text-neutral-disabled disabled:opacity-70",
             className
           )}
         >
@@ -60,7 +60,7 @@ export function CompactDropdown<T extends string>({
           align="start"
           sideOffset={4}
           className={cn(
-            "z-120 max-h-(--radix-dropdown-menu-content-available-height) w-[var(--radix-dropdown-menu-trigger-width)] min-w-28 overflow-x-hidden overflow-y-auto rounded-lg border border-neutral-1000-a05 bg-bg-floating p-0.5 text-neutral-primary shadow-lg outline-none",
+            "z-120 max-h-(--radix-dropdown-menu-content-available-height) w-[var(--radix-dropdown-menu-trigger-width)] min-w-28 overflow-x-hidden overflow-y-auto rounded-menu border-(length:--menu-border-width) border-menu-border bg-menu bg-menu-image text-menu-foreground shadow-(--shadow-menu) backdrop-blur-menu p-0.5 outline-none",
             contentClassName
           )}
         >
@@ -78,7 +78,7 @@ export function CompactDropdown<T extends string>({
                 key={option.value}
                 disabled={option.disabled}
                 value={option.value}
-                className="relative flex min-h-7 cursor-default select-none items-center rounded-md py-1 pl-2 pr-7 text-xs leading-4 text-neutral-primary outline-none focus:bg-bg-weak data-disabled:pointer-events-none data-disabled:opacity-50"
+                className="relative flex min-h-7 cursor-default select-none items-center rounded-menu-item py-1 pl-2 pr-7 text-xs leading-4 text-menu-foreground outline-none focus:bg-menu-hover data-disabled:pointer-events-none data-disabled:opacity-50"
               >
                 <span className="min-w-0 truncate">{option.label}</span>
                 <DropdownMenuPrimitive.ItemIndicator className="absolute right-2 inline-flex size-3.5 items-center justify-center">

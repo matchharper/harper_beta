@@ -213,7 +213,7 @@ export function OpsDateRangeFilter({
           role="dialog"
           aria-label={label ?? emptyLabel}
           className={cx(
-            "absolute top-[calc(100%+6px)] z-[1000] w-[300px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-2 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)]",
+            "absolute top-[calc(100%+6px)] z-[1000] w-[300px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-2 shadow-(--shadow-lg)",
             align === "end" ? "right-0" : "left-0",
             popoverClassName
           )}
@@ -241,7 +241,7 @@ export function OpsDateRangeFilter({
             <BareButton
               type="button"
               onClick={applyDraftDateRange}
-              className="h-7 rounded-md bg-black px-2.5 text-[11px] font-medium text-neutral-00 transition hover:bg-black/88"
+              className="h-7 rounded-md bg-surface-inverse px-2.5 text-[11px] font-medium text-neutral-00 transition hover:bg-surface-inverse/88"
             >
               확인
             </BareButton>

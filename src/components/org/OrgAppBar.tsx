@@ -599,7 +599,7 @@ export function OrgAppBar({
               variant="default"
               size="sm"
               onClick={onEditWorkspace}
-              className="hidden sm:inline-flex border-none bg-black/5"
+              className="hidden sm:inline-flex border-none bg-surface-tint"
             >
               <FileText className="h-4 w-4" />
               {c("회사 정보 수정", "Edit company info")}
@@ -609,7 +609,7 @@ export function OrgAppBar({
               variant="default"
               size="sm"
               onClick={() => setOpen(true)}
-              className="hidden sm:inline-flex border-none bg-black/5"
+              className="hidden sm:inline-flex border-none bg-surface-tint"
             >
               <Users className="h-4 w-4" />
               {c("워크스페이스 관리", "Manage workspace")}
@@ -748,7 +748,7 @@ export function OrgAppBar({
                       className={`inline-flex h-8 max-w-full items-center border pl-3 text-xs rounded-md font-medium ${
                         failedMessage
                           ? "border-critical/25 bg-critical-faded text-critical"
-                          : "border-black/5 bg-black/5 text-neutral-primary"
+                          : "border-stroke-subtle bg-surface-tint text-neutral-primary"
                       }`}
                     >
                       <span className="max-w-[260px] truncate">{email}</span>
@@ -762,7 +762,7 @@ export function OrgAppBar({
                           event.stopPropagation();
                           removeInviteEmail(email);
                         }}
-                        className="ml-1 flex h-full items-center rounded-r-md px-2 text-[15px] font-normal leading-none text-black/50 transition hover:bg-neutral-1000-a05 hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-40"
+                        className="ml-1 flex h-full items-center rounded-r-md px-2 text-[15px] font-normal leading-none text-neutral-primary/50 transition hover:bg-neutral-1000-a05 hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -818,7 +818,7 @@ export function OrgAppBar({
                   sendInvitations.isPending ||
                   (inviteEmails.length === 0 && !inviteInput.trim())
                 }
-                className={`flex flex-1 justify-center items-center bg-neutral-primary ${sendInvitations.isPending ? "min-w-[92px]" : "min-w-[72px]"} text-white px-3 py-2.5 rounded-md text-[13px] font-normal`}
+                className={`flex flex-1 justify-center items-center bg-neutral-primary ${sendInvitations.isPending ? "min-w-[92px]" : "min-w-[72px]"} text-on-inverse px-3 py-2.5 rounded-md text-[13px] font-normal`}
               >
                 {sendInvitations.isPending ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" />

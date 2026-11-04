@@ -406,7 +406,7 @@ const Onboard: React.FC = () => {
   }, [visibleSteps.length]);
 
   return (
-    <main className="flex flex-col justify-start md:justify-center items-center min-h-screen bg-white text-black font-inter pt-4 md:pt-0">
+    <main className="flex flex-col justify-start md:justify-center items-center min-h-screen bg-bg-floating text-neutral-primary font-inter pt-4 md:pt-0">
       <div className="w-full fixed top-0 left-0 z-20">
         <ProgressBar
           currentStep={Math.min(step + 1, visibleSteps.length)}
@@ -433,7 +433,7 @@ const Onboard: React.FC = () => {
           </div>
           <button
             onClick={() => router.push("/")}
-            className="bg-neutral-1000 text-white mt-4 px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
+            className="bg-neutral-1000 text-on-inverse mt-4 px-4 h-11 rounded-sm text-lg font-medium hover:opacity-90"
           >
             {m.join.done.backToCompanies}
           </button>
@@ -446,7 +446,7 @@ const Onboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex md:hidden rounded-md w-6 h-6 text-sm bg-neutral-1000/80 text-white mb-4 items-center justify-center">
+          <div className="flex md:hidden rounded-md w-6 h-6 text-sm bg-neutral-1000/80 text-on-inverse mb-4 items-center justify-center">
             {step + 1}
           </div>
 
@@ -589,11 +589,11 @@ const Onboard: React.FC = () => {
                   <button
                     onClick={() => void goNext()}
                     disabled={loading || submitLoading}
-                    className="bg-neutral-1000 shadow-lg transition-all duration-200 cursor-pointer text-white w-full md:w-auto px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90 disabled:opacity-60"
+                    className="bg-neutral-1000 shadow-(--shadow-lg) transition-all duration-200 cursor-pointer text-on-inverse w-full md:w-auto px-4 h-11 rounded-sm text-lg font-medium hover:opacity-90 disabled:opacity-60"
                   >
                     {submitLoading ? (
                       <span className="animate-spin">
-                        <LoaderCircle className="w-6 h-6 animate-spin text-white" />
+                        <LoaderCircle className="w-6 h-6 animate-spin text-on-inverse" />
                       </span>
                     ) : step === visibleSteps.length - 1 ? (
                       m.join.actions.submit
@@ -606,7 +606,7 @@ const Onboard: React.FC = () => {
                     <span className="text-neutral-800">
                       {m.join.actions.press}
                     </span>
-                    <span className="text-black font-medium">
+                    <span className="text-neutral-primary font-medium">
                       {m.join.actions.enter}
                     </span>
                     <CornerDownLeft size={14} strokeWidth={2} />
@@ -627,14 +627,14 @@ const Onboard: React.FC = () => {
           <div className="flex flex-row items-center gap-2 fixed bottom-4 left-4 text-sm text-neutral-700">
             <button
               type="button"
-              className="underline hover:text-black"
+              className="underline hover:text-neutral-primary"
               onClick={goPrev}
             >
               {m.join.actions.back}
             </button>
             <button
               type="button"
-              className="underline hover:text-black"
+              className="underline hover:text-neutral-primary"
               onClick={() => void goNext()}
             >
               {m.join.actions.next}

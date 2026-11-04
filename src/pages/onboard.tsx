@@ -185,7 +185,7 @@ const Onboard: React.FC = () => {
   };
 
   return (
-    <main className="flex flex-col justify-start md:justify-center items-center min-h-screen bg-white text-black font-inter pt-4 md:pt-0">
+    <main className="flex flex-col justify-start md:justify-center items-center min-h-screen bg-bg-floating text-neutral-primary font-inter pt-4 md:pt-0">
       <div className="w-full fixed top-0 left-0 z-20">
         <ProgressBar currentStep={step + 1} totalSteps={STEPS.length} />
       </div>
@@ -203,7 +203,7 @@ const Onboard: React.FC = () => {
             onClick={() => {
               router.push("/call");
             }}
-            className="bg-neutral-1000 text-white px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
+            className="bg-neutral-1000 text-on-inverse px-4 h-11 rounded-sm text-lg font-medium hover:opacity-90"
           >
             Recruiter call 시작하기
           </BareButton>
@@ -215,7 +215,7 @@ const Onboard: React.FC = () => {
               {step + 1} <ArrowRight size={16} strokeWidth={2} />
             </div>
           </div>
-          <div className="flex md:hidden rounded-md w-6 h-6 text-sm bg-neutral-1000/80 text-white mb-4 items-center justify-center">
+          <div className="flex md:hidden rounded-md w-6 h-6 text-sm bg-neutral-1000/80 text-on-inverse mb-4 items-center justify-center">
             {step + 1}
           </div>
 
@@ -348,7 +348,7 @@ const Onboard: React.FC = () => {
                       ))}
                       <BareButton
                         type="button"
-                        className="text-sm px-3 py-1.5 text-neutral-1000 rounded-[5px] hover:bg-neutral-100 w-fit"
+                        className="text-sm px-3 py-1.5 text-neutral-1000 rounded-sm hover:bg-neutral-100 w-fit"
                         onClick={() => {
                           setIsDirty(true);
                           setWorkExperiences((prev) => [
@@ -387,7 +387,7 @@ const Onboard: React.FC = () => {
                       ))}
                       <BareButton
                         type="button"
-                        className="text-sm px-3 py-1.5 text-neutral-1000 rounded-[5px] hover:bg-neutral-100 w-fit"
+                        className="text-sm px-3 py-1.5 text-neutral-1000 rounded-sm hover:bg-neutral-100 w-fit"
                         onClick={() => {
                           setIsDirty(true);
                           setEducations((prev) => [...prev, makeEducation()]);
@@ -452,7 +452,7 @@ const Onboard: React.FC = () => {
                           setIsDirty(true);
                           setLinks((prev) => [...prev, ""]);
                         }}
-                        className="text-[13px] px-3 py-1 text-neutral-1000 rounded-[5px] hover:bg-neutral-100"
+                        className="text-[13px] px-3 py-1 text-neutral-1000 rounded-sm hover:bg-neutral-100"
                       >
                         + 추가
                       </BareButton>
@@ -463,11 +463,11 @@ const Onboard: React.FC = () => {
                 <div className="flex flex-row items-center gap-3 mt-4">
                   <BareButton
                     onClick={handleNext}
-                    className="bg-neutral-1000 shadow-lg transition-all duration-200 cursor-pointer text-white px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
+                    className="bg-neutral-1000 shadow-(--shadow-lg) transition-all duration-200 cursor-pointer text-on-inverse px-4 h-11 rounded-sm text-lg font-medium hover:opacity-90"
                   >
                     {submitLoading ? (
                       <span className="animate-spin">
-                        <LoaderCircle className="w-6 h-6 animate-spin text-white" />
+                        <LoaderCircle className="w-6 h-6 animate-spin text-on-inverse" />
                       </span>
                     ) : step === STEPS.length - 1 ? (
                       "Submit"
@@ -478,7 +478,7 @@ const Onboard: React.FC = () => {
 
                   <span className="text-[14px] font-light flex flex-row items-center gap-1">
                     <span className="text-neutral-800">press</span>
-                    <span className="text-black font-medium">Enter</span>
+                    <span className="text-neutral-primary font-medium">Enter</span>
                     <CornerDownLeft size={14} strokeWidth={2} />
                   </span>
                 </div>
@@ -489,14 +489,14 @@ const Onboard: React.FC = () => {
           <div className="flex flex-row items-center gap-2 fixed bottom-4 left-4 text-sm text-neutral-700">
             <BareButton
               type="button"
-              className="underline hover:text-black"
+              className="underline hover:text-neutral-primary"
               onClick={handlePrev}
             >
               Back
             </BareButton>
             <BareButton
               type="button"
-              className="underline hover:text-black"
+              className="underline hover:text-neutral-primary"
               onClick={handleNext}
             >
               Next

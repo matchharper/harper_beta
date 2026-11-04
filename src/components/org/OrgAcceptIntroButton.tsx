@@ -18,7 +18,7 @@ export function OrgAcceptIntroButton({
       variant="dark"
       aria-keyshortcuts={shortcut ? "r" : undefined}
       className={cn(
-        "bg-positive-strong text-white border-positive-strong hover:bg-positive-strong",
+        "bg-positive-strong text-on-inverse border-positive-strong hover:bg-positive-strong",
         className
       )}
     >

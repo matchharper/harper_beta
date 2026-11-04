@@ -545,7 +545,7 @@ const ProfileInputToggle = ({
     onClick={onClick}
     aria-invalid={invalid || undefined}
     className={cn(
-      "flex relative h-[104px] w-full shrink-0 flex-col items-center justify-center gap-2 rounded-[8px] border px-3 py-3 text-center text-[13px] font-medium leading-4 transition",
+      "flex relative h-[104px] w-full shrink-0 flex-col items-center justify-center gap-2 rounded-md border px-3 py-3 text-center text-[13px] font-medium leading-4 transition",
       active
         ? "border-neutral-800 bg-bg-weak"
         : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-800 hover:bg-bg-weak",
@@ -657,7 +657,7 @@ const EngagementCardButton = ({
     type="button"
     onClick={onClick}
     className={cn(
-      "flex w-full flex-row gap-4 text-neutral-primary items-center justify-center rounded-[8px] border px-4 py-5 text-center transition duration-300",
+      "flex w-full flex-row gap-4 text-neutral-primary items-center justify-center rounded-md border px-4 py-5 text-center transition duration-300",
       active
         ? "border-neutral-800 bg-bg-weak"
         : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-800 hover:bg-bg-weak"
@@ -666,7 +666,7 @@ const EngagementCardButton = ({
     <div className="flex w-full items-center gap-3">
       <span
         className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] bg-bg-weak"
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-bg-weak"
         )}
         aria-hidden="true"
       >
@@ -999,7 +999,7 @@ const OnboardingLoadingBody = () => {
         priority
       />
 
-      <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-[13px] font-medium leading-none text-neutral-muted shadow-sm">
+      <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-[13px] font-medium leading-none text-neutral-muted shadow-(--shadow-sm)">
         <span className="h-2 w-2 rounded-full bg-primary" />
         {t(
           "career.onboarding.onboarding_loading_state.analyzing_badge",

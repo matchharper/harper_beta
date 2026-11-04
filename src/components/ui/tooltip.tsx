@@ -35,7 +35,7 @@ const TooltipContent = React.forwardRef<
         ref={ref}
         sideOffset={sideOffset}
         className={cn(
-          "z-10050 overflow-hidden rounded-md bg-neutral-1000 px-3 py-1.5 text-xs text-neutral-00 animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-(--radix-tooltip-content-transform-origin)",
+          "z-10050 overflow-hidden rounded-tooltip shadow-(--shadow-tooltip) backdrop-blur-tooltip bg-tooltip px-3 py-1.5 text-xs text-tooltip-foreground animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-(--radix-tooltip-content-transform-origin)",
           showArrow && "overflow-visible",
           className
         )}
@@ -45,7 +45,7 @@ const TooltipContent = React.forwardRef<
         {showArrow ? (
           <TooltipPrimitive.Arrow
             className={cn(
-              "z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-neutral-1000 fill-neutral-1000",
+              "z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-xs bg-tooltip fill-tooltip",
               arrowClassName
             )}
           />
@@ -62,7 +62,7 @@ type TooltipSide = "bottom" | "top" | "left" | "right";
 type TooltipAlign = "start" | "center" | "end";
 
 const lightTooltipContentClassName =
-  "max-w-[min(520px,calc(100vw-32px))] text-[13px] md:text-[14px] font-normal whitespace-pre-wrap wrap-break-word rounded-lg border border-black/5 bg-white/80 px-5 py-5 leading-5 text-black shadow-[0_14px_36px_rgba(0,0,0,0.12)] backdrop-blur-sm";
+  "max-w-[min(520px,calc(100vw-32px))] text-[13px] md:text-[14px] font-normal whitespace-pre-wrap wrap-break-word rounded-tooltip border-(length:--popover-border-width) border-popover-border bg-tooltip-light bg-popover-image px-5 py-5 leading-5 text-tooltip-light-foreground shadow-(--shadow-tooltip) backdrop-blur-tooltip";
 
 export function Tooltips({
   children,
@@ -122,7 +122,7 @@ export function ResponsiveLightTooltip({
   const isMobile = useMediaQuery("(max-width: 767px)");
   const tooltipId = React.useId();
   const triggerBaseClassName =
-    "inline-flex items-center gap-1.5 rounded-[4px] py-1 text-left text-[13px] font-normal leading-5 text-neutral-muted transition hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10";
+    "inline-flex items-center gap-1.5 rounded-sm py-1 text-left text-[13px] font-normal leading-5 text-neutral-muted transition hover:text-neutral-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10";
 
   const closeTooltip = React.useCallback(() => {
     pinnedRef.current = false;
@@ -178,7 +178,7 @@ export function ResponsiveLightTooltip({
               align={align}
               aria-label={mobileAriaLabel}
               className={cn(
-                "z-10050 max-w-[min(520px,calc(100vw-32px))] whitespace-pre-wrap wrap-break-word rounded-lg border border-black/5 bg-white/80 px-5 py-5 text-[13px] font-normal leading-5 text-black shadow-[0_14px_36px_rgba(0,0,0,0.12)] outline-none backdrop-blur-sm",
+                "z-10050 max-w-[min(520px,calc(100vw-32px))] whitespace-pre-wrap wrap-break-word rounded-tooltip border-(length:--popover-border-width) border-popover-border bg-tooltip-light bg-popover-image px-5 py-5 text-[13px] font-normal leading-5 text-tooltip-light-foreground shadow-(--shadow-tooltip) outline-none backdrop-blur-tooltip",
                 contentClassName
               )}
               collisionPadding={16}

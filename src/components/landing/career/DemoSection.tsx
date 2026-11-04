@@ -128,11 +128,11 @@ function HarperReport({
 
   return (
     <div
-      className={`relative h-[520px] overflow-hidden rounded-2xl bg-[#FFFCF6] p-5 text-left transition duration-700 md:h-[820px] md:p-[28px] ${
+      className={`relative h-[520px] overflow-hidden rounded-2xl bg-bg-basement p-5 text-left transition duration-700 md:h-[820px] md:p-[28px] ${
         reportVisible ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0"
       }`}
     >
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b from-[#FFFCF6]/0 to-[#FFFCF6]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b from-bg-basement/0 to-bg-basement" />
 
       <ReportItem index={0} visibleCount={reportItemsVisible}>
         <div className="flex items-start justify-between gap-4 pb-4">
@@ -145,19 +145,19 @@ function HarperReport({
               A
             </CompanyMark>
             <div>
-              <div className="mt-1 text-[22px] font-semibold leading-[1.15] text-[#21170D] md:text-2xl">
+              <div className="mt-1 text-[22px] font-semibold leading-[1.15] text-neutral-primary md:text-2xl">
                 Anthropic<span> - Harper Report</span>
               </div>
-              <div className="mt-1 text-[13px] leading-snug text-[#6B5A49]">
+              <div className="mt-1 text-[13px] leading-snug text-neutral-muted">
                 후기 단계 AI 연구 기업 · 샌프란시스코 · 비자 스폰서 이력 확인
               </div>
             </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <span className="border-b border-[#5E746C]/30 px-0.5 pb-0.5 text-[10.5px] font-semibold text-[#41564F]">
+            <span className="border-b border-primary/30 px-0.5 pb-0.5 text-[10.5px] font-semibold text-neutral-muted">
               샘플 브리핑
             </span>
-            <span className="text-[12px] text-[#7E715F]">검토 4분</span>
+            <span className="text-[12px] text-neutral-muted">검토 4분</span>
           </div>
         </div>
       </ReportItem>
@@ -165,7 +165,7 @@ function HarperReport({
       <ReportItem
         index={1}
         visibleCount={reportItemsVisible}
-        className="grid grid-cols-2 border-b border-[#21170D]/10 py-4 md:grid-cols-4"
+        className="grid grid-cols-2 border-b border-neutral-primary/10 py-4 md:grid-cols-4"
       >
         {[
           ["$30B", "최근 라운드 (2026.2)", ""],
@@ -176,16 +176,16 @@ function HarperReport({
           <div
             key={label}
             className={`px-3 py-1 ${
-              index > 0 ? "border-l border-[#21170D]/10" : ""
+              index > 0 ? "border-l border-neutral-primary/10" : ""
             }`}
           >
-            <div className="text-[21px] font-semibold leading-none text-[#21170D]">
+            <div className="text-[21px] font-semibold leading-none text-neutral-primary">
               {value}
             </div>
-            <div className="mt-1.5 text-[11px] font-medium leading-snug text-[#6B5A49]">
+            <div className="mt-1.5 text-[11px] font-medium leading-snug text-neutral-muted">
               {label}
             </div>
-            <div className="mt-0.5 text-[10px] leading-snug text-[#958775]">
+            <div className="mt-0.5 text-[10px] leading-snug text-neutral-soft">
               {detail}
             </div>
           </div>
@@ -195,11 +195,11 @@ function HarperReport({
       <ReportItem
         index={2}
         visibleCount={reportItemsVisible}
-        className="border-b border-[#21170D]/10 py-4"
+        className="border-b border-neutral-primary/10 py-4"
       >
-        <div className="mb-3 flex items-baseline justify-between gap-3 text-[13px] text-[#6B5A49]">
-          <span className="font-medium text-[#21170D]">성장 단계</span>
-          <span className="text-[12px] text-[#7E715F]">
+        <div className="mb-3 flex items-baseline justify-between gap-3 text-[13px] text-neutral-muted">
+          <span className="font-medium text-neutral-primary">성장 단계</span>
+          <span className="text-[12px] text-neutral-muted">
             공개 자료와 네트워크 신호를 분리해 확인
           </span>
         </div>
@@ -212,7 +212,7 @@ function HarperReport({
               <div className="flex h-[72px] items-end">
                 <div
                   className={`w-full origin-bottom rounded-t ${
-                    bar.current ? "bg-[#5E746C]" : "bg-[#DED2C2]"
+                    bar.current ? "bg-primary" : "bg-bg-weak"
                   } transition-transform duration-1000`}
                   style={{
                     height: bar.height,
@@ -220,10 +220,10 @@ function HarperReport({
                   }}
                 />
               </div>
-              <div className="text-center text-[9.5px] leading-tight text-[#7E715F]">
+              <div className="text-center text-[9.5px] leading-tight text-neutral-muted">
                 {bar.label}
                 <br />
-                <b className="font-medium text-[#21170D]">{bar.value}</b>
+                <b className="font-medium text-neutral-primary">{bar.value}</b>
               </div>
             </div>
           ))}
@@ -233,14 +233,14 @@ function HarperReport({
       <ReportItem
         index={3}
         visibleCount={reportItemsVisible}
-        className="border-b border-[#21170D]/10 py-4"
+        className="border-b border-neutral-primary/10 py-4"
       >
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-[21px] font-semibold leading-none text-[#21170D]">
+            <div className="text-[21px] font-semibold leading-none text-neutral-primary">
               2.1x
             </div>
-            <div className="mt-1.5 text-[12px] text-[#7E715F]">
+            <div className="mt-1.5 text-[12px] text-neutral-muted">
               1년 내 헤드카운트 변화
             </div>
           </div>
@@ -255,7 +255,7 @@ function HarperReport({
               stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
-              className="text-[#5E746C] transition-[stroke-dashoffset] duration-1000"
+              className="text-primary transition-[stroke-dashoffset] duration-1000"
               style={{
                 strokeDasharray: 400,
                 strokeDashoffset: sparkVisible ? 0 : 400,
@@ -263,13 +263,13 @@ function HarperReport({
             />
             <path
               d="M0,42 L22,40 L44,37 L66,33 L88,28 L110,24 L132,18 L154,13 L176,8 L200,4 L200,48 L0,48 Z"
-              className="fill-[#5E746C]/10"
+              className="fill-primary/10"
             />
             <circle
               cx="200"
               cy="4"
               r="3.5"
-              className={`fill-[#5E746C] transition-opacity duration-500 ${
+              className={`fill-primary transition-opacity duration-500 ${
                 sparkVisible ? "opacity-100" : "opacity-0"
               }`}
             />
@@ -282,7 +282,7 @@ function HarperReport({
         visibleCount={reportItemsVisible}
         label="잘 맞는 이유"
       >
-        <span className="font-semibold text-[#21170D]">
+        <span className="font-semibold text-neutral-primary">
           Inference Infra 쪽 시니어 역할.
         </span>{" "}
         대규모 모델 서빙 경험이 바로 이어지고, 보상 범위와 비자 조건도 요청한
@@ -302,10 +302,10 @@ function HarperReport({
           ].map(([name, note]) => (
             <div
               key={name}
-              className="grid grid-cols-[1fr_auto] gap-3 border-b border-dashed border-[#21170D]/10 py-1.5 last:border-b-0"
+              className="grid grid-cols-[1fr_auto] gap-3 border-b border-dashed border-neutral-primary/10 py-1.5 last:border-b-0"
             >
-              <span className="font-medium text-[#21170D]">{name}</span>
-              <span className="text-[13px] text-[#7E715F]">{note}</span>
+              <span className="font-medium text-neutral-primary">{name}</span>
+              <span className="text-[13px] text-neutral-muted">{note}</span>
             </div>
           ))}
         </div>
@@ -329,16 +329,16 @@ function HarperReport({
       <ReportItem
         index={8}
         visibleCount={reportItemsVisible}
-        className="mt-3 border-l-2 border-[#5E746C] bg-[#EEF4F0] p-3 text-[12px] text-[#4E5E57]"
+        className="mt-3 border-l-2 border-primary bg-positive-faded p-3 text-[12px] text-neutral-muted"
       >
-        <div className="mb-2 font-semibold text-[#40524B]">
+        <div className="mb-2 font-semibold text-neutral-primary">
           같이 볼 만한 기회
         </div>
         <div className="flex flex-wrap gap-2">
-          <span className="border-b border-[#5E746C]/25 px-0.5 py-1">
+          <span className="border-b border-primary/25 px-0.5 py-1">
             유료 자문 · 월 3시간 내외
           </span>
-          <span className="border-b border-[#5E746C]/25 px-0.5 py-1">
+          <span className="border-b border-primary/25 px-0.5 py-1">
             전문가 콜 · 1시간
           </span>
         </div>
@@ -362,9 +362,9 @@ function ReportSection({
     <ReportItem
       index={index}
       visibleCount={visibleCount}
-      className="grid grid-cols-1 gap-2 border-b border-[#21170D]/10 py-3 text-[13px] leading-[1.65] text-[#4F4337] md:grid-cols-[112px_1fr] md:gap-4 md:text-sm"
+      className="grid grid-cols-1 gap-2 border-b border-neutral-primary/10 py-3 text-[13px] leading-[1.65] text-neutral-muted md:grid-cols-[112px_1fr] md:gap-4 md:text-sm"
     >
-      <div className="pt-0.5 text-[12px] font-semibold text-[#7E715F]">
+      <div className="pt-0.5 text-[12px] font-semibold text-neutral-muted">
         {label}
       </div>
       <div>{children}</div>
@@ -390,8 +390,8 @@ function ChatMatchCard({
         "flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 transition duration-300",
         visible ? demoItemVisibleClassName : "-translate-x-2 opacity-0",
         selected
-          ? "border-beige900/25 bg-white"
-          : "border-beige900/10 bg-white/65"
+          ? "border-beige900/25 bg-bg-floating"
+          : "border-beige900/10 bg-bg-floating/65"
       )}
     >
       <CompanyMark iconSrc={match.iconSrc} label={match.company}>
@@ -482,7 +482,7 @@ function MessageBubble({
   return (
     <div
       className={cn(
-        "ml-auto mb-1 max-w-[91%] rounded-xl bg-beige900 px-3 py-2 text-white transition duration-300 md:max-w-[86%]",
+        "ml-auto mb-1 max-w-[91%] rounded-xl bg-beige900 px-3 py-2 text-on-inverse transition duration-300 md:max-w-[86%]",
         demoChatTextClassName,
         visible ? demoItemVisibleClassName : demoItemHiddenClassName
       )}
@@ -500,7 +500,7 @@ function TypingBubble({ active }: { active: boolean }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 8 }}
-          className="flex w-fit items-center gap-1 rounded-lg bg-white/65 px-3 py-2 text-beige900/45"
+          className="flex w-fit items-center gap-1 rounded-lg bg-bg-floating/65 px-3 py-2 text-beige900/45"
         >
           {[0, 1, 2].map((index) => (
             <motion.span
@@ -567,7 +567,7 @@ function CompanyMark({
     return (
       <div
         className={cn(
-          "flex shrink-0 items-center justify-center rounded-lg border border-beige900/10 bg-white",
+          "flex shrink-0 items-center justify-center rounded-lg border border-beige900/10 bg-bg-floating",
           size === "lg" ? "h-12 w-12" : "h-7 w-7"
         )}
       >
@@ -617,7 +617,7 @@ function MobileDemoConversation({ visible }: { visible: boolean }) {
 
       <div
         className={cn(
-          "flex flex-col gap-1.5 rounded-xl border border-beige900/10 bg-white/55 px-2.5 py-2 transition duration-300",
+          "flex flex-col gap-1.5 rounded-xl border border-beige900/10 bg-bg-floating/55 px-2.5 py-2 transition duration-300",
           visibleClassName
         )}
       >
@@ -936,7 +936,7 @@ function DemoSection({
       {...interactionGuardProps}
       id="demo"
       ref={sectionRef}
-      className="bg-[#F4EFE7] px-4 py-14 text-center md:px-10 md:py-24"
+      className="bg-bg-weak px-4 py-14 text-center md:px-10 md:py-24"
     >
       {header}
 
@@ -955,7 +955,7 @@ function DemoSection({
               <div
                 ref={phoneRef}
                 data-demo-phone
-                className="absolute inset-x-[5%] bottom-[1%] top-[1%] z-10 flex flex-col overflow-hidden rounded-[2rem] bg-[#14100c] p-1.5 text-left text-xs sm:p-2"
+                className="absolute inset-x-[5%] bottom-[1%] top-[1%] z-10 flex flex-col overflow-hidden rounded-4xl bg-surface-inverse p-1.5 text-left text-xs sm:p-2"
               >
                 <div className="flex items-center justify-between gap-3 rounded-t-3xl border-b border-beige900/10 bg-beige50 px-3 pb-2 pt-12 text-beige900 md:pt-14">
                   <div className="flex min-w-0 items-center gap-2.5">
@@ -1027,7 +1027,7 @@ function DemoSection({
 
                       <div
                         className={cn(
-                          "flex flex-col gap-2 rounded-xl border border-beige900/10 bg-white/45 px-2.5 py-2.5 transition",
+                          "flex flex-col gap-2 rounded-xl border border-beige900/10 bg-bg-floating/45 px-2.5 py-2.5 transition",
                           matchesActive ? "opacity-100" : "hidden opacity-0"
                         )}
                       >
@@ -1075,7 +1075,7 @@ function DemoSection({
                       ))}
                       <div
                         className={cn(
-                          "flex max-w-[92%] items-center gap-2.5 rounded-xl border border-beige900/10 bg-white/70 p-2.5 transition duration-300 md:max-w-[88%]",
+                          "flex max-w-[92%] items-center gap-2.5 rounded-xl border border-beige900/10 bg-bg-floating/70 p-2.5 transition duration-300 md:max-w-[88%]",
                           visibleStepSet.has(13)
                             ? demoItemVisibleClassName
                             : "translate-y-2 opacity-0"
@@ -1102,7 +1102,7 @@ function DemoSection({
                 </div>
 
                 <div className="rounded-b-3xl border-t border-beige900/10 bg-beige50 px-3 pb-4 pt-2 sm:pb-6">
-                  <div className="rounded-2xl border border-beige900/20 bg-white">
+                  <div className="rounded-2xl border border-beige900/20 bg-bg-floating">
                     <div className="flex min-h-11 items-center gap-1.5 px-3 py-2 sm:gap-2">
                       <div className="min-w-0 flex-1 truncate whitespace-nowrap text-xs leading-5 text-beige900/35">
                         <span className="sm:hidden">답변 입력</span>
@@ -1115,7 +1115,7 @@ function DemoSection({
                         aria-label="통화 모드"
                         className={cn(
                           demoIconButtonClassName,
-                          "border border-black/15 bg-white/45 text-beige900"
+                          "border border-stroke-strong/15 bg-bg-floating/45 text-beige900"
                         )}
                       >
                         <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -1194,7 +1194,7 @@ function DemoSection({
                 transition={{ duration: 0.82, ease: [0.22, 1, 0.36, 1] }}
                 className="relative z-10 mx-auto mt-[-54px] hidden w-full max-w-[720px] text-left md:mt-[-72px] lg:absolute lg:right-0 lg:top-0 lg:mt-0 lg:block lg:w-[calc(100%-440px)] lg:max-w-none xl:w-[700px]"
               >
-                <div className="mb-2 text-left text-[13px] font-medium text-[#6B5A49] lg:text-right">
+                <div className="mb-2 text-left text-[13px] font-medium text-neutral-muted lg:text-right">
                   기업 조사 및 브리핑
                 </div>
                 <HarperReport

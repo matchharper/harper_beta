@@ -3,9 +3,9 @@
   flex-direction: column;
   min-height: 400px;
   height: 100%;
-  background: #fff;
-  color: #202124;
-  font-family: Arial, "Apple SD Gothic Neo", sans-serif;
+  background: var(--color-grid);
+  color: var(--color-grid-foreground);
+  font-family: var(--font-sans);
   font-size: 13px;
 }
 .toolbar {
@@ -15,18 +15,18 @@
   flex-wrap: wrap;
   min-height: 48px;
   padding: 8px 12px;
-  border-bottom: 1px solid #c9cdd2;
-  background: #fff;
+  border-bottom: 1px solid var(--color-grid-border);
+  background: var(--color-grid);
 }
 .toolbar input,
 .toolbar select,
 .form input,
 .form select,
 .form textarea {
-  color: #202124;
-  background: #fff;
-  border: 1px solid #b8bdc3;
-  border-radius: 3px;
+  color: var(--color-grid-foreground);
+  background: var(--color-grid);
+  border: 1px solid var(--color-grid-border);
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
   font: inherit;
 }
@@ -35,14 +35,14 @@
 .form input:focus,
 .form select:focus,
 .form textarea:focus {
-  outline: 2px solid #1a73e8;
+  outline: 2px solid var(--color-grid-accent);
   outline-offset: -1px;
 }
 .select {
   min-width: 210px;
   max-width: 360px;
   height: 32px;
-  font-weight: 500 !important;
+  font-weight: var(--font-weight-label) !important;
 }
 .search {
   width: 200px;
@@ -52,7 +52,7 @@
   flex: 1;
 }
 .autoSaveStatus {
-  color: #5f6368;
+  color: var(--color-grid-muted);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -68,8 +68,8 @@
   align-items: center;
   min-height: 38px;
   padding: 6px 12px;
-  border-top: 1px solid #c9cdd2;
-  background: #fff;
+  border-top: 1px solid var(--color-grid-border);
+  background: var(--color-grid);
   flex-wrap: wrap;
 }
 .reviewStatusCell {
@@ -80,18 +80,18 @@
 }
 .error {
   padding: 8px 12px;
-  background: #fce8e6;
-  color: #a50e0e;
-  border-bottom: 1px solid #dc7a73;
+  background: var(--color-critical-faded);
+  color: var(--color-critical);
+  border-bottom: 1px solid var(--color-critical);
 }
 .notice {
   padding: 8px 12px;
-  background: #e8f0fe;
-  color: #174ea6;
-  border-bottom: 1px solid #a5c1eb;
+  background: var(--color-grid-selected);
+  color: var(--color-grid-link);
+  border-bottom: 1px solid var(--color-grid-accent);
 }
 .form {
-  color: #202124;
+  color: var(--color-grid-foreground);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -112,7 +112,7 @@
   gap: 8px;
 }
 .columnList {
-  border: 1px solid #c9cdd2;
+  border: 1px solid var(--color-grid-border);
   max-height: 46vh;
   overflow: auto;
 }
@@ -121,7 +121,7 @@
   align-items: center;
   gap: 8px;
   padding: 7px 8px;
-  border-bottom: 1px solid #e0e3e6;
+  border-bottom: 1px solid var(--color-grid-border-subtle);
 }
 .columnItem:last-child {
   border-bottom: 0;
@@ -140,13 +140,13 @@
   display: flex;
   gap: 6px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #c9cdd2;
+  border-bottom: 1px solid var(--color-grid-border);
 }
 .dialog {
-  background: #fff !important;
-  color: #202124 !important;
-  border: 1px solid #b8bdc3 !important;
-  border-radius: 6px !important;
+  background: var(--color-modal) !important;
+  color: var(--color-modal-foreground) !important;
+  border: 1px solid var(--color-grid-border) !important;
+  border-radius: var(--radius-control) !important;
   max-height: 90vh;
   overflow: auto;
 }
@@ -174,13 +174,13 @@
   padding: 2px;
 }
 .collectionItem {
-  border: 1px solid #c9cdd2;
+  border: 1px solid var(--color-grid-border);
   padding: 12px;
   min-width: 0;
 }
 .collectionItem legend {
   padding: 0 6px;
-  font-weight: 500;
+  font-weight: var(--font-weight-label);
 }
 .recordTable {
   width: 100%;
@@ -191,14 +191,14 @@
 .recordTable td {
   padding: 8px;
   text-align: left;
-  border: 1px solid #c9cdd2;
+  border: 1px solid var(--color-grid-border);
 }
 .recordTable th {
-  background: #f1f3f4;
+  background: var(--color-grid-header);
 }
 .historyItem {
   padding: 12px 0;
-  border-bottom: 1px solid #c9cdd2;
+  border-bottom: 1px solid var(--color-grid-border);
   overflow-wrap: anywhere;
 }
 .historyItem p {
@@ -212,7 +212,7 @@
   grid-template-columns: minmax(140px, 1fr) 2fr;
   gap: 12px;
   padding: 7px 0;
-  border-bottom: 1px solid #e0e3e6;
+  border-bottom: 1px solid var(--color-grid-border-subtle);
 }
 .facts dd {
   white-space: pre-wrap;
@@ -221,7 +221,7 @@
 .currentValue {
   padding: 6px 0;
   font-size: 12px;
-  color: #174ea6;
+  color: var(--color-grid-link);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -288,21 +288,21 @@
   gap: 14px;
   min-height: 38px;
   padding: 8px 10px;
-  border: 1px solid #c9cdd2;
-  background: #f8f9fa;
+  border: 1px solid var(--color-grid-border);
+  background: var(--color-grid-header);
 }
 .creatorSummary a {
-  color: #174ea6;
-  font-weight: 500;
+  color: var(--color-grid-link);
+  font-weight: var(--font-weight-label);
   overflow-wrap: anywhere;
 }
 .creatorSummary span {
-  color: #5f6368;
+  color: var(--color-grid-muted);
 }
 .composer {
   padding: 14px;
-  border: 1px solid #a5c1eb;
-  background: #fff;
+  border: 1px solid var(--color-grid-accent);
+  background: var(--color-grid);
 }
 .mailEditor :global(.tiptap) {
   min-height: 220px;
@@ -313,20 +313,20 @@
   gap: 12px;
   justify-content: space-between;
   align-items: center;
-  border: 1px solid #c9cdd2;
+  border: 1px solid var(--color-grid-border);
   padding: 12px;
 }
 .mailMessage {
-  border: 1px solid #c9cdd2;
-  background: #fff;
+  border: 1px solid var(--color-grid-border);
+  background: var(--color-grid);
 }
 .mailOutgoing {
-  border-left: 4px solid #5b8def;
-  background: #f4f7ff;
+  border-left: 4px solid var(--color-action);
+  background: var(--color-action-faded);
 }
 .mailIncoming {
-  border-left: 4px solid #d49b16;
-  background: #fff9e8;
+  border-left: 4px solid var(--color-info);
+  background: var(--color-info-faded);
 }
 .mailHeader {
   display: flex;
@@ -334,27 +334,27 @@
   justify-content: space-between;
   align-items: flex-start;
   padding: 12px;
-  border-bottom: 1px solid rgb(32 33 36 / 12%);
+  border-bottom: 1px solid var(--color-grid-border);
 }
 .mailDirection,
 .mailSubject,
 .mediumText {
-  font-weight: 500;
+  font-weight: var(--font-weight-label);
 }
 .mailDirection {
   display: inline-block;
   margin-right: 7px;
   padding: 2px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   white-space: nowrap;
 }
 .mailOutgoing .mailDirection {
-  color: #174ea6;
-  background: #dfe9ff;
+  color: var(--color-grid-link);
+  background: var(--color-action-faded);
 }
 .mailIncoming .mailDirection {
-  color: #7a4f00;
-  background: #ffe9a8;
+  color: var(--color-info-strong);
+  background: var(--color-info-faded);
 }
 .mailSubject {
   overflow-wrap: anywhere;

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 const CHAT_COMPOSER_PICKER_SCROLL_NUDGE_PX = 8;
 
 export const CHAT_COMPOSER_PICKER_SURFACE_CLASS_NAME =
-  "overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating shadow-none";
+  "overflow-hidden rounded-menu border-(length:--menu-border-width) border-menu-border bg-menu bg-menu-image text-menu-foreground shadow-(--shadow-menu) backdrop-blur-menu";
 
 type ChatComposerPickerItemBase = {
   icon?: ReactNode;
@@ -166,7 +166,7 @@ export function ChatComposerPickerItemContent({
       {item.imageSrc || item.icon ? (
         <span
           aria-hidden="true"
-          className="relative mr-2 flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-lg text-black/70 [&_svg]:size-4"
+          className="relative mr-2 flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-lg text-neutral-primary/70 [&_svg]:size-4"
         >
           {item.icon}
           {item.imageSrc ? (
@@ -196,23 +196,23 @@ export function ChatComposerPickerItemContent({
             tone === "critical"
               ? "text-critical"
               : tone === "muted"
-                ? "text-black/50"
-                : "text-black"
+                ? "text-neutral-primary/50"
+                : "text-neutral-primary"
           )}
         >
           {item.text}
         </span>
         {item.subText ? (
           isStacked ? (
-            <span className="w-full min-w-0 truncate text-[11px] font-normal leading-4 text-black/40">
+            <span className="w-full min-w-0 truncate text-[11px] font-normal leading-4 text-neutral-primary/40">
               {item.subText}
             </span>
           ) : (
             <>
-              <span aria-hidden="true" className="shrink-0 text-black/20">
+              <span aria-hidden="true" className="shrink-0 text-neutral-primary/20">
                 ·
               </span>
-              <span className="min-w-0 max-w-[38%] shrink truncate text-[12px] font-normal text-black/40">
+              <span className="min-w-0 max-w-[38%] shrink truncate text-[12px] font-normal text-neutral-primary/40">
                 {item.subText}
               </span>
             </>
@@ -220,7 +220,7 @@ export function ChatComposerPickerItemContent({
         ) : null}
       </span>
       {item.trailingText ? (
-        <span className="ml-4 min-w-0 shrink truncate text-[12px] font-normal text-black/40">
+        <span className="ml-4 min-w-0 shrink truncate text-[12px] font-normal text-neutral-primary/40">
           {item.trailingText}
         </span>
       ) : null}
@@ -330,7 +330,7 @@ export function ChatComposerPicker({
               <div
                 aria-disabled="true"
                 aria-selected="false"
-                className="flex h-8 w-full items-center overflow-hidden whitespace-nowrap px-2 text-left text-black/50"
+                className="flex h-8 w-full items-center overflow-hidden whitespace-nowrap px-2 text-left text-neutral-primary/50"
                 id={itemId}
                 key={item.id}
                 role="option"
@@ -352,7 +352,7 @@ export function ChatComposerPicker({
               aria-selected={highlighted}
               className={cn(
                 "mb-0.5 flex h-8 w-full flex-row items-center justify-start overflow-hidden whitespace-nowrap rounded-lg border-0 px-2 text-left shadow-none last:mb-0 focus-visible:ring-inset focus-visible:ring-offset-0",
-                highlighted ? "bg-black/4" : "hover:bg-black/4"
+                highlighted ? "bg-menu-selected" : "hover:bg-menu-hover"
               )}
               disabled={item.disabled}
               id={itemId}
@@ -373,7 +373,7 @@ export function ChatComposerPicker({
       {isScrollable ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 bg-linear-to-b from-transparent via-bg-floating/70 to-bg-floating"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 bg-linear-to-b from-transparent via-menu/70 to-menu"
         />
       ) : null}
     </div>

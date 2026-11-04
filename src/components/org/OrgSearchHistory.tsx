@@ -62,7 +62,7 @@ export function OrgSearchHistory({
           aria-label={c("검색 기록", "Search history")}
           align="end"
           sideOffset={8}
-          className="z-[90] w-[440px] max-w-[calc(100vw-24px)] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-4 shadow-lg"
+          className="z-[90] w-[440px] max-w-[calc(100vw-24px)] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-4 shadow-(--shadow-lg)"
         >
           <h2 className="mb-4 text-sm font-medium">
             {c("검색 기록", "Search history")}

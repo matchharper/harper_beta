@@ -34,10 +34,10 @@ import Image from "next/image";
 type CareerProfileMenuVariant = "desktop" | "mobile" | "sidebar";
 
 const aboutMenuItemClassName =
-  "flex py-2 cursor-pointer font-normal items-center gap-2.5 rounded-[8px] px-3 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-basement focus:text-neutral-primary";
+  "flex py-2 cursor-pointer font-normal items-center gap-2.5 rounded-md px-3 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-basement focus:text-neutral-primary";
 
 const aboutSubmenuClassName =
-  "w-[248px] rounded-[12px] border border-neutral-1000-a05 bg-bg-floating/95 p-1 text-neutral-primary shadow-[0_18px_40px_rgba(31,28,26,0.12)] backdrop-blur-md";
+  "w-[248px] rounded-menu border-(length:--menu-border-width) border-menu-border bg-menu bg-menu-image text-menu-foreground shadow-(--shadow-menu) backdrop-blur-menu p-1";
 
 const CareerProfileMenu = ({
   profileImageUrl,
@@ -117,7 +117,7 @@ const CareerProfileMenu = ({
           menuOpen ? "bg-bg-floating" : "active:bg-bg-weak"
         )
       : cn(
-          "relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a10 bg-black text-neutral-00 transition-all",
+          "relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a10 bg-surface-inverse text-neutral-00 transition-all",
           menuOpen
             ? "ring-4 ring-neutral-1000-a10"
             : "hover:ring-4 ring-neutral-1000-a10 hover:opacity-90"
@@ -126,7 +126,7 @@ const CareerProfileMenu = ({
   const avatarBody = isMobile ? (
     <span
       className={cn(
-        "inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full  border bg-black",
+        "inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full  border bg-surface-inverse",
         menuOpen
           ? "ring-4 ring-neutral-1000-a10"
           : "hover:ring-4 ring-neutral-1000-a10 hover:opacity-90"
@@ -252,7 +252,7 @@ const CareerProfileMenu = ({
               <>
                 <span
                   className={cn(
-                    "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a10 bg-black text-neutral-00",
+                    "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a10 bg-surface-inverse text-neutral-00",
                     sidebarCollapsed ? "size-7" : "size-8"
                   )}
                 >
@@ -319,7 +319,7 @@ const CareerProfileMenu = ({
               <div
                 role="group"
                 aria-label="About"
-                className="mt-1 rounded-[10px] bg-bg-basement/70 p-1"
+                className="mt-1 rounded-md bg-bg-basement/70 p-1"
               >
                 {aboutMenuItems}
               </div>

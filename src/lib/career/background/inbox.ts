@@ -94,6 +94,7 @@ export async function prepareCareerInboxContext(
       );
     }
   }
+  lines.push(formatTalentSchedules({ schedules: [...appointments.values()] }));
   for (const schedule of appointments.values())
     for (const thread of schedule.source_refs?.gmailThreadIds ?? [])
       threads.add(thread);

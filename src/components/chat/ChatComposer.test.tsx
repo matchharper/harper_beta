@@ -7,7 +7,7 @@ import { ChatComposerFrame } from "@/components/chat/ChatComposer";
 import { ChatComposerTokenOverlay } from "@/components/chat/ChatComposerTokenOverlay";
 
 test("mobile composer expands after release and caps textarea growth at four rows", async () => {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
+  const dom = new JSDOM("<!doctype html><html><head><style>textarea { box-sizing: border-box; line-height: 20px; padding: 12px 0; border: 0; }</style></head><body></body></html>", {
     pretendToBeVisual: true,
   });
   const previousDocument = Object.getOwnPropertyDescriptor(
@@ -79,7 +79,7 @@ test("mobile composer expands after release and caps textarea growth at four row
     assert.match(textarea.className, /max-md:min-h-12/);
     assert.match(textarea.className, /max-md:py-3/);
     assert.doesNotMatch(textarea.className, /max-md:min-h-11|max-md:pb-2/);
-    assert.equal(textarea.style.height, "80px");
+    assert.equal(textarea.style.height, "104px");
     assert.equal(textarea.style.overflowY, "auto");
 
     await act(async () => textarea.blur());

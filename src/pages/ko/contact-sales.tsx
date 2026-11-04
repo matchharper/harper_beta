@@ -25,15 +25,15 @@ const isValidEmail = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const inputClass =
-  "mt-2 h-[43px] w-full rounded-[3px] border border-[#cfcac0] bg-[#fbfaf7] px-3 text-[15px] font-light text-neutral-primary outline-none transition-colors placeholder:text-neutral-muted focus:border-neutral-950";
+  "mt-2 h-[43px] w-full rounded-sm border border-stroke bg-bg-floating px-3 text-[15px] font-light text-neutral-primary outline-none transition-colors placeholder:text-neutral-muted focus:border-neutral-950";
 
 const textareaClass =
-  "mt-2 min-h-[76px] w-full resize-none rounded-[3px] border border-[#cfcac0] bg-[#fbfaf7] px-3 py-3 text-[15px] font-light leading-[1.4] text-neutral-primary outline-none transition-colors placeholder:text-neutral-muted focus:border-neutral-950";
+  "mt-2 min-h-[76px] w-full resize-none rounded-sm border border-stroke bg-bg-floating px-3 py-3 text-[15px] font-light leading-[1.4] text-neutral-primary outline-none transition-colors placeholder:text-neutral-muted focus:border-neutral-950";
 
 const labelClass = "block text-[13px] font-normal text-neutral-primary";
 
 const selectClass =
-  "mt-2 h-[43px] w-full appearance-none rounded-[3px] border border-[#d8d3c9] bg-[#fbfaf7] px-3 text-[15px] font-light text-neutral-primary outline-none transition-colors focus:border-neutral-950";
+  "mt-2 h-[43px] w-full appearance-none rounded-sm border border-stroke bg-bg-floating px-3 text-[15px] font-light text-neutral-primary outline-none transition-colors focus:border-neutral-950";
 
 type TalentSignal = {
   name: string;
@@ -243,14 +243,14 @@ export default function HarperContactSalesPage() {
         nextjs-portal,
         .nextjs-toast
       `}</style>
-      <main className="min-h-screen bg-[#f7f6f1] text-neutral-primary">
+      <main className="min-h-screen bg-bg-basement text-neutral-primary">
         <header className="mx-auto flex h-14 w-full max-w-[1300px] items-center justify-between px-6 xl:px-0">
           <Link
             href="/test_company2"
             className="inline-flex items-center gap-2"
           >
-            <span className="flex h-[21px] w-[21px] items-center justify-center rounded-[4px] bg-neutral-950">
-              <span className="text-[15px] font-semibold leading-none text-[#f7f6f1]">
+            <span className="flex h-[21px] w-[21px] items-center justify-center rounded-sm bg-neutral-950">
+              <span className="text-[15px] font-semibold leading-none text-bg-basement">
                 h
               </span>
             </span>
@@ -275,7 +275,7 @@ export default function HarperContactSalesPage() {
             </Link>
             <Link
               href="/test_company2"
-              className="hidden h-8 items-center rounded-full border border-[#d7d2c8] px-4 text-[14px] font-light text-neutral-primary md:inline-flex"
+              className="hidden h-8 items-center rounded-full border border-stroke px-4 text-[14px] font-light text-neutral-primary md:inline-flex"
             >
               회사 페이지
             </Link>
@@ -296,7 +296,7 @@ export default function HarperContactSalesPage() {
               검증된 소개로 만나보세요
             </h1>
 
-            <div className="mt-5 flex min-h-[235px] max-w-[635px] flex-col justify-between rounded-lg border border-[#e4e1d8] bg-[#fbfaf7] p-4 md:p-5">
+            <div className="mt-5 flex min-h-[235px] max-w-[635px] flex-col justify-between rounded-lg border border-stroke-subtle bg-bg-floating p-4 md:p-5">
               <p className="text-[15px] font-light leading-[1.55] text-neutral-primary">
                 Harper는 후보자와 직접 대화해 연봉 범위, 이동 의향, 관심도처럼
                 프로필만으로 알 수 없는 정보를 확인합니다. 그래서 회사는 많은
@@ -324,14 +324,14 @@ export default function HarperContactSalesPage() {
 
               <Link
                 href="/test_company2"
-                className="mt-7 inline-flex text-[14px] font-light text-[#ff5a1f] hover:text-[#ff5a1f]/80"
+                className="mt-7 inline-flex text-[14px] font-light text-primary hover:text-primary/80"
               >
                 스토리 읽기 →
               </Link>
             </div>
           </div>
 
-          <aside className="self-start rounded-lg border border-[#e4e1d8] bg-[#f3f2ed] p-5 md:min-h-[332px]">
+          <aside className="self-start rounded-lg border border-stroke-subtle bg-bg-weak p-5 md:min-h-[332px]">
             {isSubmitted ? (
               <div className="flex min-h-[300px] flex-col justify-between">
                 <div>
@@ -404,7 +404,7 @@ export default function HarperContactSalesPage() {
                         ))}
                       </select>
                     ) : (
-                      <div className="mt-2 rounded-[3px] border border-[#cfcac0] bg-[#ebe9e2] px-3 py-2 text-[15px] font-light text-neutral-primary">
+                      <div className="mt-2 rounded-sm border border-stroke bg-control-disabled px-3 py-2 text-[15px] font-light text-neutral-primary">
                         {requestType}
                       </div>
                     )}
@@ -488,7 +488,7 @@ export default function HarperContactSalesPage() {
           </aside>
         </section>
 
-        <footer className="bg-[#efeee9] py-16">
+        <footer className="bg-bg-weak py-16">
           <div className="mx-auto grid w-full max-w-[1300px] grid-cols-2 gap-12 px-6 md:grid-cols-5 xl:px-0">
             {footerGroups.map(([title, ...links]) => (
               <div key={title}>

@@ -41,7 +41,7 @@ const Radio = React.forwardRef<HTMLInputElement, RadioProps>(
           unstyled
             ? className
             : cn(
-                "shrink-0 appearance-none rounded-full border border-neutral-1000-a10 bg-bg-floating outline-none transition-[background-color,border-color,opacity,transform] checked:border-black checked:bg-[radial-gradient(circle,var(--color-neutral-00)_0_35%,var(--color-neutral-1000)_38%)] focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55 active:scale-[0.97]",
+                "shrink-0 appearance-none rounded-full border-(length:--control-border-width) border-control-border bg-control shadow-(--shadow-control) backdrop-blur-control outline-none transition-[background-color,border-color,opacity,transform] checked:border-control-checked checked:bg-[radial-gradient(circle,var(--color-control-mark)_0_35%,var(--color-control-checked)_38%)] focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-55 active:scale-[0.97]",
                 radioSizeClassNames[size],
                 !label && className
               )

@@ -91,13 +91,13 @@ export function BrowserSessionView({
               )}
             </MuteButton>
           ) : null}
-          {!closed && view ? (
+          {!closed && view && !collapsed ? (
             <MuteButton
               type="button"
               variant="transparent"
               size="sm"
               disabled={busy}
-              onClick={() => void onAction("close")}
+              onClick={onExpand ?? (() => void onAction("close"))}
               aria-label={t("career.browser.close", "닫기")}
             >
               <X className="size-4" />

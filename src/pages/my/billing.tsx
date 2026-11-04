@@ -372,7 +372,7 @@ const Billing = () => {
         </div>
 
         <div className="mt-8">
-          <div className="rounded-lg bg-bg-default border border-neutral-1000-a05 shadow-sm p-6">
+          <div className="rounded-lg bg-bg-default border border-neutral-1000-a05 shadow-(--shadow-sm) p-6">
             {isSubscriptionLoading ? (
               <div className="mt-2 text-sm text-neutral-primary">
                 구독 정보를 불러오는 중...
@@ -452,7 +452,7 @@ const Billing = () => {
                       </div>
                       <div className="w-[70%] flex relative rounded-xl h-1.5 bg-bg-weak">
                         <div
-                          className="w-full flex absolute left-0 top-0 rounded-xl h-1.5 bg-black transition-all duration-500 ease-out"
+                          className="w-full flex absolute left-0 top-0 rounded-xl h-1.5 bg-surface-inverse transition-all duration-500 ease-out"
                           style={{
                             width: `${Math.min(
                               ((credits?.remain_credit ?? 0) /

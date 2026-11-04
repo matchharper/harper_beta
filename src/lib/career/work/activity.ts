@@ -1,11 +1,12 @@
 import type { CareerReplyCheckpoint } from "../capabilities/runtime";
 import type { WorkScope } from "./store";
 
-export type CareerWorkActivity = { id: string; logs: string[]; startedAt?: string };
+export type CareerWorkActivity = { id: string; logs: string[]; createdAt?: string; startedAt?: string };
 
 /** Only public tool labels used by chat SSE; never the saved model transcript. */
 export function projectCareerWorkActivity(row: {
   id: string;
+  created_at?: string;
   request?: { cleanup?: boolean; cleanup_browser_session?: string };
   result?: { activity?: { logs?: unknown; startedAt?: string; waitingForReply?: boolean } };
 }): CareerWorkActivity[] {
@@ -19,6 +20,7 @@ export function projectCareerWorkActivity(row: {
   return [
     {
       id: row.id,
+      ...(row.created_at ? { createdAt: row.created_at } : {}),
       ...(row.result?.activity?.startedAt ? { startedAt: row.result.activity.startedAt } : {}),
       logs: Array.isArray(logs)
         ? logs.filter((log): log is string => typeof log === "string")

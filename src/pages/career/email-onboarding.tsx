@@ -310,7 +310,7 @@ export default function CareerEmailOnboardingBridgePage() {
                       asChild
                       variant="primary"
                       size="xl"
-                      className="h-11 w-full min-w-0 md:text-[14px] text-[16px] rounded-md font-normal"
+                      className="h-11 w-full min-w-0 md:text-[14px] text-[16px] rounded-button font-normal"
                     >
                       <Link href={callHref}>
                         <Phone className="h-4 w-4" />
@@ -321,7 +321,7 @@ export default function CareerEmailOnboardingBridgePage() {
                       asChild
                       variant="secondary"
                       size="xl"
-                      className="h-11 w-full min-w-0 bg-bg-floating md:text-[14px] text-[16px] rounded-md font-normal"
+                      className="h-11 w-full min-w-0 bg-bg-floating md:text-[14px] text-[16px] rounded-button font-normal"
                     >
                       <Link href={chatHref}>
                         <MessageSquareText className="h-4 w-4" />

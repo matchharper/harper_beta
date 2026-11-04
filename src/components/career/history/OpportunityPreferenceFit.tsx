@@ -110,7 +110,7 @@ const OpportunityPreferenceFit = ({
           >
             <div
               className={cn(
-                "min-w-0 rounded-[8px] py-2",
+                "min-w-0 rounded-md py-2",
                 variant === "detail"
                   ? "flex items-start gap-2.5"
                   : "inline-flex max-w-full items-center gap-2"

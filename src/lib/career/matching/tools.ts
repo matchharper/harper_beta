@@ -178,7 +178,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
     },
     ["source"],
     async (i, c) => {
-      if (i.source !== "external") throw new Error("Use get_internal_roles to read Harper-connected roles and apply_to_internal_role to save an opportunity.");
+      if (i.source !== "external") throw new Error("Internal search is unavailable here. Read existing Harper-connected recommendations with read_recommended_opportunities and get_role_context; apply_to_internal_role saves a public role the user explicitly chose.");
       const args = profileToolContext(c, "search_opportunities", i, {
         readOnly: Boolean(
           i.runId && i.action !== "resume" && i.action !== "cancel"

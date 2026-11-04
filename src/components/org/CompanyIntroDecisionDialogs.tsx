@@ -214,7 +214,7 @@ export function CompanyIntroRequestDialog({
       mobileBottomSheet
       onClose={() => !pending && onClose()}
       open={open}
-      panelClassName="max-w-lg border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-lg  "
       showCloseButton={!pending}
       title={
         count > 1

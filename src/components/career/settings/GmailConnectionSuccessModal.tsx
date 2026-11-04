@@ -42,7 +42,7 @@ export default function GmailConnectionSuccessModal({
         "career.profile.career_profile_links_settings_section.12rthh0",
         "읽어오기를 누르면 Harper가 최근 커리어 관련 이메일을 정리합니다."
       )}
-      panelClassName="flex max-h-[calc(100dvh-48px)] max-w-[480px] flex-col bg-bg-floating"
+      panelClassName="flex max-h-[calc(100dvh-48px)] max-w-[480px] flex-col "
       headerClassName="shrink-0 border-b-0 px-6 pb-2 pt-6 text-center sm:px-7"
       descriptionClassName="mx-auto"
       bodyClassName="min-h-0 overflow-y-auto px-5 pt-2 sm:px-7"

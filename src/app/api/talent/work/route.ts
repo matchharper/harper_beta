@@ -1,3 +1,4 @@
+import { toTalentMessageResponse, type TalentMessageRow } from "@/lib/talentOnboarding/models";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
       .maybeSingle(),
     (admin.from as any)("talent_external_operations")
       .select(
-        "id,request->cleanup,request->cleanup_browser_session,result->activity,result->>last_error",
+        "id,created_at,request->cleanup,request->cleanup_browser_session,result->activity,result->>last_error",
         { count: "exact" }
       )
       .eq("user_id", user.id)
@@ -88,7 +89,16 @@ export async function GET(req: NextRequest) {
       { error: "Work status unavailable" },
       { status: 503 }
     );
+  // Running output can be older than the latest history page after concurrent
+  // inputs. Read it by invocation identity rather than relying on that page.
+  const replyIds = (pending.data ?? []).map((row: { id: string }) => `invocation:${row.id}`);
+  const displays = replyIds.length ? await admin.from("talent_messages")
+    .select("*").eq("user_id", user.id).eq("conversation_id", conversationId.data)
+    .eq("message_type", "career_turn_activity")
+    .in("payload->>careerTextReplyId", replyIds) : {data: [], error: null};
+  if (displays.error) return NextResponse.json({error: "Work status unavailable"}, {status: 503});
   return NextResponse.json({
+    turns: (displays.data ?? []).map(row => toTalentMessageResponse(row as TalentMessageRow)),
     completionCursor: completed.data
       ? `${completed.data.id}:${completed.data.updated_at}`
       : null,
@@ -106,15 +116,18 @@ export async function GET(req: NextRequest) {
           !row.cleanup && !row.cleanup_browser_session
       )
     ),
+    activeInvocationIds: (pending.data ?? []).map((row: { id: string }) => row.id),
     activities: (pending.data ?? []).flatMap(
       (row: {
         id: string;
+        created_at?: string;
         cleanup?: boolean;
         cleanup_browser_session?: string;
         activity?: { logs?: unknown; startedAt?: string; waitingForReply?: boolean };
       }) =>
         projectCareerWorkActivity({
           id: row.id,
+          created_at: row.created_at,
           request: {
             cleanup: row.cleanup,
             cleanup_browser_session: row.cleanup_browser_session,

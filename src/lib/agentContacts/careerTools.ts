@@ -1,8 +1,9 @@
+import { careerContactSourceIds } from "@/lib/career/background/sourceCoverage";
 import type {
   TalentToolDefinition,
   TalentToolExecutionContext,
 } from "@/lib/talentOnboarding/tools";
-import { CAREER_DELIVERY_TOOLS } from "@/lib/career/background/delivery";
+import { CAREER_DELIVERY_TOOLS, CAREER_DELIVERY_SOURCE_IDS } from "@/lib/career/background/delivery";
 import { READ_AGENT_MESSAGES_TOOL, CONTACT_USER_TOOL } from "./toolContracts";
 import type { AgentContactSource } from "./contracts";
 import { readAgentCorrespondence } from "./read";
@@ -33,11 +34,14 @@ export const CAREER_CONTACT_TOOLS: Record<string, TalentToolDefinition> = {
   },
   contact_user: {
     ...CONTACT_USER_TOOL.function,
+    parameters: { ...CONTACT_USER_TOOL.function.parameters, properties: {
+      ...CONTACT_USER_TOOL.function.parameters.properties, sourceIds: CAREER_DELIVERY_SOURCE_IDS,
+    } },
     channels: ["chat"],
     async execute(input, context) {
       if (input.channel === "email")
         return CAREER_DELIVERY_TOOLS.deliver_career_email.execute!(
-          { action: "deliver", subject: input.subject, body: input.body },
+          { action: "deliver", subject: input.subject, body: input.body, sourceIds: input.sourceIds },
           context
         );
       if (input.channel !== "chat")
@@ -60,6 +64,7 @@ export const CAREER_CONTACT_TOOLS: Record<string, TalentToolDefinition> = {
           "SELECT * FROM public.opportunity_discovery_run WHERE id=$1::uuid",
           [source.backgroundRunId]
         );
+        const sourceIds = careerContactSourceIds(run, input.sourceIds);
         await assertCareerSourceEventsCurrent({
           admin: context!.admin as any,
           run: run as any,
@@ -81,9 +86,12 @@ export const CAREER_CONTACT_TOOLS: Record<string, TalentToolDefinition> = {
                 JSON.stringify({
                   agentContactDeliveryKey: key,
                   backgroundRunId: source.backgroundRunId,
+                  sourceIds,
                 }),
               ]
             );
+        await q("SELECT public.record_career_daily_contact($1::uuid,$2::jsonb,'chat',$3)",
+          [source.backgroundRunId, JSON.stringify(sourceIds), String(message.id)]);
         return {
           status: "saved",
           messageId: message.id,

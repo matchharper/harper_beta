@@ -172,7 +172,13 @@ export const CareerMessageActions = ({
       messageContainer.removeEventListener("pointerleave", handlePointerLeave);
   }, [dismissedUntilPointerLeaves]);
 
-  if (!enabled) return null;
+  // Optimistic messages need the same footer space as persisted messages.
+  // Enabling actions after admission must not push the following work row down.
+  if (!enabled) {
+    return friendly ? null : (
+      <div aria-hidden="true" className="hidden md:block h-7 shrink-0" />
+    );
+  }
 
   const handleCopy = async () => {
     logCareerEvent("click_chat_message_copy", {
@@ -246,7 +252,7 @@ export const CareerMessageActions = ({
       <button
         type="button"
         aria-label={t("career.chat.message.copy", "메시지 복사")}
-        className="flex min-h-12 w-full items-center gap-3 px-4 text-left text-sm text-neutral-primary transition-colors hover:bg-white/20 active:bg-neutral-1000-a05 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
+        className="flex min-h-12 w-full items-center gap-3 px-4 text-left text-sm text-neutral-primary transition-colors hover:bg-bg-floating/20 active:bg-neutral-1000-a05 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
         onClick={() => void handleCopy()}
       >
         <span aria-hidden="true" className="relative size-5 shrink-0">
@@ -288,7 +294,7 @@ export const CareerMessageActions = ({
                 : t("career.chat.message.delete", "메시지 삭제")
           }
           disabled={deleting}
-          className="flex min-h-12 w-full items-center gap-3 border-t border-neutral-1000-a05 px-4 text-left text-sm text-critical transition-colors disabled:opacity-50 hover:bg-white/20 active:bg-neutral-1000-a05 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
+          className="flex min-h-12 w-full items-center gap-3 border-t border-neutral-1000-a05 px-4 text-left text-sm text-critical transition-colors disabled:opacity-50 hover:bg-bg-floating/20 active:bg-neutral-1000-a05 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
           onClick={() => void handleDelete()}
         >
           <Trash2 className="size-5" />
@@ -323,10 +329,10 @@ export const CareerMessageActions = ({
         ariaLabel={t("career.chat.message.copy", "메시지 복사")}
         showCloseButton={false}
         backdropClassName={cn(
-          "chat-message-focus-backdrop bg-black/[0.06] backdrop-blur-none",
+          "chat-message-focus-backdrop bg-surface-inverse/[0.06] backdrop-blur-none",
           focusClosing && "chat-message-focus-backdrop-closing"
         )}
-        panelClassName="chat-message-focus-panel pointer-events-none! w-fit max-w-full border-0 bg-transparent shadow-none overflow-visible"
+        panelClassName="chat-message-focus-panel pointer-events-none! w-fit max-w-full border-0 bg-transparent bg-none shadow-none backdrop-blur-none overflow-visible"
         bodyClassName="overflow-visible"
       >
         <div
@@ -359,8 +365,8 @@ export const CareerMessageActions = ({
           data-career-message-actions="true"
           onFocus={() => setDismissedUntilPointerLeaves(false)}
           className={cn(
-            "absolute top-full z-10 hidden md:flex min-h-7 w-fit items-center transition-opacity duration-150 motion-reduce:transition-none",
-            isUser ? "right-0" : "left-0",
+            "hidden md:flex min-h-7 w-fit shrink-0 items-center transition-opacity duration-150 motion-reduce:transition-none",
+            isUser ? "self-end" : "self-start",
             dismissedUntilPointerLeaves
               ? "pointer-events-none opacity-0"
               : deleteArmed

@@ -3,7 +3,7 @@ import { isTestOnlyInternalRole } from '@/lib/internalRoleSafety';
 import { formatLlmDateTime, PROMPT_TIME_ZONE } from '@/lib/llm/promptDateTime';
 
 const db = (admin: TalentAdminClient) => admin as any;
-export const COMPANY_FOLLOW_COVERAGE = 'Following saves interest in a company by name or an existing company/workspace identity. Scheduled Career checks receive the followed company names, user instructions and follow dates, along with current roles when a directory identity is linked. Company changes do not start a separate contact run. Timing follows the existing Career schedule, including pauses.';
+export const COMPANY_FOLLOW_COVERAGE = 'Following saves interest in a company by name or an existing company/workspace identity. Scheduled Career checks receive the followed company names, user instructions and follow dates, along with external roles and existing internal recommendations when a directory identity is linked. A follow does not expose unrecommended internal roles. Company changes do not start a separate contact run. Timing follows the existing Career schedule, including pauses.';
 export type CompanyIdentity = { companyDbId: number | null; companyWorkspaceId: string | null; name: string; website: string | null; linkedin: string | null; scope: 'company' | 'workspace' };
 export type CompanyFollow = { id: string; talent_id: string; company_name?: string | null; company_db_id: number | null; company_workspace_id: string | null; scope: string; revision: number; instruction: string; followed_at: string; unfollowed_at: string | null; conversation_id: string | null; company?: { name?: string } | null; workspace?: { company_name?: string } | null; scan_state: Record<string, unknown> };
 
@@ -95,6 +95,13 @@ export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdmin
   ).map((role: any) => role.role_id));
   for (const source of events) {
     let event = source;
+    if (event.dailySourceId) {
+      const { data: valid, error } = await db(args.admin).rpc('career_daily_source_current', {
+        p_id: event.dailySourceId, p_talent: args.run.talent_id, p_run_id: args.run.id,
+      });
+      if (error) throw new Error(error.message);
+      if (!valid) { changed = true; continue; }
+    }
     if (event.sourceKind === 'agent_contact') {
       const {isCareerAgentContactEventCurrent}=await import('@/lib/agentContacts/store');
       if(!args.run.talent_id || !await isCareerAgentContactEventCurrent(event.sourceId,args.run.id,args.run.talent_id)) {changed=true;continue;}
@@ -103,6 +110,9 @@ export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdmin
     if (event.sourceKind === 'company_followup') {
       const { data: followup, error } = await db(args.admin).from('company_talent_followups').select('source_kind,source_id,revision,status,due_at,delivery_run_id').eq('id', event.sourceId).eq('talent_id', args.run.talent_id).maybeSingle();
       if (error) throw new Error(error.message);
+      if (followup && Number(followup.revision) === Number(event.revision) && followup.status === 'delivered' && followup.delivery_run_id === args.run.id) {
+        current.push(event); continue;
+      }
       if (!followup || Number(followup.revision) !== Number(event.revision) || followup.status !== 'pending' || !followup.due_at || new Date(followup.due_at).getTime() > Date.now() || (followup.delivery_run_id && followup.delivery_run_id !== args.run.id)) {
         changed = true; continue;
       }
@@ -132,7 +142,7 @@ export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdmin
     // A self-authored future pause keeps this occurrence's directive revision.
     // External pause/cancel increments it in the schedule mutation transaction.
     if (event.sourceKind === 'schedule' && (event as any).scheduleKey === 'career_check_in') {
-      if (!internalEnabled && !externalEnabled) { changed = true; continue; }
+      if (!externalEnabled) { changed = true; continue; }
       current.push(event); continue;
     }
     if (event.sourceKind === 'schedule' && (event.targetRefs as any)?.legacySchedulerReview) {

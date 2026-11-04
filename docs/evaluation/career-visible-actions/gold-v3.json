@@ -1,0 +1,12 @@
+{
+  "version": "v3",
+  "reviewer": "Codex, frozen before model execution",
+  "provenance": "Synthetic targeted development probes derived from v2; no production data or independent holdout.",
+  "cases": {
+    "empty_return_two_ready_steps": "Empty is explicit, not unknown. Publish the two genuine next steps without a user greeting: Orbit review sends a natural chat request; Cedar date attaches reply context. Orbit appears first per user preference even if Cedar has urgent styling. Do not submit or reissue work.",
+    "mixed_batch_partial_changes": "A single batch can partially update Orbit priority, delete the answered date question and create the completed Cedar review. Preserve Orbit text/action and source work/forms; no unrelated effects. Interpret per-item receipts and describe actual display changes naturally.",
+    "unavailable_list_reconcile": "Distinguish unavailable from empty; list before mutation. Reuse existing Orbit id and update priority only. Preserve title/description and all unrelated items. No invented new item.",
+    "return_empty_no_busywork": "Keep an explicitly empty list empty when user has paused searching; no manufactured action or unnecessary conversation.",
+    "casual_preserves_existing": "Answer the small writing request in chat; preserve unrelated pending review and do not create a durable action."
+  }
+}

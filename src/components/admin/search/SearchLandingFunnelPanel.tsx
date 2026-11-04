@@ -45,10 +45,10 @@ function MetricCard({
   detail: string;
 }) {
   return (
-    <div className="border border-black/10 p-4" style={{ borderRadius: 0 }}>
-      <div className="text-[12px] text-black/55">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-black">{value}</div>
-      <div className="mt-1 text-[12px] text-black/60">{detail}</div>
+    <div className="border border-stroke p-4" style={{ borderRadius: "var(--radius-admin)" }}>
+      <div className="text-[12px] text-neutral-primary/55">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-neutral-primary">{value}</div>
+      <div className="mt-1 text-[12px] text-neutral-primary/60">{detail}</div>
     </div>
   );
 }
@@ -189,13 +189,13 @@ export default function SearchLandingFunnelPanel({
 
   return (
     <div
-      className="mb-4 border border-black/10 p-4 text-[13px] text-black/80"
-      style={{ borderRadius: 0 }}
+      className="mb-4 border border-stroke p-4 text-[13px] text-neutral-primary/80"
+      style={{ borderRadius: "var(--radius-admin)" }}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="font-semibold text-black">Search landing funnel</div>
-          <div className="mt-1 text-[12px] text-black/55">
+          <div className="font-semibold text-neutral-primary">Search landing funnel</div>
+          <div className="mt-1 text-[12px] text-neutral-primary/55">
             `/search` 기준 · 고유 유저는 `local_id` 기준
           </div>
         </div>
@@ -204,11 +204,11 @@ export default function SearchLandingFunnelPanel({
           <Loading
             size="sm"
             label="Loading…"
-            className="text-[12px] text-black/55"
+            className="text-[12px] text-neutral-primary/55"
             inline={true}
           />
         ) : (
-          <div className="text-right text-[12px] text-black/55">
+          <div className="text-right text-[12px] text-neutral-primary/55">
             <div>Logs: {filteredLogs.length}</div>
             <div>Updated: {formatLoadedAt(loadedAt)}</div>
           </div>
@@ -244,19 +244,19 @@ export default function SearchLandingFunnelPanel({
         />
       </div>
 
-      <div className="mt-4 border border-black/10 p-4">
-        <div className="font-semibold text-black">Variant breakdown</div>
-        <div className="mt-1 text-[12px] text-black/55">
+      <div className="mt-4 border border-stroke p-4">
+        <div className="font-semibold text-neutral-primary">Variant breakdown</div>
+        <div className="mt-1 text-[12px] text-neutral-primary/55">
           Search landing A/B test variant별 집계
         </div>
 
         {variantSummaries.length === 0 ? (
-          <div className="mt-3 text-[12px] text-black/55">
+          <div className="mt-3 text-[12px] text-neutral-primary/55">
             No search landing variant data yet.
           </div>
         ) : (
           <div className="mt-4 space-y-3">
-            <div className="grid grid-cols-[0.8fr_1.6fr_0.7fr_1fr_1fr_1fr] gap-2 border-b border-black/10 pb-2 text-[12px] font-semibold text-black/70">
+            <div className="grid grid-cols-[0.8fr_1.6fr_0.7fr_1fr_1fr_1fr] gap-2 border-b border-stroke pb-2 text-[12px] font-semibold text-neutral-primary/70">
               <div>Variant</div>
               <div>Description</div>
               <div className="text-right">Users</div>
@@ -268,15 +268,15 @@ export default function SearchLandingFunnelPanel({
             {variantSummaries.map((item) => (
               <div
                 key={item.abtestType}
-                className="grid grid-cols-[0.8fr_1.6fr_0.7fr_1fr_1fr_1fr] gap-2 text-[12px] text-black/80"
+                className="grid grid-cols-[0.8fr_1.6fr_0.7fr_1fr_1fr_1fr] gap-2 text-[12px] text-neutral-primary/80"
               >
-                <div className="font-semibold text-black">
+                <div className="font-semibold text-neutral-primary">
                   {item.label}
-                  <div className="mt-1 break-all text-[11px] font-normal text-black/45">
+                  <div className="mt-1 break-all text-[11px] font-normal text-neutral-primary/45">
                     {item.abtestType}
                   </div>
                 </div>
-                <div className="text-black/60">
+                <div className="text-neutral-primary/60">
                   {item.description || "-"}
                 </div>
                 <div className="text-right">{item.summary.totalUsers}</div>

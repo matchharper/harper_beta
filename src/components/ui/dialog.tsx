@@ -21,7 +21,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]",
+      "fixed inset-0 z-50 bg-overlay backdrop-blur-overlay",
       "data-[state=open]:animate-in data-[state=closed]:animate-out",
       "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
@@ -58,7 +58,7 @@ const DialogContent = React.forwardRef<
         ref={ref}
         className={cn(
           "fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4",
-          "rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-6 text-neutral-primary shadow-xl",
+          "rounded-modal border-(length:--modal-border-width) border-modal-border bg-modal bg-modal-image text-modal-foreground shadow-(--shadow-modal) backdrop-blur-modal p-6",
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -117,7 +117,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-medium leading-tight", className)}
+    className={cn("text-lg font-heading leading-tight", className)}
     {...props}
   />
 ));

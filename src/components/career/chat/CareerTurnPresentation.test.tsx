@@ -59,14 +59,15 @@ test("professional text stays mounted below Working across tool steps, history r
   const first: CareerMessage = {
     id: "stream-assistant-1",
     role: "assistant",
-    content: "이력서를 확인할게요.",
-    messageType: "chat",
+    content: "",
+    workEvents: [{ id: "message:0", kind: "message", text: "이력서를 확인할게요." }],
+    messageType: "career_turn_activity",
     createdAt: startedAt,
     workStartedAt: startedAt,
     workReplyId: "message:1",
     workPending: true,
     thinkingLogs: ["이력서 읽는 중"],
-    typing: true,
+    typing: false,
     typingMode: "stream",
   };
   const render = async (messages: CareerMessage[]) =>
@@ -108,7 +109,10 @@ test("professional text stays mounted below Working across tool steps, history r
     assert.match(owner.textContent!, /Working for 21s/);
     const next = {
       ...first,
-      content: first.content + "\n\n경험을 확인했어요.",
+      workEvents: [...first.workEvents!,
+        { id: "tool:0", kind: "tool" as const, text: "이력서 읽는 중" },
+        { id: "message:2", kind: "message" as const, text: "경험을 확인했어요." },
+      ],
       thinkingLogs: ["이력서 읽는 중", "문서 수정 중"],
     };
     const merger = createCareerMessageMerger();
@@ -120,10 +124,13 @@ test("professional text stays mounted below Working across tool steps, history r
     );
     assert.equal(owner.querySelector("[data-chat-message-bubble]"), bubble);
     assert.equal(bubble.querySelector("p"), paragraph);
-    assert.match(bubble.textContent!, /경험을 확인했어요/);
+    assert.match(owner.textContent!, /경험을 확인했어요/);
+    assert.ok(owner.textContent!.indexOf("이력서 읽는 중") < owner.textContent!.indexOf("경험을 확인했어요."));
     const completed = {
       ...next,
-      id: 2,
+      id: 4,
+      content: "최종 결과예요.",
+      messageType: "chat",
       typing: false,
       workPending: false,
       workCompletedAt: new Date(Date.parse(startedAt) + 22_000).toISOString(),
@@ -136,6 +143,11 @@ test("professional text stays mounted below Working across tool steps, history r
     assert.equal(owner.querySelector("[data-chat-message-bubble]"), bubble);
     assert.equal(bubble.querySelector("p"), paragraph);
     assert.match(owner.textContent!, /Worked for 22s/);
+    assert.ok(paragraph.closest("[hidden]"), "completion folds the log without unmounting its prose");
+    await act(async () => (owner.querySelector("[aria-expanded]") as HTMLElement).click());
+    assert.equal(paragraph.closest("[hidden]"), null);
+    assert.equal(bubble.querySelector("p"), paragraph);
+    assert.match(owner.textContent!, /최종 결과예요/);
     await render([
       completed,
       {
@@ -150,6 +162,17 @@ test("professional text stays mounted below Working across tool steps, history r
         .length,
       2
     );
+    await render([{ ...completed, workEvents: [], thinkingLogs: ["기존 도구 로그"] }]);
+    assert.match(owner.textContent!, /기존 도구 로그/);
+    assert.match(owner.textContent!, /Worked for 22s/);
+
+    await render([{ ...completed, workEvents: [], thinkingLogs: [] }]);
+    assert.match(owner.textContent!, /Thought for 22s/);
+    assert.doesNotMatch(owner.textContent!, /Worked/);
+    assert.equal(owner.querySelector("[aria-expanded]"), null);
+    await render([{ ...completed, workPending: true, workEvents: [], thinkingLogs: [] }]);
+    assert.match(owner.textContent!, /Thinking for/);
+    assert.equal(owner.querySelector("[aria-expanded]"), null);
   } finally {
     await act(async () => root.unmount());
     client.clear();

@@ -77,7 +77,7 @@ export type CareerPendingAction =
 export type CareerComposerPendingAction = Exclude<
   CareerPendingAction,
   CareerPendingCallAction | CareerPendingCheckInCallAction
->;
+> | import("./actionItems").CareerHighlightedAction;
 
 export type CareerPendingActionOpenTarget =
   | {
@@ -186,7 +186,7 @@ export function normalizeCareerPendingActionReference(
 }
 
 export function toCareerPendingActionReference(
-  action: CareerComposerPendingAction
+  action: Exclude<CareerComposerPendingAction, { kind: "action_item" }>
 ): CareerPendingActionReference {
   return { id: action.id, kind: action.kind };
 }

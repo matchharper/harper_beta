@@ -1,3 +1,4 @@
+import { readCareerTurnEvents, type CareerTurnEvent } from "@/lib/career/turnDisplay";
 import { isCareerTurnStopped } from "@/lib/career/turnCancellation";
 import { parseCareerForm, parseCareerFormResponse, type CareerForm, type CareerFormResponse } from "@/lib/career/forms/schema";
 import { parseApplicationDraft, type ApplicationDraft } from "@/lib/career/simulation/preparation";
@@ -141,6 +142,7 @@ export type TalentMessageResponse = {
   messageType: string;
   coachingActivity?: CareerCoachingActivity;
   createdAt: string;
+  workEvents?: CareerTurnEvent[];
   workReplyId?: string;
   workStartedAt?: string;
   workCompletedAt?: string;
@@ -202,6 +204,7 @@ export function toTalentMessageResponse(
     messageType: item.message_type ?? "chat",
     createdAt: item.created_at,
     turnPending: !isCareerTurnStopped(item.payload) && item.role === "user" && !!item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && !!item.payload.careerCapabilityTurn && typeof item.payload.careerCapabilityTurn === "object" && !Array.isArray(item.payload.careerCapabilityTurn) && item.payload.careerCapabilityTurn.status === "in_progress",
+    workEvents: Array.isArray(payload.workEvents) ? readCareerTurnEvents(payload.workEvents) : undefined,
     workReplyId: typeof payload.careerTextReplyId === "string" ? payload.careerTextReplyId : undefined,
     workStartedAt: typeof payload.workStartedAt === "string" ? payload.workStartedAt : undefined,
     workCompletedAt: typeof payload.workCompletedAt === "string" ? payload.workCompletedAt : undefined,

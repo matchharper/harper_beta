@@ -21,7 +21,7 @@ export default function EmailBody({
         title={label}
         sandbox=""
         referrerPolicy="no-referrer"
-        className="min-h-[250px] w-full border-0 bg-white"
+        className="min-h-[250px] w-full border-0 bg-bg-floating"
         srcDoc={`<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:;"><style>body{font:14px/1.65 Arial,sans-serif;color:#202124;white-space:pre-wrap;overflow-wrap:anywhere;margin:12px}a{color:#1a73e8}img,table{max-width:100%}pre{white-space:pre-wrap}</style></head><body>${emailBodyToHtml(value)}</body></html>`}
       />
     );
@@ -32,7 +32,7 @@ export default function EmailBody({
       value={emailBodyToHtml(value)}
       onValueChange={onChange ?? (() => {})}
       disabled={disabled}
-      className={`${styles.mailEditor} min-h-[280px] border border-neutral-1000-a10 bg-white px-3`}
+      className={`${styles.mailEditor} min-h-[280px] border border-neutral-1000-a10 bg-bg-floating px-3`}
     />
   );
 }

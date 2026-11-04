@@ -53,14 +53,14 @@ const CreditModal: React.FC<CreditModalProps> = ({
   // ====== 디자인 갈아엎기 편하게 여기만 보면 됨 ======
   const overlayClass =
     "fixed inset-0 z-50 flex items-center justify-center px-4 w-full";
-  const backdropClass = "absolute inset-0 bg-black/40 backdrop-blur-[2px]";
+  const backdropClass = "absolute inset-0 bg-surface-inverse/40 backdrop-blur-overlay";
   const modalClass =
-    "relative z-50 w-full max-w-[440px] rounded-[28px] bg-bg-default p-6 shadow-sm border border-neutral-1000-a05";
+    "relative z-50 w-full max-w-[440px] rounded-sheet bg-bg-default p-6 shadow-(--shadow-sm) border border-neutral-1000-a05";
   const titleClass = "text-base font-normal text-neutral-primary";
   const descClass = "mt-4 text-sm text-neutral-primary font-normal leading-loose";
   const footerClass = "w-full mt-12 flex flex-row items-end justify-end gap-2";
   const confirmBtnClass =
-    "transition-colors duration-200 w-full inline-flex items-center justify-center rounded-xl bg-black px-6 py-3 text-sm font-medium text-neutral-00 disabled:cursor-not-allowed disabled:opacity-70";
+    "transition-colors duration-200 w-full inline-flex items-center justify-center rounded-xl bg-surface-inverse px-6 py-3 text-sm font-medium text-neutral-00 disabled:cursor-not-allowed disabled:opacity-70";
   // ===============================================
 
   return (

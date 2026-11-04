@@ -14,7 +14,7 @@ const WhySection = () => {
     <Reveal>
       <BaseSectionLayout>
         <Animate>
-          <Head1 as="h2" className="text-white text-center w-full">
+          <Head1 as="h2" className="text-on-inverse text-center w-full">
             {m.companyLanding.why.title}
           </Head1>
           {/* <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-neutral-500">

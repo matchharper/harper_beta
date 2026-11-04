@@ -431,7 +431,7 @@ export default function OpsRequestAccessPage() {
                         className={cx(
                           "rounded-md px-3 py-2 text-sm transition",
                           active
-                            ? "bg-black text-neutral-00"
+                            ? "bg-surface-inverse text-neutral-00"
                             : "bg-bg-default/60 text-neutral-primary hover:bg-bg-default/80"
                         )}
                       >
@@ -521,7 +521,7 @@ export default function OpsRequestAccessPage() {
                             className={cx(
                               "rounded-md px-3 py-2 text-sm transition",
                               bulkLocale === option
-                                ? "bg-black text-neutral-00"
+                                ? "bg-surface-inverse text-neutral-00"
                                 : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
                             )}
                           >
@@ -663,7 +663,7 @@ export default function OpsRequestAccessPage() {
                             }}
                             disabled={!isBulkSelectable(item.status)}
                             aria-label={`${item.name || item.email} 선택`}
-                            className="h-5 w-5 rounded-[4px] border-neutral-1000-a10 bg-bg-default/80 data-[state=checked]:bg-black data-[state=checked]:text-neutral-00"
+                            className="h-5 w-5 rounded-sm border-neutral-1000-a10 bg-bg-default/80 data-[state=checked]:bg-surface-inverse data-[state=checked]:text-neutral-00"
                           />
                         </div>
 

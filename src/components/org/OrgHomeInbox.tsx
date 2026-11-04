@@ -300,7 +300,7 @@ export function OrgHomeInbox() {
     roles.find((role) => role.roleId === router.query.detailRoleId)?.name ??
     c("후보자 검토", "Candidate review");
   const listBackHeader = (title: string) => (
-    <header className="sticky top-0 z-20 flex min-w-0 items-center gap-1 bg-linear-to-b from-white to-white/0 px-1 py-1">
+    <header className="sticky top-0 z-20 flex min-w-0 items-center gap-1 bg-linear-to-b from-bg-floating to-bg-floating/0 px-1 py-1">
       <MuteButton
         data-org-review-back
         onClick={returnToList}
@@ -335,7 +335,7 @@ export function OrgHomeInbox() {
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none col-start-1 row-start-1 -z-10 bg-neutral-50/60 lg:-my-3 lg:-ml-4 lg:border-r lg:border-black/5",
+          "pointer-events-none col-start-1 row-start-1 -z-10 bg-neutral-50/60 lg:-my-3 lg:-ml-4 lg:border-r lg:border-stroke-subtle",
           mobileDetail && "hidden lg:block"
         )}
       />

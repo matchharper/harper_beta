@@ -640,7 +640,7 @@ const AdminIndexContent = ({ canAccessAdminData }: AdminIndexContentProps) => {
         <title>{activeTabMeta.title} | Harper Admin</title>
       </Head>
 
-      <main className="min-h-screen bg-white text-black font-inter">
+      <main className="min-h-screen bg-bg-floating text-neutral-primary font-inter">
         <AdminMetricsNavigation
           activeSection="search"
           title={activeTabMeta.title}
@@ -655,14 +655,14 @@ const AdminIndexContent = ({ canAccessAdminData }: AdminIndexContentProps) => {
               <BareButton
                 type="button"
                 onClick={() => setIsExcludedEmailsModalOpen(true)}
-                className="h-9 border border-black/15 px-3 text-[13px] hover:border-black/30 hover:bg-black/[0.03]"
+                className="h-9 border border-stroke-strong/15 px-3 text-[13px] hover:border-stroke-strong/30 hover:bg-surface-inverse/[0.03]"
               >
                 Excluded emails ({excludedEmails.length})
               </BareButton>
               <BareButton
                 type="button"
                 onClick={() => void onRefresh()}
-                className="h-9 border border-black/15 px-3 text-[13px] hover:border-black/30 hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-9 border border-stroke-strong/15 px-3 text-[13px] hover:border-stroke-strong/30 hover:bg-surface-inverse/[0.03] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={isLoading}
               >
                 Refresh
@@ -750,16 +750,16 @@ const AdminIndexContent = ({ canAccessAdminData }: AdminIndexContentProps) => {
             <BareButton
               type="button"
               aria-label="Close excluded emails modal"
-              className="absolute inset-0 bg-black/35"
+              className="absolute inset-0 bg-surface-inverse/35"
               onClick={() => setIsExcludedEmailsModalOpen(false)}
             />
-            <div className="relative z-10 w-full max-w-[640px] border border-black/15 bg-white p-5 shadow-2xl">
+            <div className="relative z-10 w-full max-w-[640px] border border-stroke-strong/15 bg-bg-floating p-5 shadow-(--shadow-2xl)">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[15px] font-semibold text-black">
+                  <div className="text-[15px] font-semibold text-neutral-primary">
                     Excluded emails
                   </div>
-                  <div className="mt-1 text-[12px] leading-5 text-black/60">
+                  <div className="mt-1 text-[12px] leading-5 text-neutral-primary/60">
                     Search Metrics와 Career Metrics가 같은 제외 이메일 목록을
                     공유합니다.
                   </div>
@@ -767,7 +767,7 @@ const AdminIndexContent = ({ canAccessAdminData }: AdminIndexContentProps) => {
                 <BareButton
                   type="button"
                   onClick={() => setIsExcludedEmailsModalOpen(false)}
-                  className="h-9 border border-black/15 px-3 text-[12px] text-black hover:border-black/30 hover:bg-black/[0.03]"
+                  className="h-9 border border-stroke-strong/15 px-3 text-[12px] text-neutral-primary hover:border-stroke-strong/30 hover:bg-surface-inverse/[0.03]"
                 >
                   Close
                 </BareButton>

@@ -1150,7 +1150,7 @@ export function OrgOnboardingFlow({
                   return (
                     <article
                       key={role.roleId}
-                      className="rounded-xl border border-neutral-1000-a10 bg-neutral-50 p-4 shadow-xs"
+                      className="rounded-xl border border-neutral-1000-a10 bg-neutral-50 p-4 shadow-(--shadow-xs)"
                     >
                       <div className="mb-3 flex items-center justify-between gap-2">
                         {/* <BriefcaseBusiness className="size-4 text-neutral-muted" /> */}

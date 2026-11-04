@@ -43,7 +43,7 @@ const WaveformDots = memo(({ size = "md" }: { size?: "sm" | "md" | "lg" }) => {
           <div
             key={i}
             className={cn(
-              "rounded-full bg-black transition-[opacity,transform] duration-150",
+              "rounded-full bg-surface-inverse transition-[opacity,transform] duration-150",
               sizeClass,
               active ? "opacity-100" : "opacity-25"
             )}
@@ -129,7 +129,7 @@ const TranscriptOverlay = memo(
     }, [transcriptScrollKey]);
 
     return (
-      <div className="absolute bottom-24 left-1/2 z-10 max-h-[50svh] w-[calc(100%-2rem)] max-w-[720px] -translate-x-1/2 overflow-hidden rounded-[8px] border border-neutral-1000-a05 bg-bg-default/95 shadow-[0_0_24px_color-mix(in_srgb,var(--color-black)_10%,transparent)]">
+      <div className="absolute bottom-24 left-1/2 z-10 max-h-[50svh] w-[calc(100%-2rem)] max-w-[720px] -translate-x-1/2 overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-default/95 shadow-(--shadow-lg)">
         <div className="border-b border-neutral-1000-a05 px-4 py-3">
           <span className="text-sm font-medium text-neutral-muted">
             Transcript
@@ -156,10 +156,10 @@ const TranscriptOverlay = memo(
                   <div
                     key={`${entry.timestamp}-${entry.role}-${i}`}
                     className={cn(
-                      "max-w-[80%] rounded-[8px] px-3 py-2 text-sm",
+                      "max-w-[80%] rounded-md px-3 py-2 text-sm",
                       entry.role === "user"
                         ? "ml-auto bg-primary/85 text-neutral-00"
-                        : "mr-auto bg-black/5 text-neutral-muted",
+                        : "mr-auto bg-surface-tint text-neutral-muted",
                       isLiveUserEntry ? "opacity-80" : null
                     )}
                   >
@@ -325,7 +325,7 @@ const CareerCallScreen = () => {
           <CareerCallIdlePrompt onContinue={onAcknowledgeIdleWarning} />
         ) : null}
         {callConnectionStatus === "reconnecting" && (
-          <div className="flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-muted shadow-[0_10px_24px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)] backdrop-blur">
+          <div className="flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-muted shadow-(--shadow-lg) backdrop-blur">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             {t("career.call.career_call_card.1vn8y3k", "연결 중...")}
           </div>
@@ -337,7 +337,7 @@ const CareerCallScreen = () => {
         <span className="text-lg font-medium text-neutral-muted">Harper</span>
         <Face status={faceStatus} className="mt-4" aria-label="Harper" />
         {mockInterviewDisplay ? (
-          <div className="mt-5 flex max-w-[min(360px,calc(100vw-48px))] items-center gap-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3 py-2.5 text-left shadow-sm">
+          <div className="mt-5 flex max-w-[min(360px,calc(100vw-48px))] items-center gap-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3 py-2.5 text-left shadow-(--shadow-sm)">
             <CompanyLogo
               logoUrl={getDisplayableCompanyLogoUrl(
                 mockInterviewDisplay.companyLogoUrl
@@ -392,7 +392,7 @@ const CareerCallScreen = () => {
         ) : null}
 
         {showInterviewCallProgress ? (
-          <div className="mt-4 w-full max-w-[360px] min-w-[360px] rounded-[12px] border border-neutral-1000-a05 bg-black/90 px-4 py-3 text-neutral-00 shadow-[0_14px_32px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] backdrop-blur">
+          <div className="mt-4 w-full max-w-[360px] min-w-[360px] rounded-lg border border-neutral-1000-a05 bg-surface-inverse/90 px-4 py-3 text-neutral-00 shadow-(--shadow-lg) backdrop-blur">
             <div className="flex items-center justify-between gap-3">
               <span className="career-interview-shimmer text-[13px] font-medium">
                 {t(
@@ -432,7 +432,7 @@ const CareerCallScreen = () => {
 
       {/* Bottom control bar */}
       <div className="sticky bottom-0 flex w-full justify-center pb-8 pt-4">
-        <div className="flex items-center gap-3 rounded-full bg-black/5 px-5 py-3">
+        <div className="flex items-center gap-3 rounded-full bg-surface-tint px-5 py-3">
           {/* Waveform indicator */}
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg-default">
             <WaveformDots />
@@ -445,7 +445,7 @@ const CareerCallScreen = () => {
             disabled={isClosing}
             className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
               voiceMuted
-                ? "bg-black/15 text-neutral-soft"
+                ? "bg-surface-inverse/15 text-neutral-soft"
                 : "bg-bg-default text-neutral-primary"
             }`}
             aria-label={voiceMuted ? "음소거 해제" : "음소거"}
@@ -462,9 +462,9 @@ const CareerCallScreen = () => {
             type="button"
             onClick={handleToggleTranscript}
             disabled={isClosing}
-            className={`flex h-12 w-12 items-center justify-center rounded-[8px] text-sm font-bold transition-colors ${
+            className={`flex h-12 w-12 items-center justify-center rounded-md text-sm font-bold transition-colors ${
               showTranscript
-                ? "bg-black text-neutral-00"
+                ? "bg-surface-inverse text-neutral-00"
                 : "bg-bg-default text-neutral-muted"
             }`}
             aria-label={"자막 토글"}

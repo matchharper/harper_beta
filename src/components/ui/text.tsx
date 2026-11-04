@@ -7,17 +7,17 @@ import { cn } from "@/lib/utils";
 const textVariants = cva("tracking-normal", {
   variants: {
     variant: {
-      display: "text-3xl font-medium leading-none text-balance sm:text-4xl",
-      head1: "text-2xl font-medium leading-tight text-balance",
-      head2: "text-lg font-medium leading-snug text-balance",
-      title: "text-base font-medium leading-5",
-      label: "text-sm font-medium leading-5",
-      body: "text-sm font-normal leading-5",
-      desc: "text-sm font-normal leading-5",
-      subtle: "text-xs font-normal leading-4",
-      caption: "text-xs font-normal leading-4",
-      eyebrow: "text-xs font-medium uppercase leading-4 tracking-[0.08em]",
-      metric: "text-3xl font-medium leading-none sm:text-4xl",
+      display: "text-3xl font-heading leading-none text-balance sm:text-4xl",
+      head1: "text-2xl font-heading leading-tight text-balance",
+      head2: "text-lg font-heading leading-snug text-balance",
+      title: "text-base font-heading leading-5",
+      label: "text-sm font-heading leading-5",
+      body: "text-sm font-body leading-5",
+      desc: "text-sm font-body leading-5",
+      subtle: "text-xs font-body leading-4",
+      caption: "text-xs font-body leading-4",
+      eyebrow: "text-xs font-heading uppercase leading-4 tracking-[0.08em]",
+      metric: "text-3xl font-heading leading-none sm:text-4xl",
     },
     tone: {
       primary: "text-neutral-primary",
@@ -26,7 +26,7 @@ const textVariants = cva("tracking-normal", {
       caption: "text-neutral-muted",
       subtle: "text-neutral-soft",
       disabled: "text-neutral-disabled",
-      inverted: "text-neutral-00",
+      inverted: "text-on-inverse",
     },
   },
   defaultVariants: {

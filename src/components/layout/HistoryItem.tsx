@@ -137,10 +137,10 @@ export function NavItem({
         href={href}
         onClick={onNavigate}
         className={[
-          "w-full flex text-sm font-extralight items-center justify-between gap-2 rounded-[6px] h-10 text-neutral-primary",
+          "w-full flex text-sm font-extralight items-center justify-between gap-2 rounded-md h-10 text-neutral-primary",
           shortcut ? "bg-bg-floating border border-neutral-1000-a05" : "",
           active
-            ? "bg-bg-floating shadow-sm"
+            ? "bg-bg-floating shadow-(--shadow-sm)"
             : "bg-transparent hover:bg-bg-floating",
           collapsed ? "px-3" : "px-2.5",
         ].join(" ")}

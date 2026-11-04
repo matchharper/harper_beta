@@ -45,7 +45,7 @@ export default function ShortlistEmptyState({
           <BareButton
             type="button"
             onClick={() => router.push("/my")}
-            className="mt-8 inline-flex items-center justify-center rounded-full bg-black px-6 py-3 text-sm font-medium text-neutral-00 hover:bg-black/90 active:bg-black/80 transition"
+            className="mt-8 inline-flex items-center justify-center rounded-full bg-surface-inverse px-6 py-3 text-sm font-medium text-neutral-00 hover:bg-surface-inverse/90 active:bg-surface-inverse/80 transition"
           >
             후보 검색하러 가기
           </BareButton>

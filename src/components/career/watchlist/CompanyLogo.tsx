@@ -11,16 +11,16 @@ export const CompanyLogo = ({
 }) => {
   const className =
     size === "xs"
-      ? "h-4 w-4 rounded-[3px]"
+      ? "h-4 w-4 rounded-sm"
       : size === "xm"
-        ? "h-6 w-6 rounded-[6px]"
+        ? "h-6 w-6 rounded-md"
         : size === "lg"
-          ? "h-14 w-14 rounded-[8px]"
+          ? "h-14 w-14 rounded-md"
           : size === "xl"
-            ? "h-20 w-20 rounded-[8px]"
+            ? "h-20 w-20 rounded-md"
             : size === "sm"
-              ? "h-9 w-9 rounded-[11px]"
-              : "h-11 w-11 rounded-[8px]";
+              ? "h-9 w-9 rounded-lg"
+              : "h-11 w-11 rounded-md";
 
   if (logoUrl) {
     return (

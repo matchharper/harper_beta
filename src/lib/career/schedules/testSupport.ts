@@ -97,7 +97,9 @@ export function localAdmin(db: PGlite): any {
         const result = await db.query<any>(
           `select public.${name}(${keys.map((key, index) => `${key}=>$${index + 1}`).join(",")}) value`,
           keys.map((key) =>
-            typeof args[key] === "object" && args[key] !== null
+            key === "p_sources" && Array.isArray(args[key])
+              ? `{${(args[key] as string[]).join(",")}}`
+              : typeof args[key] === "object" && args[key] !== null
               ? JSON.stringify(args[key])
               : args[key]
           )

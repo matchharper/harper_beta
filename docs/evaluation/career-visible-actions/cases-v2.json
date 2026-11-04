@@ -1,0 +1,632 @@
+{
+  "datasetVersion": "v2",
+  "generalTools": true,
+  "cases": [
+    {
+      "id": "casual_preserves_existing",
+      "mode": "chat",
+      "isMobile": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "면접 준비 중인데 자기소개 첫 문장이 영 어색해."
+        },
+        {
+          "role": "assistant",
+          "content": "지금 맡고 있는 일부터 편하게 시작해볼까요?"
+        },
+        {
+          "role": "user",
+          "content": "응, 첫 문장 예시만 하나 알려줘."
+        }
+      ],
+      "facts": "No upcoming appointments, active browser sessions, new recommendations or recurring search request. Profile and search preferences are unchanged. Saved sources and unresolved forms below are current; no external action is needed to inspect them.",
+      "items": [
+        {
+          "id": "00000000-0000-4000-8000-000000000071",
+          "revision": 1,
+          "title": "Orbit 지원서 확인",
+          "description": "작성한 지원서를 검토해주세요.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "Orbit 지원서 form 81 revision 2를 보여줘. work 00000000-0000-4000-8000-000000000051."
+          },
+          "priority": 10,
+          "urgency": "normal"
+        }
+      ],
+      "works": [
+        {
+          "id": "00000000-0000-4000-8000-000000000051",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-51",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Orbit",
+            "instruction": "Orbit 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "지원서 준비 완료. 사용자 검토 대기. 미제출.",
+            "refs": [
+              "form:81"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        }
+      ],
+      "forms": [
+        {
+          "formId": 81,
+          "revision": 2,
+          "kind": "form",
+          "title": "Orbit 지원서 검토",
+          "items": [
+            {
+              "id": "answers",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "지원 동기: 서버 운영 경험을 바탕으로 안정적인 제품 개발에 기여하고 싶습니다. 첨부: 현재 이력서 v3."
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000051"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "delegated_ready_real_path",
+      "mode": "work",
+      "workId": "00000000-0000-4000-8000-000000000051",
+      "isMobile": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Orbit와 Cedar 각각 지원 준비해둬. 제출 전에는 내가 검토할게."
+        }
+      ],
+      "facts": "No upcoming appointments, active browser sessions, new recommendations or recurring search request. Profile and search preferences are unchanged. Saved sources and unresolved forms below are current; no external action is needed to inspect them. All requested preparation for this work is complete. Only the original user-requested review remains.",
+      "items": [],
+      "works": [
+        {
+          "id": "00000000-0000-4000-8000-000000000051",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-51",
+          "status": "running",
+          "revision": 3,
+          "request": {
+            "target": "Orbit",
+            "instruction": "Orbit 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "검토 폼81과 이력서 준비 완료. 미제출.",
+            "refs": [
+              "form:81"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000052",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-52",
+          "status": "running",
+          "revision": 3,
+          "request": {
+            "target": "Cedar",
+            "instruction": "Cedar 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "자료 확인 중; 아직 준비 완료 아님.",
+            "refs": []
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        }
+      ],
+      "forms": [
+        {
+          "formId": 81,
+          "revision": 2,
+          "kind": "form",
+          "title": "Orbit 지원서 검토",
+          "items": [
+            {
+              "id": "answers",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "지원 동기: 서버 운영 경험을 바탕으로 안정적인 제품 개발에 기여하고 싶습니다. 첨부: 현재 이력서 v3."
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000051"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "return_mixed_states",
+      "mode": "return",
+      "isMobile": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Orbit, Cedar 지원서를 준비해줘. 각각 제출 전에 볼게. Pine은 방금 내가 직접 지원했어."
+        }
+      ],
+      "facts": "No upcoming appointments, active browser sessions, new recommendations or recurring search request. Profile and search preferences are unchanged. Saved sources and unresolved forms below are current; no external action is needed to inspect them.",
+      "items": [
+        {
+          "id": "00000000-0000-4000-8000-000000000072",
+          "revision": 1,
+          "title": "Orbit 입사 가능일 답변",
+          "description": "입사 가능일이 필요해요.",
+          "buttonText": "답변하기",
+          "action": {
+            "type": "compose_reply",
+            "text": "Orbit 입사일 form 80. work 00000000-0000-4000-8000-000000000051."
+          },
+          "priority": 10,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000073",
+          "revision": 1,
+          "title": "Pine 지원서 확인",
+          "description": "제출 전 검토해주세요.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "Pine 지원서 검토. work 00000000-0000-4000-8000-000000000053."
+          },
+          "priority": 10,
+          "urgency": "normal"
+        }
+      ],
+      "works": [
+        {
+          "id": "00000000-0000-4000-8000-000000000051",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-51",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Orbit",
+            "instruction": "Orbit 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "입사 가능일은 사용자 답변으로 해결됨. form80 resolved. 새 검토 폼81 준비 완료, 아직 미제출.",
+            "refs": [
+              "form:81"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000052",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-52",
+          "status": "running",
+          "revision": 3,
+          "request": {
+            "target": "Cedar",
+            "instruction": "Cedar 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "준비 중. 아직 사용자에게 요청할 내용 없음.",
+            "refs": []
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000053",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-53",
+          "status": "completed",
+          "revision": 3,
+          "request": {
+            "target": "Pine",
+            "instruction": "Pine 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "사용자가 직접 제출 완료했다고 알림. 추가 검토/제출 불필요.",
+            "refs": []
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        }
+      ],
+      "forms": [
+        {
+          "formId": 81,
+          "revision": 2,
+          "kind": "form",
+          "title": "Orbit 지원서 검토",
+          "items": [
+            {
+              "id": "answers",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "지원 동기: 서버 운영 경험을 바탕으로 안정적인 제품 개발에 기여하고 싶습니다. 첨부: 현재 이력서 v3."
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000051"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "selected_reply_routes_work",
+      "mode": "chat",
+      "isMobile": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Cedar 지원서 준비해줘. 모르는 내용은 나한테 물어봐."
+        },
+        {
+          "role": "assistant",
+          "content": "입사 가능일을 확인하면 나머지 내용을 채울 수 있어요."
+        },
+        {
+          "id": 602,
+          "role": "user",
+          "content": "12월 1일부터 가능해. 이 지원서에만 써줘.",
+          "message_type": "chat",
+          "payload": {
+            "careerActionItem": {
+              "id": "00000000-0000-4000-8000-000000000074",
+              "revision": 1,
+              "title": "Cedar 입사 가능일",
+              "description": "지원서에 쓸 날짜를 알려주세요.",
+              "buttonText": "답변하기",
+              "action": {
+                "type": "compose_reply",
+                "text": "Cedar 입사 가능일. work 00000000-0000-4000-8000-000000000052, form 84 revision 2."
+              },
+              "priority": 10,
+              "urgency": "normal"
+            }
+          }
+        }
+      ],
+      "facts": "No upcoming appointments, active browser sessions, new recommendations or recurring search request. Profile and search preferences are unchanged. Saved sources and unresolved forms below are current; no external action is needed to inspect them. Source user message 602 is the current reply, not a submission approval. The date is scoped to this application only.",
+      "items": [
+        {
+          "id": "00000000-0000-4000-8000-000000000074",
+          "revision": 1,
+          "title": "Cedar 입사 가능일",
+          "description": "지원서에 쓸 날짜를 알려주세요.",
+          "buttonText": "답변하기",
+          "action": {
+            "type": "compose_reply",
+            "text": "Cedar 입사 가능일. work 00000000-0000-4000-8000-000000000052, form 84 revision 2."
+          },
+          "priority": 10,
+          "urgency": "normal"
+        }
+      ],
+      "works": [
+        {
+          "id": "00000000-0000-4000-8000-000000000052",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-52",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Cedar",
+            "instruction": "Cedar 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "입사 가능일 필요; 다른 부분은 작성됨. 미제출.",
+            "refs": [
+              "form:84"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        }
+      ],
+      "forms": [
+        {
+          "formId": 84,
+          "revision": 2,
+          "kind": "form",
+          "title": "Cedar 입사 가능일",
+          "items": [
+            {
+              "id": "start_date",
+              "label": "입사 가능일",
+              "type": "text",
+              "content": ""
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000052"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "return_empty_no_busywork",
+      "mode": "return",
+      "isMobile": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "이직은 당분간 쉬려고 해. 진행하던 지원은 전부 취소하고 추천도 쉬어줘."
+        },
+        {
+          "role": "assistant",
+          "content": "진행 중이던 지원을 취소하고 정기 추천도 일시 중지했어요."
+        }
+      ],
+      "facts": "Verified: all work cancelled, all forms resolved; recurring check-in paused at user request. No current action, upcoming appointment, new recommendation or message requiring attention.",
+      "items": [],
+      "works": [],
+      "forms": []
+    },
+    {
+      "id": "curate_ten_on_return",
+      "mode": "return",
+      "isMobile": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "관심 있던 열 군데 공고 검토는 천천히 할게. Orbit 지원서는 먼저 준비해둬. 제출 전에 볼게."
+        }
+      ],
+      "facts": "No upcoming appointments, active browser sessions, new recommendations or recurring search request. Profile and search preferences are unchanged. Saved sources and unresolved forms below are current; no external action is needed to inspect them. The ten saved posting-review entries are optional, equally low-priority explorations without deadlines. Orbit is the only prepared application awaiting the requested review.",
+      "items": [
+        {
+          "id": "00000000-0000-4000-8000-000000000100",
+          "revision": 1,
+          "title": "공고 1 살펴보기",
+          "description": "시간 날 때 검토할 수 있는 관심 공고입니다.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "저장한 공고 1 내용을 같이 보자."
+          },
+          "priority": 1,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000101",
+          "revision": 1,
+          "title": "공고 2 살펴보기",
+          "description": "시간 날 때 검토할 수 있는 관심 공고입니다.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "저장한 공고 2 내용을 같이 보자."
+          },
+          "priority": 1,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000102",
+          "revision": 1,
+          "title": "공고 3 살펴보기",
+          "description": "시간 날 때 검토할 수 있는 관심 공고입니다.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "저장한 공고 3 내용을 같이 보자."
+          },
+          "priority": 1,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000103",
+          "revision": 1,
+          "title": "공고 4 살펴보기",
+          "description": "시간 날 때 검토할 수 있는 관심 공고입니다.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "저장한 공고 4 내용을 같이 보자."
+          },
+          "priority": 1,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000104",
+          "revision": 1,
+          "title": "공고 5 살펴보기",
+          "description": "시간 날 때 검토할 수 있는 관심 공고입니다.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "저장한 공고 5 내용을 같이 보자."
+          },
+          "priority": 1,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000105",
+          "revision": 1,
+          "title": "공고 6 살펴보기",
+          "description": "시간 날 때 검토할 수 있는 관심 공고입니다.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "저장한 공고 6 내용을 같이 보자."
+          },
+          "priority": 1,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000106",
+          "revision": 1,
+          "title": "공고 7 살펴보기",
+          "description": "시간 날 때 검토할 수 있는 관심 공고입니다.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "저장한 공고 7 내용을 같이 보자."
+          },
+          "priority": 1,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000107",
+          "revision": 1,
+          "title": "공고 8 살펴보기",
+          "description": "시간 날 때 검토할 수 있는 관심 공고입니다.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "저장한 공고 8 내용을 같이 보자."
+          },
+          "priority": 1,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000108",
+          "revision": 1,
+          "title": "공고 9 살펴보기",
+          "description": "시간 날 때 검토할 수 있는 관심 공고입니다.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "저장한 공고 9 내용을 같이 보자."
+          },
+          "priority": 1,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000109",
+          "revision": 1,
+          "title": "공고 10 살펴보기",
+          "description": "시간 날 때 검토할 수 있는 관심 공고입니다.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "저장한 공고 10 내용을 같이 보자."
+          },
+          "priority": 1,
+          "urgency": "normal"
+        }
+      ],
+      "works": [
+        {
+          "id": "00000000-0000-4000-8000-000000000051",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-51",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Orbit",
+            "instruction": "Orbit 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "지원서 준비 완료. 검토 요청됨. 아직 미제출.",
+            "refs": [
+              "form:81"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        }
+      ],
+      "forms": [
+        {
+          "formId": 81,
+          "revision": 2,
+          "kind": "form",
+          "title": "Orbit 지원서 검토",
+          "items": [
+            {
+              "id": "answers",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "지원 동기: 서버 운영 경험을 바탕으로 안정적인 제품 개발에 기여하고 싶습니다. 첨부: 현재 이력서 v3."
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000051"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -137,7 +137,7 @@ function InlineToggleIndicator({ checked }: { checked: boolean }) {
     >
       <span
         className={cx(
-          "h-3 w-3 rounded-full bg-neutral-00 shadow-sm transition-transform",
+          "h-3 w-3 rounded-full bg-neutral-00 shadow-(--shadow-sm) transition-transform",
           checked ? "translate-x-3.5" : "translate-x-0.5 bg-neutral-400"
         )}
       />
@@ -150,7 +150,7 @@ function toggleButtonClass(checked: boolean) {
     "inline-flex items-center justify-center gap-2 rounded-md border font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
     checked
       ? "border-positive/30 bg-positive-faded text-positive hover:bg-positive-faded"
-      : "border-transparent bg-bg-weak text-neutral-primary shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-neutral-00)_70%,transparent)] hover:bg-bg-weak"
+      : "border-transparent bg-bg-weak text-neutral-primary shadow-(--shadow-inset-highlight) hover:bg-bg-weak"
   );
 }
 
@@ -1298,7 +1298,7 @@ export function MatchingTalentBrowser({
                     className={cx(
                       "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition",
                       viewMode === option.id
-                        ? "bg-black text-neutral-00"
+                        ? "bg-surface-inverse text-neutral-00"
                         : "text-neutral-muted hover:bg-bg-default hover:text-neutral-primary"
                     )}
                   >

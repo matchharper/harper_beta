@@ -189,7 +189,7 @@ const CareerWorkspaceNav = ({
           ? pendingInternalRoleFeedbackCount
           : unreadExternalRoleCount,
       countClassName:
-        pendingInternalRoleFeedbackCount > 0 ? undefined : "bg-action text-white",
+        pendingInternalRoleFeedbackCount > 0 ? undefined : "bg-action text-on-inverse",
     },
     {
       id: "profile",
@@ -263,7 +263,7 @@ const CareerWorkspaceNav = ({
                   NAV_ITEM_CLASS_NAME,
                   sidebarCollapsed && "justify-center",
                   activeTab === id &&
-                    "bg-neutral-300/70 text-black hover:bg-neutral-200"
+                    "bg-neutral-300/70 text-neutral-primary hover:bg-neutral-200"
                 )}
               >
                 <span aria-hidden className="inline-flex shrink-0">

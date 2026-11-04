@@ -260,7 +260,7 @@ function getNavItemClassName({
     "relative isolate flex h-9 items-center gap-2.5 overflow-hidden rounded-md px-2.5 text-[14px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
     compact && "justify-center gap-0 px-0",
     active
-      ? "bg-neutral-200/90 text-black"
+      ? "bg-neutral-200/90 text-neutral-primary"
       : "text-neutral-primary hover:bg-neutral-200/80 hover:text-neutral-primary"
   );
 }
@@ -522,7 +522,7 @@ function RecentRolesSection({
                     active &&
                       (mobile
                         ? "bg-bg-weak text-neutral-primary"
-                        : "bg-neutral-200/80 text-black"),
+                        : "bg-neutral-200/80 text-neutral-primary"),
                     !active &&
                       (mobile
                         ? "text-neutral-primary hover:bg-bg-weak"
@@ -910,7 +910,7 @@ export function OrgWorkspaceSidebar({
                       className={cn(
                         "flex min-h-9 items-center rounded-md px-2.5 py-1.5 text-[14px] leading-5 outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
                         activeDocumentSection === section.id
-                          ? "bg-neutral-200/80 text-black"
+                          ? "bg-neutral-200/80 text-neutral-primary"
                           : "text-neutral-primary hover:bg-neutral-100"
                       )}
                       href={documentSectionHref(section.id)}
@@ -1035,7 +1035,7 @@ export function OrgWorkspaceSidebar({
             )}
             <DropdownMenuContent
               align="start"
-              className="w-[224px] rounded-md"
+              className="w-[224px] "
               side="top"
             >
               <DropdownMenuLabel className="font-normal text-neutral-800">
@@ -1098,10 +1098,10 @@ export function OrgWorkspaceSidebar({
       </aside>
 
       {navigationTriggerHidden || activePage === "role" || activePage === "home" ? null : (
-        <header className="fixed inset-x-0 top-0 z-50 flex h-12 items-center bg-linear-to-b from-white/30 to-white/0 px-3 md:hidden">
+        <header className="fixed inset-x-0 top-0 z-50 flex h-12 items-center bg-linear-to-b from-bg-floating/30 to-bg-floating/0 px-3 md:hidden">
           <MuteButton
             aria-label={c("메뉴 열기", "Open menu")}
-            className="border border-white/20 bg-white/10 backdrop-blur-xs hover:bg-white/20"
+            className="border border-bg-floating/20 bg-bg-floating/10 backdrop-blur-xs hover:bg-bg-floating/20"
             onClick={handleOpenMobileNavigation}
             size="md"
             variant="transparent"

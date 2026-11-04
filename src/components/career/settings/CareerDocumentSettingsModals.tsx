@@ -100,7 +100,7 @@ export const CareerAddDocumentModal = ({
         "업로드할 파일의 종류를 선택해 주세요."
       )}
       mobileBottomSheet
-      panelClassName="max-w-[560px] bg-bg-floating"
+      panelClassName="max-w-[560px] "
       bodyClassName="space-y-5 px-5 py-5"
       footer={
         <div className="flex justify-end gap-2">
@@ -262,7 +262,7 @@ export const CareerDocumentVisibilityModal = ({
         "회사에 이 문서를 공개할까요?"
       )}
       description={document?.fileName ?? ""}
-      panelClassName="max-w-[480px] bg-bg-floating"
+      panelClassName="max-w-[480px] "
       bodyClassName="px-5 py-5"
       footer={
         <div className="flex justify-end gap-2">
@@ -325,7 +325,7 @@ const CareerDocumentRenameModalContent = ({
       onClose={handleClose}
       closeOnBackdrop={!profileSavePending}
       title={t("career.profile.documents.rename_title", "문서 이름 수정")}
-      panelClassName="max-w-[480px] bg-bg-floating"
+      panelClassName="max-w-[480px] "
       bodyClassName="px-5 py-5"
       footer={
         <div className="flex justify-end gap-2">
@@ -588,7 +588,7 @@ export const CareerDocumentDeleteModal = ({
       closeOnBackdrop={!profileSavePending}
       title={t("career.profile.documents.delete_title", "문서를 삭제할까요?")}
       description={document?.fileName ?? ""}
-      panelClassName="max-w-[480px] bg-bg-floating"
+      panelClassName="max-w-[480px] "
       bodyClassName="px-5 py-5"
       footer={
         <div className="flex justify-end gap-2">

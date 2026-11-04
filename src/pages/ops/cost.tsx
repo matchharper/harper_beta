@@ -60,11 +60,11 @@ const PROVIDER_META: Record<
   CombinedProviderId,
   { color: string; shortLabel: string }
 > = {
-  claude: { color: "#c15f3c", shortLabel: "Claude" },
-  openai: { color: "#10a37f", shortLabel: "OpenAI" },
-  openrouter: { color: "#6d5bd0", shortLabel: "OpenRouter" },
-  exa: { color: "#3478f6", shortLabel: "Exa" },
-  ec2: { color: "#e38b2c", shortLabel: "AWS EC2" },
+  claude: { color: "var(--color-chart-claude)", shortLabel: "Claude" },
+  openai: { color: "var(--color-chart-openai)", shortLabel: "OpenAI" },
+  openrouter: { color: "var(--color-chart-openrouter)", shortLabel: "OpenRouter" },
+  exa: { color: "var(--color-chart-exa)", shortLabel: "Exa" },
+  ec2: { color: "var(--color-chart-cost)", shortLabel: "AWS EC2" },
 };
 
 const COST_PROVIDER_IDS: OpsCostProviderId[] = [
@@ -82,16 +82,16 @@ const COMBINED_PROVIDER_IDS: CombinedProviderId[] = [
 ];
 
 const BREAKDOWN_COLORS = [
-  "#10a37f",
-  "#3478f6",
-  "#6d5bd0",
-  "#e38b2c",
-  "#c15f3c",
-  "#0891b2",
-  "#be4890",
-  "#71852c",
-  "#64748b",
-  "#9c6b42",
+  "var(--color-chart-openai)",
+  "var(--color-chart-exa)",
+  "var(--color-chart-openrouter)",
+  "var(--color-chart-cost)",
+  "var(--color-chart-claude)",
+  "var(--color-chart-cyan)",
+  "var(--color-chart-pink)",
+  "var(--color-chart-olive)",
+  "var(--color-chart-slate)",
+  "var(--color-chart-brown)",
 ];
 
 function breakdownColor(index: number) {
@@ -274,11 +274,12 @@ function StatusBadge({ status }: { status: OpsCostSourceStatus }) {
 }
 
 const tooltipStyle = {
-  background: "var(--color-bg-default)",
-  border: 0,
-  borderRadius: 6,
-  boxShadow:
-    "0 14px 40px color-mix(in srgb, var(--color-neutral-1000) 12%, transparent)",
+  background: "var(--color-popover)",
+  color: "var(--color-popover-foreground)",
+  border: "var(--popover-border-width) solid var(--color-popover-border)",
+  borderRadius: "var(--radius-popover)",
+  boxShadow: "var(--shadow-popover)",
+  backdropFilter: "blur(var(--blur-popover))",
   fontSize: 12,
 } as const;
 
@@ -622,11 +623,11 @@ function ServiceCostRow({
           {isEc2 ? (
             <div className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-neutral-muted">
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm bg-[#e38b2c]" />
+                <span className="h-2.5 w-2.5 rounded-sm bg-chart-cost" />
                 사용 비용
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm bg-[#44505e]" />
+                <span className="h-2.5 w-2.5 rounded-sm bg-chart-baseline" />
                 실청구 예상
               </span>
             </div>
@@ -766,7 +767,7 @@ function ServiceCostRow({
                 {isEc2 ? (
                   <Bar
                     dataKey="ec2Net"
-                    fill="#44505e"
+                    fill="var(--color-chart-baseline)"
                     maxBarSize={34}
                     minPointSize={2}
                     radius={[2, 2, 0, 0]}
@@ -842,7 +843,7 @@ function SegmentedButton<T extends string | number>({
           className={cx(
             "h-8 rounded px-3 text-xs font-medium transition",
             value === option.value
-              ? "bg-bg-default text-neutral-primary shadow-sm"
+              ? "bg-bg-default text-neutral-primary shadow-(--shadow-sm)"
               : "text-neutral-muted hover:text-neutral-primary"
           )}
         >

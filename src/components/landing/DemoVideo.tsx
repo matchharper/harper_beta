@@ -29,7 +29,7 @@ export default function DemoVideo({
     isInternalEmail(user?.email);
 
   return (
-    <div className="aspect-video w-full overflow-hidden rounded-none border border-neutral-1000-a10 bg-neutral-1000 shadow-[0_24px_80px_rgba(31,28,26,0.16)]">
+    <div className="aspect-video w-full overflow-hidden rounded-none border border-neutral-1000-a10 bg-neutral-1000 shadow-(--shadow-lg)">
       <MuxPlayer
         className="block aspect-video w-full bg-neutral-1000"
         playbackId={DEMO_PLAYBACK_ID}

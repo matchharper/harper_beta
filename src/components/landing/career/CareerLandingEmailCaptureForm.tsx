@@ -155,7 +155,7 @@ export default function CareerLandingEmailCaptureForm({
     >
       <div
         className={cn(
-          "flex flex-row gap-2 rounded-full bg-white/95 p-1.5 backdrop-blur-sm",
+          "flex flex-row gap-2 rounded-full bg-bg-floating/95 p-1.5 backdrop-blur-sm",
           fieldClassName
         )}
       >
@@ -175,7 +175,7 @@ export default function CareerLandingEmailCaptureForm({
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-black px-5 text-[14px] font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[146px]"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-surface-inverse px-5 text-[14px] font-medium text-on-inverse transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[146px]"
         >
           {submitting ? (
             <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -184,7 +184,7 @@ export default function CareerLandingEmailCaptureForm({
         </button>
       </div>
       {error ? (
-        <p className="mt-2 rounded-[8px] border border-red-200 bg-white/90 px-3 py-2 text-left text-[12px] font-medium leading-5 text-red-700">
+        <p className="mt-2 rounded-md border border-red-200 bg-bg-floating/90 px-3 py-2 text-left text-[12px] font-medium leading-5 text-red-700">
           {error}
         </p>
       ) : (

@@ -37,7 +37,7 @@ export function SelectBox<Value extends string = string>({
   return (
     <fieldset
       className={cn(
-        "min-w-0 rounded-3xl border-0 bg-black/4 px-5 disabled:opacity-50",
+        "min-w-0 rounded-card border-0 bg-card-selected px-5 disabled:opacity-50",
         className
       )}
       {...props}
@@ -81,12 +81,12 @@ export function SelectBox<Value extends string = string>({
                   ? `${id}-${index}-description`
                   : undefined
               }
-              className="peer absolute inset-0 size-5 appearance-none rounded-full border border-neutral-500 bg-transparent outline-none checked:border-neutral-1000 checked:bg-neutral-1000 focus-visible:ring-2 focus-visible:ring-neutral-800 focus-visible:ring-offset-2 disabled:opacity-50"
+              className="peer absolute inset-0 size-5 appearance-none rounded-full border border-neutral-500 bg-transparent outline-none checked:border-control-checked checked:bg-control-checked focus-visible:ring-2 focus-visible:ring-neutral-800 focus-visible:ring-offset-2 disabled:opacity-50"
             />
             <Check
               aria-hidden="true"
               strokeWidth={3}
-              className="pointer-events-none absolute inset-0.5 size-4 text-neutral-00 opacity-0 peer-checked:opacity-100"
+              className="pointer-events-none absolute inset-0.5 size-4 text-control-mark opacity-0 peer-checked:opacity-100"
             />
           </span>
         </label>

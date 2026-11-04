@@ -15,7 +15,6 @@ import remarkGfm from "remark-gfm";
 import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
 import { remarkUnderline } from "@/lib/markdown/remarkUnderline";
 import TurndownService from "turndown";
-import { POSTING_LINK_LABEL } from "@/lib/career/postingLinks";
 import { cn } from "@/lib/utils";
 import { typographyVariants, type TypographyVariant } from "./typography";
 import {
@@ -131,7 +130,7 @@ function renderTextWithHighlights(
       nodes.push(
         <span
           key={`${keyPrefix}-highlight-${matchIndex}`}
-          className="box-decoration-clone rounded-[4px] bg-bg-weak px-1.5 py-0.5 font-medium text-neutral-primary"
+          className="box-decoration-clone rounded-sm bg-bg-weak px-1.5 py-0.5 font-medium text-neutral-primary"
         >
           {highlightedText}
         </span>
@@ -372,14 +371,6 @@ export default function RichText({
         if (childText.trim().toLowerCase() === OPPORTUNITY_RUN_MARKER_LABEL) {
           return null;
         }
-        if (
-          childText.trim().toLowerCase() === POSTING_LINK_LABEL &&
-          !href.startsWith("http://") &&
-          !href.startsWith("https://") &&
-          !href.startsWith("mailto:")
-        ) {
-          return null;
-        }
         return (
           <ReferenceLink
             href={href}
@@ -443,7 +434,7 @@ export default function RichText({
         </td>
       ),
       pre: ({ children }) => (
-        <pre className="mt-4 overflow-x-auto rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-4 py-3 font-mono text-[12px] leading-5 text-neutral-primary first:mt-0">
+        <pre className="mt-4 overflow-x-auto rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-3 font-mono text-[12px] leading-5 text-neutral-primary first:mt-0">
           {children}
         </pre>
       ),

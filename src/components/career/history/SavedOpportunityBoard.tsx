@@ -92,7 +92,7 @@ const SavedOpportunityBoardCard = React.memo(
         onDragStart={(event) => onDragStart(item, event)}
         onDragEnd={onDragEnd}
         className={cn(
-          "group relative w-full rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak",
+          "group relative w-full rounded-md border border-neutral-1000-a05 bg-bg-floating text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak",
           pending && "cursor-not-allowed opacity-60",
           dragging && "opacity-45"
         )}
@@ -125,7 +125,7 @@ const SavedOpportunityBoardCard = React.memo(
                 )}
               >
                 {item.companyLogoUrl ? (
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-default p-1">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-default p-1">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={item.companyLogoUrl}
@@ -134,7 +134,7 @@ const SavedOpportunityBoardCard = React.memo(
                     />
                   </span>
                 ) : (
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-black text-neutral-00">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-inverse text-neutral-00">
                     <Building2 className="h-3.5 w-3.5" />
                   </span>
                 )}
@@ -294,7 +294,7 @@ function SavedOpportunityBoard({
                 setDraggingOpportunityId(null);
               }}
               className={cn(
-                "min-h-[520px] w-[300px] shrink-0 rounded-[8px] border border-neutral-1000-a05 bg-bg-basement p-2 transition-colors",
+                "min-h-[520px] w-[300px] shrink-0 rounded-md border border-neutral-1000-a05 bg-bg-basement p-2 transition-colors",
                 draggingOpportunityId && "bg-bg-weak"
               )}
             >
@@ -326,7 +326,7 @@ function SavedOpportunityBoard({
                 })}
 
                 {columnItems.length === 0 && (initialLoading || loadState.loading || (loadState.hasMore && !loadError)) ? (
-                  <div className="flex items-center justify-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 py-8 text-center text-[13px] font-medium text-neutral-muted">
+                  <div className="flex items-center justify-center gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-3 py-8 text-center text-[13px] font-medium text-neutral-muted">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     {t(
                       "career.history.saved_opportunity_board.loading_column",
@@ -334,7 +334,7 @@ function SavedOpportunityBoard({
                     )}
                   </div>
                 ) : columnItems.length === 0 ? (
-                  <div className="rounded-[8px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-[13px] font-medium text-neutral-muted">
+                  <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-[13px] font-medium text-neutral-muted">
                     {t(
                       "career.history.saved_opportunity_board.0965oie",
                       "여기에 드롭"
@@ -347,7 +347,7 @@ function SavedOpportunityBoard({
                     type="button"
                     disabled={loadState.loading}
                     onClick={() => onLoadMoreColumn(column.id)}
-                    className="flex min-h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-[12px] font-medium text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-[12px] font-medium text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loadState.loading ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />

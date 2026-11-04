@@ -250,8 +250,8 @@ export function ReviewPipelineEmptyState({
 export function ReviewPipelineCardPendingState() {
   const t = useOrgT();
   return (
-    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-bg-floating/82 backdrop-blur-[1px]">
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-1000-a05 bg-bg-default px-2.5 py-1 text-[11px] font-medium text-neutral-muted shadow-sm">
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-bg-floating/82 backdrop-blur-xs">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-1000-a05 bg-bg-default px-2.5 py-1 text-[11px] font-medium text-neutral-muted shadow-(--shadow-sm)">
         <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
         {t("pipeline.savingMove", "이동 저장 중")}
       </span>
@@ -272,7 +272,7 @@ export function ReviewPipelineColumnAddRail({
         type="button"
         onClick={onClick}
         title={t("pipeline.addProcessTitle", "프로세스 추가")}
-        className="absolute left-1/2 top-2 z-10 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border border-neutral-1000-a10 bg-bg-floating text-neutral-muted shadow-sm transition hover:border-primary/40 hover:bg-primary-faded hover:text-primary"
+        className="absolute left-1/2 top-2 z-10 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border border-neutral-1000-a10 bg-bg-floating text-neutral-muted shadow-(--shadow-sm) transition hover:border-primary/40 hover:bg-primary-faded hover:text-primary"
       >
         <Plus className="h-3.5 w-3.5" />
       </BareButton>

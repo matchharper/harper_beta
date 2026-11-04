@@ -123,13 +123,13 @@ export function TabBoxes<T extends string>({
                 isNeutral
                   ? [
                       badgeVariants({ size }),
-                      "rounded-full font-normal h-8 px-3",
+                      "rounded-pill font-normal h-8 px-3",
                       selected
-                        ? "bg-neutral-primary text-neutral-00"
-                        : "bg-black/4 text-neutral-primary",
+                        ? "bg-surface-inverse text-on-inverse"
+                        : "bg-tab-neutral text-tab-selected",
                     ]
                   : [
-                      "flex items-center justify-between rounded-md border-2 text-left",
+                      "flex items-center justify-between rounded-tab border-2 text-left",
                       tabBoxSizeClassNames[size],
                       selected
                         ? "border-primary bg-bg-floating text-primary"

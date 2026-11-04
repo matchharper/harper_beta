@@ -258,7 +258,7 @@ const BookmarkButton = ({
             </BareButton>
             <BareButton
               type="button"
-              className="h-7 rounded bg-black px-2 text-xs text-neutral-00 disabled:opacity-70"
+              className="h-7 rounded bg-surface-inverse px-2 text-xs text-neutral-00 disabled:opacity-70"
               onClick={() => void handleCreateFolder()}
               disabled={isCreatingFolder || isAddingToFolder}
             >

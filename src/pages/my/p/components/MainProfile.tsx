@@ -33,7 +33,7 @@ const MainProfile = ({
   return (
     <div className="items-start w-full grid grid-cols-7">
       <div className="col-span-1">
-        <div className="w-24 h-24 rounded-full overflow-hidden bg-black border border-neutral-800/5 shrink-0">
+        <div className="w-24 h-24 rounded-full overflow-hidden bg-surface-inverse border border-neutral-800/5 shrink-0">
           {profile_picture && !profile_picture.includes("media.licdn.com") ? (
             <img
               src={profile_picture}

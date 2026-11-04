@@ -1,4 +1,6 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { listCareerActionItems } from "../actionItems.server";
+import type { CareerActionItem } from "../actionItems";
 import type { TalentMessageRow } from "@/lib/talentOnboarding/models";
 import type { TalentChatTool } from "@/lib/talentOnboarding/llm";
 import type { CareerCoachingActivity } from "../careerCoachingActivitySchema";
@@ -157,6 +159,12 @@ export async function createCareerCapabilityTurn(args: {
       .eq("conversation_id", conversationId)
       .eq("role", "user");
   const promptArgs = { ...args.promptArgs };
+  let actionItems: CareerActionItem[] | null = null;
+  const readActionItems = async () => {
+    try { actionItems = await listCareerActionItems({ admin, userId }); }
+    catch { actionItems = null; }
+  };
+  if (args.eligibleTools.some(tool => tool.function.name === "manage_action_items")) await readActionItems();
   const conversationVersion = sourceMessage
     ? readCareerConversationVersion(sourceMessage.payload)
     : promptArgs.conversationVersion;
@@ -202,6 +210,8 @@ export async function createCareerCapabilityTurn(args: {
     getEligibleTools: args.getEligibleTools,
     promptArgs: () => {
       const current = { ...promptArgs, ...args.getPromptArgs?.(), ...refreshedUserContext,
+        actionItems,
+        isMobile: promptArgs.isMobile ?? sourceMessage?.is_mobile,
         conversationVersion,
         ...(promptExperiment ? { promptExperiment } : {}),
       };
@@ -223,6 +233,7 @@ export async function createCareerCapabilityTurn(args: {
     resumeDependenciesPending: args.resumeDependenciesPending,
     usageContext,
     refreshAfterTool: async (name, result) => {
+      if (name === "manage_action_items") await readActionItems();
       if (name === "manage_career_coaching_activity") {
         coachingRefreshed = true;
         // Keep the executor's verified state even if the follow-up read fails.

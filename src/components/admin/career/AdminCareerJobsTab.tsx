@@ -78,19 +78,19 @@ function JobFunnel({ steps }: { steps: AdminCareerJobFunnelStep[] }) {
             className="grid gap-2 md:grid-cols-[150px_1fr_86px] md:items-center"
           >
             <div>
-              <div className="text-[12px] font-medium text-black">
+              <div className="text-[12px] font-medium text-neutral-primary">
                 {index + 1}. {step.label}
               </div>
-              <div className="text-[11px] text-black/40">{step.detail}</div>
+              <div className="text-[11px] text-neutral-primary/40">{step.detail}</div>
             </div>
-            <div className="h-7 border border-black/10 bg-black/[0.03]">
-              <div className="h-full bg-black" style={{ width }} />
+            <div className="h-7 border border-stroke bg-surface-inverse/[0.03]">
+              <div className="h-full bg-surface-inverse" style={{ width }} />
             </div>
             <div className="flex items-center justify-between gap-2 md:block md:text-right">
-              <div className="text-[14px] font-semibold text-black">
+              <div className="text-[14px] font-semibold text-neutral-primary">
                 {step.count.toLocaleString("ko-KR")}
               </div>
-              <div className="text-[11px] text-black/45">
+              <div className="text-[11px] text-neutral-primary/45">
                 {formatRate(step.rateFromView)}
               </div>
             </div>
@@ -132,13 +132,13 @@ export default function AdminCareerJobsTab({
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-      <Card className="rounded-md border-black/10 shadow-none">
+      <Card className="rounded-md border-stroke shadow-none">
         <CardHeader className="flex flex-row items-start justify-between gap-2 p-4 pb-2">
           <div>
-            <CardTitle className="text-[14px] font-semibold text-black">
+            <CardTitle className="text-[14px] font-semibold text-neutral-primary">
               Job analytics
             </CardTitle>
-            <div className="mt-1 text-[12px] text-black/45">
+            <div className="mt-1 text-[12px] text-neutral-primary/45">
               landing_logs 기준 job별 unique view와 Talk to Harper 클릭입니다.
             </div>
           </div>
@@ -146,7 +146,7 @@ export default function AdminCareerJobsTab({
             type="button"
             variant="secondary"
             size="sm"
-            className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
+            className="h-8 rounded-none border-stroke-strong/15 bg-bg-floating text-[12px] text-neutral-primary shadow-none"
             onClick={() => query.refetch()}
             disabled={query.isFetching}
           >
@@ -171,13 +171,13 @@ export default function AdminCareerJobsTab({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="role, company, slug 검색"
-            className="h-8 max-w-[360px] rounded-none border-black/15 bg-white text-[12px]"
+            className="h-8 max-w-[360px] rounded-none border-stroke-strong/15  text-[12px]"
           />
 
           <div className="overflow-x-auto">
             <Table className="min-w-[900px]">
               <TableHeader>
-                <TableRow className="border-black/10 hover:bg-transparent">
+                <TableRow className="border-stroke hover:bg-transparent">
                   <TableHead className="h-8 px-2 text-[11px]">Job</TableHead>
                   <TableHead className="h-8 px-2 text-[11px]">
                     상태
@@ -204,7 +204,7 @@ export default function AdminCareerJobsTab({
                   <TableRow>
                     <TableCell
                       colSpan={7}
-                      className="px-2 py-6 text-center text-[12px] text-black/45"
+                      className="px-2 py-6 text-center text-[12px] text-neutral-primary/45"
                     >
                       Job analytics를 불러오는 중입니다.
                     </TableCell>
@@ -220,8 +220,8 @@ export default function AdminCareerJobsTab({
                         role="button"
                         tabIndex={0}
                         className={cn(
-                          "cursor-pointer border-black/10",
-                          isSelected && "bg-black/[0.04]"
+                          "cursor-pointer border-stroke",
+                          isSelected && "bg-surface-inverse/[0.04]"
                         )}
                         onClick={() => setSelectedJobSlug(job.jobSlug)}
                         onKeyDown={(event) => {
@@ -233,29 +233,29 @@ export default function AdminCareerJobsTab({
                         }}
                       >
                         <TableCell className="px-2 py-2">
-                          <div className="max-w-[340px] truncate text-[12px] font-medium text-black">
+                          <div className="max-w-[340px] truncate text-[12px] font-medium text-neutral-primary">
                             {job.roleTitle}
                           </div>
-                          <div className="mt-0.5 truncate text-[11px] text-black/45">
+                          <div className="mt-0.5 truncate text-[11px] text-neutral-primary/45">
                             {job.companyName} · {job.jobSlug}
                           </div>
                         </TableCell>
-                        <TableCell className="px-2 py-2 text-[11px] text-black/55">
+                        <TableCell className="px-2 py-2 text-[11px] text-neutral-primary/55">
                           {job.isPublished ? "Published" : "Hidden"}
                         </TableCell>
-                        <TableCell className="px-2 py-2 text-right text-[12px] font-medium text-black">
+                        <TableCell className="px-2 py-2 text-right text-[12px] font-medium text-neutral-primary">
                           {job.viewCount.toLocaleString("ko-KR")}
                         </TableCell>
-                        <TableCell className="px-2 py-2 text-right text-[12px] font-medium text-black">
+                        <TableCell className="px-2 py-2 text-right text-[12px] font-medium text-neutral-primary">
                           {job.talkClickCount.toLocaleString("ko-KR")}
                         </TableCell>
-                        <TableCell className="px-2 py-2 text-right text-[12px] text-black/60">
+                        <TableCell className="px-2 py-2 text-right text-[12px] text-neutral-primary/60">
                           {formatRate(job.talkClickRate)}
                         </TableCell>
-                        <TableCell className="px-2 py-2 text-right text-[12px] text-black/60">
+                        <TableCell className="px-2 py-2 text-right text-[12px] text-neutral-primary/60">
                           {job.loginCount.toLocaleString("ko-KR")}
                         </TableCell>
-                        <TableCell className="px-2 py-2 text-[11px] text-black/55">
+                        <TableCell className="px-2 py-2 text-[11px] text-neutral-primary/55">
                           {formatDateTime(job.lastViewedAt)}
                         </TableCell>
                       </TableRow>
@@ -265,7 +265,7 @@ export default function AdminCareerJobsTab({
                   <TableRow>
                     <TableCell
                       colSpan={7}
-                      className="px-2 py-6 text-center text-[12px] text-black/45"
+                      className="px-2 py-6 text-center text-[12px] text-neutral-primary/45"
                     >
                       표시할 job 데이터가 없습니다.
                     </TableCell>
@@ -277,12 +277,12 @@ export default function AdminCareerJobsTab({
         </CardContent>
       </Card>
 
-      <Card className="rounded-md border-black/10 shadow-none">
+      <Card className="rounded-md border-stroke shadow-none">
         <CardHeader className="p-4 pb-2">
-          <CardTitle className="text-[14px] font-semibold text-black">
+          <CardTitle className="text-[14px] font-semibold text-neutral-primary">
             Job funnel
           </CardTitle>
-          <div className="mt-1 text-[12px] text-black/45">
+          <div className="mt-1 text-[12px] text-neutral-primary/45">
             {query.data?.selectedJob
               ? `${query.data.selectedJob.roleTitle} · ${query.data.selectedJob.companyName}`
               : "왼쪽에서 job row를 선택하세요."}
@@ -292,35 +292,35 @@ export default function AdminCareerJobsTab({
           {query.data?.selectedJob ? (
             <>
               <JobFunnel steps={query.data.selectedJob.steps} />
-              <div className="border-t border-black/10 pt-3">
-                <div className="mb-2 text-[12px] font-medium text-black">
+              <div className="border-t border-stroke pt-3">
+                <div className="mb-2 text-[12px] font-medium text-neutral-primary">
                   본 사람들
                 </div>
                 <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
                   {query.data.selectedJob.people.length === 0 ? (
-                    <div className="border border-black/10 bg-black/[0.02] p-3 text-[12px] text-black/45">
+                    <div className="border border-stroke bg-surface-inverse/[0.02] p-3 text-[12px] text-neutral-primary/45">
                       아직 이 job을 본 사람이 없습니다.
                     </div>
                   ) : (
                     query.data.selectedJob.people.map((person) => (
                       <div
                         key={person.localId}
-                        className="border border-black/10 bg-white p-3"
+                        className="border border-stroke bg-bg-floating p-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate text-[12px] font-semibold text-black">
+                            <div className="truncate text-[12px] font-semibold text-neutral-primary">
                               {person.email || "Anonymous"}
                             </div>
-                            <div className="mt-0.5 truncate font-mono text-[11px] text-black/40">
+                            <div className="mt-0.5 truncate font-mono text-[11px] text-neutral-primary/40">
                               {person.localId}
                             </div>
                           </div>
-                          <span className="shrink-0 border border-black/10 bg-black/[0.03] px-2 py-1 text-[11px] font-medium text-black/65">
+                          <span className="shrink-0 border border-stroke bg-surface-inverse/[0.03] px-2 py-1 text-[11px] font-medium text-neutral-primary/65">
                             {person.currentStepLabel}
                           </span>
                         </div>
-                        <div className="mt-2 text-[11px] text-black/42">
+                        <div className="mt-2 text-[11px] text-neutral-primary/42">
                           view {formatDateTime(person.firstViewedAt)} · talk{" "}
                           {formatDateTime(person.talkClickedAt)} · login{" "}
                           {formatDateTime(person.loginAt)}
@@ -332,7 +332,7 @@ export default function AdminCareerJobsTab({
               </div>
             </>
           ) : (
-            <div className="border border-black/10 bg-black/[0.02] p-4 text-[12px] text-black/45">
+            <div className="border border-stroke bg-surface-inverse/[0.02] p-4 text-[12px] text-neutral-primary/45">
               job view 로그가 쌓이면 여기에서 퍼널을 볼 수 있습니다.
             </div>
           )}

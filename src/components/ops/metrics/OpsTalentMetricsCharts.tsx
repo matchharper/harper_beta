@@ -43,12 +43,12 @@ type ChartSeries = {
 };
 
 const tooltipStyle = {
-  background: "var(--color-bg-default)",
-  border:
-    "1px solid color-mix(in srgb, var(--color-neutral-1000) 10%, transparent)",
-  borderRadius: "4px",
-  boxShadow:
-    "0 12px 30px color-mix(in srgb, var(--color-neutral-1000) 10%, transparent)",
+  background: "var(--color-popover)",
+  border: "var(--popover-border-width) solid var(--color-popover-border)",
+  borderRadius: "var(--radius-popover)",
+  boxShadow: "var(--shadow-popover)",
+  backdropFilter: "blur(var(--blur-popover))",
+  color: "var(--color-popover-foreground)",
   fontSize: "12px",
 };
 

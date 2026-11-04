@@ -1,0 +1,44 @@
+{
+  "datasetVersion": "v1",
+  "cases": [
+    {
+      "id": "casual_offer",
+      "mode": "chat",
+      "isMobile": false,
+      "messages": [
+        {"role":"user","content":"요즘 면접 생각만 하면 조금 떨려."},
+        {"role":"assistant","content":"처음부터 완벽하게 답하려고 하기보다, 최근 맡았던 일 하나를 편하게 이야기하는 연습부터 해봐도 좋아요. 원하면 여기서 같이 해볼까요?"},
+        {"role":"user","content":"응, 일단 어떻게 시작하면 좋을지 알려줘."}
+      ],
+      "facts": "No delegated work or outstanding review. The user is asking for conversational advice.",
+      "items": []
+    },
+    {
+      "id": "return_ready_reviews",
+      "mode": "return",
+      "isMobile": true,
+      "messages": [
+        {"role":"user","content":"Orbit, Cedar, Pine 공고 지원 준비를 각각 해둬. 제출 전에 내가 확인할게."},
+        {"role":"assistant","content":"각 지원서를 준비하고, 제출 전 확인할 수 있게 해둘게요."}
+      ],
+      "facts": "Verified current work: three delegated applications are prepared, not submitted. Saved unresolved review forms: formId 81 revision 2 (Orbit), formId 82 revision 1 (Cedar), formId 83 revision 1 (Pine). Each form contains prepared answers and attachments. None has a candidate response. No other unfinished work or new recommendations. All details needed for the visible list are provided.",
+      "items": []
+    },
+    {
+      "id": "async_missing_reply",
+      "mode": "background",
+      "isMobile": null,
+      "messages": [{"role":"user","content":"Cedar 지원서 준비해줘. 모르는 내용은 나한테 물어봐."}],
+      "facts": "Verified work 00000000-0000-4000-8000-000000000051: Cedar application prepared except for required candidate availability. Form 84 revision 1 asks for the earliest available start date and is unresolved. No start date in profile or previous conversation. Application has not been submitted. This invocation has reached the point of waiting for the candidate; the user is not currently in a live conversation.",
+      "items": []
+    },
+    {
+      "id": "return_resolved",
+      "mode": "return",
+      "isMobile": false,
+      "messages": [{"role":"user","content":"Cedar는 지원 취소했어. 더 진행하지 말아줘."},{"role":"assistant","content":"Cedar 지원 준비를 중단했어요."}],
+      "facts": "Verified work 00000000-0000-4000-8000-000000000051 is cancelled; form 84 is resolved. No other pending actions, jobs or current search goal. The saved visible item below predates this cancellation.",
+      "items": [{"id":"00000000-0000-4000-8000-000000000071","revision":1,"title":"Cedar 지원 준비","description":"입사 가능한 날짜를 알려주세요.","buttonText":"날짜 답하기","action":{"type":"compose_reply","text":"Cedar 지원의 입사 가능일. work 00000000-0000-4000-8000-000000000051, form 84 revision 1."},"priority":2,"urgency":"normal"}]
+    }
+  ]
+}

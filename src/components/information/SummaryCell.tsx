@@ -13,7 +13,7 @@ function sanitizeReasonText(raw: string, isDark: boolean) {
       .replace(
         /<strong>/gi,
         isDark
-          ? "<span class='font-medium text-white'>"
+          ? "<span class='font-medium text-on-inverse'>"
           : "<span class='font-medium text-beige900'>"
       )
       .replace(/<\/strong>/gi, "</span>")
@@ -66,7 +66,7 @@ const SummaryCell = ({
 
   return (
     <div
-      className="relative overflow-visible flex items-center justify-center px-2 h-[80%] w-full border-r border-white/5"
+      className="relative overflow-visible flex items-center justify-center px-2 h-[80%] w-full border-r border-bg-floating/5"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
@@ -109,10 +109,10 @@ const HoverPopover = ({
           absolute z-50 top-[calc(100%+8px)] left-0
           w-[420px]
           rounded-xl p-4
-          shadow-[0_16px_60px_rgba(0,0,0,0.12)]
+          shadow-(--shadow-lg)
           ${
             isDark
-              ? "border border-white/5 bg-neutral-1000/50 backdrop-blur-md"
+              ? "border border-bg-floating/5 bg-neutral-1000/50 backdrop-blur-md"
               : "border border-beige900/8 bg-beige50 backdrop-blur-md"
           }
         `}
@@ -121,7 +121,7 @@ const HoverPopover = ({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div
-            className={`text-[14px] font-normal truncate ${isDark ? "text-white" : "text-beige900"}`}
+            className={`text-[14px] font-normal truncate ${isDark ? "text-on-inverse" : "text-beige900"}`}
           >
             {criteria || "-"}
           </div>
@@ -133,7 +133,7 @@ const HoverPopover = ({
       </div>
 
       <div
-        className={`mt-3 h-px ${isDark ? "bg-white/10" : "bg-beige900/8"}`}
+        className={`mt-3 h-px ${isDark ? "bg-bg-floating/10" : "bg-beige900/8"}`}
       />
 
       <div className="mt-3">

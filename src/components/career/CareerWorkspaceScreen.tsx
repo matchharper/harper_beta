@@ -36,7 +36,7 @@ import CareerWorkspaceNav, {
 } from "@/components/career/CareerWorkspaceNav";
 import { MuteButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useCareerTasks } from "@/hooks/career/useCareerTasks";
+import { useCareerActionItems } from "@/hooks/career/useCareerActionItems";
 import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
 import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
 import { SectionTitle } from "@/components/ui/section-header";
@@ -300,7 +300,7 @@ export const CareerLoadingState = () => {
   const t = useCareerT();
 
   return (
-    <main className="relative flex min-h-svh w-full items-center justify-center bg-bg-basement text-neutral-primary">
+    <main className="relative flex min-h-svh w-full items-center justify-center bg-chat text-neutral-primary">
       <Loader2 className="h-5 w-5 animate-spin text-neutral-soft" />
       <span className="sr-only">
         {t(
@@ -334,7 +334,7 @@ const CareerWorkspaceScreen = ({
 }) => (
   <main
     className={cn(
-      "relative w-full bg-bg-basement text-neutral-primary",
+      "relative w-full bg-chat text-neutral-primary",
       fillParent ? "h-full min-h-0 overflow-hidden" : "min-h-svh"
     )}
   >
@@ -374,7 +374,8 @@ const CareerWorkspaceRoot = ({
   const router = useRouter();
   const t = useCareerT();
   const { inputMode } = useCareerChatActivityContext();
-  const { decisionCount } = useCareerTasks();
+  const { data: actionItems } = useCareerActionItems();
+  const decisionCount = actionItems?.length ?? 0;
   const [pendingChatAction, setPendingChatAction] =
     useState<CareerComposerPendingAction | null>(null);
   const clearPendingChatAction = useCallback(
@@ -533,7 +534,7 @@ const CareerWorkspaceRoot = ({
         <section
           id="career-chat-panel"
           className={cn(
-            "flex min-h-0 min-w-0 flex-col border-b border-neutral-1000-a05 bg-bg-basement md:flex-none md:border-b-0",
+            "flex min-h-0 min-w-0 flex-col border-b border-neutral-1000-a05 bg-chat md:flex-none md:border-b-0",
             isCallInProgress
               ? "transition-[flex-basis] duration-500 ease-in-out motion-reduce:transition-none"
               : "transition-none",
@@ -592,12 +593,12 @@ const CareerWorkspaceRoot = ({
             }}
             onKeyDown={handleResizeKeyDown}
             className={cn(
-              "group hidden w-2 shrink-0 cursor-col-resize items-center justify-center bg-bg-basement outline-none md:flex",
+              "group hidden w-2 shrink-0 cursor-col-resize items-center justify-center bg-chat outline-none md:flex",
               forceDesktopLayout && "flex"
             )}
           >
             <div className="flex h-16 w-1 items-center justify-center rounded-full">
-              <div className="h-10 w-[3px] rounded-full bg-black/20 transition-colors group-hover:bg-black/35 group-focus-visible:bg-black/35" />
+              <div className="h-10 w-[3px] rounded-full bg-surface-inverse/20 transition-colors group-hover:bg-surface-inverse/35 group-focus-visible:bg-surface-inverse/35" />
             </div>
           </div>
 
@@ -605,7 +606,7 @@ const CareerWorkspaceRoot = ({
             aria-labelledby="career-right-panel-title"
             id="career-right-panel"
             className={cn(
-              "relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg-basement md:min-h-0",
+              "relative flex min-w-0 flex-1 flex-col overflow-hidden bg-chat md:min-h-0",
               forceDesktopLayout && "min-h-0"
             )}
           >
@@ -1269,7 +1270,7 @@ const CareerWorkspaceMobileHistoryView = ({
               key={like.id}
               size="sm"
               variant="dark"
-              className="border-black/80 bg-black/80 backdrop-blur-sm rounded-sm"
+              className="border-stroke-strong/80 bg-surface-inverse/80 backdrop-blur-sm rounded-button"
               onClick={like.undo}
             >
               <Undo2 aria-hidden className="size-3" />
@@ -1569,7 +1570,7 @@ const CareerWorkspaceMobileLayout = ({
                 badgeClassName:
                   pendingInternalRoleFeedbackCount > 0
                     ? undefined
-                    : "bg-action text-white",
+                    : "bg-action text-on-inverse",
               }
             : option
       ),
@@ -1624,6 +1625,10 @@ const CareerWorkspaceMobileLayout = ({
                     <div className="px-4 pb-[140px]">{historyContent}</div>
                   ) : activeTab === "home" ? (
                     <CareerMobileHomeView
+                      onOpenChatAction={(action) => {
+                        setPendingChatAction(action);
+                        setChatOpen(true);
+                      }}
                       onOpenChat={() => {
                         logCareerEvent("click_mobile_open_chat");
                         setChatOpen(true);

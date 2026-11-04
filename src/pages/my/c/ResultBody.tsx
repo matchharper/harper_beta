@@ -80,7 +80,7 @@ export default function ResultBody(props: Props) {
                 {/* Left: page label (small, muted) */}
                 <div className="flex items-center gap-2 text-sm text-neutral-muted">
                   <span className="inline-flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-black/40" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-surface-inverse/40" />
                     {m.search.resultBody.page.replace(
                       "{page}",
                       String(pageIdx + 1)
@@ -133,7 +133,7 @@ export default function ResultBody(props: Props) {
                     className={[
                       "inline-flex items-center justify-center",
                       "h-11 px-4 md:px-5 rounded-xl",
-                      "bg-black text-neutral-00",
+                      "bg-surface-inverse text-neutral-00",
                       "font-medium",
                       "transition",
                       canNext && !isFetchingNextPage

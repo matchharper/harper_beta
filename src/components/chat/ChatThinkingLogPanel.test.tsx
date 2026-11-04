@@ -100,3 +100,12 @@ test("application question wait reuses the work panel without an active spinner"
   assert.doesNotMatch(html, /animate-spin|>Working</);
   assert.match(html, /aria-expanded="false"/);
 });
+
+test("empty progress has no disclosure or visible empty log body", () => {
+  const html = renderToStaticMarkup(
+    <ChatThinkingLogPanel active hasToolWork={false} logs={[]} />
+  );
+  assert.match(html, />Thinking</);
+  assert.doesNotMatch(html, /aria-expanded|lucide-chevron/);
+  assert.match(html, /<div hidden="" class="mb-2">/);
+});

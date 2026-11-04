@@ -118,7 +118,7 @@ type OutputItem = {
 const outputItems: OutputItem[] = [
   {
     key: "repo_signals",
-    icon: <Github className="h-5 w-5 text-white/80" />,
+    icon: <Github className="h-5 w-5 text-on-inverse/80" />,
     title: "GitHub signals",
     desc: "Find engineers through merged PRs, maintained repos, and real contribution history.",
     stats: [
@@ -132,7 +132,7 @@ const outputItems: OutputItem[] = [
   },
   {
     key: "project_signals",
-    icon: <FolderOpen className="h-5 w-5 text-white/80" />,
+    icon: <FolderOpen className="h-5 w-5 text-on-inverse/80" />,
     title: "Shipped projects",
     desc: "Search by what people actually built: pipelines, infra, datasets, tools, and systems.",
     stats: [
@@ -150,7 +150,7 @@ const outputItems: OutputItem[] = [
   },
   {
     key: "publication_signals",
-    icon: <BookOpen className="h-5 w-5 text-white/80" />,
+    icon: <BookOpen className="h-5 w-5 text-on-inverse/80" />,
     title: "Scholar & papers",
     desc: "Find researchers through paper history, venue quality, and technical focus before the market notices.",
     stats: [
@@ -195,12 +195,12 @@ const coverageStats: Array<{
 const socialProofItems = [
   {
     quote:
-      "There is a clear '<span class='text-white'>before and after</span>' in our recruiting.<br /><span class='text-white'>Harper changed everything.</span>",
+      "There is a clear '<span class='text-on-inverse'>before and after</span>' in our recruiting.<br /><span class='text-on-inverse'>Harper changed everything.</span>",
     attribution: "VP at a global startup backed by $200M+",
   },
   {
     quote:
-      "Harper는 <span class='text-white'>링크드인</span>에 없는 <span class='text-white'>최상위 인재</span>를<br />발견할 수 있는 유일한 <span class='text-white'>플랫폼</span>입니다.",
+      "Harper는 <span class='text-on-inverse'>링크드인</span>에 없는 <span class='text-on-inverse'>최상위 인재</span>를<br />발견할 수 있는 유일한 <span class='text-on-inverse'>플랫폼</span>입니다.",
     // "Harper is the only platform where we can find top talent that isn't on LinkedIn.",
     attribution: "Fast-growing AI avatar startup",
   },
@@ -225,12 +225,12 @@ export const StartButton = React.memo(function StartButton({
       type="button"
       onClick={onClick}
       className={[
-        "group relative z-10 cursor-pointer rounded-full bg-accent-200 font-medium text-black",
+        "group relative z-10 cursor-pointer rounded-full bg-accent-200 font-medium text-neutral-primary",
         "ring-1 ring-white/10",
-        "shadow-[0_12px_40px_rgba(180,255,120,0.25)]",
+        "shadow-(--shadow-marketing-glow)",
         "transition-all duration-200",
-        "hover:-translate-y-px hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]",
-        "active:translate-y-0 active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]",
+        "hover:-translate-y-px hover:shadow-(--shadow-marketing-glow)",
+        "active:translate-y-0 active:shadow-(--shadow-marketing-glow)",
         sizeClass,
       ].join(" ")}
     >
@@ -250,13 +250,13 @@ function CoverageCard({
 }) {
   return (
     <div className="w-full rounded-2xl text-center px-6 py-6">
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 mx-auto">
-        <Icon className="h-5 w-5 text-white/80" />
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-bg-floating/10 mx-auto">
+        <Icon className="h-5 w-5 text-on-inverse/80" />
       </div>
-      <div className="mt-6 text-5xl md:text-6xl font-medium text-white">
+      <div className="mt-6 text-5xl md:text-6xl font-medium text-on-inverse">
         {value}
       </div>
-      <div className="mt-6 text-lg md:text-xl font-light text-white/85">
+      <div className="mt-6 text-lg md:text-xl font-light text-on-inverse/85">
         {label}
       </div>
     </div>
@@ -329,9 +329,9 @@ function SearchInputPanel({
   }, [isPlaceholderAnimating, nextPlaceholderIdx]);
 
   return (
-    <form onSubmit={onSubmit} className="w-full rounded-[28px] p-2 md:p-5">
-      <div className="relative w-full rounded-[24px] border border-white/10 bg-neutral-900 p-1">
-        <div className="relative rounded-[20px] backdrop-blur-xl">
+    <form onSubmit={onSubmit} className="w-full rounded-sheet p-2 md:p-5">
+      <div className="relative w-full rounded-3xl border border-bg-floating/10 bg-neutral-900 p-1">
+        <div className="relative rounded-2xl backdrop-blur-xl">
           {isQueryEmpty && (
             <div
               className="pointer-events-none absolute left-4 right-16 top-4 overflow-hidden text-sm leading-6 text-neutral-600 md:right-20 md:text-[15px]"
@@ -369,8 +369,8 @@ function SearchInputPanel({
             aria-label="Search talent"
             rows={2}
             className={[
-              "w-full resize-none rounded-[20px] bg-transparent",
-              "min-h-[104px] px-4 py-4 pr-16 text-sm leading-6 text-white/95 md:min-h-[96px] md:text-[15px] md:pr-20",
+              "w-full resize-none rounded-2xl bg-transparent",
+              "min-h-[104px] px-4 py-4 pr-16 text-sm leading-6 text-on-inverse/95 md:min-h-[96px] md:text-[15px] md:pr-20",
               "placeholder:text-transparent outline-none",
             ].join(" ")}
           />
@@ -382,7 +382,7 @@ function SearchInputPanel({
             disabled={!canSend}
             aria-label="Submit search"
             className={[
-              "inline-flex h-10 w-10 items-center justify-center rounded-full transition active:scale-[0.98] md:h-11 md:w-11 bg-accent-200 text-black hover:opacity-90",
+              "inline-flex h-10 w-10 items-center justify-center rounded-full transition active:scale-[0.98] md:h-11 md:w-11 bg-accent-200 text-neutral-primary hover:opacity-90",
             ].join(" ")}
           >
             <ArrowUp size={20} />
@@ -1057,7 +1057,7 @@ export default function RadarLandingPage() {
         ) : null}
       </Head>
 
-      <main className="min-h-screen w-full overflow-x-hidden bg-black font-inter text-white">
+      <main className="min-h-screen w-full overflow-x-hidden bg-surface-inverse font-inter text-on-inverse">
         {isOpenLoginModal && (
           <LoginModal
             open={isOpenLoginModal}
@@ -1094,7 +1094,7 @@ export default function RadarLandingPage() {
 
         <section
           id={RadarSection.Intro}
-          className="relative flex min-h-[78vh] w-full flex-col items-center justify-center overflow-hidden bg-black px-4 pt-20 text-white md:min-h-[84vh] md:px-8 md:pt-28"
+          className="relative flex min-h-[78vh] w-full flex-col items-center justify-center overflow-hidden bg-surface-inverse px-4 pt-20 text-on-inverse md:min-h-[84vh] md:px-8 md:pt-28"
         >
           <div className="absolute left-0 top-0 h-full w-full">
             <div
@@ -1119,7 +1119,7 @@ export default function RadarLandingPage() {
                 }}
               />
               {/* <div className="hidden md:flex mt-12 w-full max-w-[820px] md:mt-16">
-                <div className="w-full overflow-hidden rounded-[30px] bg-gradpastel2 p-1">
+                <div className="w-full overflow-hidden rounded-4xl bg-gradpastel2 p-1">
                   <SearchInputPanel
                     query={query}
                     onQueryChange={setQuery}
@@ -1139,7 +1139,7 @@ export default function RadarLandingPage() {
             {locale === "ko" && (
               // <Reveal delay={0.08} duration={1.2}>
               <div className="w-full mb-20 mt-4 md:mt-0 flex flex-col items-center justify-center">
-                <div className="max-w-[1280px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
+                <div className="max-w-[1280px] bg-gradpastel2 overflow-hidden md:rounded-4xl rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
                   <video
                     src="/videos/newclipharper.mov"
                     poster="/images/usemain.png"
@@ -1147,20 +1147,20 @@ export default function RadarLandingPage() {
                     loop
                     muted
                     playsInline
-                    className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
+                    className="w-[90%] h-full object-cover  md:rounded-t-4xl rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-(--shadow-lg)"
                   />
                 </div>
               </div>
               // </Reveal>
             )}
-            <div className="mt-6 text-white/80"></div>
+            <div className="mt-6 text-on-inverse/80"></div>
           </Reveal>
         </section>
 
         <div className="h-12 md:h-24" />
         <Reveal delay={0.08}>
           <BaseSectionLayout>
-            <section className="relative rounded-2xl bg-white/5 border border-white/10 w-full px-4 py-12 md:px-8">
+            <section className="relative rounded-2xl bg-bg-floating/5 border border-bg-floating/10 w-full px-4 py-12 md:px-8">
               <div
                 className="pointer-events-none absolute inset-0"
                 style={{
@@ -1170,7 +1170,7 @@ export default function RadarLandingPage() {
                   backgroundSize: "32px 32px",
                 }}
               />
-              <div className="text-white flex flex-row items-center justify-center gap-3 w-full text-center text-xl md:text-2xl font-medium font-hedvig">
+              <div className="text-on-inverse flex flex-row items-center justify-center gap-3 w-full text-center text-xl md:text-2xl font-medium font-hedvig">
                 <AsteriskIcon className="w-6 h-6 text-accent-200/90" />
                 Harper를 신뢰하는 팀들
               </div>
@@ -1182,7 +1182,7 @@ export default function RadarLandingPage() {
                     className={`relative flex h-full flex-col`}
                   >
                     <p
-                      className="mt-12 text-center max-w-[560px] text-[16px] text-white/65 md:text-[20px]"
+                      className="mt-12 text-center max-w-[560px] text-[16px] text-on-inverse/65 md:text-[20px]"
                       dangerouslySetInnerHTML={{
                         __html: item.quote,
                       }}
@@ -1206,7 +1206,7 @@ export default function RadarLandingPage() {
           <BaseSectionLayout>
             <div className="gap-2 w-full flex flex-col items-center justify-center text-center py-8 md:py-10 px-0">
               <Head1 as="h2">{m.companyLanding.section1.title}</Head1>
-              <h3 className="text-lg md:text-xl text-white font-normal mt-10">
+              <h3 className="text-lg md:text-xl text-on-inverse font-normal mt-10">
                 {m.companyLanding.section1.headlineLine1}
                 <br />
                 {m.companyLanding.section1.headlineLine2}
@@ -1220,10 +1220,10 @@ export default function RadarLandingPage() {
         <Reveal delay={0.08} duration={1.2}>
           <BaseSectionLayout>
             <div className="flex w-full flex-col items-center justify-center px-4 text-left md:px-0">
-              {/* <h2 className="mt-8 max-w-[720px] text-center text-xl font-normal text-white md:text-2xl md:leading-[1.2]">
+              {/* <h2 className="mt-8 max-w-[720px] text-center text-xl font-normal text-on-inverse md:text-2xl md:leading-[1.2]">
               </h2> */}
 
-              <div className="text-[22px] md:text-3xl text-white font-normal mt-8">
+              <div className="text-[22px] md:text-3xl text-on-inverse font-normal mt-8">
                 데이터는 지금도 계속 확장되고 있습니다.
               </div>
 
@@ -1241,7 +1241,7 @@ export default function RadarLandingPage() {
           <div className="flex w-full flex-col items-center justify-center px-4 text-center md:px-0">
             <Reveal delay={0.08} duration={1.2}>
               <div className="flex flex-col items-center justify-center">
-                <Head1 className="text-white">
+                <Head1 className="text-on-inverse">
                   Who&apos;s Not on LinkedIn?
                 </Head1>
                 <h2 className="mb-12 mt-8 max-w-[760px] text-sm font-light text-neutral-500 md:mb-20 md:text-lg">
@@ -1284,10 +1284,10 @@ export default function RadarLandingPage() {
           <BaseSectionLayout>
             <div className="flex flex-col items-center justify-center w-full pt-4">
               <div className="w-full flex flex-col items-center justify-center pb-2">
-                <Head1 className="text-white">
+                <Head1 className="text-on-inverse">
                   {m.companyLanding.faq.title}
                 </Head1>
-                <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
+                <div className="flex flex-col items-start justify-start text-on-inverse/70 font-light w-full mt-12 px-4 md:px-0">
                   {m.companyLanding.faq.items.map((item, index) => (
                     <QuestionAnswer
                       key={item.question}
@@ -1306,12 +1306,12 @@ export default function RadarLandingPage() {
 
         <div className="h-28 md:h-40" />
         <Animate duration={0.8}>
-          <section className="relative w-full overflow-hidden bg-black py-10">
+          <section className="relative w-full overflow-hidden bg-surface-inverse py-10">
             <PixelBackground count={380} className="absolute inset-0" />
-            <div className="absolute left-0 top-0 h-[50%] w-full bg-linear-to-t from-transparent to-black" />
+            <div className="absolute left-0 top-0 h-[50%] w-full bg-linear-to-t from-transparent to-surface-inverse" />
 
-            <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-20 text-white md:py-36 md:pb-48">
-              <h2 className="mt-7 text-center text-3xl font-medium leading-[1.15] text-white/95 md:text-4xl">
+            <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-20 text-on-inverse md:py-36 md:pb-48">
+              <h2 className="mt-7 text-center text-3xl font-medium leading-[1.15] text-on-inverse/95 md:text-4xl">
                 Repos and Papers
                 <br />
                 are our talent pool.
@@ -1369,7 +1369,7 @@ function PixelBackground({
       {pixels.map((pixel) => (
         <span
           key={pixel.id}
-          className={`absolute block bg-white ${pixel.size} ${pixel.opacity} hover:bg-[#00A335]`}
+          className={`absolute block bg-bg-floating ${pixel.size} ${pixel.opacity} hover:bg-contribution-3`}
           style={{
             left: pixel.left,
             top: pixel.top,

@@ -45,7 +45,7 @@ const CareerWelcomeScreen = () => {
       <div className="flex min-h-full flex-1 flex-col overflow-hidden">
         <div className="flex flex-1 flex-col justify-between">
           <div className="max-w-[820px] mt-8 space-y-10 px-12">
-            <div className="max-w-[560px] rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-sm">
+            <div className="max-w-[560px] rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-(--shadow-sm)">
               <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-neutral-muted">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-default px-2.5 py-1">
                   <CheckCircle2 className="h-3.5 w-3.5 text-positive" />
@@ -128,7 +128,7 @@ const CareerWelcomeScreen = () => {
                 onClick={() => void onStartCallMode?.()}
                 disabled={isStartingCall || !onStartCallMode}
                 className={cn(
-                  "h-12 justify-between rounded-[12px] px-4 text-[16px] font-medium sm:h-16 sm:px-6 sm:text-[17px]"
+                  "h-12 justify-between rounded-lg px-4 text-[16px] font-medium sm:h-16 sm:px-6 sm:text-[17px]"
                 )}
               >
                 {isStartingCall ? (
@@ -151,7 +151,7 @@ const CareerWelcomeScreen = () => {
                 onClick={() => void onUseChatOnly()}
                 disabled={isStartingCall}
                 className={cn(
-                  "h-12 justify-between rounded-[12px] border-neutral-1000-a10 bg-bg-floating px-4 text-[16px] font-medium text-neutral-primary sm:h-16 sm:px-6 sm:text-[17px]"
+                  "h-12 justify-between rounded-lg border-neutral-1000-a10 bg-bg-floating px-4 text-[16px] font-medium text-neutral-primary sm:h-16 sm:px-6 sm:text-[17px]"
                 )}
               >
                 {isStartingCall ? (

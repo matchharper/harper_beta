@@ -9,6 +9,7 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 
 function database() {
   const rows: TalentMessageRow[] = [];
+  let failNextWrite = false;
   const admin = {
     from(name: string) {
       assert.equal(name, "talent_messages");
@@ -44,6 +45,7 @@ function database() {
           return query;
         },
         async maybeSingle() {
+          if (mutation && failNextWrite) { failNextWrite = false; return {data:null,error:new Error("temporary display write failure")}; }
           let row = rows.find((row) => predicates.every((test) => test(row)));
           if (insert) {
             row = {
@@ -62,10 +64,10 @@ function database() {
       return query;
     },
   } as unknown as TalentAdminClient;
-  return { admin, rows };
+  return { admin, rows, failWrite() { failNextWrite = true; } };
 }
 
-test("tool-step prose, streamed continuation, and completion retain one saved message and measured timing", async () => {
+test("tool-step prose, streamed continuation, and completion retain ordered activity and append one final reply with measured timing", async () => {
   const { admin, rows } = database();
   const writer = await createCareerAssistantMessageWriter({
     admin,
@@ -88,13 +90,14 @@ test("tool-step prose, streamed continuation, and completion retain one saved me
     { agentTurn: { completed: true } }
   );
   assert.ok(final);
-  assert.equal(rows.length, 1);
-  assert.equal(final.id, first.id);
+  assert.equal(rows.length, 2);
+  assert.notEqual(final.id, first.id);
   assert.equal(
     final.content,
-    "이력서를 확인할게요.\n\n경험을 확인했어요.\n\n이 내용을 반영했어요."
+    "이 내용을 반영했어요."
   );
   const response = toTalentMessageResponse(final);
+  assert.deepEqual(response.workEvents?.map(event => event.text), ["이력서를 확인할게요.", "이력서 읽는 중", "경험을 확인했어요.", "문서 수정 중"]);
   assert.equal(response.workPending, false);
   assert.equal(response.workReplyId, first.workReplyId);
   assert.ok(
@@ -129,12 +132,14 @@ test("separate invocations remain separate and resumption appends only to its ow
     replyId: "first",
   });
   await resumed.finish("첫 요청도 마쳤어요.", []);
-  assert.equal(rows.length, 2);
-  assert.equal(rows[0].content, "첫 요청을 확인했어요.\n\n첫 요청도 마쳤어요.");
-  assert.equal(rows[1].content, "두 번째 요청을 마쳤어요.");
+  const finals = rows.filter(row => row.message_type === "chat");
+  assert.equal(finals.length, 2);
+  assert.equal(finals[0].content, "두 번째 요청을 마쳤어요.");
+  assert.equal(finals[1].content, "첫 요청도 마쳤어요.");
+  assert.equal(toTalentMessageResponse(finals[1]).workEvents?.[0].text, "첫 요청을 확인했어요.");
 });
 
-test("cancellation retains delivered text and stops its timer without writing undelivered tokens", async () => {
+test("cancellation retains intermediate and partial output inside the stopped log", async () => {
   const { admin, rows } = database();
   let cancelled = false;
   const writer = await createCareerAssistantMessageWriter({
@@ -152,6 +157,25 @@ test("cancellation retains delivered text and stops its timer without writing un
   cancelled = true;
   await assert.rejects(writer.finish("보내면 안 되는 결과", []), /Stopped/);
   await writer.interrupt();
-  assert.equal(rows[0].content, "내용을 확인할게요.");
+  assert.equal(rows[0].content, "");
+  assert.equal(toTalentMessageResponse(rows[0]).workEvents?.[0].text, "내용을 확인할게요.");
+  assert.equal(toTalentMessageResponse(rows[0]).workEvents?.at(-1)?.text, "아직 표시하지 않은 글");
   assert.equal(toTalentMessageResponse(rows[0]).workPending, false);
+});
+
+
+test("a failed display write recovers without replaying work, and late callbacks cannot reopen a finished turn", async () => {
+  const db = database();
+  const writer = await createCareerAssistantMessageWriter({ ...db, userId: "user", conversationId: "conversation", replyId: "a", startedAt: new Date().toISOString() });
+  await writer.start();
+  db.failWrite();
+  await writer.progress("확인할게요.", []);
+  await writer.logs(["자료 확인 중"]);
+  const final = await writer.finish("완료했어요.", ["자료 확인 중"]);
+  assert.equal(final?.content, "완료했어요.");
+  assert.deepEqual(toTalentMessageResponse(final!).workEvents?.map(e => e.text), ["확인할게요.", "자료 확인 중"]);
+  await writer.delta("늦게 도착한 글", []);
+  await writer.logs(["늦게 도착한 로그"]);
+  assert.equal(toTalentMessageResponse(db.rows[0]).workPending, false);
+  assert.equal(db.rows.length, 2);
 });

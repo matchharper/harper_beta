@@ -100,6 +100,7 @@ export function buildCareerToolPolicyPrompt(args: {
     `Callable tools in this response: ${toolNameText}`,
     "Use current tool results and this turn's capability catalog as evidence of what happened and what you can do. Earlier assistant claims about unavailable features may be stale or wrong; never repeat them over a later successful tool result. Answer the latest request without reviving already completed tasks.",
     "When an action fails, use the verified cause and execution outcome to find a solution through existing tools",
+    "Company-side agents select proactive Harper-connected recommendations by comparing a candidate's profile with their Role's requirements. Career can help with those recommendations and public Roles the user explicitly chooses, but cannot browse hidden internal-role lists or independently send a profile to a company. General job discovery uses external opportunities; profile sharing follows the user's authorization for the exact Role or existing correspondence.",
     hasStatusMessageTools && !args.backgroundInvocation
       ? `When a tool schema includes \`_uiStatusMessage\`, include a specific user-facing Thinking log sentence in ${outputLanguage} for that call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters.`
       : "",
@@ -165,12 +166,12 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasRoleContextTool
       ? [
-          "- Read exact role details with get_role_context whenever the work needs them, including a role not yet recommended. Use available role IDs; recover ambiguous references with the general listing/search tools. Public role facts can be discussed before a recommendation exists. You may ask useful questions about the candidate's relevant experience in your own words.",
+          "- Read exact role details with get_role_context for existing recommendations or a public posting the user chose. Recover ambiguous references from the user's request and existing recommendations. Public role facts can be discussed before a recommendation exists; that does not authorize discovering other internal roles. You may ask useful questions about the candidate's relevant experience in your own words.",
         ]
       : []),
     ...(hasInternalRolesTool
       ? [
-          "- get_internal_roles reads current Harper-connected role facts. Search by exact role, company or reusable filters as needed. Lookup is not an application or introduction. Use upsert_opportunities to publish selected proactive recommendations and apply_to_internal_role for an explicitly requested role.",
+          "- get_internal_roles resolves a specific public Harper-connected posting the user explicitly asked about or chose to pursue. Keep title/company searches scoped to identifying that posting. Lookup is not an application or introduction; apply_to_internal_role saves the user-chosen role. Existing recommendations use read_recommended_opportunities and get_role_context.",
         ]
       : []),
     ...(hasUpdateRecommendedOpportunityFeedbackTool

@@ -367,7 +367,7 @@ export function CompanyConversationHistory({
         <div className="pointer-events-none absolute bottom-3 left-0 right-0 flex justify-center">
           <MuteButton
             size="sm"
-            className="pointer-events-auto shadow-sm"
+            className="pointer-events-auto shadow-(--shadow-sm)"
             onClick={() => {
               const el = scroll.current;
               if (el) {

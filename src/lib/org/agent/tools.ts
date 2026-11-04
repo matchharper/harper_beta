@@ -928,7 +928,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
           },
           status: {
             description:
-              "active=진행 (periodic suitable candidate connections continue); paused=중단 (Role stays open but additional recommendations stop, while existing processes stay open); ended=종료 or deleted=삭제 stops recommendations and schedules accepted candidate closure after the grace period at every stage except final_offer. deleted also sets is_expired=true.",
+              "active=진행 (periodic suitable candidate connections continue); paused=중단 (Role stays open but additional recommendations stop, while existing processes stay open); ended=종료 or deleted=삭제 stops recommendations and adds affected accepted processes to the next candidate daily review at every stage except final_offer. deleted also sets is_expired=true.",
             enum: ["active", "paused", "ended", "deleted"],
             type: "string",
           },
@@ -942,7 +942,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
     type: "function",
     function: {
       name: "contact_talent",
-      description: "Communicate with the candidate's agent within the company's delegated purpose and sharing permissions. action=send_to_agent sends questions, information, requests or replies asynchronously using introductionRootId or replyToMessageId. The receiving agent acts for its user; this does not directly notify the candidate. For existing legacy contacts, deliver a message to exact candidate(s), or prepare/revise a reviewable draft, schedule an approved draft, expedite a queued delivery, or cancel. Choose send vs create_draft from conversational authorization under the loaded candidate_contact policy, not the topic. send accepts talentId + roleId + messageContent for an authorized new message, or relayId + messageContent for a continuation. One target or items of up to ten; inspect partial outcomes. This never changes candidate interest, sharing consent, or pipeline stage.",
+      description: "Communicate with the candidate's agent within the company's delegated purpose and sharing permissions. action=send_to_agent immediately queues the candidate agent to handle questions, information, requests or replies using introductionRootId or replyToMessageId; it does not wait for daily processing. The receiving agent acts for its user; this does not directly notify the candidate. For existing legacy contacts, deliver a message to exact candidate(s), or prepare/revise a reviewable draft, schedule an approved draft, expedite a queued delivery, or cancel. Choose send vs create_draft from conversational authorization under the loaded candidate_contact policy, not the topic. send accepts talentId + roleId + messageContent for an authorized new message, or relayId + messageContent for a continuation. One target or items of up to ten; inspect partial outcomes. This never changes candidate interest, sharing consent, or pipeline stage.",
       parameters: {
         additionalProperties: false,
         properties: {

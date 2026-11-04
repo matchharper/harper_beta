@@ -148,7 +148,7 @@ export default function CareerAppBar({
   }, []);
 
   const pillbtn =
-    "px-3.5 py-1.5 rounded-full border border-black/10 cursor-pointer text-[13px] md:text-sm font-normal shadow-xs";
+    "px-3.5 py-1.5 rounded-full border border-stroke cursor-pointer text-[13px] md:text-sm font-normal shadow-(--shadow-xs)";
 
   return (
     <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
@@ -160,7 +160,7 @@ export default function CareerAppBar({
         <div className="relative mx-auto flex h-[54px] max-w-[1160px] items-center justify-between px-4">
           <a
             href={`${sectionHrefPrefix}#top`}
-            className="font-hedvig text-[18px] text-black font-semibold"
+            className="font-hedvig text-[18px] text-neutral-primary font-semibold"
           >
             <Image src="/svgs/logov2.svg" alt="Harper" width={64} height={29} />
             {/* Harper */}
@@ -178,7 +178,7 @@ export default function CareerAppBar({
                       ? `${sectionHrefPrefix}${item.href}`
                       : item.href
                   }
-                  className="text-[14px] font-medium text-black/45 transition-colors hover:text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black/30"
+                  className="text-[14px] font-medium text-neutral-primary/45 transition-colors hover:text-neutral-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black/30"
                 >
                   {item.label}
                 </a>
@@ -188,7 +188,7 @@ export default function CareerAppBar({
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href={resolvedAudienceHref}
-              className={`${pillbtn} hidden text-black hover:bg-black/2 md:inline-flex`}
+              className={`${pillbtn} hidden text-neutral-primary hover:bg-surface-inverse/2 md:inline-flex`}
             >
               {audienceLabel}
             </Link>
@@ -209,7 +209,7 @@ export default function CareerAppBar({
                     href={secondaryAction.href}
                     className={cn(
                       pillbtn,
-                      "bg-black text-white hover:opacity-90 md:hidden"
+                      "bg-surface-inverse text-on-inverse hover:opacity-90 md:hidden"
                     )}
                   >
                     {secondaryAction.mobileLabel}
@@ -223,7 +223,7 @@ export default function CareerAppBar({
                 onClick={onCareerStartClick}
                 className={cn(
                   pillbtn,
-                  "text-white bg-black hover:opacity-90",
+                  "text-on-inverse bg-surface-inverse hover:opacity-90",
                   secondaryAction && "hidden md:inline-flex"
                 )}
               >
@@ -302,7 +302,7 @@ export default function CareerAppBar({
               asChild
               variant="dark"
               size="lg"
-              className="w-full rounded-full"
+              className="w-full rounded-pill"
             >
               <Link
                 href={secondaryAction?.href ?? careerStartHref}
@@ -319,7 +319,7 @@ export default function CareerAppBar({
                   primaryLabel}
               </Link>
             </MuteButton>
-            <MuteButton asChild size="lg" className="w-full rounded-full">
+            <MuteButton asChild size="lg" className="w-full rounded-pill">
               <a
                 href="mailto:chris@matchharper.com"
                 onClick={() => setMenuOpen(false)}

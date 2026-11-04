@@ -3,6 +3,8 @@
 import { CircleHelp, FileText, Loader2, Upload, X } from "lucide-react";
 import { CompanyLogo } from "@/components/career/watchlist/CompanyLogo";
 import { CardButton, MuteButton } from "@/components/ui/button";
+import { Typography } from "@/components/ui/typography";
+import type { CareerHighlightedAction } from "@/lib/career/actionItems";
 import { useCareerT } from "@/i18n/useCareerT";
 import { getDisplayableCompanyLogoUrl } from "@/lib/imageUrl";
 import { cn } from "@/lib/utils";
@@ -12,6 +14,7 @@ import type {
 } from "@/lib/career/pendingActions";
 
 type PendingQuestionAction =
+  | CareerHighlightedAction
   | CareerPendingCompanyRequestAction
   | CareerPendingFitQuestionAction;
 
@@ -31,6 +34,33 @@ export function CareerPendingActionContextCard({
   resumeUploadPending?: boolean;
 }) {
   const t = useCareerT();
+  if (action.kind === "action_item") {
+    return (
+      <div className="relative rounded-lg bg-bg-weak p-3 pr-11">
+        <Typography variant="body" className="font-medium">
+          {action.title}
+        </Typography>
+        <Typography
+          variant="description"
+          className="mt-1 whitespace-pre-wrap break-words"
+        >
+          {action.description}
+        </Typography>
+        <MuteButton
+          aria-label={t(
+            "career.chat.pending_action_context.dismiss_aria",
+            "선택한 항목 닫기"
+          )}
+          className="absolute right-2 top-2"
+          size="sm"
+          variant="transparent"
+          onClick={onDismiss}
+        >
+          <X className="h-3.5 w-3.5" />
+        </MuteButton>
+      </div>
+    );
+  }
   const canUploadResume =
     action.kind === "company_request" && action.requestMode === "resume";
   const isCompanyRequest =
@@ -69,7 +99,7 @@ export function CareerPendingActionContextCard({
         }
         onClick={onToggleExpanded}
         className={cn(
-          "group min-h-0 rounded-[14px] border-none bg-neutral-100 px-3 py-3 pr-11 shadow-none hover:border-neutral-1000-a10",
+          "group min-h-0  border-none bg-neutral-100 px-3 py-3 pr-11 shadow-none hover:border-neutral-1000-a10",
           canUploadResume && onUploadResume && "pb-12"
         )}
       >
@@ -81,7 +111,7 @@ export function CareerPendingActionContextCard({
               size="sm"
             />
           ) : (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-neutral-1000-a05 bg-bg-floating text-neutral-muted">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted">
               <Icon className="h-4 w-4" />
             </span>
           )}
@@ -117,7 +147,7 @@ export function CareerPendingActionContextCard({
       </CardButton>
       {canUploadResume && onUploadResume ? (
         <MuteButton
-          className="absolute bottom-2 left-[3.75rem] z-10 h-7 rounded-[9px] bg-bg-floating text-[11px] font-medium text-neutral-primary"
+          className="absolute bottom-2 left-[3.75rem] z-10 h-7 rounded-button bg-bg-floating text-[11px] font-medium text-neutral-primary"
           disabled={resumeUploadPending}
           onClick={onUploadResume}
           size="sm"
@@ -140,7 +170,7 @@ export function CareerPendingActionContextCard({
           "career.chat.pending_action_context.dismiss_aria",
           "선택한 항목 닫기"
         )}
-        className="absolute right-2 top-2 z-10 h-7 w-7 rounded-full text-neutral-soft hover:bg-bg-floating hover:text-neutral-primary"
+        className="absolute right-2 top-2 z-10 h-7 w-7 rounded-pill text-neutral-soft hover:bg-bg-floating hover:text-neutral-primary"
         onClick={(event) => {
           event.stopPropagation();
           onDismiss();

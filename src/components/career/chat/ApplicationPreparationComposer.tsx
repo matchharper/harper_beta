@@ -27,7 +27,7 @@ import type { PreparationResponse } from "@/lib/career/simulation/preparation";
 const numberedOptionClassName =
   "flex w-full items-center justify-start gap-2 rounded-xl min-h-10 sm:min-h-9 px-2 py-1 text-left text-[length:inherit] text-sm font-normal leading-[inherit]";
 const optionNumberClassName =
-  "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-black text-xs text-white";
+  "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-surface-inverse text-xs text-on-inverse";
 
 export function shouldShowPreparationQuestions(s?: SimulationSession | null) {
   return Boolean(

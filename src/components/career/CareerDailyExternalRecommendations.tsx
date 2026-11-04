@@ -76,7 +76,7 @@ export function TodayExternalRecommendationsCard({
         {roles.slice(0, 3).map((role, index) => (
           <span
             key={role.roleId}
-            className={`relative -ml-1.5 rounded-[11px] shadow-sm first:ml-0 ${index === 0 ? "-rotate-6" : index === 2 ? "rotate-6" : "z-10"}`}
+            className={`relative -ml-1.5 rounded-lg shadow-(--shadow-sm) first:ml-0 ${index === 0 ? "-rotate-6" : index === 2 ? "rotate-6" : "z-10"}`}
           >
             <CompanyLogo
               logoUrl={role.companyLogoUrl}

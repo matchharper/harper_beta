@@ -23,7 +23,7 @@ const NavItem = ({
   return (
     <button
       type="button"
-      className={`flex flex-row items-center justify-between gap-2 cursor-pointer hover:opacity-95 pl-5 py-2 hover:bg-white/5 rounded-full transition-colors duration-200 ${isArrowRight ? "pr-3" : "px-5"}`}
+      className={`flex flex-row items-center justify-between gap-2 cursor-pointer hover:opacity-95 pl-5 py-2 hover:bg-bg-floating/5 rounded-full transition-colors duration-200 ${isArrowRight ? "pr-3" : "px-5"}`}
       onClick={onClick}
     >
       {label}
@@ -113,7 +113,7 @@ const LandingHeader = ({
     startButtonLabel ?? m.companyLanding.startButton;
 
   return (
-    <header className="fixed top-0 left-0 z-20 w-full flex items-center justify-between px-0 lg:px-4 h-14 md:h-20 text-sm text-white transition-all duration-300">
+    <header className="fixed top-0 left-0 z-20 w-full flex items-center justify-between px-0 lg:px-4 h-14 md:h-20 text-sm text-on-inverse transition-all duration-300">
       <div className="flex items-center justify-between w-full px-4 md:px-8 h-full">
         <button
           type="button"
@@ -122,7 +122,7 @@ const LandingHeader = ({
         >
           Harper
         </button>
-        <nav className="hidden font-normal text-white bg-[#444444aa] backdrop-blur rounded-full md:flex items-center justify-center gap-2 text-xs sm:text-sm px-4 py-2">
+        <nav className="hidden font-normal text-on-inverse bg-marketing-nav backdrop-blur rounded-full md:flex items-center justify-center gap-2 text-xs sm:text-sm px-4 py-2">
           <NavItem
             label={m.companyLanding.nav.intro}
             onClick={() => navigateToSection("intro")}
@@ -151,16 +151,16 @@ const LandingHeader = ({
               font-medium
               cursor-pointer
               rounded-full
-              bg-accent-200 text-black
+              bg-accent-200 text-neutral-primary
               z-10
               py-3 px-6 text-xs
               ring-1 ring-white/10
-              shadow-[0_12px_40px_rgba(180,255,120,0.25)]
+              shadow-(--shadow-marketing-glow)
               transition-all duration-200
-              hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]
+              hover:shadow-(--shadow-marketing-glow)
               hover:-translate-y-px
               active:translate-y-0
-              active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]
+              active:shadow-(--shadow-marketing-glow)
             "
           >
             {resolvedStartButtonLabel}

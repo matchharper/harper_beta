@@ -46,7 +46,7 @@ export default function AdminMetricsNavigation({
   title,
 }: AdminMetricsNavigationProps) {
   return (
-    <header className="sticky top-0 z-10 border-b border-black/10 bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-10 border-b border-stroke bg-bg-floating/90 backdrop-blur">
       <div className="mx-auto flex max-w-[1180px] flex-col gap-4 px-4 py-4 md:px-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -61,8 +61,8 @@ export default function AdminMetricsNavigation({
                     className={cn(
                       "block min-w-[190px] border px-4 py-3 transition",
                       isActive
-                        ? "border-black bg-black text-white"
-                        : "border-black/10 bg-white text-black hover:border-black/25 hover:bg-black/[0.03]"
+                        ? "border-stroke-strong bg-surface-inverse text-on-inverse"
+                        : "border-stroke bg-bg-floating text-neutral-primary hover:border-stroke-strong/25 hover:bg-surface-inverse/[0.03]"
                     )}
                   >
                     <div className="text-[13px] font-semibold">
@@ -71,7 +71,7 @@ export default function AdminMetricsNavigation({
                     <div
                       className={cn(
                         "mt-1 text-[11px]",
-                        isActive ? "text-white/60" : "text-black/45"
+                        isActive ? "text-on-inverse/60" : "text-neutral-primary/45"
                       )}
                     >
                       {section.subtitle}
@@ -85,7 +85,7 @@ export default function AdminMetricsNavigation({
                 {title}
               </div>
               {subtitle ? (
-                <div className="mt-1 text-[12px] leading-5 text-black/50">
+                <div className="mt-1 text-[12px] leading-5 text-neutral-primary/50">
                   {subtitle}
                 </div>
               ) : null}
@@ -105,8 +105,8 @@ export default function AdminMetricsNavigation({
               className={cn(
                 "inline-flex h-8 items-center border px-3 text-[12px] font-medium transition",
                 tab.active
-                  ? "border-black bg-black text-white"
-                  : "border-black/15 bg-white text-black hover:border-black/30 hover:bg-black/[0.03]"
+                  ? "border-stroke-strong bg-surface-inverse text-on-inverse"
+                  : "border-stroke-strong/15 bg-bg-floating text-neutral-primary hover:border-stroke-strong/30 hover:bg-surface-inverse/[0.03]"
               )}
             >
               {tab.label}

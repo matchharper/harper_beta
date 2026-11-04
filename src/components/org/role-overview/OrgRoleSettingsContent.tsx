@@ -804,7 +804,7 @@ export function OrgRoleSettingsContent({
                   <div className="flex min-w-0 flex-1 flex-wrap gap-2">
                     {assignedMembers.map((member) => (
                       <div
-                        className="flex min-w-0 max-w-full items-center gap-2 rounded-full bg-black/5 py-1 pr-1 pl-3.5"
+                        className="flex min-w-0 max-w-full items-center gap-2 rounded-full bg-surface-tint py-1 pr-1 pl-3.5"
                         key={member.userId}
                       >
                         <span className="max-w-36 truncate text-[13px] font-medium text-neutral-primary">
@@ -825,7 +825,7 @@ export function OrgRoleSettingsContent({
                               member.email ||
                               c("담당자", "Owners"),
                           })}
-                          className="ml-0.5 rounded-full"
+                          className="ml-0.5 rounded-pill"
                           disabled={!canManage || settingsPending}
                           onClick={() =>
                             changeAssignees(

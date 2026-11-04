@@ -19,7 +19,7 @@ export function liftMessageBubble(bubble: HTMLElement, destination: HTMLElement)
   const surface = {
     padding: computed.padding, border: computed.border,
     background: computed.backgroundColor === "rgba(0, 0, 0, 0)"
-      ? "rgba(245, 245, 245, 1)" : computed.background,
+      ? "var(--color-message-lifted)" : computed.background,
     color: computed.color,
   };
   // The bubble remains outside Dialog.Content in the DOM. Keep its native scroll
@@ -79,7 +79,7 @@ export function liftMessageBubble(bubble: HTMLElement, destination: HTMLElement)
     boxSizing: "border-box", transformOrigin: "top left", overflow: "auto",
     overscrollBehavior: "contain", pointerEvents: "auto", animation: "none",
     transition: "none", willChange: "transform", scrollbarWidth: "none",
-    filter: "drop-shadow(0 12px 24px rgb(0 0 0 / 0.12))",
+    filter: "var(--message-lift-filter)",
   });
   bubble.showPopover();
   const frame = focusFrame();

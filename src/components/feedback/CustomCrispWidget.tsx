@@ -330,7 +330,7 @@ function MessageBubble({
               aria-label="메시지 복사"
               title={copy.copyMessage}
               onClick={() => onCopy(message)}
-              className="inline-flex h-5 w-5 items-center justify-center rounded-[4px] text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary"
             >
               <Copy className="h-3 w-3" />
             </BareButton>
@@ -340,7 +340,7 @@ function MessageBubble({
               title={copy.deleteMessage}
               disabled={deleting}
               onClick={() => onRequestDelete(message)}
-              className="inline-flex h-5 w-5 items-center justify-center rounded-[4px] text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Trash2 className="h-3 w-3" />
             </BareButton>
@@ -367,7 +367,7 @@ function DeleteMessageConfirm({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="absolute inset-0 z-20 flex items-center justify-center bg-neutral-1000/12 px-5 backdrop-blur-[2px]"
+      className="absolute inset-0 z-20 flex items-center justify-center bg-neutral-1000/12 px-5 backdrop-blur-overlay"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.98, y: 8 }}
@@ -377,7 +377,7 @@ function DeleteMessageConfirm({
         role="dialog"
         aria-modal="true"
         aria-labelledby="harper-message-delete-title"
-        className="w-full max-w-[280px] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-4 shadow-[0_18px_48px_rgba(0,0,0,0.16)]"
+        className="w-full max-w-[280px] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-4 shadow-(--shadow-lg)"
       >
         <h3
           id="harper-message-delete-title"
@@ -395,7 +395,7 @@ function DeleteMessageConfirm({
             variant="secondary"
             disabled={deleting}
             onClick={onCancel}
-            className="h-8 rounded-md px-3 text-[12px]"
+            className="h-8 rounded-button px-3 text-[12px]"
           >
             {copy.cancel}
           </Button>
@@ -405,7 +405,7 @@ function DeleteMessageConfirm({
             variant="primary"
             disabled={deleting}
             onClick={onConfirm}
-            className="h-8 rounded-md px-3 text-[12px]"
+            className="h-8 rounded-button px-3 text-[12px]"
           >
             {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             {copy.confirm}
@@ -442,7 +442,7 @@ function EmailChoicePrompt({
           variant="primary"
           disabled={disabled}
           onClick={() => onSelect(true)}
-          className="h-8 rounded-md px-3 text-[12px]"
+          className="h-8 rounded-button px-3 text-[12px]"
         >
           {copy.emailYes}
         </Button>
@@ -452,7 +452,7 @@ function EmailChoicePrompt({
           variant="secondary"
           disabled={disabled}
           onClick={() => onSelect(false)}
-          className="h-8 rounded-md px-3 text-[12px]"
+          className="h-8 rounded-button px-3 text-[12px]"
         >
           {copy.emailNo}
         </Button>
@@ -494,14 +494,14 @@ function IdentityForm({
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
           placeholder={copy.identityName}
-          className="h-9 rounded-md text-[13px] max-w-[240px]"
+          className="h-9  text-[13px] max-w-[240px]"
         />
         <Input
           value={email}
           onChange={(event) => onEmailChange(event.target.value)}
           placeholder={copy.identityEmail}
           type="email"
-          className="h-9 rounded-md text-[13px] max-w-[240px]"
+          className="h-9  text-[13px] max-w-[240px]"
         />
       </div>
       <MuteButton
@@ -606,7 +606,7 @@ function Composer({
           rows={hasInput ? 2 : 1}
           maxLength={MAX_MESSAGE_LENGTH}
           className={cn(
-            "max-h-[100px] overflow-y-hidden rounded-md px-3 py-2 pr-12 text-[13px] leading-5 shadow-[0_2px_8px_color-mix(in_srgb,var(--color-neutral-1000)_6%,transparent)] transition-[height,border-color,background-color] placeholder:text-neutral-muted",
+            "max-h-[100px] overflow-y-hidden  px-3 py-2 pr-12 text-[13px] leading-5  transition-[height,border-color,background-color] placeholder:text-neutral-muted",
             hasInput ? "min-h-[60px]" : "min-h-10"
           )}
         />
@@ -616,7 +616,7 @@ function Composer({
           variant="secondary"
           disabled={!canSubmit}
           className={cn(
-            "absolute bottom-[11px] right-[5px] h-7.5 w-7.5 rounded-md transition",
+            "absolute bottom-[11px] right-[5px] h-7.5 w-7.5 rounded-button transition",
             canSubmit
               ? "bg-neutral-1000 text-neutral-00 hover:bg-neutral-900"
               : "bg-bg-weak text-neutral-muted"
@@ -658,7 +658,7 @@ function Launcher({
       <BareButton
         type="button"
         onClick={onToggle}
-        className="relative inline-flex md:h-[52px] md:w-[52px] h-[46px] w-[46px] items-center justify-center rounded-full border border-neutral-1000 bg-neutral-1000 text-neutral-00 shadow-lg transition hover:bg-neutral-900"
+        className="relative inline-flex md:h-[52px] md:w-[52px] h-[46px] w-[46px] items-center justify-center rounded-full border border-neutral-1000 bg-neutral-1000 text-neutral-00 shadow-(--shadow-lg) transition hover:bg-neutral-900"
         aria-label="Harper 문의 열기"
       >
         <AnimatePresence mode="wait" initial={false}>
@@ -1100,7 +1100,7 @@ export default function CustomCrispWidget({
               stiffness: 360,
               type: "spring",
             }}
-            className="fixed md:bottom-[92px] bottom-[68px] right-4 z-[80] flex h-[min(calc(100dvh-104px),clamp(620px,73dvh,820px))] w-[min(calc(100vw-28px),clamp(380px,25vw,516px))] flex-col overflow-hidden rounded-[14px] border border-neutral-1000-a10 bg-bg-floating font-sans shadow-[0_20px_60px_rgba(0,0,0,0.14)] sm:right-5"
+            className="fixed md:bottom-[92px] bottom-[68px] right-4 z-[80] flex h-[min(calc(100dvh-104px),clamp(620px,73dvh,820px))] w-[min(calc(100vw-28px),clamp(380px,25vw,516px))] flex-col overflow-hidden rounded-lg border border-neutral-1000-a10 bg-bg-floating font-sans shadow-(--shadow-lg) sm:right-5"
           >
             <WidgetHeader copy={copy} onClose={() => setOpen(false)} />
 
@@ -1153,7 +1153,7 @@ export default function CustomCrispWidget({
                           layout
                           initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="rounded-lg bg-black/5 px-3 py-2 text-[12px] leading-5 text-black/80"
+                          className="rounded-lg bg-surface-tint px-3 py-2 text-[12px] leading-5 text-neutral-primary/80"
                         >
                           <ReplyNoticeText
                             email={replyEmail}

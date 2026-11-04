@@ -192,7 +192,7 @@ export const OpportunityHeader = ({
             ) : (
               <div
                 className={cn(
-                  "flex items-center justify-center bg-black text-neutral-00",
+                  "flex items-center justify-center bg-surface-inverse text-neutral-00",
                   compact ? "h-8 w-8 rounded-md" : "h-10 w-10 rounded-lg"
                 )}
               >
@@ -326,7 +326,7 @@ export const HistoryOpportunityOverview = ({
       />
 
       {hasRecommendationContent && (
-        <div className="mt-6 flex w-full flex-col gap-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating p-3 text-[13px] leading-6 text-neutral-primary shadow-sm sm:rounded-2xl sm:p-4 sm:text-sm">
+        <div className="mt-6 flex w-full flex-col gap-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating p-3 text-[13px] leading-6 text-neutral-primary shadow-(--shadow-sm) sm:rounded-2xl sm:p-4 sm:text-sm">
           <div className="flex w-full flex-row items-center justify-between gap-3 text-neutral-muted">
             <div className="min-w-0">
               {t("career.common.career.1xe09ft", "Harper가 요약한 정보")}

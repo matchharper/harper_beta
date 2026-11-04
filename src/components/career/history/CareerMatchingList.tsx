@@ -38,7 +38,7 @@ import type {
 } from "@/lib/career/matching/listTypes";
 
 const sidePanel =
-  "h-dvh max-h-dvh rounded-none border-0 border-l border-neutral-1000-a05 shadow-lg data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100 motion-reduce:animate-none";
+  "h-dvh max-h-dvh rounded-none border-0 border-l border-neutral-1000-a05 shadow-(--shadow-lg) data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100 motion-reduce:animate-none";
 
 function LoadingRows() {
   return (
@@ -230,7 +230,7 @@ function MatchingPanels({
       onClose={onClose}
       title={listTitle}
       overlayClassName="items-stretch justify-end p-0 sm:p-0"
-      backdropClassName="bg-black/10 backdrop-blur-none motion-reduce:animate-none"
+      backdropClassName="bg-surface-inverse/10 backdrop-blur-none motion-reduce:animate-none"
       panelClassName={`${sidePanel} ${selected ? "max-w-[560px] lg:max-w-[980px]" : "max-w-[420px]"}`}
       showCloseButton={false}
       headerClassName="sr-only"

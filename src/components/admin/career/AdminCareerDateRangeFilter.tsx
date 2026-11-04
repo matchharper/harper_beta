@@ -46,33 +46,33 @@ export default function AdminCareerDateRangeFilter({
   const hasAppliedDate = Boolean(appliedStartDate || appliedEndDate);
 
   return (
-    <Card className="rounded-md border-black/10 shadow-none">
+    <Card className="rounded-md border-stroke shadow-none">
       <CardContent className="grid gap-4 p-4 lg:grid-cols-[1fr_1fr] lg:items-start">
         <div className="space-y-3">
           <div>
-            <div className="inline-flex items-center gap-2 text-[13px] font-semibold text-black">
+            <div className="inline-flex items-center gap-2 text-[13px] font-semibold text-neutral-primary">
               <CalendarDays className="h-4 w-4" aria-hidden />
               {title}
             </div>
-            <div className="mt-1 text-[12px] leading-5 text-black/50">
+            <div className="mt-1 text-[12px] leading-5 text-neutral-primary/50">
               {description}
             </div>
           </div>
 
-          <div className="grid gap-2 text-[12px] text-black/55 sm:grid-cols-2">
-            <div className="border border-black/10 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-black/35">
+          <div className="grid gap-2 text-[12px] text-neutral-primary/55 sm:grid-cols-2">
+            <div className="border border-stroke px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-neutral-primary/35">
                 Draft
               </div>
-              <div className="mt-1 font-medium text-black">
+              <div className="mt-1 font-medium text-neutral-primary">
                 {formatDate(value?.from)} ~ {formatDate(value?.to)}
               </div>
             </div>
-            <div className="border border-black/10 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-black/35">
+            <div className="border border-stroke px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-neutral-primary/35">
                 Applied
               </div>
-              <div className="mt-1 font-medium text-black">
+              <div className="mt-1 font-medium text-neutral-primary">
                 {formatAppliedRange(appliedStartDate, appliedEndDate)}
               </div>
             </div>
@@ -92,7 +92,7 @@ export default function AdminCareerDateRangeFilter({
               type="button"
               variant="secondary"
               size="sm"
-              className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
+              className="h-8 rounded-none border-stroke-strong/15 bg-bg-floating text-[12px] text-neutral-primary shadow-none"
               onClick={onReset}
               disabled={(!hasDraftDate && !hasAppliedDate) || isFetching}
             >

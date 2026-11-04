@@ -140,6 +140,7 @@ import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 import { normalizeCareerPendingActionReference } from "@/lib/career/pendingActions";
+import { readCareerActionItem } from "@/lib/career/actionItems.server";
 import {
   extractRecommendJobPostingsReceipt,
   type RecommendJobPostingsReceipt,
@@ -184,6 +185,7 @@ type Body = {
   opportunityMentions?: unknown;
   viewedRoleId?: unknown;
   pendingAction?: unknown;
+  actionItem?: { id?: unknown; revision?: unknown };
   textChatModel?: unknown;
   promptVariant?: unknown;
   conversationVersion?: unknown;
@@ -887,6 +889,18 @@ export async function POST(req: NextRequest) {
       ReturnType<typeof fetchActiveInternalFitHoldQuestion>
     > = null;
     let selectedInternalOpportunity: TalentOpportunityHistoryItem | null = null;
+    let selectedActionItem = null;
+    if (body.actionItem !== undefined) {
+      const reference = body.actionItem;
+      if (!reference || typeof reference.id !== "string" || !Number.isSafeInteger(reference.revision) ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reference.id)) {
+        return NextResponse.json({ error: "Invalid action reference" }, { status: 400 });
+      }
+      selectedActionItem = await readCareerActionItem({ admin, userId: user.id, id: reference.id });
+      if (!selectedActionItem || selectedActionItem.revision !== reference.revision) {
+        return NextResponse.json({ error: "This action has changed. Refresh the action list before responding." }, { status: 409 });
+      }
+    }
 
     if (talentSetting?.is_onboarding_done && pendingActionReference) {
       if (pendingActionReference.kind === "company_request") {
@@ -974,6 +988,7 @@ export async function POST(req: NextRequest) {
         p_user_id: user.id, p_conversation_id: conversationId, p_content: normalizedContent,
         p_message_type: userMessageType, p_is_mobile: isMobile,
         p_payload: { ...initialCareerCapabilityPayload(capabilityMode), careerTextChatModel: textChatModel.model,
+          ...(selectedActionItem ? { careerActionItem: selectedActionItem } : {}),
           careerConversationVersion: conversationVersion, clientRequestId: body.clientRequestId ?? crypto.randomUUID(),
           ...(promptExperiment ? { careerPromptExperiment: promptExperiment } : {}),
           ...(viewedOpportunity ? { viewedOpportunity: { roleId: viewedOpportunity.roleId, label: `${viewedOpportunity.companyName} · ${viewedOpportunity.title}` } } : {}),
@@ -999,6 +1014,7 @@ export async function POST(req: NextRequest) {
             content: normalizedContent,
             message_type: userMessageType,
             payload: {
+              ...(selectedActionItem ? { careerActionItem: selectedActionItem } : {}),
               ...(trackCapabilities ? initialCareerCapabilityPayload(capabilityMode) : {}),
               careerTextChatModel: textChatModel.model,
               careerConversationVersion: conversationVersion,
@@ -1239,6 +1255,7 @@ export async function POST(req: NextRequest) {
       .filter((value): value is string => Boolean(value))
       .join("\n\n");
     const currentPromptArgs = (): Parameters<typeof buildCareerConversationPromptPlan>[0] => ({
+        isMobile,
         activeInternalFitHoldQuestion,
         conversationVersion,
         careerCoachingActivity,
@@ -1428,6 +1445,7 @@ export async function POST(req: NextRequest) {
       };
       return { response, profileSnapshot };
     };
+    let emitTurnProgress: ((message: TalentMessageResponse) => void) | null = null;
     let emitToolStatus: ((message: string) => void) | null = null;
     let emitRecommendationStatus:
       | ((status: RecommendJobPostingStatus) => void)
@@ -1442,6 +1460,9 @@ export async function POST(req: NextRequest) {
       thinkingLogs = appendThinkingLog(thinkingLogs, normalized);
       if (previousLast !== normalized) {
         emitToolStatus?.(normalized);
+        void messageWriter?.logs(thinkingLogs).then(row => {
+          if (row) emitTurnProgress?.(toResponseMessage(row));
+        });
       }
     };
     const recordRecommendationStatus = (
@@ -1652,6 +1673,7 @@ export async function POST(req: NextRequest) {
           };
           emitArtifactMessage = (message) =>
             send("artifact_message", { message, suppressRolePreviews });
+          emitTurnProgress = (message) => send("assistant_progress", { message });
           emitToolStatus = (message) => send("tool_status", { message });
           emitRecommendationStatus = (status) =>
             send("recommendation_search_status", status);
@@ -1681,6 +1703,7 @@ export async function POST(req: NextRequest) {
             send("text_delta", { delta: visibleDelta });
           };
           const flushVisibleText = (finalText: string) => {
+            if (messageWriter) return;
             if (!finalText.startsWith(streamedAssistantText)) {
               pendingAssistantText = "";
               streamedAssistantText = finalText;
@@ -1703,7 +1726,7 @@ export async function POST(req: NextRequest) {
             if (!message) return;
             flushVisibleText(messageWriter ? message.content : content);
             if (messageWriter) {
-              committedAssistantText = message.content;
+              committedAssistantText = content;
               send("assistant_progress", { message: toResponseMessage(message) });
               onArtifactMessage(toResponseMessage(message), false);
               return;
@@ -1736,6 +1759,8 @@ export async function POST(req: NextRequest) {
               message: toResponseMessage(insertedUserMessage as TalentMessageRow),
             });
             if(suppressRolePreviews) send("application_mode", {suppressRolePreviews:true});
+            const initialActivity = await messageWriter?.start();
+            if (initialActivity) send("assistant_progress", { message: toResponseMessage(initialActivity) });
             let assistantText: string;
             try {
               assistantText = await runCareerChatAssistantStream({
@@ -1750,11 +1775,14 @@ export async function POST(req: NextRequest) {
                 stopAfterToolNames: toolSelection.stopAfterToolNames,
                 systemBlocks,
                 responseLocale,
-                onTextDelta: (delta) => {
-                  if (!recommendationToolStarted) sendVisibleTextDelta(delta);
+                onTextDelta: async (delta) => {
+                  if (messageWriter) {
+                    const row = await messageWriter.delta(stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(delta)), thinkingLogs);
+                    if (row) send("assistant_progress", { message: toResponseMessage(row) });
+                  } else if (!recommendationToolStarted) sendVisibleTextDelta(delta);
                 },
                 onAssistantMessage: commitAssistantProgress,
-                onToolStart: (tool) => {
+                onToolStart: async (tool) => {
                   if (tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
                     recommendationToolStarted = true;
                     markRecommendationStatusAnchor();
@@ -2151,6 +2179,7 @@ export async function POST(req: NextRequest) {
           } finally {
             await releaseAgentTurn?.();
             emitArtifactMessage = null;
+            emitTurnProgress = null;
             emitToolStatus = null;
             emitRecommendationStatus = null;
             emitOpportunityRecommendationsChanged = null;

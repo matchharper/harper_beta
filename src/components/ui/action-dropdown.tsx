@@ -42,7 +42,7 @@ export function ActionDropdown({
         side={side}
         sideOffset={sideOffset}
         className={cn(
-          "rounded-[12px] border border-neutral-1000-a05 bg-bg-floating/95 p-1 text-neutral-primary shadow-[0_18px_40px_rgba(31,28,26,0.12)] backdrop-blur-md",
+          "rounded-menu border-(length:--menu-border-width) border-menu-border bg-menu bg-menu-image text-menu-foreground  backdrop-blur-menu p-1",
           contentClassName
         )}
       >

@@ -141,7 +141,7 @@ function ChatMessageList({
         const isUser = m.role === "user";
         const bubbleCls = isUser
           ? isDark
-            ? "ml-auto border border-neutral-00/10 bg-black/70 text-neutral-00/90 py-3 px-4"
+            ? "ml-auto border border-neutral-00/10 bg-surface-inverse/70 text-neutral-00/90 py-3 px-4"
             : "ml-auto border border-neutral-1000-a05 bg-bg-floating text-neutral-primary py-3 px-4"
           : isDark
             ? "bg-transparent text-neutral-00/80 mt-1"

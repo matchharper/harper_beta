@@ -151,14 +151,14 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 w-full transition-all duration-200">
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-surface-inverse/40 backdrop-blur-overlay"
         onClick={onClose}
       />
 
       <div
         className={`relative z-50 w-full ${
           requestSent ? "max-w-[580px]" : "max-w-[640px]"
-        } rounded-[28px] bg-bg-default p-6 shadow-sm border border-neutral-1000-a05`}
+        } rounded-sheet bg-bg-default p-6 shadow-(--shadow-sm) border border-neutral-1000-a05`}
       >
         <NameProfile
           id={candidId}
@@ -212,7 +212,7 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
         <div className="w-full mt-8 flex flex-row items-end justify-end gap-2 transition-colors duration-200">
           {requestSent && (
             <BareButton
-              className="inline-flex items-center justify-center rounded-xl bg-black px-6 py-3 text-sm font-medium text-neutral-00 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex items-center justify-center rounded-xl bg-surface-inverse px-6 py-3 text-sm font-medium text-neutral-00 disabled:cursor-not-allowed disabled:opacity-70"
               onClick={() => {
                 onConfirm();
                 onClose();
@@ -234,7 +234,7 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
                 {m.system.close}
               </BareButton>
               <BareButton
-                className="inline-flex items-center justify-center rounded-xl bg-black px-6 py-3 text-sm font-medium text-neutral-00 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex items-center justify-center rounded-xl bg-surface-inverse px-6 py-3 text-sm font-medium text-neutral-00 disabled:cursor-not-allowed disabled:opacity-70"
                 onClick={onConfirmHandler}
               >
                 {isRequested ? "요청 취소" : "Intro 요청하기"}

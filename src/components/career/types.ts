@@ -1,3 +1,4 @@
+import type { CareerTurnEvent } from "@/lib/career/turnDisplay";
 import type { EstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
 import type { ApplicationQuestionHistory } from "@/lib/career/simulation/questionHistory";
 import type { ApplicationDraft } from "@/lib/career/simulation/preparation";
@@ -516,6 +517,7 @@ export type CareerMessage = {
   recommendationSearchRelation?: OpportunityRunMarkerRelation | null;
   recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
+  workEvents?: CareerTurnEvent[];
   workReplyId?: string;
   workStartedAt?: string;
   workCompletedAt?: string;
@@ -554,6 +556,7 @@ export type CareerMessagePayload = {
   recommendationSearchRelation?: OpportunityRunMarkerRelation | null;
   recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
+  workEvents?: CareerTurnEvent[];
   workReplyId?: string;
   workStartedAt?: string;
   workCompletedAt?: string;

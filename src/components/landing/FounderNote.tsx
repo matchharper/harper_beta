@@ -11,7 +11,7 @@ const FounderNote = () => {
     <Reveal>
       <BaseSectionLayout>
         <div className="w-[90%] max-w-[600px] flex flex-col">
-          <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
+          <div className="flex flex-col items-start gap-4 bg-bg-floating/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
             <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-neutral-500">
               <span
                 dangerouslySetInnerHTML={{

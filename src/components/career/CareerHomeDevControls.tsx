@@ -682,7 +682,7 @@ export default function CareerHomeDevControls({
   return (
     <div
       data-career-i18n-skip="true"
-      className="mt-5 rounded-2xl border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 shadow-sm"
+      className="mt-5 rounded-2xl border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 shadow-(--shadow-sm)"
     >
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <Text as="div" type="eyebrow">
@@ -1323,7 +1323,7 @@ export default function CareerHomeDevControls({
                     logCareerEvent("click_home_dev_sql_prompt_history");
                     setDevSqlRequest(prompt);
                   }}
-                  className="max-w-full rounded-lg border border-neutral-1000-a05 bg-bg-floating px-2.5 py-1.5 text-left text-[12px] leading-4 text-neutral-primary transition-colors hover:border-neutral-800/40 hover:bg-bg-weak focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                  className="max-w-full rounded-button border border-neutral-1000-a05 bg-bg-floating px-2.5 py-1.5 text-left text-[12px] leading-4 text-neutral-primary transition-colors hover:border-neutral-800/40 hover:bg-bg-weak focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
                 >
                   <span className="block max-w-[240px] truncate sm:max-w-[320px]">
                     {prompt}
@@ -1340,7 +1340,7 @@ export default function CareerHomeDevControls({
           </div>
         ) : null}
         {devSqlDraft ? (
-          <div className="mt-3 space-y-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3 py-3 shadow-sm">
+          <div className="mt-3 space-y-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3 py-3 shadow-(--shadow-sm)">
             {devSqlDraft.explanation ? (
               <Text as="div" type="caption" className="text-neutral-primary">
                 {devSqlDraft.explanation}

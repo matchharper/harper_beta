@@ -54,7 +54,7 @@ export default function OfficialJobsExperience({
         {showAbout && (
           <JobsSection id="about-harper" title="About Harper">
             <DemoVideo playerName="Harper jobs page" />
-            <span className="mt-2 text-black/70 text-sm">
+            <span className="mt-2 text-neutral-primary/70 text-sm">
               Turn on the sound!
             </span>
           </JobsSection>
@@ -116,7 +116,7 @@ export default function OfficialJobsExperience({
             job={job}
             locale={locale}
             size="lg"
-            className="mt-8 h-12 rounded-full border-black bg-black px-5 text-base font-medium text-white shadow-sm transition-colors hover:bg-neutral-800 md:h-14 md:px-6"
+            className="mt-8 h-12 rounded-full border-stroke-strong bg-surface-inverse px-5 text-base font-medium text-on-inverse shadow-(--shadow-sm) transition-colors hover:bg-neutral-800 md:h-14 md:px-6"
             onClick={() => {
               void postOfficialJobEvent({
                 eventType: job ? "job_apply_click" : "jobs_cta_click",

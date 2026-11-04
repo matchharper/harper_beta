@@ -136,7 +136,7 @@ const CareerCallNoteDetail = ({
         </nav>
       </div>
 
-      <article className="relative min-h-[480px] rounded-xl border border-neutral-1000-a05 bg-bg-floating px-5 py-6 shadow-sm sm:px-6 sm:py-6 md:min-h-[calc(100svh-180px)]">
+      <article className="relative min-h-[480px] rounded-xl border border-neutral-1000-a05 bg-bg-floating px-5 py-6 shadow-(--shadow-sm) sm:px-6 sm:py-6 md:min-h-[calc(100svh-180px)]">
         {loading ? (
           <div
             aria-live="polite"

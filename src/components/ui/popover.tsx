@@ -28,7 +28,7 @@ const PopoverContent = React.forwardRef<
       className={cn(
         "z-[100] outline-none",
         surface &&
-          "rounded-lg border border-neutral-1000-a10 bg-bg-floating shadow-lg",
+          "rounded-popover border-(length:--popover-border-width) border-popover-border bg-popover bg-popover-image text-popover-foreground shadow-(--shadow-popover) backdrop-blur-popover",
         className
       )}
       ref={ref}

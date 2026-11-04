@@ -89,7 +89,7 @@ export function OrgPassPopover({
         <Popover.Content
           align="end"
           sideOffset={8}
-          className="z-[100] max-h-[var(--radix-popover-content-available-height)] w-72 overflow-y-auto rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-lg"
+          className="z-[100] max-h-[var(--radix-popover-content-available-height)] w-72 overflow-y-auto rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-(--shadow-lg)"
           aria-label={c("Pass 이유", "Reason for passing")}
         >
           <form

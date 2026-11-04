@@ -70,7 +70,7 @@ export default function CareerOpportunityPreviewCard({
     <ClickablePanel
       onActivate={onActivate}
       className={cn(
-        "group relative flex min-w-0 shrink-0 cursor-pointer flex-col gap-4 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-4 py-4 text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak",
+        "group relative flex min-w-0 shrink-0 cursor-pointer flex-col gap-4 rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-4 text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak",
         className
       )}
       aria-label={t(
@@ -104,11 +104,11 @@ export default function CareerOpportunityPreviewCard({
               <img
                 src={item.companyLogoUrl}
                 alt={item.companyName}
-                className="h-11 w-11 shrink-0 rounded-[8px] border border-neutral-1000-a05 bg-bg-default object-cover"
+                className="h-11 w-11 shrink-0 rounded-md border border-neutral-1000-a05 bg-bg-default object-cover"
               />
             </>
           ) : (
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] bg-black text-neutral-00">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-surface-inverse text-neutral-00">
               <Building2 className="h-4 w-4" />
             </div>
           )}

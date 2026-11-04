@@ -1,4 +1,5 @@
 import { buildCareerMainPrompt } from "./mainPrompts";
+import { CAREER_ACTION_ITEMS_GUIDE, buildCareerActionItemsContext, type CareerActionItem } from "../actionItems";
 import type { CareerConversationVersion } from "../conversationVersion";
 import { careerTextChatDisplayRules } from "./mainPrompt2";
 import { orderCareerPromptBlocksForCaching } from "./promptCaching";
@@ -128,6 +129,8 @@ export function buildCareerConversationPromptPlan(args: {
   careerCoachingActivity?: CareerCoachingActivity | null;
   channel: CareerPromptChannel;
   backgroundInvocation?: boolean;
+  isMobile?: boolean | null;
+  actionItems?: CareerActionItem[] | null;
   companyTalentRequestText?: string | null;
   conversationMode?: CareerConversationPromptMode;
   mockInterviewContext?: MockInterviewContext | null;
@@ -240,6 +243,10 @@ export function buildCareerConversationPromptPlan(args: {
   // 원본 블록을 조립한 뒤 고정 지침 → Profile → Brief/Memory → 도구 정책·
   // runtime state 순서로 배치한다. 블록의 본문과 제공 데이터는 보존한다.
   const promptBlocks: CareerPromptBlock[] = [];
+  if (!isOnboardingActive && normalizedToolNames.includes("manage_action_items")) {
+    promptBlocks.push({ key: "visible_actions_guide", text: CAREER_ACTION_ITEMS_GUIDE, cacheable: true });
+    promptBlocks.push({ key: "visible_actions", text: buildCareerActionItemsContext(args.actionItems ?? null, args.isMobile) });
+  }
   const promptVars = {
     channel_context_rules: channelContextRules,
     output_language: outputLanguage,

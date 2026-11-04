@@ -276,7 +276,7 @@ function PreviewHome() {
       </OrgSection>
       <div className="mt-10 grid w-full max-w-[660px] grid-cols-3 gap-3 sm:mt-12">
         <CardButton
-          className="min-h-[132px] min-w-0 flex-col items-start gap-0 rounded-xl border-neutral-1000-a10 bg-bg-default px-4 py-4 shadow-none hover:border-neutral-1000-a20 hover:bg-bg-weak"
+          className="min-h-[132px] min-w-0 flex-col items-start gap-0    px-4 py-4 shadow-none hover:border-neutral-1000-a20 hover:bg-bg-weak"
           onClick={() => undefined}
         >
           <span className="mb-3 flex size-8 shrink-0 items-center justify-center rounded-md bg-bg-weak">
@@ -295,7 +295,7 @@ function PreviewHome() {
           </span>
         </CardButton>
         <CardButton
-          className="min-h-[132px] min-w-0 flex-col items-start gap-0 rounded-xl border-neutral-1000-a10 bg-bg-default px-4 py-4 shadow-none hover:border-neutral-1000-a20 hover:bg-bg-weak"
+          className="min-h-[132px] min-w-0 flex-col items-start gap-0    px-4 py-4 shadow-none hover:border-neutral-1000-a20 hover:bg-bg-weak"
           onClick={() => undefined}
         >
           <span className="mb-3 flex size-8 shrink-0 items-center justify-center rounded-md bg-bg-weak text-[12px] font-medium text-neutral-muted">
@@ -309,7 +309,7 @@ function PreviewHome() {
           </span>
         </CardButton>
         <CardButton
-          className="min-h-[132px] min-w-0 flex-col items-start gap-0 rounded-xl border-neutral-1000-a10 bg-bg-default px-4 py-4 shadow-none hover:border-neutral-1000-a20 hover:bg-bg-weak"
+          className="min-h-[132px] min-w-0 flex-col items-start gap-0    px-4 py-4 shadow-none hover:border-neutral-1000-a20 hover:bg-bg-weak"
           onClick={() => undefined}
         >
           <span className="mb-3 flex size-8 shrink-0 items-center justify-center rounded-md bg-bg-weak">

@@ -53,7 +53,7 @@ const NameProfile = ({
             className="truncate font-medium text-lg hover:underline cursor-pointer relative"
             onClick={() => router.push(`/my/p/${id}`)}
           >
-            {/* <div className="absolute inset-0 bg-white/10 z-10 blur-xl rounded-full"></div> */}
+            {/* <div className="absolute inset-0 bg-bg-floating/10 z-10 blur-xl rounded-full"></div> */}
             {name ?? id}
           </div>
 
@@ -143,8 +143,8 @@ export function Avatar({
     <div className="relative">
       {image()}
       {isProfileRevealed ? null : (
-        <div className="flex items-center justify-center absolute w-full h-full top-0 left-0 bg-white/10 z-10 backdrop-blur-md rounded-full">
-          <Lock className="w-4 h-4 text-black/90" />
+        <div className="flex items-center justify-center absolute w-full h-full top-0 left-0 bg-bg-floating/10 z-10 backdrop-blur-md rounded-full">
+          <Lock className="w-4 h-4 text-neutral-primary/90" />
         </div>
       )}
     </div>

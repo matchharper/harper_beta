@@ -190,7 +190,7 @@ const AppHeader = ({ topClassName = "top-0" }: AppHeaderProps) => {
             type="button"
             onClick={handleCloseModal}
             aria-label="Close login modal"
-            className="absolute inset-0 bg-black/40"
+            className="absolute inset-0 bg-surface-inverse/40"
           />
 
           <div className="relative z-10 w-full max-w-[460px] rounded-xl border border-neutral-1000-a10 bg-bg-default p-6">

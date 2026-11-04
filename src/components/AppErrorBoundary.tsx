@@ -89,7 +89,7 @@ class AppErrorBoundary extends React.Component<
         className="notranslate flex min-h-svh items-center justify-center bg-bg-basement px-5 py-10 text-neutral-primary"
         translate="no"
       >
-        <section className="w-full max-w-[420px] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-5 shadow-sm">
+        <section className="w-full max-w-[420px] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-5 shadow-(--shadow-sm)">
           <p className="text-[13px] font-medium text-neutral-soft">Harper</p>
           <h1 className="mt-3 text-xl font-medium leading-7">
             페이지를 다시 불러와야 합니다

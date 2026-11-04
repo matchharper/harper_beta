@@ -453,7 +453,7 @@ export default function DataGrid({
                         onClick={() => onColumnMenu(column.key)}
                       >
                         {filtered ? (
-                          <Filter size={13} color="#1a73e8" />
+                          <Filter size={13} color="var(--color-grid-accent)" />
                         ) : (
                           <ChevronDown size={13} />
                         )}
@@ -703,7 +703,7 @@ export default function DataGrid({
                               style={{
                                 width: "100%",
                                 height: 28,
-                                border: "1px solid #c9cdd2",
+                                border: "1px solid var(--color-grid-border)",
                               }}
                             />
                             <select
@@ -807,7 +807,7 @@ export default function DataGrid({
       {edit && !error && (
         <div
           className={styles.error}
-          style={{ background: "#e8f0fe", color: "#174ea6" }}
+          style={{ background: "var(--color-grid-selected)", color: "var(--color-grid-link)" }}
         >
           {saving
             ? "자동 저장 중…"

@@ -88,7 +88,7 @@ export const CompanyCard = ({
         {activeTab === "following" ? (
           <></>
         ) : (
-          <div className="min-w-0 rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-2 shadow-sm">
+          <div className="min-w-0 rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-2 shadow-(--shadow-sm)">
             <div className="text-[12px] font-medium text-neutral-muted">
               {reasonLabel}
             </div>

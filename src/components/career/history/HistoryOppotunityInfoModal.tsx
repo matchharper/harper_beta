@@ -297,7 +297,7 @@ const HistoryOpportunityInfoModal = ({
       onClose={onClose}
       title={copy.title}
       description={copy.description}
-      panelClassName="max-w-[680px] border border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-[680px]   "
       headerClassName="border-neutral-1000-a05 px-5 py-5 sm:px-6"
       bodyClassName="max-h-[72svh] overflow-y-auto bg-bg-floating px-5 py-5 pb-10 sm:px-6"
     >

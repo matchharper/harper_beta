@@ -222,7 +222,7 @@ export const HistoryNegativeFeedbackModal = ({
       onClose={onClose}
       title={negativeFeedbackModalCopy.title}
       description={negativeFeedbackModalCopy.description}
-      panelClassName="max-w-[620px] border border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-[620px]   "
       bodyClassName="bg-bg-floating px-5 py-5"
       footer={
         <div className="flex items-center justify-end gap-2">
@@ -323,7 +323,7 @@ export const HistoryMemoModal = ({
         "career.history.feedback_modal.1m0q35j",
         "해당 포지션을 다시 볼 때 참고할 내용을 적어둘 수 있습니다."
       )}
-      panelClassName="max-w-[520px] border border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-[520px]   "
       bodyClassName="bg-bg-floating px-5 py-5"
       footer={
         <div className="flex items-center justify-end gap-2">

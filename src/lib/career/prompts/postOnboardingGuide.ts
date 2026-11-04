@@ -67,7 +67,7 @@ export function buildCareerPostOnboardingContextSection(args: {
       : []
     : toolNames.has("get_internal_roles")
       ? [
-          "- No exact active internal roleId is verified for this source. If the candidate explicitly wants Harper to pursue it, use get_internal_roles to resolve currently available roles before taking any role-specific action.",
+          "- No exact active internal roleId is verified for this source. If the candidate explicitly wants Harper to pursue it, use get_internal_roles to resolve that specific public posting before taking any role-specific action; do not broaden into other internal roles.",
         ]
       : [
           "- No exact active internal roleId is verified for this source. Acknowledge the source interest if relevant, but do not promise that this exact role is directly connectable.",

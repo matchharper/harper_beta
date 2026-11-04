@@ -203,7 +203,7 @@ function DateRangeButton({
         type="button"
         variant="secondary"
         size="sm"
-        className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
+        className="h-8 rounded-none border-stroke-strong/15 bg-bg-floating text-[12px] text-neutral-primary shadow-none"
         onClick={openCalendar}
         disabled={disabled}
       >
@@ -219,7 +219,7 @@ function DateRangeButton({
         <div
           role="dialog"
           aria-label="Experiment date range"
-          className="absolute right-0 top-[calc(100%+6px)] z-50 w-[316px] border border-black/10 bg-white p-2 shadow-xl"
+          className="absolute right-0 top-[calc(100%+6px)] z-50 w-[316px] border border-stroke bg-bg-floating p-2 shadow-(--shadow-xl)"
         >
           <Calendar
             mode="range"
@@ -229,10 +229,10 @@ function DateRangeButton({
             disabled={{ after: new Date() }}
             className="p-2 text-[12px] [--cell-size:1.85rem]"
           />
-          <div className="mt-2 flex items-center justify-end gap-2 border-t border-black/10 pt-2">
+          <div className="mt-2 flex items-center justify-end gap-2 border-t border-stroke pt-2">
             <BareButton
               type="button"
-              className="h-7 px-2 text-[11px] text-black/55 disabled:opacity-40"
+              className="h-7 px-2 text-[11px] text-neutral-primary/55 disabled:opacity-40"
               onClick={reset}
               disabled={
                 !draftDateRange?.from && !value.startDate && !value.endDate
@@ -242,7 +242,7 @@ function DateRangeButton({
             </BareButton>
             <BareButton
               type="button"
-              className="h-7 bg-black px-2.5 text-[11px] font-medium text-white"
+              className="h-7 bg-surface-inverse px-2.5 text-[11px] font-medium text-on-inverse"
               onClick={apply}
             >
               확인
@@ -257,10 +257,10 @@ function DateRangeButton({
 function MetricCell({ count, rate }: { count: number; rate: number | null }) {
   return (
     <div className="text-right">
-      <div className="text-[13px] font-semibold text-black">
+      <div className="text-[13px] font-semibold text-neutral-primary">
         {formatCount(count)}
       </div>
-      <div className="text-[11px] text-black/45">{formatRate(rate)}</div>
+      <div className="text-[11px] text-neutral-primary/45">{formatRate(rate)}</div>
     </div>
   );
 }
@@ -310,10 +310,10 @@ export default function AdminCareerExperimentTab({
         </Card>
       ) : null}
 
-      <Card className="rounded-md border-black/10 shadow-none">
+      <Card className="rounded-md border-stroke shadow-none">
         <CardContent className="p-0">
           {!hasHydratedDateRange || query.isLoading ? (
-            <div className="flex items-center gap-2 p-4 text-[12px] text-black/50">
+            <div className="flex items-center gap-2 p-4 text-[12px] text-neutral-primary/50">
               <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
               Loading
             </div>
@@ -321,7 +321,7 @@ export default function AdminCareerExperimentTab({
             <div className="overflow-x-auto">
               <Table className="min-w-[720px]">
                 <TableHeader>
-                  <TableRow className="border-black/10 hover:bg-transparent">
+                  <TableRow className="border-stroke hover:bg-transparent">
                     <TableHead className="h-9 px-3 text-[11px]">Flow</TableHead>
                     <TableHead className="h-9 px-3 text-right text-[11px]">
                       Entry
@@ -339,13 +339,13 @@ export default function AdminCareerExperimentTab({
                 </TableHeader>
                 <TableBody>
                   {(query.data?.variants ?? []).map((variant) => (
-                    <TableRow key={variant.key} className="border-black/10">
+                    <TableRow key={variant.key} className="border-stroke">
                       <TableCell className="px-3 py-3">
-                        <div className="text-[13px] font-semibold text-black">
+                        <div className="text-[13px] font-semibold text-neutral-primary">
                           {variant.label}
                         </div>
                       </TableCell>
-                      <TableCell className="px-3 py-3 text-right text-[13px] font-semibold text-black">
+                      <TableCell className="px-3 py-3 text-right text-[13px] font-semibold text-neutral-primary">
                         {formatCount(variant.entryCount)}
                       </TableCell>
                       <TableCell className="px-3 py-3">

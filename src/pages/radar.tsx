@@ -72,7 +72,7 @@ type OutputItem = {
 const outputItems: OutputItem[] = [
   {
     key: "repo_signals",
-    icon: <Github className="h-5 w-5 text-white/80" />,
+    icon: <Github className="h-5 w-5 text-on-inverse/80" />,
     title: "Repository analysis",
     desc: "Explore commit history, maintenance patterns, ownership signals, and long-term project activity.",
     stats: [
@@ -85,7 +85,7 @@ const outputItems: OutputItem[] = [
   },
   {
     key: "project_signals",
-    icon: <FolderOpen className="h-5 w-5 text-white/80" />,
+    icon: <FolderOpen className="h-5 w-5 text-on-inverse/80" />,
     title: "Project discovery",
     desc: "Search for real systems, pipelines, datasets, tools, and technical work using natural language.",
     stats: [
@@ -98,7 +98,7 @@ const outputItems: OutputItem[] = [
   },
   {
     key: "publication_signals",
-    icon: <BookOpen className="h-5 w-5 text-white/80" />,
+    icon: <BookOpen className="h-5 w-5 text-on-inverse/80" />,
     title: "Papers and publications",
     desc: "Explore papers, citations, venues, and research themes across fast-moving technical fields.",
     stats: [
@@ -171,7 +171,7 @@ function NavItem({
     <BareButton
       type="button"
       onClick={onClick}
-      className={`flex cursor-pointer items-center justify-between gap-2 rounded-full py-2 transition-colors duration-200 hover:bg-white/5 hover:opacity-95 ${
+      className={`flex cursor-pointer items-center justify-between gap-2 rounded-full py-2 transition-colors duration-200 hover:bg-bg-floating/5 hover:opacity-95 ${
         isArrowRight ? "pl-5 pr-3" : "px-5"
       }`}
     >
@@ -198,12 +198,12 @@ const StartButton = React.memo(function StartButton({
       type="button"
       onClick={onClick}
       className={[
-        "group relative z-10 cursor-pointer rounded-full bg-accent-200 font-medium text-black",
+        "group relative z-10 cursor-pointer rounded-full bg-accent-200 font-medium text-neutral-primary",
         "ring-1 ring-white/10",
-        "shadow-[0_12px_40px_rgba(180,255,120,0.25)]",
+        "shadow-(--shadow-marketing-glow)",
         "transition-all duration-200",
-        "hover:-translate-y-px hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]",
-        "active:translate-y-0 active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]",
+        "hover:-translate-y-px hover:shadow-(--shadow-marketing-glow)",
+        "active:translate-y-0 active:shadow-(--shadow-marketing-glow)",
         sizeClass,
       ].join(" ")}
     >
@@ -223,13 +223,13 @@ function CoverageCard({
 }) {
   return (
     <div className="w-full rounded-2xl px-6 py-6 text-center">
-      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white/5">
-        <Icon className="h-5 w-5 text-white/80" />
+      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-bg-floating/5">
+        <Icon className="h-5 w-5 text-on-inverse/80" />
       </div>
-      <div className="mt-6 text-5xl font-medium text-white md:text-6xl">
+      <div className="mt-6 text-5xl font-medium text-on-inverse md:text-6xl">
         {value}
       </div>
-      <div className="mt-6 text-lg font-light text-white/85 md:text-xl">
+      <div className="mt-6 text-lg font-light text-on-inverse/85 md:text-xl">
         {label}
       </div>
     </div>
@@ -302,9 +302,9 @@ function SearchInputPanel({
   }, [isPlaceholderAnimating, nextPlaceholderIdx]);
 
   return (
-    <form onSubmit={onSubmit} className="w-full rounded-[28px] p-3 md:p-5">
-      <div className="relative w-full rounded-[24px] border border-white/10 bg-neutral-900 p-1">
-        <div className="relative rounded-[20px] backdrop-blur-xl">
+    <form onSubmit={onSubmit} className="w-full rounded-sheet p-3 md:p-5">
+      <div className="relative w-full rounded-3xl border border-bg-floating/10 bg-neutral-900 p-1">
+        <div className="relative rounded-2xl backdrop-blur-xl">
           {isQueryEmpty && (
             <div
               className="pointer-events-none absolute left-4 right-16 top-4 overflow-hidden text-sm leading-6 text-neutral-600 md:right-20 md:text-[15px]"
@@ -342,7 +342,7 @@ function SearchInputPanel({
             aria-label="Search repositories and papers"
             rows={2}
             className={[
-              "min-h-[104px] w-full resize-none rounded-[20px] bg-transparent px-4 py-4 pr-16 text-sm leading-6 text-white/95 outline-none md:min-h-[96px] md:pr-20 md:text-[15px]",
+              "min-h-[104px] w-full resize-none rounded-2xl bg-transparent px-4 py-4 pr-16 text-sm leading-6 text-on-inverse/95 outline-none md:min-h-[96px] md:pr-20 md:text-[15px]",
               "placeholder:text-transparent",
             ].join(" ")}
           />
@@ -356,8 +356,8 @@ function SearchInputPanel({
             className={[
               "inline-flex h-10 w-10 items-center justify-center rounded-full transition active:scale-[0.98] md:h-11 md:w-11",
               canSend
-                ? "bg-accent-200 text-black hover:opacity-90"
-                : "cursor-not-allowed bg-white/10 text-white/35",
+                ? "bg-accent-200 text-neutral-primary hover:opacity-90"
+                : "cursor-not-allowed bg-bg-floating/10 text-on-inverse/35",
             ].join(" ")}
           >
             <ArrowUp size={20} />
@@ -384,7 +384,7 @@ function RadarHeader({ onStartClick }: { onStartClick: () => void }) {
   }, []);
 
   return (
-    <header className="fixed left-0 top-0 z-20 w-full text-sm text-white transition-all duration-300">
+    <header className="fixed left-0 top-0 z-20 w-full text-sm text-on-inverse transition-all duration-300">
       <div className="mx-auto flex h-14 w-full max-w-[1200px] items-center justify-between px-4 md:h-20 md:px-8">
         <Link
           href="/"
@@ -393,7 +393,7 @@ function RadarHeader({ onStartClick }: { onStartClick: () => void }) {
           Harper
         </Link>
 
-        <nav className="hidden items-center justify-center gap-2 rounded-full bg-[#444444aa] px-4 py-2 text-sm font-normal text-white backdrop-blur md:flex">
+        <nav className="hidden items-center justify-center gap-2 rounded-full bg-marketing-nav px-4 py-2 text-sm font-normal text-on-inverse backdrop-blur md:flex">
           {navItems.map((item) => (
             <NavItem
               key={item.section}
@@ -562,7 +562,7 @@ export default function RadarLandingPage() {
         />
       </Head>
 
-      <main className="min-h-screen w-full overflow-x-hidden bg-black font-inter text-white">
+      <main className="min-h-screen w-full overflow-x-hidden bg-surface-inverse font-inter text-on-inverse">
         {isOpenLoginModal && (
           <LoginModal
             open={isOpenLoginModal}
@@ -585,7 +585,7 @@ export default function RadarLandingPage() {
 
         <section
           id={RadarSection.Intro}
-          className="relative flex min-h-[78vh] w-full flex-col items-center justify-center overflow-hidden bg-black px-4 pt-20 text-white md:min-h-[84vh] md:px-8 md:pt-28"
+          className="relative flex min-h-[78vh] w-full flex-col items-center justify-center overflow-hidden bg-surface-inverse px-4 pt-20 text-on-inverse md:min-h-[84vh] md:px-8 md:pt-28"
         >
           <div className="absolute left-0 top-0 h-full w-full">
             <div
@@ -613,7 +613,7 @@ export default function RadarLandingPage() {
               </p>
 
               <div className="mt-12 w-full max-w-[820px] md:mt-16">
-                <div className="w-full overflow-hidden rounded-[30px] bg-gradpastel2 p-4 shadow-[0_40px_120px_rgba(0,0,0,0.4)]">
+                <div className="w-full overflow-hidden rounded-4xl bg-gradpastel2 p-4 shadow-(--shadow-lg)">
                   <SearchInputPanel
                     query={query}
                     onQueryChange={setQuery}
@@ -622,7 +622,7 @@ export default function RadarLandingPage() {
                 </div>
               </div>
 
-              <div className="mt-6 text-sm text-white/45">
+              <div className="mt-6 text-sm text-on-inverse/45">
                 No contact information. No messaging. No outreach tools.
               </div>
             </div>
@@ -633,7 +633,7 @@ export default function RadarLandingPage() {
         <Reveal delay={0.08}>
           <BaseSectionLayout>
             <div className="flex w-full flex-col items-center justify-center px-4 text-left md:px-0">
-              <h2 className="mt-8 max-w-[720px] text-center text-xl font-normal text-white md:text-2xl md:leading-[1.2]">
+              <h2 className="mt-8 max-w-[720px] text-center text-xl font-normal text-on-inverse md:text-2xl md:leading-[1.2]">
                 A growing index of technical work across open-source and
                 academic ecosystems.
               </h2>
@@ -652,10 +652,10 @@ export default function RadarLandingPage() {
           <div className="flex w-full flex-col items-center justify-center px-4 text-center md:px-0">
             <Reveal delay={0.08}>
               <div className="flex flex-col items-center justify-center">
-                <Head1 className="text-white">
+                <Head1 className="text-on-inverse">
                   Work first, contributors in context
                 </Head1>
-                <h2 className="mb-12 mt-8 max-w-[820px] text-lg font-light text-white md:mb-20 md:text-xl md:leading-[1.35]">
+                <h2 className="mb-12 mt-8 max-w-[820px] text-lg font-light text-on-inverse md:mb-20 md:text-xl md:leading-[1.35]">
                   Harper reads repositories, commit history, projects, and
                   publications to help you explore how technical work is
                   actually done.
@@ -692,7 +692,7 @@ export default function RadarLandingPage() {
         <Animate>
           <BaseSectionLayout>
             <div className="w-full max-w-[640px] px-4 md:px-0">
-              <div className="flex flex-col items-start gap-4 rounded-2xl bg-white/20 px-5 py-6 md:px-[30px] md:py-8">
+              <div className="flex flex-col items-start gap-4 rounded-2xl bg-bg-floating/20 px-5 py-6 md:px-[30px] md:py-8">
                 <div className="text-left text-[13px] font-normal leading-[26px] text-neutral-500 md:text-base md:leading-[30px]">
                   Harper is not a profile search engine.
                   <br />
@@ -728,12 +728,12 @@ export default function RadarLandingPage() {
         <div className="h-28 md:h-40" />
 
         <Animate duration={0.8}>
-          <section className="relative w-full overflow-hidden bg-black py-10">
+          <section className="relative w-full overflow-hidden bg-surface-inverse py-10">
             <PixelBackground count={380} className="absolute inset-0" />
-            <div className="absolute left-0 top-0 h-[50%] w-full bg-linear-to-t from-transparent to-black" />
+            <div className="absolute left-0 top-0 h-[50%] w-full bg-linear-to-t from-transparent to-surface-inverse" />
 
-            <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-20 text-white md:py-36 md:pb-48">
-              <h2 className="mt-7 text-center text-[32px] font-medium leading-[1.15] text-white/95 md:text-4xl">
+            <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-20 text-on-inverse md:py-36 md:pb-48">
+              <h2 className="mt-7 text-center text-[32px] font-medium leading-[1.15] text-on-inverse/95 md:text-4xl">
                 Repositories and papers
                 <br />
                 are the starting point.
@@ -790,7 +790,7 @@ function PixelBackground({
       {pixels.map((pixel) => (
         <span
           key={pixel.id}
-          className={`absolute block bg-white ${pixel.size} ${pixel.opacity} hover:bg-[#00A335]`}
+          className={`absolute block bg-bg-floating ${pixel.size} ${pixel.opacity} hover:bg-contribution-3`}
           style={{
             left: pixel.left,
             top: pixel.top,

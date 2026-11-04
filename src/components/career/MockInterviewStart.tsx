@@ -89,7 +89,7 @@ export default function MockInterviewStart({
             {item.companyName} · {item.title}
           </span>
         }
-        panelClassName="flex max-h-[calc(100dvh-48px)] max-w-[520px] flex-col rounded-[16px] border-neutral-1000-a05 bg-bg-floating"
+        panelClassName="flex max-h-[calc(100dvh-48px)] max-w-[520px] flex-col   "
         headerClassName="shrink-0 px-5 pb-4 pt-5 pr-14 sm:px-6 sm:pr-14"
         descriptionClassName="min-w-0 break-keep [overflow-wrap:anywhere]"
         bodyClassName="min-h-0 overflow-y-auto px-5 sm:px-6"

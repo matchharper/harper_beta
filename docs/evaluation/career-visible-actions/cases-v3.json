@@ -1,0 +1,492 @@
+{
+  "datasetVersion": "v3",
+  "generalTools": true,
+  "cases": [
+    {
+      "id": "empty_return_two_ready_steps",
+      "mode": "return",
+      "isMobile": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Orbit와 Cedar 지원 준비해둬. 제출 전에 내가 검토할게. 다음에 오면 Orbit 지원서를 먼저 보고 싶어."
+        }
+      ],
+      "facts": "Orbit draft and review form are complete, not submitted, with no deadline. Cedar draft needs the start date requested in form 84; its deadline is today 2026-11-04 23:00 Asia/Seoul, one hour from the current time. No external action is authorized until the requested input/review. No new recommendations, appointments or recurring search. Source works/forms are current.",
+      "items": [],
+      "works": [
+        {
+          "id": "00000000-0000-4000-8000-000000000051",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-51",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Orbit",
+            "instruction": "Orbit 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "검토 폼81과 이력서 준비 완료. 미제출.",
+            "refs": [
+              "form:81"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000052",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-52",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Cedar",
+            "instruction": "Cedar 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "입사 가능일 필요; 다른 부분은 작성됨. 미제출. 마감: 2026-11-04 23:00 Asia/Seoul.",
+            "refs": [
+              "form:84"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        }
+      ],
+      "forms": [
+        {
+          "formId": 81,
+          "revision": 2,
+          "kind": "form",
+          "title": "Orbit 지원서 검토",
+          "items": [
+            {
+              "id": "answers",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "지원 동기: 서버 운영 경험을 바탕으로 안정적인 제품 개발에 기여하고 싶습니다. 첨부: 현재 이력서 v3."
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000051"
+            }
+          ]
+        },
+        {
+          "formId": 84,
+          "revision": 2,
+          "kind": "form",
+          "title": "Cedar 입사 가능일",
+          "items": [
+            {
+              "id": "start_date",
+              "label": "입사 가능일",
+              "type": "text",
+              "content": ""
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000052"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mixed_batch_partial_changes",
+      "mode": "chat",
+      "isMobile": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "홈 할 일에서 Orbit 지원서 확인을 맨 위로 옮겨줘. 제목이나 문구는 그대로 두고. Cedar 입사일은 이미 알려줬으니 그 질문은 빼고, 완성된 Cedar 지원서를 확인할 수 있게 올려줘. 한 번에 정리해줘."
+        }
+      ],
+      "facts": "Current verified facts: Cedar start-date form 84 was answered and resolved. Both application drafts are complete and unsubmitted; current review forms are below. No deadline or urgency for either. User only requested curating the home list; no work instruction, form change or submission is needed.",
+      "items": [
+        {
+          "id": "00000000-0000-4000-8000-000000000071",
+          "revision": 1,
+          "title": "Orbit 지원서 확인",
+          "description": "작성한 지원서를 검토해주세요.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "Orbit 지원서 내용을 보여줘."
+          },
+          "priority": 10,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000074",
+          "revision": 1,
+          "title": "Cedar 입사 가능일",
+          "description": "지원서에 쓸 날짜를 알려주세요.",
+          "buttonText": "답변하기",
+          "action": {
+            "type": "compose_reply",
+            "text": "Cedar 입사 가능일. work 00000000-0000-4000-8000-000000000052, form 84 revision 2."
+          },
+          "priority": 10,
+          "urgency": "normal"
+        }
+      ],
+      "works": [
+        {
+          "id": "00000000-0000-4000-8000-000000000051",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-51",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Orbit",
+            "instruction": "Orbit 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "검토 폼81과 이력서 준비 완료. 미제출.",
+            "refs": [
+              "form:81"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000052",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-52",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Cedar",
+            "instruction": "Cedar 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "입사 가능일 12월 1일 반영 완료. 전체 지원서 준비 완료, 사용자 검토 대기, 미제출. 마감 없음.",
+            "refs": [
+              "form:85"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        }
+      ],
+      "forms": [
+        {
+          "formId": 81,
+          "revision": 2,
+          "kind": "form",
+          "title": "Orbit 지원서 검토",
+          "items": [
+            {
+              "id": "answers",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "지원 동기: 서버 운영 경험을 바탕으로 안정적인 제품 개발에 기여하고 싶습니다. 첨부: 현재 이력서 v3."
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000051"
+            }
+          ]
+        },
+        {
+          "formId": 85,
+          "revision": 2,
+          "kind": "form",
+          "title": "Cedar 지원서 검토",
+          "items": [
+            {
+              "id": "answers",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "입사 가능일: 12월 1일. 나머지 문항과 이력서 준비 완료."
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000052"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unavailable_list_reconcile",
+      "mode": "chat",
+      "isMobile": null,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Orbit 지원서 확인을 홈 맨 위로 옮겨줘. 제목이나 설명은 그대로 두고."
+        }
+      ],
+      "facts": "Current verified facts: Cedar start-date form 84 was answered and resolved. Both application drafts are complete and unsubmitted; current review forms are below. No deadline or urgency for either. User only requested curating the home list; no work instruction, form change or submission is needed. Initial visible-action read failed transiently. A tool list read is now available. Existing rows are not known until that read.",
+      "items": [
+        {
+          "id": "00000000-0000-4000-8000-000000000071",
+          "revision": 1,
+          "title": "Orbit 지원서 확인",
+          "description": "작성한 지원서를 검토해주세요.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "Orbit 지원서 내용을 보여줘."
+          },
+          "priority": 10,
+          "urgency": "normal"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000074",
+          "revision": 1,
+          "title": "Cedar 입사 가능일",
+          "description": "지원서에 쓸 날짜를 알려주세요.",
+          "buttonText": "답변하기",
+          "action": {
+            "type": "compose_reply",
+            "text": "Cedar 입사 가능일. work 00000000-0000-4000-8000-000000000052, form 84 revision 2."
+          },
+          "priority": 10,
+          "urgency": "normal"
+        }
+      ],
+      "works": [
+        {
+          "id": "00000000-0000-4000-8000-000000000051",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-51",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Orbit",
+            "instruction": "Orbit 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "검토 폼81과 이력서 준비 완료. 미제출.",
+            "refs": [
+              "form:81"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000052",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-52",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Cedar",
+            "instruction": "Cedar 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "입사 가능일 12월 1일 반영 완료. 전체 지원서 준비 완료, 사용자 검토 대기, 미제출. 마감 없음.",
+            "refs": [
+              "form:85"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        }
+      ],
+      "forms": [
+        {
+          "formId": 81,
+          "revision": 2,
+          "kind": "form",
+          "title": "Orbit 지원서 검토",
+          "items": [
+            {
+              "id": "answers",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "지원 동기: 서버 운영 경험을 바탕으로 안정적인 제품 개발에 기여하고 싶습니다. 첨부: 현재 이력서 v3."
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000051"
+            }
+          ]
+        },
+        {
+          "formId": 85,
+          "revision": 2,
+          "kind": "form",
+          "title": "Cedar 지원서 검토",
+          "items": [
+            {
+              "id": "answers",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "입사 가능일: 12월 1일. 나머지 문항과 이력서 준비 완료."
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000052"
+            }
+          ]
+        }
+      ],
+      "initialListUnavailable": true
+    },
+    {
+      "id": "return_empty_no_busywork",
+      "mode": "return",
+      "isMobile": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "이직은 당분간 쉬려고 해. 진행하던 지원은 전부 취소하고 추천도 쉬어줘."
+        },
+        {
+          "role": "assistant",
+          "content": "진행 중이던 지원을 취소하고 정기 추천도 일시 중지했어요."
+        }
+      ],
+      "facts": "Verified: all work cancelled, all forms resolved; recurring check-in paused at user request. No current action, upcoming appointment, new recommendation or message requiring attention.",
+      "items": [],
+      "works": [],
+      "forms": []
+    },
+    {
+      "id": "casual_preserves_existing",
+      "mode": "chat",
+      "isMobile": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "면접 준비 중인데 자기소개 첫 문장이 영 어색해."
+        },
+        {
+          "role": "assistant",
+          "content": "지금 맡고 있는 일부터 편하게 시작해볼까요?"
+        },
+        {
+          "role": "user",
+          "content": "응, 첫 문장 예시만 하나 알려줘."
+        }
+      ],
+      "facts": "No upcoming appointments, active browser sessions, new recommendations or recurring search request. Profile and search preferences are unchanged. Saved sources and unresolved forms below are current; no external action is needed to inspect them.",
+      "items": [
+        {
+          "id": "00000000-0000-4000-8000-000000000071",
+          "revision": 1,
+          "title": "Orbit 지원서 확인",
+          "description": "작성한 지원서를 검토해주세요.",
+          "buttonText": "내용 확인하기",
+          "action": {
+            "type": "send_message",
+            "text": "Orbit 지원서 form 81 revision 2를 보여줘. work 00000000-0000-4000-8000-000000000051."
+          },
+          "priority": 10,
+          "urgency": "normal"
+        }
+      ],
+      "works": [
+        {
+          "id": "00000000-0000-4000-8000-000000000051",
+          "user_id": "00000000-0000-4000-8000-000000000001",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "kind": "delegated_work",
+          "parent_id": null,
+          "idempotency_key": "fixture-51",
+          "status": "waiting_user",
+          "revision": 3,
+          "request": {
+            "target": "Orbit",
+            "instruction": "Orbit 지원을 준비하고 제출 전에 사용자 검토를 받는다.",
+            "source_refs": [
+              501
+            ]
+          },
+          "result": {
+            "note": "지원서 준비 완료. 사용자 검토 대기. 미제출.",
+            "refs": [
+              "form:81"
+            ]
+          },
+          "provider_refs": {},
+          "created_at": "2026-11-01T09:00:00Z",
+          "updated_at": "2026-11-04T12:30:00Z"
+        }
+      ],
+      "forms": [
+        {
+          "formId": 81,
+          "revision": 2,
+          "kind": "form",
+          "title": "Orbit 지원서 검토",
+          "items": [
+            {
+              "id": "answers",
+              "label": "지원 내용",
+              "type": "markdown",
+              "content": "지원 동기: 서버 운영 경험을 바탕으로 안정적인 제품 개발에 기여하고 싶습니다. 첨부: 현재 이력서 v3."
+            }
+          ],
+          "relatedRefs": [
+            {
+              "type": "work",
+              "id": "00000000-0000-4000-8000-000000000051"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

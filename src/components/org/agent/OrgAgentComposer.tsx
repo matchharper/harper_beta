@@ -667,7 +667,7 @@ export function OrgAgentComposer({
                 aria-disabled={submitBlocked || undefined}
                 variant="primary"
                 className={cn(
-                  "rounded-full",
+                  "rounded-pill",
                   submitBlocked && "cursor-not-allowed opacity-40"
                 )}
                 disabled={

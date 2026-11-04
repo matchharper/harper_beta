@@ -329,7 +329,7 @@ function AdminCareerContent() {
       <Head>
         <title>{CAREER_ADMIN_TAB_META[activeTab].title} | Harper Admin</title>
       </Head>
-      <main className="min-h-svh bg-white text-black">
+      <main className="min-h-svh bg-bg-floating text-neutral-primary">
         <AdminMetricsNavigation
           activeSection="career"
           title={CAREER_ADMIN_TAB_META[activeTab].title}
@@ -352,7 +352,7 @@ function AdminCareerContent() {
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
+                className="h-8 rounded-none border-stroke-strong/15 bg-bg-floating text-[12px] text-neutral-primary shadow-none"
                 onClick={() => setIsExcludedEmailsModalOpen(true)}
               >
                 Excluded emails ({excludedEmails.length})
@@ -363,7 +363,7 @@ function AdminCareerContent() {
                     type="button"
                     variant="secondary"
                     size="sm"
-                    className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
+                    className="h-8 rounded-none border-stroke-strong/15 bg-bg-floating text-[12px] text-neutral-primary shadow-none"
                     onClick={() => void handleSendSlackSummary()}
                     disabled={
                       isSendingSlackSummary ||
@@ -382,7 +382,7 @@ function AdminCareerContent() {
                     type="button"
                     variant="secondary"
                     size="sm"
-                    className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
+                    className="h-8 rounded-none border-stroke-strong/15 bg-bg-floating text-[12px] text-neutral-primary shadow-none"
                     onClick={() => query.refetch()}
                     disabled={!hasHydratedDateRange || query.isFetching}
                   >
@@ -417,8 +417,8 @@ function AdminCareerContent() {
 
           {activeTab === "overview" &&
           (!hasHydratedDateRange || query.isLoading) ? (
-            <Card className="rounded-md border-black/10 shadow-none">
-              <CardContent className="p-4 text-[12px] text-black/50">
+            <Card className="rounded-md border-stroke shadow-none">
+              <CardContent className="p-4 text-[12px] text-neutral-primary/50">
                 Career analytics를 불러오는 중입니다.
               </CardContent>
             </Card>
@@ -448,7 +448,7 @@ function AdminCareerContent() {
                 steps={query.data.funnel}
               />
 
-              <div className="text-[12px] text-black/45">
+              <div className="text-[12px] text-neutral-primary/45">
                 Generated{" "}
                 {new Date(query.data.generatedAt).toLocaleString("ko-KR")}
                 {query.isFetching ? " · refreshing" : ""}
@@ -462,20 +462,20 @@ function AdminCareerContent() {
             <BareButton
               type="button"
               aria-label="Close excluded emails modal"
-              className="absolute inset-0 bg-black/35"
+              className="absolute inset-0 bg-surface-inverse/35"
               onClick={() => setIsExcludedEmailsModalOpen(false)}
             />
             <div
               className={cn(
-                "relative z-10 w-full max-w-[640px] border border-black/15 bg-white p-5 shadow-2xl"
+                "relative z-10 w-full max-w-[640px] border border-stroke-strong/15 bg-bg-floating p-5 shadow-(--shadow-2xl)"
               )}
             >
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[14px] font-semibold text-black">
+                  <div className="text-[14px] font-semibold text-neutral-primary">
                     Excluded emails
                   </div>
-                  <div className="mt-1 text-[12px] leading-5 text-black/55">
+                  <div className="mt-1 text-[12px] leading-5 text-neutral-primary/55">
                     Career Analytics에도 같은 제외 이메일 목록을 적용합니다.
                   </div>
                 </div>
@@ -483,7 +483,7 @@ function AdminCareerContent() {
                   type="button"
                   variant="secondary"
                   size="sm"
-                  className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
+                  className="h-8 rounded-none border-stroke-strong/15 bg-bg-floating text-[12px] text-neutral-primary shadow-none"
                   onClick={() => setIsExcludedEmailsModalOpen(false)}
                 >
                   Close

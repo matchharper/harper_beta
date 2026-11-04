@@ -59,7 +59,7 @@ export function OrgRoleActionsMenu({
   });
   const isDisabled = disabled || pending || !role;
   const buttonClassName = cn(
-    "flex h-8 w-8 items-center justify-center rounded-sm border-0 bg-black/0 text-neutral-soft outline-none transition hover:bg-black/5 hover:text-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-black/0 disabled:hover:text-neutral-soft",
+    "flex h-8 w-8 items-center justify-center rounded-sm border-0 bg-surface-inverse/0 text-neutral-soft outline-none transition hover:bg-surface-tint hover:text-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-surface-inverse/0 disabled:hover:text-neutral-soft",
     triggerClassName
   );
 

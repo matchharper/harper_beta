@@ -287,7 +287,7 @@ const HistoryEmptyStateDetail = ({
   title: string;
 }) => (
   <div className="px-2 flex min-w-0 gap-3 border-t border-neutral-1000-a05 py-4 first:border-t-0 xl:block xl:border-t-0 xl:py-0 xl:pl-4 xl:first:pl-0">
-    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-bg-weak text-neutral-primary">
+    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-weak text-neutral-primary">
       {icon}
     </span>
     <div className="min-w-0 xl:mt-3">
@@ -358,7 +358,7 @@ const HistoryEmptyStatePanel = ({
             "career.common.career_history_panel.00rerkr",
             "좋은 기회를 찾고 있습니다."
           ),
-          toneClassName: "bg-black text-neutral-00",
+          toneClassName: "bg-surface-inverse text-neutral-00",
           nextStep: t(
             "career.common.career_history_panel.1p6gpzi",
             "검토가 끝난 포지션은 새 포지션 탭에 바로 표시됩니다."
@@ -503,7 +503,7 @@ const HistoryEmptyStatePanel = ({
           };
 
   return (
-    <section className="mt-6 overflow-hidden rounded-[8px] border border-neutral-1000-a05 bg-bg-floating shadow-sm">
+    <section className="mt-6 overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-floating shadow-(--shadow-sm)">
       <div className="min-w-0 px-5 py-6 md:px-7 xl:px-8">
         <h4 className="mt-0 max-w-[640px] text-[16px] font-medium leading-7 text-neutral-primary sm:text-[18px]">
           {config.title}
@@ -1433,7 +1433,7 @@ const CareerHistoryPanel = () => {
       <div className="relative flex flex-1 flex-col gap-6">
         <div className="min-w-0 flex-1">
           {historyUpdateError && (
-            <div className="mb-4 rounded-[8px] border border-critical/30 bg-critical-faded px-4 py-3 text-sm text-critical">
+            <div className="mb-4 rounded-md border border-critical/30 bg-critical-faded px-4 py-3 text-sm text-critical">
               {historyUpdateError}
             </div>
           )}

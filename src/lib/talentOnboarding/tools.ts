@@ -274,6 +274,7 @@ export class TalentToolError extends Error {
 
 export const TALENT_TOOL_NAMES = {
   MANAGE_WORK: "manage_work",
+  MANAGE_ACTION_ITEMS: "manage_action_items",
   APPLY_TO_INTERNAL_ROLE: "apply_to_internal_role",
   ASSIGN_TO_ROLE: "assign_to_role",
   LIST_PROFILES: "list_profiles",
@@ -334,6 +335,7 @@ export type TalentToolName =
 
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.MANAGE_WORK,
+  TALENT_TOOL_NAMES.MANAGE_ACTION_ITEMS,
   ...Object.keys(CAREER_AGENTIC_TOOLS),
   TALENT_TOOL_NAMES.USE_BROWSER,
   TALENT_TOOL_NAMES.SUGGEST_FORM,
@@ -3133,7 +3135,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           (item) => item.upcomingMeeting && !baseItemIds.has(item.id),
         ),
       ];
-      const itemsToClose = context?.registerProcessClosureNotices
+      const itemsToClose = context?.registerProcessClosureNotices && !context.backgroundInvocation
         ? displayedItems.filter(shouldCloseRecommendedOpportunityFromProgress)
         : [];
       if (itemsToClose.length > 0) {
@@ -3240,22 +3242,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         keywords: {
           type: "array",
           description:
-            "One or two natural search expressions for the role title or company. Default lookup includes partial word matches and normalizes English word forms; roles matching more query terms and terms in the title rank first. Use distinctive role/company terms rather than broad location words. Related results are search candidates, not confirmed matches to the requested posting. With matchedOnly=true, words within each expression remain ANDed and expressions are ORed against available suggestions. If results do not identify the requested role, refine the terms; a limited keyword search is not proof that Harper has no connection to the posting.",
+            "Title/company terms identifying the specific public posting the user requested. Lookup includes partial word matches and normalizes English word forms. Related results are possible identity matches, not confirmed matches or permission to recommend other roles. Omit when role_id is known.",
           items: {
             type: "string",
           },
           minItems: 1,
           maxItems: 2,
-        },
-        matchedOnly: {
-          type: "boolean",
-          description:
-            "Set true to read the user's available suggestions for comparison or discovery. Omit or use false for ordinary public lookup.",
-        },
-        company: {
-          type: "string",
-          description:
-            "Optional company name or public alias used to narrow matchedOnly results to that company. Do not provide this merely for ordinary keyword lookup.",
         },
       },
       additionalProperties: false,
@@ -3268,9 +3260,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       return searchInternalRolesForCareerTool({
-        company: input.company,
         keywords: input.keywords,
-        matchedOnly: input.matchedOnly,
         roleId: input.role_id,
         userId,
       });
@@ -3510,7 +3500,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "string",
           enum: ["like", "dislike", "keep"],
           description:
-            "Like records explicit acceptance (internal introduction) or interest (external); dislike records rejection; keep saves an internal role for later without deciding. Use apply_to_internal_role to evaluate and add an internal role for review. Saving does not authorize company sharing.",
+            "Like saves external interest; dislike records rejection; keep saves an internal role for later without deciding. Use contact_company for acceptance of a reviewed internal introduction. apply_to_internal_role saves a public internal role the user explicitly chose. Saving does not authorize company sharing.",
         },
         opportunityId: {
           type: "string",

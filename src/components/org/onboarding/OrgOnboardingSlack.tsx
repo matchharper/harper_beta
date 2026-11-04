@@ -192,7 +192,7 @@ export function OrgOnboardingSlack({
           {connectedChannels.map((channel) => (
             <div
               key={channel.channelId}
-              className="flex items-center gap-2 rounded-full border border-neutral-1000-a10 px-3 py-2.5 text-[14px] text-neutral-800 shadow-xs"
+              className="flex items-center gap-2 rounded-full border border-neutral-1000-a10 px-3 py-2.5 text-[14px] text-neutral-800 shadow-(--shadow-xs)"
             >
               <Check className="size-3.5 text-positive" />
               <span>#{channel.channelName || channel.channelId}</span>

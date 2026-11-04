@@ -48,7 +48,7 @@ const tags = [
 
 export default function ScholarProfileDark() {
   return (
-    <div className="mt-12 w-full max-w-[1040px] rounded-[28px] border border-zinc-900 bg-[#111113] p-4 shadow-2xl md:p-6">
+    <div className="mt-12 w-full max-w-[1040px] rounded-sheet border border-zinc-900 bg-marketing-panel p-4 shadow-(--shadow-2xl) md:p-6">
       {/* Header */}
       <div className="flex flex-col items-start gap-4 text-left md:flex-row md:justify-between">
         <div className="flex items-start gap-3">
@@ -61,7 +61,7 @@ export default function ScholarProfileDark() {
           />
 
           <div className="min-w-0">
-            <h1 className="text-lg font-normal text-white">Jonghwan Park</h1>
+            <h1 className="text-lg font-normal text-on-inverse">Jonghwan Park</h1>
             <a className="text-sm text-neutral-200 underline">
               Korea Advanced Institute of Science and Technology
             </a>
@@ -108,7 +108,7 @@ export default function ScholarProfileDark() {
                 </div>
 
                 {paper.is_featured ? (
-                  <div className="w-fit rounded-full bg-blue-500 px-2 py-1 text-[10px] text-white">
+                  <div className="w-fit rounded-full bg-blue-500 px-2 py-1 text-[10px] text-on-inverse">
                     Most relevant paper
                   </div>
                 ) : null}
@@ -133,7 +133,7 @@ export default function ScholarProfileDark() {
                 </div>
 
                 {paper.is_featured && (
-                  <div className="absolute bottom-2 right-1 rounded-full bg-blue-500 px-2 py-1 text-[10px] text-white">
+                  <div className="absolute bottom-2 right-1 rounded-full bg-blue-500 px-2 py-1 text-[10px] text-on-inverse">
                     Most relevant paper
                   </div>
                 )}
@@ -142,7 +142,7 @@ export default function ScholarProfileDark() {
           ))}
         </div>
       </div>
-      <div className="flex w-full items-center justify-center pt-2 text-center text-sm text-white/50">
+      <div className="flex w-full items-center justify-center pt-2 text-center text-sm text-on-inverse/50">
         + 15 more papers
       </div>
     </div>

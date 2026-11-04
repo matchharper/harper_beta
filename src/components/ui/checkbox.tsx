@@ -20,9 +20,9 @@ export interface CheckboxProps extends Omit<
 }
 
 const checkboxSizeClassNames: Record<CheckboxSize, string> = {
-  small: "size-3.5 rounded-xs",
-  medium: "size-4.5 rounded-sm",
-  large: "size-6 rounded-sm",
+  small: "size-3.5 rounded-checkbox",
+  medium: "size-4.5 rounded-checkbox",
+  large: "size-6 rounded-checkbox",
 };
 
 const labelSizeClassNames: Record<CheckboxSize, string> = {
@@ -31,11 +31,9 @@ const labelSizeClassNames: Record<CheckboxSize, string> = {
   large: "text-[16px] leading-6",
 };
 
-const checkIcon =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.75 8.25 6.75 11.25 12.25 5.75' stroke='white' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";
+const checkIcon = "var(--checkbox-check-image)";
 
-const indeterminateIcon =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 8H12' stroke='white' stroke-width='1.9' stroke-linecap='round'/%3E%3C/svg%3E\")";
+const indeterminateIcon = "var(--checkbox-indeterminate-image)";
 
 const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
   (
@@ -119,13 +117,13 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
           unstyled
             ? className
             : cn(
-                "shrink-0 appearance-none bg-bg-floating bg-center bg-no-repeat bg-size-[14px_14px] outline-none transition-[opacity,transform] focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55 active:scale-[0.97]",
+                "shrink-0 appearance-none border-(length:--control-border-width) bg-control bg-center bg-no-repeat bg-size-[14px_14px] shadow-(--shadow-control) backdrop-blur-control outline-none transition-[opacity,transform] focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-55 active:scale-[0.97]",
                 checkboxSizeClassNames[size],
                 state === "error"
-                  ? "border border-[#9b2e1e33]"
-                  : "border border-neutral-1000-a10",
-                "checked:border-black checked:bg-black",
-                "indeterminate:border-black indeterminate:bg-black",
+                  ? "border-critical/20"
+                  : "border-control-border",
+                "checked:border-control-checked checked:bg-control-checked",
+                "indeterminate:border-control-checked indeterminate:bg-control-checked",
                 resolvedDisabled &&
                   "border-neutral-1000-a05 bg-bg-weak checked:bg-neutral-disabled",
                 !label && !helperText && className

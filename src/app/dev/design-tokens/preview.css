@@ -1,0 +1,54 @@
+/* Local QA presets only. Changing tokens must reach body portals as well. */
+:root[data-design-preview="flat"] {
+  --color-bg-basement: #f5f5f3;
+  --color-bg-default: #f5f5f3;
+  --color-surface: #ffffff;
+  --radius-surface: 4px;
+  --radius-control: 4px;
+  --radius-modal: 8px;
+  --radius-sheet: 8px;
+  --radius-composer: 4px;
+  --radius-composer-collapsed: 4px;
+  --shadow-surface: 0 0 #0000;
+  --shadow-button: 0 0 #0000;
+  --shadow-menu: 0 0 #0000;
+  --shadow-modal: 0 0 #0000;
+  --shadow-composer: 0 0 #0000;
+  --blur-composer: 0px;
+  --blur-overlay: 0px;
+  --color-composer: var(--color-surface);
+  --font-weight-heading: 400;
+}
+:root[data-design-preview="glass"] {
+  --color-bg-basement: #e9ecf0;
+  --color-bg-default: #edf0f4;
+  --color-surface: rgb(255 255 255 / 52%);
+  --color-surface-border: rgb(255 255 255 / 80%);
+  --color-control-border: rgb(100 116 139 / 24%);
+  --background-image-surface-image: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 30%),
+    rgb(255 255 255 / 8%)
+  );
+  --background-image-workspace-image:
+    radial-gradient(at 0% 0%, #dce8f8, transparent 60%),
+    radial-gradient(at 100% 100%, #cfdfd8, transparent 65%);
+  --radius-surface: 22px;
+  --radius-control: 14px;
+  --radius-modal: 32px;
+  --radius-sheet: 32px;
+  --radius-composer: 22px;
+  --color-composer: rgb(255 255 255 / 45%);
+  --blur-surface: 24px;
+  --blur-composer: 24px;
+  --color-overlay: rgb(52 65 82 / 14%);
+  --blur-overlay: 8px;
+  --shadow-surface:
+    inset 0 1px 0 rgb(255 255 255 / 80%), 0 12px 32px -16px rgb(30 45 60 / 24%);
+  --shadow-modal:
+    inset 0 1px 0 rgb(255 255 255 / 80%), 0 24px 80px rgb(30 45 60 / 20%);
+  --shadow-menu: var(--shadow-modal);
+  --shadow-button: var(--shadow-surface);
+  --shadow-composer: var(--shadow-surface);
+  --font-weight-heading: 400;
+}

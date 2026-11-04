@@ -203,7 +203,7 @@ export function OrgCriteriaRecheckWatcher({
       mobileBottomSheet
       onClose={dismiss}
       open={foundItems.length > 0}
-      panelClassName="max-w-md border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-md  "
       title={c(
         "기준이 바뀌어 적합도를 다시 계산했어요",
         "Fit recalculated for the new criteria"

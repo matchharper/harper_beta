@@ -85,11 +85,11 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
               : "gap-1 border-l border-neutral-1000-a05"),
           variant !== "bordered" && (direction === "row" ? "gap-1" : "gap-1"),
           variant === "pills-elevated" &&
-            "rounded-lg bg-bg-weak p-1 ring-1 ring-neutral-1000-a05",
-          variant === "pills" && "rounded-lg bg-bg-weak p-1",
+            "rounded-tab-list bg-tab-list shadow-(--shadow-tab-list) backdrop-blur-tab-list p-1 ring-1 ring-neutral-1000-a05",
+          variant === "pills" && "rounded-tab-list bg-tab-list shadow-(--shadow-tab-list) backdrop-blur-tab-list p-1",
           size === "small" &&
             (variant === "pills" || variant === "pills-elevated") &&
-            "rounded-md p-0.5",
+            "rounded-tab p-0.5",
           variant === "cards" &&
             (direction === "row"
               ? "w-fit gap-1.5"
@@ -108,38 +108,38 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
               aria-selected={selected}
               disabled={item.disabled}
               className={cn(
-                "relative inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium outline-none transition-[background-color,color,opacity] focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:pointer-events-none disabled:opacity-40",
+                "relative inline-flex items-center justify-center gap-2 whitespace-nowrap font-tab outline-none transition-[background-color,color,opacity] focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:pointer-events-none disabled:opacity-40",
                 tabSizeClassNames[size],
                 itemWidth === "equal" && "flex-1",
                 direction === "row" ? "px-0" : "w-full justify-start px-3",
                 variant === "bordered" &&
                   (direction === "row" ? "pb-0" : "pl-3"),
                 variant === "borderless" &&
-                  "rounded-md px-2 text-neutral-muted hover:bg-bg-weak",
+                  "rounded-tab px-2 text-tab hover:bg-tab-list",
                 (variant === "pills" || variant === "pills-elevated") &&
-                  "rounded-md px-3 text-neutral-muted hover:bg-bg-floating",
+                  "rounded-tab px-3 text-tab hover:bg-tab-selected-bg",
                 size === "small" &&
                   (variant === "pills" || variant === "pills-elevated") &&
-                  "rounded-sm px-2",
+                  "rounded-tab px-2",
                 variant === "cards" &&
-                  "rounded-md border-2 border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-primary hover:text-primary",
+                  "rounded-tab border-2 border-neutral-1000-a05 bg-tab-selected-bg text-tab hover:border-primary hover:text-primary",
                 variant === "cards" &&
                   (size === "medium" ? "min-w-28 px-4" : "min-w-[156px] px-6"),
-                selected ? "text-neutral-primary" : "text-neutral-muted",
+                selected ? "text-tab-selected" : "text-tab",
                 selected &&
                   (variant === "pills" || variant === "pills-elevated") &&
-                  "bg-bg-floating text-neutral-primary",
+                  "bg-tab-selected-bg text-tab-selected shadow-(--shadow-tab-selected)",
                 selected && variant === "cards" && "border-primary text-primary"
               )}
               onClick={() => handleChange(item.value)}
             >
               {direction === "column" && variant === "bordered" && selected ? (
-                <span className="absolute bottom-0 left-0 top-0 w-0.5 rounded-full bg-neutral-800" />
+                <span className="absolute bottom-0 left-0 top-0 w-0.5 rounded-full bg-tab-indicator" />
               ) : null}
               {item.icon}
               <span>{item.label}</span>
               {direction === "row" && variant === "bordered" && selected ? (
-                <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 rounded-full bg-neutral-800" />
+                <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 rounded-full bg-tab-indicator" />
               ) : null}
             </button>
           );

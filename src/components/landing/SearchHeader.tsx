@@ -54,7 +54,7 @@ function NavItem({
     <button
       type="button"
       onClick={onClick}
-      className={`flex cursor-pointer items-center justify-between gap-2 rounded-full py-2 transition-colors duration-200 hover:bg-white/5 hover:opacity-95 ${
+      className={`flex cursor-pointer items-center justify-between gap-2 rounded-full py-2 transition-colors duration-200 hover:bg-bg-floating/5 hover:opacity-95 ${
         isArrowRight ? "pl-5 pr-3" : "px-5"
       }`}
     >
@@ -99,7 +99,7 @@ function SearchHeader({ onStartClick }: { onStartClick: () => void }) {
   }, []);
 
   return (
-    <header className="fixed left-0 top-0 z-20 w-full text-sm text-white transition-all duration-300">
+    <header className="fixed left-0 top-0 z-20 w-full text-sm text-on-inverse transition-all duration-300">
       <div className="mx-auto flex h-14 w-full max-w-[1200px] items-center justify-between px-4 md:h-20 md:px-8">
         <button
           type="button"
@@ -109,7 +109,7 @@ function SearchHeader({ onStartClick }: { onStartClick: () => void }) {
           Harper
         </button>
 
-        <nav className="hidden items-center justify-center gap-2 rounded-full bg-[#444444aa] px-4 py-2 text-sm font-normal text-white backdrop-blur md:flex">
+        <nav className="hidden items-center justify-center gap-2 rounded-full bg-marketing-nav px-4 py-2 text-sm font-normal text-on-inverse backdrop-blur md:flex">
           {navItems.map((item) => (
             <NavItem
               key={item.section}

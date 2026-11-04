@@ -181,18 +181,18 @@ export default function AdminCareerCompanyTab() {
         </Card>
       ) : null}
 
-      <Card className="rounded-md border-black/10 shadow-none">
+      <Card className="rounded-md border-stroke shadow-none">
         <CardHeader className="p-4 pb-2">
-          <CardTitle className="text-[14px] font-semibold text-black">
+          <CardTitle className="text-[14px] font-semibold text-neutral-primary">
             Company Landing Funnel
           </CardTitle>
-          <div className="mt-1 text-[12px] leading-5 text-black/50">
+          <div className="mt-1 text-[12px] leading-5 text-neutral-primary/50">
             /company 진입 대비 Search 이동과 메인 버튼 클릭 비율입니다.
           </div>
         </CardHeader>
         <CardContent className="space-y-3 p-4 pt-2">
           {!hasHydratedDateRange || query.isLoading ? (
-            <div className="text-[12px] text-black/50">
+            <div className="text-[12px] text-neutral-primary/50">
               Company landing analytics를 불러오는 중입니다.
             </div>
           ) : null}
@@ -209,25 +209,25 @@ export default function AdminCareerCompanyTab() {
                 className="grid gap-2 md:grid-cols-[180px_1fr_130px] md:items-center"
               >
                 <div>
-                  <div className="text-[12px] font-medium text-black">
+                  <div className="text-[12px] font-medium text-neutral-primary">
                     {index + 1}. {step.label}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-black/40">
+                  <div className="mt-0.5 text-[11px] text-neutral-primary/40">
                     {step.detail}
                   </div>
                 </div>
-                <div className="h-8 border border-black/10 bg-black/[0.03]">
+                <div className="h-8 border border-stroke bg-surface-inverse/[0.03]">
                   <div
-                    className="h-full bg-black"
+                    className="h-full bg-surface-inverse"
                     style={{ width }}
                     aria-hidden="true"
                   />
                 </div>
                 <div className="flex items-center justify-between gap-2 md:block md:text-right">
-                  <div className="text-[15px] font-semibold leading-5 text-black">
+                  <div className="text-[15px] font-semibold leading-5 text-neutral-primary">
                     {step.count.toLocaleString("ko-KR")}
                   </div>
-                  <div className="text-[11px] leading-4 text-black/45">
+                  <div className="text-[11px] leading-4 text-neutral-primary/45">
                     entry {formatPercent(step.rateFromEntry)}
                   </div>
                 </div>
@@ -236,7 +236,7 @@ export default function AdminCareerCompanyTab() {
           })}
 
           {query.data?.steps.length === 0 ? (
-            <div className="py-6 text-center text-[12px] text-black/45">
+            <div className="py-6 text-center text-[12px] text-neutral-primary/45">
               선택 기간에 /company landing log가 없습니다.
             </div>
           ) : null}
@@ -250,11 +250,11 @@ export default function AdminCareerCompanyTab() {
             ["Mobile entry", query.data.device.mobileEntryCount],
             ["Unknown entry", query.data.device.unknownEntryCount],
           ].map(([label, value]) => (
-            <div key={label} className="border border-black/10 px-4 py-3">
-              <div className="text-[11px] uppercase tracking-[0.12em] text-black/35">
+            <div key={label} className="border border-stroke px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.12em] text-neutral-primary/35">
                 {label}
               </div>
-              <div className="mt-2 text-[18px] font-semibold text-black">
+              <div className="mt-2 text-[18px] font-semibold text-neutral-primary">
                 {Number(value).toLocaleString("ko-KR")}
               </div>
             </div>
@@ -263,7 +263,7 @@ export default function AdminCareerCompanyTab() {
       ) : null}
 
       {query.data?.generatedAt ? (
-        <div className="text-[11px] text-black/40">
+        <div className="text-[11px] text-neutral-primary/40">
           Generated {new Date(query.data.generatedAt).toLocaleString("ko-KR")}
           {query.isFetching ? " · refreshing" : ""}
         </div>

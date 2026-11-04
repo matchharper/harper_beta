@@ -3,7 +3,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export const panelClassName =
-  "rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-sm";
+  "rounded-card border-(length:--card-border-width) border-card-border bg-card bg-card-image text-card-foreground shadow-(--shadow-card) backdrop-blur-card px-4 py-4";
 
 export const InlinePanel = ({
   children,

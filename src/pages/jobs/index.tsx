@@ -125,7 +125,7 @@ function OfficialJobsTable({
 
   if (jobs.length === 0) {
     return (
-      <div className="rounded-[8px] border border-beige900/10 bg-white/45 px-4 py-5 text-[14px] leading-6 text-black/62">
+      <div className="rounded-md border border-beige900/10 bg-bg-floating/45 px-4 py-5 text-[14px] leading-6 text-neutral-primary/62">
         {copy.list.empty}
       </div>
     );
@@ -140,28 +140,28 @@ function OfficialJobsTable({
               key={job.id}
               href={`/jobs/${job.slug}`}
               aria-label={`${job.roleTitle}, ${job.companyName} 자세히 보기`}
-              className="group relative block w-full overflow-hidden rounded-[0px] border border-beige900/10 border-b-0 bg-white/50 px-4 py-5 pl-5 text-left transition hover:-translate-y-0.5 hover:border-beige900/20 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-beige700/15 active:translate-y-0"
+              className="group relative block w-full overflow-hidden rounded-none border border-beige900/10 border-b-0 bg-bg-floating/50 px-4 py-5 pl-5 text-left transition hover:-translate-y-0.5 hover:border-beige900/20 hover:bg-bg-floating/90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-beige700/15 active:translate-y-0"
               onClick={() => trackJobClick(job, "jobs_mobile_card")}
             >
               <div className="flex items-start justify-between gap-3">
-                <h2 className="break-words text-[16px] font-medium leading-[1.42] text-black">
+                <h2 className="break-words text-[16px] font-medium leading-[1.42] text-neutral-primary">
                   {job.roleTitle}
                 </h2>
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center group-hover:translate-x-0.5 group-hover:border-beige900/20 group-hover:bg-white">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center group-hover:translate-x-0.5 group-hover:border-beige900/20 group-hover:bg-bg-floating">
                   <ArrowRight className="h-4 w-4" />
                 </span>
               </div>
 
               <div className="mt-4 space-y-1">
                 <div className="flex items-start gap-2">
-                  <Building2 className="h-3.5 w-3.5 mt-[3px] shrink-0 text-black/45" />
-                  <div className="break-words text-[13px] font-medium leading-5 text-black/78">
+                  <Building2 className="h-3.5 w-3.5 mt-[3px] shrink-0 text-neutral-primary/45" />
+                  <div className="break-words text-[13px] font-medium leading-5 text-neutral-primary/78">
                     {job.companyName}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-black/45" />
-                  <div className="break-words text-[13px] leading-5 text-black/68">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-neutral-primary/45" />
+                  <div className="break-words text-[13px] leading-5 text-neutral-primary/68">
                     {job.location}
                   </div>
                 </div>
@@ -171,7 +171,7 @@ function OfficialJobsTable({
         })}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-[4px] border border-beige900/10 bg-white/35 md:block">
+      <div className="hidden overflow-x-auto rounded-sm border border-beige900/10 bg-bg-floating/35 md:block">
         <table className="min-w-[760px] w-full border-collapse text-left">
           <colgroup>
             <col className="w-[30%]" />
@@ -205,7 +205,7 @@ function OfficialJobsTable({
                 key={job.id}
                 role="link"
                 tabIndex={0}
-                className="text-[13px] text-black/68 transition cursor-pointer hover:bg-black/3"
+                className="text-[13px] text-neutral-primary/68 transition cursor-pointer hover:bg-interaction-hover"
                 onClick={() => openJob(job, "jobs_table_row")}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" && event.key !== " ") return;
@@ -216,7 +216,7 @@ function OfficialJobsTable({
                 <td className="max-w-[240px] px-4 py-3 align-top">
                   <Link
                     href={`/jobs/${job.slug}`}
-                    className="font-medium text-black underline-offset-4 hover:underline"
+                    className="font-medium text-neutral-primary underline-offset-4 hover:underline"
                     onClick={(event) => {
                       event.stopPropagation();
                       trackJobClick(job, "jobs_table_link");
@@ -225,13 +225,13 @@ function OfficialJobsTable({
                     {job.roleTitle}
                   </Link>
                 </td>
-                <td className="px-4 py-3 align-top font-medium text-black/78">
+                <td className="px-4 py-3 align-top font-medium text-neutral-primary/78">
                   {job.companyName}
                 </td>
                 <td className="px-4 py-3 align-top">{job.location}</td>
                 <td className="px-4 py-3 align-top">{job.vertical}</td>
                 <td className="px-4 py-3 text-right align-top">
-                  <div className="inline-flex items-center justify-end gap-1 text-[12px] font-medium text-black transition hover:text-black/70">
+                  <div className="inline-flex items-center justify-end gap-1 text-[12px] font-medium text-neutral-primary transition hover:text-neutral-primary/70">
                     <ArrowRight className="h-3.5 w-3.5" />
                   </div>
                 </td>
@@ -324,7 +324,7 @@ export default function OfficialJobsPage({
           >
             <div className="flex md:flex-row flex-col items-center justify-between">
               <div className="max-w-[820px]">
-                <h1 className="mt-5 max-w-[680px] break-keep text-[32px] font-medium leading-[1.42] text-black text-balance">
+                <h1 className="mt-5 max-w-[680px] break-keep text-[32px] font-medium leading-[1.42] text-neutral-primary text-balance">
                   {heroTitleLines.map((line, index) => (
                     <span key={`${index}-${line}`}>
                       {index > 0 ? <br /> : null}
@@ -332,7 +332,7 @@ export default function OfficialJobsPage({
                     </span>
                   ))}
                 </h1>
-                <p className="mt-4 max-w-[620px] break-keep text-[15px] leading-7 text-black/70">
+                <p className="mt-4 max-w-[620px] break-keep text-[15px] leading-7 text-neutral-primary/70">
                   {heroBodyLines.map((line, index) => (
                     <span key={`${index}-${line}`}>
                       {index > 0 ? <br /> : null}
@@ -354,7 +354,7 @@ export default function OfficialJobsPage({
                   />
                   <Link
                     href="/"
-                    className="inline-flex min-h-11 items-center justify-center rounded-[4px] border border-beige900/15 bg-white/45 px-5 text-[14px] font-medium text-black transition hover:border-beige900/25 hover:bg-white/70"
+                    className="inline-flex min-h-11 items-center justify-center rounded-sm border border-beige900/15 bg-bg-floating/45 px-5 text-[14px] font-medium text-neutral-primary transition hover:border-beige900/25 hover:bg-bg-floating/70"
                   >
                     {copy.list.learnMore}
                   </Link>

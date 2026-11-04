@@ -1,8 +1,13 @@
+import { parseRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { TalentMessageRow } from "@/lib/talentOnboarding/models";
 import { withIsMobile } from "@/lib/requestDevice";
+import { CAREER_TURN_ACTIVITY, readCareerTurnEvents, type CareerTurnEvent } from "./turnDisplay";
 
-/** One public text message per execution, updated in place across tool steps. */
+/** A stable public activity row, followed by an append-only final reply.
+ * Activity never enters model history or rolling summaries. The UI groups both
+ * by replyId; a completed reply therefore remains new to append-ID readers.
+ */
 export async function createCareerAssistantMessageWriter(args: {
   admin: TalentAdminClient;
   userId: string;
@@ -13,133 +18,118 @@ export async function createCareerAssistantMessageWriter(args: {
   check?: () => Promise<unknown>;
 }) {
   const table = () => args.admin.from("talent_messages");
-  const { data: previous, error } = await table()
-    .select("*")
-    .eq("user_id", args.userId)
-    .eq("conversation_id", args.conversationId)
-    .eq("role", "assistant")
+  const { data: previous, error } = await table().select("*")
+    .eq("user_id", args.userId).eq("conversation_id", args.conversationId)
+    .eq("message_type", CAREER_TURN_ACTIVITY)
     .eq("payload->>careerTextReplyId", args.replyId)
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("id", { ascending: false }).limit(1).maybeSingle();
   if (error) throw error;
   let row = previous as TalentMessageRow | null;
-  const previousPayload = row?.payload as Record<string, unknown> | null;
-  let committed =
-    row?.content.slice(
-      0,
-      typeof previousPayload?.workCommittedLength === "number"
-        ? previousPayload.workCommittedLength
-        : undefined
-    ) ?? "";
+  const previousPayload = row?.payload as Record<string, unknown> | undefined;
+  const startedAt = typeof previousPayload?.workStartedAt === "string" ? previousPayload.workStartedAt : args.startedAt;
+  let events = readCareerTurnEvents(previousPayload?.workEvents).slice(0, typeof previousPayload?.workCommittedEventCount === "number" ? previousPayload.workCommittedEventCount : undefined);
   let segment = "";
+  let logs: string[] = Array.isArray(row?.thinking_logs) ? row.thinking_logs.filter((log): log is string => typeof log === "string") : [];
+  let seenLogs: string[] = [];
   let lastWriteAt = 0;
-  let writes = Promise.resolve<TalentMessageRow | null>(row);
-  const join = (text: string) => [committed, text].filter(Boolean).join("\n\n");
-  const save = (
-    content: string,
-    logs: string[],
-    completed: boolean,
-    payload: Record<string, unknown> = {}
-  ) => {
-    const committedLength = committed.length;
-    writes = writes.then(async () => {
-      if (!content.trim()) return row;
-      if ((await args.check?.()) === false) return null;
-      const values = {
-        content,
-        thinking_logs: logs,
-        payload: {
-          ...((row?.payload as Record<string, unknown>) ?? {}),
-          ...payload,
-          careerTextReplyId: args.replyId,
-          workStartedAt: args.startedAt,
-          workCompletedAt: completed ? new Date().toISOString() : null,
-          workPending: !completed,
-          workCommittedLength: committedLength,
-        } as TalentMessageRow["payload"],
-      };
+  let finished = false;
+  let writes: Promise<unknown> = Promise.resolve();
+  const appendLogs = (next: string[]) => {
+    for (let i = seenLogs.length; i < next.length; i++) {
+      if (!parseRecommendJobPostingStatusLog(next[i])) events.push({ id: `tool:${events.length}`, kind: "tool", text: next[i] });
+      logs.push(next[i]);
+    }
+    seenLogs = [...next];
+  };
+  const snapshot = (completed: boolean, includeSegment = true) => ({
+    careerTextReplyId: args.replyId,
+    workStartedAt: startedAt,
+    workAttemptStartedAt: args.startedAt,
+    workCompletedAt: completed ? new Date().toISOString() : null,
+    workPending: !completed,
+    workCommittedEventCount: events.length,
+    workEvents: [...events, ...(includeSegment && segment ? [{ id: `message:${events.length}`, kind: "message", text: segment } satisfies CareerTurnEvent] : [])],
+  });
+  const save = (completed: boolean, check = true) => {
+    const payload = snapshot(completed);
+    const thinking_logs = [...logs];
+    const operation = writes.then(async () => {
+      if (check && (await args.check?.()) === false) return null;
+      const values = { content: "", thinking_logs, payload: payload as TalentMessageRow["payload"] };
       let query = row
-        ? table()
-            .update(values)
-            .eq("id", row.id)
-            .eq("user_id", args.userId)
-            .eq("conversation_id", args.conversationId)
-        : table().insert(
-            withIsMobile(
-              {
-                ...values,
-                conversation_id: args.conversationId,
-                user_id: args.userId,
-                role: "assistant",
-                message_type: "chat",
-              },
-              args.isMobile
-            )
-          );
-      const expectedStart = (
-        row?.payload as Record<string, unknown> | undefined
-      )?.workStartedAt;
-      if (row && typeof expectedStart === "string")
-        query = query.eq("payload->>workStartedAt", expectedStart);
+        ? table().update(values).eq("id", row.id).eq("user_id", args.userId).eq("conversation_id", args.conversationId)
+        : table().insert(withIsMobile({ ...values, conversation_id: args.conversationId, user_id: args.userId, role: "assistant", message_type: CAREER_TURN_ACTIVITY }, args.isMobile));
+      const expectedAttempt = (row?.payload as Record<string, unknown> | undefined)?.workAttemptStartedAt;
+      if (row && typeof expectedAttempt === "string") query = query.eq("payload->>workAttemptStartedAt", expectedAttempt);
       const result = await query.select("*").single();
-      if (result.error || !result.data)
-        throw result.error ?? new Error("Could not save Career reply");
+      if (result.error || !result.data) throw result.error ?? new Error("Could not save Career activity");
       row = result.data as TalentMessageRow;
       lastWriteAt = Date.now();
       return row;
     });
-    return writes;
+    // Projection errors cannot poison later writes or replay external work.
+    writes = operation.catch(() => undefined);
+    return operation;
+  };
+  const display = async () => {
+    lastWriteAt = Date.now();
+    return save(false).catch(error => {
+      console.warn("[career] Could not save turn display", args.replyId, error);
+      return null;
+    });
   };
   return {
-    // Coalesce provider tokens to the existing one-second status reconciliation
-    // cadence. Tool boundaries and finalization always flush immediately.
-    async delta(text: string, logs: string[]) {
+    start: display,
+    async delta(text: string, nextLogs: string[]) {
+      if (finished) return null;
+      appendLogs(nextLogs);
       segment += text;
-      if (Date.now() - lastWriteAt >= 1000)
-        return save(join(segment), logs, false);
-      return null;
+      return Date.now() - lastWriteAt >= 1000 ? display() : null;
     },
-    async progress(text: string, logs: string[]) {
-      committed = join(text);
+    async progress(text: string, nextLogs: string[]) {
+      if (finished) return null;
+      appendLogs(nextLogs);
+      events.push({ id: `message:${events.length}`, kind: "message", text });
       segment = "";
-      return save(committed, logs, false);
+      return display();
     },
-    async finish(
-      text: string,
-      logs: string[],
-      payload?: Record<string, unknown>
-    ) {
+    async finish(text: string, nextLogs: string[], payload?: Record<string, unknown>) {
+      appendLogs(nextLogs);
+      await writes;
+      if ((await args.check?.()) === false) return null;
+      // The final row contains the display snapshot too, so paginated history
+      // can render it even when the older activity row is outside the page.
+      const { data: existing, error: readError } = await table().select("*")
+        .eq("user_id", args.userId).eq("conversation_id", args.conversationId)
+        .eq("message_type", "chat").eq("payload->>careerTextReplyId", args.replyId)
+        .order("id", { ascending: false }).limit(1).maybeSingle();
+      if (readError) throw readError;
+      let final = existing as TalentMessageRow | null;
+      if (!final) {
+        const result = await table().insert(withIsMobile({
+          conversation_id: args.conversationId, user_id: args.userId, role: "assistant",
+          message_type: "chat", content: text, thinking_logs: logs,
+          payload: { ...payload, ...snapshot(true, false) } as TalentMessageRow["payload"],
+        }, args.isMobile)).select("*").single();
+        if (result.error || !result.data) throw result.error ?? new Error("Could not save Career reply");
+        final = result.data as TalentMessageRow;
+      }
+      finished = true;
       segment = "";
-      return save(join(text), logs, true, payload);
+      await save(true, false).catch(() => undefined);
+      return final;
     },
     async interrupt() {
-      // Stop the display on already delivered text even when cancellation now
-      // forbids producing more text. Do not insert or extend a reply here.
-      await writes.catch(() => undefined);
+      if (finished) return row;
+      await writes;
       if (!row) return null;
-      const payload = row.payload as Record<string, unknown>;
-      if (!payload.workPending) return row;
-      const { data, error } = await table()
-        .update({
-          payload: {
-            ...payload,
-            workPending: false,
-            workCompletedAt: new Date().toISOString(),
-          } as TalentMessageRow["payload"],
-        })
-        .eq("id", row.id)
-        .eq("user_id", args.userId)
-        .eq("conversation_id", args.conversationId)
-        .eq("payload->>workStartedAt", args.startedAt)
-        .select("*")
-        .maybeSingle();
-      if (error) throw error;
-      return data as TalentMessageRow | null;
+      finished = true;
+      return save(true, false);
     },
-    async logs(logs: string[]) {
-      if (row) return save(join(segment), logs, false);
-      return null;
+    async logs(nextLogs: string[]) {
+      if (finished) return null;
+      appendLogs(nextLogs);
+      return display();
     },
   };
 }

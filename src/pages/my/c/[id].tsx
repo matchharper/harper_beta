@@ -490,7 +490,7 @@ export default function ResultPage() {
             <div
               onMouseDown={handleResizeStart}
               className={`absolute top-0 right-[-3px] z-50 h-full w-[2px] cursor-col-resize ${
-                isResizing ? "bg-black/50" : "bg-transparent hover:bg-bg-weak"
+                isResizing ? "bg-surface-inverse/50" : "bg-transparent hover:bg-bg-weak"
               }`}
             />
           )}

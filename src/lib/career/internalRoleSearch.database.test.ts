@@ -70,8 +70,10 @@ test("exact internal role lookup uses the tool contract and existing visibility 
     return originalLoad.call(this, request, parent, isMain);
   };
   let tools: typeof import("@/lib/talentOnboarding/tools");
+  let searchInternalRolesForCareerTool: typeof import("./internalRoleSearch").searchInternalRolesForCareerTool;
   try {
     tools = await import("@/lib/talentOnboarding/tools");
+    ({ searchInternalRolesForCareerTool } = await import("./internalRoleSearch"));
   } finally {
     nodeModule._load = originalLoad;
   }
@@ -89,9 +91,15 @@ test("exact internal role lookup uses the tool contract and existing visibility 
     (schema.properties as Record<string, { type: string }>).role_id.type,
     "string"
   );
-  for (const key of ["role_id", "keywords", "matchedOnly", "company"]) {
+  for (const key of ["role_id", "keywords"]) {
     assert.ok(!(schema.required as string[] | undefined)?.includes(key));
   }
+  assert.ok(!("matchedOnly" in (schema.properties as Record<string, unknown>)));
+  assert.ok(!("company" in (schema.properties as Record<string, unknown>)));
+  // Keep coverage of the legacy internal reader without exposing it to Career.
+  const legacySearch = (input: Record<string, unknown>) => searchInternalRolesForCareerTool({
+    ...input, roleId: input.role_id, userId: talentId,
+  });
   const search = async (input: Record<string, unknown>) =>
     (await tools.executeTalentTool({
       name: "get_internal_roles",
@@ -103,6 +111,7 @@ test("exact internal role lookup uses the tool contract and existing visibility 
       roles: { id: string; role: string }[];
     };
 
+  await assert.rejects(() => search({ matchedOnly: true }), /requires role_id or keywords/);
   const exact = await search({ role_id: roleId });
   assert.deepEqual(
     exact.roles.map((role) => role.id),
@@ -121,7 +130,7 @@ test("exact internal role lookup uses the tool contract and existing visibility 
     0
   );
   assert.equal(
-    (await search({ role_id: roleId, matchedOnly: true })).returnedCount,
+    (await legacySearch({ role_id: roleId, matchedOnly: true })).returnedCount,
     0
   );
 
@@ -130,14 +139,14 @@ test("exact internal role lookup uses the tool contract and existing visibility 
     [talentId, roleId, siblingId]
   );
   assert.deepEqual(
-    (await search({ role_id: roleId, matchedOnly: true })).roles.map(
+    (await legacySearch({ role_id: roleId, matchedOnly: true })).roles.map(
       (role) => role.id
     ),
     [roleId]
   );
   assert.equal(
     (
-      await search({
+      await legacySearch({
         role_id: roleId,
         matchedOnly: true,
         company: "Different Company",
@@ -151,7 +160,7 @@ test("exact internal role lookup uses the tool contract and existing visibility 
     [roleId]
   );
   assert.equal((await search({ role_id: roleId })).returnedCount, 1, "private fit judgments do not hide a user-chosen active Role");
-  assert.equal((await search({ role_id: roleId, matchedOnly: true })).returnedCount, 0);
+  assert.equal((await legacySearch({ role_id: roleId, matchedOnly: true })).returnedCount, 0);
   await db.query("DELETE FROM talent_opportunity_fit WHERE opportunity_id=$1", [
     roleId,
   ]);

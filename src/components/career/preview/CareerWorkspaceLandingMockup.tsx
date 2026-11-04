@@ -296,7 +296,7 @@ const MessageBubble = ({
         "w-fit whitespace-pre-line wrap-break-word",
         compact ? "text-[15px] leading-[1.72]" : "text-[14px] leading-[1.8]",
         isUser
-          ? "ml-auto max-w-[min(740px,92%)] rounded-[14px] bg-black px-3 py-1.5 text-neutral-00"
+          ? "ml-auto max-w-[min(740px,92%)] rounded-lg bg-surface-inverse px-3 py-1.5 text-neutral-00"
           : "max-w-[min(740px,100%)] text-neutral-primary"
       )}
     >
@@ -316,8 +316,8 @@ const StaticComposer = ({
     <div className="mx-auto w-full max-w-[1120px]">
       <div
         className={cn(
-          "overflow-hidden rounded-[18px] border",
-          "border-neutral-1000-a05 bg-bg-floating/55 shadow-sm backdrop-blur-lg",
+          "overflow-hidden rounded-xl border",
+          "border-neutral-1000-a05 bg-bg-floating/55 shadow-(--shadow-sm) backdrop-blur-lg",
           compact
             ? "grid h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center"
             : "flex flex-col"
@@ -327,7 +327,7 @@ const StaticComposer = ({
           <MuteButton
             aria-disabled="true"
             aria-label="추가 메뉴"
-            className="ml-2 rounded-full"
+            className="ml-2 rounded-pill"
             size="md"
             tabIndex={-1}
             variant="transparent"
@@ -355,7 +355,7 @@ const StaticComposer = ({
             <MuteButton
               aria-disabled="true"
               aria-label="추가 메뉴"
-              className="rounded-full"
+              className="rounded-pill"
               size="md"
               tabIndex={-1}
               variant="transparent"
@@ -368,7 +368,7 @@ const StaticComposer = ({
             aria-disabled="true"
             aria-label="통화 모드"
             tabIndex={-1}
-            className="rounded-full"
+            className="rounded-pill"
             size="md"
             variant="primary"
           >
@@ -589,7 +589,7 @@ const DesktopWorkspace = ({ copy }: { copy: StaticCopy }) => {
           role="presentation"
           className="flex w-2 shrink-0 items-center justify-center bg-bg-basement"
         >
-          <div className="h-10 w-[3px] rounded-full bg-black/20" />
+          <div className="h-10 w-[3px] rounded-full bg-surface-inverse/20" />
         </div>
 
         <section className="flex min-w-0 flex-1 flex-col bg-bg-basement">
@@ -654,19 +654,19 @@ const MobileWorkspace = ({ copy }: { copy: StaticCopy }) => (
       <MuteButton
         aria-disabled="true"
         aria-label="메뉴 열기"
-        className="absolute left-3 top-2 rounded-full border-neutral-1000-a05 bg-bg-floating/55 text-neutral-muted backdrop-blur-lg"
+        className="absolute left-3 top-2 rounded-pill border-neutral-1000-a05 bg-bg-floating/55 text-neutral-muted backdrop-blur-lg"
         size="md"
         tabIndex={-1}
       >
         <List className="h-4 w-4" />
       </MuteButton>
       <div className="flex h-8 w-24 items-center justify-center">
-        <div className="h-[3px] w-10 rounded-full bg-black/20" />
+        <div className="h-[3px] w-10 rounded-full bg-surface-inverse/20" />
       </div>
       <MuteButton
         aria-disabled="true"
         aria-label="채팅 접기"
-        className="absolute right-3 top-2 rounded-full border-neutral-1000-a05 bg-bg-floating/55 text-neutral-muted backdrop-blur-lg"
+        className="absolute right-3 top-2 rounded-pill border-neutral-1000-a05 bg-bg-floating/55 text-neutral-muted backdrop-blur-lg"
         size="md"
         tabIndex={-1}
       >

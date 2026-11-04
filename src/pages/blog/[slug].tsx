@@ -686,7 +686,7 @@ export default function BlogPostPage({
                           }}
                           className="block min-w-0"
                         >
-                          <div className="relative aspect-[1200/630] overflow-hidden rounded-[5px] border border-neutral-1000-a10 bg-bg-weak">
+                          <div className="relative aspect-[1200/630] overflow-hidden rounded-sm border border-neutral-1000-a10 bg-bg-weak">
                             <Image
                               src={item.thumbnail}
                               alt={getBlogDisplayTitle(item.title)}

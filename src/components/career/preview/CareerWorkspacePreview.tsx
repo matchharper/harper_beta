@@ -947,6 +947,20 @@ const CareerWorkspacePreview = ({
   );
   const previewTasks = useMemo(
     (): CareerTasksSnapshot => ({
+      actionItems: hideTaskDecisions ? [] : [
+        { id: "00000000-0000-4000-8000-000000000101", revision: 1,
+          title: "지원서 3건이 준비됐어요", description: "작성한 내용과 첨부 이력서를 확인하면 지원을 이어갈 수 있어요.",
+          buttonText: "지원서 확인하기", priority: 3, urgency: "normal",
+          action: { type: "send_message", text: "준비된 지원서 3건을 보여줘. 검토한 뒤 제출 여부를 정할게." } },
+        { id: "00000000-0000-4000-8000-000000000102", revision: 1,
+          title: "Orbit Labs에서 면접 일정을 물었어요", description: "이번 주 목요일이나 금요일 중 가능한 시간을 알려주세요.",
+          buttonText: "가능한 시간 답하기", priority: 2, urgency: "soon",
+          action: { type: "compose_reply", text: "Orbit Labs 면접 일정 요청에 대한 답변. 가능한 시간을 확인해 다음 단계를 진행한다." } },
+        { id: "00000000-0000-4000-8000-000000000103", revision: 1,
+          title: "Cedar 과제 제출이 오늘 마감돼요", description: "오늘 18시까지 제출할 파일을 보내주세요. 내용을 확인한 뒤 제출을 이어갈게요.",
+          buttonText: "과제 파일 첨부하기", priority: 1, urgency: "urgent",
+          action: { type: "compose_reply", text: "Cedar 과제 제출에 사용할 파일. 첨부 내용을 확인하고 기존 제출 권한에 따라 다음 단계를 진행한다." } },
+      ],
       actions: previewPendingActions,
       meetingSchedules: [],
       connections: historyOpportunities.flatMap((item) => {
@@ -964,7 +978,7 @@ const CareerWorkspacePreview = ({
       gmailConnected: initialGmailConnected,
       unavailableCategories: [],
     }),
-    [historyOpportunities, initialGmailConnected, previewPendingActions]
+    [historyOpportunities, initialGmailConnected, previewPendingActions, hideTaskDecisions]
   );
 
   useEffect(() => {

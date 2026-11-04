@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useState,
+  useRef,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -46,8 +47,7 @@ type BrowserDockContext = {
   select: (id: string | null) => void;
   refresh: () => Promise<unknown>;
   anchors: ReadonlyMap<string, HTMLElement>;
-  inlineSessionIds: ReadonlySet<string>;
-  registerAnchor: (id: string, element: HTMLElement | null) => void;
+  registerAnchor: (id: string, element: HTMLElement | null, previous: HTMLElement | null) => void;
   closedSessionId: string | null;
 };
 const BrowserDockContext = createContext<BrowserDockContext | null>(null);
@@ -55,7 +55,6 @@ const BrowserDockContext = createContext<BrowserDockContext | null>(null);
 export function BrowserSessionProvider({
   conversationId,
   enabled,
-  messages,
   children,
 }: {
   conversationId: string | null;
@@ -64,21 +63,19 @@ export function BrowserSessionProvider({
   children: ReactNode;
 }) {
   const [preview, setPreview] = useState(false);
-  const [anchors, setAnchors] = useState<ReadonlyMap<string, HTMLElement>>(
-    () => new Map()
-  );
-  const registerAnchor = useCallback(
-    (id: string, element: HTMLElement | null) => {
-      setAnchors((current) => {
-        if (current.get(id) === (element ?? undefined)) return current;
-        const next = new Map(current);
-        if (element) next.set(id, element);
-        else next.delete(id);
-        return next;
-      });
-    },
-    []
-  );
+  const [anchorGroups, setAnchorGroups] = useState<ReadonlyMap<string, readonly HTMLElement[]>>(() => new Map());
+  const registerAnchor = useCallback((id: string, element: HTMLElement | null, previous: HTMLElement | null) => {
+    setAnchorGroups(current => {
+      const group = current.get(id) ?? [];
+      const nextGroup = group.filter(node => node !== previous && node !== element);
+      if (element) nextGroup.push(element);
+      const next = new Map(current);
+      if (nextGroup.length) next.set(id, nextGroup); else next.delete(id);
+      return next;
+    });
+  }, []);
+  // Repeated references share one viewer and retain its original message slot.
+  const anchors = new Map([...anchorGroups].map(([id, nodes]) => [id, nodes[0]]));
   const { fetchWithAuth } = useCareerApi();
   const client = useQueryClient();
   const router = useRouter();
@@ -157,11 +154,6 @@ export function BrowserSessionProvider({
         preview,
         setPreview,
         anchors,
-        inlineSessionIds: new Set(
-          messages.flatMap((message) =>
-            message.browserSession ? [message.browserSession.sessionId] : []
-          )
-        ),
         registerAnchor,
         closedSessionId:
           selectedQuery.data &&
@@ -219,22 +211,25 @@ export function BrowserSessionLink({ sessionId }: { sessionId: string }) {
 export function BrowserSessionAnchor({ sessionId }: { sessionId: string }) {
   const dock = useContext(BrowserDockContext);
   const register = dock?.registerAnchor;
+  const previousNode = useRef<HTMLDivElement | null>(null);
   const ref = useCallback(
-    (node: HTMLDivElement | null) => register?.(sessionId, node),
+    (node: HTMLDivElement | null) => {
+      register?.(sessionId, node, previousNode.current);
+      previousNode.current = node;
+    },
     [register, sessionId]
   );
   const active =
-    dock?.selectedId === sessionId &&
-    dock.views.some((view) => view.session.id === sessionId);
+    dock?.views.some((view) => view.session.id === sessionId);
   if (!active) return <BrowserSessionLink sessionId={sessionId} />;
   return (
     <div
       ref={ref}
       data-browser-inline-anchor={sessionId}
-      className="max-w-full"
+      className="max-w-full md:min-h-[160px]"
       style={{
         width: 720,
-        minHeight: 160,
+
       }}
     />
   );
@@ -251,7 +246,6 @@ export function BrowserSessionDock() {
       onSelect={dock.select}
       onChanged={dock.refresh}
       anchors={dock.anchors}
-      inlineSessionIds={dock.inlineSessionIds}
     />
   );
 }
@@ -262,7 +256,6 @@ export function BrowserSessionDockView({
   onSelect,
   onChanged,
   anchors,
-  inlineSessionIds,
   preview = false,
 }: {
   views: BrowserSessionViewData[];
@@ -270,30 +263,26 @@ export function BrowserSessionDockView({
   onSelect: (id: string | null) => void;
   onChanged?: () => Promise<unknown>;
   anchors?: ReadonlyMap<string, HTMLElement>;
-  inlineSessionIds?: ReadonlySet<string>;
   preview?: boolean;
 }) {
   const [dock, setDock] = useState<HTMLDivElement | null>(null);
   const layout =
     dock?.closest<HTMLElement>("[data-career-chat-layout]") ??
     dock?.parentElement;
-  const selected = views.find((view) => view.session.id === selectedId);
+
   return (
     <>
       <div ref={setDock} className="absolute right-0 top-0 h-0 w-0" />
       {dock &&
         layout &&
-        (selected ? [selected] : []).map((view) => {
+        views.filter(view => view.session.status !== "closed" && view.browserAvailability !== "stopped").map((view, index) => {
           const inlineAnchor = anchors?.get(view.session.id) ?? null;
-          // Wait for the actual message slot, so the iframe mounts there just once.
-          if (inlineSessionIds?.has(view.session.id) && !inlineAnchor)
-            return null;
           return createPortal(
             <BrowserSessionFloatingPanel
               view={view}
-              depth={0}
-              count={1}
-              expanded
+              depth={index}
+              count={views.length}
+              expanded={selectedId === view.session.id}
               preview={preview}
               onExpand={(open) => onSelect(open ? view.session.id : null)}
               onChanged={onChanged}
@@ -301,7 +290,7 @@ export function BrowserSessionDockView({
               layout={layout}
               inlineAnchor={inlineAnchor}
             />,
-            inlineAnchor ?? layout,
+            layout,
             view.session.id
           );
         })}
@@ -323,7 +312,7 @@ function BrowserSessionFloatingPanel({
   const [content, setContent] = useState<HTMLDivElement | null>(null);
   const [collapsedPreference, setCollapsedPreference] = useState<
     boolean | null
-  >(null);
+  >(() => props.expanded && !props.preview ? false : null);
   const { inline, collapsed } = useBrowserSessionPlacement({
     dock,
     layout,
@@ -333,7 +322,7 @@ function BrowserSessionFloatingPanel({
     collapsed: collapsedPreference,
   });
   return (
-    <Dialog open={props.expanded} onOpenChange={props.onExpand} modal={false}>
+    <Dialog open onOpenChange={() => setCollapsedPreference(true)} modal={false}>
       <DialogPanelContent
         ref={setContent}
         forceMount
@@ -342,7 +331,7 @@ function BrowserSessionFloatingPanel({
         onInteractOutside={(event) => event.preventDefault()}
         aria-describedby={undefined}
         data-browser-placement={inline ? "inline" : "dock"}
-        className="overflow-y-auto rounded-3xl shadow-xl outline-none"
+        className="overflow-y-auto rounded-3xl shadow-(--shadow-xl) outline-none"
       >
         <DialogTitle className="sr-only">
           {t("career.browser.title", "지원 브라우저")}
@@ -351,9 +340,7 @@ function BrowserSessionFloatingPanel({
           {...props}
           expanded={!collapsed}
           collapsed={collapsed}
-          onToggleCollapsed={
-            !inline ? () => setCollapsedPreference(!collapsed) : undefined
-          }
+          onToggleCollapsed={() => setCollapsedPreference(!collapsed)}
         />
       </DialogPanelContent>
     </Dialog>

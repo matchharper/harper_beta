@@ -47,7 +47,7 @@ export default function CareerCallCard({
   return (
     <div
       className={cn(
-        "mt-6 rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-5 shadow-sm md:px-6",
+        "mt-6 rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-5 shadow-(--shadow-sm) md:px-6",
         className
       )}
     >

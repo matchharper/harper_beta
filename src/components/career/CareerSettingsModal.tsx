@@ -250,10 +250,10 @@ const AccountDeleteConfirmDialog = ({
           "career.settings.career_settings_modal.11q4o0j",
           "회원 탈퇴 확인 닫기"
         )}
-        className="absolute inset-0 bg-black/45"
+        className="absolute inset-0 bg-surface-inverse/45"
         onClick={pending ? undefined : onClose}
       />
-      <div className="relative font-normal z-[81] max-h-[calc(100dvh-2rem)] w-full max-w-[440px] overflow-y-auto rounded-[16px] border border-critical/30 bg-bg-floating p-5 shadow-[0_24px_80px_color-mix(in_srgb,var(--color-neutral-1000)_24%,transparent)]">
+      <div className="relative font-normal z-[81] max-h-[calc(100dvh-2rem)] w-full max-w-[440px] overflow-y-auto rounded-xl border border-critical/30 bg-bg-floating p-5 shadow-(--shadow-modal)">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-critical-faded text-critical">
             <AlertTriangle className="h-5 w-5" strokeWidth={1.5} />
@@ -619,7 +619,7 @@ const AccountSectionContent = ({
         form="career-settings-account-form"
         disabled={savePending}
         className={[
-          "inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-black px-4 text-[13px] font-normal text-neutral-00 transition-colors hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-60",
+          "inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-surface-inverse px-4 text-[13px] font-normal text-neutral-00 transition-colors hover:bg-surface-inverse/85 disabled:cursor-not-allowed disabled:opacity-60",
           isMobile ? "w-full" : "w-auto",
         ].join(" ")}
       >
@@ -1040,7 +1040,7 @@ const CareerSettingsModal = ({
                     className={[
                       "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
                       isActive
-                        ? "bg-neutral-200 text-black"
+                        ? "bg-neutral-200 text-neutral-primary"
                         : "text-neutral-primary hover:bg-bg-weak",
                     ].join(" ")}
                   >

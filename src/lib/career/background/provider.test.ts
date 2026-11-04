@@ -8,7 +8,7 @@ import { DEFAULT_CAREER_TEXT_CHAT_MODEL } from "../textChatModelConfig";
 import { CLAUDE_HAIKU_MODEL, GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { withToolTrace, type ToolTraceEvent } from "@/lib/llm/toolTrace";
 
-test("company follow context identifies the exact evaluation to read without exposing raw payloads", () => {
+test("internal follow events omit discovery candidates and stale publication instructions", () => {
   const rendered = renderCareerBackgroundInvocation({
     id: "follow-run", talent_id: "owner", conversation_id: "conversation", status: "handed_off",
     trigger: "career_company_follow_changed", created_at: "2026-10-30T01:02:03Z",
@@ -20,11 +20,26 @@ test("company follow context identifies the exact evaluation to read without exp
     },
   });
   assert.doesNotMatch(rendered, /evaluation-run|source=internal|saved-evaluation|Newly assessed|PRIVATE_GENERATED_INSTRUCTION/);
-  assert.match(rendered, /Roles for the agent to consider: assessed-role/);
+  assert.doesNotMatch(rendered, /assessed-role|source-role/);
   assert.match(rendered, /revision source-revision/);
   assert.match(rendered, /2026-10-30 10:02/);
   assert.ok(!rendered.includes("PRIVATE_DB_SENTINEL"));
   assert.ok(!rendered.includes("T01:02:03Z"));
+});
+
+test("follow events without scoring metadata omit internal inventory but preserve external and user-selected references", () => {
+  const run: any = {
+    id: "run", trigger: "career_company_follow_changed", created_at: "2026-11-04",
+    trigger_payload: { instruction: "STALE_DISCOVERY", roleIds: ["unselected-role"],
+      sourceEvents: [{ sourceKind: "company_follow", sourceId: "follow", roleIds: ["unselected-role"] }] },
+  };
+  assert.doesNotMatch(renderCareerBackgroundInvocation(run), /STALE_DISCOVERY|unselected-role/);
+  run.trigger_payload.evaluationEvidence = { source: "external" };
+  run.trigger_payload.sourceEvents[0].roleSource = "external";
+  assert.match(renderCareerBackgroundInvocation(run), /unselected-role/);
+  run.trigger = "career_schedule_due";
+  run.trigger_payload = { roleIds: ["chosen-role"], instruction: "Prepare the role I chose." };
+  assert.match(renderCareerBackgroundInvocation(run), /chosen-role/);
 });
 
 // Capture the actual provider request after the common serializer and dynamic

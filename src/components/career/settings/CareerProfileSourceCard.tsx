@@ -31,7 +31,7 @@ const CareerProfileSourceCard = ({
     <>
       <span
         className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-bg-weak",
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-weak",
           muted && "grayscale opacity-45"
         )}
       >

@@ -777,9 +777,8 @@ export async function searchInternalRolesForCareerTool(args: {
 
   return {
     assistantInstruction: [
-      "These are available internal roles under the supplied filters. An empty result does not establish availability outside those filters.",
-      "Recommendation and introduction consent are separate. Use apply_to_internal_role for a role the user explicitly asks to apply to; use upsert_opportunities for proactive recommendations.",
-      "Prior recommendations and decisions are context for your judgment. A recommendation does not accept an introduction or share the candidate's materials.",
+      "These public role facts match the supplied lookup filters; they do not establish that a result is the posting the user requested or a company-selected recommendation.",
+      "An empty result means this lookup found no match. This read has not saved an opportunity, requested an introduction or shared the candidate's materials.",
     ].join(" "),
     fallbackUsed: false,
     mode: matchedOnly ? "matched" : "lookup",

@@ -129,7 +129,7 @@ const OpportunityListCard = ({
   return (
     <InlinePanel
       className={cn(
-        "group relative flex h-full flex-col rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-0 shadow-none transition-colors hover:border-neutral-400 hover:bg-bg-weak",
+        "group relative flex h-full flex-col rounded-md border border-neutral-1000-a05 bg-bg-floating p-0 shadow-none transition-colors hover:border-neutral-400 hover:bg-bg-weak",
         pending && "opacity-60"
       )}
     >
@@ -162,7 +162,7 @@ const OpportunityListCard = ({
           )}
         >
           {item.companyLogoUrl ? (
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-default p-1">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-default p-1">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={item.companyLogoUrl}
@@ -171,7 +171,7 @@ const OpportunityListCard = ({
               />
             </span>
           ) : (
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-black text-neutral-00">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-inverse text-neutral-00">
               <Building2 className="h-3.5 w-3.5" />
             </span>
           )}

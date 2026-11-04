@@ -304,7 +304,7 @@ function PipelineMemoDialog({
         if (!open) handleClose();
       }}
     >
-      <DialogContent className="max-w-md rounded-lg" hideCloseButton>
+      <DialogContent className="max-w-md " hideCloseButton>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>메모 추가</DialogTitle>
@@ -574,7 +574,7 @@ function ReviewListToggleBox({
       className={cx(
         "inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-medium transition",
         isDropTarget
-          ? "border-primary bg-primary-faded text-primary shadow-[0_0_0_2px_rgba(37,99,235,0.18)]"
+          ? "border-primary bg-primary-faded text-primary shadow-(--shadow-outline)"
           : active
             ? "border-primary/30 bg-primary-faded text-primary"
             : "border-neutral-1000-a05 bg-bg-default/65 text-neutral-muted hover:bg-bg-default hover:text-neutral-primary",
@@ -1528,7 +1528,7 @@ export function MatchingHarperReviewBoard({
       <div
         ref={reviewControlsRef}
         data-ops-matching-sticky-controls
-        className="sticky z-20 -mx-1 rounded-md border border-neutral-1000-a05 bg-bg-default/90 px-1 py-2 shadow-[0_10px_30px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)] backdrop-blur-xl"
+        className="sticky z-20 -mx-1 rounded-md border border-neutral-1000-a05 bg-bg-default/90 px-1 py-2 shadow-(--shadow-lg) backdrop-blur-xl"
         style={{ top: stickyTop }}
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -1785,7 +1785,7 @@ export function MatchingHarperReviewBoard({
           }
         }}
       >
-        <DialogContent className="max-w-lg rounded-lg" hideCloseButton>
+        <DialogContent className="max-w-lg " hideCloseButton>
           <DialogHeader>
             <DialogTitle>후보자에게 종료 안내가 전달됨</DialogTitle>
             <DialogDescription>
@@ -1840,7 +1840,7 @@ export function MatchingHarperReviewBoard({
           if (!open) setConfirmRecommendTalent(null);
         }}
       >
-        <DialogContent className="max-w-md rounded-lg" hideCloseButton>
+        <DialogContent className="max-w-md " hideCloseButton>
           <DialogHeader>
             <DialogTitle>추천 발송하기</DialogTitle>
             <DialogDescription>

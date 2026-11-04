@@ -162,7 +162,7 @@ function SlotPurchaseForm({
           }
         }}
       >
-        <div className="space-y-6 rounded-[20px] border-2 border-action bg-action-faded p-4 sm:p-5">
+        <div className="space-y-6 rounded-2xl border-2 border-action bg-action-faded p-4 sm:p-5">
           <div aria-live="polite" aria-atomic="true">
             {catalog?.promotion && interval === "month" && (
               <p className="mb-3 text-sm text-action">

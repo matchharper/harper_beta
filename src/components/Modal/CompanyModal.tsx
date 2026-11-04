@@ -196,13 +196,13 @@ export default function CompanyModalRoot() {
       : "bg-bg-default text-neutral-primary",
     isMobile
       ? cn(
-          "inset-x-0 bottom-0 h-full max-h-[92dvh] rounded-t-[20px]",
+          "inset-x-0 bottom-0 h-full max-h-[92dvh] rounded-t-2xl",
           isCareerTone
             ? "border-t border-primary/20"
             : "border-t border-neutral-1000-a05"
         )
       : cn(
-          "right-0 top-0 h-full w-[min(560px,92vw)] shadow-2xl",
+          "right-0 top-0 h-full w-[min(560px,92vw)] shadow-(--shadow-2xl)",
           isCareerTone
             ? "border-l border-primary/20"
             : "border-l border-neutral-1000-a05"
@@ -252,7 +252,7 @@ export default function CompanyModalRoot() {
       dismissible={closeOnBackdrop}
     >
       <DrawerPrimitive.Portal>
-        <DrawerPrimitive.Overlay className="fixed inset-0 z-9999 bg-black/50" />
+        <DrawerPrimitive.Overlay className="fixed inset-0 z-9999 bg-surface-inverse/50" />
         <DrawerPrimitive.Content className={cn("font-sans", drawerClassName)}>
           <DrawerPrimitive.Title className="sr-only">
             {company?.name ?? "회사 정보"}

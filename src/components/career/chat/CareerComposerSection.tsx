@@ -280,7 +280,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
   const [mobileActionMenuOpen, setMobileActionMenuOpen] = useState(false);
   const [desktopActionMenuOpen, setDesktopActionMenuOpen] = useState(false);
   const [selectedPendingAction, setSelectedPendingAction] = useState<
-    CareerPendingCompanyRequestAction | CareerPendingFitQuestionAction | null
+    CareerPendingCompanyRequestAction | CareerPendingFitQuestionAction | import("@/lib/career/actionItems").CareerHighlightedAction | null
   >(null);
   const [pendingQuestionExpanded, setPendingQuestionExpanded] = useState(false);
   const pendingActionHandlerRef =
@@ -821,7 +821,11 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
   };
 
   const handleSelectPendingAction = useCallback(
-    (action: CareerPendingAction) => {
+    (action: CareerPendingAction | CareerComposerPendingAction) => {
+      if (action.kind === "action_item" && action.action.type === "send_message") {
+        void onSendChatMessage({ text: action.action.text, actionItem: { id: action.id, revision: action.revision } });
+        return;
+      }
       if (action.kind === "career_check_in_call") {
         logCareerEvent("click_chat_composer_pending_call", {
           callId: action.callRequest.id,
@@ -865,6 +869,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
       logCareerEvent,
       onStartConversationStarter,
       onStartCallMode,
+      onSendChatMessage,
     ]
   );
 
@@ -914,7 +919,9 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
       opportunityMentions: submittedMentions,
       viewedRoleId: router.query.tab?.[0] === "history" && typeof router.query.id === "string"
         ? router.query.id : undefined,
-      pendingAction: submittedPendingAction
+      actionItem: submittedPendingAction?.kind === "action_item"
+        ? { id: submittedPendingAction.id, revision: submittedPendingAction.revision } : undefined,
+      pendingAction: submittedPendingAction && submittedPendingAction.kind !== "action_item"
         ? toCareerPendingActionReference(submittedPendingAction)
         : undefined,
       onError: () => {
@@ -1397,7 +1404,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
               className={cn(
                 "transition-all duration-200",
                 showInterviewComposerFrame
-                  ? "rounded-[20px] border border-neutral-1000-a05 bg-neutral-200 p-2 shadow-[0_18px_42px_rgba(31,28,26,0.08)] backdrop-blur-xl"
+                  ? "rounded-2xl border border-neutral-1000-a05 bg-neutral-200 p-2 shadow-(--shadow-lg) backdrop-blur-xl"
                   : "rounded-3xl"
               )}
             >
@@ -1505,7 +1512,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                   <ChatComposerActionMenu
                     animated={false}
                     triggerIcon={
-                      <Plus className="size-5 text-black" strokeWidth={1.6} />
+                      <Plus className="size-5 text-neutral-primary" strokeWidth={1.6} />
                     }
                     contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
                     disabled={!user}
@@ -1580,7 +1587,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                           disabled={stopPending}
                           actionVariant="primary"
                           buttonRadius="pill"
-                          className="h-9 rounded-[18px] border border-neutral-1000-a10 bg-primary px-2.5 text-neutral-00 shadow-xs"
+                          className="h-9 rounded-xl border border-neutral-1000-a10 bg-primary px-2.5 text-neutral-00 shadow-(--shadow-xs)"
                           aria-label={t("career.chat.stop", "중단")}
                           aria-busy={stopPending}
                         >
@@ -1595,7 +1602,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                             : isComposerActionLocked || isStartingCall || !onStartCallMode)}
                           actionVariant="primary"
                           buttonRadius="pill"
-                          className="h-9 rounded-[18px] border border-neutral-1000-a10 bg-primary px-2.5 text-neutral-00 shadow-xs"
+                          className="h-9 rounded-xl border border-neutral-1000-a10 bg-primary px-2.5 text-neutral-00 shadow-(--shadow-xs)"
                           aria-label={hasSendableDraft
                             ? t("career.chat.career_composer_section.send_message_aria_label", "메시지 보내기")
                             : t("career.chat.career_composer_section.call_mode_aria_label", "통화 모드")}
@@ -1618,7 +1625,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                       disabled={resumeInterviewDisabled}
                       actionVariant="primary"
                       buttonRadius="pill"
-                      className="hidden h-8 items-center gap-1.5 rounded-[12px] border border-neutral-1000 bg-neutral-1000 px-3 text-[12px] font-normal text-neutral-00 shadow-xs hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70 md:inline-flex"
+                      className="hidden h-8 items-center gap-1.5 rounded-lg border border-neutral-1000 bg-neutral-1000 px-3 text-[12px] font-normal text-neutral-00 shadow-(--shadow-xs) hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70 md:inline-flex"
                     >
                       {sessionReengagementPending ||
                       resumeInterviewRequested ? (

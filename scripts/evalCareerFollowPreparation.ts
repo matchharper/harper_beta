@@ -78,7 +78,10 @@ async function main() {
       "scripts/evalCareerFollowPreparation.ts",
       "src/lib/career/companies/inventory.ts",
       "src/lib/career/companies/preparation.ts",
-      "src/lib/career/companies/hiringNews.ts",
+      "src/lib/career/prompts/toolPolicyPrompt.ts",
+      "src/lib/llm/toolDescriptions.ts",
+      "src/lib/talentOnboarding/tools.ts",
+      "src/lib/career/handbooks/opportunitySearch.ts",
       "src/lib/career/prompts/mainPrompt2.ts",
       "src/lib/career/handbooks/proactiveCareer.ts",
       "src/lib/career/capabilities/registry.ts",
@@ -156,7 +159,7 @@ async function main() {
           id: id(40),
           talent_id: id(1),
           status: "handed_off",
-          trigger: "agent_schedule",
+          trigger: "career_schedule_due",
           created_at: fixtures.requestTime,
           trigger_payload: {
             instruction:
@@ -225,7 +228,7 @@ async function main() {
               admin,
               userId: id(1),
             } as any);
-          if (name === "deliver_career_email")
+          if (name === "deliver_career_email" || name === "contact_user")
             return {
               status: "sent",
               modelOutput:
@@ -308,7 +311,7 @@ async function main() {
         deliveries: trace.executions
           .filter(
             (x: any) =>
-              x.name === "deliver_career_email" &&
+              (x.name === "deliver_career_email" || x.name === "contact_user") &&
               (x.input.action ?? "deliver") === "deliver"
           )
           .map((x: any) => x.input),

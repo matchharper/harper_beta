@@ -22,12 +22,12 @@ const PAGE_SIZE = 10;
 
 function ErrorCard({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-900 px-6 font-sans text-white">
-      <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-white/5 p-6">
+    <div className="flex min-h-screen items-center justify-center bg-neutral-900 px-6 font-sans text-on-inverse">
+      <div className="w-full max-w-md rounded-sheet border border-bg-floating/10 bg-bg-floating/5 p-6">
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 text-neutral-500" />
           <div>
-            <div className="text-base font-medium text-white">{title}</div>
+            <div className="text-base font-medium text-on-inverse">{title}</div>
             <div className="mt-2 text-sm leading-6 text-neutral-500">{desc}</div>
           </div>
         </div>
@@ -75,13 +75,13 @@ export default function SharedFolderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-900 font-sans text-white">
+    <div className="min-h-screen bg-neutral-900 font-sans text-on-inverse">
       <div className="sticky top-0 z-20 border-b border-b-white/5 bg-neutral-900/90 backdrop-blur">
         <div className="mx-auto flex max-w-[1320px] items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="text-sm text-neutral-300 transition-colors hover:text-white"
+              className="text-sm text-neutral-300 transition-colors hover:text-on-inverse"
             >
               From <span className="text-accent-200">Harper</span>
             </Link>
@@ -90,7 +90,7 @@ export default function SharedFolderPage() {
               외부 공유용 폴더
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs text-black">
+          <div className="inline-flex items-center gap-2 rounded-full bg-bg-floating px-3 py-1.5 text-xs text-neutral-primary">
             {folderName}
           </div>
         </div>
@@ -101,19 +101,19 @@ export default function SharedFolderPage() {
       </div>
 
       <div className="mx-auto max-w-[1320px] px-4 py-8 hidden sm:block">
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 md:p-7">
+        <div className="rounded-4xl border border-bg-floating/10 bg-bg-floating/5 p-6 md:p-7">
           <div className="flex gap-6 flex-row items-start justify-between">
-            <div className="text-[28px] font-normal leading-tight text-white">
+            <div className="text-[28px] font-normal leading-tight text-on-inverse">
               {folderName}
             </div>
 
             <div className="grid grid-cols-2 gap-3 min-w-[520px]">
-              <div className="rounded-2xl bg-black/15 px-4 py-3">
-                <div className="text-xl font-medium text-white">{total}</div>
+              <div className="rounded-2xl bg-surface-inverse/15 px-4 py-3">
+                <div className="text-xl font-medium text-on-inverse">{total}</div>
                 <div className="mt-1 text-xs text-neutral-500">공유된 후보 수</div>
               </div>
-              <div className="rounded-2xl bg-black/15 px-4 py-3">
-                <div className="truncate text-base font-medium text-white">
+              <div className="rounded-2xl bg-surface-inverse/15 px-4 py-3">
+                <div className="truncate text-base font-medium text-on-inverse">
                   {viewer?.viewerName ?? "게스트"}
                 </div>
                 <div className="mt-1 text-xs text-neutral-500">
@@ -128,18 +128,18 @@ export default function SharedFolderPage() {
           <div className="flex items-center gap-2 text-sm text-neutral-300">
             <BareButton
               type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/10"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-bg-floating/10 bg-bg-floating/5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-bg-floating/10"
               onClick={() => setPageIdx((current) => Math.max(0, current - 1))}
               disabled={!hasPrev || isFetching}
             >
               <ChevronLeft className="h-4 w-4" />
             </BareButton>
-            <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2">
+            <div className="rounded-xl border border-bg-floating/10 bg-bg-floating/5 px-4 py-2">
               {pageIdx + 1} / {pageCount}
             </div>
             <BareButton
               type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-white/10"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-bg-floating/10 bg-bg-floating/5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-bg-floating/10"
               onClick={() => {
                 if (!hasNext) return;
                 setPageIdx((current) => current + 1);
@@ -152,7 +152,7 @@ export default function SharedFolderPage() {
         </div>
 
         {items.length === 0 ? (
-          <div className="mt-6 rounded-[28px] border border-white/10 bg-white/5 px-6 py-12 text-center text-sm text-neutral-500">
+          <div className="mt-6 rounded-sheet border border-bg-floating/10 bg-bg-floating/5 px-6 py-12 text-center text-sm text-neutral-500">
             공유된 후보가 없습니다.
           </div>
         ) : (

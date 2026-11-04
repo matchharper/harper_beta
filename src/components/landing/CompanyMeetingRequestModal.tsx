@@ -284,7 +284,7 @@ export function CompanyMeetingRequestModal({
           <BareButton
             type="button"
             aria-label="미팅 신청 폼 닫기"
-            className="absolute inset-0 bg-black/25"
+            className="absolute inset-0 bg-surface-inverse/25"
             onClick={onClose}
           />
           <motion.div
@@ -292,7 +292,7 @@ export function CompanyMeetingRequestModal({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.99 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="relative max-h-[calc(100dvh-32px)] w-full max-w-[480px] overflow-y-auto rounded-lg border border-neutral-200 bg-white p-5 text-neutral-1000 shadow-[0_12px_40px_rgba(0,0,0,0.12)] md:max-h-[calc(100dvh-64px)] md:p-6"
+            className="relative max-h-[calc(100dvh-32px)] w-full max-w-[480px] overflow-y-auto rounded-lg border border-neutral-200 bg-bg-floating p-5 text-neutral-1000 shadow-(--shadow-modal) md:max-h-[calc(100dvh-64px)] md:p-6"
           >
             <BareButton
               type="button"
@@ -319,7 +319,7 @@ export function CompanyMeetingRequestModal({
                 <Input
                   value={form.name}
                   onChange={(event) => onChange("name", event.target.value)}
-                  className="mt-1 h-10 bg-white text-neutral-1000 placeholder:text-black/60 focus:border-primary focus:ring-primary/10"
+                  className="mt-1 h-10  text-neutral-1000 placeholder:text-neutral-primary/60 focus:border-primary focus:ring-primary/10"
                   placeholder={copy.namePlaceholder}
                   autoComplete="name"
                   required
@@ -332,7 +332,7 @@ export function CompanyMeetingRequestModal({
                 <Input
                   value={form.email}
                   onChange={(event) => onChange("email", event.target.value)}
-                  className="mt-1 h-10 bg-white text-neutral-1000 placeholder:text-black/60 focus:border-primary focus:ring-primary/10"
+                  className="mt-1 h-10  text-neutral-1000 placeholder:text-neutral-primary/60 focus:border-primary focus:ring-primary/10"
                   placeholder={copy.emailPlaceholder}
                   type="email"
                   autoComplete="email"
@@ -348,7 +348,7 @@ export function CompanyMeetingRequestModal({
                   onChange={(event) =>
                     onChange("organization", event.target.value)
                   }
-                  className="mt-1 h-10 bg-white text-neutral-1000 placeholder:text-black/60 focus:border-primary focus:ring-primary/10"
+                  className="mt-1 h-10  text-neutral-1000 placeholder:text-neutral-primary/60 focus:border-primary focus:ring-primary/10"
                   placeholder={copy.companyPlaceholder}
                   autoComplete="organization"
                   required
@@ -361,7 +361,7 @@ export function CompanyMeetingRequestModal({
                 <Textarea
                   value={form.purpose}
                   onChange={(event) => onChange("purpose", event.target.value)}
-                  className="mt-1 min-h-24 bg-white py-2.5 text-neutral-1000 placeholder:text-black/60 focus:border-primary focus:ring-primary/10"
+                  className="mt-1 min-h-24  py-2.5 text-neutral-1000 placeholder:text-neutral-primary/60 focus:border-primary focus:ring-primary/10"
                   placeholder={copy.goalPlaceholder}
                   required
                 />
@@ -373,7 +373,7 @@ export function CompanyMeetingRequestModal({
                   size="sm"
                   onClick={onClose}
                   disabled={isSubmitting}
-                  className="h-9 rounded-md border-neutral-300 bg-white px-3 text-sm text-neutral-700 hover:bg-neutral-100"
+                  className="h-9 rounded-button border-neutral-300 bg-bg-floating px-3 text-sm text-neutral-700 hover:bg-neutral-100"
                 >
                   {copy.cancel}
                 </Button>
@@ -382,7 +382,7 @@ export function CompanyMeetingRequestModal({
                   variant="primary"
                   size="sm"
                   disabled={isSubmitting}
-                  className="h-9 rounded-md border-primary bg-primary px-4 text-sm text-white hover:bg-primary/90"
+                  className="h-9 rounded-button border-primary bg-primary px-4 text-sm text-on-inverse hover:bg-primary/90"
                 >
                   {isSubmitting ? copy.submitting : copy.submit}
                 </Button>

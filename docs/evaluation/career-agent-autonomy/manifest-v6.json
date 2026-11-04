@@ -1,0 +1,8 @@
+{
+  "version": "v6",
+  "provenance": "Synthetic targeted development probe derived from v1 empty_inventory; frozen before model execution. No production data.",
+  "hashes": {
+    "cases-v6.json": "c846a1826a489b87c073fc372b71a3106e98e12ce7312e34b2a35a126c001272",
+    "gold-v6.json": "f30b5c1aa6b27f87d3262e83b19fb2e19ee624a327931e0c7ae0250d7146eeab"
+  }
+}

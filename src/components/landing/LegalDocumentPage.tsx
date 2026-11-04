@@ -15,7 +15,7 @@ const LegalDocumentPage = ({
   fallbackTitle,
 }: LegalDocumentPageProps) => {
   return (
-    <main className="relative min-h-screen font-inter text-white bg-black w-screen overflow-hidden">
+    <main className="relative min-h-screen font-inter text-on-inverse bg-surface-inverse w-screen overflow-hidden">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -28,18 +28,18 @@ const LegalDocumentPage = ({
       <LandingHeader />
 
       <section className="relative z-10 w-full lg:w-[94%] mx-auto px-4 md:px-0 pt-24 md:pt-32 pb-16 md:pb-[20vh]">
-        <div className="max-w-4xl mx-auto bg-[#0d0d0dcc] backdrop-blur p-6 md:p-10">
+        <div className="max-w-4xl mx-auto bg-marketing-overlay backdrop-blur p-6 md:p-10">
           <h1 className="font-garamond text-3xl md:text-5xl font-semibold">
             {document?.title || fallbackTitle}
           </h1>
 
           {document?.blocks?.length ? (
-            <div className="mt-8 flex flex-col gap-5 text-sm md:text-base leading-7 text-white/80">
+            <div className="mt-8 flex flex-col gap-5 text-sm md:text-base leading-7 text-on-inverse/80">
               {document.blocks.map((block) =>
                 block.type === "bulleted_list" ||
                 block.type === "numbered_list" ? (
                   <div key={block.id} className="flex items-start gap-3">
-                    <span className="mt-[8px] text-xs text-white/70">•</span>
+                    <span className="mt-[8px] text-xs text-on-inverse/70">•</span>
                     <p className="whitespace-pre-line">{block.text}</p>
                   </div>
                 ) : (
@@ -67,7 +67,7 @@ const LegalDocumentPage = ({
         </div>
       </section>
 
-      <div className="relative z-10 bg-black">
+      <div className="relative z-10 bg-surface-inverse">
         <Footer />
       </div>
     </main>

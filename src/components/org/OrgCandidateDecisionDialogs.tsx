@@ -215,7 +215,7 @@ export function StopCandidateDialog({
             <label className="mr-1 inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-neutral-muted">
               <Checkbox
                 checked={confirmed}
-                className="size-3 rounded-[3px] bg-size-[10px_10px] checked:border-neutral-700 checked:bg-neutral-700"
+                className="size-3 rounded-sm bg-size-[10px_10px] checked:border-neutral-700 checked:bg-neutral-700"
                 disabled={pending}
                 onChange={(event) => setConfirmed(event.target.checked)}
               />
@@ -247,7 +247,7 @@ export function StopCandidateDialog({
         if (!pending) handleClose();
       }}
       open={open}
-      panelClassName="max-w-md border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-md  "
       showCloseButton={!pending}
       title={title}
     >

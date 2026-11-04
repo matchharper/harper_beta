@@ -24,8 +24,8 @@ export default function AdminMetricChartCard({
 
   return (
     <div
-      className="border border-black/10 bg-white p-4"
-      style={{ borderRadius: 0 }}
+      className="border border-stroke bg-bg-floating p-4"
+      style={{ borderRadius: "var(--radius-admin)" }}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -33,23 +33,23 @@ export default function AdminMetricChartCard({
             <span
               className="h-2.5 w-2.5 shrink-0"
               style={{
-                borderRadius: 999,
+                borderRadius: "var(--radius-pill)",
                 backgroundColor: metric.color,
               }}
             />
-            <div className="text-[13px] font-semibold text-black">
+            <div className="text-[13px] font-semibold text-neutral-primary">
               {metric.label}
             </div>
           </div>
-          <div className="mt-1 text-[12px] leading-5 text-black/55">
+          <div className="mt-1 text-[12px] leading-5 text-neutral-primary/55">
             {metric.description}
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[11px] uppercase tracking-[0.12em] text-black/35">
+          <div className="text-[11px] uppercase tracking-[0.12em] text-neutral-primary/35">
             Range
           </div>
-          <div className="mt-1 text-[18px] font-semibold text-black">
+          <div className="mt-1 text-[18px] font-semibold text-neutral-primary">
             {formatMetricValue(metric.key, rangeValue)}
           </div>
         </div>
@@ -61,25 +61,25 @@ export default function AdminMetricChartCard({
             data={chartData}
             margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
           >
-            <CartesianGrid stroke="#e5e7eb" strokeDasharray="2 4" />
+            <CartesianGrid stroke="var(--color-stroke-subtle)" strokeDasharray="2 4" />
             <XAxis
               dataKey="xLabel"
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              tick={{ fontSize: 11, fill: "var(--color-neutral-muted)" }}
               tickLine={false}
-              axisLine={{ stroke: "#e5e7eb" }}
+              axisLine={{ stroke: "var(--color-stroke-subtle)" }}
               minTickGap={16}
             />
             <YAxis
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              tick={{ fontSize: 11, fill: "var(--color-neutral-muted)" }}
               tickLine={false}
-              axisLine={{ stroke: "#e5e7eb" }}
+              axisLine={{ stroke: "var(--color-stroke-subtle)" }}
               width={60}
               tickFormatter={(value) =>
                 formatMetricValue(metric.key, Number(value))
               }
             />
             <Tooltip
-              cursor={{ stroke: "#cbd5e1", strokeDasharray: "3 3" }}
+              cursor={{ stroke: "var(--color-stroke)", strokeDasharray: "3 3" }}
               formatter={(value) =>
                 formatMetricValue(metric.key, Number(value ?? 0))
               }
@@ -87,9 +87,9 @@ export default function AdminMetricChartCard({
                 String(payload?.[0]?.payload?.fullLabel ?? "")
               }
               contentStyle={{
-                borderRadius: 0,
-                border: "1px solid rgba(15, 23, 42, 0.12)",
-                boxShadow: "none",
+                borderRadius: "var(--radius-popover)",
+                border: "var(--popover-border-width) solid var(--color-popover-border)",
+                boxShadow: "var(--shadow-popover)",
                 fontSize: "12px",
               }}
             />
@@ -106,7 +106,7 @@ export default function AdminMetricChartCard({
       </div>
 
       {!hasData ? (
-        <div className="mt-2 text-[12px] text-black/45">
+        <div className="mt-2 text-[12px] text-neutral-primary/45">
           선택한 기간에 해당 지표 데이터가 없습니다.
         </div>
       ) : null}

@@ -118,7 +118,7 @@ export function OrgListColumnMenu({
                     className={cn(
                       "shrink-0 rounded-sm px-1.5 py-0.5 text-[12px]",
                       asking
-                        ? "bg-critical text-white"
+                        ? "bg-critical text-on-inverse"
                         : "text-neutral-muted hover:text-neutral-primary"
                     )}
                     disabled={removing}

@@ -113,9 +113,9 @@ export const FallingTagsMl = ({
               className={[
                 "select-none rounded-lg px-2 py-2 md:px-3 md:py-2",
                 "flex cursor-grab flex-row items-center justify-start gap-1.5",
-                "text-xs font-medium shadow-xl md:text-sm",
-                "active:cursor-grabbing backdrop-blur-md text-white",
-                theme === "white" ? "bg-white/90" : "bg-neutral-900/75",
+                "text-xs font-medium shadow-(--shadow-xl) md:text-sm",
+                "active:cursor-grabbing backdrop-blur-md text-on-inverse",
+                theme === "white" ? "bg-bg-floating/90" : "bg-neutral-900/75",
                 tag.color,
               ].join(" ")}
               drag

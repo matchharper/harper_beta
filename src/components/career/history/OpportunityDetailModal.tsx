@@ -54,7 +54,7 @@ const OpportunityDetailModal = ({
       onClose={onClose}
       ariaLabel={`${item.title} 상세`}
       overlayClassName="items-start pt-10"
-      panelClassName="w-[calc(100vw-24px)] max-w-[1040px] border border-neutral-1000-a05 bg-bg-floating sm:w-[min(1040px,86vw)] lg:w-[min(1040px,56vw)]"
+      panelClassName="w-[calc(100vw-24px)] max-w-[1040px]    sm:w-[min(1040px,86vw)] lg:w-[min(1040px,56vw)]"
       bodyClassName="max-h-[82svh] overflow-y-auto bg-bg-floating px-5 pb-5 pt-14"
       closeButtonClassName="right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-bg-weak"
     >

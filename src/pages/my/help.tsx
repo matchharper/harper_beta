@@ -76,7 +76,7 @@ const Help = () => {
             <BareButton
               onClick={handleSubmit}
               disabled={isLoading}
-              className="px-4 py-2 cursor-pointer mt-4 text-sm bg-black text-neutral-00 rounded-lg font-normal"
+              className="px-4 py-2 cursor-pointer mt-4 text-sm bg-surface-inverse text-neutral-00 rounded-lg font-normal"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

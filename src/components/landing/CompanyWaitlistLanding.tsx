@@ -152,7 +152,7 @@ function HiringPrompt({
   ]);
   return (
     <div className="mx-auto mt-12 max-w-[720px] md:mt-12">
-      <div className="rounded-[18px] border border-neutral-800 bg-bg-floating p-4 text-left shadow-[0_8px_30px] shadow-neutral-1000/5 md:rounded-[22px] md:p-5 md:pb-4">
+      <div className="rounded-xl border border-neutral-800 bg-bg-floating p-4 text-left shadow-(--shadow-lg) shadow-neutral-1000/5 md:rounded-3xl md:p-5 md:pb-4">
         <label htmlFor="company-hiring-prompt" className="sr-only">
           {c("어떤 동료를 찾고 있나요?", "Who are you hiring for?")}
         </label>
@@ -189,7 +189,7 @@ function HiringPrompt({
             <MuteButton
               variant="dark"
               size="lg"
-              className="rounded-full px-6"
+              className="rounded-pill px-6"
               onClick={onStart}
             >
               {c("무료로 시작하기", "Start for free")}
@@ -427,7 +427,7 @@ export function CompanyWaitlistLanding({
               ].map((logo) => (
                 <div
                   key={logo.name}
-                  className="flex h-[52px] min-w-0 items-center justify-center rounded-[10px] bg-bg-weak px-6 py-[13px] md:h-11 md:p-2"
+                  className="flex h-[52px] min-w-0 items-center justify-center rounded-md bg-bg-weak px-6 py-[13px] md:h-11 md:p-2"
                 >
                   <Image
                     src={logo.src}
@@ -577,7 +577,7 @@ export function CompanyWaitlistLanding({
             ].map(({ icon: Icon, title, body }) => (
               <article
                 key={title}
-                className="rounded-[18px] border border-neutral-1000-a10 bg-bg-floating p-[22px] md:rounded-[22px] md:px-[26px] md:py-[30px]"
+                className="rounded-xl border border-neutral-1000-a10 bg-bg-floating p-[22px] md:rounded-3xl md:px-[26px] md:py-[30px]"
               >
                 <Icon
                   className="size-6 stroke-[1.4] text-neutral-muted"
@@ -629,7 +629,7 @@ export function CompanyWaitlistLanding({
             ].map(([title, body], i) => (
               <li
                 key={title}
-                className="flex gap-4 border-b border-neutral-1000-a10 py-5 md:block md:rounded-[22px] md:border md:bg-bg-floating md:px-[26px] md:py-[30px]"
+                className="flex gap-4 border-b border-neutral-1000-a10 py-5 md:block md:rounded-3xl md:border md:bg-bg-floating md:px-[26px] md:py-[30px]"
               >
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-neutral-1000 text-[13px] text-neutral-00 md:size-[30px]">
                   {i + 1}
@@ -650,11 +650,11 @@ export function CompanyWaitlistLanding({
             className="relative mt-6 scroll-mt-20 overflow-hidden rounded-xl"
           >
             <DemoVideo playerName="Harper company page" />
-            <div className="absolute bottom-5 left-6 text-white/60 text-center text-sm">
+            <div className="absolute bottom-5 left-6 text-on-inverse/60 text-center text-sm">
               {c("소리를 켜고 보시면 좋습니다.", "Best watched with sound on.")}
             </div>
           </div>
-          <figure className="relative mt-5 rounded-[18px] bg-neutral-1000 px-6 py-[30px] text-center text-neutral-00 md:mt-6 md:rounded-[22px] md:px-10 md:py-14 md:pb-16">
+          <figure className="relative mt-5 rounded-xl bg-neutral-1000 px-6 py-[30px] text-center text-neutral-00 md:mt-6 md:rounded-3xl md:px-10 md:py-14 md:pb-16">
             <blockquote className="mt-3 text-[19px] leading-[1.6] font-light break-keep md:text-[25px]">
               {'"'}
               {c(
@@ -831,9 +831,9 @@ export function CompanyPricingSection({
           <article
             key={plan.name}
             className={cn(
-              "relative flex flex-col rounded-[20px] border border-neutral-1000-a10 bg-bg-floating px-6 py-[26px] md:rounded-[22px] md:px-[26px] md:pt-[30px]",
+              "relative flex flex-col rounded-2xl border border-neutral-1000-a10 bg-bg-floating px-6 py-[26px] md:rounded-3xl md:px-[26px] md:pt-[30px]",
               i === 1 &&
-                "border-neutral-800 shadow-[0_8px_32px] shadow-neutral-1000/4"
+                "border-neutral-800 shadow-(--shadow-lg) shadow-neutral-1000/4"
             )}
           >
             {i === 1 && (

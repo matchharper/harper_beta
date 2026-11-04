@@ -225,7 +225,7 @@ function ExperienceCompanyLogo({
 
   return (
     <ProfileEntryIcon>
-      {<Building2 className="h-4 w-4 text-black/30" />}
+      {<Building2 className="h-4 w-4 text-neutral-primary/30" />}
       {normalizedLogoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -282,7 +282,7 @@ export function TalentEducationSection({
                 <ProfileEntryIcon>
                   <GraduationCap
                     aria-hidden
-                    className="h-4 w-4 text-black/30"
+                    className="h-4 w-4 text-neutral-primary/30"
                   />
                   {schoolLogo ? (
                     // eslint-disable-next-line @next/next/no-img-element

@@ -200,7 +200,7 @@ export function OrgDocsModal({
                 type="button"
                 size="sm"
                 tabIndex={-1}
-                className="pointer-events-none w-full bg-primary text-white sm:w-auto"
+                className="pointer-events-none w-full bg-primary text-on-inverse sm:w-auto"
               >
                 {CANDIDATE_DECISION_LABELS.connect}
               </MuteButton>

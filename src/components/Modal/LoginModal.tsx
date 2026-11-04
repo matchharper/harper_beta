@@ -283,11 +283,11 @@ const LoginModal = ({
       <BareButton
         type="button"
         aria-label="닫기"
-        className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-surface-inverse/50 backdrop-blur-overlay"
         onClick={onClose}
       />
 
-      <div className="relative z-50 w-full max-w-[460px] rounded-2xl bg-bg-default border border-neutral-1000-a05 shadow-2xl transition-all duration-300">
+      <div className="relative z-50 w-full max-w-[460px] rounded-2xl bg-bg-default border border-neutral-1000-a05 shadow-(--shadow-2xl) transition-all duration-300">
         <div className="p-6 pb-10">
           <div className="flex flex-col items-start justify-start mb-6">
             <Image
@@ -414,7 +414,7 @@ const LoginModal = ({
                 <BareButton
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-2.5 text-sm rounded-md bg-black text-neutral-00 font-medium hover:bg-black/90 transition duration-300 mt-6 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full py-2.5 text-sm rounded-md bg-surface-inverse text-neutral-00 font-medium hover:bg-surface-inverse/90 transition duration-300 mt-6 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSignUp ? messages.auth.signup : messages.auth.login}
                 </BareButton>

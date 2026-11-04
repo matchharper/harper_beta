@@ -128,6 +128,7 @@ test("messages and work admission do not reload the workspace; completed work re
         "career-history-summary",
         "career-task-progress",
         "career-pending-actions",
+        "career-action-items",
       ].sort()
     );
     invalidated.length = 0;

@@ -102,17 +102,17 @@ const StartButton = React.memo(function StartButton({
       font-medium
       cursor-pointer
       rounded-full
-      bg-accent-200 text-black
+      bg-accent-200 text-neutral-primary
       z-10
 
       ring-1 ring-white/10
-      shadow-[0_12px_40px_rgba(180,255,120,0.25)]
+      shadow-(--shadow-marketing-glow)
 
       transition-all duration-200
-      hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]
+      hover:shadow-(--shadow-marketing-glow)
       hover:-translate-y-px
       active:translate-y-0
-      active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]
+      active:shadow-(--shadow-marketing-glow)
       ${sizeClass}`}
     >
       {label}
@@ -585,7 +585,7 @@ const CandidatePage = () => {
         />
       </Head>
 
-      <main className={`min-h-screen font-inter text-white bg-black w-screen`}>
+      <main className={`min-h-screen font-inter text-on-inverse bg-surface-inverse w-screen`}>
         {isOpenLoginModal && (
           <LoginModal
             open={isOpenLoginModal}
@@ -608,7 +608,7 @@ const CandidatePage = () => {
 
         <div
           id="intro"
-          className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]"
+          className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-surface-inverse text-on-inverse h-[86vh] md:h-[90vh]"
         >
           <div className="absolute top-0 left-0 w-full h-[90%]">
             <div
@@ -626,7 +626,7 @@ const CandidatePage = () => {
                 {m.companyLanding.hero.titleLine2Prefix}{" "}
                 <RotatingText
                   texts={copyVariant.rotatingTexts}
-                  mainClassName="lg:px-3 md:px-2 px-1.5 rounded-sm font-hedvig bg-accent-200 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center inline-block"
+                  mainClassName="lg:px-3 md:px-2 px-1.5 rounded-sm font-hedvig bg-accent-200 text-neutral-primary overflow-hidden py-0 sm:py-0 md:py-0 justify-center inline-block"
                   staggerFrom={"last"}
                   initial={{ y: "100%" }}
                   animate={{ y: 0 }}
@@ -656,7 +656,7 @@ const CandidatePage = () => {
           </div>
         </div>
         <div className="mb-20 mt-12 md:mt-0 flex flex-col items-center justify-center">
-          <div className="w-[90%] max-w-[960px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
+          <div className="w-[90%] max-w-[960px] bg-gradpastel2 overflow-hidden md:rounded-4xl rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
             <video
               src="/videos/newclipharper.mov"
               poster="/images/usemain.png"
@@ -664,7 +664,7 @@ const CandidatePage = () => {
               loop
               muted
               playsInline
-              className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
+              className="w-[90%] h-full object-cover  md:rounded-t-4xl rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-(--shadow-lg)"
             />
           </div>
         </div>
@@ -672,7 +672,7 @@ const CandidatePage = () => {
           <BaseSectionLayout>
             <div className="gap-2 w-full flex flex-col items-center justify-center text-center py-8 md:py-10 px-0">
               <Head1 as="h2">{m.companyLanding.section1.title}</Head1>
-              <h3 className="text-[22px] md:text-3xl text-white font-normal mt-10">
+              <h3 className="text-[22px] md:text-3xl text-on-inverse font-normal mt-10">
                 {m.companyLanding.section1.headlineLine1}
                 <br />
                 {copyVariant.section1HeadlineLine2}
@@ -690,7 +690,7 @@ const CandidatePage = () => {
         <Animate>
           <BaseSectionLayout>
             <Animate>
-              <Head1 as="h2" className="text-white text-center w-full">
+              <Head1 as="h2" className="text-on-inverse text-center w-full">
                 {m.companyLanding.why.title}
               </Head1>
               <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-neutral-500">
@@ -733,7 +733,7 @@ const CandidatePage = () => {
         <Animate>
           <BaseSectionLayout>
             <div className="w-[90%] max-w-[600px] flex flex-col">
-              <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
+              <div className="flex flex-col items-start gap-4 bg-bg-floating/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
                 <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-neutral-500">
                   <span
                     dangerouslySetInnerHTML={{
@@ -777,10 +777,10 @@ const CandidatePage = () => {
             <BaseSectionLayout>
               <div className="flex flex-col items-center justify-center w-full pt-4">
                 <div className="w-full flex flex-col items-center justify-center pb-2">
-                  <Head1 className="text-white">
+                  <Head1 className="text-on-inverse">
                     {m.companyLanding.faq.title}
                   </Head1>
-                  <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
+                  <div className="flex flex-col items-start justify-start text-on-inverse/70 font-light w-full mt-12 px-4 md:px-0">
                     {m.companyLanding.faq.items.map((item, index) => (
                       <QuestionAnswer
                         key={item.question}
@@ -800,14 +800,14 @@ const CandidatePage = () => {
         <div className="h-4 md:h-40" />
         <Animate duration={0.8}>
           <div ref={lastTrackRef} data-section="last">
-            <div className="relative bg-black w-screen py-10">
+            <div className="relative bg-surface-inverse w-screen py-10">
               <GradientBackground interactiveRef={interactiveRef} />
-              <div className="absolute top-0 left-0 w-full h-[50%] bg-linear-to-t from-transparent to-black" />
-              <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white z-40">
+              <div className="absolute top-0 left-0 w-full h-[50%] bg-linear-to-t from-transparent to-surface-inverse" />
+              <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-on-inverse z-40">
                 <Head1 as="h2" className="text-xl md:text-[32px] z-40">
                   {m.companyLanding.closing.title}
                 </Head1>
-                <div className="text-2xl md:text-[40px] text-center font-medium text-white/90 mt-8 md:leading-normal z-40">
+                <div className="text-2xl md:text-[40px] text-center font-medium text-on-inverse/90 mt-8 md:leading-normal z-40">
                   {m.companyLanding.closing.headlineLine1}
                   <div className="md:h-1 h-1" />
                   {copyVariant.closingHeadlineLine2}
@@ -835,7 +835,7 @@ const FeatureSection = React.memo(function FeatureSection() {
   return (
     <BaseSectionLayout>
       <Animate>
-        <Head1 as="h2" className="text-white">
+        <Head1 as="h2" className="text-on-inverse">
           {m.companyLanding.feature.title}
         </Head1>
       </Animate>

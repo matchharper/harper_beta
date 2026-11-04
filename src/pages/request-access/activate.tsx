@@ -109,13 +109,13 @@ export default function RequestAccessActivatePage() {
   }, [load, router, router.isReady, token]);
 
   return (
-    <div className="relative min-h-screen bg-black px-4 text-white font-inter">
+    <div className="relative min-h-screen bg-surface-inverse px-4 text-on-inverse font-inter">
       <Header page="company" />
       <GradientBackground interactiveRef={interactiveRef} />
       <div className="relative z-10 flex min-h-screen items-center justify-center">
-        <div className="w-full max-w-lg rounded-xl border border-white/5 bg-white/5 p-8 text-center backdrop-blur-md">
+        <div className="w-full max-w-lg rounded-xl border border-bg-floating/5 bg-bg-floating/5 p-8 text-center backdrop-blur-md">
           <div className="text-2xl font-medium">Request Access</div>
-          <p className="mt-4 text-sm leading-6 text-white/70">{message}</p>
+          <p className="mt-4 text-sm leading-6 text-on-inverse/70">{message}</p>
           {state === "loading" || state === "success" ? (
             <div className="mt-6 flex justify-center">
               <LoaderCircle className="h-5 w-5 animate-spin" />

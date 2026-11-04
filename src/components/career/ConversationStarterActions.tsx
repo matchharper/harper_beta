@@ -213,7 +213,7 @@ export function ConversationStarterActions({
           >
             <span
               className={cn(
-                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-black/5 text-neutral-muted",
+                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-tint text-neutral-muted",
                 isReengagement && "h-5 w-5"
               )}
               aria-hidden="true"
@@ -262,7 +262,7 @@ export function ConversationStarterActions({
         >
           <span
             className={cn(
-              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-black/5 text-neutral-muted",
+              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-tint text-neutral-muted",
               isReengagement && "h-5 w-5"
             )}
             aria-hidden="true"

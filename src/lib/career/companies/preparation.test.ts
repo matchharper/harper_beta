@@ -4,6 +4,7 @@ import { followDatabase, followAdmin, id } from "./preparation.testSupport";
 import { readFollowInventory } from "./inventory";
 import {
   prepareFollowedCompanies,
+  shouldPrepareFollowedCompanies,
   rolesNeedingEvaluation,
   formatFollowOverview,
   formatFollowRoles,
@@ -14,6 +15,7 @@ import { CAREER_COMPANY_TOOLS } from "./tools";
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const db = await followDatabase();
   t.after(() => db.close());
+  await db.exec(`update opportunity_discovery_run set trigger_payload=trigger_payload||'{"createdBy":"career_dev_controls"}'`);
   return { db, admin: followAdmin(db) };
 }
 test("exact company/workspace scope, consent, blocked/closed/test roles and ownership are enforced in SQL", async (t) => {
@@ -143,7 +145,7 @@ test("all followed roles beyond SQL/LLM index page limits are evaluated; read to
   assert.equal(inventory.roles.length, 603);
   assert.equal(rolesNeedingEvaluation(inventory, "external").length, 603);
   const text = formatFollowOverview(inventory);
-  assert.match(text, /603 currently available/);
+  assert.match(text, /603 external roles and existing internal recommendations/);
   assert.ok(text.length < 7000);
   const result = (await CAREER_COMPANY_TOOLS.follow_company.execute!(
     { action: "read", follow_id: id(20), offset: 30 },
@@ -161,14 +163,26 @@ test("all followed roles beyond SQL/LLM index page limits are evaluated; read to
     /unavailable/
   );
 });
-test("internal roles reuse their completed stages and respect contact visibility", async (t) => {
+test("follow context and read tool expose only the owner's existing internal recommendations, without private evaluations", async (t) => {
   const { db, admin } = await fixture(t);
   await db.exec(
     `update company_roles set source_type='internal' where role_id='${id(30)}';insert into company_role_candidate_evaluations values('${id(50)}','${id(1)}','${id(30)}','${id(60)}','{"proceedToStage2":false}',1,now())`
   );
   let inventory = await readFollowInventory(admin, id(1));
   assert.deepEqual(rolesNeedingEvaluation(inventory, "internal"), []);
-  assert.equal(inventory.roles[0].evaluation?.stage, 1);
+  assert.ok(!inventory.roles.some(role => role.id === id(30)), "fit alone is not a recommendation");
+  assert.doesNotMatch(await readPreparedFollowContext(admin, id(1)), new RegExp(id(30)));
+  const read = async () => CAREER_COMPANY_TOOLS.follow_company.execute!(
+    { action: "read", follow_id: id(20) }, { admin, userId: id(1) } as any
+  ) as Promise<any>;
+  assert.ok(!(await read()).roles.some((role: any) => role.id === id(30)));
+  await db.exec(`insert into talent_opportunity_recommendation values(1,'${id(2)}','${id(30)}')`);
+  assert.ok(!(await readFollowInventory(admin, id(1))).roles.some(role => role.id === id(30)));
+  await db.exec(`insert into talent_opportunity_recommendation values(2,'${id(1)}','${id(30)}')`);
+  inventory = await readFollowInventory(admin, id(1));
+  assert.equal(inventory.roles.find(role => role.id === id(30))?.evaluation, null);
+  assert.match((await read()).modelOutput, new RegExp(id(30)));
+  assert.doesNotMatch(await readPreparedFollowContext(admin, id(1)), /proceedToStage2/);
   await db.exec(
     `update talent_setting set profile_visibility='dont_share' where user_id='${id(1)}'`
   );
@@ -286,7 +300,7 @@ test("stopped external subscription and workspace ID blocks exclude automatic pa
   );
 });
 
-test("a later enqueue failure cannot release a still-running paid evaluation", async (t) => {
+test("follow preparation waits for external work without evaluating unrecommended internal roles", async (t) => {
   const { db, admin } = await fixture(t);
   await db.exec(
     `update company_roles set source_type='internal' where role_id='${id(31)}'`
@@ -310,7 +324,8 @@ test("a later enqueue failure cannot release a still-running paid evaluation", a
   } as any);
   assert.equal(result.ready, false);
   assert.equal(result.state.externalRunId, id(60));
-  assert.match(result.state.error!, /Internal queue/);
+  assert.equal(result.state.error, null);
+  assert.equal(result.state.internalRunId, undefined);
   assert.equal(
     (
       await admin.rpc("claim_career_follow_preparation", {
@@ -374,7 +389,7 @@ test("a lost enqueue response recovers the durable child before releasing the pa
   );
 });
 
-test("recovery after the first child was committed still enqueues the missing source exactly once", async (t) => {
+test("recovery preserves already queued legacy internal work without creating new internal evaluations", async (t) => {
   const { db, admin } = await fixture(t);
   await db.exec(
     `update company_roles set source_type='internal' where role_id='${id(31)}'`
@@ -390,26 +405,14 @@ test("recovery after the first child was committed still enqueues the missing so
         [id(40)]
       )
     ).rows[0];
-  let internalCalls = 0;
+  await db.query(
+    "insert into opportunity_discovery_run(id,talent_id,status,dedupe_key) values($1,$2,$3,$4)",
+    [id(61), id(1), "running", `career-internal:${id(1)}:follow-preparation:${id(40)}:internal`]
+  );
   const deps = {
     inventory: readFollowInventory,
-    external: async () => {
-      throw Error("Existing external evaluation must not be started again");
-    },
-    internal: async (args: any) => {
-      internalCalls++;
-      assert.deepEqual(args.roleIds, [id(31)]);
-      await db.query(
-        "insert into opportunity_discovery_run(id,talent_id,status,dedupe_key) values($1,$2,$3,$4)",
-        [
-          id(61),
-          id(1),
-          "running",
-          `career-internal:${id(1)}:${args.operationId}`,
-        ]
-      );
-      return { runId: id(61) };
-    },
+    external: async () => { throw Error("Existing external work must not be restarted"); },
+    internal: async () => { throw Error("No new internal evaluations from follows"); },
   } as any;
   const result = await prepareFollowedCompanies(
     { admin, run: await read() },
@@ -422,7 +425,6 @@ test("recovery after the first child was committed still enqueues the missing so
     (await prepareFollowedCompanies({ admin, run: await read() }, deps)).ready,
     false
   );
-  assert.equal(internalCalls, 1);
   await db.query(
     "update external_recommendation_runs set status=$1 where id=$2",
     ["completed", id(60)]
@@ -435,13 +437,12 @@ test("recovery after the first child was committed still enqueues the missing so
     (await prepareFollowedCompanies({ admin, run: await read() }, deps)).ready,
     true
   );
-  assert.equal(internalCalls, 1);
 });
 
 
 test("internal follow context omits every scoring identifier and outcome", async t => {
   const {db,admin}=await fixture(t);
-  await db.exec(`update company_roles set source_type='internal' where role_id='${id(30)}';
+  await db.exec(`update company_roles set source_type='internal' where role_id='${id(30)}'; insert into talent_opportunity_recommendation values(1,'${id(1)}','${id(30)}');
     insert into company_role_candidate_evaluations values('${id(70)}','${id(1)}','${id(30)}','${id(71)}','{"fit":{"mutualFit":3},"proceedToStage2":false,"reason":"PRIVATE_SCORING"}',1,now());`);
   const result=await CAREER_COMPANY_TOOLS.follow_company.execute!({action:"read",follow_id:id(20)}, {admin,userId:id(1)} as any) as any;
   assert.match(result.modelOutput,/Platform engineer/);
@@ -472,4 +473,9 @@ test("a transient inventory failure remains retryable and its error is available
   const recovered = await prepareFollowedCompanies({ admin, run: await readRun() }, deps);
   assert.equal(recovered.ready, true);
   assert.equal(recovered.state.error, null);
+});
+
+test("daily and periodic production work do not pre-evaluate every followed company", () => {
+  for (const trigger of ["career_daily_due", "career_schedule_due", "agent_contact_received"])
+    assert.equal(shouldPrepareFollowedCompanies({ trigger, trigger_payload: {sourceEvents:[{sourceKind:"schedule",scheduleKey:"career_check_in"}]} } as any),false);
 });

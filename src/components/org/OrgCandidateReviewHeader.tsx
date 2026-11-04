@@ -117,7 +117,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
         className={cn(
           "sticky top-0 z-20 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] shrink-0 items-center md:flex md:flex-wrap md:justify-between",
           props.navigationTitle
-            ? "gap-1 bg-linear-to-b from-white to-white/0 px-1 py-1"
+            ? "gap-1 bg-linear-to-b from-bg-floating to-bg-floating/0 px-1 py-1"
             : "gap-2 px-2 pt-3 md:gap-3 md:px-4 @min-[700px]/review:px-6"
         )}
       >

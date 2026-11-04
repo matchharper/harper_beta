@@ -7,7 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import { MessagesProvider } from "@/i18n/useMessage";
 import type { CareerMessagePayload } from "@/components/career/types";
 
-for (const merged of [false, true]) test(`progress messages survive further tools, failure, and history hydration (${merged ? "merged" : "separate"})`, async () => {
+for (const {merged, finish} of [{merged:false,finish:true}, {merged:true,finish:true}, {merged:true,finish:false}]) test(`progress messages survive further tools, failure, and history hydration (${merged ? "merged" : "separate"}, final=${finish})`, async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
   const { useCareerChat } = await import("./useCareerChat");
@@ -29,7 +29,7 @@ for (const merged of [false, true]) test(`progress messages survive further tool
       fetchWithAuth: async () => new Response(new ReadableStream({ start(c) { controller = c; } }),
         { headers: { "Content-Type": "text/event-stream" } }),
     });
-    return <>{chat.messages.map(message => <p key={message.workReplyId ?? message.id}>{message.content}</p>)}</>;
+    return <>{chat.messages.map(message => <p key={message.workReplyId ?? message.id}>{message.content}{message.workEvents?.map(event => event.text).join("\n")}</p>)}</>;
   }
   const root = createRoot(dom.window.document.getElementById("root")!);
   const emit = async (event: string, data: unknown) => act(async () => {
@@ -45,22 +45,29 @@ for (const merged of [false, true]) test(`progress messages survive further tool
     await emit("user_message", { message: { ...message(1, "자료를 확인해줘"), role: "user" } });
     let cumulative = "";
     for (const [id, text] of [[2, "자료부터 확인할게요."], [3, "관련 경험을 찾았어요. 추가 내용을 확인할게요."]] as const) {
-      await emit("text_delta", { delta: (merged && cumulative ? "\n\n" : "") + text });
+      if (!merged) await emit("text_delta", { delta: text });
       cumulative = [cumulative, text].filter(Boolean).join("\n\n");
-      assert.ok(dom.window.document.body.textContent?.includes(text));
+      if (!merged) assert.ok(dom.window.document.body.textContent?.includes(text));
       await emit(merged ? "assistant_progress" : "assistant_message", {
-        message: merged ? { ...message(2, cumulative), workReplyId: "message:1", workPending: true } : message(id, text), continuing: true });
+        message: merged ? { ...message(2, ""), messageType: "career_turn_activity", workEvents: [{id:"message:0",kind:"message",text:cumulative}], workReplyId: "message:1", workPending: true } : message(id, text), continuing: true });
       assert.equal(chat.chatPending, true);
       await emit("tool_status", { message: "자료 확인 중" });
-      assert.equal(chat.messages.filter(item => item.content === (merged ? cumulative : text)).length, 1);
+      assert.equal(chat.messages.filter(item => merged ? item.workEvents?.[0]?.text === cumulative : item.content === text).length, 1);
     }
-    if (merged) {
+    if (merged && finish) {
       await emit("assistant_message", { message: { ...message(2, cumulative), workReplyId: "message:1", workPending: false } });
     }
-    assert.deepEqual([...saved.keys()], merged ? [1, 2] : [1, 2, 3]);
+    assert.deepEqual([...saved.keys()], !finish ? [] : merged ? [1, 2] : [1, 2, 3]);
     await emit("error", { error: "연결이 끊겼습니다" });
     await act(async () => { controller.close(); await pending; });
     assert.equal(chat.chatPending, false);
+    if (!finish) {
+      const partial = chat.messages.find(item => item.workEvents);
+      assert.ok(partial);
+      assert.ok(partial.workEvents?.[0].text.includes("자료"));
+      assert.equal(partial.workPending, false);
+      return;
+    }
     assert.equal(chat.messages.filter(item => item.role === "assistant" && item.content).length, merged ? 1 : 2);
     // Read the same persisted rows back as a fresh page would.
     history.push(...[...saved.values()].map(item => ({ ...item, id: String(item.id) })) as typeof history);

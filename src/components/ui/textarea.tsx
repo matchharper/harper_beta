@@ -3,7 +3,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export const textareaSurfaceClassName =
-  "w-full resize-none rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-sm font-normal leading-6 text-neutral-primary outline-none transition-[border-color,background-color] duration-200 placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:bg-bg-weak disabled:text-neutral-disabled disabled:placeholder:text-neutral-placeholder disabled:opacity-70";
+  "w-full resize-none rounded-control border-(length:--control-border-width) border-control-border bg-control bg-control-image text-control-foreground shadow-(--shadow-control) backdrop-blur-control px-3 py-2 text-sm font-control leading-6 outline-none transition-[border-color,background-color] duration-200 placeholder:text-neutral-placeholder focus:border-stroke-focus focus:bg-control-focus focus:ring-2 focus:ring-focus-ring disabled:cursor-not-allowed disabled:bg-control-disabled disabled:text-neutral-disabled disabled:placeholder:text-neutral-placeholder disabled:opacity-70";
 
 export type TextareaProps =
   React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
@@ -81,7 +81,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             : cn(
                 textareaSurfaceClassName,
                 isMain &&
-                  "rounded-2xl px-3 py-2.5 shadow-md border-black/5 text-black",
+                  "rounded-composer px-3 py-2.5 shadow-(--shadow-composer) border-composer-border text-control-foreground",
                 className
               )
         }

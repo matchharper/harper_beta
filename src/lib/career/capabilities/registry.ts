@@ -9,6 +9,7 @@ export const CAREER_CORE_TOOLS = [
   // A form is a conversation/review surface, so it stays available like text.
   "suggest_form",
   "manage_work",
+  "manage_action_items",
 ] as const;
 
 export const CAREER_CONDITIONAL_TOOLS = [] as const;
@@ -31,7 +32,7 @@ export const CAREER_CAPABILITIES = [
     id: "opportunities",
     turns: 3,
     summary:
-      "Record the user's acceptance, rejection or save-for-later decision on an exact recommendation; a reply alone does not persist it. Import an external posting from its URL for a requested save or application. Read roles and prior recommendations, manage matching criteria, search/evaluate external opportunities and discover Harper-connected roles. Searching does not publish. Add, reorder, archive, restore, replace or reset recommendation lists while preserving independent saved/applied/connected decisions. No fixed count or quality quota.",
+      "Record the user's acceptance, rejection or save-for-later decision on an exact recommendation; a reply alone does not persist it. Import an external posting from its URL for a requested save or application. Read roles and prior recommendations, manage matching criteria, search/evaluate external opportunities and help with existing Harper-connected recommendations. Company-side agents select new internal recommendations. Searching does not publish. Add, reorder, archive, restore, replace or reset recommendation lists while preserving independent saved/applied/connected decisions. No fixed count or quality quota.",
     tools: [
       ["list_matchings", "read the current and past matching index"],
       [
@@ -66,19 +67,19 @@ export const CAREER_CAPABILITIES = [
         "update_recommended_opportunity_feedback",
         "decline an introduction, save for later, or save external interest; contact_company accepts an internal introduction",
       ],
-      ["get_internal_roles", "find Harper-connected roles"],
     ],
   },
   {
     id: "internal_applications",
     turns: 3,
     summary:
-      "Help the user pursue an exact internal Role. apply_to_internal_role saves the private opportunity immediately. It does not introduce or share. After the candidate has reviewed the Role and requests introduction, use company_contact → contact_company with recommendationId and acceptIntroduction=true to request the introduction and share prepared materials or the default profile/public documents.",
+      "Help the user with a specific public internal Role they explicitly chose, including a /jobs posting. Resolve that posting when needed; this capability does not browse hidden roles or select new recommendations. apply_to_internal_role saves the private opportunity immediately. It does not introduce or share. After the candidate has reviewed the Role and requests introduction, use company_contact → contact_company with recommendationId and acceptIntroduction=true to request the introduction and share prepared materials or the default profile/public documents.",
     tools: [
       [
         "apply_to_internal_role",
         "save an explicitly requested internal Role for review",
       ],
+      ["get_internal_roles", "resolve the specific public internal posting the user explicitly requested"],
       [
         "assign_to_role",
         "read, set or clear exact prepared role materials without changing an accepted introduction",
@@ -89,20 +90,20 @@ export const CAREER_CAPABILITIES = [
     id: "companies",
     turns: 2,
     summary:
-      "Follow several companies by name or workspace ID in one call, including companies absent from the directory. Optionally find workspaces by name or URL. Read, update or unfollow existing subscriptions. Scheduled Career checks receive follow names, user instructions and follow dates, with current roles and assessments where linked. Changes do not start separate contact runs; timing and pauses use the existing Career schedule. Unfollow removes the saved interest and preserves history.",
+      "Follow several companies by name or workspace ID in one call, including companies absent from the directory. Optionally find workspaces by name or URL. Read, update or unfollow existing subscriptions. Scheduled Career checks receive follow names, user instructions and follow dates, with external roles/assessments and existing internal recommendations where linked. Changes do not start separate contact runs; timing and pauses use the existing Career schedule. Unfollow removes the saved interest and preserves history.",
     tools: [
       [
         "search_companies",
         "find company workspaces by name or URL",
       ],
-      ["follow_company", "list follows, read follow facts and paginated roles, follow, update or unfollow a company"],
+      ["follow_company", "list follows, read follow facts, external roles and existing internal recommendations, follow, update or unfollow a company"],
     ],
   },
   {
     id: "schedules",
     turns: 2,
     summary:
-      "Read and record the user's actual appointments, link them to Roles, and arrange useful preparation/reminders. Read, create, revise, pause or resume future Career work, including the persistent Career check-in. Its saved instruction, cadence and pause remain available in a new conversation. Use current goals, contact history and the reason for a pause to adjust timing/instructions or resume useful continuing work; preserve explicit user restrictions. Recurring checks continue after no-send outcomes. Each occurrence invokes the agent and does not guarantee an email.",
+      "Read and record actual appointments, and reserve concrete future Career work. Nonurgent events and today's appointments are reviewed together; flexible same-day reservations can join that review. Preserve exact times explicitly requested by the user. The historical check-in schedule is only opted-in external discovery, disabled by stopped or external recommendations off. No generic recurring idle checks. Read current reservations before creating another.",
     tools: [
       ["read_talent_schedules", "read actual appointments, times, related Roles and source references"],
       ["upsert_talent_schedules", "record, correct or cancel externally arranged appointments"],

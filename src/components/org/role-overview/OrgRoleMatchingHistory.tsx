@@ -189,7 +189,7 @@ export function OrgRoleMatchingHistory({
           align="end"
           sideOffset={8}
           collisionPadding={12}
-          className="z-[90] flex max-h-[var(--radix-popover-content-available-height)] w-[440px] max-w-[calc(100vw-24px)] flex-col rounded-lg border border-neutral-1000-a10 bg-bg-floating p-4 text-neutral-primary shadow-lg"
+          className="z-[90] flex max-h-[var(--radix-popover-content-available-height)] w-[440px] max-w-[calc(100vw-24px)] flex-col rounded-lg border border-neutral-1000-a10 bg-bg-floating p-4 text-neutral-primary shadow-(--shadow-lg)"
         >
           <MatchingHistoryContent workspaceId={workspaceId} roleId={roleId} />
         </Popover.Content>
@@ -383,7 +383,7 @@ function MatchingHistoryContent({
                   setVersion("after");
                   setSelectedId(item.id);
                 }}
-                className="gap-3 rounded-none border-0 border-b border-neutral-1000-a05 px-1 py-3 font-normal shadow-none last:border-0 hover:bg-bg-weak"
+                className="gap-3 rounded-none border-0 border-b  px-1 py-3 font-normal shadow-none last:border-0 hover:bg-bg-weak"
               >
                 <div className="min-w-0 flex-1 space-y-2">
                   <HistoryAttribution item={item} compact />

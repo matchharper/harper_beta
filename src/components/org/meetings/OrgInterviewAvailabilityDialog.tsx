@@ -326,7 +326,7 @@ function HourStrip({
               })}
               aria-pressed={available}
               className={cn(
-                "relative h-8 rounded-[3px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40",
+                "relative h-8 rounded-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40",
                 available
                   ? "bg-primary hover:bg-primary/85"
                   : partial
@@ -667,7 +667,7 @@ function WeeklyEditor({
           <Popover.Portal container={portalContainer}>
             <Popover.Content
               align="end"
-              className="z-[110] w-[min(340px,calc(100vw-32px))] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] outline-none"
+              className="z-[110] w-[min(340px,calc(100vw-32px))] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-(--shadow-modal) outline-none"
               onInteractOutside={(event) => {
                 const target = event.target as Element | null;
                 if (target?.closest("[data-slot=select-content]")) {
@@ -1382,7 +1382,7 @@ export function OrgInterviewAvailabilityDialog({
                     "Use your calendar to exclude times when you're busy."
                   )}
                 >
-                  <div className="flex flex-row items-center gap-1.5 rounded-md bg-black/5 px-2 py-1 text-neutral-primary">
+                  <div className="flex flex-row items-center gap-1.5 rounded-md bg-surface-tint px-2 py-1 text-neutral-primary">
                     <Image
                       src="/images/logos/calendar.png"
                       alt={c("", "")}

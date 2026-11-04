@@ -203,7 +203,7 @@ function ConversationSlide({
           )}
         >
           {message.role === "user" ? (
-            <p className="ml-auto w-fit max-w-[92%] whitespace-pre-line rounded-2xl rounded-br-sm bg-bg-floating/95 px-3.5 py-2.5 text-[13px] font-normal leading-5 text-neutral-primary shadow-xs">
+            <p className="ml-auto w-fit max-w-[92%] whitespace-pre-line rounded-2xl rounded-br-sm bg-bg-floating/95 px-3.5 py-2.5 text-[13px] font-normal leading-5 text-neutral-primary shadow-(--shadow-xs)">
               {message.text}
             </p>
           ) : (
@@ -212,7 +212,7 @@ function ConversationSlide({
                 {assistantAvatar}
                 {assistantName}
               </div>
-              <p className="whitespace-pre-line rounded-2xl rounded-tl-sm bg-bg-floating/95 px-3.5 py-3 text-[13px] font-normal leading-5 text-neutral-primary shadow-xs">
+              <p className="whitespace-pre-line rounded-2xl rounded-tl-sm bg-bg-floating/95 px-3.5 py-3 text-[13px] font-normal leading-5 text-neutral-primary shadow-(--shadow-xs)">
                 {message.text}
               </p>
             </div>

@@ -14,12 +14,12 @@ export const ProgressBar = ({
   return (
     <div
       className={cn(
-        "h-1.5 overflow-hidden rounded-full border border-neutral-1000-a05 bg-bg-floating",
+        "h-1.5 overflow-hidden rounded-full border border-neutral-1000-a05 bg-progress-track",
         className
       )}
     >
       <div
-        className="h-full rounded-full bg-black transition-[width] duration-300"
+        className="h-full rounded-full bg-progress-fill transition-[width] duration-300"
         style={{ width: `${normalized}%` }}
       />
     </div>

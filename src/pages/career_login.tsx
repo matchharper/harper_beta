@@ -766,7 +766,7 @@ const CareerLoginContent = () => {
               </span>
             ))}
           </Text>
-          <div className="mt-7 w-full max-w-[420px] rounded-[22px] border border-neutral-1000-a05 bg-bg-floating/90 p-4 shadow-[0_18px_54px_rgba(31,28,26,0.07)] backdrop-blur-sm sm:p-6">
+          <div className="mt-7 w-full max-w-[420px] rounded-3xl border border-neutral-1000-a05 bg-bg-floating/90 p-4 shadow-(--shadow-lg) backdrop-blur-sm sm:p-6">
             {emailConfirmationSent ? (
               <div
                 className="px-1 py-2 text-center"
@@ -828,7 +828,7 @@ const CareerLoginContent = () => {
                       <BareButton
                         type="button"
                         onClick={() => void openBrowserLoginUrl()}
-                        className="flex h-10 w-full items-center justify-center gap-2 rounded-[9px] bg-black px-3 text-[13px] font-normal text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800"
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-3 text-[13px] font-normal text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800"
                       >
                         <ExternalLink className="h-4 w-4" />
                         <span>{copy.openInBrowser}</span>
@@ -836,7 +836,7 @@ const CareerLoginContent = () => {
                       <BareButton
                         type="button"
                         onClick={() => void copyBrowserLoginUrl()}
-                        className="flex h-10 w-full items-center justify-center gap-2 rounded-[9px] border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
                       >
                         <Copy className="h-4 w-4" />
                         <span>{copy.copyBrowserLink}</span>
@@ -858,7 +858,7 @@ const CareerLoginContent = () => {
                     type="button"
                     onClick={handleGoogleAuth}
                     disabled={authActionPending}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {authPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -898,7 +898,7 @@ const CareerLoginContent = () => {
                     }}
                     autoComplete="email"
                     disabled={authActionPending}
-                    className="h-11 w-full rounded-[9px] border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="h-11 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
                     required
                   />
 
@@ -919,7 +919,7 @@ const CareerLoginContent = () => {
                             : "new-password"
                         }
                         disabled={authActionPending}
-                        className="h-10 w-full rounded-[9px] border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="h-10 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
                         required
                       />
                       {emailMode === "signup" ? (
@@ -934,7 +934,7 @@ const CareerLoginContent = () => {
                           }}
                           autoComplete="new-password"
                           disabled={authActionPending}
-                          className="h-10 w-full rounded-[9px] border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="h-10 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
                           required
                         />
                       ) : null}
@@ -944,7 +944,7 @@ const CareerLoginContent = () => {
                   <BareButton
                     type="submit"
                     disabled={authActionPending}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] bg-black px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {authPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -997,7 +997,7 @@ const CareerLoginContent = () => {
                     as="p"
                     variant="caption"
                     tone="primary"
-                    className="mt-3 rounded-[8px] border border-critical/30 bg-critical-faded px-3 py-2 text-left text-[12px] font-medium leading-5 text-critical"
+                    className="mt-3 rounded-md border border-critical/30 bg-critical-faded px-3 py-2 text-left text-[12px] font-medium leading-5 text-critical"
                   >
                     {formError || authError}
                   </Text>
@@ -1007,7 +1007,7 @@ const CareerLoginContent = () => {
                   <Text
                     as="p"
                     variant="caption"
-                    className="mt-3 rounded-[8px] border border-positive/30 bg-positive-faded px-3 py-2 text-left text-[12px] font-medium leading-5 text-positive"
+                    className="mt-3 rounded-md border border-positive/30 bg-positive-faded px-3 py-2 text-left text-[12px] font-medium leading-5 text-positive"
                     role="status"
                     aria-live="polite"
                   >

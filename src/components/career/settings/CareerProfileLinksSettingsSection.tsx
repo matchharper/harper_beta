@@ -99,7 +99,7 @@ const CareerProfileLinksSettingsSection = ({
           onEscapeKeyDown={discardAddedLinkDraft}
           onInteractOutside={discardAddedLinkDraft}
           onCloseAutoFocus={(event) => event.preventDefault()}
-          className="z-10050 w-[min(360px,calc(100vw-32px))] rounded-[10px] border border-neutral-1000-a05 bg-bg-floating p-3 text-neutral-primary shadow-[0_18px_40px_rgba(31,28,26,0.14)] outline-none"
+          className="z-10050 w-[min(360px,calc(100vw-32px))] rounded-popover border-(length:--popover-border-width) border-popover-border bg-popover bg-popover-image text-popover-foreground shadow-(--shadow-popover) backdrop-blur-popover p-3 outline-none"
         >
           <form onSubmit={(event) => void handleSave(event)}>
             <label

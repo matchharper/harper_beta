@@ -191,7 +191,7 @@ export function EmailTestPanel({ userId }: { userId: string }) {
                     '<head><base target="_blank">'
                   )}
                   sandbox="allow-popups allow-popups-to-escape-sandbox"
-                  className="h-[440px] w-full rounded-md border border-neutral-1000-a10 bg-white"
+                  className="h-[440px] w-full rounded-md border border-neutral-1000-a10 bg-bg-floating"
                 />
               ) : item.reply ? (
                 <div className="whitespace-pre-wrap text-sm">{item.reply}</div>

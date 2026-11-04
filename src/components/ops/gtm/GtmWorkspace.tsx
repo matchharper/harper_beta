@@ -522,7 +522,7 @@ export default function GtmWorkspace() {
         >
           <Settings2 size={15} />
         </MuteButton>
-        <span style={{ borderLeft: "1px solid #c9cdd2", height: 24 }} />
+        <span style={{ borderLeft: "1px solid var(--color-grid-border)", height: 24 }} />
         <MuteButton
           disabled={locked || !selected}
           onClick={() => setColumnDialog({ key: null })}

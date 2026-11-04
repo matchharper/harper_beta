@@ -44,11 +44,11 @@ export default function AdminMetricsControls({
   return (
     <div className="space-y-4">
       <div
-        className="border border-black/10 bg-white p-4"
-        style={{ borderRadius: 0 }}
+        className="border border-stroke bg-bg-floating p-4"
+        style={{ borderRadius: "var(--radius-admin)" }}
       >
-        <div className="text-[13px] font-semibold text-black">지표 선택</div>
-        <div className="mt-1 text-[12px] text-black/60">
+        <div className="text-[13px] font-semibold text-neutral-primary">지표 선택</div>
+        <div className="mt-1 text-[12px] text-neutral-primary/60">
           체크한 지표만 아래 그래프로 추가됩니다.
         </div>
 
@@ -61,10 +61,10 @@ export default function AdminMetricsControls({
                 key={metric.key}
                 className={`flex cursor-pointer items-center gap-2 border px-3 py-2 text-[12px] transition ${
                   isSelected
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 bg-white text-black hover:border-black/30 hover:bg-black/5"
+                    ? "border-stroke-strong bg-surface-inverse text-on-inverse"
+                    : "border-stroke-strong/15 bg-bg-floating text-neutral-primary hover:border-stroke-strong/30 hover:bg-surface-tint"
                 }`}
-                style={{ borderRadius: 0 }}
+                style={{ borderRadius: "var(--radius-admin)" }}
               >
                 <UiCheckbox
                   unstyled
@@ -75,7 +75,7 @@ export default function AdminMetricsControls({
                 <span
                   className="h-2.5 w-2.5 shrink-0"
                   style={{
-                    borderRadius: 999,
+                    borderRadius: "var(--radius-pill)",
                     backgroundColor: metric.color,
                   }}
                 />
@@ -87,12 +87,12 @@ export default function AdminMetricsControls({
       </div>
 
       <div
-        className="border border-black/10 bg-white p-4"
-        style={{ borderRadius: 0 }}
+        className="border border-stroke bg-bg-floating p-4"
+        style={{ borderRadius: "var(--radius-admin)" }}
       >
         <div className="grid gap-4 md:grid-cols-[1.2fr_1.4fr_0.7fr]">
           <div>
-            <div className="text-[12px] font-semibold text-black">Bucket</div>
+            <div className="text-[12px] font-semibold text-neutral-primary">Bucket</div>
             <div className="mt-2 flex flex-wrap gap-2">
               {INTERVAL_OPTIONS.map((option) => {
                 const isActive = interval === option.value;
@@ -104,10 +104,10 @@ export default function AdminMetricsControls({
                     onClick={() => onIntervalChange(option.value)}
                     className={`h-9 px-3 text-[12px] border transition ${
                       isActive
-                        ? "border-black bg-black text-white"
-                        : "border-black/15 hover:border-black/30 hover:bg-black/5"
+                        ? "border-stroke-strong bg-surface-inverse text-on-inverse"
+                        : "border-stroke-strong/15 hover:border-stroke-strong/30 hover:bg-surface-tint"
                     }`}
-                    style={{ borderRadius: 0 }}
+                    style={{ borderRadius: "var(--radius-admin)" }}
                   >
                     {option.label}
                   </BareButton>
@@ -117,29 +117,29 @@ export default function AdminMetricsControls({
           </div>
 
           <div>
-            <div className="text-[12px] font-semibold text-black">기간</div>
+            <div className="text-[12px] font-semibold text-neutral-primary">기간</div>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <UiInput
                 unstyled
                 type="date"
                 value={startDate}
                 onChange={(event) => onStartDateChange(event.target.value)}
-                className="h-9 w-full border border-black/15 px-3 text-[12px] outline-none transition focus:border-black/35"
-                style={{ borderRadius: 0 }}
+                className="h-9 w-full border border-stroke-strong/15 px-3 text-[12px] outline-none transition focus:border-stroke-strong/35"
+                style={{ borderRadius: "var(--radius-admin)" }}
               />
               <UiInput
                 unstyled
                 type="date"
                 value={endDate}
                 onChange={(event) => onEndDateChange(event.target.value)}
-                className="h-9 w-full border border-black/15 px-3 text-[12px] outline-none transition focus:border-black/35"
-                style={{ borderRadius: 0 }}
+                className="h-9 w-full border border-stroke-strong/15 px-3 text-[12px] outline-none transition focus:border-stroke-strong/35"
+                style={{ borderRadius: "var(--radius-admin)" }}
               />
             </div>
           </div>
 
           <div>
-            <div className="text-[12px] font-semibold text-black">
+            <div className="text-[12px] font-semibold text-neutral-primary">
               Grid Cols
             </div>
             <UiInput
@@ -151,8 +151,8 @@ export default function AdminMetricsControls({
               onChange={(event) =>
                 onGridColsChange(Number(event.target.value || 1))
               }
-              className="mt-2 h-9 w-full border border-black/15 px-3 text-[12px] outline-none transition focus:border-black/35"
-              style={{ borderRadius: 0 }}
+              className="mt-2 h-9 w-full border border-stroke-strong/15 px-3 text-[12px] outline-none transition focus:border-stroke-strong/35"
+              style={{ borderRadius: "var(--radius-admin)" }}
             />
           </div>
         </div>

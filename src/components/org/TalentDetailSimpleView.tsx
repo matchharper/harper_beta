@@ -1444,7 +1444,7 @@ export function TalentDetailSimpleView({
           // Adjust only --candidate-profile-width to resize the desktop profile pane.
           // The feed stays 480px; the panel is capped at the available viewport width.
           overlayClassName="z-[70] items-stretch justify-end overflow-hidden p-0 sm:px-0 [--candidate-profile-width:calc(80vw-480px)] [--candidate-feed-width:480px]"
-          backdropClassName="z-[70] bg-black/35 backdrop-blur-none"
+          backdropClassName="z-[70] bg-surface-inverse/35 backdrop-blur-none"
           panelClassName={cn(
             "h-dvh max-h-none max-w-full min-w-0 rounded-none border-0 pb-[env(safe-area-inset-bottom)] sm:w-[92vw] md:w-[calc(var(--candidate-profile-width)+var(--candidate-feed-width))] md:pb-0",
             "duration-150 ease-out data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100",
@@ -1459,7 +1459,7 @@ export function TalentDetailSimpleView({
               <div className="flex shrink-0 items-center gap-1">
                 <MuteButton
                   aria-label={c("닫기", "Close")}
-                  className="rounded-full px-1"
+                  className="rounded-pill px-1"
                   onClick={handleClose}
                   size="md"
                   type="button"

@@ -153,7 +153,7 @@ function AdminCareerTopFunnelContent() {
       <Head>
         <title>Career Top Funnel | Harper Admin</title>
       </Head>
-      <main className="min-h-svh bg-white text-black">
+      <main className="min-h-svh bg-bg-floating text-neutral-primary">
         <AdminMetricsNavigation
           activeSection="career"
           title="Career Top Funnel"
@@ -181,13 +181,13 @@ function AdminCareerTopFunnelContent() {
             </div>
           ) : null}
 
-          <section className="mt-4 overflow-hidden border border-black/10">
-            <div className="flex items-center justify-between border-b border-black/10 px-4 py-3">
+          <section className="mt-4 overflow-hidden border border-stroke">
+            <div className="flex items-center justify-between border-b border-stroke px-4 py-3">
               <div className="text-[13px] font-semibold">
                 {query.data?.dateRange.startDate ?? appliedRange.startDate} ~{" "}
                 {query.data?.dateRange.endDate ?? appliedRange.endDate}
               </div>
-              <div className="text-[12px] text-black/45">
+              <div className="text-[12px] text-neutral-primary/45">
                 {query.isFetching
                   ? "loading"
                   : `excluded ${query.data?.excludedEmailCount ?? excludedEmails.length}`}
@@ -195,7 +195,7 @@ function AdminCareerTopFunnelContent() {
             </div>
 
             <table className="w-full border-collapse text-left text-[13px]">
-              <thead className="bg-black/[0.03] text-[11px] uppercase tracking-[0.12em] text-black/45">
+              <thead className="bg-surface-inverse/[0.03] text-[11px] uppercase tracking-[0.12em] text-neutral-primary/45">
                 <tr>
                   <th className="px-4 py-3 font-medium">Step</th>
                   <th className="px-4 py-3 text-right font-medium">Count</th>
@@ -209,10 +209,10 @@ function AdminCareerTopFunnelContent() {
               </thead>
               <tbody>
                 {query.data?.steps.map((step) => (
-                  <tr key={step.key} className="border-t border-black/10">
+                  <tr key={step.key} className="border-t border-stroke">
                     <td className="px-4 py-4">
-                      <div className="font-medium text-black">{step.label}</div>
-                      <div className="mt-1 text-[11px] text-black/40">
+                      <div className="font-medium text-neutral-primary">{step.label}</div>
+                      <div className="mt-1 text-[11px] text-neutral-primary/40">
                         {step.detail}
                       </div>
                     </td>
@@ -232,7 +232,7 @@ function AdminCareerTopFunnelContent() {
                   <tr>
                     <td
                       colSpan={4}
-                      className="px-4 py-8 text-center text-[13px] text-black/45"
+                      className="px-4 py-8 text-center text-[13px] text-neutral-primary/45"
                     >
                       {query.isLoading ? "불러오는 중입니다." : "데이터 없음"}
                     </td>
@@ -243,7 +243,7 @@ function AdminCareerTopFunnelContent() {
           </section>
 
           {query.data?.generatedAt ? (
-            <div className="mt-3 text-[11px] text-black/40">
+            <div className="mt-3 text-[11px] text-neutral-primary/40">
               Generated{" "}
               {new Date(query.data.generatedAt).toLocaleString("ko-KR")}
             </div>

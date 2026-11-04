@@ -1,3 +1,4 @@
+import type { CareerMessage } from "@/components/career/types";
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCareerApi } from "./useCareerApi";
@@ -31,6 +32,8 @@ export function useCareerOpenForms(conversationId?: string | null) {
         canStop?: boolean;
         retrying?: boolean;
         activities?: CareerWorkActivity[];
+        activeInvocationIds?: string[];
+        turns?: CareerMessage[];
       };
     },
     refetchInterval: (query) =>
@@ -45,7 +48,7 @@ export function useCareerOpenForms(conversationId?: string | null) {
       lastObserved.current?.conversationId === conversationId
         ? lastObserved.current
         : undefined;
-    if (query.data.latestMessageId !== prior?.messageId || query.data.activities?.length || query.data.completionCursor !== prior?.completionCursor) {
+    if (query.data.latestMessageId !== prior?.messageId || query.data.completionCursor !== prior?.completionCursor) {
       void queryClient.invalidateQueries(
         { queryKey: ["career-message-history", conversationId] },
         { cancelRefetch: false }
@@ -61,6 +64,7 @@ export function useCareerOpenForms(conversationId?: string | null) {
         "career-history-summary",
         "career-task-progress",
         "career-pending-actions",
+        "career-action-items",
       ]) {
         void queryClient.invalidateQueries(
           { queryKey: [key] },

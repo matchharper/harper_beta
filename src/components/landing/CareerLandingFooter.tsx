@@ -193,8 +193,8 @@ function FooterLanguageDropdown({
           aria-label={locale === "ko" ? "언어 선택" : "Choose language"}
           className={`${compact ? "" : "mt-5"} inline-flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-medium transition focus:outline-none focus:ring-2 ${
             isDark
-              ? "border-white/20 bg-white/10 text-white/80 hover:border-white/35 hover:bg-white/15 hover:text-white focus:ring-white/30"
-              : "border-black/10 bg-white text-black/60 hover:border-black/20 hover:bg-black/[0.03] hover:text-black focus:ring-black/10"
+              ? "border-bg-floating/20 bg-bg-floating/10 text-on-inverse/80 hover:border-bg-floating/35 hover:bg-bg-floating/15 hover:text-on-inverse focus:ring-white/30"
+              : "border-stroke bg-bg-floating text-neutral-primary/60 hover:border-stroke-strong/20 hover:bg-surface-inverse/[0.03] hover:text-neutral-primary focus:ring-black/10"
           }`}
         >
           {compact ? (
@@ -209,7 +209,7 @@ function FooterLanguageDropdown({
       <DropdownMenuContent
         align="start"
         className={`min-w-[136px] ${
-          isDark ? "border-white/20 bg-neutral-900 text-white" : ""
+          isDark ? "border-bg-floating/20 bg-neutral-900 text-on-inverse" : ""
         }`}
       >
         {languageOptions.map((option) => (
@@ -219,8 +219,8 @@ function FooterLanguageDropdown({
             onSelect={() => handleLocaleSelect(option.value)}
             className={
               isDark
-                ? `text-white hover:bg-white/10 focus:bg-white/10 focus:text-white data-[highlighted]:bg-white/10 data-[highlighted]:text-white [&>svg]:text-white/60 ${
-                    option.value === locale ? "bg-white/10" : ""
+                ? `text-on-inverse hover:bg-bg-floating/10 focus:bg-bg-floating/10 focus:text-on-inverse data-[highlighted]:bg-bg-floating/10 data-[highlighted]:text-on-inverse [&>svg]:text-on-inverse/60 ${
+                    option.value === locale ? "bg-bg-floating/10" : ""
                   }`
                 : undefined
             }
@@ -274,15 +274,15 @@ export default function CareerLandingFooter({
   };
 
   const liststyle = `mt-4 flex flex-col gap-2 md:gap-3 text-xs md:text-sm font-light ${
-    isDark ? "text-white/90" : "text-black/90"
+    isDark ? "text-on-inverse/90" : "text-neutral-primary/90"
   }`;
   const liStyle = `cursor-pointer text-xs md:text-sm font-light hover:font-normal transition duration-300 ${
-    isDark ? "text-white/90 hover:text-white" : "text-black hover:text-black/90"
+    isDark ? "text-on-inverse/90 hover:text-on-inverse" : "text-neutral-primary hover:text-neutral-primary/90"
   }`;
   const labelStyle = isDark
-    ? "font-light text-sm text-white/60"
+    ? "font-light text-sm text-on-inverse/60"
     : "font-light text-sm text-neutral-700/80";
-  const strongTextStyle = isDark ? "text-white" : "text-black";
+  const strongTextStyle = isDark ? "text-on-inverse" : "text-neutral-primary";
 
   if (audience === "company") {
     const isKo = resolvedLocale === "ko";
@@ -296,7 +296,7 @@ export default function CareerLandingFooter({
             <div className="flex flex-col items-start">
               <Link
                 href={companyPageHref}
-                className="underline-offset-[5px] hover:underline hover:opacity-65 focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action motion-safe:transition-opacity motion-safe:duration-[160ms] motion-safe:ease-[ease]"
+                className="underline-offset-[5px] hover:underline hover:opacity-65 focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action motion-safe:transition-opacity motion-safe:duration-[160ms] motion-safe:ease-[ease]"
                 aria-label={isKo ? "Harper 기업 홈" : "Harper for Companies"}
               >
                 <Image
@@ -328,7 +328,7 @@ export default function CareerLandingFooter({
                   <li>
                     <Link
                       href={`/org?lang=${resolvedLocale}`}
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       {isKo ? "무료로 시작하기" : "Start for free"}
                     </Link>
@@ -336,7 +336,7 @@ export default function CareerLandingFooter({
                   <li>
                     <Link
                       href={`${companyPageHref}#company-process`}
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       {isKo ? "채용 과정" : "How it works"}
                     </Link>
@@ -344,7 +344,7 @@ export default function CareerLandingFooter({
                   <li>
                     <Link
                       href={`${companyPageHref}#company-pricing`}
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       {isKo ? "요금제" : "Pricing"}
                     </Link>
@@ -352,7 +352,7 @@ export default function CareerLandingFooter({
                   <li>
                     <Link
                       href={`${companyPageHref}#company-faq`}
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       {isKo ? "자주 묻는 질문" : "FAQ"}
                     </Link>
@@ -368,7 +368,7 @@ export default function CareerLandingFooter({
                     <Link
                       href={careerStartHref}
                       onClick={onCareerStartClick}
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       {isKo ? "Harper와 대화하기" : "Meet Harper"}
                     </Link>
@@ -376,7 +376,7 @@ export default function CareerLandingFooter({
                   <li>
                     <Link
                       href={`/jobs?lang=${resolvedLocale}`}
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       {isKo ? "채용 기회" : "Explore jobs"}
                     </Link>
@@ -384,7 +384,7 @@ export default function CareerLandingFooter({
                   <li>
                     <Link
                       href={`/refer?lang=${resolvedLocale}`}
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       {isKo ? "친구 추천하기" : "Refer a friend"}
                     </Link>
@@ -399,7 +399,7 @@ export default function CareerLandingFooter({
                   <li>
                     <Link
                       href="/about"
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       {isKo ? "Harper 소개" : "About us"}
                     </Link>
@@ -407,7 +407,7 @@ export default function CareerLandingFooter({
                   <li>
                     <Link
                       href="/blog"
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       {isKo ? "블로그" : "Blog"}
                     </Link>
@@ -417,7 +417,7 @@ export default function CareerLandingFooter({
                       href="https://www.linkedin.com/company/matchharper/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       LinkedIn
                       <ArrowUpRight size={12} aria-hidden="true" />
@@ -426,7 +426,7 @@ export default function CareerLandingFooter({
                   <li>
                     <a
                       href="mailto:chris@matchharper.com"
-                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
+                      className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
                       {isKo ? "문의하기" : "Contact"}
                     </a>
@@ -440,13 +440,13 @@ export default function CareerLandingFooter({
               <span className="basis-full md:basis-auto">© 2026 Harper</span>
               <Link
                 href={`/privacy?lang=${resolvedLocale}`}
-                className="py-1.5 underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action"
+                className="py-1.5 underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action"
               >
                 {labels.privacy}
               </Link>
               <Link
                 href={`/referral-terms?lang=${resolvedLocale}`}
-                className="py-1.5 underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action"
+                className="py-1.5 underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action"
               >
                 {labels.referralTerms}
               </Link>
@@ -457,7 +457,7 @@ export default function CareerLandingFooter({
                   href={SERVICE_STATUS_PAGE_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-[7px] text-[11px] underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action"
+                  className="inline-flex items-center gap-[7px] text-[11px] underline-offset-[5px] hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action"
                 >
                   <span
                     aria-hidden="true"
@@ -488,8 +488,8 @@ export default function CareerLandingFooter({
     <footer
       className={`border-t px-4 py-14 text-[12px] md:px-10 md:py-16 ${
         isDark
-          ? "border-white/15 bg-neutral-950 text-white"
-          : "border-black/10 bg-white text-black"
+          ? "border-bg-floating/15 bg-neutral-950 text-on-inverse"
+          : "border-stroke bg-bg-floating text-neutral-primary"
       }`}
     >
       <div className="mx-auto max-w-[1140px]">
@@ -506,7 +506,7 @@ export default function CareerLandingFooter({
             </div>
             <p
               className={`font-hedvig mt-5 text-base font-semibold ${
-                isDark ? "text-white/60" : "text-black/60"
+                isDark ? "text-on-inverse/60" : "text-neutral-primary/60"
               }`}
             >
               Get <span className={strongTextStyle}>introduced</span> to your{" "}
@@ -639,7 +639,7 @@ export default function CareerLandingFooter({
 
         <div
           className={`mt-6 flex flex-col gap-3 text-[12.5px] md:flex-row md:items-center md:justify-between ${
-            isDark ? "text-white/45" : "text-black/45"
+            isDark ? "text-on-inverse/45" : "text-neutral-primary/45"
           }`}
         >
           <div>© 2026 Harper. All rights reserved.</div>
@@ -651,7 +651,7 @@ export default function CareerLandingFooter({
               className={cn(
                 "inline-flex w-fit items-center gap-2 rounded-sm py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action focus-visible:ring-offset-2",
                 isDark
-                  ? "text-white/70 hover:text-white focus-visible:ring-offset-neutral-950"
+                  ? "text-on-inverse/70 hover:text-on-inverse focus-visible:ring-offset-neutral-950"
                   : "text-neutral-muted hover:text-neutral-primary focus-visible:ring-offset-bg-default"
               )}
             >

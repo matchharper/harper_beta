@@ -200,7 +200,7 @@ export function ApplicationStartCard({
             >
               <SelectTrigger
                 aria-labelledby={`resume-label-${messageId}`}
-                className="data-[size=default]:h-auto min-h-12 gap-3 rounded-lg px-3 py-2"
+                className="data-[size=default]:h-auto min-h-12 gap-3  px-3 py-2"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg-weak text-neutral-muted">
                   <FileText className="h-5 w-5" aria-hidden />

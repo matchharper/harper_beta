@@ -531,7 +531,7 @@ export const CriteriaCard = React.memo(function CriteriaCard({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className={`w-[220px] rounded-2xl p-2 backdrop-blur-sm ${isDark ? "border-neutral-00/10 bg-black/70" : "border-neutral-1000-a05 bg-bg-default"}`}
+                className={`w-[220px]  p-2 backdrop-blur-sm ${isDark ? "border-neutral-00/10 bg-surface-inverse/70" : " "}`}
               >
                 <div
                   className={`px-1 pb-2 text-[11px] ${isDark ? "text-neutral-00/70" : "text-neutral-muted"}`}
@@ -659,7 +659,7 @@ export const CriteriaCard = React.memo(function CriteriaCard({
             className={`mt-4 w-full rounded-full py-2.5 text-sm hover:opacity-90 disabled:opacity-50 ${
               isDark
                 ? "bg-accent-300 text-neutral-primary"
-                : "bg-black text-neutral-00"
+                : "bg-surface-inverse text-neutral-00"
             } ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
             disabled={disabled}
             // disabled={!draft.ready || disabled}
@@ -1140,7 +1140,7 @@ export const SearchResultCard = React.memo(function SearchResultCard({
                   canRetry
                     ? isDark
                       ? "bg-accent-300 text-neutral-primary hover:opacity-80"
-                      : "bg-black text-neutral-00 hover:opacity-80"
+                      : "bg-surface-inverse text-neutral-00 hover:opacity-80"
                     : isDark
                       ? "bg-neutral-00/10 text-neutral-00/60 cursor-not-allowed"
                       : "bg-bg-weak text-neutral-soft cursor-not-allowed"
@@ -1275,7 +1275,7 @@ export const SearchResultCard = React.memo(function SearchResultCard({
               canOpen
                 ? isDark
                   ? "bg-accent-300 text-neutral-primary hover:opacity-80"
-                  : "bg-black text-neutral-00 hover:opacity-80"
+                  : "bg-surface-inverse text-neutral-00 hover:opacity-80"
                 : isDark
                   ? "bg-neutral-00/10 text-neutral-00/60 cursor-not-allowed"
                   : "bg-bg-weak text-neutral-soft cursor-not-allowed"

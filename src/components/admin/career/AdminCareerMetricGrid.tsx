@@ -45,10 +45,10 @@ export default function AdminCareerMetricGrid({
       {metrics.map((metric) => (
         <Card
           key={metric.key}
-          className="rounded-md border-black/10 shadow-none"
+          className="rounded-md border-stroke shadow-none"
         >
           <CardHeader className="space-y-1 p-3 pb-1">
-            <CardDescription className="text-[11px] leading-4 text-black/45">
+            <CardDescription className="text-[11px] leading-4 text-neutral-primary/45">
               <Tooltips
                 text={
                   metric.tooltip ||
@@ -65,12 +65,12 @@ export default function AdminCareerMetricGrid({
                 </BareButton>
               </Tooltips>
             </CardDescription>
-            <CardTitle className="text-[20px] font-semibold leading-7 text-black">
+            <CardTitle className="text-[20px] font-semibold leading-7 text-neutral-primary">
               {metric.value.toLocaleString("ko-KR")}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-[11px] leading-4 text-black/50">
+            <div className="text-[11px] leading-4 text-neutral-primary/50">
               {metric.detail}
             </div>
           </CardContent>

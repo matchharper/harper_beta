@@ -130,7 +130,7 @@ export function ConnectionConfirmationEmailFeedCard({
             ) : null}
             {item.canSendNow && onSendNow ? (
               <BareButton
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-black px-3 text-xs font-medium text-neutral-00 transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-surface-inverse px-3 text-xs font-medium text-neutral-00 transition hover:bg-surface-inverse/90 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={isUpdating}
                 onClick={() => {
                   if (

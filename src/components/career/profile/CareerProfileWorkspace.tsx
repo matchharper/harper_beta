@@ -187,7 +187,7 @@ const CareerProfileWorkspace = ({
         {showLocalMemories ? (
           <section
             aria-busy={talentMemoriesLoadPending}
-            className="mt-8 space-y-3 rounded-[18px] border border-neutral-1000-a05 bg-bg-default p-4 md:p-5"
+            className="mt-8 space-y-3 rounded-xl border border-neutral-1000-a05 bg-bg-default p-4 md:p-5"
             style={{
               backgroundImage:
                 "repeating-linear-gradient(135deg, transparent 0px, transparent 7px, var(--color-neutral-1000-a05) 7px, var(--color-neutral-1000-a05) 8px)",

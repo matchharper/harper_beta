@@ -216,13 +216,13 @@ const POST_ACCEPTANCE_SERIES = [
 ] as const;
 
 const tooltipStyle = {
-  background: "var(--color-bg-floating)",
-  border:
-    "1px solid color-mix(in srgb, var(--color-neutral-1000) 10%, transparent)",
-  borderRadius: "8px",
-  boxShadow:
-    "0 16px 40px color-mix(in srgb, var(--color-neutral-1000) 12%, transparent)",
-  fontSize: "12px",
+  background: "var(--color-popover)",
+  color: "var(--color-popover-foreground)",
+  border: "var(--popover-border-width) solid var(--color-popover-border)",
+  borderRadius: "var(--radius-popover)",
+  boxShadow: "var(--shadow-popover)",
+  backdropFilter: "blur(var(--blur-popover))",
+  fontSize: 12,
 };
 
 function TrendChart({

@@ -134,6 +134,6 @@ test("mobile chat toolbar follows the iOS visual viewport", () => {
   assert.match(mobileChatLauncher, /className="fixed left-3 z-\[70\]"/);
   assert.match(
     mobileChatLauncher,
-    /"fixed right-3 z-\[70\] rounded-full text-neutral-muted"/
+    /"fixed right-3 z-\[70\] rounded-pill text-neutral-muted"/
   );
 });

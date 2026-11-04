@@ -66,13 +66,13 @@ export default function PricingSection({
   }, [billing, pricing]);
 
   return (
-    <section id="pricing" className="w-full bg-black text-white">
+    <section id="pricing" className="w-full bg-surface-inverse text-on-inverse">
       <Reveal>
         <BaseSectionLayout>
           <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
-            {/* <Head1 className="text-white">Pricing</Head1> */}
-            <Head1 className="mt-4 md:mt-6 text-white">{pricing.title}</Head1>
-            <div className="mt-3 text-sm md:text-base text-white/60 font-light">
+            {/* <Head1 className="text-on-inverse">Pricing</Head1> */}
+            <Head1 className="mt-4 md:mt-6 text-on-inverse">{pricing.title}</Head1>
+            <div className="mt-3 text-sm md:text-base text-on-inverse/60 font-light">
               {pricing.subtitle}
             </div>
 
@@ -127,16 +127,16 @@ function PlanCard({
     <div
       className={[
         "relative h-full w-full overflow-hidden rounded-xl",
-        "bg-white/5 border border-white/10",
+        "bg-bg-floating/5 border border-bg-floating/10",
         "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-20",
-        isPrimary ? "bg-white/10" : "",
+        isPrimary ? "bg-bg-floating/10" : "",
       ].join(" ")}
     >
       <div className="flex h-full flex-col items-start justify-start">
         <div className="text-[24px] md:text-[28px] font-medium tracking-tight">
           {name}
         </div>
-        {/* <div className="mt-0 text-left w-full text-sm text-white/55 leading-6 min-h-6">
+        {/* <div className="mt-0 text-left w-full text-sm text-on-inverse/55 leading-6 min-h-6">
           {tagline}
         </div> */}
 
@@ -152,7 +152,7 @@ function PlanCard({
               <div className="text-[20px] md:text-[28px] font-medium tracking-tight leading-none">
                 {formatKRW(price)}
               </div>
-              <div className="flex justify-end items-end text-base md:text-lg text-white/60 pb-0">
+              <div className="flex justify-end items-end text-base md:text-lg text-on-inverse/60 pb-0">
                 KRW/ month
               </div>
             </div>
@@ -166,24 +166,24 @@ function PlanCard({
             className={[
               "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",
               isPrimary
-                ? "bg-accent-200 text-black hover:opacity-95"
-                : "bg-white/10 text-accent-200 border border-white/0 hover:bg-accent-200/10",
+                ? "bg-accent-200 text-neutral-primary hover:opacity-95"
+                : "bg-bg-floating/10 text-accent-200 border border-bg-floating/0 hover:bg-accent-200/10",
             ].join(" ")}
           >
             {buttonLabel}
           </button>
         </div>
 
-        <div className="mt-7 md:mt-8 h-px w-full bg-white/10" />
+        <div className="mt-7 md:mt-8 h-px w-full bg-bg-floating/10" />
 
         <ul className="mt-6 md:mt-7 flex flex-col gap-4">
           {features.map((f, idx) => (
             <li key={idx} className="flex items-start gap-3 text-sm md:text-sm">
               {f.endsWith("및:") || f.endsWith(":") ? (
                 <>
-                  <span className="mt-[6px] w-2 h-2 rounded-full bg-white/25" />
+                  <span className="mt-[6px] w-2 h-2 rounded-full bg-bg-floating/25" />
                   <span
-                    className="text-white/80 font-medium"
+                    className="text-on-inverse/80 font-medium"
                     dangerouslySetInnerHTML={{ __html: f }}
                   />
                 </>
@@ -191,7 +191,7 @@ function PlanCard({
                 <>
                   <Check className="w-4 h-4 mt-0.5 text-accent-200" />
                   <span
-                    className="text-white/70 text-left"
+                    className="text-on-inverse/70 text-left"
                     dangerouslySetInnerHTML={{ __html: f }}
                   ></span>
                 </>

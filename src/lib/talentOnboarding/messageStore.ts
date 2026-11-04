@@ -338,6 +338,7 @@ export async function fetchRecentMessages(args: {
       "id, conversation_id, user_id, role, content, message_type, payload, thinking_logs, created_at"
     )
     .eq("conversation_id", conversationId)
+    .neq("message_type", "career_turn_activity")
     .neq("message_type", CAREER_COACHING_ACTIVITY_MESSAGE_TYPE)
     .neq("message_type", "application_start_offer")
     .neq("message_type", "simulation_session")

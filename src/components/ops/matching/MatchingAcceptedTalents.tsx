@@ -168,7 +168,7 @@ export function MatchingAcceptedTalents({
                       checked={selectedWorkspaceIds.includes(
                         workspace.companyWorkspaceId
                       )}
-                      className="gap-2 rounded-[8px] py-1.5 text-[13px]"
+                      className="gap-2 rounded-md py-1.5 text-[13px]"
                       indicatorPosition="right"
                       key={workspace.companyWorkspaceId}
                       onCheckedChange={(checked) => {

@@ -131,7 +131,7 @@ export function ProfileVisibilityPanel({
       closeOnBackdrop={!saving}
       showCloseButton={!saving}
       overlayClassName="items-stretch justify-end p-0 sm:p-0"
-      panelClassName="h-dvh max-h-dvh max-w-[520px] rounded-none border-0 border-l border-neutral-1000-a05 data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100 motion-reduce:animate-none"
+      panelClassName="h-dvh max-h-dvh max-w-[520px] rounded-none border-0 border-l  data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100 motion-reduce:animate-none"
       headerClassName="px-5 py-6"
       bodyClassName="flex-1 px-5 pb-6"
     >

@@ -830,6 +830,7 @@ export async function runCareerChatTurn(
       : null;
 
   const capabilityPromptArgs: Parameters<typeof buildCareerConversationPromptPlan>[0] = {
+      isMobile,
       careerCoachingActivity,
       conversationMode: careerCoachingActivity?.status === "active" ? "career_coaching" : "default",
       activeInternalFitHoldQuestion,
@@ -944,6 +945,9 @@ export async function runCareerChatTurn(
     const currentLast = thinkingLogs[thinkingLogs.length - 1];
     if (currentLast && currentLast !== previousLast) {
       onThinkingLog?.(currentLast, thinkingLogs);
+      void messageWriter?.logs(thinkingLogs).then(row => {
+        if (row) onArtifactMessage(toTalentMessageResponse(row));
+      });
     }
   };
   const recordRecommendationStatus = (
@@ -1081,11 +1085,13 @@ export async function runCareerChatTurn(
       return shouldInsertAssistantMessage ? shouldInsertAssistantMessage() : true;
     },
   }) : null;
+  const initialActivity = await messageWriter?.start();
+  if (initialActivity) onArtifactMessage(toTalentMessageResponse(initialActivity));
   let assistantText: string;
   try {
     const assistantArgs: Parameters<typeof runCareerChatAssistant>[0] = {
       toolRuntime: capabilityTurn?.runtime,
-      hasDeliveredArtifact: () => (!args.adapter || args.adapter.artifactsVisible === true) && (artifactMessages.size > 0 || formPresenter.hasPending()),
+      hasDeliveredArtifact: () => (!args.adapter || args.adapter.artifactsVisible === true) && (Array.from(artifactMessages.values()).some(message => message.messageType !== "career_turn_activity" || message.workEvents?.some(event => event.kind === "message")) || formPresenter.hasPending()),
       onAssistantMessage: args.backgroundInvocation || args.adapter ? undefined : async (text) => {
         const visibleText = normalizeNoMessageContent(text, noMessageMarker);
         if (!visibleText) return;
@@ -1179,8 +1185,6 @@ export async function runCareerChatTurn(
           },
           onToolStart: async ({ name }) => {
             assistantArgs.onToolStart?.({ name, input: {} });
-            const row = await messageWriter?.logs(thinkingLogs);
-            if (row) onArtifactMessage(toTalentMessageResponse(row));
           },
         })
       : await runCareerChatAssistant(assistantArgs);

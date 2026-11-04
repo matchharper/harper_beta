@@ -24,8 +24,8 @@ const dropdownMenuItemVariantClassNames: Record<
   DropdownMenuItemVariant,
   string
 > = {
-  sm: "gap-2 rounded-[8px] px-2.5 py-1.5 text-[13px] font-normal [&>svg]:size-3.5 [&>svg]:stroke-[1.75]",
-  md: "gap-2 rounded-[10px] px-3 py-2 text-sm font-normal [&>svg]:size-4 [&>svg]:stroke-2",
+  sm: "gap-2 rounded-menu-item px-2.5 py-1.5 text-[13px] font-control [&>svg]:size-3.5 [&>svg]:stroke-[1.75]",
+  md: "gap-2 rounded-menu-item px-3 py-2 text-sm font-control [&>svg]:size-4 [&>svg]:stroke-2",
 };
 
 const DropdownMenuSubTrigger = React.forwardRef<
@@ -39,7 +39,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       "flex cursor-default select-none items-center outline-none [&_svg]:pointer-events-none [&_svg]:shrink-0",
-      "text-neutral-primary focus:bg-bg-weak focus:text-neutral-primary data-[state=open]:bg-bg-weak",
+      "text-menu-foreground focus:bg-menu-hover focus:text-menu-foreground data-[state=open]:bg-menu-hover",
       dropdownMenuItemVariantClassNames[variant],
       inset && "pl-8",
       className
@@ -61,7 +61,7 @@ const DropdownMenuSubContent = React.forwardRef<
     <DropdownMenuPrimitive.SubContent
       ref={ref}
       className={cn(
-        "z-120 min-w-32 overflow-hidden rounded-[12px] border border-neutral-1000-a05 bg-bg-floating p-1 text-neutral-primary shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-(--radix-dropdown-menu-content-transform-origin)",
+        "z-120 min-w-32 overflow-hidden rounded-menu border-(length:--menu-border-width) border-menu-border bg-menu bg-menu-image text-menu-foreground shadow-(--shadow-menu) backdrop-blur-menu p-1 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-(--radix-dropdown-menu-content-transform-origin)",
         className
       )}
       {...props}
@@ -82,7 +82,7 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-120 max-h-(--radix-dropdown-menu-content-available-height) min-w-32 overflow-y-auto overflow-x-hidden rounded-[12px] border border-neutral-1000-a05 bg-bg-floating p-1 text-neutral-primary shadow-[0_18px_40px_rgba(31,28,26,0.12)]",
+        "z-120 max-h-(--radix-dropdown-menu-content-available-height) min-w-32 overflow-y-auto overflow-x-hidden rounded-menu border-(length:--menu-border-width) border-menu-border bg-menu bg-menu-image text-menu-foreground shadow-(--shadow-menu) backdrop-blur-menu p-1",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-(--radix-dropdown-menu-content-transform-origin)",
         className
       )}
@@ -127,14 +127,14 @@ const DropdownMenuItem = React.forwardRef<
     ref
   ) => {
     const itemClassName = cn(
-      "relative flex cursor-default select-none items-center text-neutral-primary outline-none transition-colors hover:bg-black/5 focus:bg-black/5 focus:text-neutral-primary data-[highlighted]:bg-black/5 data-[highlighted]:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50 [&>svg]:shrink-0",
+      "relative flex cursor-default select-none items-center text-menu-foreground outline-none transition-colors hover:bg-menu-hover focus:bg-menu-hover focus:text-menu-foreground data-[highlighted]:bg-menu-hover data-[highlighted]:text-menu-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&>svg]:shrink-0",
       tone === "danger"
         ? "[&_svg]:text-critical"
         : "[&_svg]:text-neutral-800/80",
       dropdownMenuItemVariantClassNames[variant],
-      selected && "bg-black/5 text-neutral-primary",
+      selected && "bg-menu-selected text-menu-foreground",
       tone === "danger" &&
-        "text-critical focus:bg-black/5 focus:text-critical data-[highlighted]:text-critical",
+        "text-critical focus:bg-menu-hover focus:text-critical data-[highlighted]:text-critical",
       inset && "pl-8",
       className
     );
@@ -186,7 +186,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
     <DropdownMenuPrimitive.CheckboxItem
       ref={ref}
       className={cn(
-        "relative flex cursor-default select-none items-center rounded-[10px] py-2 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-weak focus:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50",
+        "relative flex cursor-default select-none items-center rounded-menu-item py-2 text-sm text-menu-foreground outline-none transition-colors focus:bg-menu-hover focus:text-menu-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
         className,
         indicatorPosition === "left" && "pl-8 pr-3",
         indicatorPosition === "right" && "pl-3 pr-8"
@@ -222,7 +222,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-[10px] py-2 pl-8 pr-3 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-weak focus:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50",
+      "relative flex cursor-default select-none items-center rounded-menu-item py-2 pl-8 pr-3 text-sm text-menu-foreground outline-none transition-colors focus:bg-menu-hover focus:text-menu-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
       className
     )}
     {...props}

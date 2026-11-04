@@ -155,15 +155,11 @@ test("session re-engagement uses readable Korean-local times and distinguishes a
   assert.doesNotMatch(prompt, /2026-08-2[45]T/);
   assert.doesNotMatch(prompt, /31시간 전/);
   assert.doesNotMatch(prompt, /2주 만에/);
-  assert.match(prompt, /\[\[CAREER_REENGAGEMENT_ACTIONS\]\]/);
-  assert.match(prompt, /"type":"send_message"/);
-  assert.match(prompt, /"type":"open_path"/);
-  assert.match(prompt, /"type":"open_pending_action"/);
-  assert.match(prompt, /"type":"start_call"/);
-  assert.match(prompt, /일반 CAREER_CHOICE_BUTTONS는 쓰지 않는다/);
+  assert.doesNotMatch(prompt, /\[\[CAREER_REENGAGEMENT_ACTIONS\]\]/);
+  assert.match(prompt, /manage_action_items/);
+  assert.match(prompt, /목록만 갱신하고 no-message로 끝낼 수 있다/);
   assert.match(prompt, /사용자가 새 메시지를 보내지 않은 상태/);
-  assert.match(prompt, /다시 방문한 사용자를 자연스러운 인사로 맞이하며 새로 대화를 여는 차례/);
-  assert.match(prompt, /먼저 Korean로 반갑게 인사를 건네고/);
+  assert.match(prompt, /대화가 도움이 되면 Korean로 자연스럽게 말을 건넬 수 있다/);
   assert.doesNotMatch(prompt, /one brief/i);
   assert.doesNotMatch(prompt, /primary pending action/);
   assert.doesNotMatch(prompt, /다른 미응답 추천이 있더라도 함께 꺼내지 않는다/);
@@ -225,8 +221,7 @@ test("session re-engagement describes the update call as a natural invitation", 
   assert.match(prompt, /최근 일·커리어 상황에서 달라진 점/);
   assert.match(prompt, /통화로 편하게 듣고 싶/);
   assert.doesNotMatch(prompt, /커리어 체크인/);
-  assert.match(prompt, /"type":"start_call"/);
-  assert.match(prompt, /"type":"start_call","actionKey"/);
+  assert.match(prompt, /manage_action_items/);
   assert.match(prompt, /actionKey:pending_1/);
   assert.doesNotMatch(prompt, /단일 start_call만 만든다/);
 });
@@ -305,7 +300,7 @@ test("session re-engagement supplies pending actions without primary-only instru
   assert.doesNotMatch(prompt, /2026-09-04T01:35/);
   assert.doesNotMatch(prompt, /primary pending action/);
   assert.doesNotMatch(prompt, /하나만 다룬다/);
-  assert.match(prompt, /종료 marker 뒤에 다른 문자나 문장부호를 붙이지 않는다/);
+  assert.match(prompt, /목록 정리와 채팅 발화 여부는 별개/);
 });
 
 test("session re-engagement gives reevaluation context without role metadata", () => {
@@ -351,7 +346,7 @@ test("session re-engagement supplies a pending meeting schedule", () => {
     prompt,
     /\[actionKey:pending_1\] \[미팅 일정 요청\] Acme · Backend Engineer/
   );
-  assert.match(prompt, /"type":"open_pending_action","actionKey"/);
+  assert.match(prompt, /manage_action_items/);
 });
 
 test("feedback events preserve the saved decision, event identity and optional silence", () => {

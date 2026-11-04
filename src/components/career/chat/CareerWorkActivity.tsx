@@ -6,9 +6,11 @@ import type { CareerWorkActivity as WorkActivity } from "@/lib/career/work/activ
 export function CareerWorkActivityStatus({
   activities = [],
   admitting = false,
+  className,
 }: {
   activities?: WorkActivity[];
   admitting?: boolean;
+  className?: string;
 }) {
   if (!admitting && activities.length === 0) return null;
   const logs = activities.flatMap((activity) =>
@@ -25,19 +27,14 @@ export function CareerWorkActivityStatus({
     .map((activity) => activity.startedAt)
     .filter(Boolean)
     .sort()[0];
-  return logs.length || startedAt ? (
+  return (
     <ChatThinkingLogPanel
       active
+      className={className}
       hasToolWork={logs.length > 0}
       logs={logs}
       startedAt={startedAt}
     />
-  ) : (
-    <div role="status" className="text-neutral-muted">
-      <span className="career-thinking-shimmer inline-block text-sm font-medium">
-        Thinking...
-      </span>
-    </div>
   );
 }
 
@@ -45,10 +42,12 @@ export function CareerWorkActivity({
   conversationId,
   admitting,
   visibleReplyIds = [],
+  className,
 }: {
   conversationId?: string | null;
   admitting?: boolean;
   visibleReplyIds?: string[];
+  className?: string;
 }) {
   const { data, isError } = useCareerOpenForms(conversationId);
   const t = useCareerT();
@@ -63,6 +62,7 @@ export function CareerWorkActivity({
         </div>
       )}
       <CareerWorkActivityStatus
+        className={className}
         activities={data?.activities?.filter(
           (activity) => !visibleReplyIds.includes(`invocation:${activity.id}`)
         )}

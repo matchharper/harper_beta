@@ -25,8 +25,8 @@ export default function CareerLandingButton({
   const isPrimary = variant === "primary";
   const classNames = `group relative inline-flex items-center justify-center overflow-hidden font-medium transition-shadow duration-300 ${
     isPrimary
-      ? "rounded-[12px] bg-beige900 text-beige100 shadow-lg hover:shadow-xl"
-      : "rounded-[12px] bg-beige500/70 text-beige900 shadow-inner"
+      ? "rounded-lg bg-beige900 text-beige100 shadow-(--shadow-lg) hover:shadow-(--shadow-xl)"
+      : "rounded-lg bg-beige500/70 text-beige900 shadow-inner"
   } ${
     isSmall
       ? isPrimary

@@ -271,7 +271,7 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
       trigger={
         <BareButton
           className={[
-            "w-full flex text-base font-extralight items-center gap-3 rounded-[6px] px-2.5 py-2",
+            "w-full flex text-base font-extralight items-center gap-3 rounded-md px-2.5 py-2",
             "transition duration-200 text-neutral-primary bg-transparent hover:bg-bg-floating",
           ].join(" ")}
         >
@@ -448,7 +448,7 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
             <BareButton
               type="button"
               onClick={() => setCollapsed((v) => !v)}
-              className="inline-flex items-center justify-center rounded-[6px] active:scale-[0.99] transition px-3 py-2 hover:bg-bg-floating"
+              className="inline-flex items-center justify-center rounded-md active:scale-[0.99] transition px-3 py-2 hover:bg-bg-floating"
             >
               {collapsed ? (
                 <PanelLeftOpen size={18} />

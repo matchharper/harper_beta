@@ -183,6 +183,68 @@ test("Career message links keep role designs, destinations, navigation and icon 
   }
 });
 
+test("inline posting links survive streaming and restored messages and open the exact role", async () => {
+  const dom = new JSDOM("<div id='root'></div>", { url: "https://matchharper.com/career" });
+  const previous = new Map<string, PropertyDescriptor | undefined>();
+  for (const [key, value] of Object.entries({
+    window: dom.window, document: dom.window.document,
+    HTMLElement: dom.window.HTMLElement, Event: dom.window.Event,
+    CustomEvent: dom.window.CustomEvent, IS_REACT_ACT_ENVIRONMENT: true,
+  })) {
+    previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+  }
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const destinations: unknown[] = [];
+  const linkRouter = { ...router, push: async (href: unknown) => { destinations.push(href); return true; } };
+  const roleIds = ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"];
+  const content = `**먼저 볼 만한 곳**\n\n- [posting](${roleIds[0]})은 Example 공고예요.\n- [posting](${roleIds[1]})을 확인해 보세요.\n\n[posting](${roleIds[0]})`;
+  const preview = roleIds.map((roleId, index) => ({
+    roleId, companyName: "Example", title: `Research Engineer ${index + 1}`,
+  })) as NonNullable<CareerMessage["opportunityPreview"]>;
+  try {
+    for (const conversationVersion of ["professional", "friendly"] as const) {
+      for (const typing of [true, false]) {
+        const message: CareerMessage = typing ? {
+          id: "streaming-postings", role: "assistant", content: `${content}[[bubble]]`,
+          createdAt: "2026-11-05T00:00:00Z", messageType: "chat",
+          typing: true, typingMode: "stream",
+        } : toUiMessage({
+          id: 123, role: "assistant", content, messageType: "chat",
+          createdAt: "2026-11-05T00:00:00Z", opportunityPreview: preview,
+        });
+        await act(async () => {
+          useCareerWorkspaceUiStore.setState({ conversationVersion });
+          root.render(<RouterContext.Provider value={linkRouter}><MessagesProvider locale="ko">
+            <CareerMessageBubble isUser={false} message={message} />
+          </MessagesProvider></RouterContext.Provider>);
+        });
+        const items = [...dom.window.document.querySelectorAll("li")];
+        assert.equal(items.length, 2);
+        assert.equal(dom.window.document.querySelectorAll("button").length, 2);
+        for (const [index, item] of items.entries()) {
+          const button = item.querySelector("button")!;
+          assert.ok(button);
+          assert.ok(button.classList.contains("text-action"));
+          assert.equal(button.textContent, typing ? "포지션" : `Example · Research Engineer ${index + 1}`);
+          assert.equal(button.nextSibling?.textContent, index === 0 ? "은 Example 공고예요." : "을 확인해 보세요.");
+          await act(async () => button.click());
+          assert.equal(destinations.at(-1), `/career/history?historyTab=new&id=${roleIds[index]}`);
+        }
+        assert.doesNotMatch(dom.window.document.body.textContent ?? "", /posting|00000000/);
+      }
+    }
+  } finally {
+    await act(async () => root.unmount());
+    useCareerWorkspaceUiStore.setState({ conversationVersion: "professional" });
+    dom.window.close();
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+});
+
 test("saved form artifact reaches the assistant bubble with its editable initial content", () => {
   const message = toUiMessage(toTalentMessageResponse({
     id: 404, conversation_id: "conversation", user_id: "user", role: "assistant", content: "", message_type: "career_form", created_at: "2026-10-29T00:00:00Z",

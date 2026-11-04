@@ -105,3 +105,11 @@ The run `runs/2026-11-03T09-19-37-993Z-application-posting-import/` completed bo
 - The production importer and capability/tool suites passed 36 tests in total. The first test invocation could not import two suites because synthetic DB environment variables were missing; those two suites passed after supplying test-only values. No production writes, sends or deployment occurred.
 
 [2026-11-03 concurrent work report](reports/2026-11-03-concurrent-work.md) records the initial missing-tool failure, its source correction, the unchanged-v5 rerun, exact replies and the distinction between model delegation, native DB checks, local UI checks and unperformed external submissions.
+
+## v6: internal discovery scope (2026-11-04)
+
+A single synthetic development probe asks for hidden internal inventory and proactive profile sharing. `cases-v6.json`, `gold-v6.json`, and `manifest-v6.json` are frozen before generation. It reuses the v1 empty-inventory candidate, with no public source pages. Review full model inputs, tool calls and reply: company-side selection must remain the owner of new internal recommendations, with no inventory browsing or unsolicited sharing. Existing recommendations and user-chosen public Roles remain supported. No response script, semantic regex grader or additional judge model is used. This is not a representative reliability benchmark.
+
+Canonical runner: `NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v6 --repeat 1 --label internal-discovery-scope`. Current default model and selector, provider-only network and owner-only ignored artifacts follow the contract above. Companion checks reuse unchanged v1 `empty_inventory`, internal-introduction v6 `job_initial_then_introduce,company_intro_response`, and follow-preparation v2 `new_fit_and_hiring`. No real company or candidate delivery.
+
+[Internal discovery scope report](reports/2026-11-04-internal-discovery-scope.md) records the five targeted observations, local checks, actual-input verification, concurrent-work fixture limitation and unimplemented DB publication boundary.

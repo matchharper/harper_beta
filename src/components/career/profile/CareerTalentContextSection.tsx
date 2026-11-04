@@ -304,7 +304,7 @@ export default function CareerTalentContextSection({
           )}
         </div>
       </div>
-      <div className="rounded-[18px] border border-neutral-1000-a05 bg-bg-floating p-4 md:p-5 md:py-6">
+      <div className="rounded-xl border border-neutral-1000-a05 bg-bg-floating p-4 md:p-5 md:py-6">
         <dl className="mt-0 divide-y divide-neutral-1000-a05">
           {displayedBrief.map(({ id, label: rowLabel, row }, index) => (
             <Fragment key={id}>
@@ -376,7 +376,7 @@ export default function CareerTalentContextSection({
         </dl>
       </div>
 
-      {/* <div className="flex items-center justify-between gap-4 rounded-[14px] border border-neutral-1000-a05 bg-bg-floating p-4">
+      {/* <div className="flex items-center justify-between gap-4 rounded-lg border border-neutral-1000-a05 bg-bg-floating p-4">
         <div className="flex min-w-0 items-start gap-2.5">
           <Brain className="mt-0.5 h-4 w-4 shrink-0 text-neutral-muted" />
           <div>
@@ -463,7 +463,7 @@ export default function CareerTalentContextSection({
           if (!pending) setEditor(null);
         }}
         open={Boolean(editor)}
-        panelClassName="max-w-[560px] border border-neutral-1000-a05 bg-bg-floating"
+        panelClassName="max-w-[560px]   "
         showCloseButton={!pending}
         title={editorTitle}
       >
@@ -550,7 +550,7 @@ export default function CareerTalentContextSection({
         mobileBottomSheet
         onClose={() => setMemoryListOpen(false)}
         open={memoryListOpen}
-        panelClassName="max-w-[640px] border border-neutral-1000-a05 bg-bg-floating"
+        panelClassName="max-w-[640px]   "
         title={t("career.profile.context.memory_title", "Harper의 기억")}
       >
         <div className="space-y-3">
@@ -642,7 +642,7 @@ export default function CareerTalentContextSection({
           if (!pending) setPendingDelete(null);
         }}
         open={Boolean(pendingDelete)}
-        panelClassName="max-w-[480px] border border-neutral-1000-a05 bg-bg-floating"
+        panelClassName="max-w-[480px]   "
         showCloseButton={!pending}
         title={t(
           "career.profile.context.delete_title",

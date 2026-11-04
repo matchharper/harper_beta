@@ -47,7 +47,7 @@ export function BrowserPreviewSurface({
   const t = useCareerT();
   const expand = t("career.application.browser.expand", "브라우저 화면 확대");
   return (
-    <section className="flex flex-col gap-2.5 rounded-3xl bg-bg-weak p-2 shadow-xl">
+    <section className="flex flex-col gap-2.5 rounded-3xl bg-bg-weak p-2 shadow-(--shadow-xl)">
       <div className="flex items-center gap-2.5">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-neutral-1000-a05">
           <Monitor className="size-5 text-neutral-primary" aria-hidden="true" />
@@ -125,12 +125,12 @@ export function BrowserPreviewSurface({
             ) : (
               <BareButton
                 type="button"
-                className="group absolute inset-0 cursor-pointer bg-black/0 outline-none transition-colors duration-150 hover:bg-black/10 focus-visible:bg-black/10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary motion-reduce:transition-none"
+                className="group absolute inset-0 cursor-pointer bg-surface-inverse/0 outline-none transition-colors duration-150 hover:bg-surface-inverse/10 focus-visible:bg-surface-inverse/10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary motion-reduce:transition-none"
                 aria-label={expand}
                 aria-expanded={false}
                 onClick={onExpand}
               >
-                <span className="absolute bottom-2 right-2 rounded-sm bg-white/50 p-0.5 text-neutral-muted opacity-0 backdrop-blur-md transition-opacity duration-150 group-hover:opacity-60 group-focus-visible:opacity-60 motion-reduce:transition-none">
+                <span className="absolute bottom-2 right-2 rounded-sm bg-bg-floating/50 p-0.5 text-neutral-muted opacity-0 backdrop-blur-md transition-opacity duration-150 group-hover:opacity-60 group-focus-visible:opacity-60 motion-reduce:transition-none">
                   <Maximize2 className="size-4" />
                 </span>
               </BareButton>
@@ -151,7 +151,7 @@ export function BrowserPreviewAction(props: MuteButtonProps) {
       {...props}
       variant="dark"
       size="lg"
-      className="w-full cursor-pointer rounded-full border-black bg-black hover:border-black hover:bg-black/90"
+      className="w-full cursor-pointer rounded-pill border-stroke-strong bg-surface-inverse hover:border-stroke-strong hover:bg-surface-inverse/90"
     />
   );
 }
@@ -179,7 +179,7 @@ export function BrowserPreviewFrame({
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}
         aria-label={title}
-        className="z-80 max-h-[calc(100dvh-32px)] overflow-y-auto rounded-3xl shadow-xl"
+        className="z-80 max-h-[calc(100dvh-32px)] overflow-y-auto rounded-3xl shadow-(--shadow-xl)"
         style={{
           width: expanded
             ? "min(720px, calc(100vw - 32px))"

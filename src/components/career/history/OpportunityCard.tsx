@@ -25,7 +25,7 @@ import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 const DESCRIPTION_PREVIEW_HEIGHT = 280;
 const DETAIL_SECTION_CLASS =
   "grid grid-cols-1 gap-3 md:grid-cols-[144px_minmax(0,1fr)] md:gap-x-6 pb-6";
-const titleClass = "text-[13px] font-normal text-black";
+const titleClass = "text-[13px] font-normal text-neutral-primary";
 
 // career-i18n-skip-next-line Source is translated by useCareerT below.
 const INTERNAL_CONNECTION_LABEL = "Harper 연결";
@@ -71,7 +71,7 @@ function OpportunityDescription({ item }: { item: CareerHistoryOpportunity }) {
             />
           </div>
           {!expanded && truncated ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-b from-transparent to-white" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-b from-transparent to-bg-floating" />
           ) : null}
         </div>
         {truncated ? (
@@ -146,7 +146,7 @@ export default function OpportunityCard({
       aria-label={showLogoConnection ? connectionTooltip : undefined}
       tabIndex={showLogoConnection ? 0 : undefined}
       className={cn(
-        "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md md:rounded-lg bg-white sm:size-11",
+        "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md md:rounded-lg bg-bg-floating sm:size-11",
         showLogoConnection &&
           "border border-primary outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
       )}
@@ -208,8 +208,8 @@ export default function OpportunityCard({
   return (
     <article
       className={cn(
-        "group relative rounded-lg border border-neutral-1000-a05/50 transition-colors",
-        expanded ? "bg-white" : "bg-neutral-50"
+        "group relative rounded-opportunity border-(length:--opportunity-border-width) border-opportunity-border bg-opportunity-image text-opportunity-foreground shadow-(--shadow-opportunity) backdrop-blur-opportunity transition-colors",
+        expanded ? "bg-opportunity-expanded" : "bg-opportunity"
       )}
       data-opportunity-id={item.id}
     >

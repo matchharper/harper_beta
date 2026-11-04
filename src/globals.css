@@ -1,5 +1,6 @@
 @import "tailwindcss" source(none);
 @import "tw-animate-css";
+@import "./styles/design-tokens.css";
 @import "./styles/dev-color-palettes.css";
 
 @source ".";
@@ -142,7 +143,7 @@
     var(--color-neutral-100) 40%,
     #ffffff
   );
-  --color-bg-floating: #ffffff;
+  --color-bg-floating: var(--color-surface);
   --color-bg-weak: var(--color-neutral-200);
   --color-neutral-primary: var(--color-neutral-1000);
   --color-neutral-muted: var(--color-neutral-700);
@@ -187,14 +188,9 @@
   --font-poppins: Poppins, Inter, sans-serif;
   --font-roboto: var(--font-roboto);
   --font-serif: var(--font-serif);
-  --font-weight-regular: 400;
 
   --grad-primary: linear-gradient(180deg, #cecece 0%, #e09867 100%);
 
-  --radius-xl: 16px;
-  --radius-lg: 12px;
-  --radius-md: 8px;
-  --radius-sm: 4px;
 
   @keyframes upDowns {
     0%,
@@ -244,7 +240,7 @@
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-neutral-300, currentcolor);
+    border-color: var(--color-stroke, currentcolor);
   }
 }
 
@@ -266,7 +262,7 @@
     display: inline-block;
     padding-bottom: 8px;
 
-    background-image: url("data:image/svg+xml,%3Csvg width='20' height='8' viewBox='0 0 20 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 4 Q5 0 10 4 T20 4' fill='none' stroke='%23a68a6d' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-image: var(--background-image-wavy-underline);
     background-repeat: repeat-x;
     background-size: 12px 8px;
     background-position: left bottom;
@@ -275,7 +271,7 @@
   .hedvig-letters-serif {
     font-family: "Hedvig Letters Serif", serif;
     font-optical-sizing: auto;
-    font-weight: 400;
+    font-weight: var(--font-weight-body);
     font-style: normal;
   }
 
@@ -291,18 +287,7 @@
     --font-serif: "Averia Serif Libre";
     --ink: var(--color-neutral-1000);
     --gold: var(--color-accent-700);
-    --liquid-glass-filter: blur(18px) saturate(180%) contrast(1.04);
-    --liquid-glass-bg: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.38),
-      rgba(255, 255, 255, 0.12)
-    );
-    --liquid-glass-border: rgba(255, 255, 255, 0.42);
-    --liquid-glass-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.56),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.16),
-      0 18px 50px rgba(31, 28, 24, 0.13);
-    --liquid-glass-fallback-bg: rgba(255, 255, 255, 0.82);
+
   }
 
   @media (prefers-color-scheme: dark) {
@@ -321,7 +306,7 @@
 
   html,
   body {
-    color: rgb(var(--foreground-rgb));
+    color: var(--color-neutral-primary);
     width: 100%;
     overflow-x: hidden;
     margin: 0;
@@ -394,13 +379,6 @@
     cursor: pointer;
   }
 
-  @supports not (
-    (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
-  ) {
-    .liquid-glass {
-      background: var(--liquid-glass-fallback-bg);
-    }
-  }
 }
 
 @layer utilities {
@@ -423,7 +401,7 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) scale(var(--scale-start, 1));
-    border-radius: 9999px;
+    border-radius: var(--radius-pill);
 
     /* 보더/색/그라디언트는 취향대로 조절 */
     border: 1px solid rgba(122, 122, 122, 0.5); /* blue-500-ish */
@@ -699,7 +677,7 @@
     @apply border-neutral-300;
   }
   body {
-    @apply bg-bg-basement text-neutral-primary;
+    @apply bg-bg-basement text-neutral-primary font-body;
     background-color: var(--main-body-background);
   }
 }
@@ -709,11 +687,8 @@
 }
 
 .career-mobile-lofi-bg {
-  background-color: #fdfaf3;
-  background-image:
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.25'/%3E%3C/svg%3E"),
-    radial-gradient(rgba(255, 255, 255, 0.28) 0.5px, transparent 0.5px),
-    radial-gradient(rgba(46, 23, 6, 0.055) 0.45px, transparent 0.45px);
+  background-color: var(--color-lofi);
+  background-image: var(--background-image-lofi);
   background-blend-mode: soft-light, normal, normal;
   background-position:
     0 0,
@@ -728,7 +703,7 @@
 .cell1 {
   padding: 0px 16px;
   height: 100%;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid color-mix(in srgb, var(--color-on-inverse) 5%, transparent);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -770,14 +745,14 @@
 
 .career-thinking-shimmer,
 .career-thinking-shimmer-slow {
-  color: #2e1706;
+  color: var(--color-thinking);
   background-image: linear-gradient(
     90deg,
-    rgba(46, 23, 6, 0.36) 0%,
-    rgba(46, 23, 6, 0.56) 38%,
-    #2e1706 50%,
-    rgba(46, 23, 6, 0.56) 62%,
-    rgba(46, 23, 6, 0.36) 100%
+    color-mix(in srgb, var(--color-thinking) 36%, transparent) 0%,
+    color-mix(in srgb, var(--color-thinking) 56%, transparent) 38%,
+    var(--color-thinking) 50%,
+    color-mix(in srgb, var(--color-thinking) 56%, transparent) 62%,
+    color-mix(in srgb, var(--color-thinking) 36%, transparent) 100%
   );
   background-size: 220% 100%;
   background-position: -160% 0;
@@ -796,14 +771,14 @@
 }
 
 .career-interview-shimmer {
-  color: #f5ecdd;
+  color: var(--color-interview-shimmer);
   background-image: linear-gradient(
     90deg,
-    rgba(245, 236, 221, 0.48) 0%,
-    rgba(245, 236, 221, 0.72) 38%,
-    #fffaf0 50%,
-    rgba(245, 236, 221, 0.72) 62%,
-    rgba(245, 236, 221, 0.48) 100%
+    color-mix(in srgb, var(--color-interview-shimmer) 48%, transparent) 0%,
+    color-mix(in srgb, var(--color-interview-shimmer) 72%, transparent) 38%,
+    var(--color-interview-shimmer-highlight) 50%,
+    color-mix(in srgb, var(--color-interview-shimmer) 72%, transparent) 62%,
+    color-mix(in srgb, var(--color-interview-shimmer) 48%, transparent) 100%
   );
   background-size: 220% 100%;
   background-position: -160% 0;
@@ -840,7 +815,7 @@
 .career-opportunity-search-face-glow::before {
   position: absolute;
   inset: -2px;
-  border-radius: 9999px;
+  border-radius: var(--radius-pill);
   background: var(--color-primary-faded);
   content: "";
   filter: blur(5px);
@@ -1049,16 +1024,16 @@
   cursor: pointer;
 
   &:hover {
-    color: rgba(0, 0, 0, 0.6);
+    color: var(--color-neutral-muted);
   }
 }
 
 .diagonal-lines {
-  background-color: #ffffff;
+  background-color: var(--color-surface);
   background-image: repeating-linear-gradient(
     60deg,
-    #e9eaef55 0px,
-    #e9eaef55 1px,
+    var(--color-pattern-line) 0px,
+    var(--color-pattern-line) 1px,
     transparent 1px,
     transparent 10px
   );
@@ -1068,35 +1043,35 @@
   background-image:
     repeating-linear-gradient(
       0deg,
-      #a42828,
-      #a42828 16px,
+      var(--color-critical),
+      var(--color-critical) 16px,
       transparent 16px,
       transparent 30px,
-      #a42828 30px
+      var(--color-critical) 30px
     ),
     repeating-linear-gradient(
       90deg,
-      #a42828,
-      #a42828 16px,
+      var(--color-critical),
+      var(--color-critical) 16px,
       transparent 16px,
       transparent 30px,
-      #a42828 30px
+      var(--color-critical) 30px
     ),
     repeating-linear-gradient(
       180deg,
-      #a42828,
-      #a42828 16px,
+      var(--color-critical),
+      var(--color-critical) 16px,
       transparent 16px,
       transparent 30px,
-      #a42828 30px
+      var(--color-critical) 30px
     ),
     repeating-linear-gradient(
       270deg,
-      #a42828,
-      #a42828 16px,
+      var(--color-critical),
+      var(--color-critical) 16px,
       transparent 16px,
       transparent 30px,
-      #a42828 30px
+      var(--color-critical) 30px
     );
   background-size:
     2px 100%,
@@ -1129,7 +1104,7 @@
   height: 176px;
   place-items: center;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--color-bg-weak);
   color: var(--color-neutral-700);
   contain: layout paint;
@@ -1201,7 +1176,7 @@
   position: absolute;
   inset: 0 0 auto;
   height: var(--search-row-height);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--color-bg-weak);
   pointer-events: none;
   transition:
@@ -1222,44 +1197,33 @@
 .liquid-glass {
   position: relative;
   overflow: hidden;
-
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.4),
-    rgba(255, 255, 255, 0.12)
-  );
-
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: 24px;
-
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.75),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.15);
+  background: var(--liquid-glass-bg);
+  border: var(--surface-border-width) solid var(--liquid-glass-border);
+  border-radius: var(--radius-modal);
+  backdrop-filter: var(--liquid-glass-filter);
+  -webkit-backdrop-filter: var(--liquid-glass-filter);
+  box-shadow: var(--liquid-glass-shadow);
 }
-
 .liquid-glass::before {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-
-  background:
-    radial-gradient(
-      circle at 20% 0%,
-      rgba(255, 255, 255, 0.65),
-      transparent 45%
-    ),
-    linear-gradient(120deg, rgba(255, 255, 255, 0.25), transparent 40%);
+  background: var(--liquid-glass-highlight);
 }
 
 .liquid-glass > * {
   position: relative;
   z-index: 1;
+}
+
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .liquid-glass {
+    background: var(--liquid-glass-fallback-bg);
+  }
 }
 
 @keyframes chat-message-enter {
@@ -1293,30 +1257,24 @@
 @keyframes org-todo-glow {
   0%,
   100% {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--color-action) 30%, transparent),
-      0 0 6px 0 color-mix(in srgb, var(--color-action) 20%, transparent);
+    box-shadow: var(--shadow-todo-rest);
   }
   50% {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--color-action) 60%, transparent),
-      0 0 16px 3px color-mix(in srgb, var(--color-action) 40%, transparent);
+    box-shadow: var(--shadow-todo-peak);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .org-todo-glow {
     animation: none;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--color-action) 50%, transparent),
-      0 0 12px 2px color-mix(in srgb, var(--color-action) 30%, transparent);
+    box-shadow: var(--shadow-todo-static);
   }
 }
 
 /* All bubbles of the message share the same copy/delete target. */
 @media (min-width: 768px) {
   [data-career-message-container][data-career-message-role="assistant"]:has(> [data-career-message-actions-open]) [data-chat-message-bubble] {
-    background-color: var(--color-neutral-400);
+    background-color: var(--color-message-selected);
   }
 }
 

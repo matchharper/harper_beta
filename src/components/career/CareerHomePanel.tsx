@@ -79,7 +79,7 @@ const HomeOpportunitySummaryCard = ({
         {title}
       </Text>
       <span
-        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] ${iconClassName}`}
+        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconClassName}`}
       >
         {icon}
       </span>
@@ -126,7 +126,7 @@ const CareerHomePanelSkeleton = () => {
         <Skeleton className="h-10 w-full max-w-[260px] rounded-full" />
       </div>
 
-      <div className="mt-6 rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-5 shadow-sm md:px-6">
+      <div className="mt-6 rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-5 shadow-(--shadow-sm) md:px-6">
         <div className="flex flex-col items-center justify-between gap-2 md:flex-row">
           <Skeleton className="hidden h-14 w-14 min-w-14 rounded-lg md:flex" />
           <div className="flex w-full flex-col items-start justify-center gap-2 px-2 md:gap-1">
@@ -145,7 +145,7 @@ const CareerHomePanelSkeleton = () => {
           >
             <div className="flex items-start justify-between gap-3">
               <Skeleton className="h-5 w-28 rounded-full" />
-              <Skeleton className="h-9 w-9 shrink-0 rounded-[12px]" />
+              <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
             </div>
             <div>
               <div className="mt-0 flex items-end gap-2.5">
@@ -159,7 +159,7 @@ const CareerHomePanelSkeleton = () => {
       </div>
 
       <div className="mt-12" />
-      <div className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-sm">
+      <div className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-(--shadow-sm)">
         <Skeleton className="h-4 w-40 rounded-full" />
         <Skeleton className="mt-3 h-4 w-full max-w-[520px] rounded-full" />
         <Skeleton className="mt-4 h-10 w-36 rounded-full" />
@@ -400,7 +400,7 @@ const CareerHomePanel = (props: CareerHomePanelProps) => {
   );
 
   const onboardingChecklist = !isOnboardingCompleted ? (
-    <div className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-6 py-5 shadow-sm">
+    <div className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-6 py-5 shadow-(--shadow-sm)">
       <SectionHeader className="gap-1">
         <SectionTitle as="h3">
           {t("career.home.career_home_panel.1ol18h9", "커리어 인터뷰 진행 중")}
@@ -422,7 +422,7 @@ const CareerHomePanel = (props: CareerHomePanelProps) => {
                 className={[
                   "flex mt-px h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors",
                   item.state === "done"
-                    ? "border-neutral-800 bg-black text-neutral-00"
+                    ? "border-neutral-800 bg-surface-inverse text-neutral-00"
                     : item.state === "current"
                       ? "border-neutral-800 bg-bg-floating text-neutral-muted"
                       : "border-neutral-400 bg-bg-floating text-transparent",
@@ -484,7 +484,7 @@ const CareerHomePanel = (props: CareerHomePanelProps) => {
         {greeting}
       </Text>
       {shouldShowProfileImportRecovery && (
-        <div className="mt-2 mb-4 flex flex-col gap-3 rounded-3xl border border-info/30 bg-bg-floating px-3 py-3 text-info shadow-[0_8px_20px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-2 mb-4 flex flex-col gap-3 rounded-3xl border border-info/30 bg-bg-floating px-3 py-3 text-info shadow-(--shadow-lg) sm:flex-row sm:items-center sm:justify-between">
           <Text as="div" type="label" className="min-w-0 pl-2">
             {t(
               "career.home.career_home_panel.0vplw45",

@@ -29,7 +29,7 @@ export default function OfficialJobsGrid({
         <CardButton
           key={job.id}
           asChild
-          className="relative group flex h-full min-h-[160px] md:min-h-[200px] hover:bg-primary-faded/20 hover:border-primary hover:ring hover:ring-primary flex-col items-start justify-between rounded-md p-4 md:p-5 text-left"
+          className="relative group flex h-full min-h-[160px] md:min-h-[200px] hover:bg-primary-faded/20 hover:border-primary hover:ring hover:ring-primary flex-col items-start justify-between  p-4 md:p-5 text-left"
         >
           <Link
             href={`/jobs/${job.slug}`}
@@ -58,7 +58,7 @@ export default function OfficialJobsGrid({
               </span>
             </div>
             {/* {job.vertical && (
-              <span className="absolute top-[-8px] right-[-8px] py-1 px-3 rounded-full bg-black/5 text-[13px] font-normal text-black">
+              <span className="absolute top-[-8px] right-[-8px] py-1 px-3 rounded-full bg-surface-tint text-[13px] font-normal text-neutral-primary">
                 {job.vertical}
               </span>
             )} */}

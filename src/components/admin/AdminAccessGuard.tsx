@@ -68,7 +68,7 @@ export default function AdminAccessGuard({ children }: AdminAccessGuardProps) {
 
   if (authLoading) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-white text-[12px] text-black/50">
+      <div className="flex min-h-svh items-center justify-center bg-bg-floating text-[12px] text-neutral-primary/50">
         Loading admin access...
       </div>
     );
@@ -76,12 +76,12 @@ export default function AdminAccessGuard({ children }: AdminAccessGuardProps) {
 
   if (!isInternalAdmin) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-white px-4">
-        <div className="w-full max-w-[360px] border border-black/10 bg-white p-5 text-center">
-          <div className="text-[15px] font-semibold text-black">
+      <div className="flex min-h-svh items-center justify-center bg-bg-floating px-4">
+        <div className="w-full max-w-[360px] border border-stroke bg-bg-floating p-5 text-center">
+          <div className="text-[15px] font-semibold text-neutral-primary">
             Admin access required
           </div>
-          <div className="mt-2 text-[12px] leading-5 text-black/55">
+          <div className="mt-2 text-[12px] leading-5 text-neutral-primary/55">
             matchharper.com 계정으로 로그인한 사용자만 접근할 수 있습니다.
           </div>
         </div>
@@ -91,10 +91,10 @@ export default function AdminAccessGuard({ children }: AdminAccessGuardProps) {
 
   if (!isPassed && !hasStoredPassword) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-white px-4">
-        <div className="w-full max-w-[360px] border border-black/10 bg-white p-5">
-          <div className="text-[15px] font-semibold text-black">Admin</div>
-          <div className="mt-1 text-[12px] leading-5 text-black/55">
+      <div className="flex min-h-svh items-center justify-center bg-bg-floating px-4">
+        <div className="w-full max-w-[360px] border border-stroke bg-bg-floating p-5">
+          <div className="text-[15px] font-semibold text-neutral-primary">Admin</div>
+          <div className="mt-1 text-[12px] leading-5 text-neutral-primary/55">
             비밀번호를 입력해 주세요.
           </div>
           <Input
@@ -104,7 +104,7 @@ export default function AdminAccessGuard({ children }: AdminAccessGuardProps) {
             onKeyDown={(event) => {
               if (event.key === "Enter") submit();
             }}
-            className="mt-4 h-9 rounded-none border-black/15 bg-white text-[12px]"
+            className="mt-4 h-9 rounded-none border-stroke-strong/15  text-[12px]"
           />
           <Button
             type="button"

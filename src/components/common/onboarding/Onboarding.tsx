@@ -374,14 +374,14 @@ export const OnboardingReadyBody = ({
     <div className="flex min-h-full flex-col items-center justify-start pt-8 text-center">
       <div className="relative">
         <Face status="idle" size={160} aria-label="Harper" priority />
-        <span className="absolute -right-2 top-4 flex h-10 min-w-14 items-center justify-center rounded-[18px] bg-bg-floating px-4 shadow-[0_10px_28px_rgba(31,28,26,0.10)]">
+        <span className="absolute -right-2 top-4 flex h-10 min-w-14 items-center justify-center rounded-xl bg-bg-floating px-4 shadow-(--shadow-lg)">
           <span className="flex gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
             <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
             <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
           </span>
         </span>
-        <span className="absolute -left-4 bottom-7 flex h-10 min-w-14 items-center justify-center rounded-[18px] bg-bg-floating px-4 shadow-[0_10px_28px_rgba(31,28,26,0.10)]">
+        <span className="absolute -left-4 bottom-7 flex h-10 min-w-14 items-center justify-center rounded-xl bg-bg-floating px-4 shadow-(--shadow-lg)">
           <span className="flex gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
             <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
@@ -391,7 +391,7 @@ export const OnboardingReadyBody = ({
       </div>
 
       {badge && (
-        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-[13px] font-normal leading-none text-neutral-muted shadow-sm">
+        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-[13px] font-normal leading-none text-neutral-muted shadow-(--shadow-sm)">
           <span className="h-2 w-2 rounded-full bg-positive" />
           {badge}
         </div>
@@ -443,13 +443,13 @@ export const OnboardingConversationPreview = ({
       <div className="relative flex min-h-full items-start md:items-center justify-center">
         <div className="w-full max-w-[380px]">
           <div className="flex justify-end">
-            <div className="max-w-[84%] rounded-[15px] bg-neutral-1000 px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-5 text-neutral-00 shadow-sm">
+            <div className="max-w-[84%] rounded-xl bg-neutral-1000 px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-5 text-neutral-00 shadow-(--shadow-sm)">
               {userBubbleText}
             </div>
           </div>
 
           <div className="mt-4 flex items-start gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg-floating shadow-sm">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg-floating shadow-(--shadow-sm)">
               <Image
                 src="/images/squareface.png"
                 alt=""
@@ -464,7 +464,7 @@ export const OnboardingConversationPreview = ({
               {paragraphs.map((paragraph, index) => (
                 <div
                   key={`${index}-${paragraph.slice(0, 14)}`}
-                  className="w-fit max-w-full rounded-[15px] bg-bg-floating px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-6 text-neutral-primary shadow-sm"
+                  className="w-fit max-w-full rounded-xl bg-bg-floating px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-6 text-neutral-primary shadow-(--shadow-sm)"
                 >
                   {paragraph}
                   {index === paragraphs.length - 1 && !isStreamComplete ? (
@@ -472,7 +472,7 @@ export const OnboardingConversationPreview = ({
                   ) : null}
                 </div>
               ))}
-              <div className="flex w-fit items-center gap-1.5 rounded-[15px] bg-bg-floating px-3.5 py-2.5 shadow-sm">
+              <div className="flex w-fit items-center gap-1.5 rounded-xl bg-bg-floating px-3.5 py-2.5 shadow-(--shadow-sm)">
                 <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
                 <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
                 <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />

@@ -21,7 +21,7 @@ const Footer = ({
   };
 
   return (
-    <div className="w-full flex flex-col md:flex-row items-start md:items-stretch justify-between border-t border-white/20 py-10 md:py-8 md:px-8 mx-auto px-4 gap-6 md:gap-0 bg-black text-neutral-00">
+    <div className="w-full flex flex-col md:flex-row items-start md:items-stretch justify-between border-t border-bg-floating/20 py-10 md:py-8 md:px-8 mx-auto px-4 gap-6 md:gap-0 bg-surface-inverse text-neutral-00">
       <div className="flex flex-1 flex-col items-start justify-start gap-4 md:gap-6">
         <div className="text-left text-3xl font-semibold font-garamond">
           Harper
@@ -37,7 +37,7 @@ const Footer = ({
                 ? onClickStart("click_footer_start")
                 : router.push("/")
             }
-            className="text-white underline cursor-pointer"
+            className="text-on-inverse underline cursor-pointer"
           >
             시작하기
           </div>
@@ -46,7 +46,7 @@ const Footer = ({
           <Dot size={8} />
           <Link
             href="/privacy"
-            className="cursor-pointer hover:text-white/90 text-white/80"
+            className="cursor-pointer hover:text-on-inverse/90 text-on-inverse/80"
           >
             Privacy
           </Link>
@@ -58,7 +58,7 @@ const Footer = ({
                 "_blank"
               )
             }
-            className="cursor-pointer hover:text-white/90 text-white/80"
+            className="cursor-pointer hover:text-on-inverse/90 text-on-inverse/80"
           >
             Refund Policy
           </div>
@@ -76,36 +76,36 @@ const Footer = ({
       <div className="flex flex-1 flex-row items-end justify-end gap-8 w-full mt-12 md:mt-0">
         <div className="flex flex-1 flex-col items-end justify-between gap-4 self-stretch">
           <div className="flex flex-row md:flex-col text-xs md:text-sm items-start md:items-end justify-between md:justify-start gap-2 w-full">
-            <div className="text-white mb-2">팀에 관하여</div>
+            <div className="text-on-inverse mb-2">팀에 관하여</div>
             <div className="flex flex-col items-end justify-start gap-2">
               <div
                 onClick={handleContactUs}
-                className="cursor-pointer hover:text-white/90 text-white/80"
+                className="cursor-pointer hover:text-on-inverse/90 text-on-inverse/80"
               >
                 {m.companyLanding.footer.contact}
               </div>
               <div
                 onClick={() => router.push("/blog")}
-                className="cursor-pointer hover:text-white/90 text-white/80"
+                className="cursor-pointer hover:text-on-inverse/90 text-on-inverse/80"
               >
                 블로그
               </div>
             </div>
           </div>
           {/* <div className="flex flex-row items-center gap-4">
-            <div className="flex items-center gap-2 text-xs md:text-sm font-extralight text-white/80">
+            <div className="flex items-center gap-2 text-xs md:text-sm font-extralight text-on-inverse/80">
               <button
                 type="button"
                 onClick={() => setLocaleCookie("ko")}
-                className={`hover:text-white/90 transition ${locale === "ko" ? "text-white" : ""}`}
+                className={`hover:text-on-inverse/90 transition ${locale === "ko" ? "text-on-inverse" : ""}`}
               >
                 Korean
               </button>
-              <span className="text-white/40">|</span>
+              <span className="text-on-inverse/40">|</span>
               <button
                 type="button"
                 onClick={() => setLocaleCookie("en")}
-                className={`hover:text-white/90 transition ${locale === "en" ? "text-white" : ""}`}
+                className={`hover:text-on-inverse/90 transition ${locale === "en" ? "text-on-inverse" : ""}`}
               >
                 English
               </button>

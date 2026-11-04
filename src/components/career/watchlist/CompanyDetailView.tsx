@@ -76,7 +76,7 @@ const LeadershipSkeletonList = () => (
     {[0, 1].map((item) => (
       <div
         key={item}
-        className="h-[56px] animate-pulse rounded-[4px] border border-neutral-1000-a05 bg-bg-basement"
+        className="h-[56px] animate-pulse rounded-sm border border-neutral-1000-a05 bg-bg-basement"
       />
     ))}
   </div>
@@ -263,7 +263,7 @@ const LeadershipList = ({
           return (
             <div
               key={person.candidId}
-              className="rounded-[4px] border border-neutral-1000-a05 bg-bg-floating px-2 py-2"
+              className="rounded-sm border border-neutral-1000-a05 bg-bg-floating px-2 py-2"
             >
               {body}
             </div>
@@ -276,7 +276,7 @@ const LeadershipList = ({
             href={person.linkedinUrl}
             target="_blank"
             rel="noreferrer"
-            className="group block rounded-[4px] bg-bg-floating px-2 py-2 transition-colors hover:bg-bg-basement focus:outline-none focus-visible:ring-4 focus-visible:ring-neutral-1000-a05"
+            className="group block rounded-sm bg-bg-floating px-2 py-2 transition-colors hover:bg-bg-basement focus:outline-none focus-visible:ring-4 focus-visible:ring-neutral-1000-a05"
           >
             {body}
           </a>
@@ -340,7 +340,7 @@ const LinkPillIcon = ({ iconUrl }: { iconUrl: string }) => {
       src={iconUrl}
       alt=""
       aria-hidden="true"
-      className="h-3.5 w-3.5 rounded-[3px] object-contain"
+      className="h-3.5 w-3.5 rounded-sm object-contain"
       onError={(event) => {
         event.currentTarget.style.display = "none";
       }}
@@ -446,7 +446,7 @@ export const CompanyDetailView = ({
 
   if (!item) {
     return (
-      <section className="rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-5 py-10 text-center shadow-sm">
+      <section className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-5 py-10 text-center shadow-(--shadow-sm)">
         <Building2 className="mx-auto h-6 w-6 text-neutral-disabled" />
         <h2 className="mt-4 text-[16px] font-medium text-neutral-primary">
           {t(

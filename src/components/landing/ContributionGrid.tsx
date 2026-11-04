@@ -73,15 +73,15 @@ export const defaultContributionData: ContributionLevel[][] = [
 function contributionColor(level: ContributionLevel) {
   switch (level) {
     case 0:
-      return "bg-[#131B24]";
+      return "bg-contribution-0";
     case 1:
-      return "bg-[#003B11]";
+      return "bg-contribution-1";
     case 2:
-      return "bg-[#006F24]";
+      return "bg-contribution-2";
     case 3:
-      return "bg-[#00A335]";
+      return "bg-contribution-3";
     case 4:
-      return "bg-[#00D753]";
+      return "bg-contribution-4";
     default:
       return "bg-zinc-800";
   }
@@ -165,7 +165,7 @@ export function ContributionGrid({
                 <div
                   key={`cell-${rowIdx}-${colIdx}`}
                   style={cellStyle}
-                  className={`aspect-square rounded-[2px] transition-all duration-200 hover:scale-105 hover:outline hover:outline-1 hover:outline-zinc-700 ${contributionColor(
+                  className={`aspect-square rounded-xs transition-all duration-200 hover:scale-105 hover:outline hover:outline-1 hover:outline-zinc-700 ${contributionColor(
                     level
                   )}`}
                 />
