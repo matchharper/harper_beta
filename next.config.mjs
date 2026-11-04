@@ -44,7 +44,7 @@ const nextConfig = {
       packageAsset("@fontsource/noto-sans-kr", "files/*-400-normal.woff2"),
       packageAsset("@fontsource/noto-sans-kr", "files/*-700-normal.woff2"),
     ],
-    "/api/{talent/documents/*/pdf,org/generated-resume,talent/simulation,talent/chat,queues/process-application-browser,queues/process-email,internal/email/dispatch}": [
+    "/api/{talent/documents/*/pdf,org/generated-resume,talent/simulation,talent/chat,queues/process-career-agent-reply,queues/process-application-browser,queues/process-email,internal/email/dispatch}": [
       packageAsset("pagedjs", "dist/paged.min.js"),
       packageAsset("pdf-parse", "dist/worker/pdf.worker.mjs"),
       packageAsset("@fontsource/noto-sans-kr", "400.css"),
