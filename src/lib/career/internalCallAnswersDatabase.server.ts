@@ -1,5 +1,6 @@
 import "server-only";
 import postgres from "postgres";
+import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 import { submitInternalCallAnswers } from "./internalCallAnswersStore";
 import { careerT } from "./translatedCareerMessage";
 import type { CallAnswersQuery } from "./internalCallAnswersStore";
@@ -8,7 +9,7 @@ let client: ReturnType<typeof postgres> | undefined;
 export function callAnswersDatabase() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Database unavailable");
-  return (client ??= postgres(url, {
+  return (client ??= postgres(transactionDatabaseUrl(url), {
     max: 1,
     prepare: false,
     idle_timeout: 20,

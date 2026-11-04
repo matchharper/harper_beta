@@ -1,4 +1,5 @@
 import postgres from "postgres";
+import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 import type { Row } from "./evidence";
 
 export type Query = (text: string, params?: any[]) => Promise<Row[]>;
@@ -30,7 +31,7 @@ export function internalScoringDatabase(): Database {
       process.env.DATABASE_URL?.trim() ||
       process.env.CAREER_ROLE_SEARCH_DATABASE_URL?.trim();
     if (!url) throw new Error("Internal evaluation database is unavailable");
-    client = postgres(url, {
+    client = postgres(transactionDatabaseUrl(url), {
       max: 18,
       prepare: false,
       connect_timeout: 10,

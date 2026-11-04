@@ -1,6 +1,7 @@
 import "server-only";
 
 import postgres from "postgres";
+import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 
 let client: ReturnType<typeof postgres> | null = null;
 
@@ -13,7 +14,7 @@ export function roleStartSql() {
   if (client) return client;
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) throw new Error("Role start database is unavailable");
-  client = postgres(databaseUrl, {
+  client = postgres(transactionDatabaseUrl(databaseUrl), {
     connect_timeout: 10,
     idle_timeout: 30,
     max: 6,

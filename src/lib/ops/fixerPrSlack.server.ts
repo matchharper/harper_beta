@@ -2,6 +2,7 @@ import "server-only";
 
 import { after } from "next/server";
 import postgres from "postgres";
+import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 import {
   decryptHarperSlackToken,
   localDevelopmentValue,
@@ -30,7 +31,7 @@ let client: ReturnType<typeof postgres> | undefined;
 function fixerPrDatabase() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Database unavailable");
-  return (client ??= postgres(url, {
+  return (client ??= postgres(transactionDatabaseUrl(url), {
     max: 1,
     prepare: false,
     idle_timeout: 20,
