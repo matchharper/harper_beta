@@ -125,14 +125,16 @@ export async function recoverCareerBackgroundRuns(admin: TalentAdminClient) {
     .eq("trigger_payload->>runContract", "career_agent_v1").in("status", ["handed_off", "completed"])
     .is("coverage->>sourceEventsFinishedAt", null).order("updated_at").limit(20);
   if (error) throw error;
-  for (const run of data ?? []) {
+  // The scan is already bounded to 20 durable runs. Each run has independent
+  // ownership, so a slow receipt must not consume the HTTP budget of the rest.
+  const results = await Promise.allSettled((data ?? []).map(async (run: any) => {
     // Advance the recovery scan even while a child is still running, so a
     // waiting first page cannot starve later candidates.
     const touched = await (admin.from as any)("opportunity_discovery_run").update({ updated_at: new Date().toISOString() }).eq("id", run.id).eq("status", run.status);
     if (touched.error) throw touched.error;
-    if (run.status === "completed") { await finishCareerSourceEvents({ admin, run }); continue; }
+    if (run.status === "completed") { await finishCareerSourceEvents({ admin, run }); return; }
     const replyId = run.trigger_payload.agentInvocation?.replyId;
-    if (!replyId || !run.conversation_id) continue;
+    if (!replyId || !run.conversation_id) return;
     const state = await (admin.from as any)("talent_agent_runtime").select("state").eq("user_id", run.talent_id).eq("conversation_id", run.conversation_id).maybeSingle();
     if (state.error) throw state.error;
     if (state.data?.state?.checkpoints?.[replyId]) {
@@ -141,6 +143,8 @@ export async function recoverCareerBackgroundRuns(admin: TalentAdminClient) {
       await enqueueCareerAgentReply({ userId: run.talent_id, conversationId: run.conversation_id, replyId, backgroundRunId: run.id,
         checkpointKey: `recover:${Math.floor(Date.now() / 120000)}` });
     }
-  }
+  }));
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed?.status === "rejected") throw failed.reason;
   return { inspected: data?.length ?? 0 };
 }
