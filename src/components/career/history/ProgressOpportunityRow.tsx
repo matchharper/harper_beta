@@ -21,7 +21,6 @@ export default function ProgressOpportunityRow({
   onOpenDetail?: (item: CareerHistoryOpportunity) => void;
   showAppointmentCreate?: boolean;
 }) {
-  const { locale } = useMessages();
   const meeting = item.upcomingMeeting;
   return (
     <OpportunityCard
@@ -40,30 +39,46 @@ export default function ProgressOpportunityRow({
       }
       collapsedFooter={
         meeting || showAppointmentCreate ? (
-          <div className="mt-2 flex min-w-0 items-center justify-between gap-2 pl-[52px] sm:pl-[60px]">
-            {meeting && (
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-[11px] font-normal leading-4">
-                <span className="text-action">
-                  {formatCareerMeetingDateTimeRange({ ...meeting, locale })}
-                </span>
-                {meeting.title && (
-                  <span className="truncate text-neutral-muted">
-                    {meeting.title}
-                  </span>
-                )}
-              </div>
-            )}
-            {showAppointmentCreate && (
-              <AppointmentCreateButton
-                roleId={item.roleId}
-                positionTitle={item.title}
-                companyName={item.companyName}
-                subtle
-              />
-            )}
-          </div>
+          <OpportunityAppointmentSummary
+            item={item}
+            showAppointmentCreate={showAppointmentCreate}
+          />
         ) : undefined
       }
     />
+  );
+}
+
+export function OpportunityAppointmentSummary({
+  item,
+  showAppointmentCreate = false,
+}: {
+  item: CareerHistoryOpportunity;
+  showAppointmentCreate?: boolean;
+}) {
+  const { locale } = useMessages();
+  const meeting = item.upcomingMeeting;
+  if (!meeting && !showAppointmentCreate) return null;
+  return (
+    <div className="mt-2 flex min-w-0 items-center justify-between gap-2 pl-[52px] sm:pl-[60px]">
+      {meeting && (
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-[11px] font-normal leading-4">
+          <span className="text-action">
+            {formatCareerMeetingDateTimeRange({ ...meeting, locale })}
+          </span>
+          {meeting.title && (
+            <span className="truncate text-neutral-muted">{meeting.title}</span>
+          )}
+        </div>
+      )}
+      {showAppointmentCreate && (
+        <AppointmentCreateButton
+          roleId={item.roleId}
+          positionTitle={item.title}
+          companyName={item.companyName}
+          subtle
+        />
+      )}
+    </div>
   );
 }

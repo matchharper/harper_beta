@@ -349,6 +349,34 @@ try {
       },
       db
     );
+    const { readIntroductionContexts } = await import("../../src/lib/agentContacts/introductionContext.server");
+    const [originContext] = await readIntroductionContexts(query, [first.message.id]);
+    assert.equal(originContext.origin?.kind, "candidate_request");
+    assert.equal(originContext.talentId, source.talentId);
+    assert.equal(originContext.roleId, role);
+    // Existing company shortlist membership is not evidence of an Intro request.
+    await query("SAVEPOINT origin_test");
+    const [originRun] = await query(`INSERT INTO public.company_first_search_runs
+      (company_workspace_id,role_id,scheduled_slot,trigger_reason,status)
+      VALUES($1,$2,now(),'manual','succeeded') RETURNING id`, [workspace, role]);
+    await query("DELETE FROM public.company_intro_candidates WHERE talent_id=$1 AND role_id=$2", [talent, role]);
+    const [companyIntro] = await query(`INSERT INTO public.company_intro_candidates
+      (company_workspace_id,role_id,talent_id,selection_run_id,selection_reason,role_fingerprint,talent_fingerprint)
+      VALUES($1,$2,$3,$4,'local origin fixture','fixture','fixture') RETURNING id`, [workspace, role, talent, originRun.id]);
+    assert.equal((await readIntroductionContexts(query, [first.message.id]))[0].origin?.kind, "candidate_request");
+    await query("UPDATE public.talent_opportunity_recommendation SET opportunity_type='intro_request' WHERE id=$1", [rec]);
+    assert.equal((await readIntroductionContexts(query, [first.message.id]))[0].origin, null);
+    await query(`UPDATE public.company_intro_candidates SET recommendation_id=$2,
+      requested_at=(SELECT created_at - interval '1 hour' FROM public.agent_contact_messages WHERE id=$3)
+      WHERE id=$1`, [companyIntro.id, rec, first.message.id]);
+    const [companyOrigin] = await readIntroductionContexts(query, [first.message.id]);
+    assert.equal(companyOrigin.origin?.kind, "company_intro");
+    assert.equal(companyOrigin.origin?.candidateSentAt, null);
+    await query(`UPDATE public.company_intro_candidates SET requested_at=
+      (SELECT created_at + interval '1 hour' FROM public.agent_contact_messages WHERE id=$2) WHERE id=$1`, [companyIntro.id, first.message.id]);
+    assert.equal((await readIntroductionContexts(query, [first.message.id]))[0].origin, null);
+    await query("ROLLBACK TO SAVEPOINT origin_test");
+    console.log("PASS: origin uses exact prior company requests, not shortlist membership or later requests");
     assert.equal(first.message.direction, "to_company");
     assert.ok(first.message.material_id);
     const [shared] = await query(
@@ -376,6 +404,18 @@ try {
     assert.equal(repeated.message.id, first.message.id);
     assert.equal(repeated.message.body, first.message.body);
     assert.equal(repeated.reused, true);
+    const evaluations = await query(
+      "SELECT trigger_payload,status FROM public.opportunity_discovery_run WHERE talent_id=$1::uuid AND dedupe_key=$2",
+      [source.talentId, `career-internal-beta:${source.talentId}:agent-contact:${rec}:${first.message.material_id}`]
+    );
+    assert.equal(evaluations.length, 1);
+    assert.equal(evaluations[0].status, "handed_off");
+    assert.equal(evaluations[0].trigger_payload.requestedOpportunityId, rec);
+    assert.equal(evaluations[0].trigger_payload.parentReplyId, undefined);
+    const [pin] = await query("SELECT profile_id,profile_revision FROM public.talent_role_materials WHERE id=$1::uuid", [first.message.material_id]);
+    assert.equal(evaluations[0].trigger_payload.profileId, pin.profile_id);
+    assert.equal(evaluations[0].trigger_payload.profileRevision, Number(pin.profile_revision));
+
     process.env.AGENT_INTRODUCTION_ACCEPTING = "false";
     try {
       const acceptedReplay = await sendAgentContact(
@@ -528,6 +568,9 @@ try {
       ).length,
       1
     );
+    const [notified] = await query("SELECT metadata,content FROM public.company_messages WHERE metadata->>'webActionJobId'=$1 AND role='assistant'", [job.id]);
+    assert.equal(notified.metadata.agentIntroductionContext, undefined);
+    assert.equal(notified.content, "A candidate requested an introduction. Their shared profile is available in the Role inbox.");
     console.log(
       "PASS: company presentation and own-user chat are independent, idempotent effects"
     );
@@ -737,7 +780,8 @@ try {
         to: audience.find((p) => p.user_id === args.userId)!.email,
         replyTo: "capture@example.invalid",
       }),
-      send: async () => {
+      send: async (message: { text: string; html: string }) => {
+        assert.equal(message.text, "Frozen company message");
         sends++;
         throw new Error("synthetic timeout after submission");
       },
@@ -764,6 +808,7 @@ try {
     for (const mail of mails) {
       assert.equal(mail.status, "delivery_unknown");
       assert.equal(mail.draft.body, mailArgs.body);
+      assert.equal(mail.snapshot.agentIntroductionContext, undefined);
     }
     const { readAgentCorrespondence } =
       await import("../../src/lib/agentContacts/read");
@@ -775,6 +820,7 @@ try {
     assert.equal(companyHistory.deliveries.length, mails.length);
     assert.ok(companyHistory.modelOutput.includes("delivery_unknown"));
     assert.ok(companyHistory.modelOutput.includes(mailArgs.body));
+    assert.ok(companyHistory.modelOutput.includes("The candidate asked Harper to connect them with the company"));
     const careerHistory = await readAgentCorrespondence(
       source,
       { introductionRootId: first.message.id },

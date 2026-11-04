@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { listPendingReplies, formatPendingReply } from "./pendingReplies";
 import type { TalentToolDefinition, TalentToolExecutionContext } from "@/lib/talentOnboarding/tools";
 import { workRpc, readWork, listWork, formatWork } from "./store";
 import { publishCareerInvocations } from "./invocations";
@@ -6,6 +7,8 @@ import { publishCareerInvocations } from "./invocations";
 const inputSchema = z.object({
   action: z.enum(["start", "read", "list", "update", "wait", "finish", "cancel"]),
   work_id: z.string().uuid().optional(),
+  reply_id: z.string().optional(),
+  checkpoint_id: z.string().optional(),
   expected_revision: z.number().int().positive().optional(),
   target: z.string().optional(),
   identity: z.string().optional(),
@@ -20,9 +23,11 @@ const inputSchema = z.object({
 export const CAREER_WORK_TOOLS: Record<string, TalentToolDefinition> = {
   manage_work: {
     name: "manage_work", channels: ["chat"],
-    description: "Start and continue independently executable delegated work using the same Career agent and tools. Each work survives chat, browser expiry and human waits. Start distinct responsibilities separately; return to the conversation without waiting for them. Reuse existing work for the same target and purpose. Read/list expose actual progress and source refs. Update routes a user instruction to exact work. Only the invocation executing that work can use wait to record a remaining need or finish to record an observed outcome; the originating conversation uses update to route new instructions. Cancellation stops new effects but cannot undo an external submission. Meaning and authority come from the cited user messages, never from a generated instruction alone.",
+    description: "Start and continue independently executable delegated work using the same Career agent and tools. Each work survives chat, browser expiry and human waits. Start distinct responsibilities separately; return to the conversation without waiting for them. Reuse existing work for the same target and purpose. Read/list expose actual progress and source refs. List also includes unfinished conversation requests; cancel those with their exact reply_id and checkpoint_id. Update routes a user instruction to exact work. Only the invocation executing that work can use wait to record a remaining need or finish to record an observed outcome; the originating conversation uses update to route new instructions. Cancellation stops new effects but cannot undo an external submission. Meaning and authority come from the cited user messages, never from a generated instruction alone.",
     parameters: { type: "object", properties: {
       action: { type: "string", enum: ["start", "read", "list", "update", "wait", "finish", "cancel"] },
+      reply_id: { type: "string", description: "Exact pending conversation request from list, for cancel." },
+      checkpoint_id: { type: "string", description: "Exact pending checkpoint from list, for cancel." },
       work_id: { type: "string" }, expected_revision: { type: "integer" },
       target: { type: "string", description: "Exact resource identity, e.g. role UUID or owned document ID; import URL postings first." },
       identity: { type: "string", description: "Stable purpose + target identity. Reuse for repeated requests; a new episode needs an explicit user request." },
@@ -39,7 +44,19 @@ export const CAREER_WORK_TOOLS: Record<string, TalentToolDefinition> = {
       const input = inputSchema.parse(raw);
       if (input.action === "list") {
         const result = await listWork(scope, input.before, input.include_closed);
-        return { ...result, modelOutput: [...result.works.map(formatWork), result.nextCursor ? `Next cursor: ${result.nextCursor}` : "End of work list."].join("\n\n") };
+        const pendingReplies = await listPendingReplies(scope, context.resumeRequestId ?? undefined);
+        return { ...result, pendingReplies, modelOutput: [...pendingReplies.map(formatPendingReply), ...result.works.map(formatWork), result.nextCursor ? `Next cursor: ${result.nextCursor}` : "End of work list."].join("\n\n") };
+      }
+      if (input.reply_id) {
+        if (input.action !== "cancel" || !input.checkpoint_id || input.work_id || input.reply_id === context.resumeRequestId)
+          throw new Error("Cancel a listed pending reply with its exact checkpoint_id.");
+        const { data, error } = await (scope.admin.rpc as any)("cancel_career_pending_reply", {
+          p_user_id: scope.userId, p_conversation_id: scope.conversationId,
+          p_reply_id: input.reply_id, p_checkpoint_id: input.checkpoint_id,
+        });
+        if (error) throw error;
+        await publishCareerInvocations(scope).catch(() => undefined);
+        return { ...data, modelOutput: `Conversation request ${input.reply_id}: ${data.status}. Completed external actions remain unchanged.` };
       }
       if (input.action === "read") {
         const work = await readWork(scope, z.string().uuid().parse(input.work_id));

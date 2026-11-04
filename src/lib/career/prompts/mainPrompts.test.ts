@@ -38,7 +38,8 @@ test("normal chat keeps one main contract across tool, profile, Gmail, search an
   assert.deepEqual(withState.promptBlocks.filter(block => block.cacheable).map(block => block.key),
     ["career_main", "career_chat_display", "profile_context", "future_matching_insights"]);
   const context = withState.promptBlocks.filter(block => !block.cacheable).map(block => block.text).join("\n");
-  for (const fact of ["Gmail is not connected", "running", "fit-fixture", "Confirm project ownership", "Next role", "role-fixture"]) {
+  assert.doesNotMatch(context, /fit-fixture|Confirm project ownership|Private matching clarification/);
+  for (const fact of ["Gmail is not connected", "running", "Next role", "role-fixture"]) {
     assert.ok(context.includes(fact), fact);
   }
 });

@@ -91,6 +91,17 @@ test("a failed read before Slack leaves the delivery retryable", async () => {
   assert.deepEqual(f.sent, [1, 2, 3]);
 });
 
+test("Slack preserves the authored message even when old origin metadata exists", async () => {
+  const f = fixture();
+  f.rows[1].metadata.agentIntroductionContext = { candidateName: "김서윤", locale: "ko", origin: { kind: "candidate_request" } };
+  await deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, f.deps);
+  const payload = f.payloads[1];
+  assert.equal(payload.blocks.length, 1);
+  assert.equal(payload.blocks[0].text.text, f.rows[1].content);
+  assert.equal(payload.text, f.rows[1].content);
+  assert.equal(f.rows[1].content, "part 2");
+});
+
 test("current audience denial stops even a partially delivered batch", async () => {
   const f = fixture(); f.failAfterPost(2);
   await assert.rejects(deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, f.deps));

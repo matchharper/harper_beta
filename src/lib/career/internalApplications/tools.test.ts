@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test, { afterEach, mock } from "node:test";
 import { internalEvaluationBackend } from "../matching/internalScoring/backend";
 import Ajv from "ajv";
+import { CAREER_MATCHING_TOOLS } from "../matching/tools";
+import { CAREER_CAPABILITIES } from "../capabilities/registry";
 import {
   getOpenAIChatTools,
   getRealtimeTools,
@@ -159,14 +161,16 @@ test("application evaluates the prepared profile version and queues a review wit
     { roleId: "role" },
     context
   );
-  assert.equal(result.evaluatedProfile.revision, 1);
+  assert.equal("evaluatedProfile" in result, false);
   assert.equal(result.assignedMaterial?.profileRevision, 1);
   assert.equal(queued[0].p_payload.profileRevision, 1);
   assert.equal(result.companyShared, false);
   assert.equal(queued[0].p_payload.parentReplyId, undefined);
   assert.equal(queued[0].p_payload.publishRecommendation, false);
   assert.equal(queued[0].p_payload.requestedOpportunityId, "requested-card");
-  assert.equal(result.careerContinuation, undefined);
+  assert.equal("careerContinuation" in result, false);
+  assert.equal("runId" in result, false);
+  assert.equal("status" in result, false);
 });
 
 test("caller profile arguments cannot override the assigned evaluation profile or owner", async () => {
@@ -179,10 +183,7 @@ test("caller profile arguments cannot override the assigned evaluation profile o
       { ...input, userId: "other", publishRecommendation: false },
       context
     );
-    assert.deepEqual(result.evaluatedProfile, {
-      profileId: "profile",
-      revision: 1,
-    });
+    assert.equal("evaluatedProfile" in result, false);
     assert.equal(queued[0].p_talent, "owner");
     assert.equal(queued[0].p_payload.publishRecommendation, false);
   }
@@ -193,10 +194,7 @@ test("missing or cleared preparation evaluates the current default profile", asy
     const { context, assignment, queued } = scenario("queued", hasAssignment);
     assignment.action = "clear";
     const result = await executeApplyToInternalRole({ roleId: "role" }, context);
-    assert.deepEqual(result.evaluatedProfile, {
-      profileId: "default",
-      revision: 2,
-    });
+    assert.equal("evaluatedProfile" in result, false);
     assert.equal(result.assignedMaterial, null);
     assert.equal(queued[0].p_payload.profileId, "default");
     assert.equal(queued[0].p_payload.profileRevision, 2);
@@ -213,7 +211,7 @@ test("completed low-fit reapplication preserves its card and exposes only public
   );
   assert.match(rendered, /Public description/);
   assert.match(rendered, /requested-card/);
-  assert.doesNotMatch(rendered, /candidateFit|Private assessment|PRIVATE_TRACE|paused|internalRequest/);
+  assert.doesNotMatch(rendered, /candidateFit|assessment|evaluat|evaluation-run|PRIVATE_TRACE|paused|internalRequest/i);
   assert.doesNotMatch(rendered, /PRIVATE_TRACE|2026-10-30T|"coverage"/);
 });
 
@@ -223,7 +221,8 @@ test("an evaluation failure cannot discard a saved user-requested opportunity",a
   const result=await executeApplyToInternalRole({roleId:"role"},context);
   assert.equal(result.recommendationId,"requested-card");
   assert.equal(result.visible,true);
-  assert.equal(result.status,"evaluation_unavailable");
+  assert.equal("status" in result,false);
+  assert.doesNotMatch(formatInternalApplicationToolResult("apply_to_internal_role",result), /evaluat|assess|run |unavailable/i);
   assert.equal(result.companyShared,false);
 });
 
@@ -256,4 +255,22 @@ test("reading prepared materials needs authentication but no write identity, and
     () => tool.execute!({ action: "read", roleId: "role" }, undefined),
     /authenticated user/
   );
+});
+
+
+test("chat and voice cannot read or control an internal evaluator through search_opportunities", async () => {
+  const tool = CAREER_MATCHING_TOOLS.search_opportunities;
+  const validate = new Ajv().compile(tool.parameters);
+  for (const action of ["search", "read", "resume", "cancel"]) {
+    assert.equal(validate({ source: "internal", action, runId: "old-private-run" }), false);
+    await assert.rejects(() => tool.execute!({ source: "internal", action, runId: "old-private-run" }, undefined), /get_internal_roles/);
+  }
+});
+
+
+test("capability catalog and application schema offer public-role actions without private scoring", () => {
+  const capability = CAREER_CAPABILITIES.find(c=>c.tools.some(([name])=>name === "apply_to_internal_role"))!;
+  assert.doesNotMatch([capability.summary,...capability.tools.flatMap(t=>[...t]),CAREER_INTERNAL_APPLICATION_TOOLS.apply_to_internal_role.description].join("\n"), /evaluat|assess|scor/i);
+  const search = CAREER_CAPABILITIES.find(c=>c.id === "opportunities")!;
+  assert.doesNotMatch(search.summary,/evaluate external or internal/);
 });

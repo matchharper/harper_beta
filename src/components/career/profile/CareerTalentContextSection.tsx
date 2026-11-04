@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { InfoIcon, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
@@ -23,14 +23,15 @@ const PINNED_BRIEF_KEYS = [
   "next_scope",
   "location",
   "compensation",
-  "deal_breakers",
   "must_haves",
+  "deal_breakers",
 ] as const;
 
 const PINNED_BRIEF_KEY_SET = new Set<string>(PINNED_BRIEF_KEYS);
 
 export default function CareerTalentContextSection({
   brief,
+  engagementTypesControl,
   memories,
   error,
   info,
@@ -42,6 +43,7 @@ export default function CareerTalentContextSection({
   pending,
 }: {
   brief: CareerTalentContext[];
+  engagementTypesControl?: ReactNode;
   memories: CareerTalentContext[];
   error?: string;
   info?: string;
@@ -304,60 +306,72 @@ export default function CareerTalentContextSection({
       </div>
       <div className="rounded-[18px] border border-neutral-1000-a05 bg-bg-floating p-4 md:p-5 md:py-6">
         <dl className="mt-0 divide-y divide-neutral-1000-a05">
-          {displayedBrief.map(({ id, label: rowLabel, row }) => (
-            <div
-              className="grid gap-1 py-4 first:pt-0 last:pb-0 sm:grid-cols-[130px_minmax(0,1fr)] sm:gap-6"
-              key={id}
-            >
-              <dt className="text-[13px] font-normal">
-                {briefEditMode && row ? (
-                  <label htmlFor={`career-brief-${row.id}`}>{rowLabel}</label>
-                ) : (
-                  rowLabel
-                )}
-              </dt>
-              <dd className="m-0 min-w-0">
-                {briefEditMode && row ? (
-                  <div className="flex items-start gap-2">
-                    <Textarea
-                      aria-label={rowLabel}
-                      autoResize
-                      className="min-h-10 resize-y py-1.5  text-[13px] font-normal leading-5 text-neutral-800/90 resize-none"
-                      disabled={pending}
-                      id={`career-brief-${row.id}`}
-                      maxLength={8000}
-                      onChange={(event) =>
-                        setBriefDrafts((current) => ({
-                          ...current,
-                          [row.id]: event.target.value,
-                        }))
-                      }
-                      rows={1}
-                      value={briefDrafts[row.id] ?? row.content}
-                    />
-                    <MuteButton
-                      aria-label={t("career.profile.context.delete", "삭제")}
-                      className="shrink-0 text-neutral-muted"
-                      disabled={!mutate || pending}
-                      onClick={() => setPendingDelete(row)}
-                      size="sm"
-                      type="button"
-                      variant="transparent"
+          {displayedBrief.map(({ id, label: rowLabel, row }, index) => (
+            <Fragment key={id}>
+              <div
+                className="grid gap-1 py-4 first:pt-0 last:pb-0 sm:grid-cols-[130px_minmax(0,1fr)] sm:gap-6"
+              >
+                <dt className="text-[13px] font-normal">
+                  {briefEditMode && row ? (
+                    <label htmlFor={`career-brief-${row.id}`}>{rowLabel}</label>
+                  ) : (
+                    rowLabel
+                  )}
+                </dt>
+                <dd className="m-0 min-w-0">
+                  {briefEditMode && row ? (
+                    <div className="flex items-start gap-2">
+                      <Textarea
+                        aria-label={rowLabel}
+                        autoResize
+                        className="min-h-10 resize-y py-1.5  text-[13px] font-normal leading-5 text-neutral-800/90 resize-none"
+                        disabled={pending}
+                        id={`career-brief-${row.id}`}
+                        maxLength={8000}
+                        onChange={(event) =>
+                          setBriefDrafts((current) => ({
+                            ...current,
+                            [row.id]: event.target.value,
+                          }))
+                        }
+                        rows={1}
+                        value={briefDrafts[row.id] ?? row.content}
+                      />
+                      <MuteButton
+                        aria-label={t("career.profile.context.delete", "삭제")}
+                        className="shrink-0 text-neutral-muted"
+                        disabled={!mutate || pending}
+                        onClick={() => setPendingDelete(row)}
+                        size="sm"
+                        type="button"
+                        variant="transparent"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </MuteButton>
+                    </div>
+                  ) : (
+                    <p
+                      className={`whitespace-pre-line text-[13px] font-normal leading-5 ${
+                        row ? "text-neutral-800/90" : "text-neutral-muted"
+                      }`}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </MuteButton>
-                  </div>
-                ) : (
-                  <p
-                    className={`whitespace-pre-line text-[13px] font-normal leading-5 ${
-                      row ? "text-neutral-800/90" : "text-neutral-muted"
-                    }`}
-                  >
-                    {row?.content ?? t("career.profile.context.blank", "빈칸")}
-                  </p>
-                )}
-              </dd>
-            </div>
+                      {row?.content ?? t("career.profile.context.blank", "빈칸")}
+                    </p>
+                  )}
+                </dd>
+              </div>
+              {index === 0 && engagementTypesControl ? (
+                <div className="grid gap-2 py-4 sm:grid-cols-[130px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-[13px] font-normal sm:pt-1.5">
+                    {t(
+                      "career.profile.career_profile_settings_section.engagement_types_label",
+                      "근무 형태"
+                    )}
+                  </dt>
+                  <dd className="m-0 min-w-0">{engagementTypesControl}</dd>
+                </div>
+              ) : null}
+            </Fragment>
           ))}
         </dl>
       </div>

@@ -66,6 +66,8 @@ export async function workContext(scope: WorkScope, workId?: string) {
     ].join("\n\n");
   }
   const { works, nextCursor } = await listWork(scope);
-  return works.length ? ["Delegated work index (manage_work reads exact details and further pages):",
-    ...works.map(formatWork), ...(nextCursor ? [`More work; nextCursor ${nextCursor}`] : [])].join("\n\n") : "";
+  const { listPendingReplies, formatPendingReply } = await import("./pendingReplies");
+  const pending = await listPendingReplies(scope);
+  return works.length || pending.length ? ["Unfinished work (manage_work reads and cancels exact requests):",
+    ...pending.map(formatPendingReply), ...works.map(formatWork), ...(nextCursor ? [`More work; nextCursor ${nextCursor}`] : [])].join("\n\n") : "";
 }

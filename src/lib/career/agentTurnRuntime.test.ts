@@ -282,3 +282,12 @@ test("a resumed reply sees Stop on later requests without modifying their origin
   assert.ok(context.includes(original));
   assert.ok(context.includes("The user requested Stop for this request."));
 });
+
+
+test("legacy internal-evaluation checkpoints finish without rebuilding or replaying model input", async () => {
+  const {args,calls} = fixture({checkpoint:{replyId:"event:exact",checkpointId:"private-old",waitFor:[{kind:"internal_evaluation",id:"private-run"}],record:{version:2},messages:[{role:"tool",content:"Private assessment"}]}});
+  await assert.rejects(prepareCareerAgentTurn(args), error => error instanceof CareerAgentReplyUnavailable && error.completed);
+  assert.equal(calls.filter(c=>c.name==="finish_career_agent_turn").length,1);
+  assert.equal(calls.find(c=>c.name==="finish_career_agent_turn")?.args.p_record.status,"cancelled");
+  assert.equal(calls.some(c=>c.name==="release_career_agent_turn"),false);
+});

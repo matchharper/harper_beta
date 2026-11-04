@@ -15,8 +15,8 @@ import HistoryOpportunityDetailContent from "./HistoryOpportunityDetailContent";
 import React from "react";
 import { useCareerT } from "@/i18n/useCareerT";
 
-const PositiveActionIconView = ({ icon: Icon }: { icon: LucideIcon }) => (
-  <Icon className="h-4 w-4" />
+const PositiveActionIconView = ({ icon: Icon }: { icon: LucideIcon | null }) => (
+  Icon ? <Icon className="h-4 w-4" /> : null
 );
 
 const OpportunityDetailModal = ({

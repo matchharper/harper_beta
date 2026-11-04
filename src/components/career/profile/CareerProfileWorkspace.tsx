@@ -8,6 +8,7 @@ import {
   useCareerSidebarContext,
 } from "../CareerSidebarContext";
 import CareerTalentContextSection from "./CareerTalentContextSection";
+import CareerEngagementTypeSettings from "./CareerEngagementTypeSettings";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
 import CareerProfileSettingsSection, {
   CareerPreferencesSettingsSection,
@@ -169,6 +170,7 @@ const CareerProfileWorkspace = ({
       <>
         <CareerTalentContextSection
           brief={talentBrief}
+          engagementTypesControl={<CareerEngagementTypeSettings />}
           error={talentContextsSaveError}
           info={talentContextsSaveInfo}
           loadMemories={loadTalentMemories}

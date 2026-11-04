@@ -115,7 +115,7 @@ export function OrgCareerLineage({
           {steps.map((step, index) => {
             const item = (
               <li
-                className="relative flex w-49 shrink-0 flex-col items-center rounded-sm text-center outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                className="relative flex w-44 shrink-0 flex-col items-center rounded-sm text-center outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
                 key={step.key}
                 tabIndex={step.detail ? 0 : undefined}
               >

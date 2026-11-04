@@ -6,12 +6,6 @@ import {
   type FollowInventory,
   type FollowRole,
 } from "./inventory";
-import {
-  refreshHiringNews,
-  readHiringNews,
-  formatHiringNews,
-  hiringCacheKey,
-} from "./hiringNews";
 import { formatCareerMatchingResult } from "../matching/formatters";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 
@@ -34,7 +28,6 @@ export const rolesNeedingEvaluation = (
 
 const dependencies = {
   inventory: readFollowInventory,
-  news: refreshHiringNews,
   async external(args: {
     admin: TalentAdminClient;
     userId: string;
@@ -129,22 +122,10 @@ export async function prepareFollowedCompanies(
   if (fresh.error) throw fresh.error;
   state = { ...fresh.data.coverage?.followPreparation, error: null };
   let waiting = false;
-  const deadlineAt = Date.now() + 300_000; // Leave room in the background queue request for persistence.
   try {
     await recoverPreparationChildren(admin, run, state);
     if (!state.externalRunId || !state.internalRunId) {
       const inventory = await deps.inventory(admin, run.talent_id);
-      const seen = new Set<string>();
-      for (const company of inventory.companies) {
-        const key = hiringCacheKey(company);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        if (Date.now() >= deadlineAt) {
-          waiting = true;
-          break;
-        }
-        await deps.news({ admin, company });
-      }
       const base = {
         admin,
         userId: run.talent_id,
@@ -174,6 +155,7 @@ export async function prepareFollowedCompanies(
     // Completed child receipts survive a later source failure. An unavailable
     // source is incomplete evidence, not a claim of no changes.
     state.error = error instanceof Error ? error.message : String(error);
+    waiting = true;
     // An unknown child cannot release the next preparation. If the durable
     // ledger itself is unavailable, let the existing invocation retry.
     await recoverPreparationChildren(admin, run, state);
@@ -197,7 +179,7 @@ export async function prepareFollowedCompanies(
       state.error = String(child.error.message ?? child.error);
       continue;
     }
-    if (["queued", "running"].includes(child.data.status)) waiting = true;
+    if (["queued", "running", "handed_off"].includes(child.data.status)) waiting = true;
   }
   state.status = waiting ? "waiting" : "ready";
   const saved = await (admin.rpc as any)("save_career_follow_preparation", {
@@ -214,14 +196,15 @@ function score(role: FollowRole) {
   return Number((assessment?.fit ?? assessment)?.mutualFit ?? -1);
 }
 export function formatFollowRoles(roles: FollowRole[]) {
+  const externalRoles = roles.filter(role => role.source === "external");
   return [
     ...roles.map(
       (role) =>
-        `Role ${role.id}; ${role.company} / ${role.name}; ${role.source}; posted ${role.postedAt ? formatLlmDateTime(role.postedAt) : "unknown"}; first stored ${formatLlmDateTime(role.createdAt)}${role.recommendationId ? `; already recommended ${role.recommendationId}` : ""}${!role.evaluation ? "; not evaluated" : ""}`
+        `Role ${role.id}; ${role.company} / ${role.name}; ${role.source}; posted ${role.postedAt ? formatLlmDateTime(role.postedAt) : "unknown"}; first stored ${formatLlmDateTime(role.createdAt)}${role.recommendationId ? `; already recommended ${role.recommendationId}` : ""}${role.source === "external" && !role.evaluation ? "; not evaluated" : ""}`
     ),
-    formatCareerMatchingResult({
-      evaluations: roles.flatMap((role) =>
-        role.evaluation
+    externalRoles.length ? formatCareerMatchingResult({
+      evaluations: externalRoles.flatMap((role) =>
+        role.source === "external" && role.evaluation
           ? [
               {
                 id: role.evaluation.id,
@@ -237,22 +220,22 @@ export function formatFollowRoles(roles: FollowRole[]) {
             ]
           : []
       ),
-    }),
+    }) : "",
     ...roles.flatMap((role) =>
-      typeof role.evaluation?.assessment.proceedToStage2 === "boolean"
+      role.source === "external" && typeof role.evaluation?.assessment.proceedToStage2 === "boolean"
         ? [
             `Role ${role.id}: saved first-stage assessment proceedToStage2=${role.evaluation.assessment.proceedToStage2}.`,
           ]
         : []
     ),
     ...roles.flatMap((role) =>
-      role.evaluation?.runId
+      role.source === "external" && role.evaluation?.runId
         ? [
             `Evaluation source run ${role.evaluation.runId}; source ${role.source}; role ${role.id}. Use search_opportunities action=read for detailed run evidence.`,
           ]
         : []
     ),
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 export function formatFollowOverview(inventory: FollowInventory) {
   return inventory.companies
@@ -281,7 +264,9 @@ export function formatFollowOverview(inventory: FollowInventory) {
         company.instruction
           ? `User's follow instruction: ${company.instruction}`
           : "",
-        `${roles.length} currently available roles; ${roles.filter((role) => role.evaluation).length} have saved assessments. Index contains ${selected.length} recent/strongest assessed roles.`,
+        company.scope === "name"
+          ? "Followed by name; no linked directory roles."
+          : `${roles.length} currently available roles. Index contains ${selected.length} roles.`,
         formatFollowRoles(selected),
         `Read all roles with follow_company action=read, follow_id=${company.id}.`,
       ]
@@ -297,37 +282,15 @@ export async function readPreparedFollowContext(
 ) {
   const inventory = await readFollowInventory(admin, userId);
   const lines = [
-    "Followed-company preparation. Existing assessments are reused, including non-fit results; dates identify when they were evaluated. Changes to profile/Brief do not automatically rerun these assessments.",
-    state.error ? `Preparation incomplete: ${state.error}` : "",
+    "Followed companies and current opportunities.",
     formatFollowOverview(inventory),
+    state.error ? `Followed-company preparation incomplete: ${state.error}` : "",
   ];
-  const seen = new Set<string>();
-  for (const company of inventory.companies) {
-    const key = hiringCacheKey(company);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    lines.push(
-      `${company.name} — hiring evidence\n${formatHiringNews(await readHiringNews(admin, company))}`
-    );
-  }
-  for (const [source, id] of [
-    ["external", state.externalRunId],
-    ["internal", state.internalRunId],
-  ] as const) {
-    if (!id) continue;
-    const result = await (admin.from as any)(
-      source === "external"
-        ? "external_recommendation_runs"
-        : "opportunity_discovery_run"
-    )
-      .select(source === "external" ? "status,error" : "status,error_message")
-      .eq("id", id)
-      .eq("talent_id", userId)
-      .single();
+  if (state.externalRunId) {
+    const result = await (admin.from as any)("external_recommendation_runs")
+      .select("status,error").eq("id", state.externalRunId).eq("talent_id", userId).single();
     if (result.error) throw result.error;
-    lines.push(
-      `Preparation evaluation ${id}; ${source}; ${result.data.status}${(result.data.error ?? result.data.error_message) ? `; incomplete: ${String(result.data.error ?? result.data.error_message)}` : ""}.`
-    );
+    lines.push(`Preparation evaluation ${state.externalRunId}; external; ${result.data.status}${result.data.error ? `; incomplete: ${String(result.data.error)}` : ""}.`);
   }
   return inventory.companies.length || state.error
     ? lines.filter(Boolean).join("\n\n")

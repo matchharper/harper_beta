@@ -10,7 +10,12 @@ export async function followDatabase() {
     create table talent_setting(user_id uuid primary key,get_external_recommendation boolean default true,get_internal_recommendation boolean default true,profile_visibility text default 'open_to_matches',status text default 'active',blocked_companies text[] default '{}');
     create table company_db(id bigint primary key,name text,website_url text);
     create table company_workspace(company_workspace_id uuid primary key,company_db_id bigint,company_name text,published_name text,homepage_url text,external_roles_enabled boolean default true);
-    create table talent_company_follow(id uuid primary key,talent_id uuid,company_db_id bigint,company_workspace_id uuid,scope text default 'company',instruction text default '',revision int default 1,followed_at timestamptz default now(),unfollowed_at timestamptz);
+    create table talent_company_follow(id uuid primary key default gen_random_uuid(),talent_id uuid references talent_users(user_id),company_db_id bigint references company_db(id),company_workspace_id uuid references company_workspace(company_workspace_id),scope text default 'company',instruction text default '',revision int default 1,followed_at timestamptz default now(),unfollowed_at timestamptz,
+      conversation_id uuid,source text,tracking_summary text,discovery_channel_summary text,scan_state jsonb default '{}',updated_at timestamptz default now(),
+      scope_key text generated always as (case when scope='workspace' then 'workspace:'||company_workspace_id::text else 'company:'||company_db_id::text end) stored);
+    create unique index talent_company_follow_scope on talent_company_follow(talent_id,scope_key);
+    create table talent_conversations(id uuid primary key,user_id uuid);
+    create table talent_external_operations(user_id uuid,conversation_id uuid,kind text,idempotency_key text,status text,request jsonb,result jsonb,unique(user_id,kind,idempotency_key));
     create table company_roles(role_id uuid primary key,company_workspace_id uuid,source_type text default 'external',source_provider text default 'crawler',name text,status text default 'active',is_expired boolean default false,expires_at timestamptz,information jsonb default '{}',posted_at timestamptz,created_at timestamptz default now());
     create table talent_opportunity_recommendation(id bigint primary key,talent_id uuid,role_id uuid);
     create table talent_external_evaluations(id uuid primary key,talent_id uuid,role_id uuid,run_id uuid,assessment jsonb,evaluated_at timestamptz default now());
@@ -30,6 +35,15 @@ export async function followDatabase() {
     await readFile(
       new URL(
         "../../../../supabase/migrations/20261102080129_career_follow_preparation.sql",
+        import.meta.url
+      ),
+      "utf8"
+    )
+  );
+  await db.exec(
+    await readFile(
+      new URL(
+        "../../../../supabase/migrations/20261104073028_career_company_name_follows.sql",
         import.meta.url
       ),
       "utf8"

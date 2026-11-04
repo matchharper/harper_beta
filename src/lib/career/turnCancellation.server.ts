@@ -29,12 +29,18 @@ export async function careerTurnIsStopped(scope: TurnScope): Promise<boolean> {
     if (error) throw error;
     if (!data || data.status === "cancelled" || (scope.workRevision !== undefined && data.revision !== scope.workRevision && data.status !== "waiting" && data.status !== "completed")) return true;
   }
-  if (!scope.sourceMessageId) return false;
+  if (!scope.sourceMessageId) {
+    if (!scope.replyId || scope.workId) return false;
+    const { data, error } = await (scope.admin.from as any)("talent_agent_runtime").select("state")
+      .eq("user_id", scope.userId).eq("conversation_id", scope.conversationId).maybeSingle();
+    if (error) throw error;
+    return data?.state?.completedReplyIds?.[scope.replyId] !== undefined;
+  }
   const { data, error } = await scope.admin.from("talent_messages").select("payload")
     .eq("id", scope.sourceMessageId).eq("user_id", scope.userId)
     .eq("conversation_id", scope.conversationId).eq("role", "user").maybeSingle();
   if (error) throw error;
-  return isCareerTurnStopped(data?.payload);
+  return !data || isCareerTurnStopped(data.payload);
 }
 
 export async function assertCareerTurnActive(scope: TurnScope & { signal?: AbortSignal }) {
@@ -67,7 +73,7 @@ export function watchCareerTurnCancellation(scope: TurnScope, signal?: AbortSign
     }
     if (!disposed && !combined.aborted) timer = setTimeout(poll, 2000);
   };
-  if (scope.sourceMessageId) timer = setTimeout(poll, 2000);
+  if (scope.sourceMessageId || scope.replyId) timer = setTimeout(poll, 2000);
   const dispose = () => { disposed = true; clearTimeout(timer); };
   combined.addEventListener("abort", dispose, { once: true });
   return { signal: combined, check, dispose: () => {

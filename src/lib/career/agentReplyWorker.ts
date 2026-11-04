@@ -16,6 +16,7 @@ const jobSchema = z.object({
   userId: z.string().uuid(),
   conversationId: z.string().uuid(),
   sourceMessageId: z.number().int().positive().optional(),
+  sourceMessageCursor: z.number().int().nonnegative().optional(),
   replyId: z.string(),
   proactiveContext: z.string().optional(),
   noMessageMarker: z.string().optional(),
@@ -47,7 +48,7 @@ export async function processCareerAgentReply(raw: unknown) {
   try {
     await runCareerChatTurn({
       admin, userId: job.userId, conversationId: job.conversationId, userMessage: null,
-      existingSourceMessage: source, agentReplyId: job.replyId,
+      existingSourceMessage: source, agentReplyId: job.replyId, sourceMessageCursor: job.sourceMessageCursor,
       textChatModel: job.textChatModel,
       assistantModel: job.assistantModel,
       proactiveContext: job.proactiveContext, noMessageMarker: job.noMessageMarker,

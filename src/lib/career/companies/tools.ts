@@ -1,5 +1,7 @@
 import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { createHash } from "node:crypto";
+import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
+import { z } from "zod";
 import type {
   TalentToolDefinition,
   TalentToolExecutionContext,
@@ -13,6 +15,22 @@ import {
   formatCompanyFollows,
   COMPANY_FOLLOW_COVERAGE,
 } from "./server";
+const followBatchSchema = z
+  .array(
+    z
+      .object({
+        company_workspace_id: z.string().uuid().optional(),
+        company_name: z.string().trim().min(1).optional(),
+        instruction: z.string().optional(),
+      })
+      .refine(
+        (company) => company.company_workspace_id || company.company_name,
+        {
+          message: "company_workspace_id or company_name is required.",
+        }
+      )
+  )
+  .min(1);
 const base = (context: TalentToolExecutionContext | undefined) => {
   if (!context?.admin || !context.userId)
     throw new Error("Authenticated Career user required.");
@@ -72,9 +90,24 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
         },
         follow_id: { type: "string" },
         expected_revision: { type: "integer" },
-        scope: { type: "string", enum: ["company", "workspace"] },
-        company_db_id: { type: "integer" },
-        company_workspace_id: { type: "string" },
+        companies: {
+          type: "array",
+          minItems: 1,
+          description:
+            "For follow: companies identified by workspace ID or company name.",
+          items: {
+            type: "object",
+            properties: {
+              company_workspace_id: { type: "string" },
+              company_name: {
+                type: "string",
+                description: "Company name; sufficient without a workspace ID.",
+              },
+              instruction: { type: "string" },
+            },
+            additionalProperties: false,
+          },
+        },
         instruction: { type: "string" },
       },
       required: ["action"],
@@ -84,8 +117,6 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
       if (input.action === "read") {
         const { readFollowInventory } = await import("./inventory");
         const { formatFollowRoles } = await import("./preparation");
-        const { readHiringNews, formatHiringNews } =
-          await import("./hiringNews");
         const args = base(context);
         const inventory = await readFollowInventory(args.admin, args.userId);
         const company = inventory.companies.find(
@@ -98,17 +129,17 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
         const offset = Number(input.offset ?? 0),
           roles = all.slice(offset, offset + 30);
         const nextOffset = offset + 30 < all.length ? offset + 30 : null;
-        const news = await readHiringNews(args.admin, company);
         return {
           company,
           roles,
           nextOffset,
-          news,
           modelOutput: [
             COMPANY_FOLLOW_COVERAGE,
-            `${company.name}; follow ${company.id}; instruction: ${company.instruction || "none"}`,
+            `${company.name}; follow ${company.id}; followed ${formatLlmDateTime(company.followedAt)} Asia/Seoul; instruction: ${company.instruction || "none"}`,
+            company.scope === "name"
+              ? "Followed by name; no linked directory roles."
+              : "",
             formatFollowRoles(roles),
-            formatHiringNews(news),
             nextOffset === null
               ? "End of current roles."
               : `More roles: follow_company action=read follow_id=${company.id} offset=${nextOffset}`,
@@ -126,9 +157,58 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
           modelOutput: formatCompanyFollows(result.follows, result.nextOffset),
         };
       }
-      const requestId = `${context?.resumeRequestId ?? context?.userMessageId ?? context?.toolCallId}:follow:${createHash("sha256").update(JSON.stringify(input)).digest("hex")}`;
+      const owner = base(context);
+      const requestIdentity = (item: Record<string, unknown>) =>
+        `${context?.resumeRequestId ?? context?.userMessageId ?? context?.toolCallId}:follow:${createHash("sha256").update(JSON.stringify(item)).digest("hex")}`;
+      if (input.action === "follow" && input.companies !== undefined) {
+        const companies = followBatchSchema.parse(input.companies);
+        const results = await Promise.allSettled(
+          companies.map((company) => {
+            const item = { action: "follow", ...company };
+            return writeCareerCompanyFollow({
+              ...owner,
+              requestId: requestIdentity(item),
+              input: item,
+            });
+          })
+        );
+        const follows = results.flatMap((result) =>
+          result.status === "fulfilled" ? [result.value] : []
+        );
+        const failures = results.flatMap((result, index) =>
+          result.status === "rejected"
+            ? [
+                {
+                  companyWorkspaceId: companies[index].company_workspace_id,
+                  ...(companies[index].company_name
+                    ? { companyName: companies[index].company_name }
+                    : {}),
+                  error:
+                    result.reason instanceof Error
+                      ? result.reason.message
+                      : String(result.reason),
+                },
+              ]
+            : []
+        );
+        return {
+          follows,
+          failures,
+          modelOutput: [
+            follows.length
+              ? formatCompanyFollows(follows)
+              : "No follows saved by this batch.",
+            ...failures.map(
+              (failure) =>
+                `Follow failed for ${failure.companyWorkspaceId ? `company_workspace_id ${failure.companyWorkspaceId}` : failure.companyName}: ${failure.error}`
+            ),
+          ].join("\n\n"),
+        };
+      }
+      // Already-saved provider transcripts may still carry a single company scope.
+      const requestId = requestIdentity(input);
       const follow = await writeCareerCompanyFollow({
-        ...base(context),
+        ...owner,
         requestId,
         input,
       });
