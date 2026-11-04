@@ -382,7 +382,7 @@ export class CareerCapabilityRuntime {
   ) {
     const pending = result && typeof result === "object" && "careerContinuation" in result
       ? result.careerContinuation as CareerDeferredWork | undefined : undefined;
-    if (pending && ["external_evaluation", "internal_evaluation", "email_delivery", "browser_run", "career_input", "external_capacity"].includes(pending.kind) && typeof pending.id === "string")
+    if (pending && ["external_evaluation", "email_delivery", "browser_run", "career_input", "external_capacity"].includes(pending.kind) && typeof pending.id === "string")
       this.deferredWork.set(`${pending.kind}:${pending.id}`, pending);
     // Connection failures remain visible facts; the executor checks access on
     // each call instead of removing Gmail abilities from the next model input.

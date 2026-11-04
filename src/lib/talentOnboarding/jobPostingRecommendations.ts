@@ -1,3 +1,4 @@
+import { sqlLiteral } from "../sqlLiteral";
 import { countriesSchema, type CountryWeight, type V2SearchPlan } from "../externalRecommendationsV2/countries";
 import { roleTitleNeighborsSql } from "../externalRecommendationsV2/roleTitleSearchSql";
 import { publishedCompensation } from "../companyRoles/publishedCompensation";
@@ -1818,9 +1819,7 @@ async function buildFullJdSearchPlan(args: {
   }
 }
 
-export function sqlLiteral(value: string) {
-  return `'${value.replace(/'/g, "''")}'`;
-}
+export { sqlLiteral } from "../sqlLiteral";
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(

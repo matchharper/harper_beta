@@ -41,12 +41,12 @@ Keeping old results or asking for a separate list does not itself mean a one-off
 Update only title/description; archive/restore preserves results, decisions and schedules. Read revision before modifying.`,
 
   // src/lib/career/matching/tools.ts
-  search_opportunities: `Retrieve and evaluate internal/external roles without publishing. External search requires matchingId and retrieval plan or exact roleIds; search and resume wait for evaluation and return the top 30 non-expired evaluations by mutual fit, total and remaining non-expired evaluation counts, the expired role count, a next-page cursor, and any partial failures. Expiration is checked when reading results, including saved runs; expired roles are returned only as a count. They use the stored Behavior Context without a refresh job. Source internal uses the shared two-stage evaluator.
+  search_opportunities: `Retrieve and evaluate external roles without publishing. External search requires matchingId and retrieval plan or exact roleIds; search and resume wait for evaluation and return the top 30 non-expired evaluations by mutual fit, total and remaining non-expired evaluation counts, the expired role count, a next-page cursor, and any partial failures. Expiration is checked when reading results, including saved runs; expired roles are returned only as a count. They use the stored Behavior Context without a refresh job.
 
 Read retrieves a saved run or another result page; pass the returned evaluationCursor as cursor with the same source and runId, and use limit for the page size (default 30). Resume retries an incomplete run; cancel stops it. Evaluation limit controls how many roles are evaluated, independently of the result page size (existing retrieval supports up to 500). External retrieval evaluationLimit defaults to 400 when omitted. Private assessment is for your judgment only.`,
 
   // src/lib/talentOnboarding/tools.ts
-  get_role_context: `Read exact roles and current recommendation/progress facts by roleId, including internal roles not yet recommended. Public role details can inform discussion and preparation; private company requests and assessments are reasoning-only. Use for research, comparison, recommendation or introduction work when current context is insufficient.
+  get_role_context: `Read exact roles and current recommendation/progress facts by roleId, including internal roles not yet recommended. Public role details can inform discussion and preparation. Use for research, comparison, recommendation or introduction work when current context is insufficient.
 
 Includes company facts, existing recommendation decisions, meetings and a page of role activities. Use activityOffset for older activity pages when activityPage.hasMore is true; include_jd adds the full job description.`,
 
@@ -60,10 +60,10 @@ Treat feedback=negative and rejected as Talent-side rejection records, not compa
 
 matchingId chooses one list; omitted means default list. allLists true explicitly targets every list for reset/archive.
 
-add/restore/replace/reset require the exact current list revision supplied in matching context or by read_matching/list_matchings; read again after reset or another edit. New external publication requires both roleId and its exact evaluationId from completed evaluation results. Historical fit-cache entries have no publication reference; search_opportunities with exact roleIds obtains one. Internal new publication requires evaluationIds and sourceRunId.`,
+add/restore/replace/reset require the exact current list revision supplied in matching context or by read_matching/list_matchings; read again after reset or another edit. New external publication requires both roleId and its exact evaluationId from completed evaluation results. Historical fit-cache entries have no publication reference; search_opportunities with exact roleIds obtains one. Internal publication requires its roleId.`,
 
   // src/lib/talentOnboarding/tools.ts
-  update_recommended_opportunity_feedback: `Record a decision on one exact recommendation: dislike declines, keep saves an internal role for later, and like saves external interest. Internal introduction acceptance uses contact_company with the exact recommendation after the candidate has reviewed the Role and asks to be introduced. That tool pins prepared materials or the default profile and public documents and submits to the company agent. apply_to_internal_role saves an initially requested internal opportunity and evaluates it independently.`,
+  update_recommended_opportunity_feedback: `Record a decision on one exact recommendation: dislike declines, keep saves an internal role for later, and like saves external interest. Internal introduction acceptance uses contact_company with the exact recommendation after the candidate has reviewed the Role and asks to be introduced. That tool pins prepared materials or the default profile and public documents and submits to the company agent. apply_to_internal_role saves an initially requested internal opportunity.`,
 
   // 외부 공고·지원 관련
   // src/lib/talentOnboarding/tools.ts
@@ -90,14 +90,12 @@ Active sessions appear as stacked previews above the chat composer. Include [[br
   // src/lib/talentOnboarding/tools.ts
   get_internal_roles: `Find current internal Harper-connected roles. Default mode is direct title/company lookup or exact lookup by role_id. When an exact role ID is known, pass role_id without needing keywords.
 
-With matchedOnly=true, return active roles supported by recommend=true, an effective fit label, or both role and company fit while candidate preference fit is not unfit. Candidate preference unfit is always excluded.
-
-Results can be narrowed by a public company name and identify roles already scheduled for reconsideration. This only reads stored decisions and never reruns fit.`,
+With matchedOnly=true, return the user’s available suggestions. Results can be narrowed by a public company name. This is read-only.`,
 
   // src/lib/career/internalApplications/tools.ts
-  apply_to_internal_role: `For initial interest in an exact internal Role, including a request from a public job page to introduce the candidate, save/reuse the private opportunity immediately and enqueue any needed evaluation. Evaluation uses the assigned profile version or current default; a low score or evaluation failure never removes this user-requested opportunity. The result includes public Role/company facts and its roleId for a posting card. It contains no internal hiring status or private company criteria.
+  apply_to_internal_role: `For initial interest in an exact internal Role, including a request from a public job page to introduce the candidate, save/reuse the private opportunity immediately. The result includes public Role/company facts and its roleId for a posting card. It contains no internal hiring status or private company criteria.
 
-This first step does not request an introduction or share with the company. Present the Role in context with its posting card so the candidate can inspect it. A subsequent explicit request or introduction button authorizes contact_company(acceptIntroduction=true). Use search_opportunities and upsert_opportunities for proactive recommendations.`,
+This first step does not request an introduction or share with the company. Present the Role in context with its posting card so the candidate can inspect it. A subsequent explicit request or introduction button authorizes contact_company(acceptIntroduction=true). Use get_internal_roles and upsert_opportunities for proactive internal recommendations.`,
 
   // src/lib/career/internalApplications/tools.ts
   assign_to_role: `Read, replace, or clear the preparation materials for an internal Role. Read first and use its assignment revision as expectedRevision for set/clear (0 when none exists). Set snapshots exact profile/document revisions; documents-only freezes the current default profile.
@@ -106,13 +104,13 @@ The result includes selectionRef for the exact selected versions. Clear changes 
 
   // 회사 탐색·팔로우·연락 관련
   // src/lib/career/companies/tools.ts
-  search_companies: `Find canonical companies and exact workspaces by company name, website or LinkedIn URL. Distinguish company-wide and workspace-only scope before following; names alone do not establish identity.`,
+  search_companies: `Find company workspaces by company name, website or LinkedIn URL. Results include names, LinkedIn URLs and company_workspace_id for following; use offset to read more matches.`,
 
   // src/lib/career/companies/tools.ts
   follow_company: (coverage: string) =>
-    `List, read, follow, update or unfollow company subscriptions. action=read with follow_id reads cached hiring-search evidence and pages current roles with saved assessments (offset pagination); it does not run a new search or reevaluate roles. action=list reads the user's subscriptions, exact scopes and revisions; use it before changing a follow. List defaults to active follows, with include_unfollowed and offset for history and pagination. Use the current follow_id and expected_revision for update/unfollow.
+    `List, read, follow, update or unfollow company subscriptions. action=follow accepts a companies array, each with company_workspace_id or company_name and an optional instruction. A company name alone is sufficient, including companies absent from the directory; search_companies is optional. A batch saves each follow independently and reports individual failures; successful items remain saved. action=read with follow_id reads the follow facts and pages current roles with saved assessments (offset pagination); it does not run a new search or reevaluate roles. action=list reads the user's subscriptions, exact scopes and revisions; use it before changing a follow. List defaults to active follows, with include_unfollowed and offset for history and pagination. Use the current follow_id and expected_revision for update/unfollow.
 
-Company scope includes all linked organizations; workspace scope includes only that workspace. ${coverage}
+Company scope includes all linked organizations; workspace scope includes only that workspace. Name-only follows have no linked local role inventory. ${coverage}
 
 This does not grant company sharing permission or affect company search ranking.`,
 
@@ -122,13 +120,11 @@ This does not grant company sharing permission or affect company search ranking.
 Use it when the user wants Harper to ask, follow up, clarify, pass along information, or identify which connected company they mean. The result reports durable relationship facts and the latest relay transport status without deciding what Harper should say.`,
 
   // src/lib/talentOnboarding/tools.ts
-  contact_company: `An introduction begins here only after the candidate accepts a previously presented introduction proposal or selects its introduction button. Initial Role interest, even phrased as an introduction request, uses apply_to_internal_role first; a saved recommendation is not proof that the candidate reviewed the proposal.
+  contact_company: `Communicate with the company's agent within the user's delegated purpose and sharing permissions. Send questions, information, requests or replies asynchronously; the receiving agent acts for its company. The receipt confirms agent inbox submission, not human readership or a completed connection.
 
-Send an authorized message to the company's agent asynchronously. For an explicit introduction acceptance after the Role was presented, use recommendationId and acceptIntroduction=true. This atomically pins the assigned materials (otherwise the default profile and public resumes), records acceptance, and deposits the request in the company agent inbox. The company's agent decides how to help its company; this receipt does not establish human notification or a completed connection. Preparation with assign_to_role is optional when useful; private Brief and Memory are not shared.
+Use introductionRootId or replyToMessageId from read_agent_messages for existing correspondence, or connectionId for a legacy mutual connection or ops-contact. To start an authorized introduction, use recommendationId and acceptIntroduction=true; this records the candidate's sharing decision and pins prepared materials, otherwise the default profile and public resumes. selectionRef shares the exact selected material versions. Private Brief and Memory are not shared. Do not combine target forms.
 
-For further questions, replies or authorized updates, use introductionRootId or replyToMessageId from read_agent_messages. selectionRef shares an exact newly reviewed material selection. A legacy mutual connection or ops-contact can still use connectionId. Do not combine target forms.
-
-relayContent is the substantive information the user wants Harper to pass along, faithfully preserving qualifications, uncertainty, and refusal. If the intended company or Role is ambiguous, clarify before sending.`,
+relayContent is your message to the company's agent. Preserve the user's meaning, conditions, uncertainty and sharing scope. Resolve the intended company or Role before sending.`,
 
   // 프로필·사용자 맥락 관련
   // src/lib/career/profiles/tools.ts

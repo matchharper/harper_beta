@@ -246,23 +246,8 @@ function formatInternalRole(
     candidateState,
     companyState,
     row.has_priority_review_request ? "과거 관심·검토 요청 기록 있음" : null,
-    row.has_reconsideration_scheduled
-      ? "Scheduled for reconsideration"
-      : null,
   ].filter((part): part is string => Boolean(part));
 
-  return parts.join(" | ");
-}
-
-function formatPrivateSelectionContext(row: InternalRoleSearchSqlRow) {
-  const parts = [
-    `A role fit: ${formatText(row.role_fit)}`,
-    `B candidate preference fit: ${formatText(row.candidate_fit)}`,
-    `C company fit: ${formatText(row.company_fit)}`,
-    row.fit_reason
-      ? `Reason: ${formatText(row.fit_reason, "", 700)}`
-      : null,
-  ].filter((part): part is string => Boolean(part));
   return parts.join(" | ");
 }
 
@@ -783,9 +768,6 @@ export async function searchInternalRolesForCareerTool(args: {
       ...(sameCompanyFormalRoles.length > 0
         ? { sameCompanyFormalRoles }
         : {}),
-      ...(matchedOnly
-        ? { selectionContext: formatPrivateSelectionContext(row) }
-        : {}),
     };
   });
   const newOptionCount = rows.filter(
@@ -796,8 +778,7 @@ export async function searchInternalRolesForCareerTool(args: {
   return {
     assistantInstruction: [
       "These are available internal roles under the supplied filters. An empty result does not establish availability outside those filters.",
-      "Selection scores and private company requirements are reasoning-only context; explain relevant public role details and ask useful candidate questions without disclosing confidential evidence.",
-      "Recommendation and introduction consent are separate. Use apply_to_internal_role for a role the user explicitly asks to apply to; use search_opportunities with source=internal and upsert_opportunities for proactive recommendations.",
+      "Recommendation and introduction consent are separate. Use apply_to_internal_role for a role the user explicitly asks to apply to; use upsert_opportunities for proactive recommendations.",
       "Prior recommendations and decisions are context for your judgment. A recommendation does not accept an introduction or share the candidate's materials.",
     ].join(" "),
     fallbackUsed: false,

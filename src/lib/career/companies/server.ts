@@ -3,9 +3,9 @@ import { isTestOnlyInternalRole } from '@/lib/internalRoleSafety';
 import { formatLlmDateTime, PROMPT_TIME_ZONE } from '@/lib/llm/promptDateTime';
 
 const db = (admin: TalentAdminClient) => admin as any;
-export const COMPANY_FOLLOW_COVERAGE = 'Following saves interest in the exact company/workspace. During scheduled Career checks, shared hiring-announcement evidence and previously unevaluated roles from followed companies are prepared. Saved assessments are reused. Company changes do not start a separate contact run. Timing follows the existing Career schedule, including pauses.';
+export const COMPANY_FOLLOW_COVERAGE = 'Following saves interest in a company by name or an existing company/workspace identity. Scheduled Career checks receive the followed company names, user instructions and follow dates, along with current roles when a directory identity is linked. Company changes do not start a separate contact run. Timing follows the existing Career schedule, including pauses.';
 export type CompanyIdentity = { companyDbId: number | null; companyWorkspaceId: string | null; name: string; website: string | null; linkedin: string | null; scope: 'company' | 'workspace' };
-export type CompanyFollow = { id: string; talent_id: string; company_db_id: number | null; company_workspace_id: string | null; scope: string; revision: number; instruction: string; followed_at: string; unfollowed_at: string | null; conversation_id: string | null; company?: { name?: string } | null; workspace?: { company_name?: string } | null; scan_state: Record<string, unknown> };
+export type CompanyFollow = { id: string; talent_id: string; company_name?: string | null; company_db_id: number | null; company_workspace_id: string | null; scope: string; revision: number; instruction: string; followed_at: string; unfollowed_at: string | null; conversation_id: string | null; company?: { name?: string } | null; workspace?: { company_name?: string } | null; scan_state: Record<string, unknown> };
 
 /** Parameter values are escaped for PostgREST's filter grammar, not interpreted as instructions. */
 const filterLiteral = (value: string) => `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
@@ -15,16 +15,12 @@ export async function searchCareerCompanies(args: { admin: TalentAdminClient; qu
   if (!query) throw new Error('A company name, website or LinkedIn URL is required.');
   const offset = args.offset ?? 0, limit = args.limit ?? 20;
   const needle = filterLiteral(`%${query.replace(/[%_]/g, value => `\\${value}`)}%`);
-  const [companies, workspaces] = await Promise.all([
-    db(args.admin).from('company_db').select('id,name,website_url,linkedin_url', { count: 'exact' }).or(`name.ilike.${needle},website_url.ilike.${needle},linkedin_url.ilike.${needle}`).order('id').range(offset, offset + limit - 1),
-    db(args.admin).from('company_workspace').select('company_workspace_id,company_db_id,company_name,homepage_url,linkedin_url', { count: 'exact' }).or(`company_name.ilike.${needle},homepage_url.ilike.${needle},linkedin_url.ilike.${needle}`).order('company_workspace_id').range(offset, offset + limit - 1),
-  ]);
-  if (companies.error || workspaces.error) throw new Error(companies.error?.message ?? workspaces.error?.message);
+  const workspaces = await db(args.admin).from('company_workspace').select('company_workspace_id,company_db_id,company_name,homepage_url,linkedin_url', { count: 'exact' }).or(`company_name.ilike.${needle},homepage_url.ilike.${needle},linkedin_url.ilike.${needle}`).order('company_workspace_id').range(offset, offset + limit - 1);
+  if (workspaces.error) throw new Error(workspaces.error.message);
   const items: CompanyIdentity[] = [
-    ...(companies.data ?? []).map((row: any) => ({ companyDbId: row.id, companyWorkspaceId: null, name: row.name ?? '', website: row.website_url, linkedin: row.linkedin_url, scope: 'company' as const })),
     ...(workspaces.data ?? []).map((row: any) => ({ companyDbId: row.company_db_id, companyWorkspaceId: row.company_workspace_id, name: row.company_name, website: row.homepage_url, linkedin: row.linkedin_url, scope: 'workspace' as const })),
   ];
-  return { companies: items, nextOffset: offset + limit < Math.max(companies.count ?? 0, workspaces.count ?? 0) ? offset + limit : null, coverage: COMPANY_FOLLOW_COVERAGE };
+  return { companies: items, nextOffset: offset + limit < (workspaces.count ?? 0) ? offset + limit : null, coverage: COMPANY_FOLLOW_COVERAGE };
 }
 
 export async function listCareerCompanyFollows(args: { admin: TalentAdminClient; userId: string; includeUnfollowed?: boolean; offset?: number; limit?: number }) {
@@ -42,9 +38,9 @@ export async function writeCareerCompanyFollow(args: { admin: TalentAdminClient;
     const { data, error } = await db(args.admin).from('talent_company_follow').select('*').eq('id', input.follow_id).eq('talent_id', args.userId).maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) throw new Error('Follow unavailable.');
-    Object.assign(input, { scope: data.scope, company_db_id: data.company_db_id, company_workspace_id: data.company_workspace_id });
+    Object.assign(input, { scope: data.scope, company_db_id: data.company_db_id, company_workspace_id: data.company_workspace_id, ...(data.company_name != null ? { company_name: data.company_name } : {}) });
   }
-  input.scope ??= input.company_workspace_id ? 'workspace' : 'company';
+  input.scope ??= input.company_workspace_id ? 'workspace' : input.company_db_id != null ? 'company' : 'name';
   const { data, error } = await db(args.admin).rpc('write_career_company_follow', {
     p_user_id: args.userId, p_conversation_id: args.conversationId ?? null, p_request_id: args.requestId, p_input: input,
   });
@@ -53,15 +49,15 @@ export async function writeCareerCompanyFollow(args: { admin: TalentAdminClient;
 }
 
 export function formatCompanySearch(companies: CompanyIdentity[], nextOffset: number | null) {
-  return [COMPANY_FOLLOW_COVERAGE, 'Company scope includes every verified workspace linked to that company identity; workspace scope follows only that organization.', ...companies.map(item => [
-    `${item.name}; scope ${item.scope}; ${item.companyDbId !== null ? `company_db_id ${item.companyDbId}` : 'No company_db identity'}${item.companyWorkspaceId ? `; company_workspace_id ${item.companyWorkspaceId}` : ''}`,
-    item.website ? `Website: ${item.website}` : '', item.linkedin ? `LinkedIn: ${item.linkedin}` : '',
+  return [...companies.map(item => [
+    `${item.name}; company_workspace_id ${item.companyWorkspaceId}`,
+    item.linkedin ? `LinkedIn: ${item.linkedin}` : '',
   ].filter(Boolean).join('\n')), !companies.length ? 'No matching company found in the current directory.' : '', nextOffset !== null ? `More results: offset ${nextOffset}` : 'End of company results.'].filter(Boolean).join('\n\n');
 }
 export function formatCompanyFollows(follows: CompanyFollow[], nextOffset: number | null = null) {
   return [`Times: ${PROMPT_TIME_ZONE}. ${COMPANY_FOLLOW_COVERAGE}`, ...follows.map(item => [
-    `${item.workspace?.company_name ?? item.company?.name ?? 'Company'}; Follow ${item.id}; revision ${item.revision}; ${item.unfollowed_at ? 'unfollowed' : 'following'}; scope ${item.scope}`,
-    item.company_db_id !== null ? `company_db_id ${item.company_db_id}` : '', item.company_workspace_id ? `company_workspace_id ${item.company_workspace_id}` : '',
+    `${item.workspace?.company_name ?? item.company?.name ?? item.company_name ?? 'Company'}; Follow ${item.id}; revision ${item.revision}; ${item.unfollowed_at ? 'unfollowed' : 'following'}; scope ${item.scope}`,
+    item.company_workspace_id ? `company_workspace_id ${item.company_workspace_id}` : '',
     item.instruction ? `User direction: ${item.instruction}` : '', `Followed: ${formatLlmDateTime(item.followed_at)}`,
   ].filter(Boolean).join('\n')), !follows.length ? 'No company follows.' : '', nextOffset !== null ? `More follows: offset ${nextOffset}` : 'End of follows.'].filter(Boolean).join('\n\n');
 }
@@ -126,7 +122,7 @@ export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdmin
     if (event.sourceKind === 'company_follow' && event.roleIds?.length) {
       const ids = event.roleIds.filter(id => {
         const role = rolesById.get(id);
-        return eligibleRoles.has(id) && (data.scope === 'workspace' ? role.company_workspace_id === data.company_workspace_id : role.company_workspace?.company_db_id === data.company_db_id)
+        return eligibleRoles.has(id) && (data.scope === 'workspace' ? role.company_workspace_id === data.company_workspace_id : data.scope === 'company' && role.company_workspace?.company_db_id === data.company_db_id)
           && (!event.roleSource || event.roleSource === (role.source_type === 'internal' ? 'internal' : 'external'));
       });
       if (ids.length !== event.roleIds.length) changed = true;

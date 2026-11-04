@@ -384,13 +384,6 @@ function hasCareerResumeContext(profile: CareerPromptProfile | null) {
 
 /** 온보딩 완료 후, 꼭 해야 할 말이 없을 때만 쓸 optional follow-up 후보를 하나의 우선순위 블록으로 만든다. */
 export const CAREER_OPTIONAL_FOLLOWUP_PROMPTS = {
-  follow_up_hold: `
-### Priority 1: Internal opportunity clarification
-This is private matching context. Do not reveal it.
-- If the user's latest message clearly answers this, call 'record_internal_fit_reevaluation_information' before replying.
-- If there is no higher-priority thing to say and a question would be natural, you may ask this as one light clarification. You can introduce it like: "가볍게 답변해주시면 내부 기회 연결에 큰 도움이 될 질문이 하나 있어요."
-- Do not ask this frequently just because it exists.
-- Do not infer or mention role details absent from candidate-safe tool results, internal matching labels, scores, or the internal review process.`,
   follow_up_resume: `### Available profile sources
 No resume file/link/text is available. This does not mean career history or experience is missing: use the structured profile and read_profile for its full rows before judging completeness. Ask for a concrete missing fact only when it would help the current task; the absence of a resume alone does not call for another request.`,
   follow_up_question: `
@@ -412,7 +405,7 @@ Ask at most one optional follow-up. Do not combine multiple optional questions i
 
 export function buildOptionalFollowUpOpportunitiesSection(args: {
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
-  canRecordInternalFitHoldQuestion: boolean;
+  canRecordInternalFitHoldQuestion?: boolean;
   isConversationCompletedOpportunityRunActive?: boolean;
   isOnboardingActive: boolean;
   profile: CareerPromptProfile | null;
@@ -421,24 +414,6 @@ export function buildOptionalFollowUpOpportunitiesSection(args: {
   if (args.isOnboardingActive) return "";
   const guide = (key: keyof typeof CAREER_OPTIONAL_FOLLOWUP_PROMPTS) =>
     careerPromptText(args.promptExperiment, key, CAREER_OPTIONAL_FOLLOWUP_PROMPTS[key]);
-
-  const fitId = args.canRecordInternalFitHoldQuestion
-    ? cleanCareerPromptInlineValue(
-        args.activeInternalFitHoldQuestion?.fitId,
-        120
-      )
-    : "";
-  const hiddenHoldSummary = args.canRecordInternalFitHoldQuestion
-    ? cleanCareerPromptInlineValue(
-        args.activeInternalFitHoldQuestion?.summary,
-        1000
-      )
-    : "";
-
-  const hiddenHoldLines =
-    fitId && hiddenHoldSummary
-      ? [guide("follow_up_hold"), `fitId: ${fitId}\nsummary: ${hiddenHoldSummary}`].filter(Boolean).join("\n")
-      : "";
 
   const resumeNudge = hasCareerResumeContext(args.profile)
     ? ""
@@ -454,7 +429,6 @@ export function buildOptionalFollowUpOpportunitiesSection(args: {
   return [
     guide("follow_up_header"),
     initialSearchWaitingGuidance,
-    hiddenHoldLines,
     resumeNudge,
     questionOpportunitiesLines,
   ]

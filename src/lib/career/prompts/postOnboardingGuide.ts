@@ -62,7 +62,7 @@ export function buildCareerPostOnboardingContextSection(args: {
     ? toolNames.has("apply_to_internal_role")
       ? [
           `- Tool-only exact active roleId: ${JSON.stringify(roleId)}.`,
-          "- If the candidate explicitly agrees to prioritize this exact opportunity, call apply_to_internal_role with this roleId. This evaluates and saves the opportunity for review; company sharing still needs explicit introduction consent.",
+          "- If the candidate explicitly agrees to prioritize this exact opportunity, call apply_to_internal_role with this roleId. This saves the opportunity for review; company sharing still needs explicit introduction consent.",
         ]
       : []
     : toolNames.has("get_internal_roles")

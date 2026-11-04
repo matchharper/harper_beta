@@ -71,7 +71,146 @@ test("list reads the authenticated user's follows without writing, including his
     assert.match(text, /Follow follow-1; revision 3/);
     assert.match(text, /offset 60/);
     assert.ok(!text.includes("privateScanMarker"));
+    assert.ok(!text.includes("company_db_id"));
   }
+});
+
+test("company search only queries workspaces and projects names, workspace IDs and LinkedIn links", async () => {
+  const ranges: number[][] = [];
+  const query = {
+    select() {
+      return this;
+    },
+    or() {
+      return this;
+    },
+    order() {
+      return this;
+    },
+    async range(start: number, end: number) {
+      ranges.push([start, end]);
+      return {
+        data: [
+          {
+            company_workspace_id: "00000000-0000-4000-8000-000000000001",
+            company_db_id: 12345,
+            company_name: "Example Labs",
+            homepage_url: "https://example.invalid",
+            linkedin_url: "https://linkedin.com/company/example-labs",
+          },
+        ],
+        count: 21,
+        error: null,
+      };
+    },
+  };
+  const admin = {
+    from(table: string) {
+      assert.equal(table, "company_workspace");
+      return query;
+    },
+  };
+  for (const offset of [0, 20]) {
+    const result = (await CAREER_COMPANY_TOOLS.search_companies.execute!(
+      { query: "Example", offset },
+      { admin, userId: "owner" }
+    )) as any;
+    assert.equal(result.nextOffset, offset === 0 ? 20 : null);
+    assert.equal(result.companies[0].companyDbId, 12345);
+    assert.equal(result.companies[0].website, "https://example.invalid");
+    const text = formatToolResultText(result);
+    assert.match(text, /Example Labs; company_workspace_id/);
+    assert.match(text, /https:\/\/linkedin.com\/company\/example-labs/);
+    assert.ok(!text.includes("company_db_id"));
+    assert.ok(!text.includes("12345"));
+    assert.ok(!text.includes("example.invalid"));
+  }
+  assert.deepEqual(ranges, [
+    [0, 19],
+    [20, 39],
+  ]);
+});
+
+test("batch follow preserves partial results and per-company request identity across reordered retries", async () => {
+  const first = "00000000-0000-4000-8000-000000000001";
+  const second = "00000000-0000-4000-8000-000000000002";
+  const calls: any[] = [];
+  let stored = false;
+  const admin = {
+    async rpc(name: string, args: any) {
+      assert.equal(name, "write_career_company_follow");
+      assert.equal(args.p_user_id, "owner");
+      assert.equal(args.p_conversation_id, "conversation");
+      calls.push(args);
+      if (args.p_input.company_workspace_id === second)
+        return {
+          data: null,
+          error: { message: "Company workspace unavailable" },
+        };
+      stored = true;
+      return {
+        data: { ...follow, company_workspace_id: first, scope: "workspace" },
+        error: null,
+      };
+    },
+  };
+  const companies = [
+    { company_workspace_id: first, instruction: "AI engineering" },
+    { company_workspace_id: second },
+  ];
+  const context = {
+    admin,
+    userId: "owner",
+    conversationId: "conversation",
+    resumeRequestId: "reply-1",
+  };
+  const result = (await execute(
+    { action: "follow", companies },
+    context
+  )) as any;
+  assert.equal(stored, true);
+  assert.equal(result.follows.length, 1);
+  assert.deepEqual(result.failures, [
+    { companyWorkspaceId: second, error: "Company workspace unavailable" },
+  ]);
+  const text = formatToolResultText(result);
+  assert.match(text, /Follow follow-1/);
+  assert.match(text, /Follow failed for company_workspace_id/);
+  assert.ok(!text.includes("company_db_id"));
+  await execute(
+    { action: "follow", companies: [...companies].reverse() },
+    context
+  );
+  assert.equal(calls[0].p_request_id, calls[3].p_request_id);
+  assert.equal(calls[1].p_request_id, calls[2].p_request_id);
+  assert.equal(calls[0].p_input.scope, "workspace");
+  assert.equal(calls[0].p_input.instruction, "AI engineering");
+  const count = calls.length;
+  await assert.rejects(
+    execute(
+      {
+        action: "follow",
+        companies: [
+          { company_workspace_id: first },
+          { company_workspace_id: "invalid" },
+        ],
+      },
+      context
+    )
+  );
+  assert.equal(
+    calls.length,
+    count,
+    "malformed batch is rejected before any write"
+  );
+});
+
+test("new follow schema offers names or workspace IDs without company_db IDs", () => {
+  const schema = CAREER_COMPANY_TOOLS.follow_company.parameters as any;
+  assert.equal(schema.properties.companies.items.required, undefined);
+  assert.equal(schema.properties.companies.items.properties.company_name.type, "string");
+  assert.equal(schema.properties.company_db_id, undefined);
+  assert.equal(schema.properties.scope, undefined);
 });
 
 test("follow, update and unfollow retain the owner, exact scope, revision and repeatable request identity", async () => {

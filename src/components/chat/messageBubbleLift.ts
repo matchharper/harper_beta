@@ -19,7 +19,7 @@ export function liftMessageBubble(bubble: HTMLElement, destination: HTMLElement)
   const surface = {
     padding: computed.padding, border: computed.border,
     background: computed.backgroundColor === "rgba(0, 0, 0, 0)"
-      ? "var(--color-bg-basement)" : computed.background,
+      ? "rgba(245, 245, 245, 1)" : computed.background,
     color: computed.color,
   };
   // The bubble remains outside Dialog.Content in the DOM. Keep its native scroll

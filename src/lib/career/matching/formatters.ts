@@ -7,6 +7,7 @@ const brief = (value: any) =>
     .join("\n");
 /** Deliberately compact evidence projection. Raw receipts stay available to executors. */
 export function formatCareerMatchingResult(value: any): string {
+  if (value?.source === "internal") return "Read Harper-connected opportunities with get_internal_roles or get_role_context.";
   if (value?.error && !value.runId)
     return `Matching operation failed: ${value.error}`;
   const lines: string[] = ["Matching result (times: Asia/Seoul)."];

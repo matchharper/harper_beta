@@ -197,6 +197,18 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
     await cancellation.check();
     const previous = claim.state.previous;
     const saved = claim.state.checkpoint?.replyId === replyId ? claim.state.checkpoint : undefined;
+    if (saved?.waitFor?.some(work => work.kind === "internal_evaluation")) {
+      // Never replay a transcript from the removed model-visible scoring API.
+      const done = await rpc("finish_career_agent_turn", {
+        p_record: { ...saved.record, replyId, status: "cancelled", injectedHandbooks: [], loadedHandbooks: [] },
+        p_handbooks: claim.state.handbooks ?? [],
+      });
+      if (done !== true) throw new Error("Career reply claim lost during contract retirement");
+      finished = true;
+      cancellation.dispose();
+      throw new CareerAgentReplyUnavailable(replyId, true);
+    }
+    args = { ...args, sourceMessageCursor: args.sourceMessageCursor ?? saved?.continuation?.sourceMessageCursor };
     // Carried guide counters may have advanced while this transcript was queued.
     // Only loads authored inside this unfinished reply retain their own lease.
     const resumedBooks = new Map(normalizeCareerHandbookLeases(args.backgroundRunId ? saved?.handbooks : claim.state.handbooks).map(book => [book.id, book]));

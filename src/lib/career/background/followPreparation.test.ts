@@ -101,7 +101,7 @@ test("background execution waits for preparation, receives its context and reche
           }),
           readPreparedFollowContext: async () => {
             contextReads++;
-            return "Prepared hiring evidence and saved role assessment";
+            return "Followed company facts and saved role assessment";
           },
         };
       if (name === "./toolTrace.server")
@@ -153,7 +153,7 @@ test("background execution waits for preparation, receives its context and reche
   ready = true;
   await execute();
   assert.equal(turns.length, 1);
-  assert.match(turns[0].proactiveContext, /Prepared hiring evidence/);
+  assert.match(turns[0].proactiveContext, /Followed company facts/);
   assert.equal(finished, 1);
   assert.equal(turns[0].agentReplyId, "reply");
   assert.ok(turns[0].deadlineAt <= Date.now() + 430000);
@@ -169,5 +169,5 @@ test("background execution waits for preparation, receives its context and reche
   await execute();
   assert.equal(turns.length, 1);
   assert.equal(contextReads, 0);
-  assert.doesNotMatch(turns[0].proactiveContext, /Prepared hiring/);
+  assert.doesNotMatch(turns[0].proactiveContext, /Followed company facts/);
 });

@@ -1,0 +1,47 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import {
+  InternalApiError,
+  requireInternalApiUser,
+  toInternalApiErrorResponse,
+} from "@/lib/internalApi";
+import { CAREER_COMPANY_TOOLS } from "@/lib/career/companies/tools";
+import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
+import type { CompanySearchDebugResponse } from "@/lib/ops/companySearchDebug";
+
+export const runtime = "nodejs";
+export const maxDuration = 180;
+
+const inputSchema = z.object({
+  query: z.string().trim().min(1),
+  offset: z.number().int().nonnegative().default(0),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = await requireInternalApiUser(req);
+    const parsed = inputSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      throw new InternalApiError(
+        400,
+        "검색어와 0 이상의 정수 offset을 입력해 주세요."
+      );
+    }
+    const admin = getTalentSupabaseAdmin();
+    const started = performance.now();
+    const result = (await CAREER_COMPANY_TOOLS.search_companies.execute!(
+      parsed.data,
+      { admin, userId: user.id }
+    )) as Omit<CompanySearchDebugResponse, "input" | "durationMs">;
+    return NextResponse.json(
+      {
+        ...result,
+        input: parsed.data,
+        durationMs: Math.round(performance.now() - started),
+      },
+      { headers: { "Cache-Control": "private, no-store" } }
+    );
+  } catch (error) {
+    return toInternalApiErrorResponse(error, "회사 검색에 실패했습니다.");
+  }
+}

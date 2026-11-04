@@ -48,9 +48,11 @@ test("durable Stop is scoped to the original owner, conversation and request", a
   const { scope, messages } = fixture();
   messages[0].payload.careerTurnStopped = true;
   await assert.rejects(assertCareerTurnActive(scope), CareerTurnCancelled);
+  messages.push({ ...messages[0], id:43, payload:{} });
   await assertCareerTurnActive({ ...scope, sourceMessageId: 43 });
-  await assertCareerTurnActive({ ...scope, userId: "other" });
-  await assertCareerTurnActive({ ...scope, conversationId: "other-chat" });
+  await assert.rejects(assertCareerTurnActive({ ...scope, userId: "other" }), CareerTurnCancelled);
+  await assert.rejects(assertCareerTurnActive({ ...scope, conversationId: "other-chat" }), CareerTurnCancelled);
+  await assert.rejects(assertCareerTurnActive({ ...scope, sourceMessageId: 404 }), CareerTurnCancelled);
 });
 
 test("another executor observes Stop during a provider call and releases its watcher", async () => {

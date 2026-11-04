@@ -247,6 +247,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/debugging/org-agent-tools",
       },
       {
+        description: "Career search_companies 실행 결과와 소요 시간 확인",
+        href: "/ops/debugging/company-search",
+        label: "회사 검색",
+        matchPrefix: "/ops/debugging/company-search",
+      },
+      {
         description: "회사 채팅 answer example retrieval 결과 확인",
         href: "/ops/debugging/company-answer-retrieval",
         label: "Answer Retrieval",
