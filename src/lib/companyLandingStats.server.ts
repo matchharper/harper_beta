@@ -1,4 +1,5 @@
 import postgres from "postgres";
+import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseDotenv } from "dotenv";
@@ -40,7 +41,7 @@ function getStatsClient() {
           /supabase\.(co|com)|pooler\.supabase/i.test(databaseUrl)
         ? "require"
         : undefined;
-  client = postgres(databaseUrl, {
+  client = postgres(transactionDatabaseUrl(databaseUrl), {
     connect_timeout: 10,
     idle_timeout: 20,
     max: 1,

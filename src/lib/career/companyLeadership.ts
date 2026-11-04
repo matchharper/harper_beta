@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { parse as parseDotenv } from "dotenv";
 import postgres from "postgres";
+import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 
 const DATABASE_ENV_NAMES = [
   "CAREER_COMPANY_LEADERSHIP_DATABASE_URL",
@@ -102,7 +103,7 @@ function getCompanyLeadershipClient() {
         ? "require"
         : undefined;
 
-  companyLeadershipClient = postgres(databaseUrl, {
+  companyLeadershipClient = postgres(transactionDatabaseUrl(databaseUrl), {
     connect_timeout: 10,
     idle_timeout: 20,
     max: 1,

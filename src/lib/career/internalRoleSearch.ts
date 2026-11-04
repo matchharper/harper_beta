@@ -1,4 +1,5 @@
 import postgres from "postgres";
+import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { parse as parseDotenv } from "dotenv";
@@ -130,7 +131,7 @@ function getInternalRoleSearchClient() {
         ? "require"
         : undefined;
 
-  internalRoleSearchClient = postgres(databaseUrl, {
+  internalRoleSearchClient = postgres(transactionDatabaseUrl(databaseUrl), {
     connect_timeout: 10,
     idle_timeout: 20,
     max: 1,
