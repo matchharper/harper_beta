@@ -1,7 +1,7 @@
 import { buildOrgHref } from "@/lib/org/routes";
+import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import { orgTalentReferenceHref } from "./talentReference";
 
-const HARPER_SITE_ORIGIN = "https://matchharper.com";
 const PRIVATE_NAVIGATION_LINK_PATTERN =
   /\]\((home|roles|team|role:[^)\s]+|talent:[^)\s]+)\)/g;
 const SLACK_LABELED_LINK_PATTERN = /<(https?:\/\/[^|>]+)\|([^>]+)>/g;
@@ -29,20 +29,21 @@ export function convertSlackCandidateIntroToWebMarkdown(value: string) {
 
 function toHarperWebUrl(args: { target: string; workspaceId: string; roleId?: string | null }) {
   const { target, workspaceId } = args;
+  const siteOrigin = getConfiguredPublicSiteUrl();
   if (target === "home") {
-    return `${HARPER_SITE_ORIGIN}${buildOrgHref({
+    return `${siteOrigin}${buildOrgHref({
       orgId: workspaceId,
       page: "home",
     })}`;
   }
   if (target === "roles") {
-    return `${HARPER_SITE_ORIGIN}${buildOrgHref({
+    return `${siteOrigin}${buildOrgHref({
       orgId: workspaceId,
       page: "jobs",
     })}`;
   }
   if (target === "team") {
-    return `${HARPER_SITE_ORIGIN}${buildOrgHref({
+    return `${siteOrigin}${buildOrgHref({
       orgId: workspaceId,
       page: "team",
     })}`;
@@ -50,7 +51,7 @@ function toHarperWebUrl(args: { target: string; workspaceId: string; roleId?: st
   if (target.startsWith("role:")) {
     const roleId = target.slice("role:".length).trim();
     if (!roleId) return null;
-    return `${HARPER_SITE_ORIGIN}${buildOrgHref({
+    return `${siteOrigin}${buildOrgHref({
       orgId: workspaceId,
       page: "role",
       roleId,

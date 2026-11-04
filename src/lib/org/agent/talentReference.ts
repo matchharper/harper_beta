@@ -1,4 +1,5 @@
 import { buildOrgHref } from "@/lib/org/routes";
+import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import { getHarperOwnedUrlRoute } from "@/lib/urlDisplay";
 
 const UUID_SOURCE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -23,7 +24,7 @@ export function splitOrgTalentReferences(content: string): OrgTalentReferenceSeg
 
 export function orgTalentReferenceHref(args: { talentId: string; workspaceId: string; roleId?: string | null }) {
   const roleId = args.roleId && args.roleId !== "all" ? args.roleId : null;
-  return `https://matchharper.com${buildOrgHref({
+  return `${getConfiguredPublicSiteUrl()}${buildOrgHref({
     detail: { talentId: args.talentId, roleId }, orgId: args.workspaceId,
     page: roleId ? "role" : "home", roleId,
   })}`;
