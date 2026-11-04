@@ -3,6 +3,16 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-05 전체 로컬 코드 운영 배포 (웹·Worker 완료)
+
+사용자의 명시적 커밋·beta/Worker 배포 요청으로 웹의 전체 로컬 소스·테스트·문서 549개 파일을 `a153215ed6437709f6fab61617e42894de7e2aac`, Worker 소스·테스트를 `2f87741c426a99f5b6871a9ab43a33961dbc8838`로 커밋하고 각 origin/main에 fast-forward push했다. 기존의 추적된 Worker Python bytecode 변경은 생성 캐시이므로 소스 커밋에서 제외하고 로컬에 보존했다. DB migration·번역 데이터는 재적용하지 않았다.
+
+웹은 Git-triggered Vercel `dpl_375AtxKrZG9vJkGc2BTTAMzpqH1J`에서 READY를 확인했고 운영 도메인 matchharper.com·app.matchharper.com·www.matchharper.com 연결을 확인했다. 로컬/운영 빌드의 컴파일·타입 검사·448개 페이지 생성이 완료됐다. 홈페이지 200, 새 action-items와 internal Career API의 무인증 401을 확인했다. 후보자별 일일 처리와 예약 병합, 내부 기회 탐색 범위, 홈 행동 목록, 대화 진행·최종 답변 표시와 공통 디자인 변경을 포함한다. 이 문서 동기화의 후속 커밋은 제품 소스를 변경하지 않는다.
+
+Worker는 기존 호스트의 불변 release artifact를 준비하고 해당 release의 handoff 검사 16개를 통과한 뒤, 17:08:45 UTC 이후 opportunity-current를 원자적으로 교체하고 scheduler 하나만 graceful restart했다. scheduler PID 3009741과 새 Worker 슬롯의 cwd·revision이 새 release와 일치한다. 기존 여섯 슬롯에 stop/restart 신호를 보내지 않았고 이전 invocation은 자연 종료했다. 기존 release와 Python 환경은 보존했으며 Restart=no·TimeoutStopUSec=infinity·고정 최대 6개 슬롯 계약을 유지한다. 변경이 없는 다른 Worker 서비스는 재시작하지 않았다. 기록한 기존 handed_off 2건은 전환 후에도 동일 상태이며 배포 때문에 실패로 변경되지 않았다. 새 Worker 로그에서 refill 실패·예외는 관측되지 않았다.
+
+배포 직후 새 웹의 error/fatal 로그는 없었고 실제 고객 발송·지원 제출을 수동으로 발생시키지 않았다. 이는 배포 revision·기본 응답·프로세스 확인이며 다음 오전 9시 일일 실행이나 실제 메일 수신 E2E 완료를 뜻하지 않는다. 운영 반영된 동작을 기준으로 Notion [Career](https://www.notion.so/3b57277d26df81028ccce63a24db9922), [추천](https://www.notion.so/3b57277d26df817aa35cd4fcd3bca0f2), [Role 생명주기](https://www.notion.so/3b57277d26df810997b6e5480848ab87), [회사 제품 종합](https://www.notion.so/3fe7277d26df812dbc7def98e67aa45c)의 영향받는 절·기준일·변경 이력을 갱신했다.
+
 ## 2026-11-05 Career 일일 처리·자동 외부 탐색 제한 (운영 DB 적용·웹/Worker 미배포)
 
 사용자의 운영 DB 적용·점검 요청으로 01:49 KST에 `career_daily_processing`(운영 version `20261104164906`)을 적용했다. 로컬 정본은 `supabase/migrations/20261104153622_career_daily_processing.sql`이다. 같은 migration을 다시 적용하지 않는다. 후보자별 비긴급 사건 저장·실행 소유권·발송 영수증, 기존 collector의 후보자별 중복 접수 방지, 외부 탐색 설정의 DB 경계를 준비했다. 자동 check-in의 목적은 외부 탐색으로 좁히고 Stopped 또는 외부 추천 off인 활성 예약 2,876건을 일시 중지했다. 해당 조건의 잔여 활성 자동 예약은 0건이다. 사용자 메시지 참조만으로 일반 프로필 답장을 별도 위임 예약으로 오인하지 않게 했고, 사용자가 직접 작성한 정확한 목적만 별도 예약으로 보존한다.
