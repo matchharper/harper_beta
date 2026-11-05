@@ -49,9 +49,9 @@ test("names the site a link opens and the words a web search uses", () => {
   );
   assert.equal(
     getCareerToolStartThinkingLog("web_search", "ko", {
-      query: "  크몽   데이터 엔지니어 채용 ",
+      query: "  서울   데이터 엔지니어 채용 ",
     }),
-    '"크몽 데이터 엔지니어 채용" 검색 중'
+    '"서울 데이터 엔지니어 채용" 검색 중'
   );
   // Before the call's input is known, the fixed label still fills the wait.
   assert.equal(
