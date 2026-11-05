@@ -17,6 +17,13 @@ const ownListFix = readFileSync(
   ),
   "utf8"
 );
+const registeredStatus = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20261105100000_career_content_registered.sql",
+    import.meta.url
+  ),
+  "utf8"
+);
 // The guard as it runs in production before ownListFix (not in this repo's migrations).
 const productionIsolationGuard = `
   create function enforce_user_submitted_role_recommendation_isolation_v1() returns trigger
@@ -85,6 +92,7 @@ async function database() {
     insert into talent_conversations values ('${conversation}', '${talent}');
   `);
   await db.exec(migration);
+  await db.exec(registeredStatus);
   return db;
 }
 
@@ -331,6 +339,46 @@ test("content suggestions keep one entry per link and move forward only", async 
       content(db, "expire", { id: saved.id }),
       /Unknown operation/
     );
+  } finally {
+    await db.close();
+  }
+});
+
+test("an event the user signed up for stays shown and can be taken back", async () => {
+  const db = await database();
+  try {
+    const event = await content(db, "add", {
+      item: {
+        kind: "event",
+        url: "https://lu.ma/pytorch-day",
+        title: "PyTorch Day",
+        reason: "이유",
+        startsAt: new Date(Date.now() + 7 * 86400_000).toISOString(),
+      },
+      origin: "user_request",
+    });
+    const article = await content(db, "add", {
+      item: { kind: "article", url: "https://example.com/read", title: "글", reason: "이유" },
+      origin: "user_request",
+    });
+    const react = (id: string, reaction: string) =>
+      content(db, "react", { id, item: { reaction } });
+
+    assert.equal((await react(event.id, "registered")).status, "registered");
+    assert.equal((await react(event.id, "opened")).status, "registered", "opening the link again keeps it");
+    assert.equal((await react(event.id, "seen")).status, "registered");
+    const shown = await db.query<{ n: number }>(
+      "select count(*)::int as n from career_content_suggestions where status in ('new','seen','opened','registered') and expires_at > now()"
+    );
+    assert.equal(shown.rows[0].n, 2, "a registered event is still on the list");
+    assert.equal((await react(event.id, "unregistered")).status, "opened");
+    assert.equal((await react(event.id, "registered")).status, "registered");
+    assert.equal((await react(event.id, "dismissed")).status, "dismissed");
+    assert.equal((await react(event.id, "registered")).status, "dismissed", "closed is final");
+
+    await assert.rejects(react(article.id, "registered"), /Only events can be registered/);
+    await assert.rejects(react(article.id, "joined"), /Unknown reaction/);
+    assert.equal((await react(article.id, "unregistered")).status, "new", "nothing to take back");
   } finally {
     await db.close();
   }

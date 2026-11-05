@@ -35,10 +35,15 @@ const inputSchema = z.discriminatedUnion("operation", [
     items: z.array(itemSchema).min(1).max(10),
   }),
   z.object({
-    operation: z.literal("remove"),
+    operation: z.enum(["remove", "mark_registered", "unmark_registered"]),
     ids: z.array(z.string().uuid()).min(1).max(20),
   }),
 ]);
+const ID_OPERATIONS = {
+  remove: { operation: "remove", reaction: null },
+  mark_registered: { operation: "react", reaction: "registered" },
+  unmark_registered: { operation: "react", reaction: "unregistered" },
+} as const;
 
 /** A link that identifies a single job posting belongs in Jobs, not here. */
 export function careerContentJobPostingUrl(url: string) {
@@ -57,7 +62,9 @@ const DATE_FIELDS = ["startsAt", "endsAt", "publishedAt", "deadline"] as const;
 function isoDates(item: Partial<Record<(typeof DATE_FIELDS)[number], string>>) {
   return Object.fromEntries(
     DATE_FIELDS.flatMap((field) =>
-      item[field] ? [[field, new Date(Date.parse(item[field]!)).toISOString()]] : []
+      item[field]
+        ? [[field, new Date(Date.parse(item[field]!)).toISOString()]]
+        : []
     )
   );
 }
@@ -78,11 +85,20 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
     name: "manage_content_suggestions",
     channels: ["chat"],
     description:
-      "Read, save or remove events, articles and social posts shown in the user's \"볼 만한 것\" list on Career home. Items persist across visits until they expire: an event after it ends (endsAt, else one day after startsAt), anything else after 30 days, or earlier at a deadline the item itself states. The list keeps one entry per link per user, so a link the user dismissed is never shown again. Job postings and hiring posts are not accepted; save those to Jobs with save_job_posting. list returns current items. add saves up to 10 items; each needs kind, the real url, a short title and a one-sentence reason in the user's language; events also need startsAt (ISO 8601, with time zone) and past events are rejected. origin is user_request when the user asked for such items and harper_offer when Harper offered them and the user agreed. remove withdraws items by id. Saving does not register the user for anything or contact anyone.",
+      "Read, save or remove events, articles and social posts shown in the user's \"볼 만한 것\" list on Career home. Items persist across visits until they expire: an event after it ends (endsAt, else one day after startsAt), anything else after 30 days, or earlier at a deadline the item itself states. The list keeps one entry per link per user, so a link the user dismissed is never shown again. Job postings and hiring posts are not accepted; save those to Jobs with save_job_posting. list returns current items. add saves up to 10 items; each needs kind, the real url, a short title and a one-sentence reason in the user's language; events also need startsAt (ISO 8601, with time zone) and past events are rejected. origin is user_request when the user asked for such items and harper_offer when Harper offered them and the user agreed. remove withdraws items by id. mark_registered records that the user said they signed up for a saved event (status registered; the card shows 신청했어요); unmark_registered takes that back. The user can also press 신청했어요 on the card. Harper cannot see event sites, so registered is the user's own word: use mark_registered only when the user says so, never because they opened the link. For a registered event that is coming up, a preparation follow-up can help. Saving does not register the user for anything or contact anyone.",
     parameters: {
       type: "object",
       properties: {
-        operation: { type: "string", enum: ["list", "add", "remove"] },
+        operation: {
+          type: "string",
+          enum: [
+            "list",
+            "add",
+            "remove",
+            "mark_registered",
+            "unmark_registered",
+          ],
+        },
         origin: {
           type: "string",
           enum: ["user_request", "harper_offer"],
@@ -99,19 +115,34 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
               title: { type: "string" },
               reason: {
                 type: "string",
-                description: "Why this fits the user, one sentence, shown on the card.",
+                description:
+                  "Why this fits the user, one sentence, shown on the card.",
               },
               source: {
                 type: "string",
-                description: "Site or author name, e.g. LinkedIn, Luma, a blog name.",
+                description:
+                  "Site or author name, e.g. LinkedIn, Luma, a blog name.",
               },
-              startsAt: { type: "string", description: "Events: start time, ISO 8601." },
-              endsAt: { type: "string", description: "Events: end time if known." },
-              location: { type: "string", description: "Events: place or Online." },
-              publishedAt: { type: "string", description: "Articles/posts: publish date if known." },
+              startsAt: {
+                type: "string",
+                description: "Events: start time, ISO 8601.",
+              },
+              endsAt: {
+                type: "string",
+                description: "Events: end time if known.",
+              },
+              location: {
+                type: "string",
+                description: "Events: place or Online.",
+              },
+              publishedAt: {
+                type: "string",
+                description: "Articles/posts: publish date if known.",
+              },
               deadline: {
                 type: "string",
-                description: "A deadline the content itself states (apply by, registration closes). ISO 8601 with time zone; for a date-only deadline use the end of that day, e.g. 2026-11-20T23:59:59+09:00. Omit when none is stated; never guess. The item leaves the list at the earlier of this and its default end.",
+                description:
+                  "A deadline the content itself states (apply by, registration closes). ISO 8601 with time zone; for a date-only deadline use the end of that day, e.g. 2026-11-20T23:59:59+09:00. Omit when none is stated; never guess. The item leaves the list at the earlier of this and its default end.",
               },
             },
             required: ["kind", "url", "title", "reason"],
@@ -120,7 +151,8 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
         },
         ids: {
           type: "array",
-          description: "For remove only. Exact item ids from list.",
+          description:
+            "For remove, mark_registered and unmark_registered. Exact item ids from list.",
           items: { type: "string" },
         },
       },
@@ -145,15 +177,28 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
             : "No current items.",
         };
       }
-      if (input.operation === "remove") {
+      if (input.operation !== "add") {
+        const { operation, reaction } = ID_OPERATIONS[input.operation];
         const results = [];
         for (const id of input.ids) {
           context.abortSignal?.throwIfAborted();
-          const result = await manageCareerContentSuggestion(scope, {
-            operation: "remove",
-            id,
-          });
-          results.push({ id, status: result.status });
+          try {
+            const result = await manageCareerContentSuggestion(scope, {
+              operation,
+              id,
+              item: reaction ? { reaction } : null,
+            });
+            results.push({ id, status: result.status });
+          } catch (error) {
+            // Only events can be registered; report it and keep going.
+            if (
+              !/Only events can be registered/.test(
+                String((error as any)?.message ?? error)
+              )
+            )
+              throw error;
+            results.push({ id, status: "not_an_event" });
+          }
         }
         return {
           results,
@@ -164,7 +209,9 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
       }
 
       const runId = context.backgroundInvocation?.runId ?? null;
-      const origin = runId ? "harper_background" : (input.origin ?? "user_request");
+      const origin = runId
+        ? "harper_background"
+        : (input.origin ?? "user_request");
       const results = [];
       for (const item of input.items) {
         context.abortSignal?.throwIfAborted();
@@ -211,9 +258,10 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
           const message = String(
             (error as { message?: unknown } | null)?.message ?? error
           );
-          const known = /Event date required|Event already ended|Deadline passed|Invalid content suggestion/.exec(
-            message
-          );
+          const known =
+            /Event date required|Event already ended|Deadline passed|Invalid content suggestion/.exec(
+              message
+            );
           if (!known) throw error;
           results.push({
             url,

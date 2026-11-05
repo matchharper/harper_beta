@@ -6,6 +6,7 @@ import { useCareerChatActivityContext } from "@/components/career/CareerChatPane
 import {
   careerContentSuggestionSchema,
   isCareerContentSuggestionVisible,
+  nextCareerContentStatus,
   sortCareerContentSuggestions,
   type CareerContentReaction,
   type CareerContentSuggestion,
@@ -24,7 +25,9 @@ export function useCareerContentSuggestions() {
   const query = useQuery({
     queryKey,
     enabled:
-      Boolean(user?.id) && !preview && (isOnboardingDone || stage === "completed"),
+      Boolean(user?.id) &&
+      !preview &&
+      (isOnboardingDone || stage === "completed"),
     queryFn: async () => {
       const response = await fetchWithAuth("/api/talent/content-suggestions");
       if (!response.ok) throw new Error("Unable to load suggestions");
@@ -38,7 +41,10 @@ export function useCareerContentSuggestions() {
     refetchInterval: 30_000,
   });
   const mutation = useMutation({
-    mutationFn: async (args: { id: string; reaction: CareerContentReaction }) => {
+    mutationFn: async (args: {
+      id: string;
+      reaction: CareerContentReaction;
+    }) => {
       if (preview) return;
       const response = await fetchWithAuth("/api/talent/content-suggestions", {
         method: "POST",
@@ -52,9 +58,9 @@ export function useCareerContentSuggestions() {
       queryClient.setQueryData<CareerContentSuggestion[]>(queryKey, (items) =>
         items?.flatMap((item) => {
           if (item.id !== id) return [item];
-          if (reaction === "dismissed") return [];
-          if (reaction === "seen" && item.status !== "new") return [item];
-          return [{ ...item, status: reaction }];
+          const status = nextCareerContentStatus(item, reaction);
+          if (status === "dismissed") return [];
+          return status ? [{ ...item, status }] : [item];
         })
       );
     },

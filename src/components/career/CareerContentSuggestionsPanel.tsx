@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   CalendarDays,
+  Check,
   FileText,
   MessageSquareText,
 } from "lucide-react";
@@ -63,16 +64,20 @@ export function CareerContentSuggestionCard({
   fresh,
   onOpen,
   onDismiss,
+  onRegister,
 }: {
   item: CareerContentSuggestion;
   fresh: boolean;
   onOpen: (item: CareerContentSuggestion) => void;
   onDismiss: (item: CareerContentSuggestion) => void;
+  /** Events only: the user says they signed up, or takes it back. */
+  onRegister?: (item: CareerContentSuggestion, registered: boolean) => void;
 }) {
   const t = useCareerT();
   const { locale } = useMessages();
   const kindLabel = useKindLabel();
   const Icon = KIND_ICON[item.kind];
+  const registered = item.status === "registered";
   const meta = [
     kindLabel(item.kind),
     formatWhen(item, locale),
@@ -118,14 +123,34 @@ export function CareerContentSuggestionCard({
             className="size-4 shrink-0 text-neutral-soft"
           />
         </a>
-        <button
-          type="button"
-          className="career-card-close"
-          aria-label={`${item.title}: ${t("career.content.dismiss", "닫기")}`}
-          onClick={() => onDismiss(item)}
-        >
-          {t("career.content.dismiss", "닫기")}
-        </button>
+        <div className="career-content-side">
+          {item.kind === "event" && onRegister ? (
+            <button
+              type="button"
+              className="career-card-close career-content-register"
+              aria-pressed={registered}
+              aria-label={`${item.title}: ${t("career.content.registered", "신청했어요")}`}
+              onClick={() => onRegister(item, !registered)}
+            >
+              {registered ? (
+                <Check
+                  aria-hidden
+                  className="size-3.5 shrink-0"
+                  strokeWidth={2}
+                />
+              ) : null}
+              {t("career.content.registered", "신청했어요")}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="career-card-close"
+            aria-label={`${item.title}: ${t("career.content.dismiss", "닫기")}`}
+            onClick={() => onDismiss(item)}
+          >
+            {t("career.content.dismiss", "닫기")}
+          </button>
+        </div>
       </div>
     </article>
   );
@@ -178,6 +203,9 @@ export function CareerContentSuggestionsPanel() {
             item={item}
             fresh={item.status === "new" || freshIds.has(item.id)}
             onOpen={(current) => react(current.id, "opened")}
+            onRegister={(current, registered) =>
+              react(current.id, registered ? "registered" : "unregistered")
+            }
             onDismiss={(current) => {
               setHidden((previous) => new Set(previous).add(current.id));
               react(current.id, "dismissed");

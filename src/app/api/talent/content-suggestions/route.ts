@@ -10,7 +10,13 @@ import {
 const NO_STORE = { "Cache-Control": "private, no-store" };
 const reactionSchema = z.object({
   id: z.string().uuid(),
-  reaction: z.enum(["seen", "opened", "dismissed"]),
+  reaction: z.enum([
+    "seen",
+    "opened",
+    "dismissed",
+    "registered",
+    "unregistered",
+  ]),
 });
 
 export async function GET(req: NextRequest) {
@@ -31,7 +37,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** The user's own reaction from Career home: seen, opened or dismissed. */
+/** The user's own reaction from Career home: seen, opened, dismissed, or
+ * registered / unregistered for an event they signed up for. */
 export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
   if (!user)
