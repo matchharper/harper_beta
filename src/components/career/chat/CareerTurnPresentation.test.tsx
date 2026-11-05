@@ -10,7 +10,7 @@ import { MessagesProvider } from "@/i18n/useMessage";
 import type { CareerMessage } from "@/components/career/types";
 import { createCareerMessageMerger } from "@/hooks/career/careerMessageMerge";
 
-test("work shows one live step line while professional text stays mounted across tool steps, history races and completion", async () => {
+test("Harper's words stay visible while steps fold into one live line, and stay mounted across tool steps, history races and completion", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
   const dom = new JSDOM("<div id='root'></div>", {
@@ -98,12 +98,12 @@ test("work shows one live step line while professional text stays mounted across
     const bubble = owner.querySelector("[data-chat-message-bubble]")!;
     const paragraph = bubble.querySelector("p")!;
     assert.ok(paragraph);
-    assert.match(owner.textContent!, /이력서를 확인할게요\.20s/);
-    assert.ok(paragraph.closest("[hidden]"), "working folds the steps under one live line");
+    assert.match(owner.textContent!, /이력서를 확인할게요\.Working20s/);
+    assert.equal(paragraph.closest("[hidden]"), null, "Harper's own words stay visible while working");
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 1100));
     });
-    assert.match(owner.textContent!, /이력서를 확인할게요\.21s/);
+    assert.match(owner.textContent!, /Working21s/);
     const next = {
       ...first,
       workEvents: [...first.workEvents!,
@@ -124,6 +124,16 @@ test("work shows one live step line while professional text stays mounted across
     assert.match(owner.textContent!, /경험을 확인했어요/);
     const steps = owner.querySelector("ol")!.textContent!;
     assert.ok(steps.indexOf("이력서 읽는 중") < steps.indexOf("경험을 확인했어요."));
+    const stepItem = [...owner.querySelectorAll("li")].find((item) => item.textContent === "이력서 읽는 중")!;
+    assert.ok(stepItem.closest("[hidden]"), "a finished step folds away under Harper's next words");
+    assert.equal(paragraph.closest("[hidden]"), null);
+    await render([{ ...next, workEvents: [...next.workEvents, { id: "tool:1", kind: "tool" as const, text: "공고 찾는 중" }] }]);
+    assert.equal(bubble.querySelector("p"), paragraph);
+    assert.equal(owner.querySelector(".chat-live-step")!.textContent, "공고 찾는 중");
+    assert.ok(
+      owner.textContent!.indexOf("경험을 확인했어요.") < owner.textContent!.lastIndexOf("공고 찾는 중"),
+      "the live line sits under Harper's latest words"
+    );
     const completed = {
       ...next,
       id: 4,

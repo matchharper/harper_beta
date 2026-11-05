@@ -30,7 +30,9 @@ export type ChatThinkingLogPanelProps = {
   hasToolWork?: boolean;
   statusLabel?: string;
   logs: Array<string | ChatThinkingLogEntry>;
-  /** While active, show only the current step on one line; the list opens on click. */
+  /** While active, Harper's own words (entries with content) stay visible and
+   * the steps fold into one line under them that changes with each step; the
+   * full list opens on click. */
   liveLine?: boolean;
   startedAt?: string;
 };
@@ -141,7 +143,66 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
   const entries: ChatThinkingLogEntry[] = logs.map((log) =>
     typeof log === "string" ? { label: log } : log
   );
-  const current = live ? entries.at(-1) : undefined;
+  const isStep = (entry: ChatThinkingLogEntry) => entry.content == null;
+  const shows = (entry: ChatThinkingLogEntry) =>
+    isExpanded || (live && !isStep(entry));
+  const last = entries.at(-1);
+  const current = live && last && isStep(last) ? last : undefined;
+  const toggleable = live ? entries.some(isStep) : logs.length > 0;
+
+  const button = (
+    <BareButton
+      disabled={!toggleable}
+      onClick={() => setExpanded((previous) => !previous)}
+      aria-expanded={toggleable ? isExpanded : undefined}
+      className={cn(
+        "inline-flex w-fit items-center gap-1.5 cursor-default rounded-md py-1 font-normal text-neutral-soft transition-colors hover:text-neutral-900",
+        live && "min-w-0 max-w-full gap-2"
+      )}
+    >
+      {live ? (
+        <>
+          <span aria-hidden="true" className="chat-live-dots">
+            <span />
+            <span />
+            <span />
+          </span>
+          <span className="min-w-0 overflow-hidden">
+            <span
+              key={current ? `${entries.length}:${current.label}` : "idle"}
+              className="chat-live-step"
+            >
+              <span className="career-thinking-shimmer block truncate">
+                {current ? current.label.replace(/\s+/g, " ") : statusLabel}
+              </span>
+            </span>
+          </span>
+          {duration && (
+            <span className="shrink-0 tabular-nums text-neutral-soft">
+              {duration}
+            </span>
+          )}
+        </>
+      ) : (
+        <>
+          {active ? <Loader2 className="h-4 w-4 animate-spin" /> : <></>}
+          <span>
+            {statusLabel}
+            {duration ? ` for ${duration}` : ""}
+          </span>
+        </>
+      )}
+      {toggleable && (
+        <ChevronRight
+          className={cn(
+            "h-4 w-4 transition-transform duration-200",
+            isExpanded ? "rotate-90" : ""
+          )}
+          strokeWidth={1.6}
+        />
+      )}
+    </BareButton>
+  );
 
   return (
     <div
@@ -151,64 +212,18 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
       )}
       aria-live={active ? "polite" : undefined}
     >
-      <BareButton
-        disabled={logs.length === 0}
-        onClick={() => setExpanded((previous) => !previous)}
-        aria-expanded={logs.length > 0 ? isExpanded : undefined}
-        className={cn(
-          "inline-flex w-fit items-center gap-1.5 cursor-default rounded-md py-1 font-normal text-neutral-soft transition-colors hover:text-neutral-900",
-          live && "min-w-0 max-w-full gap-2"
-        )}
-      >
-        {live ? (
-          <>
-            <span aria-hidden="true" className="chat-live-dots">
-              <span />
-              <span />
-              <span />
-            </span>
-            <span className="min-w-0 overflow-hidden">
-              <span
-                key={current ? `${entries.length}:${current.label}` : "idle"}
-                className="chat-live-step"
-              >
-                <span className="career-thinking-shimmer block truncate">
-                  {current ? current.label.replace(/\s+/g, " ") : statusLabel}
-                </span>
-              </span>
-            </span>
-            {duration && (
-              <span className="shrink-0 tabular-nums text-neutral-soft">
-                {duration}
-              </span>
-            )}
-          </>
-        ) : (
-          <>
-            {active ? <Loader2 className="h-4 w-4 animate-spin" /> : <></>}
-            <span>
-              {statusLabel}
-              {duration ? ` for ${duration}` : ""}
-            </span>
-          </>
-        )}
-        {logs.length > 0 && (
-          <ChevronRight
-            className={cn(
-              "h-4 w-4 transition-transform duration-200",
-              isExpanded ? "rotate-90" : ""
-            )}
-            strokeWidth={1.6}
-          />
-        )}
-      </BareButton>
+      {!live && button}
       {
-        <div hidden={!isExpanded || logs.length === 0} className="mb-2">
+        <div
+          hidden={!entries.some(shows)}
+          className={live ? undefined : "mb-2"}
+        >
           <ol className="flex flex-col gap-1.5">
             {entries.map((entry, index) => {
               return (
                 <li
                   key={entry.id ?? index}
+                  hidden={!shows(entry)}
                   className={cn(
                     "wrap-break-word flex items-start gap-2 text-neutral-muted"
                   )}
@@ -226,6 +241,7 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
           </ol>
         </div>
       }
+      {live && button}
     </div>
   );
 });
