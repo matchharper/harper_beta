@@ -496,7 +496,7 @@ export const en = {
     "career.sky.chat": "Chat",
     "career.sky.documents": "Documents",
     "career.sky.companies": "Companies",
-    "career.content.dismiss": "Not interested",
+    "career.content.dismiss": "Close",
     "career.content.kind.article": "Article",
     "career.content.kind.event": "Event",
     "career.content.kind.post": "Post",

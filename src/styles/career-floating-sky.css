@@ -1374,7 +1374,6 @@
   border-radius: var(--career-radius-item);
   font-size: var(--career-label-size);
   color: var(--career-ink-soft);
-  transition: color var(--career-duration-state) var(--career-ease);
 }
 .career-content-dismiss:focus-visible,
 .career-content-open:focus-visible {
@@ -1382,9 +1381,6 @@
   outline-offset: 2px;
 }
 @media (hover: hover) {
-  .career-content-dismiss:hover {
-    color: var(--career-ink);
-  }
   .career-content-open:hover svg {
     translate: 2px -2px;
   }

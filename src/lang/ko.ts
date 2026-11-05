@@ -515,7 +515,7 @@ export const ko = {
     "career.sky.chat": "채팅",
     "career.sky.documents": "자료",
     "career.sky.companies": "관심 회사",
-    "career.content.dismiss": "관심 없음",
+    "career.content.dismiss": "닫기",
     "career.content.kind.article": "글",
     "career.content.kind.event": "행사",
     "career.content.kind.post": "게시물",
