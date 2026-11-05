@@ -137,15 +137,21 @@ revoke all on function public.capture_company_role_setting_revision_trigger_v1()
   from public, anon, authenticated, service_role;
 
 -- Every column, so a setting column added later is versioned too; a write that
--- touches only the Brief, Memory or timestamps leaves the hash unchanged.
+-- touches only the Brief, Memory or timestamps leaves the hash unchanged, and a
+-- write that changes nothing skips the function.
 create trigger company_internal_roles_setting_revision
-  after insert or update on public.company_internal_roles
+  after insert on public.company_internal_roles
   for each row execute function public.capture_company_role_setting_revision_trigger_v1();
+create trigger company_internal_roles_setting_revision_update
+  after update on public.company_internal_roles
+  for each row
+  when (old.* is distinct from new.*)
+  execute function public.capture_company_role_setting_revision_trigger_v1();
 
 create trigger company_roles_setting_revision
   after update of status, priority on public.company_roles
   for each row
-  when (new.source_type = 'internal')
+  when (new.source_type = 'internal' and (old.status, old.priority) is distinct from (new.status, new.priority))
   execute function public.capture_company_role_setting_revision_trigger_v1();
 
 -- Version 1 for every Harper-managed role, from what is saved now.
