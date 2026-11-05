@@ -5077,6 +5077,7 @@ async function readCandidateDecisionTarget(args: {
 function stageCompanyIntroDecisionContext(args: {
   actorId: string;
   companyAppeal: string | null;
+  reason?: string | null;
   decision: OrgAgentCompanyIntroDecision;
   introCandidateId: string;
   introRecipientEmails: string[];
@@ -5089,6 +5090,7 @@ function stageCompanyIntroDecisionContext(args: {
   const context: OrgAgentCompanyIntroDecisionConfirmation = {
     actorId: args.actorId,
     companyAppeal: args.companyAppeal,
+    reason: args.reason ?? null,
     decision: args.decision,
     introCandidateId: args.introCandidateId,
     introRecipientEmails: args.introRecipientEmails,
@@ -5170,6 +5172,7 @@ async function immediatelyPresentedCompanyIntroDecision(args: {
   if (!confirmation) return null;
   return {
     companyAppeal: text(confirmation.companyAppeal) || null,
+    reason: text(confirmation.reason) || null,
     decision: companyIntroDecision(confirmation.decision),
     introCandidateId: text(confirmation.introCandidateId),
     introRecipientEmails: normalizedDecisionEmails(
@@ -5223,6 +5226,11 @@ async function executeCompanyIntroDecision(args: {
   ) {
     throw new OrgAgentToolInputError(
       "companyAppeal, introRecipientEmails, and nextStageId can only be used with request_intro"
+    );
+  }
+  if (decision === "request_intro" && has(args.input, "reason")) {
+    throw new OrgAgentToolInputError(
+      "reason can only be used with pass; request_intro keeps the company's reason in companyAppeal"
     );
   }
 
@@ -5296,6 +5304,7 @@ async function executeCompanyIntroDecision(args: {
   }
 
   const appealInput = nullableTextField(args.input, "companyAppeal", 2_000);
+  const reasonInput = nullableTextField(args.input, "reason", 2_000);
   const suppliedRecipientEmails = has(args.input, "introRecipientEmails")
     ? emailArray(args.input.introRecipientEmails, 10)
     : null;
@@ -5401,6 +5410,7 @@ async function executeCompanyIntroDecision(args: {
       actorId: args.actorId,
       companyAppeal,
       decision,
+      reason: decision === "pass" && reasonInput.present ? reasonInput.value : null,
       introCandidateId: companyIntro.id,
       introRecipientEmails,
       nextStageId,
@@ -5451,9 +5461,15 @@ async function executeCompanyIntroDecision(args: {
       "The confirmed company-first proposal is no longer the current candidate item"
     );
   }
+  const channel = args.source === "slack" ? "slack" : "chat";
   if (decision === "pass") {
+    const reason =
+      (reasonInput.present ? reasonInput.value : null) || confirmed.reason || null;
     const result = await passOrgCompanyIntro({
+      channel,
       introCandidateId: companyIntro.id,
+      reason: reason ?? undefined,
+      sourceMessageId: args.currentUserMessageId,
       user: args.user,
       workspaceId: args.workspaceId,
     });
@@ -5471,6 +5487,7 @@ async function executeCompanyIntroDecision(args: {
       candidateName,
       candidateRequestCreated: false,
       decision,
+      reasonRecorded: Boolean(reason) && result.status === "passed",
       responseGuidance:
         "Confirm naturally that the company chose not to propose this Role and that the candidate was not contacted. Do not add an unrelated next step.",
       roleName: role.name,
@@ -5495,10 +5512,12 @@ async function executeCompanyIntroDecision(args: {
     );
   }
   const result = await requestOrgCompanyIntro({
+    channel,
     companyAppeal: confirmed.companyAppeal,
     introCandidateId: companyIntro.id,
     introRecipientEmails: confirmed.introRecipientEmails,
     nextStageId: nextStageDbId || null,
+    sourceMessageId: args.currentUserMessageId,
     user: args.user,
     workspaceId: args.workspaceId,
   });

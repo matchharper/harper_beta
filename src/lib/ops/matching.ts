@@ -1,4 +1,8 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import {
+  isCompanyDecisionActivityId,
+  OPS_COMPANY_ACTIVITY_SOURCE,
+} from "@/lib/ops/companyActivityPresentation";
 import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 import { getCompanyInternalRoleRequest } from "@/lib/companyInternalRole";
 import {
@@ -5173,7 +5177,9 @@ export async function fetchOpsMatchingProgress(args: {
   const progressLimit = roleId
     ? MAX_MATCHING_PROGRESS_ITEMS
     : MAX_MATCHING_PROGRESS_ITEMS * 3;
-  let query = fromOpsMatchingTable(admin, "talent_progress")
+  // Company Pass/request decisions are kept in company_decision_events; the
+  // activity view puts them back on this timeline next to talent_progress.
+  let query = (admin.from(OPS_COMPANY_ACTIVITY_SOURCE as any) as any)
     .select(
       "id, talent_id, role_id, recommendation_id, kind, text, user_id, created_at"
     )
@@ -5339,6 +5345,8 @@ export async function deleteOpsMatchingProgress(args: {
   const talentId = normalizeText(args.talentId);
   if (!progressId) throw new Error("progressId is required");
   if (!talentId) throw new Error("talentId is required");
+  if (isCompanyDecisionActivityId(progressId))
+    throw new Error("회사 결정 기록은 지울 수 없습니다.");
 
   const admin = getSupabaseAdmin();
   let query = fromOpsMatchingTable(admin, "talent_progress")

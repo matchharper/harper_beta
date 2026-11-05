@@ -90,6 +90,7 @@ async function handlePost(req: NextRequest) {
     if (action === "pass") {
       const payload = await passOrgCompanyIntro({
         ...common,
+        channel: "web",
         reason:
           typeof body.reason === "string"
             ? body.reason.trim().slice(0, 2000)
@@ -132,6 +133,7 @@ async function handlePost(req: NextRequest) {
     if (action === "request") {
       const payload = await requestOrgCompanyIntro({
         ...common,
+        channel: "web",
         companyAppeal: String(body.companyAppeal ?? ""),
         introRecipientEmails: Array.isArray(body.introRecipientEmails)
           ? body.introRecipientEmails.map((value) => String(value))

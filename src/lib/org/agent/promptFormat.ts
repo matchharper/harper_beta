@@ -1714,6 +1714,7 @@ function formatCompanyIntroDecisionResult(result: Record<string, any>) {
       "candidate_request_created=false",
       "candidate_contacted=false",
       "candidate_visible_opportunity_created=false",
+      `company_reason_recorded=${Boolean(result.reasonRecorded)}`,
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
   }

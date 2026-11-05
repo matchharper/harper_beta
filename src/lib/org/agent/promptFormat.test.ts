@@ -1072,6 +1072,15 @@ test("company-first intro execution distinguishes preparation, delivery, and pas
   assert.match(passed, /candidate_request_created=false/);
   assert.match(passed, /candidate_contacted=false/);
   assert.match(passed, /candidate_visible_opportunity_created=false/);
+  assert.match(passed, /company_reason_recorded=false/);
+  const passedWithReason = serializeOrgAgentToolResult("decide_company_intro", {
+    candidateName: "김하퍼",
+    decision: "pass",
+    reasonRecorded: true,
+    roleName: "Founding Engineer",
+    status: "passed",
+  });
+  assert.match(passedWithReason, /company_reason_recorded=true/);
 });
 
 test("pipeline mutation results state exact effects and no candidate contact", () => {

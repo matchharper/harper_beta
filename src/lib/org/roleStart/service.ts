@@ -14,7 +14,6 @@ import {
 } from "@/lib/org/agent/roleCreationState";
 import { after } from "next/server";
 import { createHash } from "node:crypto";
-import { recordOrgIntroDecision } from "@/lib/org/actionLogs";
 import { coveredQuestions, distinctChips, fillChips, keptWithoutFill, mayAsk, MIN_CHIPS, questionCardFromReply } from "./chipGuard";
 import {
   answeredForOverlap,
@@ -3369,7 +3368,8 @@ export async function keepLikedFirstThree(
 /**
  * Registration: first-three people rated 맞지 않음 are recorded as passed for
  * this Role exactly like the inbox Pass button (a proposal, then
- * pass_company_intro_v1 and the same decision log). Eligibility for every
+ * pass_company_intro_v2, which also records the decision with channel
+ * role_start). Eligibility for every
  * later search (company_first_pair_is_available_v1) skips any person with a
  * proposal row for the Role, so they are not proposed again. 정보가 부족해요
  * goes to the inbox instead (keepLikedFirstThree). Returns how many were passed.
@@ -3412,8 +3412,7 @@ export async function passDislikedFirstThree(
     roleFingerprint: `role-start:${hardConditionsHash(args.session.brief)}`,
   });
   for (const id of ids) {
-    await sql`select public.pass_company_intro_v1(${id}::uuid, ${args.workspaceId}::uuid, ${args.userId}::uuid)`;
-    await recordOrgIntroDecision({ admin: getSupabaseAdmin(), workspaceId: args.workspaceId, introCandidateId: id, decision: "pass" });
+    await sql`select public.pass_company_intro_v2(${id}::uuid, ${args.workspaceId}::uuid, ${args.userId}::uuid, 'role_start')`;
   }
   return ids.length;
 }

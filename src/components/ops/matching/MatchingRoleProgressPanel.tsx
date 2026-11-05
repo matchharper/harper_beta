@@ -18,6 +18,7 @@ import {
   useOpsMatchingProgress,
 } from "@/hooks/ops/useOpsMatching";
 import type { OpsManualInternalRecommendationRole } from "@/lib/ops/careerServer";
+import { isCompanyDecisionActivityId } from "@/lib/ops/companyActivityPresentation";
 import type {
   OpsMatchingProgressItem,
   OpsMatchingRecommendationDelivery,
@@ -265,7 +266,7 @@ export const MatchingRoleProgressPanel = memo(
         if (timelineItem.kind === "progress") {
           return {
             createdAt: timelineItem.item.createdAt,
-            deletable: true,
+            deletable: !isCompanyDecisionActivityId(timelineItem.item.id),
             icon: "note",
             id: timelineItem.item.id,
             text: timelineItem.item.text,

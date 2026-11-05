@@ -68,6 +68,17 @@ function joinActivitySubtitle(parts: Array<string | null | undefined>) {
   return text || null;
 }
 
+// Company activity rows for Ops screens: talent_progress, except company intro
+// decisions (org_company_intro_passed/requested), which come from
+// company_decision_events in the same row shape (migration
+// 20261105020000_company_decision_events.sql).
+export const OPS_COMPANY_ACTIVITY_SOURCE = "ops_company_progress_activity_v1";
+
+// Rows the view takes from company_decision_events. They are append-only, so
+// Ops screens must not offer to delete them.
+export const isCompanyDecisionActivityId = (id: string) =>
+  id.startsWith("company_decision:");
+
 // Filter at the database before limiting rows so internal noise cannot hide real activity.
 export const OPS_COMPANY_PROGRESS_KINDS = [
   "company_candidate_presented",
