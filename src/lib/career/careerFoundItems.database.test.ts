@@ -24,6 +24,29 @@ const signupKind = readFileSync(
   ),
   "utf8"
 );
+const dailyProcessing = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20261104153622_career_daily_processing.sql",
+    import.meta.url
+  ),
+  "utf8"
+);
+const openedCheckIn = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20261105130000_career_content_opened_check_in.sql",
+    import.meta.url
+  ),
+  "utf8"
+);
+/** The daily sources table and its writer, as the daily batch migration creates them. */
+function dailySourcesSql() {
+  const table = dailyProcessing.indexOf("create table public.career_daily_sources");
+  const writer = dailyProcessing.indexOf("create function public.record_career_daily_source");
+  return [
+    dailyProcessing.slice(table, dailyProcessing.indexOf("\n);", table) + 3),
+    dailyProcessing.slice(writer, dailyProcessing.indexOf("$$;", writer) + 3),
+  ].join("\n");
+}
 // The guard as it runs in production before ownListFix (not in this repo's migrations).
 const productionIsolationGuard = `
   create function enforce_user_submitted_role_recommendation_isolation_v1() returns trigger
@@ -391,6 +414,78 @@ test("talents read only their own suggestions and cannot call the writer", async
     await assert.rejects(
       db.query("select manage_career_content_suggestion($1,'remove',$2)", [talent, (own.rows[0] as any).id]),
       /permission denied/
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("opening an event or sign-up asks once at the next morning's daily batch", async () => {
+  const db = await database();
+  try {
+    // Only what the daily source check reads on this path.
+    await db.exec(`
+      alter table talent_users add column deleted_at timestamptz;
+      create table opportunity_discovery_run (id uuid primary key);
+      create table talent_progress (id uuid, recommendation_id uuid, kind text, metadata jsonb);
+      create table company_talent_followups (id uuid);
+      ${dailySourcesSql()}
+    `);
+    await db.exec(openedCheckIn);
+    const add = (item: Record<string, unknown>) =>
+      content(db, "add", { item, origin: "user_request" });
+    const react = (id: string, reaction: string) =>
+      content(db, "react", { id, item: { reaction } });
+    const sourceFor = async (id: string) =>
+      (await db.query<Record<string, any>>(
+        "select * from career_daily_sources where source_id = $1", [id]
+      )).rows;
+    const current = async (id: string, at = new Date()) =>
+      (await db.query<{ ok: boolean }>(
+        "select career_daily_source_current($1, $2, $3) as ok", [id, talent, at.toISOString()]
+      )).rows[0].ok;
+
+    const event = await add({
+      kind: "event", url: "https://lu.ma/pytorch-seoul", title: "PyTorch 서울 밋업", reason: "이유",
+      startsAt: new Date(Date.now() + 3 * 86400_000).toISOString(),
+    });
+    const article = await add({ kind: "article", url: "https://example.com/read", title: "글", reason: "이유" });
+    await react(event.id, "opened");
+    await react(event.id, "opened");
+    await react(article.id, "opened");
+    assert.equal((await sourceFor(article.id)).length, 0, "articles are not asked about");
+    const [source, ...again] = await sourceFor(event.id);
+    assert.equal(again.length, 0, "opening the link again does not ask twice");
+    assert.equal(source.source_kind, "content_opened");
+    const tomorrow = new Date(Date.now() + 9 * 3600_000 + 86400_000).toISOString().slice(0, 10);
+    assert.equal(
+      new Date(source.available_at).toISOString(),
+      new Date(`${tomorrow}T09:00:00+09:00`).toISOString(),
+      "the question waits for the next morning"
+    );
+    assert.match(source.event.summary, /PyTorch 서울 밋업/);
+    assert.match(source.event.summary, /manage_action_items/);
+    assert.equal(await current(source.id), true);
+    await react(event.id, "dismissed");
+    assert.equal(await current(source.id), false, "closed before then: not asked");
+
+    const chat = await add({ kind: "signup", url: "https://example.com/coffee", title: "PM 커피챗", reason: "이유" });
+    await react(chat.id, "opened");
+    const [chatSource] = await sourceFor(chat.id);
+    assert.equal(await current(chatSource.id), true);
+    await content(db, "remove", { id: chat.id });
+    assert.equal(await current(chatSource.id), false, "already moved to the schedule: not asked");
+
+    const tonight = await add({
+      kind: "event", url: "https://lu.ma/tonight", title: "오늘 밤 밋업", reason: "이유",
+      startsAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+    await react(tonight.id, "opened");
+    const [tonightSource] = await sourceFor(tonight.id);
+    assert.equal(
+      await current(tonightSource.id, new Date(Date.now() + 2 * 3600_000)),
+      false,
+      "already started by the morning: not asked"
     );
   } finally {
     await db.close();
