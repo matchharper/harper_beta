@@ -236,3 +236,49 @@ test("a closed posting Harper found is not saved, while the user's own save of i
     else process.env.EXA_API_KEY = previousKey;
   }
 });
+
+test("a posting Harper found gets no chat card until it is published", async () => {
+  const previousKey = process.env.EXA_API_KEY;
+  process.env.EXA_API_KEY = "test-exa-key";
+  const exa = getExaClient();
+  const previousRead = exa.getContents;
+  exa.getContents = (async () => ({
+    requestId: "live-read",
+    results: [{ summary: JSON.stringify({
+      applicationsClosed: false, employmentTypes: [], hiringCompany: "Example Systems", isJobPosting: true,
+      jobDescription: "Build the platform.", jobLocation: "", roleSummary: "", roleTitle: "Platform Engineer",
+      salaryRange: "", workArrangement: "",
+    }) }],
+  })) as unknown as typeof exa.getContents;
+  let recommendationId: string | null = null;
+  const admin = {
+    from: () => {
+      const q = {
+        select: () => q, eq: () => q, in: () => q, ilike: () => q,
+        order: () => q, limit: () => q,
+        maybeSingle: async () => ({ data: null, error: null }),
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
+      };
+      return q;
+    },
+    rpc: async () => ({
+      data: { role_id: "external-role", recommendation_id: recommendationId, created_recommendation: false, saved_stage: null },
+      error: null,
+    }),
+  } as unknown as TalentAdminClient;
+  try {
+    const copied = await saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform", mode: "suggest" });
+    assert.equal(copied.ok, true);
+    if (!copied.ok) throw new Error("Expected the posting to be copied");
+    assert.deepEqual(copied.postingRoleIds, []);
+    recommendationId = "listed-recommendation";
+    const listed = await saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform", mode: "suggest" });
+    assert.equal(listed.ok, true);
+    if (!listed.ok) throw new Error("Expected the listed posting to be returned");
+    assert.deepEqual(listed.postingRoleIds, ["external-role"]);
+  } finally {
+    exa.getContents = previousRead;
+    if (previousKey === undefined) delete process.env.EXA_API_KEY;
+    else process.env.EXA_API_KEY = previousKey;
+  }
+});

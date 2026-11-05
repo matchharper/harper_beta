@@ -95,11 +95,11 @@ export async function saveJobPosting(args: {
       ok: true as const,
       mode,
       roleId: saved.roleId,
-      postingRoleIds: [saved.roleId],
+      // No posting chip until it is evaluated and published.
+      postingRoleIds: onList ? [saved.roleId] : [],
       recommendationId: saved.recommendationId,
       created: false,
       savedStage: saved.savedStage,
-      // No posting chip until it is evaluated and published.
       postingLink: null,
       hiringPost: Boolean(args.hiringPost),
       modelOutput: [

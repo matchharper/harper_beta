@@ -413,7 +413,7 @@ const getInitialHistoryOpportunities = (
     roleId: "preview-role-hiring-post",
     title: "Founding GTM Lead",
     companyDbId: null,
-    companyName: "Quill Analytics",
+    companyName: "Preview Analytics",
     companyDescription: t(
       "career.preview.career_workspace_preview.10x4rht",
       "논문과 프로덕트 사이를 잇는 applied research 조직입니다."
@@ -455,7 +455,7 @@ const getInitialHistoryOpportunities = (
     savedStage: null,
     sourceProvider: "user_submitted",
     hiringPost: {
-      posterName: "Mina Cho",
+      posterName: "Preview Poster",
       posterTitle: "Co-founder & CEO",
       posterProfileUrl: null,
       contactMethod: "message",
