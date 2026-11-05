@@ -42,7 +42,7 @@ export function stackEnv() {
   const env = {};
   for (const key of Object.keys({ ...sourceEnv, ...process.env })) env[key] = "";
   for (const key of ["PATH", "HOME", "USER", "SHELL", "TMPDIR", "LANG", "TERM"]) if (process.env[key]) env[key] = process.env[key];
-  for (const key of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "AI_GATEWAY_API_KEY", "RESEND_FROM_EMAIL", "EMAIL_REPLY_FROM_EMAIL", "SLACK_HARPER_LOCAL_APP_ID", "SLACK_HARPER_LOCAL_APP_TOKEN", "SLACK_HARPER_LOCAL_BOT_TOKEN"]) {
+  for (const key of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "EXA_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "AI_GATEWAY_API_KEY", "RESEND_FROM_EMAIL", "EMAIL_REPLY_FROM_EMAIL", "SLACK_HARPER_LOCAL_APP_ID", "SLACK_HARPER_LOCAL_APP_TOKEN", "SLACK_HARPER_LOCAL_BOT_TOKEN"]) {
     env[key] = sourceEnv[key] || readJson(path.join(privateDir,"providers.json"),{})[key] || "";
   }
   Object.assign(env, {
