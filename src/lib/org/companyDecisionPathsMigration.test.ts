@@ -62,6 +62,7 @@ const SETUP = `
       revision = revision + 1 where id = v_intro.id;
     return jsonb_build_object('status', 'requested', 'introCandidateId', v_intro.id);
   end $$;
+  create table talent_users(user_id uuid primary key);
   create table company_role_start_sessions(role_id uuid primary key references company_roles, evaluations jsonb not null default '{}',
     revision int not null default 0);
   create table company_todo_suggestions(id uuid primary key, company_workspace_id uuid, role_id uuid, kind text, title text,
@@ -91,6 +92,7 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
       insert into company_roles(role_id, company_workspace_id, name) values ('${role}', '${workspace}', 'Engineer');
       insert into company_internal_roles(role_id, request, criteria) values ('${role}', 'brief', '[]');
       insert into company_role_start_sessions(role_id) values ('${role}');
+      insert into talent_users values ('${talent}'), ('${other}');
       insert into company_todo_suggestions(id, company_workspace_id, role_id, kind, title) values
         ('${suggestion}', '${workspace}', '${role}', 'follow_up', 'Follow up'),
         ('${suggestion2}', '${workspace}', '${role}', 'widen', 'Widen');
@@ -114,8 +116,11 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
     // A writer that forgot the channel still shows up.
     await progress("org_stage_change", { stage: "interview" });
     // Notes: the web Pass reason copy is already on the Pass decision.
-    await progress("org_note", { org: true, decisionChannel: "chat" });
+    const note = "60000000-0000-4000-8000-000000000001";
+    const deleted = "60000000-0000-4000-8000-000000000002";
+    await progress("org_note", { org: true, decisionChannel: "chat" }, note);
     await progress("org_note", { org: true, decision: "pass" });
+    await progress("org_note", { org: true }, deleted);
     await progress("org_candidate_profile_first_view", { source: "slack" });
     // Save, save again (no change), unsave.
     const saveId = "50000000-0000-4000-8000-000000000001";
@@ -165,6 +170,7 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
       ["member_candidate", "stage_change", "email", "좋은 경험"],
       ["member_candidate", "stage_change", "unknown", null],
       ["member_candidate", "note", "chat", "text"],
+      ["member_candidate", "note", "web", "text"],
       ["member_candidate", "view", "slack", null],
       ["member_candidate", "save", "web", null],
       ["member_candidate", "unsave", "web", null],
@@ -180,12 +186,39 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
     assert.ok(rows.every(r => r.actor_user_id === actor));
     assert.equal(rows[0].detail.stage, "interview");
     assert.equal(rows[0].detail.previousStage, "connected");
-    assert.equal(rows[8].subject_id, talent);
-    assert.equal(rows[8].detail.rating, "bad");
-    assert.equal(rows[9].subject_id, other);
-    assert.equal(rows[10].detail.rating, "uncertain");
-    assert.equal(rows[13].detail.kind, "widen");
-    assert.equal(rows[15].subject_id, person);
+    assert.equal(rows[9].subject_id, talent);
+    assert.equal(rows[9].detail.rating, "bad");
+    assert.equal(rows[10].subject_id, other);
+    assert.equal(rows[11].detail.rating, "uncertain");
+    assert.equal(rows[14].detail.kind, "widen");
+    assert.equal(rows[16].subject_id, person);
+
+    // Every text a note had is kept and marked; only the account deletion erases it.
+    await db.exec(`update talent_progress set text = 'edited text' where id = '${note}';
+      update talent_progress set text = 'edited text' where id = '${note}';
+      delete from talent_progress where id = '${deleted}';`);
+    const notes = async () => (await db.query<any>(`select reason_text, detail from company_decision_events
+      where action = 'note' order by id`)).rows.map(n =>
+        [n.reason_text, Boolean(n.detail.superseded), Boolean(n.detail.deleted), Boolean(n.detail.redacted), n.detail.edited]);
+    assert.deepEqual(await notes(), [
+      ["text", true, false, false, false],
+      ["text", false, true, false, false],
+      ["edited text", false, false, false, true],
+    ]);
+    // The Talent account goes (its notes go with it): every reason and note
+    // about the person is erased, including a note deleted earlier.
+    await db.exec(`delete from talent_users where user_id = '${talent}';
+      delete from talent_progress where talent_id = '${talent}' and kind = 'org_note';`);
+    assert.deepEqual(await notes(), [
+      [null, true, true, true, false],
+      [null, false, true, true, false],
+      [null, false, true, true, true],
+    ]);
+    const left = (await db.query<any>(`select count(*)::int n from company_decision_events
+      where subject_id = '${talent}' and reason_text is not null`)).rows[0].n;
+    assert.equal(left, 0);
+    assert.equal((await db.query<any>(`select count(*)::int n from company_decision_events
+      where subject_id = '${other}' and detail ? 'redacted'`)).rows[0].n, 0);
 
     const can = async (q: string) => (await db.query<any>(`select ${q} as ok`)).rows[0].ok;
     const fn = "set_external_candidate_company_decision_v1(uuid,uuid,text,uuid,text,text)";
