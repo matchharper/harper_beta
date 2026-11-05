@@ -1,3 +1,4 @@
+import { sqlLiteral } from "@/lib/sqlLiteral";
 import {
   buildBlockedCompanySql,
   previouslyRecommendedRoleExclusionSql,
@@ -32,6 +33,23 @@ export function eligibilitySql(args: {
     .filter(Boolean)
     .join(" AND ");
 }
+/** A posting this talent copied from the web (save_job_posting suggest) is
+ * private to them: excluded from everyone's search, evaluable only when they
+ * name it by exact role ID. */
+export function ownSubmittedRoleSql(args: {
+  userId: string;
+  blockedCompanies: string[];
+}) {
+  return [
+    "cr.source_type = 'external'",
+    "cr.source_provider = 'user_submitted'",
+    `COALESCE(cr.information->'submittedTalentIds','[]'::jsonb) ? ${sqlLiteral(args.userId)}`,
+    `NOT ${expiredExternalRoleSql("cr")}`,
+    "lower(coalesce(cr.information->>'testOnly','false')) <> 'true'",
+    ...buildBlockedCompanySql(args.blockedCompanies),
+  ].join(" AND ");
+}
+
 export const ROLE_SELECT = `cr.role_id::text, cr.company_workspace_id::text, cr.name AS role_name,
 cr.description, cr.external_jd_url, cr.country_code, cr.location_text, cr.work_mode, cr.type, cr.posted_at, cr.updated_at,
 cr.salary_min, cr.salary_max, cr.salary_currency, cr.salary_period, cr.salary_range, cr.seniority_level,

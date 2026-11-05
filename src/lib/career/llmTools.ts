@@ -83,6 +83,7 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   "read_agent_messages", "contact_user",
   "manage_work",
   "manage_action_items",
+  "manage_content_suggestions",
   TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   // 최신/외부 웹 정보가 필요한 질문용. 예: 최근 투자, 최신 뉴스.
   TALENT_TOOL_NAMES.WEB_SEARCH,

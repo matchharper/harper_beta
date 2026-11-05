@@ -117,11 +117,14 @@ const CareerWorkspaceNav = ({
   activeTab,
   isMobile = false,
   opportunityCount,
+  homeCount = 0,
   onChangeTab,
 }: {
   activeTab: CareerWorkspaceTab;
   isMobile?: boolean;
   opportunityCount: number;
+  /** New "볼 만한 것" items, shown on the mobile home tab. */
+  homeCount?: number;
   onChangeTab: (tab: CareerWorkspaceTab) => void;
 }) => {
   const t = useCareerT();
@@ -155,7 +158,16 @@ const CareerWorkspaceNav = ({
         : "chat";
   const items: TabBoxItem<TopTab>[] = [
     ...(isMobile
-      ? [{ value: "home" as const, label: t("career.sky.home", "홈") }]
+      ? [
+          {
+            value: "home" as const,
+            label: t("career.sky.home", "홈"),
+            countLabel:
+              homeCount > 0 ? (
+                <span className="career-nav-count">{homeCount}</span>
+              ) : undefined,
+          },
+        ]
       : []),
     { value: "chat", label: t("career.sky.chat", "채팅") },
     {

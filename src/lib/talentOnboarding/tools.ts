@@ -275,6 +275,7 @@ export class TalentToolError extends Error {
 export const TALENT_TOOL_NAMES = {
   MANAGE_WORK: "manage_work",
   MANAGE_ACTION_ITEMS: "manage_action_items",
+  MANAGE_CONTENT_SUGGESTIONS: "manage_content_suggestions",
   APPLY_TO_INTERNAL_ROLE: "apply_to_internal_role",
   ASSIGN_TO_ROLE: "assign_to_role",
   LIST_PROFILES: "list_profiles",
@@ -336,6 +337,7 @@ export type TalentToolName =
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.MANAGE_WORK,
   TALENT_TOOL_NAMES.MANAGE_ACTION_ITEMS,
+  TALENT_TOOL_NAMES.MANAGE_CONTENT_SUGGESTIONS,
   ...Object.keys(CAREER_AGENTIC_TOOLS),
   TALENT_TOOL_NAMES.USE_BROWSER,
   TALENT_TOOL_NAMES.SUGGEST_FORM,
@@ -980,6 +982,9 @@ export async function runGetRoleContext(args: {
         postedAt: optionalToolString(row.posted_at),
         expiresAt: optionalToolString(row.expires_at),
         sourceType: optionalToolString(row.source_type),
+        ...(!isInternalRole && asToolRecord(roleInformation?.hiringPost)
+          ? { hiringPost: roleInformation?.hiringPost }
+          : {}),
       },
       companyDb: publicRole ? {name:publicRole.companyName,description:publicRole.companyDescription} : {
         logoUrl: resolveCompanyLogoUrl({
@@ -2767,6 +2772,44 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           description:
             "Exact hiring company from the user or posting, if known.",
         },
+        deadline: {
+          type: "string",
+          description:
+            "A deadline the content itself states (apply by, registration closes). ISO 8601 with time zone; for a date-only deadline use the end of that day, e.g. 2026-11-20T23:59:59+09:00. Omit when none is stated; never guess. It ends the card sooner than the default rules.",
+        },
+        mode: {
+          type: "string",
+          enum: ["save", "suggest"],
+          description:
+            "save (default): the user asked to save or apply; the card goes to Saved. suggest: you found it yourself and think it may fit; it is copied without a card, then evaluated and published to the new-opportunities list only if it fits.",
+        },
+        hiring_post: {
+          type: "object",
+          description:
+            "Only for a social post (for example a LinkedIn post) in which someone at the hiring company says they are hiring for a known role. Requires mode suggest. Pass the role as title and the company as company_name.",
+          properties: {
+            poster_name: { type: "string" },
+            poster_title: {
+              type: "string",
+              description: "The poster's role at the hiring company.",
+            },
+            poster_profile_url: { type: "string" },
+            contact_method: {
+              type: "string",
+              enum: ["email", "message", "apply_link", "comment", "unknown"],
+              description:
+                "How the post asks candidates to reach out. Use apply_link only when no separate job page can be saved instead.",
+            },
+            contact_email: { type: "string" },
+            apply_url: { type: "string" },
+            posted_at: {
+              type: "string",
+              description: "Post date as ISO 8601, if shown.",
+            },
+          },
+          required: ["contact_method"],
+          additionalProperties: false,
+        },
       },
     },
     channels: ["chat"],
@@ -2775,6 +2818,21 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         throw new TalentToolError(
           "Saving a posting requires user context and its URL.",
         );
+      const mode = input.mode === "suggest" ? "suggest" : "save";
+      const post =
+        input.hiring_post && typeof input.hiring_post === "object"
+          ? (input.hiring_post as Record<string, unknown>)
+          : null;
+      if (post && mode !== "suggest")
+        throw new TalentToolError(
+          "A hiring post is found by Harper, so save it with mode suggest.",
+        );
+      const contactMethod = String(post?.contact_method ?? "unknown");
+      const isoOrNull = (value: unknown) => {
+        const raw = optionalToolString(value);
+        const time = raw ? Date.parse(raw) : Number.NaN;
+        return Number.isNaN(time) ? null : new Date(time).toISOString();
+      };
       const { saveJobPosting } = await import("@/lib/career/saveJobPosting");
       return saveJobPosting({
         admin: context.admin as TalentAdminClient,
@@ -2782,6 +2840,25 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         url: String(input.url),
         title: optionalToolString(input.title) ?? undefined,
         companyName: optionalToolString(input.company_name) ?? undefined,
+        mode,
+        deadline: isoOrNull(input.deadline),
+        hiringPost: post
+          ? {
+              posterName: optionalToolString(post.poster_name),
+              posterTitle: optionalToolString(post.poster_title),
+              posterProfileUrl: optionalToolString(post.poster_profile_url),
+              contactMethod: (
+                ["email", "message", "apply_link", "comment"].includes(
+                  contactMethod,
+                )
+                  ? contactMethod
+                  : "unknown"
+              ) as "email" | "message" | "apply_link" | "comment" | "unknown",
+              contactEmail: optionalToolString(post.contact_email),
+              applyUrl: optionalToolString(post.apply_url),
+              postedAt: isoOrNull(post.posted_at),
+            }
+          : null,
       });
     },
   },

@@ -10,7 +10,7 @@ import { MessagesProvider } from "@/i18n/useMessage";
 import type { CareerMessage } from "@/components/career/types";
 import { createCareerMessageMerger } from "@/hooks/career/careerMessageMerge";
 
-test("professional text stays mounted below Working across tool steps, history races and completion", async () => {
+test("Harper's words stay visible while steps fold into one live line, and stay mounted across tool steps, history races and completion", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
   const dom = new JSDOM("<div id='root'></div>", {
@@ -98,15 +98,12 @@ test("professional text stays mounted below Working across tool steps, history r
     const bubble = owner.querySelector("[data-chat-message-bubble]")!;
     const paragraph = bubble.querySelector("p")!;
     assert.ok(paragraph);
-    assert.match(owner.textContent!, /Working for 20s/);
-    assert.ok(
-      owner.textContent!.indexOf("Working") <
-        owner.textContent!.indexOf("이력서를 확인할게요.")
-    );
+    assert.match(owner.textContent!, /이력서를 확인할게요\.다음 할 일을 정하는 중20s/);
+    assert.equal(paragraph.closest("[hidden]"), null, "Harper's own words stay visible while working");
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 1100));
     });
-    assert.match(owner.textContent!, /Working for 21s/);
+    assert.match(owner.textContent!, /다음 할 일을 정하는 중21s/);
     const next = {
       ...first,
       workEvents: [...first.workEvents!,
@@ -125,7 +122,18 @@ test("professional text stays mounted below Working across tool steps, history r
     assert.equal(owner.querySelector("[data-chat-message-bubble]"), bubble);
     assert.equal(bubble.querySelector("p"), paragraph);
     assert.match(owner.textContent!, /경험을 확인했어요/);
-    assert.ok(owner.textContent!.indexOf("이력서 읽는 중") < owner.textContent!.indexOf("경험을 확인했어요."));
+    const steps = owner.querySelector("ol")!.textContent!;
+    assert.ok(steps.indexOf("이력서 읽는 중") < steps.indexOf("경험을 확인했어요."));
+    const stepItem = [...owner.querySelectorAll("li")].find((item) => item.textContent === "이력서 읽는 중")!;
+    assert.ok(stepItem.closest("[hidden]"), "a finished step folds away under Harper's next words");
+    assert.equal(paragraph.closest("[hidden]"), null);
+    await render([{ ...next, workEvents: [...next.workEvents, { id: "tool:1", kind: "tool" as const, text: "공고 찾는 중" }] }]);
+    assert.equal(bubble.querySelector("p"), paragraph);
+    assert.equal(owner.querySelector(".chat-live-step")!.textContent, "공고 찾는 중");
+    assert.ok(
+      owner.textContent!.indexOf("경험을 확인했어요.") < owner.textContent!.lastIndexOf("공고 찾는 중"),
+      "the live line sits under Harper's latest words"
+    );
     const completed = {
       ...next,
       id: 4,
@@ -171,7 +179,7 @@ test("professional text stays mounted below Working across tool steps, history r
     assert.doesNotMatch(owner.textContent!, /Worked/);
     assert.equal(owner.querySelector("[aria-expanded]"), null);
     await render([{ ...completed, workPending: true, workEvents: [], thinkingLogs: [] }]);
-    assert.match(owner.textContent!, /Thinking for/);
+    assert.match(owner.textContent!, /생각하는 중\d+s/);
     assert.equal(owner.querySelector("[aria-expanded]"), null);
   } finally {
     await act(async () => root.unmount());

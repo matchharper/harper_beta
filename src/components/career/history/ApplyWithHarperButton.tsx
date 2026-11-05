@@ -14,6 +14,7 @@ export default function ApplyWithHarperButton({
   size,
   children = "Apply with Harper",
   onBeforeStart,
+  requestText,
 }: {
   item: CareerHistoryOpportunity;
   onOpenChat?: () => void;
@@ -22,6 +23,8 @@ export default function ApplyWithHarperButton({
   size?: MuteButtonProps["size"];
   children?: React.ReactNode;
   onBeforeStart?: () => boolean | void | Promise<boolean | void>;
+  /** The chat message to send; {opportunity} is replaced with the role label. */
+  requestText?: (opportunity: string) => string;
 }) {
   const t = useCareerT();
   const logCareerEvent = useCareerLogEvent();
@@ -66,11 +69,13 @@ export default function ApplyWithHarperButton({
         roleId: item.roleId,
       };
       const sent = chat.onSendChatMessage({
-        text: t(
-          "career.history.apply_with_harper.mention_request",
-          "{opportunity}에 지원해줘.",
-          { values: { opportunity: opportunity.label } }
-        ),
+        text: requestText
+          ? requestText(opportunity.label)
+          : t(
+              "career.history.apply_with_harper.mention_request",
+              "{opportunity}에 지원해줘.",
+              { values: { opportunity: opportunity.label } }
+            ),
         opportunityMentions: [opportunity],
       });
       // Show the chat as soon as the request starts, while the reply streams.

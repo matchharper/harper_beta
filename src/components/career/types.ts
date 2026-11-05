@@ -427,6 +427,8 @@ export type CareerHistoryOpportunity = {
   isAccepted: boolean;
   isInternal: boolean;
   isUserAdded?: boolean;
+  /** A social post in which the hiring company says it is hiring ('채용 글'). */
+  hiringPost?: import("@/lib/talentOpportunity").TalentOpportunityHiringPost | null;
   internalProgress?: CareerInternalRecommendationProgress | null;
   kind: "match" | "recommendation";
   location: string | null;

@@ -1,6 +1,7 @@
 import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
 import type { CareerTurnEvent } from "@/lib/career/turnDisplay";
 import CareerMessageBubble from "../CareerMessageBubble";
+import { useCareerT } from "@/i18n/useCareerT";
 import { memo } from "react";
 
 type ThinkingLogPanelProps = {
@@ -18,6 +19,7 @@ export const ThinkingLogPanel = memo(function ThinkingLogPanel({
   events,
   startedAt,
 }: ThinkingLogPanelProps) {
+  const t = useCareerT();
   const entries = events?.length
     ? events.map((event) => ({
         id: event.id,
@@ -41,7 +43,18 @@ export const ThinkingLogPanel = memo(function ThinkingLogPanel({
       active={active}
       completedAt={completedAt}
       hasToolWork={entries.length > 0}
-      statusLabel={!active && entries.length === 0 ? "Thought" : undefined}
+      liveLine
+      statusLabel={
+        active
+          ? // Shown while no step is running: before the first step, or after
+            // Harper has spoken and is deciding what to do next.
+            entries.length === 0
+            ? t("career.chat.live.thinking", "생각하는 중")
+            : t("career.chat.live.next_step", "다음 할 일을 정하는 중")
+          : entries.length === 0
+            ? "Thought"
+            : undefined
+      }
       logs={entries}
       startedAt={startedAt}
     />

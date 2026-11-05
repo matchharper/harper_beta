@@ -17,6 +17,7 @@ import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
 } from "./CareerWorkspaceNav";
 import { useCareerHistoryContext } from "./CareerSidebarContext";
+import { useCareerContentSuggestions } from "@/hooks/career/useCareerContentSuggestions";
 import {
   CareerWorkspaceNavigationContext,
   type CareerWorkspaceNavigationOptions,
@@ -73,6 +74,7 @@ function CareerWorkspaceRoot({
   const mobile = forcedViewport ? forcedViewport === "mobile" : detectedMobile;
   const { inputMode } = useCareerChatActivityContext();
   const { historyOpportunityCounts } = useCareerHistoryContext();
+  const contentSuggestions = useCareerContentSuggestions();
   const [localTab, setLocalTab] = useState<CareerWorkspaceTab>(
     initialMobileChatOpen ? "chat" : "home"
   );
@@ -170,6 +172,7 @@ function CareerWorkspaceRoot({
           activeTab={activeTab}
           isMobile={mobile}
           opportunityCount={historyOpportunityCounts.new}
+          homeCount={contentSuggestions.newCount}
           onChangeTab={(tab) => navigate(tab)}
         />
         <div

@@ -110,7 +110,7 @@ node scripts/localE2e/bootstrap.mjs
 pnpm local:e2e up
 ```
 
-bootstrap은 공식 배포본의 SHA-256을 확인해 ARM Colima/Lima를 프로젝트의 ignored runtime 폴더에 설치한다. schema capture는 읽기 전용 세션으로 public 스키마만 가져온다. `worker.env`에 설정된 SSH source는 DB 주소 조회에만 사용하고, 런타임은 해당 주소를 상속하지 않는다. bootstrap은 이미 marker가 있는 DB를 덮어쓰지 않는다. 기본 Supabase 스키마와 확장에 public 테이블·뷰·RPC·트리거·RLS·기존 ACL을 복원한다. 클라우드 superuser의 미래 객체 기본 ACL은 제외하며, DB의 외부 HTTP extension과 Cron 스케줄은 활성화하지 않는다.
+bootstrap은 공식 배포본의 SHA-256을 확인해 ARM Colima/Lima를 프로젝트의 ignored runtime 폴더에 설치한다. schema capture는 읽기 전용 세션으로 public 스키마와 RLS 정책이 쓰는 private 스키마만 가져온다. `worker.env`에 설정된 SSH source는 DB 주소 조회에만 사용하고, 런타임은 해당 주소를 상속하지 않는다. bootstrap은 이미 marker가 있는 DB를 덮어쓰지 않는다. 기본 Supabase 스키마와 확장에 public 테이블·뷰·RPC·트리거·RLS·기존 ACL을 복원한다. 클라우드 superuser의 미래 객체 기본 ACL은 제외하며, DB의 외부 HTTP extension과 Cron 스케줄은 활성화하지 않는다.
 
 로컬 코드가 스냅샷보다 앞선 SQL을 요구할 때는 **정확한 파일을 지정해 로컬에만** 적용한다. 마이그레이션을 자동으로 전부 재생하지 않는다.
 

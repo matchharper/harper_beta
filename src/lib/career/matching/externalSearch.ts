@@ -37,6 +37,7 @@ import {
   ROLE_JOINS,
 } from "@/lib/externalRecommendationsV2/retrieval";
 import type { V2SearchPlan } from "@/lib/externalRecommendationsV2/countries";
+import { ownSubmittedRoleSql } from "@/lib/externalRecommendationsV2/roleSql";
 import { matchingTable, readExternalEvaluation } from "./store";
 import { readExternalEvaluationResults } from "./externalEvaluationResults";
 import { scheduleCareerDevelopmentJob } from "../developmentQueue.server";
@@ -467,7 +468,7 @@ async function executeCareerMatchingSearch(
         rows.push(
           ...(await executeSql(
             admin,
-            `SELECT ${ROLE_SELECT} FROM public.company_roles cr ${ROLE_JOINS} WHERE ${eligibilitySql({ userId: run.talent_id, blockedCompanies: loaded.blockedCompanies, includePreviouslyRecommended: true })} AND cr.role_id=ANY(ARRAY[${part.map((id) => `${sqlLiteral(z.string().uuid().parse(id))}::uuid`).join(",")}])`,
+            `SELECT ${ROLE_SELECT} FROM public.company_roles cr ${ROLE_JOINS} WHERE ((${eligibilitySql({ userId: run.talent_id, blockedCompanies: loaded.blockedCompanies, includePreviouslyRecommended: true })}) OR (${ownSubmittedRoleSql({ userId: run.talent_id, blockedCompanies: loaded.blockedCompanies })})) AND cr.role_id=ANY(ARRAY[${part.map((id) => `${sqlLiteral(z.string().uuid().parse(id))}::uuid`).join(",")}])`,
             part.length
           ))
         );

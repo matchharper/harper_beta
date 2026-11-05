@@ -32,6 +32,7 @@ export function CareerWorkActivityStatus({
       active
       className={className}
       hasToolWork={logs.length > 0}
+      liveLine
       logs={logs}
       startedAt={startedAt}
     />

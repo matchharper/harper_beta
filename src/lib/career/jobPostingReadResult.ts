@@ -6,6 +6,8 @@ export type JobPostingReadFailure = {
   reason: string;
   requestId?: string;
   status?: string;
+  /** The page's HTTP status, when the reader reported one. */
+  httpStatus?: number;
 };
 
 export function jobPostingReadErrorReason(error: unknown): string {
@@ -87,6 +89,32 @@ export class JobPostingDetailsRequiredError extends Error {
       ]
         .filter(Boolean)
         .join("\n\n"),
+    };
+  }
+}
+
+/** Harper found this posting but it is gone or closed, so nothing was saved. */
+export class JobPostingClosedError extends Error {
+  constructor(
+    readonly url: string,
+    readonly reason: string
+  ) {
+    super("job_posting_closed");
+    this.name = "JobPostingClosedError";
+  }
+
+  toToolResult() {
+    return {
+      ok: false as const,
+      code: "posting_closed",
+      url: this.url,
+      reason: this.reason,
+      modelOutput: [
+        "External posting has not been saved because it is no longer open.",
+        `Posting URL: ${this.url}`,
+        `Reason: ${this.reason}`,
+        "Do not suggest this posting to the user.",
+      ].join("\n"),
     };
   }
 }

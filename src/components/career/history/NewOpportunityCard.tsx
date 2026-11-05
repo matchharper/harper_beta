@@ -25,6 +25,7 @@ import {
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import OpportunityCard from "./OpportunityCard";
 import { OpportunitySwipeRow } from "./OpportunitySwipeRow";
+import { getHiringPostApplyLabel, isHiringPostOpportunity } from "./hiringPost";
 
 type OpportunityAction = (
   item: CareerHistoryOpportunity
@@ -242,7 +243,9 @@ export default memo(function NewOpportunityCard({
                 variant="primary"
                 className={actionClass}
               >
-                {t("career.history.external_application.apply", "지원하기")}
+                {isHiringPostOpportunity(item)
+                  ? getHiringPostApplyLabel(t)
+                  : t("career.history.external_application.apply", "지원하기")}
               </MuteButton>
             ) : null}
           </div>

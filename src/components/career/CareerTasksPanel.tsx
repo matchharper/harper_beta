@@ -9,11 +9,14 @@ import { useCareerSidebarContext } from "./CareerSidebarContext";
 import {
   useCareerChatActivityContext,
   useCareerChatPanelContext,
+  useOptionalCareerChatPanelContext,
 } from "./CareerChatPanelContext";
 import CareerHomePanel from "./CareerHomePanel";
 import CareerHomeDevControls from "./CareerHomeDevControls";
 import { CareerActionItemsPanel } from "./CareerActionItemsPanel";
+import { CareerContentSuggestionsPanel } from "./CareerContentSuggestionsPanel";
 import { CareerOpportunitySummary } from "./CareerOpportunitySummary";
+import UpcomingAppointments from "./UpcomingAppointments";
 import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
 
 type CareerTasksPanelProps = {
@@ -84,6 +87,7 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
     useCareerSidebarContext();
   const actions = useCareerActionItems();
   const { tasksOverride } = useCareerChatActivityContext();
+  const chat = useOptionalCareerChatPanelContext();
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
     setNow(new Date());
@@ -123,6 +127,18 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
       {completed ? (
         <>
           <CareerActionItemsPanel onOpenChatAction={onOpenChatAction} />
+          {/* Events the user signed up for live here once Harper saves them. */}
+          <div className="career-appointments">
+            <UpcomingAppointments
+              enabled={
+                tasksOverride === undefined ||
+                Boolean(tasksOverride.appointments?.length)
+              }
+              previewSchedules={tasksOverride?.appointments}
+              onOpenRole={chat?.onOpenHistoryOpportunity}
+            />
+          </div>
+          <CareerContentSuggestionsPanel />
           <CareerOpportunitySummary />
         </>
       ) : !workspaceDataLoading ? (

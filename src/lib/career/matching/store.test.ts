@@ -861,3 +861,51 @@ test("an internal suggestion publishes atomically without model-supplied assessm
     await assert.rejects(db.query("select write_career_opportunities($1,'stale',$2)",[id(1),JSON.stringify(command)]),/List changed/);
   } finally { await db.close(); }
 });
+test("a posting copied from the web is publishable only by the talent who copied it", async () => {
+  const db = await database();
+  try {
+    const found = await readFile("supabase/migrations/20261105070000_career_found_items.sql", "utf8");
+    const start = found.indexOf("create or replace function public.write_career_opportunities");
+    await db.exec("alter table company_roles add column source_provider text");
+    await db.exec(found.slice(start, found.indexOf("create table public.career_content_suggestions", start)));
+    await db.query("insert into talent_users values($1,null)", [id(20)]);
+    // Importing creates the company with external recommendations off.
+    await db.query("insert into company_workspace values($1,'Imported',false)", [id(40)]);
+    await db.query(
+      "insert into company_roles(role_id,company_workspace_id,source_type,source_provider,status,is_expired,information,name) values($1,$2,'external','user_submitted','active',false,$3,'GTM Lead')",
+      [id(41), id(40), JSON.stringify({ submittedTalentIds: [id(1)] })]
+    );
+    await db.query(
+      "insert into talent_external_evaluations(id,talent_id,role_id,input_fingerprint,assessment,input_snapshot) values($1,$2,$3,'own','{}','{}'),($4,$5,$3,'other','{}','{}')",
+      [id(42), id(1), id(41), id(43), id(20)]
+    );
+    await assert.rejects(
+      writeList(db, "other-talent", {
+        action: "add",
+        expectedRevision: await revision(db, null, false),
+        items: [{ roleId: id(41), evaluationId: id(43) }],
+      }, id(20)).catch(async (error) => {
+        // The revision belongs to talent 1; read talent 20's own and retry once.
+        const own = (await db.query<{ value: string }>("select career_opportunity_list_revision($1,null,false) value", [id(20)])).rows[0].value;
+        return writeList(db, "other-talent-2", {
+          action: "add", expectedRevision: own,
+          items: [{ roleId: id(41), evaluationId: id(43) }],
+        }, id(20));
+      }),
+      /Company opportunities unavailable/
+    );
+    const added = await writeList(db, "own-copy", {
+      action: "add",
+      expectedRevision: await revision(db),
+      items: [{ roleId: id(41), evaluationId: id(42), explanation: "fits" }],
+    });
+    assert.equal(added.recommendationIds.length, 1);
+    const card = await db.query<{ kind: string; opportunity_type: string; feedback: string | null }>(
+      "select kind,opportunity_type,feedback from talent_opportunity_recommendation where id=$1",
+      [added.recommendationIds[0]]
+    );
+    assert.deepEqual(card.rows[0], { kind: "career_agent", opportunity_type: "external_jd", feedback: null });
+  } finally {
+    await db.close();
+  }
+});

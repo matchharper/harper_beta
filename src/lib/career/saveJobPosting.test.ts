@@ -174,7 +174,7 @@ test("incomplete extraction performs no write and the continued save imports tit
     const first = await saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform" });
     assert.equal(first.ok, false);
     assert.equal(writes.length, 0);
-    if (first.ok) throw new Error("Expected source evidence before saving");
+    if (first.ok || !("pageText" in first)) throw new Error("Expected source evidence before saving");
     assert.equal(first.pageText, pageText);
     const second = await saveJobPosting({ admin, talentId: "fixture", url: first.url, title: "Platform Engineer", companyName: "Example Systems" });
     assert.equal(second.ok, true);
@@ -183,6 +183,99 @@ test("incomplete extraction performs no write and the continued save imports tit
     assert.equal(writes[0].p_role.title, "Platform Engineer");
     assert.equal(writes[0].p_role.companyName, "Example Systems");
     assert.equal(writes[0].p_preserve_existing_progress, true);
+  } finally {
+    exa.getContents = previousRead;
+    if (previousKey === undefined) delete process.env.EXA_API_KEY;
+    else process.env.EXA_API_KEY = previousKey;
+  }
+});
+
+test("a closed posting Harper found is not saved, while the user's own save of it still is", async () => {
+  const previousKey = process.env.EXA_API_KEY;
+  process.env.EXA_API_KEY = "test-exa-key";
+  const exa = getExaClient();
+  const previousRead = exa.getContents;
+  exa.getContents = (async () => ({
+    requestId: "closed-read",
+    results: [{ summary: JSON.stringify({
+      applicationsClosed: true, employmentTypes: [], hiringCompany: "Example Systems", isJobPosting: true,
+      jobDescription: "Build the platform.", jobLocation: "", roleSummary: "", roleTitle: "Platform Engineer",
+      salaryRange: "", workArrangement: "",
+    }) }],
+  })) as unknown as typeof exa.getContents;
+  const writes: Record<string, unknown>[] = [];
+  const admin = {
+    from: () => {
+      const q = {
+        select: () => q, eq: () => q, in: () => q, ilike: () => q,
+        order: () => q, limit: () => q,
+        maybeSingle: async () => ({ data: null, error: null }),
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
+      };
+      return q;
+    },
+    rpc: async (name: string, input: Record<string, unknown>) => {
+      assert.equal(name, "import_talent_job_link");
+      writes.push(input);
+      return { data: { role_id: "external-role", recommendation_id: "saved-recommendation", created_recommendation: true, saved_stage: "saved" }, error: null };
+    },
+  } as unknown as TalentAdminClient;
+  try {
+    const found = await saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform", mode: "suggest" });
+    assert.equal(found.ok, false);
+    if (found.ok) throw new Error("Expected the closed posting to be refused");
+    assert.equal(found.code, "posting_closed");
+    assert.match(found.modelOutput, /no longer open/);
+    assert.equal(writes.length, 0);
+    const own = await saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform" });
+    assert.equal(own.ok, true);
+    assert.equal(writes.length, 1);
+  } finally {
+    exa.getContents = previousRead;
+    if (previousKey === undefined) delete process.env.EXA_API_KEY;
+    else process.env.EXA_API_KEY = previousKey;
+  }
+});
+
+test("a posting Harper found gets no chat card until it is published", async () => {
+  const previousKey = process.env.EXA_API_KEY;
+  process.env.EXA_API_KEY = "test-exa-key";
+  const exa = getExaClient();
+  const previousRead = exa.getContents;
+  exa.getContents = (async () => ({
+    requestId: "live-read",
+    results: [{ summary: JSON.stringify({
+      applicationsClosed: false, employmentTypes: [], hiringCompany: "Example Systems", isJobPosting: true,
+      jobDescription: "Build the platform.", jobLocation: "", roleSummary: "", roleTitle: "Platform Engineer",
+      salaryRange: "", workArrangement: "",
+    }) }],
+  })) as unknown as typeof exa.getContents;
+  let recommendationId: string | null = null;
+  const admin = {
+    from: () => {
+      const q = {
+        select: () => q, eq: () => q, in: () => q, ilike: () => q,
+        order: () => q, limit: () => q,
+        maybeSingle: async () => ({ data: null, error: null }),
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
+      };
+      return q;
+    },
+    rpc: async () => ({
+      data: { role_id: "external-role", recommendation_id: recommendationId, created_recommendation: false, saved_stage: null },
+      error: null,
+    }),
+  } as unknown as TalentAdminClient;
+  try {
+    const copied = await saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform", mode: "suggest" });
+    assert.equal(copied.ok, true);
+    if (!copied.ok) throw new Error("Expected the posting to be copied");
+    assert.deepEqual(copied.postingRoleIds, []);
+    recommendationId = "listed-recommendation";
+    const listed = await saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform", mode: "suggest" });
+    assert.equal(listed.ok, true);
+    if (!listed.ok) throw new Error("Expected the listed posting to be returned");
+    assert.deepEqual(listed.postingRoleIds, ["external-role"]);
   } finally {
     exa.getContents = previousRead;
     if (previousKey === undefined) delete process.env.EXA_API_KEY;

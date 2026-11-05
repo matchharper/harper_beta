@@ -1317,3 +1317,88 @@
     max-width: none;
   }
 }
+
+/* 볼 만한 것: events, articles and posts Harper saved beside the follow-ups. */
+.career-content {
+  margin-top: 24px;
+}
+.career-content-heading {
+  margin: 0 2px 10px;
+  font-size: var(--career-label-size);
+  font-weight: 400;
+  color: var(--career-ink-soft);
+}
+.career-content-card {
+  padding-bottom: 10px;
+}
+.career-content-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--career-label-size);
+  line-height: 1.5;
+  color: var(--career-ink-soft);
+}
+.career-content-new {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-action, #0a84ff);
+}
+.career-content-title {
+  display: block;
+  margin-top: 6px;
+  color: var(--career-ink);
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: -0.2px;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.career-content-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.career-content-actions .career-content-open {
+  margin-top: 0;
+}
+.career-card-close {
+  margin-right: -6px;
+  padding: 4px 6px;
+  border-radius: var(--career-radius-item);
+  font-size: var(--career-label-size);
+  color: var(--career-ink-soft);
+}
+/* Upcoming appointments sit between follow-ups and "볼 만한 것" on Career home. */
+.career-appointments > section {
+  margin-top: 24px;
+}
+/* Follow-up cards are one button, so Close sits beside it on the action row. */
+.career-followup-item {
+  position: relative;
+}
+.career-followup-close {
+  position: absolute;
+  right: var(--career-space-card);
+  /* Centers the smaller label on the action row's line. */
+  bottom: calc(var(--career-space-card) - 2px);
+}
+.career-followup-item:has(.career-followup-close) .career-followup-action {
+  padding-right: 56px;
+}
+.career-card-close:focus-visible,
+.career-content-open:focus-visible {
+  outline: 2px solid var(--color-action, #0a84ff);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .career-content-open:hover svg {
+    translate: 2px -2px;
+  }
+}
