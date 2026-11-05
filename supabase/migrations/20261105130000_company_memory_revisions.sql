@@ -152,9 +152,14 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- As of the row's own time, so a decision copied in later with its original
+  -- time does not get a memory version from after it.
   if tg_table_name = 'company_decision_events' then
     if new.memory_version is null then
-      new.memory_version := public.company_memory_version_v1(new.company_workspace_id);
+      select coalesce(max(revision.id), 0) into new.memory_version
+      from public.company_memory_revisions revision
+      where revision.company_workspace_id = new.company_workspace_id
+        and revision.created_at <= coalesce(new.created_at, now());
     end if;
   elsif new.source_company_memory_version is null and new.company_workspace_id is not null then
     new.source_company_memory_version := public.company_memory_version_v1(new.company_workspace_id);

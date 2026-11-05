@@ -113,6 +113,11 @@ test("memory changes are versions, readable per role now or at a version", async
     assert.equal(pinned, v1);
     assert.deepEqual(await memory(role, pinned), [["company", "remote first"], ["team", "team ships weekly"], ["role", "needs Go"]]);
     assert.equal(Number((await db.query<any>("select source_company_memory_version v from company_role_candidate_evaluations")).rows[0].v), v1);
+    // A decision copied in later with an earlier time gets the memory of that time.
+    await db.exec(`insert into company_decision_events(company_workspace_id, role_id, subject_kind, subject_id, action,
+      channel, idempotency_key, created_at) values ('${workspace}', '${role}', 'member_candidate', '${talent}', 'pass',
+      'unknown', 'old', '2000-01-01T00:00:00Z');`);
+    assert.equal(Number((await db.query<any>("select memory_version from company_decision_events where idempotency_key = 'old'")).rows[0].memory_version), 0);
 
     // Point-in-time reads carry the memory of the moment.
     const now = (await db.query<any>("select clock_timestamp() as moment")).rows[0].moment;
