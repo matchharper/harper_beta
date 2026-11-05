@@ -86,6 +86,21 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
   }
   const admin = getSupabaseAdmin();
   await markOrgAgentWebActionQueueDispatched(message.jobId);
+  // A run collecting quick successive events starts when its window ends.
+  const { data: waiting, error: waitingError } = await (
+    admin.from("company_agent_web_action_jobs" as any) as any
+  )
+    .select("action_context, status")
+    .eq("id", message.jobId)
+    .maybeSingle();
+  if (waitingError) throw waitingError;
+  const batchUntil = Date.parse(clean(waiting?.action_context?.batchUntil));
+  if (clean(waiting?.status) === "queued" && Number.isFinite(batchUntil) && batchUntil > Date.now()) {
+    throw new WebActionQueueRetryError(
+      "Company agent run is collecting events",
+      Math.min(120, Math.ceil((batchUntil - Date.now()) / 1_000) + 1)
+    );
+  }
   const { data, error } = await (admin.rpc as any)(
     "claim_company_agent_web_action_v1",
     {
