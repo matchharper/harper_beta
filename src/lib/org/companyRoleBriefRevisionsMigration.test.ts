@@ -128,6 +128,11 @@ test("every Brief change leaves one version per transaction, readable at any mom
     assert.equal(decision.brief_revision, 3);
     const now = (await db.query<any>("select clock_timestamp() as moment")).rows[0].moment;
     assert.equal((await asOf(now)).decisions.length, 1);
+    // A decision copied in later with an earlier time gets the version of that time.
+    await db.exec(`insert into company_decision_events(company_workspace_id, role_id, subject_kind, subject_id, action,
+      channel, idempotency_key, created_at) values ('${workspace}', '${role}', 'member_candidate', '${card}', 'pass',
+      'unknown', 'old', '2000-01-01T00:00:00Z');`);
+    assert.equal((await db.query<any>("select brief_revision from company_decision_events where idempotency_key = 'old'")).rows[0].brief_revision, null);
 
     const can = async (q: string) => (await db.query<any>(`select ${q} as ok`)).rows[0].ok;
     assert.equal(await can("has_table_privilege('service_role', 'company_role_brief_revisions', 'SELECT')"), true);

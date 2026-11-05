@@ -204,10 +204,13 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- As of the decision's time, so a decision copied in later with its
+  -- original time does not get a Brief version from after it.
   if new.brief_revision is null then
     select max(revision.revision) into new.brief_revision
     from public.company_role_brief_revisions revision
-    where revision.role_id = new.role_id;
+    where revision.role_id = new.role_id
+      and revision.created_at <= coalesce(new.created_at, now());
   end if;
   return new;
 end;
