@@ -25,6 +25,26 @@ const eventTools = new Set([
   "manage_agent_schedule",
 ]);
 
+/**
+ * Harper's own schedules (not tied to an introduction) get only the tools of
+ * their effect tier (D15): 0 look again and message the company, 1 also
+ * propose (no proposal tool yet, so the same as 0), 2 also search, contact
+ * and publish.
+ */
+const scheduleTierTools = (tier: number) =>
+  new Set([
+    "read_role",
+    "read_conversation_history",
+    "get_more_data",
+    "get_talents",
+    "read_talent",
+    "send_company_message",
+    "manage_agent_schedule",
+    ...(tier >= 2
+      ? ["request_matching_search", "recommend_talents", "publish_role_recommendations", "contact_talent"]
+      : []),
+  ]);
+
 /** Executes the original company-side LLM with a lease-bound, single-Role service principal. */
 export async function runCompanyAgentEvent(job: any) {
   const { reserveAgentExecution, settleAgentExecution } =
@@ -126,6 +146,7 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     scopeKey: `agent-event:${job.id}`,
   });
   let eventText: string;
+  let scheduleTier: number | null = null;
   if (job.action_name === "agent_contact_received") {
     const correspondence = await readAgentCorrespondence(source, {
       introductionRootId: job.action_context.introductionRootId,
@@ -137,7 +158,8 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
       "SELECT * FROM public.company_agent_schedules WHERE id=$1::uuid",
       [job.action_context.scheduleId]
     );
-    eventText = `Scheduled company work ${schedule.id}; revision ${schedule.directive_revision}\n${schedule.title}\n${schedule.instruction}${schedule.target_refs?.introductionRootId ? `\nIntroduction ${schedule.target_refs.introductionRootId}` : ""}`;
+    if (!schedule.target_refs?.introductionRootId) scheduleTier = Number(schedule.effect_tier ?? 0);
+    eventText = `Scheduled company work ${schedule.id}; revision ${schedule.directive_revision}\n${schedule.title}\n${schedule.instruction}${schedule.target_refs?.introductionRootId ? `\nIntroduction ${schedule.target_refs.introductionRootId}` : `\nEffect tier ${scheduleTier} (${schedule.created_by === "user" ? "asked by a company member" : "Harper's own"}): ${scheduleTier >= 2 ? "you may search, contact candidates or publish if still useful" : "look again and message the company only if useful; do not search, contact or publish"}.`}`;
   }
   // An earlier execution may have committed its body before a delivery timeout.
   const pending = await db.query(
@@ -166,8 +188,11 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     throwOnToolExecutionError: true,
     harperInitiated: true,
     capabilityMode: "full",
-    initialCapabilities: ["agent_correspondence"],
-    allowedToolNames: eventTools,
+    initialCapabilities:
+      scheduleTier === null
+        ? ["agent_correspondence"]
+        : ["company_messaging", "harper_schedule", ...(scheduleTier >= 2 ? (["candidate_search", "candidate_contact"] as const) : [])],
+    allowedToolNames: scheduleTier === null ? eventTools : scheduleTierTools(scheduleTier),
     source: "chat",
     readAudience: "company_safe",
     scopeKey: `agent-event:${job.id}`,

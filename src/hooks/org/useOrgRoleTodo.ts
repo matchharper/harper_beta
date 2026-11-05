@@ -72,6 +72,26 @@ export function useDecideOrgTodoSuggestion(args: {
   });
 }
 
+/** Cancel Harper's scheduled work from the To-do (recorded as a company decision). */
+export function useCancelOrgHarperSchedule(args: {
+  roleId: string;
+  workspaceId: string;
+}) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { scheduleId: string; expectedRevision: number }) =>
+      fetchWithInternalAuth<{ ok: true }>("/api/org/todo", {
+        body: JSON.stringify({ ...args, cancelSchedule: input }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    onSettled: () =>
+      client.invalidateQueries({
+        queryKey: queryKeys.org.roleTodo(args.workspaceId, args.roleId),
+      }),
+  });
+}
+
 /** "읽음" on an update: hidden at once above the chat and in the tab. */
 export function useMarkOrgTodoRead(args: {
   roleId: string;

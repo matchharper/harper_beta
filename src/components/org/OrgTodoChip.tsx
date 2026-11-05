@@ -22,6 +22,7 @@ import {
   useDecideOrgTodoSuggestion,
   useMarkOrgTodoRead,
   useOrgRoleTodo,
+  useCancelOrgHarperSchedule,
 } from "@/hooks/org/useOrgRoleTodo";
 import {
   orgHomeActivityTitle,
@@ -129,6 +130,8 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
       return c("후보 찾는 중", "Searching for candidates");
     case "scheduled_search":
       return c("다음 정기 후보 검색", "Next scheduled candidate search");
+    case "harper_scheduled":
+      return c("Harper 예정: {p0}", "Harper will: {p0}", { p0: item.detail ?? "" });
     case "role_start_working":
       return item.detail === "searching" || item.detail === "batch"
         ? c("첫 후보 찾는 중", "Finding the first candidates")
@@ -326,6 +329,7 @@ export function OrgTodoList({
   const { c, locale } = useOrgLocale();
   const todo = useOrgRoleTodo({ range, roleId, workspaceId });
   const decide = useDecideOrgTodoSuggestion({ roleId, workspaceId });
+  const cancelSchedule = useCancelOrgHarperSchedule({ roleId, workspaceId });
   const markRead = useMarkOrgTodoRead({ roleId, workspaceId });
   const items = todo.data?.items ?? [];
   const suggestions = todo.data?.suggestions ?? 0;
@@ -382,6 +386,24 @@ export function OrgTodoList({
             {c("진행하기", "Go ahead")}
           </MuteButton>
         </>
+      );
+    }
+    if (item.kind === "harper_scheduled" && item.scheduleId) {
+      return (
+        <MuteButton
+          disabled={cancelSchedule.isPending}
+          onClick={() =>
+            cancelSchedule.mutate({
+              expectedRevision: item.scheduleRevision ?? 0,
+              scheduleId: item.scheduleId!,
+            })
+          }
+          size="sm"
+          type="button"
+          variant="dark"
+        >
+          {c("취소", "Cancel")}
+        </MuteButton>
       );
     }
     if (item.kind === "memory_proposal") {
