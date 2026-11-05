@@ -41,6 +41,7 @@ export const ThinkingLogPanel = memo(function ThinkingLogPanel({
       active={active}
       completedAt={completedAt}
       hasToolWork={entries.length > 0}
+      liveLine
       statusLabel={!active && entries.length === 0 ? "Thought" : undefined}
       logs={entries}
       startedAt={startedAt}

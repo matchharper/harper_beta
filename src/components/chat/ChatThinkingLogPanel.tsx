@@ -30,6 +30,8 @@ export type ChatThinkingLogPanelProps = {
   hasToolWork?: boolean;
   statusLabel?: string;
   logs: Array<string | ChatThinkingLogEntry>;
+  /** While active, show only the current step on one line; the list opens on click. */
+  liveLine?: boolean;
   startedAt?: string;
 };
 
@@ -115,12 +117,14 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
   className,
   completedAt,
   hasToolWork = true,
+  liveLine = false,
   logs,
   startedAt,
   statusLabel: statusLabelOverride,
 }: ChatThinkingLogPanelProps) {
   const [expanded, setExpanded] = useState(false);
-  const isExpanded = active || expanded;
+  const live = active && liveLine;
+  const isExpanded = live ? expanded : active || expanded;
   const [now, setNow] = useState(() => new Date().toISOString());
   useEffect(() => {
     if (!active || !startedAt) return;
@@ -134,6 +138,10 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
     (hasToolWork ? (active ? "Working" : "Worked") : "Thinking");
 
   if (logs.length === 0 && !startedAt && !active) return null;
+  const entries: ChatThinkingLogEntry[] = logs.map((log) =>
+    typeof log === "string" ? { label: log } : log
+  );
+  const current = live ? entries.at(-1) : undefined;
 
   return (
     <div
@@ -148,14 +156,42 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
         onClick={() => setExpanded((previous) => !previous)}
         aria-expanded={logs.length > 0 ? isExpanded : undefined}
         className={cn(
-          "inline-flex w-fit items-center gap-1.5 cursor-default rounded-md py-1 font-normal text-neutral-soft transition-colors hover:text-neutral-900"
+          "inline-flex w-fit items-center gap-1.5 cursor-default rounded-md py-1 font-normal text-neutral-soft transition-colors hover:text-neutral-900",
+          live && "min-w-0 max-w-full gap-2"
         )}
       >
-        {active ? <Loader2 className="h-4 w-4 animate-spin" /> : <></>}
-        <span>
-          {statusLabel}
-          {duration ? ` for ${duration}` : ""}
-        </span>
+        {live ? (
+          <>
+            <span aria-hidden="true" className="chat-live-dots">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="min-w-0 overflow-hidden">
+              <span
+                key={current ? `${entries.length}:${current.label}` : "idle"}
+                className="chat-live-step"
+              >
+                <span className="career-thinking-shimmer block truncate">
+                  {current ? current.label.replace(/\s+/g, " ") : statusLabel}
+                </span>
+              </span>
+            </span>
+            {duration && (
+              <span className="shrink-0 tabular-nums text-neutral-soft">
+                {duration}
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            {active ? <Loader2 className="h-4 w-4 animate-spin" /> : <></>}
+            <span>
+              {statusLabel}
+              {duration ? ` for ${duration}` : ""}
+            </span>
+          </>
+        )}
         {logs.length > 0 && (
           <ChevronRight
             className={cn(
@@ -169,9 +205,7 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
       {
         <div hidden={!isExpanded || logs.length === 0} className="mb-2">
           <ol className="flex flex-col gap-1.5">
-            {logs.map((log, index) => {
-              const entry: ChatThinkingLogEntry =
-                typeof log === "string" ? { label: log } : log;
+            {entries.map((entry, index) => {
               return (
                 <li
                   key={entry.id ?? index}

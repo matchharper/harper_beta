@@ -1249,6 +1249,74 @@
   }
 }
 
+/* One-line work status: three dots, then the current step, which rises in
+   each time the step changes. */
+.chat-live-dots {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 3px;
+}
+
+.chat-live-dots > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--color-primary);
+  animation: chat-live-dot 1.2s ease-in-out infinite;
+}
+
+.chat-live-dots > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chat-live-dots > span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes chat-live-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.chat-live-step {
+  display: block;
+  min-width: 0;
+  animation: chat-live-step-in 380ms var(--ease-out-expo) both;
+}
+
+@keyframes chat-live-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(70%);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-live-dots > span {
+    animation: none;
+    opacity: 0.6;
+  }
+
+  .chat-live-step {
+    animation: none;
+  }
+}
+
 /* The org To-do chip glows softly while there is something to do or an
    unread update, so the team looks at it. */
 .org-todo-glow {
