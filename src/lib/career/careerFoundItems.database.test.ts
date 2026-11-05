@@ -10,6 +10,31 @@ const migration = readFileSync(
   ),
   "utf8"
 );
+const ownListFix = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20261105090000_career_found_items_own_list.sql",
+    import.meta.url
+  ),
+  "utf8"
+);
+// The guard as it runs in production before ownListFix (not in this repo's migrations).
+const productionIsolationGuard = `
+  create function enforce_user_submitted_role_recommendation_isolation_v1() returns trigger
+  language plpgsql security definer set search_path to 'public' as $function$
+  begin
+    if coalesce(new.kind, '') <> 'user_link_import'
+       and exists (select 1 from public.company_roles role
+         where role.role_id = new.role_id and role.source_provider = 'user_submitted') then
+      raise exception using errcode = '23514',
+        message = 'user-submitted roles can only be added through an explicit user link import';
+    end if;
+    return new;
+  end;
+  $function$;
+  create trigger enforce_user_submitted_role_recommendation_isolation_v1
+    before insert or update on talent_opportunity_recommendation
+    for each row execute function enforce_user_submitted_role_recommendation_isolation_v1();
+`;
 const talent = "00000000-0000-4000-8000-000000000001";
 const other = "00000000-0000-4000-8000-000000000002";
 const conversation = "00000000-0000-4000-8000-000000000003";
@@ -126,6 +151,31 @@ test("a web posting Harper found is copied for this talent only, without a card"
     assert.equal(saved.saved_stage, "saved");
     const repeat = await importLink(db, { stage: null, role: role(url) });
     assert.equal(repeat.recommendation_id, saved.recommendation_id, "an existing card is reported, not duplicated");
+  } finally {
+    await db.close();
+  }
+});
+
+test("a found posting can be published only to the New opportunities of the talent who found it", async () => {
+  const db = await database();
+  try {
+    await db.exec(productionIsolationGuard);
+    const found = await importLink(db, { stage: null, role: role("https://example.com/jobs/ml") });
+    const publish = (talentId: string, kind = "career_agent") =>
+      db.query(
+        "insert into talent_opportunity_recommendation(talent_id, role_id, kind, opportunity_type) values ($1, $2, $3, 'external_jd')",
+        [talentId, found.role_id, kind]
+      );
+    await assert.rejects(publish(talent), /explicit user link import/, "the production guard blocks Harper's own card");
+
+    await db.exec(ownListFix);
+    await publish(talent);
+    await assert.rejects(publish(other), /explicit user link import/, "a talent who did not find it stays blocked");
+    await assert.rejects(publish(talent, "external_recommendation"), /explicit user link import/, "ordinary recommendation paths stay blocked");
+    const cards = await db.query<{ talent_id: string; kind: string }>(
+      "select talent_id, kind from talent_opportunity_recommendation"
+    );
+    assert.deepEqual(cards.rows, [{ talent_id: talent, kind: "career_agent" }]);
   } finally {
     await db.close();
   }
