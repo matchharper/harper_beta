@@ -3092,6 +3092,7 @@ export async function evaluateRoleStartCandidate(
     answer: String(args.answer ?? "").trim().slice(0, 500) || null,
     note: String(args.note ?? "").trim().slice(0, 1_000) || null,
     at: new Date().toISOString(),
+    by: args.user.id,
   };
   const rows = await sql<Array<{ role_id: string }>>`
     update public.company_role_start_sessions

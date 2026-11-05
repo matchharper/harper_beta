@@ -175,6 +175,8 @@ export type RoleStartEvaluation = {
   reasonText?: string | null;
   reasonsSkipped?: boolean;
   at: string;
+  /** Company user who rated; the rating is recorded as a company decision. */
+  by?: string;
 };
 
 /** Which screen section a progress line belongs to. */

@@ -125,12 +125,17 @@ function serverModules(t: TestContext, env: Record<string, string> = {}) {
   });
 }
 
-type FakeCall = { table: string; op: "select" | "update"; patch?: Record<string, unknown>; filters: unknown[][] };
+type FakeCall = { table: string; op: "select" | "update" | "rpc"; patch?: Record<string, unknown>; filters: unknown[][] };
 
 /** Supabase-shaped fake: every chain ends in `respond(call)`; calls are recorded in order. */
 function fakeAdmin(respond: (call: FakeCall) => unknown) {
   const calls: FakeCall[] = [];
   const admin = {
+    rpc(name: string, params: Record<string, unknown>) {
+      const call: FakeCall = { table: name, op: "rpc", patch: params, filters: [] };
+      calls.push(call);
+      return Promise.resolve({ data: respond(call), error: null });
+    },
     from(table: string) {
       const call: FakeCall = { table, op: "select", filters: [] };
       const finish = () => { calls.push(call); return Promise.resolve({ data: respond(call), error: null, count: 0 }); };
@@ -184,15 +189,16 @@ test("Pass works in every state; an invitation that has not gone out is cancelle
   const { passExternalCandidate } = await import("./externalSourcing.server");
   const args = { workspaceId: "w1", roleId: "r1", userId: "u1", candidateRef: "c1", reason: "다른 방향" };
   const run = async (row: ReturnType<typeof candidateRow>) => {
-    const fake = fakeAdmin((call) => call.op === "select" ? [row] : { id: "x" });
-    return { result: await passExternalCandidate({ admin: fake.admin, ...args }), updates: fake.calls.filter((call) => call.op === "update") };
+    const fake = fakeAdmin((call) => call.op === "select" ? [row] : call.op === "rpc" ? true : { id: "x" });
+    return { result: await passExternalCandidate({ admin: fake.admin, ...args }), updates: fake.calls.filter((call) => call.op !== "select") };
   };
 
   const requested = await run(candidateRow({ status: "requested" }));
   assert.deepEqual(requested.result, { status: "passed", inviteCancelled: true });
-  assert.equal(requested.updates[0].table, "external_candidates");
-  assert.equal(requested.updates[0].patch?.company_decision, "passed");
-  assert.deepEqual(requested.updates[0].filters.at(-1), ["or", "company_decision.is.null,company_decision.eq.intro_requested"]);
+  // The Pass and its decision record are one database call (only while undecided or requested).
+  assert.equal(requested.updates[0].table, "set_external_candidate_company_decision_v1");
+  assert.deepEqual(requested.updates[0].patch, { p_external_candidate_id: "c1", p_company_workspace_id: "w1",
+    p_decision: "passed", p_actor_user_id: "u1", p_reason_text: "다른 방향", p_channel: "web" });
   assert.equal(requested.updates[1].table, "external_intro_requests");
   assert.deepEqual(requested.updates[1].patch && { status: requested.updates[1].patch.status, error_code: requested.updates[1].patch.error_code },
     { status: "cancelled", error_code: "company_passed" });
@@ -201,7 +207,7 @@ test("Pass works in every state; an invitation that has not gone out is cancelle
   for (const intro of [{ status: "invited" }, { status: "replied", reply_type: "interested" }, null]) {
     const other = await run(candidateRow(intro));
     assert.deepEqual(other.result, { status: "passed" });
-    assert.deepEqual(other.updates.map((call) => call.table), ["external_candidates"]);
+    assert.deepEqual(other.updates.map((call) => call.table), ["set_external_candidate_company_decision_v1"]);
   }
   const already = await run(candidateRow(null, "passed"));
   assert.deepEqual(already.result, { status: "unchanged" });

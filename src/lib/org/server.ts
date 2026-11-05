@@ -4241,6 +4241,7 @@ export async function decideTalentCompanyIntro(args: {
   try {
     await setOrgCandidateStage({
       companyIntroCandidateId: introCandidateId,
+      decisionChannel: "system",
       emailMode: "skip",
       expectedPreviousStage: "pending_connection",
       introEmails: Array.isArray(intro.intro_recipient_emails)
@@ -5026,6 +5027,11 @@ export async function setOrgCandidateStage(args: {
   acceptReason?: string | null;
   companyIntroCandidateId?: string | null;
   contactDirectly?: boolean;
+  /**
+   * Where the company made this move, kept on the progress row and recorded as
+   * a company decision. system: a move that follows the candidate or billing.
+   */
+  decisionChannel: "web" | "chat" | "slack" | "email" | "system";
   emailMode?: InternalConnectionConfirmationEmailMode;
   expectedPreviousStage?: OrgStageId;
   introEmailDraft?: unknown;
@@ -5109,6 +5115,8 @@ export async function setOrgCandidateStage(args: {
       ...Object.keys(original),
       ...Object.keys(normalized),
     ]);
+    // Where the retry comes from (web, Slack, ...) is not part of what was approved.
+    keys.delete("decisionChannel");
     if (
       [...keys].some(
         (key) =>
@@ -5568,6 +5576,7 @@ export async function setOrgCandidateStage(args: {
     const metadata = {
       acceptReason: stage !== "process_stopped" ? acceptReason || null : null,
       contactDirectly,
+      decisionChannel: args.decisionChannel,
       introEmailCc: introDelivery?.cc ?? [],
       introEmailMessageId: introDelivery?.messageId ?? null,
       introEmailRecipients: introDelivery?.recipients ?? [],
@@ -5810,6 +5819,8 @@ export async function cancelOrgCompanyTalentRequest(args: {
 }
 
 export async function createOrgTalentFeedItem(args: {
+  /** Where the note was written; the web feed when omitted. */
+  decisionChannel?: "web" | "chat" | "slack";
   recommendationId?: string | null;
   roleId: string;
   talentId: string;
@@ -5841,6 +5852,7 @@ export async function createOrgTalentFeedItem(args: {
     company_user_id: args.user.id,
     kind: "org_note",
     metadata: {
+      decisionChannel: args.decisionChannel ?? "web",
       org: true,
       workspaceId,
     } as Json,

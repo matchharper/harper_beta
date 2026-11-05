@@ -783,6 +783,7 @@ async function executeAddCandidateNote(args: {
   callId: string;
   input: Record<string, unknown>;
   name: OrgAgentToolName;
+  source: "chat" | "slack";
   state: OrgAgentToolExecutionState;
   user: User;
   workspaceId: string;
@@ -791,6 +792,7 @@ async function executeAddCandidateNote(args: {
   const talentId = requiredText(args.input.talentId, "talentId", 100);
   const note = requiredText(args.input.note, "note", 2_000);
   await createOrgTalentFeedItem({
+    decisionChannel: args.source,
     roleId: role.roleId,
     talentId,
     text: note,
@@ -1178,7 +1180,7 @@ async function executeExternalIntroRequest(args: Parameters<typeof executeExtern
   }
   const recorded = await requestExternalIntro({ admin: args.admin, workspaceId: args.workspaceId, roleId: args.roleId,
     userId: args.user.id, candidate, companyAppeal: confirmed.companyAppeal,
-    introRecipientEmails: confirmed.introRecipientEmails });
+    introRecipientEmails: confirmed.introRecipientEmails, channel: args.source });
   recordResult(args.state, {callId:args.callId,name:args.name,status:recorded.status === "requested" ? "success" : "unchanged",
     summary:recorded.status === "requested" ? `${name} 외부 후보 연결 요청 기록` : `${name} 외부 후보 연결 요청 이미 있음`});
   return respond({ status: recorded.status, intro: recorded.intro, companyAppeal: confirmed.companyAppeal,
@@ -4797,6 +4799,7 @@ async function executeMoveCandidateStage(args: {
 
   if (currentStage !== targetStage || closedState.closed) {
     const stageResult = await setOrgCandidateStage({
+      decisionChannel: args.source,
       expectedPreviousStage: expectedCurrentStage,
       recommendationId: position.recommendationId,
       candidateConsentRelayId,
@@ -6221,6 +6224,7 @@ async function executeCandidateConnectionDecision(args: {
   }
   if (decision === "decline") {
     const result = await setOrgCandidateStage({
+      decisionChannel: args.source,
       expectedPreviousStage: position.stage,
       recommendationId: position.recommendationId,
       roleId: current.roleId,
@@ -6332,6 +6336,7 @@ async function executeCandidateConnectionDecision(args: {
         workspaceId: args.workspaceId,
       });
       const result = await setOrgCandidateStage({
+        decisionChannel: args.source,
         acceptReason: finalReason,
         expectedPreviousStage: position.stage,
         recommendationId: position.recommendationId,
@@ -6455,6 +6460,7 @@ async function executeCandidateConnectionDecision(args: {
     baseUrl: getConfiguredPublicSiteUrl(),
     booking: "if_ready",
     stage: {
+      decisionChannel: args.source,
       acceptReason: finalReason,
       contactDirectly: connectionMethod === "direct_contact",
       expectedPreviousStage: position.stage,
@@ -6893,6 +6899,7 @@ export async function executeOrgAgentTool(args: {
       callId: args.callId,
       input,
       name: args.name,
+      source: args.source,
       state: args.state,
       user: args.user,
       workspaceId,

@@ -130,6 +130,7 @@ async function handleStagePost(req: NextRequest) {
     const stageInput = {
       acceptReason: body.acceptReason ?? null,
       contactDirectly: body.contactDirectly === true,
+      decisionChannel: "web" as const,
       emailMode: emailMode as InternalConnectionConfirmationEmailMode,
       expectedPreviousStage: body.sourceStage,
       introEmailDraft: body.introEmailDraft ?? null,

@@ -481,6 +481,7 @@ async function hydrateSubmittedDecisionModal(args: {
       baseUrl: getConfiguredPublicSiteUrl(),
       booking: "if_ready",
       stage: {
+        decisionChannel: "slack",
         acceptReason:
           args.submission.decision === "accept"
             ? args.submission.acceptReason
