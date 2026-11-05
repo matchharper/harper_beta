@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   externalVariant,
   EXPERIMENT,
+  V2_RUN_VERSION,
 } from "../externalRecommendationsV2/contract";
 import { EXTERNAL_MEASUREMENT_VERSION } from "../externalRecommendationsV2/measurement";
 import {
@@ -332,5 +333,22 @@ test("no eligible version remains empty instead of mixing unversioned runs", () 
   assert.deepEqual(
     result.variants.map((v) => v.sampleCount),
     [0, 0]
+  );
+});
+
+test("all-user V2 runs do not contaminate the completed A/B experiment", () => {
+  const oldRun = run("old-control", a);
+  const promotedRun = run("promoted-v2", a, 1, {
+    experiment: V2_RUN_VERSION,
+    variant: "v2",
+  });
+  const selected = selectExternalExperimentRuns({
+    runs: [oldRun, promotedRun],
+    excludedUserIds: new Set(),
+    surface: "all",
+  });
+  assert.deepEqual(
+    selected.runs.map((r) => r.id),
+    [oldRun.id]
   );
 });

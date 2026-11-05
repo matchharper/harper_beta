@@ -200,7 +200,7 @@ export function InternalOpportunityDecisionChangeModal({
         </div>
       }
     >
-      <div className="flex items-start gap-3 rounded-md border border-neutral-1000-a05 shadow-(--shadow-xs) bg-bg-floating p-3">
+      <div className="flex items-start gap-3 career-glass p-3">
         <div className="truncate flex flex-row items-center gap-1 text-[14px] font-normal text-neutral-primary">
           <span className="bg-surface-tint p-1 px-2 flex flex-row items-center gap-2 rounded-sm">
             {request.item.title}

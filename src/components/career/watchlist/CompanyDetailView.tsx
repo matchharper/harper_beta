@@ -263,7 +263,7 @@ const LeadershipList = ({
           return (
             <div
               key={person.candidId}
-              className="rounded-sm border border-neutral-1000-a05 bg-bg-floating px-2 py-2"
+              className="rounded-control bg-bg-weak px-2 py-2"
             >
               {body}
             </div>
@@ -276,7 +276,7 @@ const LeadershipList = ({
             href={person.linkedinUrl}
             target="_blank"
             rel="noreferrer"
-            className="group block rounded-sm bg-bg-floating px-2 py-2 transition-colors hover:bg-bg-basement focus:outline-none focus-visible:ring-4 focus-visible:ring-neutral-1000-a05"
+            className="group block rounded-control bg-bg-weak px-2 py-2 transition-colors hover:bg-interaction-hover focus:outline-none focus-visible:ring-4 focus-visible:ring-neutral-1000-a05"
           >
             {body}
           </a>
@@ -446,7 +446,7 @@ export const CompanyDetailView = ({
 
   if (!item) {
     return (
-      <section className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-5 py-10 text-center shadow-(--shadow-sm)">
+      <section className="career-glass px-5 py-10 text-center">
         <Building2 className="mx-auto h-6 w-6 text-neutral-disabled" />
         <h2 className="mt-4 text-[16px] font-medium text-neutral-primary">
           {t(

@@ -136,7 +136,7 @@ const CareerCallNoteDetail = ({
         </nav>
       </div>
 
-      <article className="relative min-h-[480px] rounded-xl border border-neutral-1000-a05 bg-bg-floating px-5 py-6 shadow-(--shadow-sm) sm:px-6 sm:py-6 md:min-h-[calc(100svh-180px)]">
+      <article className="relative min-h-[480px] career-glass career-work-surface px-5 py-6 sm:px-6 sm:py-6 md:min-h-[calc(100svh-180px)]">
         {loading ? (
           <div
             aria-live="polite"
@@ -203,7 +203,7 @@ const CareerCallNoteDetail = ({
             </header>
 
             {keyPoints.length > 0 ? (
-              <section className="mt-6 rounded-xl bg-neutral-100 p-4 font-normal">
+              <section className="mt-6 rounded-card bg-bg-weak p-4 font-normal">
                 <h2 className="text-sm text-neutral-primary">
                   {t("career.profile.documents.call_note_key_points", "요약")}
                 </h2>

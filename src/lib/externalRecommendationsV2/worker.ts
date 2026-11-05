@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { TalentAdminClient } from "../talentOnboarding/admin";
 import { withLlmUsageContext } from "../llm/usageContext";
-import { externalVariant } from "./contract";
 import { runExternalV2, type EngineArgs, type SelectedRole } from "./engine";
 import { createRun, updateRun, failRun } from "./runs";
 
@@ -39,11 +38,6 @@ export function workerCard(s: SelectedRole, rank: number) {
 export async function runWorkerExternalSearch(
   args: EngineArgs & { discoveryRunId?: string; experimentRunId?: string }
 ) {
-  if (
-    process.env.EXTERNAL_RECOMMENDATION_EXPERIMENT === "off" ||
-    externalVariant(args.userId) !== "v2"
-  )
-    throw new Error("Candidate is not assigned to external V2");
   let run: { id: string } | null = null;
   if (!args.dryRun) {
     if (args.experimentRunId) {

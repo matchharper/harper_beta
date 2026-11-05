@@ -331,7 +331,7 @@ function BrowserSessionFloatingPanel({
         onInteractOutside={(event) => event.preventDefault()}
         aria-describedby={undefined}
         data-browser-placement={inline ? "inline" : "dock"}
-        className="overflow-y-auto rounded-3xl shadow-(--shadow-xl) outline-none"
+        className="overflow-y-auto rounded-modal shadow-(--shadow-modal) outline-none"
       >
         <DialogTitle className="sr-only">
           {t("career.browser.title", "지원 브라우저")}

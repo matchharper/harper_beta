@@ -1,5 +1,38 @@
 # External 추천 V2 — 구현 및 적용 안내
 
+## 2026-11-05 전체 사용자 V2 전환 (코드 미배포)
+
+웹 `recommend_job_postings`, 기존 Opportunity Worker의 정기·온보딩·채팅 요청,
+남아 있는 일일 추천 큐 처리에서 control/V2 배정을 제거했다. 신규 추천은 모두
+공유 V2 검색·평가 경로를 사용한다. `EXTERNAL_RECOMMENDATION_EXPERIMENT=off`와
+브라우저의 기존 버전 선택으로 control에 복귀하는 경로도 제거했다. 명시적
+`evaluation.dryRun=true`인 기존 평가 도구는 사용자 추천을 저장하지 않는 비교용으로 유지한다.
+Worker의 오래된 `new_rule` 큐 힌트와 `OPP_DISCOVERY_AGENT_DEFAULT`도 운영 실행을
+구 agent로 돌리지 않는다. 기존 Career agent handoff 경로는 그대로 유지한다.
+
+새 Career agent의 `search_opportunities`는 이미 V2의 검색·Decisions 평가기를
+사용하므로 변경하지 않았다. 이 경로의 `variant=career_agent`와
+`career_agent_v1` 실행 계약은 외부 추천 control 버전을 뜻하지 않는다.
+신규 일일 추천을 만들지 않는 현재 `startDailyRun` 계약도 유지한다. 이미 큐에
+있는 control 일일 작업은 같은 ID·lease·일자·중복 방지 경계 안에서 V2로 처리한다.
+
+새 실행은 기존 `external_recommendation_runs`에 `variant=v2`,
+`experiment=external-recommendations-v2`로 기록한다. 과거 A/B 배정 함수와
+`external-recommendations-2026-10-v1` 기록은 과거 비교 조회에만 사용하여,
+전체 사용자 전환 후의 결과가 기존 control/V2 통계에 섞이지 않게 한다.
+
+운영 읽기 확인: 최근 7일간 control의 실제 저장 추천은 일일 4,414건,
+웹 668건, Worker 5,866건이며 세 경로 모두 열람·클릭 기록이 있다.
+마지막 control 추천은 2026-11-04 14:27 KST에 저장되고 14:28에 열람됐다
+(run `2dd13555-1b58-4db9-aca5-4d377ea340d2`, recommendation
+`c91f1f66-6154-4e31-b8d8-63b67cd80384`). 이는 추천 저장·열람 근거이며
+이메일 수신 여부를 뜻하지 않는다.
+
+검증은 합성 데이터로 웹·Worker 양쪽의 과거 cohort, 기존 off 설정, V2 오류,
+일일 control 큐의 cache/search 전환, 소유권·중복 방지·설정/온보딩/일자 경계와
+기존 V2 평가 입력·추천 출력을 확인한다. 운영 추천 재실행·발송·배포는 하지 않았다.
+운영 반영 시에는 웹의 cohort 거부 조건을 먼저 제거한 뒤 Worker를 배포해야 한다.
+
 ## 2026-10-22 고용 형태·원격 선적용 및 국가별 후보 배분 (코드 미배포)
 
 현재 로컬 검색 순서는 다음과 같다. 아래 이전 로컬 구현 기록은 이 절의 변경 전 상태다.
@@ -87,7 +120,7 @@ DB 적용 완료(2026-10-16): 운영 migration `20261016091449`
 
 문서 기준: 2026-10-16. 기존 DB 구조와 제목 embedding에 이어 beta `d30ff764`와 Worker `d007a57`를 운영 반영했다. 이번 배포에서 제목 embedding을 다시 채우거나 평가를 다시 실행하지 않았다. 실제 검증 결과·한계는 평가 registry에 기록한다.
 
-## 실험과 모델
+## 이전 운영 기록: 실험과 모델
 
 후보자 UUID와 고정 experiment salt의 SHA-256 첫 byte로 control/V2를 50:50 배정한다. worker와 web이 같은 함수를 구현하며 실행마다 재추첨하지 않는다. 기존 Behavior Context 통합과는 독립적인 external 검색 실험이다. Control/V2 모두 초기 검색에 연봉 만족도를 반영하고 누락 급여를 같은 추정기로 채운다. 기존 cohort 배정과 각 경로의 fit/scoring/rerank는 유지한다.
 

@@ -183,7 +183,7 @@ export const CareerProfileSharingSettingsSection = ({
             <MuteButton
               variant="default"
               size="lg"
-              className="w-full justify-between bg-neutral-50 hover:bg-neutral-100 rounded-pill shadow-none border-none px-4 text-sm"
+              className="w-full justify-between bg-bg-weak hover:bg-interaction-hover rounded-control shadow-none border-none px-4 text-sm"
               aria-haspopup="dialog"
               aria-expanded={profileVisibilityPanelOpen}
               disabled={

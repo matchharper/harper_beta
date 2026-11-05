@@ -13,7 +13,10 @@ import {
   isInternalRoleCandidateDecisionAvailable,
   type CareerInternalOpportunityDecisionAction,
 } from "@/lib/career/internalOpportunityDecision";
-import { getCareerPositiveActionIcon, getCareerPositiveActionLabel } from "../opportunityTypeMeta";
+import {
+  getCareerPositiveActionIcon,
+  getCareerPositiveActionLabel,
+} from "../opportunityTypeMeta";
 import type { CareerHistoryOpportunity } from "../types";
 import { isCareerHistoryOpportunityExpired } from "./opportunityPostingStatus";
 import {
@@ -47,7 +50,7 @@ export default function HistoryOpportunityDetailActions({
     getInternalOpportunityDecisionAvailability(item);
   const actionClass = "py-2.5 rounded-sm font-normal md:font-light text-sm";
   const rowClass =
-    "grid grid-flow-col auto-cols-fr gap-2 pt-4 [&>button]:h-full [&>button]:min-w-0 [&>button]:whitespace-normal";
+    "grid grid-cols-2 gap-2 pt-4 [&>button]:h-full [&>button]:min-w-0 [&>button]:whitespace-normal";
 
   if (isInternal) {
     if (item.feedback === "keep" && onKeepDecision) {
@@ -169,7 +172,7 @@ export default function HistoryOpportunityDetailActions({
       {canApply ? (
         <MuteButton
           disabled={pending}
-          className={actionClass}
+          className={`${actionClass} col-start-2`}
           variant="primary"
           onClick={onApply}
         >

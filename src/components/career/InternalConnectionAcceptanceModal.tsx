@@ -359,7 +359,7 @@ export default function InternalConnectionAcceptanceModal({
           type="button"
           aria-expanded={openMoreWarning}
           onClick={() => setOpenMoreWarning((prev) => !prev)}
-          className="mt-4 relative group flex w-full flex-row gap-2 rounded-sm bg-neutral-200 px-3 py-3 text-left text-neutral-primary transition-colors hover:bg-neutral-300"
+          className="mt-4 relative group flex w-full flex-row gap-2 rounded-control bg-bg-weak px-3 py-3 text-left text-neutral-primary transition-colors hover:bg-interaction-hover"
         >
           <Handshake className="mt-0.5 h-4 w-4 shrink-0 text-neutral-primary" />
           <div className="min-w-0 flex-1">

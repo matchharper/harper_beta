@@ -1,3 +1,4 @@
+import dynamic from "next/dynamic";
 import {
   createContext,
   useContext,
@@ -64,9 +65,11 @@ export type CareerInlineUiRuntime = {
 };
 
 // The preview supplies synthetic readers/actions to the same renderer, without production requests.
+const CareerInlineWorkspaceUi = dynamic(() => import("./CareerInlineWorkspaceUi"));
+
 const RuntimeContext = createContext<CareerInlineUiRuntime | null>(null);
 export const CareerInlineUiProvider = RuntimeContext.Provider;
-const surface = "w-full min-w-0 rounded-3xl bg-surface-tint p-4 sm:p-5";
+const surface = "career-glass w-full min-w-0 p-4 sm:px-[18px] sm:py-4";
 
 export function CareerInlineUiUnavailable() {
   const t = useCareerT();
@@ -281,7 +284,7 @@ function Matching({
                   item={item}
                   expanded={false}
                   showUnreadIndicator={false}
-                  connectionIndicator="logo"
+
                   onOpenDetail={() => runtime.onOpen(item)}
                   collapsedActions={
                     <SaveAction item={item} runtime={runtime} />
@@ -372,7 +375,7 @@ function OpportunityRows({
             item={item}
             expanded={false}
             showUnreadIndicator={false}
-            connectionIndicator="logo"
+
             onOpenDetail={() => runtime.onOpen(item)}
             collapsedActions={<SaveAction item={item} runtime={runtime} />}
           />
@@ -572,6 +575,8 @@ function InlineUiView({
   runtime: CareerInlineUiRuntime;
 }) {
   if (!runtime.userId) return <CareerInlineUiUnavailable />;
+  if (reference.type === "meetings" || reference.type === "automations" || reference.type === "actions")
+    return <CareerInlineWorkspaceUi reference={reference} />;
   if (reference.type === "matching")
     return <Matching reference={reference} runtime={runtime} />;
   if (reference.type === "opportunities")

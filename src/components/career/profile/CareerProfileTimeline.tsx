@@ -176,7 +176,7 @@ const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => (
 );
 
 const profileEditMobileFieldClassName =
-  "rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[13px] font-normal leading-5 text-neutral-primary placeholder:text-neutral-placeholder hover:bg-bg-floating focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05";
+  "rounded-control border border-stroke bg-control bg-control-image px-2.5 text-[13px] font-normal leading-5 text-neutral-primary placeholder:text-neutral-placeholder hover:bg-bg-floating focus:border-stroke-focus focus:bg-bg-floating focus:ring-2 focus:ring-focus-ring";
 
 export const profileEditPlainInputClassName = cn(
   profileEditMobileFieldClassName,

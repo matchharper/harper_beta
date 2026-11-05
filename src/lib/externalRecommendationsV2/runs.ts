@@ -1,7 +1,7 @@
 import { EXTERNAL_MEASUREMENT_VERSION } from "./measurement";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { TalentAdminClient } from "../talentOnboarding/admin";
-import { EXPERIMENT, externalVariant } from "./contract";
+import { V2_RUN_VERSION } from "./contract";
 export const externalRunContext = new AsyncLocalStorage<{
   id: string;
   leaseToken?: string;
@@ -17,10 +17,10 @@ export async function createRun(
   )
     .insert({
       talent_id: userId,
-      experiment: EXPERIMENT,
-      variant: externalVariant(userId),
       surface,
       ...extra,
+      experiment: V2_RUN_VERSION,
+      variant: "v2",
       metrics: {
         ...((extra.metrics as object) ?? {}),
         measurementVersion: EXTERNAL_MEASUREMENT_VERSION,

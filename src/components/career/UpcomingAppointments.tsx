@@ -83,12 +83,14 @@ export function AppointmentList({
 export default function UpcomingAppointments({
   roleId,
   enabled = true,
+  showEmpty = false,
   onOpenRole,
   position,
   fallbackMeeting,
 }: {
   roleId?: string;
   enabled?: boolean;
+  showEmpty?: boolean;
   onOpenRole?: (id: string) => void;
   position?: { title: string; companyName: string };
   fallbackMeeting?: CareerOpportunityUpcomingMeeting | null;
@@ -116,7 +118,7 @@ export default function UpcomingAppointments({
   });
   const schedules = query.data?.pages.flatMap((page) => page.schedules) ?? [];
   const pendingMeeting = query.isPending && fallbackMeeting;
-  if (!enabled || (!position && !schedules.length && !query.isError))
+  if (!enabled || (!showEmpty && !position && !schedules.length && !query.isError))
     return null;
   return (
     <section
@@ -134,7 +136,7 @@ export default function UpcomingAppointments({
           />
         )}
       </SectionHeader>
-      {position &&
+      {(position || showEmpty) &&
         !schedules.length &&
         !query.isError &&
         (pendingMeeting ? (

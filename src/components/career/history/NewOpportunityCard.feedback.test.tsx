@@ -117,6 +117,7 @@ test("only actual feedback button clicks produce the experiment input, before sa
       const buttons = [
         ...container.querySelectorAll<HTMLButtonElement>("button"),
       ].filter((button) => {
+        if (button.closest("[inert]")) return false;
         const label =
           button.getAttribute("aria-label") ?? button.textContent ?? "";
         return /(관심 있어요|이번엔 넘길게요|저장|저장하기|목록에서 숨기기)$/.test(

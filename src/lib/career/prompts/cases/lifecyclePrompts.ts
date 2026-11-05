@@ -1,9 +1,7 @@
 import { formatInternalCallQuestionContext } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import type { CareerReengagementPendingAction } from "@/lib/career/pendingActions";
-import {
-  prependCareerReengagementAction,
-} from "@/lib/career/reengagementActions";
+import { prependCareerReengagementAction } from "@/lib/career/reengagementActions";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
   formatCareerPromptKoreanDateTime,
@@ -122,7 +120,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
   return [
     "## Session re-engagement",
     `사용자가 새 메시지를 보내지 않은 상태에서 Career에 다시 접속했다. 재접속 자체는 새 요청이나 추가 동의가 아니다. 대화와 기록에 남은 사용자 목적·선호·제약과 이미 위임한 일을 현재 상태에 이어서 적용하고, 지금 알아두거나 행동할 것이 있는지 판단한다. 대화가 도움이 되면 ${outputLanguage}로 자연스럽게 말을 건넬 수 있다.`,
-    "현재 visible actions와 작업·미해결 확인의 원본을 살펴보고, 사용자가 메시지를 보내지 않아도 홈에서 바로 확인할 가치가 있는 다음 행동을 manage_action_items로 정리한다. 해결되거나 달라진 항목은 삭제·수정하고 같은 목적을 중복 생성하지 않는다. 유용한 항목이 없으면 빈 목록을 유지해도 된다. 목록 정리와 채팅 발화 여부는 별개이며, 목록만 갱신하고 no-message로 끝낼 수 있다.",
+    "사용자의 목적·관심사·현재 맥락을 바탕으로 지금 도움이 될 만한 할 일 혹은 미완료 작업을 스스로 제안하고, manage_action_items로 실제 할 일 목록에 남긴다. 사용자가 새 메시지를 보내지 않아도 홈에서 제안을 발견하고 시작할 수 있어야 한다. 현재 목록을 함께 살펴 해결되거나 달라진 항목은 삭제·수정하고 같은 목적을 중복 생성하지 않는다. 유용한 항목이 없으면 빈 목록을 유지해도 된다. 목록 정리와 채팅 발화 여부는 별개이며, 목록만 갱신하고 no-message로 끝낼 수 있다.",
     "제공된 매칭 결과와 현재 관심사·추천 이력을 보고 소개할 가치가 있는 포지션이 있다면, 말로만 기회를 언급하기보다 가능하면 upsert_opportunities로 실제 추천 목록에 반영한다. 기존 결과가 부족하거나 현재 방향과 맞지 않으면 추가 결과를 읽거나 새로 검색할 수 있다. 마지막 검색과 평가 시점, 진행 중인 작업, 최근 대화와 미결정 사항을 참고해 지금 도움이 되는 행동을 판단한다.",
     `- currentAccessAt: ${currentAccessAtLabel}`,
     `- previousChatAt: ${previousChatAtLabel}`,
@@ -315,7 +313,9 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(
  * Internal 수락시 추가적인 정보 질문을 위해 voice call을 진행할 때 사용되는 프롬프트
  */
 export function buildInternalOpportunityRealtimeInstruction(
-  callRequest: InternalOpportunityCallRequest & { preferredLocale?: string | null }
+  callRequest: InternalOpportunityCallRequest & {
+    preferredLocale?: string | null;
+  }
 ) {
   return [
     "## Accepted internal opportunity call",

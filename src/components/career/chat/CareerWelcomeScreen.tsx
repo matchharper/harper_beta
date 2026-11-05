@@ -45,7 +45,7 @@ const CareerWelcomeScreen = () => {
       <div className="flex min-h-full flex-1 flex-col overflow-hidden">
         <div className="flex flex-1 flex-col justify-between">
           <div className="max-w-[820px] mt-8 space-y-10 px-12">
-            <div className="max-w-[560px] rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-(--shadow-sm)">
+            <div className="max-w-[560px] career-glass px-4 py-4">
               <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-neutral-muted">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-default px-2.5 py-1">
                   <CheckCircle2 className="h-3.5 w-3.5 text-positive" />

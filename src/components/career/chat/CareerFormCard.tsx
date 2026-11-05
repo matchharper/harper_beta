@@ -249,7 +249,7 @@ export function CareerFormView({
     <section
       data-career-form-id={form.formId}
       data-career-form-revision={form.revision}
-      className="w-full max-w-[640px] space-y-5 rounded-3xl bg-surface-tint p-4"
+      className="career-glass career-work-surface w-full max-w-[640px] space-y-5 p-[18px]"
     >
       {form.title ? (
         <h3 className="text-base font-normal text-neutral-primary">

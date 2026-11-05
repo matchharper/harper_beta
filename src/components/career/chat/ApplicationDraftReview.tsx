@@ -24,7 +24,7 @@ export function ApplicationDraftReview({
     p?.inputRevision === draft.inputRevision &&
     p.generation.status === "ready";
   return (
-    <section className="max-w-[740px] space-y-4 rounded-xl border border-neutral-1000-a10 bg-bg-floating p-4">
+    <section className="max-w-[740px] space-y-4 career-glass career-work-surface p-4">
       <p className="font-medium">
         {t("career.prep.draftTitle", "지원 문서 전체 초안")} · {draft.roleName}{" "}
         · v{draft.draftVersion}

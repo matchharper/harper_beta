@@ -74,7 +74,12 @@ export async function readExternalEvaluationResults(
       CROSS JOIN LATERAL unnest(r.evaluation_ids) AS linked(id)
       WHERE r.talent_id = ${owner} AND r.variant = 'career_agent' AND ${scope}
     ), scoped AS MATERIALIZED (
-      SELECT e.id, e.role_id, e.mutual_fit_score,
+      SELECT e.id, e.role_id,
+        -- Rank the model's candidate list; the Career agent still selects recommendations.
+        0.30 * (e.assessment#>>'{fit,mutualFit}')::numeric
+          + 0.50 * (e.assessment#>>'{fit,candidateInterest}')::numeric
+          + 0.10 * (e.assessment#>>'{fit,companyInterest}')::numeric
+          + 0.10 * (e.assessment#>>'{fit,roleFit}')::numeric AS ranking_score,
         row_number() OVER (PARTITION BY e.role_id ORDER BY e.evaluated_at DESC,e.id DESC) AS role_revision,
         ${expiredExternalRoleSql("role")} AS expired,
         EXISTS (
@@ -90,7 +95,7 @@ export async function readExternalEvaluationResults(
     ), ranked AS MATERIALIZED (
       -- Keep filtered rows as cursor anchors when their availability changes between pages.
       SELECT id, expired, previously_recommended, row_number() OVER (
-        ORDER BY mutual_fit_score DESC NULLS LAST, id
+        ORDER BY ranking_score DESC NULLS LAST, id
       ) AS position FROM scoped
       ${args.recommendationCandidates ? "WHERE role_revision=1" : ""}
     ), boundary AS (

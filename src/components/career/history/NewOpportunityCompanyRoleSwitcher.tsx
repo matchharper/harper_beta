@@ -135,7 +135,7 @@ const NewOpportunityCompanyRoleSwitcher = ({
   const companyName = company?.companyName ?? "";
 
   return (
-    <section className="overflow-hidden rounded-lg bg-bg-floating text-neutral-primary">
+    <section className="career-glass overflow-hidden text-neutral-primary">
       <div className="flex items-center gap-3 border-b border-neutral-1000-a05 px-4 py-2.5 sm:px-5">
         {company?.companyLogoUrl ? (
           <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-default p-0.5">

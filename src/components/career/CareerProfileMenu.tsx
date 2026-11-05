@@ -1,4 +1,8 @@
 import {
+  User,
+  FileText,
+  TextSelect,
+  Building2,
   ChevronDown,
   Compass,
   ExternalLink,
@@ -31,6 +35,8 @@ import { BareButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import Image from "next/image";
 
+import type { CareerWorkspaceTab } from "./CareerWorkspaceNav";
+
 type CareerProfileMenuVariant = "desktop" | "mobile" | "sidebar";
 
 const aboutMenuItemClassName =
@@ -47,6 +53,7 @@ const CareerProfileMenu = ({
   onSuggestUpdate,
   variant = "desktop",
   sidebarCollapsed = false,
+  onNavigate,
 }: {
   profileImageUrl?: string | null;
   profileName: string;
@@ -55,6 +62,7 @@ const CareerProfileMenu = ({
   onSuggestUpdate: () => void;
   variant?: CareerProfileMenuVariant;
   sidebarCollapsed?: boolean;
+  onNavigate?: (tab: CareerWorkspaceTab) => void;
 }) => {
   const t = useCareerT();
 
@@ -247,7 +255,7 @@ const CareerProfileMenu = ({
               variant="transparent"
               aria-label={"프로필 메뉴"}
               title={sidebarCollapsed ? profileName : undefined}
-              className={triggerClassName}
+              className={cn(triggerClassName, !isSidebar && "career-avatar")}
             >
               <>
                 <span
@@ -274,7 +282,7 @@ const CareerProfileMenu = ({
             <BareButton
               type="button"
               aria-label={"프로필 메뉴"}
-              className={triggerClassName}
+              className={cn(triggerClassName, !isSidebar && "career-avatar")}
             >
               {avatarBody}
             </BareButton>
@@ -289,6 +297,15 @@ const CareerProfileMenu = ({
             {profileEmail || "Career profile"}
           </div>
         </DropdownMenuLabel>
+        {onNavigate && <>
+          {([
+            { tab: "profile", icon: User, label: t("career.workspace.my_information", "내 정보") },
+            { tab: "documents", icon: FileText, label: t("career.sky.documents", "자료") },
+            { tab: "brief", icon: TextSelect, label: t("career.profile.career_profile_workspace.search_brief_tab", "원하는 조건") },
+            { tab: "watchlist", icon: Building2, label: t("career.sky.companies", "관심 회사") },
+          ] as const).map(({ tab, icon: Icon, label }) => <ActionDropdownItem key={tab} onSelect={() => { closeMenu(); onNavigate(tab); }}><Icon className="size-4" />{label}</ActionDropdownItem>)}
+          <ActionDropdownSeparator />
+        </>}
         <ActionDropdownItem
           onSelect={() => handleOpenSupport()}
           className="flex flex-row items-center gap-2.5 mt-2 font-normal"

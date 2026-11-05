@@ -1,3 +1,4 @@
+import { useCareerWorkspaceNavigation } from "./CareerWorkspaceNavigationContext";
 import ProgressOpportunityList from "./history/ProgressOpportunityList";
 import { useOpportunityStatusChange } from "@/hooks/career/useOpportunityStatusChange";
 import { useEventCallback } from "@/hooks/useEventCallback";
@@ -503,7 +504,7 @@ const HistoryEmptyStatePanel = ({
           };
 
   return (
-    <section className="mt-6 overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-floating shadow-(--shadow-sm)">
+    <section className="career-glass mt-6 overflow-hidden">
       <div className="min-w-0 px-5 py-6 md:px-7 xl:px-8">
         <h4 className="mt-0 max-w-[640px] text-[16px] font-medium leading-7 text-neutral-primary sm:text-[18px]">
           {config.title}
@@ -607,9 +608,11 @@ const CareerHistoryPanel = () => {
     currentSavedStageQuery
   );
 
+  const workspaceNavigation = useCareerWorkspaceNavigation();
   const openChatTab = useCallback(
     (eventName = "click_history_empty_open_chat") => {
       logCareerEvent(eventName);
+      if (workspaceNavigation) { workspaceNavigation.openChat(); return; }
       const query: Record<string, string> = {};
       const invite = getQueryValue(router.query.invite);
       const mail = getQueryValue(router.query.mail);
@@ -617,11 +620,11 @@ const CareerHistoryPanel = () => {
       if (mail) query.mail = mail;
 
       void router.push({
-        pathname: "/career",
+        pathname: "/career/chat",
         query: Object.keys(query).length > 0 ? query : undefined,
       });
     },
-    [logCareerEvent, router]
+    [logCareerEvent, router, workspaceNavigation]
   );
 
   const startOnboardingChatFromGate = useCallback(() => {
@@ -1442,7 +1445,6 @@ const CareerHistoryPanel = () => {
             <NewOpportunityList
               expandedOpportunityId={activeOpportunity?.id}
               hasMore={hasMoreNewOpportunities}
-              internalCount={historyOpportunityCounts.newInternal}
               items={newItems}
               loadingMore={historyLoadingMore}
               onApply={handleApplyOpportunity}

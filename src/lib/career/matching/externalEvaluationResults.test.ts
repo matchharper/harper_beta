@@ -54,7 +54,9 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
     INSERT INTO talent_external_evaluations(id,talent_id,run_id,role_id,assessment,input_fingerprint)
       SELECT ('00000000-0000-4000-8000-'||lpad((10000+i)::text,12,'0'))::uuid,
         '${id(1)}'::uuid,'${id(101)}'::uuid,md5(i::text)::uuid,
-        jsonb_build_object('fit',jsonb_build_object('mutualFit',CASE WHEN i=1101 THEN NULL ELSE i%9 END)),i::text
+        jsonb_build_object('fit',jsonb_build_object(
+          'mutualFit',CASE WHEN i=1101 THEN NULL ELSE i%9 END,
+          'candidateInterest',i%9,'companyInterest',i%9,'roleFit',i%9)),i::text
       FROM generate_series(1,1101) g(i);
     INSERT INTO talent_external_evaluations VALUES('${id(20000)}','${id(2)}','${id(109)}',md5('1')::uuid,'{"fit":{"mutualFit":100}}',now(),'foreign');
     INSERT INTO external_recommendation_runs(id,talent_id,matching_id,evaluation_ids) VALUES
@@ -174,6 +176,42 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
     );
   };
 
+  await t.test("30/50/10/10 ranking reaches the model and remains stable across pages", async () => {
+    await setReferences(5);
+    await db.exec(`
+      UPDATE talent_external_evaluations e SET assessment=jsonb_build_object('fit',jsonb_build_object(
+        'mutualFit',v.m,'candidateInterest',v.c,'companyInterest',v.e,'roleFit',v.r))
+      FROM (VALUES (1,90,20,70,70),(2,60,90,70,70),(3,50,90,100,100),
+        (4,100,80,50,50),(5,100,NULL,100,100)) v(i,m,c,e,r)
+      WHERE e.id=('00000000-0000-4000-8000-'||lpad((10000+v.i)::text,12,'0'))::uuid;
+    `);
+    try {
+      // Scores are 51, 77, 80, 80, null. Equal totals use the evaluation ID,
+      // not mutualFit; an absent metric is not silently treated as zero.
+      const first = await readExternalEvaluationResults({ ...args, limit: 3 });
+      assert.deepEqual(first.evaluations.map(e => e.id), [id(10003), id(10004), id(10002)]);
+      assert.equal(first.evaluationCount, 5);
+      assert.equal(first.remainingEvaluationCount, 2);
+      assert.equal(first.evaluationCursor, id(10002));
+      const next = await readExternalEvaluationResults({ ...args, limit: 3, cursor: first.evaluationCursor! });
+      assert.deepEqual(next.evaluations.map(e => e.id), [id(10001), id(10005)]);
+      assert.equal(next.remainingEvaluationCount, 0);
+      assert.equal(next.evaluationCursor, null);
+      const result = await readExternalEvaluation(args);
+      assert.ok("evaluations" in result);
+      assert.deepEqual(result.evaluations.map(e => e.id), [id(10003), id(10004), id(10002), id(10001), id(10005)]);
+      const text = formatCareerMatchingResult(result);
+      const positions = [10003, 10004, 10002, 10001, 10005].map(n => text.indexOf(id(n)));
+      assert.ok(positions.every((position, i) => position >= 0 && (i === 0 || position > positions[i - 1])));
+    } finally {
+      await db.exec(`
+        UPDATE talent_external_evaluations SET assessment=jsonb_build_object('fit',jsonb_build_object(
+          'mutualFit',input_fingerprint::integer%9,'candidateInterest',input_fingerprint::integer%9,
+          'companyInterest',input_fingerprint::integer%9,'roleFit',input_fingerprint::integer%9))
+        WHERE talent_id='${id(1)}' AND input_fingerprint::integer BETWEEN 1 AND 5;
+      `);
+    }
+  });
   await t.test("the former 500-ID GET fails at the HTTP boundary", async () => {
     const old = await admin
       .from("talent_external_evaluation_index")

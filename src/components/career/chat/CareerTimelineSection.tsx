@@ -1187,6 +1187,7 @@ const CareerTimelineSection = ({
   if (!user) {
     return (
       <div
+        data-career-timeline
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 pt-4 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
         style={TIMELINE_SCROLL_STYLE}
       >
@@ -1307,9 +1308,9 @@ const CareerTimelineSection = ({
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 pt-4 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
       style={TIMELINE_SCROLL_STYLE}
     >
-      <div className={cn("mx-auto flex w-full max-w-[var(--career-chat-content-max-width)] flex-col gap-2 px-5 py-1", friendly && "md:px-8")}>
+      <div className={cn("mx-auto flex w-full max-w-[var(--career-chat-content-max-width)] flex-col gap-2 px-5 py-1")}>
         {showLoadOlderButton && hasOlderMessages && (
-          <div className="sticky top-0 z-10 flex justify-center pb-2">
+          <div className="sticky top-[var(--career-content-inset-top,0px)] z-10 flex justify-center pb-2">
             <ChatLoadOlderButton
               label={t(
                 "career.chat.career_timeline_section.0t1ynxd",

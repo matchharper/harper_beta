@@ -1,13 +1,16 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
+import { ClickablePanel } from "@/components/ui/clickable-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Typography } from "@/components/ui/typography";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerHistoryContext } from "./CareerSidebarContext";
+import { useCareerWorkspaceNavigation } from "./CareerWorkspaceNavigationContext";
 
 export function CareerOpportunitySummary() {
   const t = useCareerT();
+  const navigation = useCareerWorkspaceNavigation();
   const { historyOpportunityCounts, historyLoading } =
     useCareerHistoryContext();
   const { saved, applied, connected } = historyOpportunityCounts.savedStages;
@@ -30,11 +33,11 @@ export function CareerOpportunitySummary() {
       label: t("career.history.saved_opportunity_status.connected", "진행중"),
       count: connected,
     },
-  ];
+  ] as const;
 
   return (
     <Card
-      className="mt-3 max-w-[440px] rounded-2xl p-5 shadow-none"
+      className="career-summary career-glass"
       data-career-opportunity-summary
     >
       <Typography as="h2" variant="description" className="mb-4">
@@ -42,7 +45,16 @@ export function CareerOpportunitySummary() {
       </Typography>
       <dl className="grid grid-cols-3 gap-4" aria-busy={historyLoading}>
         {stats.map(({ key, label, count }) => (
-          <div key={key} className="flex min-w-0 flex-col">
+          <ClickablePanel
+            key={key}
+            className="flex min-w-0 flex-col rounded-control transition-colors hover:bg-interaction-hover"
+            disabled={!navigation}
+            onActivate={() =>
+              navigation?.navigate("history", {
+                historyTarget: { historyTab: "saved", savedStage: key },
+              })
+            }
+          >
             <Typography asChild variant="description" className="order-2 mt-1">
               <dt>{label}</dt>
             </Typography>
@@ -59,7 +71,7 @@ export function CareerOpportunitySummary() {
                 )}
               </dd>
             </Typography>
-          </div>
+          </ClickablePanel>
         ))}
       </dl>
     </Card>

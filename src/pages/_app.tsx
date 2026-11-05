@@ -10,6 +10,7 @@ import { DevColorPalettePreview } from "@/components/common/DevColorPaletteContr
 import Head from "next/head";
 import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useLayoutEffect, useState } from "react";
+import { MotionConfig } from "motion/react";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
   canUseCareerDevControls,
@@ -142,13 +143,11 @@ export default function App({ Component, pageProps }: AppProps) {
     </AuthPersonaGate>
   );
   const page = isCareerPage ? (
-    <CareerTranslationRuntime>
-      {guardedPage}
-    </CareerTranslationRuntime>
+    <MotionConfig reducedMotion="user">
+      <CareerTranslationRuntime>{guardedPage}</CareerTranslationRuntime>
+    </MotionConfig>
   ) : isOrgPage ? (
-    <OrgLocaleProvider>
-      {guardedPage}
-    </OrgLocaleProvider>
+    <OrgLocaleProvider>{guardedPage}</OrgLocaleProvider>
   ) : (
     guardedPage
   );
@@ -169,7 +168,11 @@ export default function App({ Component, pageProps }: AppProps) {
         <Head>
           <title>Harper — AI Career Agent</title>
           <meta key="description" name="description" content={appDescription} />
-          <meta key="theme-color" name="theme-color" content="#F7F0E8" />
+          <meta
+            key="theme-color"
+            name="theme-color"
+            content={isCareerPage ? "#F5F6F8" : "#F7F0E8"}
+          />
         </Head>
         {GA_ID && (
           <>
@@ -189,7 +192,15 @@ export default function App({ Component, pageProps }: AppProps) {
           </>
         )}
         <RouteHistoryProvider>
-          <div className="notranslate font-sans" translate="no">
+          <div
+            className="notranslate font-sans"
+            translate="no"
+            data-career-theme={
+              currentPath === "/career" || currentPath?.startsWith("/career/")
+                ? "sky"
+                : undefined
+            }
+          >
             <Analytics />
             <CareerUtmCapture />
             <AppErrorBoundary resetKey={router.asPath}>

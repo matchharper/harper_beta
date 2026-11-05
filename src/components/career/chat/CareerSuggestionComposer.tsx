@@ -141,7 +141,7 @@ export function CareerSuggestionComposerSlot({
       <div
         id={panelId}
         hidden={!form}
-        className="max-h-[50dvh] overflow-y-auto overscroll-contain pb-3"
+        className="career-response-scroll"
       >
         {form ? (
           form.kind === "suggestion" ? (

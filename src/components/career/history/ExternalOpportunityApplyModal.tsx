@@ -107,7 +107,7 @@ export default function ExternalOpportunityApplyModal({
         </div>
       }
     >
-      <div className="flex items-center gap-2 text-sm flex-col bg-neutral-50 p-4 rounded-xs">
+      <div className="flex items-center gap-2 text-sm flex-col bg-bg-weak p-4 rounded-control">
         <CompanyLogo
           logoUrl={getDisplayableCompanyLogoUrl(item.companyLogoUrl)}
           name={item.companyName}

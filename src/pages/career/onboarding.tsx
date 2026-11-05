@@ -1,5 +1,4 @@
 import {
-  ONBOARDING_BACKGROUND_CLASS,
   OnboardingFrame,
   OnboardingFooter,
   OnboardingStepHeader,
@@ -15,6 +14,7 @@ import { useRouter } from "next/router";
 import {
   BriefcaseBusiness,
   Clock3,
+  Check,
   FileText,
   Globe2,
   Handshake,
@@ -34,7 +34,6 @@ import {
 import { showToast } from "@/components/toast/toast";
 import { Badge } from "@/components/ui/badge";
 import { AnimatedButton, BareButton } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import Face from "@/components/common/Face";
@@ -543,9 +542,11 @@ const ProfileInputToggle = ({
   <BareButton
     type="button"
     onClick={onClick}
+    aria-pressed={active}
+    data-selected={active}
     aria-invalid={invalid || undefined}
     className={cn(
-      "flex relative h-[104px] w-full shrink-0 flex-col items-center justify-center gap-2 rounded-md border px-3 py-3 text-center text-[13px] font-medium leading-4 transition",
+      "career-onboarding-option career-glass flex relative h-[104px] w-full shrink-0 flex-col items-center justify-center gap-2 rounded-md border px-3 py-3 text-center text-[13px] font-medium leading-4 transition",
       active
         ? "border-neutral-800 bg-bg-weak"
         : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-800 hover:bg-bg-weak",
@@ -553,7 +554,15 @@ const ProfileInputToggle = ({
     )}
   >
     <div className="absolute top-1.5 right-1.5">
-      <Checkbox checked={active} />
+      <span
+        aria-hidden="true"
+        className={cn(
+          "flex size-4 items-center justify-center rounded-[5px] border border-stroke",
+          active && "border-primary bg-primary text-on-inverse"
+        )}
+      >
+        {active ? <Check className="size-3" strokeWidth={2.5} /> : null}
+      </span>
     </div>
     <span
       className={cn(
@@ -656,8 +665,10 @@ const EngagementCardButton = ({
   <BareButton
     type="button"
     onClick={onClick}
+    aria-pressed={active}
+    data-selected={active}
     className={cn(
-      "flex w-full flex-row gap-4 text-neutral-primary items-center justify-center rounded-md border px-4 py-5 text-center transition duration-300",
+      "career-onboarding-option career-glass flex w-full flex-row gap-4 text-neutral-primary items-center justify-center rounded-md border px-4 py-5 text-center transition duration-300",
       active
         ? "border-neutral-800 bg-bg-weak"
         : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-800 hover:bg-bg-weak"
@@ -688,7 +699,15 @@ const EngagementCardButton = ({
       </div>
 
       <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-        <Checkbox checked={active} />
+        <span
+          aria-hidden="true"
+          className={cn(
+            "flex size-4 items-center justify-center rounded-[5px] border border-stroke",
+            active && "border-primary bg-primary text-on-inverse"
+          )}
+        >
+          {active ? <Check className="size-3" strokeWidth={2.5} /> : null}
+        </span>
       </div>
     </div>
   </BareButton>
@@ -891,7 +910,7 @@ const DoneState = ({
               size="lg"
               variant="primary"
               onClick={onStartCall}
-              className="w-full px-3 font-normal bg-neutral-950"
+              className="w-full px-3 font-normal bg-surface-inverse"
             >
               {t("career.onboarding.onboarding_done.call_cta", "5분 통화하기")}
             </AnimatedButton>
@@ -1053,7 +1072,7 @@ const OnboardingLoadingFooter = () => {
           variant="primary"
           size="lg"
           aria-label={"Harper가 분석 중이에요"}
-          className="w-full font-normal bg-neutral-950"
+          className="w-full font-normal bg-surface-inverse"
         >
           <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
         </AnimatedButton>
@@ -2056,7 +2075,7 @@ const CareerNetworkOnboardingContent = () => {
       <main
         className={cn(
           "flex min-h-svh items-center justify-center text-neutral-primary",
-          ONBOARDING_BACKGROUND_CLASS
+          "career-onboarding"
         )}
       >
         <LoaderCircle className="h-5 w-5 animate-spin text-neutral-muted" />
@@ -2075,7 +2094,7 @@ const CareerNetworkOnboardingContent = () => {
           effectiveSubmitState === "form"
             ? "min-h-svh"
             : "h-svh overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 hover:scrollbar-thumb-neutral-1000-a50",
-          ONBOARDING_BACKGROUND_CLASS
+          "career-onboarding"
         )}
       >
         {effectiveSubmitState === "loading" && (

@@ -171,7 +171,10 @@ export const OnboardingFrame = ({
 
   if (aside) {
     return (
-      <div className="mx-auto flex min-h-svh w-full justify-center px-4 pb-8 pt-16 md:py-16">
+      <div
+        data-onboarding-frame
+        className="mx-auto flex min-h-svh w-full justify-center px-4 pb-8 pt-16 md:py-16"
+      >
         <div className="relative grid w-full max-w-[900px] gap-6 lg:block lg:h-[calc(100svh-8rem)] lg:min-h-[520px]">
           <div className="order-1 lg:w-[400px]">{topBar}</div>
           {asideAfterTitle ? (
@@ -181,6 +184,7 @@ export const OnboardingFrame = ({
             {aside}
           </div>
           <div
+            data-onboarding-card
             className={cn(
               "order-3 flex min-h-[460px] w-full flex-col lg:absolute lg:bottom-0 lg:left-0 lg:min-h-0 lg:w-[400px]",
               showProgress ? "lg:top-16" : "lg:top-8"
@@ -203,18 +207,21 @@ export const OnboardingFrame = ({
   }
   return (
     <div
+      data-onboarding-frame
       className={cn(
         "mx-auto flex w-full justify-center px-4 pb-4 pt-16 md:py-16",
         expandContent ? "h-svh overflow-y-auto" : "min-h-svh"
       )}
     >
       <div
+        data-onboarding-width
         className={cn(
           "grid h-max w-full gap-8",
           wide ? "max-w-[1160px]" : "max-w-[400px]"
         )}
       >
         <div
+          data-onboarding-card
           className={cn(
             "flex w-full flex-col",
             expandContent
@@ -443,7 +450,10 @@ export const OnboardingConversationPreview = ({
       <div className="relative flex min-h-full items-start md:items-center justify-center">
         <div className="w-full max-w-[380px]">
           <div className="flex justify-end">
-            <div className="max-w-[84%] rounded-xl bg-neutral-1000 px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-5 text-neutral-00 shadow-(--shadow-sm)">
+            <div
+              data-onboarding-message="user"
+              className="max-w-[84%] rounded-xl bg-neutral-1000 px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-5 text-neutral-00 shadow-(--shadow-sm)"
+            >
               {userBubbleText}
             </div>
           </div>
@@ -463,6 +473,7 @@ export const OnboardingConversationPreview = ({
             <div className="min-w-0 flex-1 space-y-2.5">
               {paragraphs.map((paragraph, index) => (
                 <div
+                  data-onboarding-message="assistant"
                   key={`${index}-${paragraph.slice(0, 14)}`}
                   className="w-fit max-w-full rounded-xl bg-bg-floating px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-6 text-neutral-primary shadow-(--shadow-sm)"
                 >

@@ -11,7 +11,6 @@ import { AnimatedHandshake } from "@/components/ui/animated-handshake";
 import { MuteButton } from "@/components/ui/button";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerT } from "@/i18n/useCareerT";
-import { cn } from "@/lib/utils";
 import {
   getCareerNegativeActionLabel,
   getCareerPositiveActionIcon,
@@ -109,6 +108,56 @@ export default memo(function NewOpportunityCard({
   const negativeTooltip = negativeLabel;
   const actionClass =
     "py-2.5 rounded-sm font-normal md:font-light text-sm truncate";
+  const feedbackActions = (
+    <div className="flex shrink-0 items-center gap-1">
+      {isInternal ? (
+        <Tooltips
+          text={t(
+            "career.history.keep.tooltip",
+            "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
+          )}
+        >
+          <MuteButton
+            disabled={pending}
+            variant="transparent"
+            aria-label={t("career.history.keep.action", "저장하고 나중에 결정")}
+            onClick={() => onKeep(item)}
+          >
+            <Bookmark aria-hidden className="size-3.5 md:size-4" />
+          </MuteButton>
+        </Tooltips>
+      ) : null}
+      <Tooltips text={negativeTooltip}>
+        <MuteButton
+          aria-label={`${item.title}: ${negativeTooltip}`}
+          disabled={pending}
+          onClick={() => handleFeedbackClick("negative")}
+          variant="transparent"
+        >
+          <NegativeActionIcon aria-hidden className="size-3.5 md:size-4" />
+        </MuteButton>
+      </Tooltips>
+      <Tooltips text={positiveTooltip}>
+        <MuteButton
+          aria-label={`${item.title}: ${positiveTooltip}`}
+          disabled={pending}
+          onClick={() => handleFeedbackClick("positive")}
+          variant="transparent"
+        >
+          {pending ? (
+            <Loader2 aria-hidden className="size-3.5 md:size-4 animate-spin" />
+          ) : PositiveActionIcon ? (
+            <PositiveActionIconView
+              icon={PositiveActionIcon}
+              className="size-3.5 md:size-4"
+            />
+          ) : (
+            positiveLabel
+          )}
+        </MuteButton>
+      </Tooltips>
+    </div>
+  );
 
   return (
     <OpportunitySwipeRow
@@ -137,70 +186,7 @@ export default memo(function NewOpportunityCard({
         onToggle={() => onToggleOpportunity(item)}
         onOpenCompanyInfo={onOpenCompanyInfo}
         onOpenLink={onOpenLink}
-        collapsedActions={
-          <div
-            className={cn(
-              "flex shrink-0 items-center gap-0 md:gap-1 opacity-100 transition-opacity md:[@media(hover:hover)]:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
-              pending && "md:[@media(hover:hover)]:opacity-100"
-            )}
-          >
-            {isInternal ? (
-              <Tooltips
-                text={t(
-                  "career.history.keep.tooltip",
-                  "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
-                )}
-              >
-                <MuteButton
-                  disabled={pending}
-                  variant="transparent"
-                  aria-label={t(
-                    "career.history.keep.action",
-                    "저장하고 나중에 결정"
-                  )}
-                  onClick={() => onKeep(item)}
-                >
-                  <Bookmark aria-hidden className="size-3.5 md:size-4" />
-                </MuteButton>
-              </Tooltips>
-            ) : null}
-            <Tooltips text={negativeTooltip}>
-              <MuteButton
-                aria-label={`${item.title}: ${negativeTooltip}`}
-                disabled={pending}
-                onClick={() => handleFeedbackClick("negative")}
-                variant="transparent"
-              >
-                <NegativeActionIcon
-                  aria-hidden
-                  className="size-3.5 md:size-4"
-                />
-              </MuteButton>
-            </Tooltips>
-            <Tooltips text={positiveTooltip}>
-              <MuteButton
-                aria-label={`${item.title}: ${positiveTooltip}`}
-                disabled={pending}
-                onClick={() => handleFeedbackClick("positive")}
-                variant="transparent"
-              >
-                {pending ? (
-                  <Loader2
-                    aria-hidden
-                    className="size-3.5 md:size-4 animate-spin"
-                  />
-                ) : PositiveActionIcon ? (
-                  <PositiveActionIconView
-                    icon={PositiveActionIcon}
-                    className="size-3.5 md:size-4"
-                  />
-                ) : (
-                  positiveLabel
-                )}
-              </MuteButton>
-            </Tooltips>
-          </div>
-        }
+        collapsedActions={feedbackActions}
         actions={
           <div className="grid grid-cols-2 items-center gap-2 pt-4 md:grid-cols-3 max-md:[&>button:last-child:nth-child(odd)]:col-start-2">
             {isInternal ? (

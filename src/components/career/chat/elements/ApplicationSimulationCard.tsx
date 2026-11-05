@@ -189,7 +189,7 @@ export function ApplicationSimulationCard({
     );
   return (
     <section
-      className="w-full max-w-[740px] overflow-hidden rounded-xl border border-neutral-1000-a10 bg-bg-floating"
+      className="w-full max-w-[740px] overflow-hidden career-glass career-work-surface"
       aria-label={t("career.apply.prepare_title", "Harper와 준비하기")}
     >
       <div className="flex items-center justify-between gap-3 border-b border-neutral-1000-a05 p-4">

@@ -67,6 +67,14 @@ test("partial and inherited web controls are removed without changing ordinary M
   assert.equal(emailVisibleMarkdown(body), "Text **kept**.");
 });
 
+test("web UI references stay out of email while quoted documentation stays literal", () => {
+  const source = '확인한 일정입니다.\n\n[[career_ui:{"type":"meetings"}]]\n\n다음 대화에서 이어갈 수 있어요.\n\n[[career_ui:{"type":"automations"}]]\n[[career_ui:{"type":"actions"}]]';
+  const reply = renderReplyEmail(source);
+  assert.equal(reply.text, "확인한 일정입니다.\n\n다음 대화에서 이어갈 수 있어요.");
+  assert.doesNotMatch(reply.html, /career_ui/);
+  assert.equal(emailVisibleMarkdown('```text\n[[career_ui:{"type":"brief"}]]\n```'), '```text\n[[career_ui:{"type":"brief"}]]\n```');
+});
+
 test("plain text keeps one table row per line and prints bare URLs only once", () => {
   const url = "https://example.com/continue?token=synthetic&next=career";
   const email = renderReplyEmail(

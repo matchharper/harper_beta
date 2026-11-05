@@ -38,7 +38,7 @@ import type {
 } from "@/lib/career/matching/listTypes";
 
 const sidePanel =
-  "h-dvh max-h-dvh rounded-none border-0 border-l border-neutral-1000-a05 shadow-(--shadow-lg) data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100 motion-reduce:animate-none";
+  "career-side-panel rounded-modal border-0 shadow-(--shadow-modal) data-[state=open]:slide-in-from-right-4 data-[state=closed]:slide-out-to-right-4 data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100 motion-reduce:animate-none";
 
 function LoadingRows() {
   return (
@@ -229,8 +229,7 @@ function MatchingPanels({
       open
       onClose={onClose}
       title={listTitle}
-      overlayClassName="items-stretch justify-end p-0 sm:p-0"
-      backdropClassName="bg-surface-inverse/10 backdrop-blur-none motion-reduce:animate-none"
+      overlayClassName="items-stretch justify-end p-2 sm:p-4"
       panelClassName={`${sidePanel} ${selected ? "max-w-[560px] lg:max-w-[980px]" : "max-w-[420px]"}`}
       showCloseButton={false}
       headerClassName="sr-only"
@@ -239,7 +238,7 @@ function MatchingPanels({
       <section
         className={`min-h-0 w-full shrink-0 overflow-y-auto lg:w-[420px] ${selected ? "hidden lg:block" : "block"}`}
       >
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-linear-to-b from-bg-default from-60% to-bg-default/0 px-5 pt-6 pb-8">
+        <header className="career-side-panel-header sticky top-0 z-10 flex items-center justify-between gap-3 px-5 pt-6 pb-8">
           <h3 className="text-base font-medium text-neutral-primary">
             {listTitle}
           </h3>
@@ -327,7 +326,7 @@ function MatchingPanels({
       </section>
       {selected ? (
         <section className="min-h-0 min-w-0 flex-1 overflow-y-auto lg:border-l lg:border-neutral-1000-a05">
-          <header className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-linear-to-b from-bg-default from-60% to-bg-default/0 px-5 pt-6 pb-8">
+          <header className="career-side-panel-header sticky top-0 z-10 flex items-center justify-between gap-3 px-5 pt-6 pb-8">
             <div className="flex min-w-0 items-center gap-2">
               <MuteButton
                 variant="transparent"
@@ -484,6 +483,7 @@ export default function CareerMatchingList({
   userId,
   ...actions
 }: MatchingActions & { userId?: string }) {
+  const t = useCareerT();
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -493,6 +493,7 @@ export default function CareerMatchingList({
         disabled={!userId}
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
+        aria-label={t("career.matchings.title", "매칭 히스토리")}
       >
         <History aria-hidden className="mr-1.5 size-3.5" />
       </MuteButton>

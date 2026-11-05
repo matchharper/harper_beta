@@ -2,6 +2,7 @@ import { useShallow } from "zustand/react/shallow";
 import { CareerSuggestionComposerSlot } from "./CareerSuggestionComposer";
 import { InternalCallAnswersSlot } from "./InternalCallAnswers";
 import { BrowserSessionDock } from "../BrowserSessionDock";
+import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
 import { CareerDailyExternalStatus } from "../CareerDailyExternalRecommendations";
 import React, {
   KeyboardEvent,
@@ -15,7 +16,6 @@ import React, {
 } from "react";
 import {
   ArrowUp,
-  AudioLines,
   Building2,
   CircleHelp,
   Clock3,
@@ -108,6 +108,8 @@ export type CareerComposerPendingActionHandler = (
 ) => void;
 
 type CareerComposerSectionProps = {
+  showConversationActions?: boolean;
+  onMessageSubmit?: () => void;
   onPendingActionHandlerChange?: (
     handler: CareerComposerPendingActionHandler | null
   ) => void;
@@ -196,6 +198,8 @@ const CareerComposerSection = (props: CareerComposerSectionProps) => {
 };
 
 const CareerComposerContent = React.memo(function CareerComposerContent({
+  showConversationActions = true,
+  onMessageSubmit,
   onPendingActionHandlerChange,
   chat,
   onRequestMoreOpenPositions,
@@ -280,7 +284,10 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
   const [mobileActionMenuOpen, setMobileActionMenuOpen] = useState(false);
   const [desktopActionMenuOpen, setDesktopActionMenuOpen] = useState(false);
   const [selectedPendingAction, setSelectedPendingAction] = useState<
-    CareerPendingCompanyRequestAction | CareerPendingFitQuestionAction | import("@/lib/career/actionItems").CareerHighlightedAction | null
+    | CareerPendingCompanyRequestAction
+    | CareerPendingFitQuestionAction
+    | import("@/lib/career/actionItems").CareerHighlightedAction
+    | null
   >(null);
   const [pendingQuestionExpanded, setPendingQuestionExpanded] = useState(false);
   const pendingActionHandlerRef =
@@ -822,8 +829,14 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
 
   const handleSelectPendingAction = useCallback(
     (action: CareerPendingAction | CareerComposerPendingAction) => {
-      if (action.kind === "action_item" && action.action.type === "send_message") {
-        void onSendChatMessage({ text: action.action.text, actionItem: { id: action.id, revision: action.revision } });
+      if (
+        action.kind === "action_item" &&
+        action.action.type === "send_message"
+      ) {
+        void onSendChatMessage({
+          text: action.action.text,
+          actionItem: { id: action.id, revision: action.revision },
+        });
         return;
       }
       if (action.kind === "career_check_in_call") {
@@ -893,6 +906,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     if (!text && !submittedFileAttachment) return;
     if (isComposerActionLocked) return;
 
+    onMessageSubmit?.();
     const link = chatLinkDraft.trim();
     const submittedTokens = opportunityTokens.tokens;
     const submittedPendingAction = selectedPendingAction;
@@ -917,13 +931,22 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
           : undefined,
       link,
       opportunityMentions: submittedMentions,
-      viewedRoleId: router.query.tab?.[0] === "history" && typeof router.query.id === "string"
-        ? router.query.id : undefined,
-      actionItem: submittedPendingAction?.kind === "action_item"
-        ? { id: submittedPendingAction.id, revision: submittedPendingAction.revision } : undefined,
-      pendingAction: submittedPendingAction && submittedPendingAction.kind !== "action_item"
-        ? toCareerPendingActionReference(submittedPendingAction)
-        : undefined,
+      viewedRoleId:
+        router.query.tab?.[0] === "history" &&
+        typeof router.query.id === "string"
+          ? router.query.id
+          : undefined,
+      actionItem:
+        submittedPendingAction?.kind === "action_item"
+          ? {
+              id: submittedPendingAction.id,
+              revision: submittedPendingAction.revision,
+            }
+          : undefined,
+      pendingAction:
+        submittedPendingAction && submittedPendingAction.kind !== "action_item"
+          ? toCareerPendingActionReference(submittedPendingAction)
+          : undefined,
       onError: () => {
         sendFailed = true;
         setDraft((current) => current || text);
@@ -945,16 +968,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     if (!sendFailed && submittedPendingAction) {
       if (!pendingActionsOverride) void pendingActions.refetch();
     }
-  };
-
-  const handlePrimaryComposerAction = () => {
-    if (hasSendableDraft) {
-      void handleSend();
-      return;
-    }
-
-    logCareerEvent("click_chat_start_call");
-    void onStartCallMode?.();
   };
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1334,62 +1347,61 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     ...pendingActionMenuItems,
   ];
 
-  const composerActions = shouldShowCareerComposerRoleActions(draft) ? (
-    desktopRoleActionOpportunity ? (
-      <div key={desktopRoleActionOpportunity.id} className="hidden md:block">
-        <HistoryOpportunityRoleActions
-          item={desktopRoleActionOpportunity}
-          variant="tags"
-          visibleActions={desktopRoleActionScope === "company" ? COMPANY_DETAIL_ROLE_ACTIONS : undefined}
-        />
-      </div>
-    ) : isOnboardingDone ? (
-      <>
-        <MuteButton
-          size="sm"
-          disabled={recommendationRequestDisabled}
-          aria-busy={recommendationRequestPending || undefined}
-          onClick={() => void handleRequestMoreOpenPositions()}
-        >
-          {recommendationRequestPending
-            ? t(
-                "career.common.conversation_starters.requesting_more_open_positions",
-                "요청 중..."
-              )
-            : t(
-                "career.common.conversation_starters.more_open_positions",
-                "기회 더 찾아줘"
-              )}
-        </MuteButton>
-        <MuteButton
-          size="sm"
-          disabled={conversationStarterDisabled}
-          aria-busy={conversationStarterPending || undefined}
-          onClick={() =>
-            void handleStartConversationStarter("career_coaching")
-          }
-        >
-          {conversationStarterPending ? (
-            <Loader2
-              className="h-3 w-3 animate-spin"
-              aria-hidden="true"
-            />
-          ) : null}
-          {t(
-            "career.common.conversation_starters.1sfi8z4",
-            "커리어 상담"
-          )}
-        </MuteButton>
-      </>
-    ) : null
-  ) : null;
+  const composerActions =
+    showConversationActions && shouldShowCareerComposerRoleActions(draft) ? (
+      desktopRoleActionOpportunity ? (
+        <div key={desktopRoleActionOpportunity.id} className="hidden md:block">
+          <HistoryOpportunityRoleActions
+            item={desktopRoleActionOpportunity}
+            variant="tags"
+            visibleActions={
+              desktopRoleActionScope === "company"
+                ? COMPANY_DETAIL_ROLE_ACTIONS
+                : undefined
+            }
+          />
+        </div>
+      ) : isOnboardingDone ? (
+        <>
+          <MuteButton
+            size="sm"
+            disabled={recommendationRequestDisabled}
+            aria-busy={recommendationRequestPending || undefined}
+            onClick={() => void handleRequestMoreOpenPositions()}
+          >
+            {recommendationRequestPending
+              ? t(
+                  "career.common.conversation_starters.requesting_more_open_positions",
+                  "요청 중..."
+                )
+              : t(
+                  "career.common.conversation_starters.more_open_positions",
+                  "기회 더 찾아줘"
+                )}
+          </MuteButton>
+          <MuteButton
+            size="sm"
+            disabled={conversationStarterDisabled}
+            aria-busy={conversationStarterPending || undefined}
+            onClick={() =>
+              void handleStartConversationStarter("career_coaching")
+            }
+          >
+            {conversationStarterPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+            ) : null}
+            {t("career.common.conversation_starters.1sfi8z4", "커리어 상담")}
+          </MuteButton>
+        </>
+      ) : null
+    ) : null;
 
   return (
     <div
       data-vaul-no-drag=""
-      className="shrink-0 px-4 pb-3 pt-2 md:px-5 md:pb-6 md:pt-0"
+      className="career-composer-section shrink-0 px-4 pb-3 pt-2 md:px-5 md:pb-7 md:pt-0"
     >
-      <div className="relative mx-auto w-full max-w-[var(--career-chat-content-max-width)]">
+      <div className="career-composer-width relative mx-auto w-full">
         <BrowserSessionDock />
         <CareerDailyExternalStatus />
         <InternalCallAnswersSlot>
@@ -1400,12 +1412,42 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
             />
           ) : null}
           <CareerSuggestionComposerSlot actions={composerActions}>
+            <CareerAnimatedRegion open={Boolean(selectedPendingAction)}>
+              {selectedPendingAction ? (
+                <div className="career-reply-slot">
+                  <CareerPendingActionContextCard
+                    key={selectedPendingAction.id}
+                    action={selectedPendingAction}
+                    expanded={pendingQuestionExpanded}
+                    onDismiss={() => {
+                      setSelectedPendingAction(null);
+                      setPendingQuestionExpanded(false);
+                      window.requestAnimationFrame(() =>
+                        textareaRef.current?.focus()
+                      );
+                    }}
+                    onUploadResume={
+                      selectedPendingAction.kind === "company_request" &&
+                      selectedPendingAction.requestMode === "resume" &&
+                      selectedPendingAction.resumeRequestToken
+                        ? () => openPendingResumePicker(selectedPendingAction)
+                        : undefined
+                    }
+                    onToggleExpanded={() =>
+                      setPendingQuestionExpanded((current) => !current)
+                    }
+                    resumeUploadPending={
+                      fileUploadPending || profileSavePending
+                    }
+                  />
+                </div>
+              ) : null}
+            </CareerAnimatedRegion>
             <div
               className={cn(
-                "transition-all duration-200",
                 showInterviewComposerFrame
-                  ? "rounded-2xl border border-neutral-1000-a05 bg-neutral-200 p-2 shadow-(--shadow-lg) backdrop-blur-xl"
-                  : "rounded-3xl"
+                  ? "career-glass career-work-surface p-2"
+                  : undefined
               )}
             >
               <Input
@@ -1431,43 +1473,12 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                 }
                 className="overflow-visible"
                 context={
-                  selectedPendingAction || pendingFileAttachment ? (
-                    <div className="grid gap-2">
-                      {selectedPendingAction ? (
-                        <CareerPendingActionContextCard
-                          action={selectedPendingAction}
-                          expanded={pendingQuestionExpanded}
-                          onDismiss={() => {
-                            setSelectedPendingAction(null);
-                            setPendingQuestionExpanded(false);
-                            window.requestAnimationFrame(() =>
-                              textareaRef.current?.focus()
-                            );
-                          }}
-                          onUploadResume={
-                            selectedPendingAction.kind === "company_request" &&
-                            selectedPendingAction.requestMode === "resume" &&
-                            selectedPendingAction.resumeRequestToken
-                              ? () =>
-                                  openPendingResumePicker(selectedPendingAction)
-                              : undefined
-                          }
-                          onToggleExpanded={() =>
-                            setPendingQuestionExpanded((current) => !current)
-                          }
-                          resumeUploadPending={
-                            fileUploadPending || profileSavePending
-                          }
-                        />
-                      ) : null}
-                      {pendingFileAttachment ? (
-                        <ChatAttachmentDraftList
-                          attachments={[pendingFileAttachment]}
-                          onRemove={() => setPendingFileAttachment(null)}
-                          tone="light"
-                        />
-                      ) : null}
-                    </div>
+                  pendingFileAttachment ? (
+                    <ChatAttachmentDraftList
+                      attachments={[pendingFileAttachment]}
+                      onRemove={() => setPendingFileAttachment(null)}
+                      tone="light"
+                    />
                   ) : null
                 }
                 textareaKey={textareaResetVersion}
@@ -1504,7 +1515,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                 }}
                 enterKeyHint="send"
                 placeholder={composerPlaceholder}
-                rows={2}
+                rows={1}
                 maxRows={CAREER_COMPOSER_MAX_ROWS}
                 disabled={isComposerActionLocked}
                 aria-busy={isComposerBusy || undefined}
@@ -1512,7 +1523,10 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                   <ChatComposerActionMenu
                     animated={false}
                     triggerIcon={
-                      <Plus className="size-5 text-neutral-primary" strokeWidth={1.6} />
+                      <Plus
+                        className="size-5 text-neutral-primary"
+                        strokeWidth={1.6}
+                      />
                     }
                     contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
                     disabled={!user}
@@ -1591,26 +1605,36 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                           aria-label={t("career.chat.stop", "중단")}
                           aria-busy={stopPending}
                         >
-                          {stopPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" fill="currentColor" />}
+                          {stopPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Square
+                              className="h-3.5 w-3.5"
+                              fill="currentColor"
+                            />
+                          )}
                         </ActionButton>
                       ) : null}
                       {hasSendableDraft || !canStopChat ? (
-                        <ActionButton
-                          onClick={handlePrimaryComposerAction}
-                          disabled={stopPending || (hasSendableDraft
-                            ? isComposerActionLocked
-                            : isComposerActionLocked || isStartingCall || !onStartCallMode)}
-                          actionVariant="primary"
-                          buttonRadius="pill"
-                          className="h-9 rounded-xl border border-neutral-1000-a10 bg-primary px-2.5 text-neutral-00 shadow-(--shadow-xs)"
-                          aria-label={hasSendableDraft
-                            ? t("career.chat.career_composer_section.send_message_aria_label", "메시지 보내기")
-                            : t("career.chat.career_composer_section.call_mode_aria_label", "통화 모드")}
+                        <MuteButton
+                          onClick={() => void handleSend()}
+                          disabled={
+                            stopPending ||
+                            !hasSendableDraft ||
+                            isComposerActionLocked
+                          }
+                          variant="dark"
+                          aria-label={t(
+                            "career.chat.career_composer_section.send_message_aria_label",
+                            "메시지 보내기"
+                          )}
                         >
-                          {(hasSendableDraft && isComposerBusy) || (!hasSendableDraft && isStartingCall) ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : hasSendableDraft ? <ArrowUp className="h-4 w-4" /> : <AudioLines className="h-3.5 w-3.5" />}
-                        </ActionButton>
+                          {hasSendableDraft && isComposerBusy ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <ArrowUp className="size-4" />
+                          )}
+                        </MuteButton>
                       ) : null}
                     </div>
                   </div>

@@ -35,24 +35,23 @@ const SavedOpportunityRow = memo(function SavedOpportunityRow({
       item={item}
       expanded={false}
       showUnreadIndicator={false}
-      connectionIndicator="logo"
       onOpenDetail={() => onOpenDetail(item)}
       collapsedActions={
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <MuteButton
-            variant="dark"
-            size="sm"
-            disabled={pending || expired}
-            onClick={() => onApply(item)}
-          >
-            {t("career.history.external_application.apply", "지원하기")}
-          </MuteButton>
-          {deadline ? (
-            <span className="text-right text-[11px] leading-4 text-neutral-muted">
-              {deadline}
-            </span>
-          ) : null}
-        </div>
+        <MuteButton
+          variant="dark"
+          size="sm"
+          disabled={pending || expired}
+          onClick={() => onApply(item)}
+        >
+          {t("career.history.external_application.apply", "지원하기")}
+        </MuteButton>
+      }
+      collapsedFooter={
+        deadline ? (
+          <span className="mt-1 block text-[12px] text-neutral-muted">
+            {deadline}
+          </span>
+        ) : null
       }
     />
   );

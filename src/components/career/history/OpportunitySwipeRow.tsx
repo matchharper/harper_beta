@@ -58,7 +58,10 @@ export function OpportunitySwipeRow({
 
   return (
     <div
-      className="relative isolate -my-1 overflow-hidden rounded-lg py-1"
+      className={cn(
+        "relative isolate -my-1 rounded-opportunity py-1",
+        offset ? "overflow-hidden" : "overflow-visible"
+      )}
       style={{ touchAction: disabled ? "auto" : "pan-y pinch-zoom" }}
       onClickCapture={(event) => {
         if (!suppressClick.current || event.detail === 0) return;
@@ -139,6 +142,7 @@ export function OpportunitySwipeRow({
         aria-hidden="true"
         className={cn(
           "pointer-events-none absolute inset-x-0 inset-y-1 flex items-center overflow-hidden rounded-lg bg-bg-weak px-3",
+          !offset && "opacity-0",
           !preview && "md:hidden",
           offset >= 0 ? "justify-start" : "justify-end"
         )}

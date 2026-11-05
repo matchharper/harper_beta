@@ -7,7 +7,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerActionItems } from "@/hooks/career/useCareerActionItems";
 import { useCareerChatActivityContext } from "./CareerChatPanelContext";
-import { cn } from "@/lib/utils";
 import {
   sortCareerActionItems,
   type CareerActionItem,
@@ -24,22 +23,19 @@ export function CareerActionItemList({
   disabled?: boolean;
 }) {
   return (
-    <div className="space-y-3 max-w-[440px]" data-career-action-items>
+    <div className="space-y-3" data-career-action-items>
       {sortCareerActionItems(items).map((item) => (
         <CardButton
           key={item.id}
+          data-urgency={item.urgency}
           disabled={disabled}
           onClick={() => onSelect({ ...item, kind: "action_item" })}
-          className={cn(
-            "block px-5 py-4 rounded-2xl shadow-none",
-            item.urgency === "urgent" &&
-              "border-critical/30 hover:border-primary"
-          )}
+          className="career-followup-card career-glass"
         >
           <Typography
             as="span"
             variant="body-sm"
-            className="block break-words break-keep"
+            className="career-followup-title"
           >
             {item.title}
           </Typography>
@@ -47,7 +43,7 @@ export function CareerActionItemList({
             <Typography
               as="span"
               variant="description"
-              className="mt-2 block whitespace-pre-wrap break-words"
+              className="career-followup-description"
             >
               {item.description}
             </Typography>
@@ -55,7 +51,7 @@ export function CareerActionItemList({
           <Typography
             as="div"
             variant="body-xs"
-            className="mt-4 flex items-center gap-2 font-medium"
+            className="career-followup-action"
           >
             <span className="break-words">{item.buttonText}</span>
             <ArrowRight
@@ -109,9 +105,7 @@ export function CareerActionItemsPanel({
         />
       ) : (
         !items.isError && (
-          <Typography variant="description" className="py-6">
-            {t("career.actions.empty", "지금 확인할 할 일이 없어요.")}
-          </Typography>
+          <Typography variant="description" className=""></Typography>
         )
       )}
     </section>

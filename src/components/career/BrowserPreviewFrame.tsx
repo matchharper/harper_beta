@@ -47,7 +47,7 @@ export function BrowserPreviewSurface({
   const t = useCareerT();
   const expand = t("career.application.browser.expand", "브라우저 화면 확대");
   return (
-    <section className="flex flex-col gap-2.5 rounded-3xl bg-bg-weak p-2 shadow-(--shadow-xl)">
+    <section className="career-glass flex flex-col gap-2.5 p-2">
       <div className="flex items-center gap-2.5">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-neutral-1000-a05">
           <Monitor className="size-5 text-neutral-primary" aria-hidden="true" />
@@ -179,7 +179,7 @@ export function BrowserPreviewFrame({
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}
         aria-label={title}
-        className="z-80 max-h-[calc(100dvh-32px)] overflow-y-auto rounded-3xl shadow-(--shadow-xl)"
+        className="z-80 max-h-[calc(100dvh-32px)] overflow-y-auto rounded-modal shadow-(--shadow-modal)"
         style={{
           width: expanded
             ? "min(720px, calc(100vw - 32px))"

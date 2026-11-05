@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 export const EXPERIMENT = "external-recommendations-2026-10-v1";
+export const V2_RUN_VERSION = "external-recommendations-v2";
 export const PROMPT_VERSION = "external-fit-questions-v6-strong-constraints";
 export const SEARCH_PLAN_VERSION = "external-search-v2-combined-title-v3";
 export const providerSchema = z.enum(["openai", "jev"]);
@@ -31,7 +32,7 @@ export function fingerprint(value: unknown): string {
     .update(JSON.stringify(stable(value)))
     .digest("hex");
 }
-// Same salted hash is used in the Python worker; unrelated Behavior cohorts are unchanged.
+// Historical A/B reports only. New recommendation runs always use V2.
 export function externalVariant(talentId: string): "control" | "v2" {
   return createHash("sha256")
     .update(`${EXPERIMENT}:${talentId.toLowerCase()}`)

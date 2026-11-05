@@ -91,7 +91,6 @@ export default function CareerMobileJobsView({
   statusCounts,
   opportunities,
   selectedOpportunity,
-  internalOpportunityCount,
   totalOpportunityCount,
   onToggleOpportunity,
   onApply,
@@ -203,7 +202,6 @@ export default function CareerMobileJobsView({
               <NewOpportunityList
                 expandedOpportunityId={selectedOpportunity?.id}
                 hasMore={hasMoreOpportunities}
-                internalCount={internalOpportunityCount}
                 items={opportunities}
                 loadingMore={loadingMore}
                 onApply={onApply}

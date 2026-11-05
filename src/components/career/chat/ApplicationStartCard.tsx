@@ -149,7 +149,7 @@ export function ApplicationStartCard({
           />
         </div>
       )}
-      <section className="w-full max-w-[480px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating text-neutral-primary">
+      <section className="w-full max-w-[480px] overflow-hidden career-glass career-work-surface text-neutral-primary">
         <header className="font-medium p-4 pb-0">
           {t("career.apply.prepare_title", "Harper와 준비하기")}
         </header>

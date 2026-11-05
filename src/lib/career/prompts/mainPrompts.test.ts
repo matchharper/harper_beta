@@ -62,6 +62,15 @@ test("onboarding, voice and background calls retain their separate contracts", (
     const plan = buildCareerConversationPromptPlan({ ...base, ...overrides });
     assert.equal(plan.promptBlocks.some(block => block.key === "career_main"), false);
     assert.ok(plan.promptBlocks.some(block => block.key === "chat_core"));
+    assert.equal(plan.promptBlocks.some(block => block.key === "career_chat_display"), false);
+  }
+});
+
+test("the main web prompt loads the live workspace display contract", () => {
+  const plan = buildCareerConversationPromptPlan(base);
+  const display = plan.promptBlocks.find(block => block.key === "career_chat_display")!.text;
+  for (const type of ["matching", "opportunities", "brief", "meetings", "automations", "actions"]) {
+    assert.ok(display.includes(`"type":"${type}"`), type);
   }
 });
 

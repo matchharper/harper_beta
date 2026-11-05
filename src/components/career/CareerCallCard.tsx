@@ -47,13 +47,13 @@ export default function CareerCallCard({
   return (
     <div
       className={cn(
-        "mt-6 rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-5 shadow-(--shadow-sm) md:px-6",
+        "career-glass mt-6 px-4 py-5 md:px-6",
         className
       )}
     >
       {isOnboardingCompleted ? (
         <div className="flex md:flex-row flex-col items-center justify-between gap-2">
-          <div className="hidden h-14 w-14 min-w-14 bg-neutral-200 rounded-lg items-center justify-center md:flex">
+          <div className="hidden h-14 w-14 min-w-14 bg-bg-weak rounded-control items-center justify-center md:flex">
             {/* <Face status="idle" size={60} aria-label="Harper" /> */}
             <PhoneCall
               className="h-6 w-6 text-neutral-muted"

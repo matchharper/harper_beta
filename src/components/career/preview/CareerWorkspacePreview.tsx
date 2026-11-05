@@ -1,4 +1,5 @@
 // career-i18n-skip-file: Internal developer controls and synthetic preview copy.
+import { CareerOpenFormsSnapshotContext } from "@/hooks/career/useCareerOpenForms";
 import type { User } from "@supabase/supabase-js";
 import { useRouter } from "next/router";
 import {
@@ -55,7 +56,7 @@ import { ENABLE_NEW_OPPORTUNITY_COMPANY_ROLE_SWITCHER } from "@/components/caree
 
 type CareerT = ReturnType<typeof useCareerT>;
 
-const PREVIEW_NOW = Date.UTC(2026, 3, 20, 9, 0, 0);
+const PREVIEW_NOW = Date.now();
 const previewDate = (offsetMs = 0) =>
   new Date(PREVIEW_NOW + offsetMs).toISOString();
 const previewDaysAgo = (days: number) =>
@@ -67,7 +68,14 @@ const previewMinutesAfter = (minutes: number) =>
 type CareerWorkspaceHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
   roleId?: string;
-  savedStage?: "all" | "saved" | "applied" | "connected" | "offer" | "closed" | "hidden";
+  savedStage?:
+    | "all"
+    | "saved"
+    | "applied"
+    | "connected"
+    | "offer"
+    | "closed"
+    | "hidden";
 };
 
 const mockUser = {
@@ -773,28 +781,83 @@ const CareerWorkspacePreview = ({
       const examples = [
         ["Amazon", "Senior UI/UX Designer", "amazon.svg", "서울", "onsite"],
         ["Google", "Graphic Designer", "google.svg", "서울", "hybrid"],
-        ["Microsoft", "Senior Motion Designer", "microsoft.svg", "부산", "remote"],
-        ["NVIDIA", "프로덕트 엔지니어 · AI 플랫폼", "nvidia.svg", "서울", "hybrid"],
-        ["Google", "Senior Backend Engineer, Developer Experience", "google.svg", "도쿄", "remote"],
-        ["Amazon", "Founding Product Engineer", "amazon.svg", "샌프란시스코", "onsite"],
+        [
+          "Microsoft",
+          "Senior Motion Designer",
+          "microsoft.svg",
+          "부산",
+          "remote",
+        ],
+        [
+          "NVIDIA",
+          "프로덕트 엔지니어 · AI 플랫폼",
+          "nvidia.svg",
+          "서울",
+          "hybrid",
+        ],
+        [
+          "Google",
+          "Senior Backend Engineer, Developer Experience",
+          "google.svg",
+          "도쿄",
+          "remote",
+        ],
+        [
+          "Amazon",
+          "Founding Product Engineer",
+          "amazon.svg",
+          "샌프란시스코",
+          "onsite",
+        ],
       ].map(([companyName, title, logo, location, workMode], index) => ({
-        ...base, id: `preview-saved-view-${index}`, roleId: `10000000-0000-4000-8000-00000000000${index}`,
-        companyName, title, location, workMode, companyLogoUrl: `/images/logos/${logo}`,
+        ...base,
+        id: `preview-saved-view-${index}`,
+        roleId: `10000000-0000-4000-8000-00000000000${index}`,
+        companyName,
+        title,
+        location,
+        workMode,
+        companyLogoUrl: `/images/logos/${logo}`,
         employmentTypes: [index % 2 ? "full_time" : "contract"],
-        feedback: "positive" as const, savedStage: "saved" as const,
+        feedback: "positive" as const,
+        savedStage: "saved" as const,
         postedAt: new Date(now - (index + 2) * day).toISOString(),
-        expiresAt: new Date(now + (index === 5 ? -1 : index === 0 ? 3 : index === 2 ? 9 : 25) * day).toISOString(),
+        expiresAt: new Date(
+          now +
+            (index === 5 ? -1 : index === 0 ? 3 : index === 2 ? 9 : 25) * day
+        ).toISOString(),
       }));
-      return [...examples, ...examples.slice(0, 3).map((item, index) => ({
-        ...item, id: `preview-progress-view-${index}`, roleId: `20000000-0000-4000-8000-00000000000${index}`,
-        savedStage: index === 2 ? "applied" as const : "connected" as const,
-        listPosition: index === 1 ? "current" as const : "previous" as const,
-        upcomingMeeting: index === 2 ? null : { title: index === 0 ? "팀 인터뷰" : "채용 담당자 미팅", startAt: new Date(now + (index + 1) * day).toISOString(), endAt: new Date(now + (index + 1) * day + 3_600_000).toISOString() },
-        talentMemo: index === 0 ? "최근 프로젝트에서 맡은 역할과 제품 개선 사례를 정리해 두기." : null,
-      }))];
+      return [
+        ...examples,
+        ...examples.slice(0, 3).map((item, index) => ({
+          ...item,
+          id: `preview-progress-view-${index}`,
+          roleId: `20000000-0000-4000-8000-00000000000${index}`,
+          savedStage:
+            index === 2 ? ("applied" as const) : ("connected" as const),
+          listPosition:
+            index === 1 ? ("current" as const) : ("previous" as const),
+          upcomingMeeting:
+            index === 2
+              ? null
+              : {
+                  title: index === 0 ? "팀 인터뷰" : "채용 담당자 미팅",
+                  startAt: new Date(now + (index + 1) * day).toISOString(),
+                  endAt: new Date(
+                    now + (index + 1) * day + 3_600_000
+                  ).toISOString(),
+                },
+          talentMemo:
+            index === 0
+              ? "최근 프로젝트에서 맡은 역할과 제품 개선 사례를 정리해 두기."
+              : null,
+        })),
+      ];
     }
     if (taskFeedbackExamples) {
-      const external = items.find((item) => item.sourceType === "external" && item.feedback === null);
+      const external = items.find(
+        (item) => item.sourceType === "external" && item.feedback === null
+      );
       if (external) {
         // Browser-only fixtures for the four-logo preview; no database writes.
         [
@@ -839,7 +902,13 @@ const CareerWorkspacePreview = ({
         },
       })),
     ];
-  }, [initialOpportunities, t, taskFeedbackExamples, router.query.opportunityViews, previewNow]);
+  }, [
+    initialOpportunities,
+    t,
+    taskFeedbackExamples,
+    router.query.opportunityViews,
+    previewNow,
+  ]);
   const initialTalentInsights = useMemo(() => getInitialTalentInsights(t), [t]);
   const initialTalentProfile = useMemo(() => getInitialTalentProfile(t), [t]);
   const previewPendingActionSeeds = useMemo(
@@ -858,11 +927,13 @@ const CareerWorkspacePreview = ({
       : requestedTab === "profile" &&
           (["links", "connections"].includes(
             String(router.query.profileSection ?? "")
-          ) || router.query.documentId || router.query.callNoteId)
+          ) ||
+            router.query.documentId ||
+            router.query.callNoteId)
         ? "documents"
         : requestedTab
     : activeTabState;
-  const workspaceActiveTab = activeTab === "chat" ? "home" : activeTab;
+  const workspaceActiveTab = activeTab;
   const [autoLoopEnabled, setAutoLoopEnabled] = useState(
     autoPlayConversation && initialOnboardingDone
   );
@@ -882,9 +953,15 @@ const CareerWorkspacePreview = ({
     "",
     "https://previewcandidate.dev",
     "https://x.com/previewcandidate",
-  ].map((link, index) => initialProfileLinkCount === undefined || index < initialProfileLinkCount ? link : "");
-  const [profileLinks, setProfileLinks] = useState<string[]>(initialProfileLinks);
-  const [savedProfileLinks, setSavedProfileLinks] = useState<string[]>(initialProfileLinks);
+  ].map((link, index) =>
+    initialProfileLinkCount === undefined || index < initialProfileLinkCount
+      ? link
+      : ""
+  );
+  const [profileLinks, setProfileLinks] =
+    useState<string[]>(initialProfileLinks);
+  const [savedProfileLinks, setSavedProfileLinks] =
+    useState<string[]>(initialProfileLinks);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [savedResumeFileName, setSavedResumeFileName] =
     useState("preview_resume.pdf");
@@ -947,20 +1024,52 @@ const CareerWorkspacePreview = ({
   );
   const previewTasks = useMemo(
     (): CareerTasksSnapshot => ({
-      actionItems: hideTaskDecisions ? [] : [
-        { id: "00000000-0000-4000-8000-000000000101", revision: 1,
-          title: "지원서 3건이 준비됐어요", description: "작성한 내용과 첨부 이력서를 확인하면 지원을 이어갈 수 있어요.",
-          buttonText: "지원서 확인하기", priority: 3, urgency: "normal",
-          action: { type: "send_message", text: "준비된 지원서 3건을 보여줘. 검토한 뒤 제출 여부를 정할게." } },
-        { id: "00000000-0000-4000-8000-000000000102", revision: 1,
-          title: "Orbit Labs에서 면접 일정을 물었어요", description: "이번 주 목요일이나 금요일 중 가능한 시간을 알려주세요.",
-          buttonText: "가능한 시간 답하기", priority: 2, urgency: "soon",
-          action: { type: "compose_reply", text: "Orbit Labs 면접 일정 요청에 대한 답변. 가능한 시간을 확인해 다음 단계를 진행한다." } },
-        { id: "00000000-0000-4000-8000-000000000103", revision: 1,
-          title: "Cedar 과제 제출이 오늘 마감돼요", description: "오늘 18시까지 제출할 파일을 보내주세요. 내용을 확인한 뒤 제출을 이어갈게요.",
-          buttonText: "과제 파일 첨부하기", priority: 1, urgency: "urgent",
-          action: { type: "compose_reply", text: "Cedar 과제 제출에 사용할 파일. 첨부 내용을 확인하고 기존 제출 권한에 따라 다음 단계를 진행한다." } },
-      ],
+      actionItems: hideTaskDecisions
+        ? []
+        : [
+            {
+              id: "00000000-0000-4000-8000-000000000101",
+              revision: 1,
+              title: "지원서 3건이 준비됐어요",
+              description:
+                "작성한 내용과 첨부 이력서를 확인하면 지원을 이어갈 수 있어요.",
+              buttonText: "지원서 확인하기",
+              priority: 3,
+              urgency: "normal",
+              action: {
+                type: "send_message",
+                text: "준비된 지원서 3건을 보여줘. 검토한 뒤 제출 여부를 정할게.",
+              },
+            },
+            {
+              id: "00000000-0000-4000-8000-000000000102",
+              revision: 1,
+              title: "Orbit Labs에서 면접 일정을 물었어요",
+              description:
+                "이번 주 목요일이나 금요일 중 가능한 시간을 알려주세요.",
+              buttonText: "가능한 시간 답하기",
+              priority: 2,
+              urgency: "soon",
+              action: {
+                type: "compose_reply",
+                text: "Orbit Labs 면접 일정 요청에 대한 답변. 가능한 시간을 확인해 다음 단계를 진행한다.",
+              },
+            },
+            {
+              id: "00000000-0000-4000-8000-000000000103",
+              revision: 1,
+              title: "Cedar 과제 제출이 오늘 마감돼요",
+              description:
+                "오늘 18시까지 제출할 파일을 보내주세요. 내용을 확인한 뒤 제출을 이어갈게요.",
+              buttonText: "과제 파일 첨부하기",
+              priority: 1,
+              urgency: "urgent",
+              action: {
+                type: "compose_reply",
+                text: "Cedar 과제 제출에 사용할 파일. 첨부 내용을 확인하고 기존 제출 권한에 따라 다음 단계를 진행한다.",
+              },
+            },
+          ],
       actions: previewPendingActions,
       meetingSchedules: [],
       connections: historyOpportunities.flatMap((item) => {
@@ -969,16 +1078,35 @@ const CareerWorkspacePreview = ({
       }),
       searchStatus: "active",
       externalFeedback: historyOpportunities
-        .filter((item) => item.sourceType === "external" && !item.isUserAdded && item.feedback === null && item.savedStage !== "hidden")
-        .sort((left, right) => Date.parse(right.recommendedAt) - Date.parse(left.recommendedAt) || left.id.localeCompare(right.id))
+        .filter(
+          (item) =>
+            item.sourceType === "external" &&
+            !item.isUserAdded &&
+            item.feedback === null &&
+            item.savedStage !== "hidden"
+        )
+        .sort(
+          (left, right) =>
+            Date.parse(right.recommendedAt) - Date.parse(left.recommendedAt) ||
+            left.id.localeCompare(right.id)
+        )
         .slice(0, 4)
         .map(({ id, roleId, companyName, companyLogoUrl, recommendedAt }) => ({
-          id, roleId, companyName, companyLogoUrl: companyLogoUrl ?? null, recommendedAt,
+          id,
+          roleId,
+          companyName,
+          companyLogoUrl: companyLogoUrl ?? null,
+          recommendedAt,
         })),
       gmailConnected: initialGmailConnected,
       unavailableCategories: [],
     }),
-    [historyOpportunities, initialGmailConnected, previewPendingActions, hideTaskDecisions]
+    [
+      historyOpportunities,
+      initialGmailConnected,
+      previewPendingActions,
+      hideTaskDecisions,
+    ]
   );
 
   useEffect(() => {
@@ -1165,7 +1293,10 @@ const CareerWorkspacePreview = ({
       historyUpdateError: "",
       onLoadMoreHistoryOpportunities: () => undefined,
       isHistoryOpportunityPageFilterLoading: () => false,
-      getHistoryOpportunityPageFilterState: () => ({ loading: false, nextOffset: null }),
+      getHistoryOpportunityPageFilterState: () => ({
+        loading: false,
+        nextOffset: null,
+      }),
       onLoadSavedStageHistoryOpportunityPages: () => undefined,
       onLoadHistoryOpportunityByRoleId: (roleId) =>
         historyOpportunities.find((item) => item.roleId === roleId) ?? null,
@@ -1231,7 +1362,8 @@ const CareerWorkspacePreview = ({
             item.id === opportunityId
               ? {
                   ...item,
-                  feedback: savedStage === "hidden" ? item.feedback : "positive",
+                  feedback:
+                    savedStage === "hidden" ? item.feedback : "positive",
                   savedStage,
                 }
               : item
@@ -1724,35 +1856,52 @@ const CareerWorkspacePreview = ({
   const renderPreviewContent = (
     resolvedViewport?: CareerWorkspacePreviewViewport
   ) => (
-    <CareerChatPanelProvider value={chatContextValue}>
-      <CareerSidebarProvider value={sidebarContextValue}>
-        <CareerWorkspaceScreen
-          activeTab={workspaceActiveTab}
-          historyContent={historyContent}
-          fillParent={embedded}
-          forcedViewport={embedded ? resolvedViewport : undefined}
-          initialMobileChatOpen={
-            activeTab === "chat" && !(embedded && resolvedViewport === "mobile")
-          }
-          onChangeTab={handleWorkspaceTabChange}
-        />
-        <CareerSettingsModal
-          initialTab={router.query.settingsTab === "profile" ? "profile" : null}
-          open={isSettingsOpen || router.query.panel === "settings"}
-          onClose={() => {
-            setIsSettingsOpen(false);
-            if (router.query.panel !== "settings") return;
-            const query = { ...router.query };
-            delete query.panel;
-            delete query.settingsTab;
-            void router.replace({ pathname: router.pathname, query }, undefined, {
-              shallow: true,
-              scroll: false,
-            });
-          }}
-        />
-      </CareerSidebarProvider>
-    </CareerChatPanelProvider>
+    <CareerOpenFormsSnapshotContext.Provider
+      value={{
+        completionCursor: null,
+        forms: [],
+        latestMessageId: null,
+        pending: 0,
+        activities: [],
+      }}
+    >
+      <CareerChatPanelProvider value={chatContextValue}>
+        <CareerSidebarProvider value={sidebarContextValue}>
+          <CareerWorkspaceScreen
+            activeTab={workspaceActiveTab}
+            historyContent={historyContent}
+            fillParent={embedded}
+            forcedViewport={embedded ? resolvedViewport : undefined}
+            initialMobileChatOpen={
+              activeTab === "chat" &&
+              !(embedded && resolvedViewport === "mobile")
+            }
+            onChangeTab={handleWorkspaceTabChange}
+          />
+          <CareerSettingsModal
+            initialTab={
+              router.query.settingsTab === "profile" ? "profile" : null
+            }
+            open={isSettingsOpen || router.query.panel === "settings"}
+            onClose={() => {
+              setIsSettingsOpen(false);
+              if (router.query.panel !== "settings") return;
+              const query = { ...router.query };
+              delete query.panel;
+              delete query.settingsTab;
+              void router.replace(
+                { pathname: router.pathname, query },
+                undefined,
+                {
+                  shallow: true,
+                  scroll: false,
+                }
+              );
+            }}
+          />
+        </CareerSidebarProvider>
+      </CareerChatPanelProvider>
+    </CareerOpenFormsSnapshotContext.Provider>
   );
 
   if (embedded) {

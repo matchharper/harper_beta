@@ -15,7 +15,7 @@ const renderCard = (node: ReactNode, locale: "en" | "ko" = "ko") =>
     <MessagesProvider locale={locale}>{node}</MessagesProvider>
   );
 
-test("question context is clamped when collapsed and scrolls within five lines when expanded", () => {
+test("question context expands with an accessible disclosure and contained scrolling", () => {
   const action = {
     id: "fit_1",
     kind: "internal_fit_question" as const,
@@ -34,8 +34,10 @@ test("question context is clamped when collapsed and scrolls within five lines w
   );
 
   assert.match(collapsed, /line-clamp-3/);
-  assert.match(collapsed, /아래 답변은 이 요청에 연결됩니다/);
-  assert.match(expanded, /max-h-\[6\.25rem\]/);
+  assert.match(collapsed, /aria-expanded="false"/);
+  assert.match(expanded, /aria-expanded="true"/);
+  assert.match(expanded, /aria-controls=/);
+  assert.match(expanded, /career-reply-card/);
   assert.match(expanded, /overflow-y-auto/);
 });
 
@@ -79,7 +81,7 @@ test("company request context clearly identifies its company and role", () => {
     />
   );
 
-  assert.match(markup, /회사에서 온 질문/);
+  assert.match(markup, /회사에서 온 요청/);
   assert.match(markup, /Harper Portfolio/);
   assert.match(markup, /Applied AI Engineer/);
   assert.match(markup, /src="\/images\/logos\/wonderful\.jpg"/);
@@ -109,7 +111,7 @@ test("resume request context exposes its dedicated upload action", () => {
   );
 
   assert.match(markup, /이력서 업로드/);
-  assert.match(markup, /pb-12/);
+  assert.match(markup, /선택한 항목 닫기/);
 });
 
 test("company request context uses English visible and accessibility copy", () => {

@@ -27,8 +27,6 @@ export default function ProgressOpportunityRow({
       item={item}
       expanded={false}
       showUnreadIndicator={false}
-      connectionIndicator="logo"
-      titleClassName="md:font-normal"
       onOpenDetail={onOpenDetail ? () => onOpenDetail(item) : undefined}
       collapsedActions={
         <OpportunityStatusDropdown
@@ -60,7 +58,7 @@ export function OpportunityAppointmentSummary({
   const meeting = item.upcomingMeeting;
   if (!meeting && !showAppointmentCreate) return null;
   return (
-    <div className="mt-2 flex min-w-0 items-center justify-between gap-2 pl-[52px] sm:pl-[60px]">
+    <div className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
       {meeting && (
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-[11px] font-normal leading-4">
           <span className="text-action">

@@ -1,307 +1,53 @@
-import { useOpportunityStatusChange } from "@/hooks/career/useOpportunityStatusChange";
-import { getHistoryOpportunityBucket, isSavedHistoryOpportunity } from "@/hooks/career/careerSessionData";
-import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
-import { useEventCallback } from "@/hooks/useEventCallback";
-import {
-  BriefcaseBusiness,
-  Inbox,
-  Loader2,
-  SlidersHorizontal,
-  TextSelect,
-  User,
-  LucideSquareDashedKanban,
-  Undo2,
-} from "lucide-react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import CareerChatPanel from "@/components/career/CareerChatPanel";
-import { useCareerChatActivityContext } from "@/components/career/CareerChatPanelContext";
-import CareerHistoryPanel from "@/components/career/CareerHistoryPanel";
-import CareerTasksPanel from "@/components/career/CareerTasksPanel";
-import CareerProfileWorkspace from "@/components/career/profile/CareerProfileWorkspace";
-import CareerCompanyWatchlistPanel from "@/components/career/watchlist/CareerCompanyWatchlistPanel";
-import CareerCompanyDetailDrawer from "@/components/career/watchlist/CareerCompanyDetailDrawer";
-import CareerSupportInquiryModal from "@/components/career/CareerSupportInquiryModal";
-import HistoryOpportunityInfoModal from "@/components/career/history/HistoryOppotunityInfoModal";
-import InternalConnectionAcceptanceModal from "@/components/career/InternalConnectionAcceptanceModal";
-import {
-  useCareerHistoryContext,
-  useCareerProfileContext,
-  useCareerSidebarContext,
-} from "@/components/career/CareerSidebarContext";
+import CareerChatPanel from "./CareerChatPanel";
+import { useCareerChatActivityContext } from "./CareerChatPanelContext";
+import CareerHistoryPanel from "./CareerHistoryPanel";
+import CareerTasksPanel from "./CareerTasksPanel";
+import CareerProfileWorkspace from "./profile/CareerProfileWorkspace";
+import CareerCompanyWatchlistPanel from "./watchlist/CareerCompanyWatchlistPanel";
 import CareerWorkspaceNav, {
-  getCareerDesktopNavLabels,
-  type CareerDesktopNavTab,
   type CareerWorkspaceTab,
-} from "@/components/career/CareerWorkspaceNav";
-import { MuteButton } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { useCareerActionItems } from "@/hooks/career/useCareerActionItems";
-import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
+} from "./CareerWorkspaceNav";
+import { useCareerHistoryContext } from "./CareerSidebarContext";
+import {
+  CareerWorkspaceNavigationContext,
+  type CareerWorkspaceNavigationOptions,
+} from "./CareerWorkspaceNavigationContext";
 import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
-import { SectionTitle } from "@/components/ui/section-header";
-import CareerMobileJobsView from "@/components/career/mobile/jobs/CareerMobileJobsView";
-import ExternalOpportunityApplyModal from "@/components/career/history/ExternalOpportunityApplyModal";
-import CareerMobileChatLauncher from "@/components/career/mobile/CareerMobileChatLauncher";
-import { CareerMobileChatLauncherVisibilityProvider } from "@/components/career/mobile/CareerMobileChatLauncherVisibilityContext";
-import CareerMobileHomeView from "@/components/career/mobile/CareerMobileHomeView";
-import CareerMobileShell from "@/components/career/mobile/CareerMobileShell";
-import { CareerMobileNavigationFrame } from "@/components/career/mobile/CareerMobileNavigationMenu";
-import CareerMobileTopBar, {
-  type CareerMobileTopBarOption,
-  type CareerMobileTopBarOptionId,
-} from "@/components/career/mobile/CareerMobileTopBar";
-import { useIsMobile, useMediaQuery } from "@/hooks/useMediaQuery";
-import { useResizableSplitPanel } from "@/hooks/useResizableSplitPanel";
-import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import {
-  CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
-  CAREER_CHAT_PANEL_MAX_WIDTH_PCT,
-  CAREER_CHAT_PANEL_MIN_WIDTH_PCT,
-  useCareerWorkspaceUiStore,
-} from "@/store/useCareerWorkspaceUiStore";
-import {
-  useCareerMobileHistoryOpportunities,
-  getJobsTabTotal,
-  isOpportunityInJobsTab,
-  type CareerMobileHistoryJobsTab,
-} from "@/hooks/career/useCareerMobileHistoryOpportunities";
-import type {
-  CareerHistoryOpportunity,
-  CareerOpportunitySavedStageFilter,
-  CareerOpportunityType,
-} from "@/components/career/types";
-import { AnimatePresence, motion } from "motion/react";
-import React from "react";
+import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import {
-  canChangeCareerOpportunityManagementStatus,
-  getMyOpportunityTab,
-  getSavedOpportunityManagementStatus,
-  getSavedOpportunityStatusFromQuery,
-  getCareerOpportunityManagementStatus,
-  getSavedStageForManagementStatus,
-  type CareerOpportunityManagementStatus,
-} from "@/components/career/history/savedOpportunityStatus";
-import {
-  getAuthenticatedUserProfileImageUrl,
-  getCareerMenuProfileImageUrl,
-} from "@/components/career/profileAvatar";
-import {
-  InternalOpportunityDecisionChangeModal,
-  type InternalOpportunityDecisionChangeRequest,
-} from "@/components/career/history/InternalOpportunityDecisionActions";
-import {
-  HistoryNegativeFeedbackModal,
-  hasExternalAlreadyAppliedFeedbackReason,
-  parseNegativeFeedbackReason,
-  serializeNegativeFeedbackReason,
-} from "@/components/career/history/FeedbackModal";
-import { EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON } from "@/components/career/opportunityTypeMeta";
-
-type JobsDisplayTab = CareerMobileHistoryJobsTab;
-
-type CareerWorkspaceHistoryTarget = {
-  historyTab: "new" | "saved" | "archived";
-  roleId?: string;
-  savedStage?: CareerOpportunitySavedStageFilter;
-};
-
-type CareerWorkspaceNavigationOptions = {
-  historyTarget?: CareerWorkspaceHistoryTarget;
-};
-
-const getLastMyOpportunitiesTarget = (): CareerWorkspaceHistoryTarget => {
-  const tab = useCareerWorkspaceUiStore.getState().lastMyOpportunitiesTab;
-  return tab === "archived"
-    ? { historyTab: "archived" }
-    : { historyTab: "saved", savedStage: tab };
-};
-
-type CareerWorkspaceViewportMode = "desktop" | "mobile";
-
-const DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
-const CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX = 8;
-const CAREER_HISTORY_PATHNAME = "/career/history";
-const CAREER_PREVIEW_PATHNAME = "/career/preview";
-
-const getSingleQueryValue = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value[0] : value;
-
-const getMobileHistoryJobsTab = ({
-  historyTab,
-  savedStage,
-}: {
-  historyTab: string | string[] | undefined;
-  savedStage: string | string[] | undefined;
-}): JobsDisplayTab => {
-  const normalizedHistoryTab = getSingleQueryValue(historyTab);
-  const normalizedSavedStage = getSingleQueryValue(savedStage);
-
-  if (normalizedHistoryTab === "archived") return "archived";
-  if (normalizedHistoryTab !== "saved") return "new";
-  if (
-    normalizedSavedStage === "applied" ||
-    normalizedSavedStage === "connected" ||
-    normalizedSavedStage === "closed" ||
-    normalizedSavedStage === "hidden"
-  ) {
-    return getMyOpportunityTab(normalizedSavedStage);
-  }
-  return "saved";
-};
-
-const getInitialMobileHistoryJobsTab = (
-  historyTarget: CareerWorkspaceHistoryTarget | null | undefined
-): JobsDisplayTab => {
-  if (historyTarget?.historyTab === "archived") return "archived";
-  if (historyTarget?.historyTab !== "saved") return "new";
-  if (
-    historyTarget.savedStage === "applied" ||
-    historyTarget.savedStage === "connected" ||
-    historyTarget.savedStage === "offer" ||
-    historyTarget.savedStage === "closed" ||
-    historyTarget.savedStage === "hidden"
-  ) {
-    return getMyOpportunityTab(historyTarget.savedStage);
-  }
-  return "saved";
-};
-
-const getHistoryLocationState = (tab: JobsDisplayTab) => {
-  if (tab === "new") {
-    return { historyTab: "new" as const, savedStage: null };
-  }
-  if (tab === "archived") {
-    return { historyTab: "archived" as const, savedStage: null };
-  }
-  return { historyTab: "saved" as const, savedStage: tab };
-};
-
-type CareerTLike = ReturnType<typeof useCareerT>;
-const fallbackCareerT: CareerTLike = (_key, koSource) => koSource;
-
-const getMobileWorkspaceTabOptions = (
-  t: CareerTLike
-): CareerMobileTopBarOption[] => [
-  {
-    id: "tasks",
-    label: t("career.tasks.title", "할 일"),
-    icon: Inbox,
-  },
-  {
-    id: "history",
-    label: t("career.workspace.opportunities", "기회"),
-    icon: BriefcaseBusiness,
-  },
-  {
-    id: "profile",
-    label: t("career.workspace.my_information", "내 정보"),
-    icon: User,
-  },
-  {
-    id: "brief",
-    label: t("career.profile.career_profile_workspace.search_brief_tab", "원하는 조건"),
-    icon: TextSelect,
-  },
-];
-
-const MOBILE_WORKSPACE_TAB_OPTIONS: CareerMobileTopBarOption[] =
-  getMobileWorkspaceTabOptions(fallbackCareerT);
-
-const CareerCanvas = ({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) => <section className={cn("min-w-0 px-4", className)}>{children}</section>;
-
-const CareerWorkspaceContent = React.memo(function CareerWorkspaceContent({
-  activeTab,
-  historyContent,
-  onChangeTab,
-  onOpenRightPanelDetail,
-  onRequestChatFocus,
-  onOpenChatAction,
-}: {
-  activeTab: CareerWorkspaceTab;
+import { useIsMobile } from "@/hooks/useMediaQuery";
+import { cn } from "@/lib/utils";
+import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
+type ScreenProps = {
+  activeTab?: CareerWorkspaceTab;
   historyContent?: React.ReactNode;
-  onChangeTab: (
+  children?: React.ReactNode;
+  fillParent?: boolean;
+  forcedViewport?: "desktop" | "mobile";
+  initialMobileChatOpen?: boolean;
+  onChangeTab?: (
     tab: CareerWorkspaceTab,
     options?: CareerWorkspaceNavigationOptions
   ) => void;
-  onOpenRightPanelDetail: () => void;
-  onRequestChatFocus: () => void;
-  onOpenChatAction: (action: CareerComposerPendingAction) => void;
-}) {
-  if (activeTab === "history") {
-    return (
-      <CareerCanvas className="min-h-full">
-        {historyContent ?? <CareerHistoryPanel />}
-      </CareerCanvas>
-    );
-  }
-
-  if (activeTab === "tasks" || activeTab === "home") {
-    return (
-      <CareerCanvas>
-        <CareerTasksPanel
-          showTitle={false}
-          onOpenChat={onRequestChatFocus}
-          onOpenChatAction={onOpenChatAction}
-          onOpenOpportunity={(roleId, historyTab, savedStage) =>
-            onChangeTab("history", {
-              historyTarget: {
-                historyTab,
-                roleId,
-                ...(historyTab === "saved"
-                  ? { savedStage: savedStage ?? "connected" }
-                  : {}),
-              },
-            })
-          }
-          onOpenProfile={() => onChangeTab("profile")}
-        />
-      </CareerCanvas>
-    );
-  }
-
-  if (activeTab === "watchlist") {
-    return (
-      <CareerCanvas className="min-h-full">
-        <CareerCompanyWatchlistPanel />
-      </CareerCanvas>
-    );
-  }
-
-  return (
-    <CareerCanvas>
-      <CareerProfileWorkspace
-        onChangeView={onChangeTab}
-        view={
-          activeTab === "documents"
-            ? "documents"
-            : activeTab === "brief"
-              ? "brief"
-              : "profile"
-        }
-        onDetailOpen={onOpenRightPanelDetail}
-      />
-    </CareerCanvas>
-  );
-});
-
-export const CareerWorkspace = () => {
-  return <CareerWorkspaceRoot />;
 };
 
 export const CareerLoadingState = () => {
   const t = useCareerT();
-
   return (
-    <main className="relative flex min-h-svh w-full items-center justify-center bg-chat text-neutral-primary">
-      <Loader2 className="h-5 w-5 animate-spin text-neutral-soft" />
+    <main
+      className="career-sky-canvas flex min-h-svh items-center justify-center"
+      aria-busy="true"
+    >
+      <Loader2 className="size-5 animate-spin text-neutral-soft" />
       <span className="sr-only">
         {t(
           "career.common.career_workspace_screen.1nwthrd",
@@ -311,1399 +57,214 @@ export const CareerLoadingState = () => {
     </main>
   );
 };
+export const CareerWorkspace = () => <CareerWorkspaceRoot />;
 
-const CareerWorkspaceScreen = ({
-  activeTab,
+function CareerWorkspaceRoot({
+  activeTab: controlledTab,
   historyContent,
+  fillParent,
+  forcedViewport,
+  initialMobileChatOpen = false,
   onChangeTab,
-  children,
-  fillParent = false,
-  forcedViewport,
-  initialMobileChatOpen = false,
-}: {
-  activeTab?: CareerWorkspaceTab;
-  historyContent?: React.ReactNode;
-  children?: React.ReactNode;
-  fillParent?: boolean;
-  forcedViewport?: CareerWorkspaceViewportMode;
-  initialMobileChatOpen?: boolean;
-  onChangeTab?: (
-    tab: CareerWorkspaceTab,
-    options?: CareerWorkspaceNavigationOptions
-  ) => void;
-}) => (
-  <main
-    className={cn(
-      "relative w-full bg-chat text-neutral-primary",
-      fillParent ? "h-full min-h-0 overflow-hidden" : "min-h-svh"
-    )}
-  >
-    {children ?? (
-      <CareerWorkspaceRoot
-        activeTab={activeTab}
-        historyContent={historyContent}
-        fillParent={fillParent}
-        forcedViewport={forcedViewport}
-        initialMobileChatOpen={initialMobileChatOpen}
-        onChangeTab={onChangeTab}
-      />
-    )}
-  </main>
-);
-
-export default React.memo(CareerWorkspaceScreen);
-
-const CareerWorkspaceRoot = ({
-  activeTab: controlledActiveTab,
-  historyContent,
-  fillParent = false,
-  forcedViewport,
-  initialMobileChatOpen = false,
-  onChangeTab: controlledOnChangeTab,
-}: {
-  activeTab?: CareerWorkspaceTab;
-  historyContent?: React.ReactNode;
-  fillParent?: boolean;
-  forcedViewport?: CareerWorkspaceViewportMode;
-  initialMobileChatOpen?: boolean;
-  onChangeTab?: (
-    tab: CareerWorkspaceTab,
-    options?: CareerWorkspaceNavigationOptions
-  ) => void;
-}) => {
-  const router = useRouter();
+}: ScreenProps) {
   const t = useCareerT();
+  const router = useRouter();
+  const detectedMobile = useIsMobile();
+  const mobile = forcedViewport ? forcedViewport === "mobile" : detectedMobile;
   const { inputMode } = useCareerChatActivityContext();
-  const { data: actionItems } = useCareerActionItems();
-  const decisionCount = actionItems?.length ?? 0;
-  const [pendingChatAction, setPendingChatAction] =
+  const { historyOpportunityCounts } = useCareerHistoryContext();
+  const [localTab, setLocalTab] = useState<CareerWorkspaceTab>(
+    initialMobileChatOpen ? "chat" : "home"
+  );
+  const [pendingAction, setPendingAction] =
     useState<CareerComposerPendingAction | null>(null);
-  const clearPendingChatAction = useCallback(
-    () => setPendingChatAction(null),
+  const activeTab = controlledTab ?? localTab;
+  const isHome = activeTab === "home" || activeTab === "tasks";
+  const isConversation = isHome || activeTab === "chat";
+  const isDetail = !isConversation && activeTab !== "history";
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const navigate = useCallback(
+    (tab: CareerWorkspaceTab, options?: CareerWorkspaceNavigationOptions) => {
+      if (onChangeTab) onChangeTab(tab, options);
+      else setLocalTab(tab);
+    },
+    [onChangeTab]
+  );
+  const focusComposer = useCallback(() => {
+    requestAnimationFrame(() =>
+      document.getElementById("career-chat-composer")?.focus()
+    );
+  }, []);
+  const openChat = useCallback(() => {
+    if (mobile) navigate("chat");
+    focusComposer();
+  }, [focusComposer, mobile, navigate]);
+  const openChatAction = useCallback(
+    (action: CareerComposerPendingAction) => {
+      setPendingAction(action);
+      openChat();
+    },
+    [openChat]
+  );
+  const clearPendingAction = useCallback(() => setPendingAction(null), []);
+  const navContext = useMemo(
+    () => ({ openChat, openChatAction, navigate }),
+    [openChat, openChatAction, navigate]
+  );
+  const scrollToTop = useCallback(
+    () => scrollRef.current?.scrollTo({ top: 0 }),
     []
   );
-
-  const [activeTabState, setActiveTabState] =
-    useState<CareerWorkspaceTab>("tasks");
-  const mediaIsDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
-  const isDesktop =
-    forcedViewport != null ? forcedViewport === "desktop" : mediaIsDesktop;
-  const forceDesktopLayout = forcedViewport === "desktop";
-  const persistedChatPanelWidth = useCareerWorkspaceUiStore(
-    (state) => state.chatPanelWidthPct
-  );
-  const setPersistedChatPanelWidth = useCareerWorkspaceUiStore(
-    (state) => state.setChatPanelWidthPct
-  );
-  const handleChatPanelResizeEnd = useCallback(
-    (widthPct: number) => {
-      setPersistedChatPanelWidth(widthPct);
-    },
-    [setPersistedChatPanelWidth]
-  );
-  const {
-    containerRef: workspaceRef,
-    widthPct: chatPanelWidth,
-    handleResizeStart,
-    handleResizeKeyDown,
-  } = useResizableSplitPanel({
-    enabled: isDesktop,
-    minPct: CAREER_CHAT_PANEL_MIN_WIDTH_PCT,
-    maxPct: CAREER_CHAT_PANEL_MAX_WIDTH_PCT,
-    defaultPct: isDesktop
-      ? persistedChatPanelWidth
-      : CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
-    onResizeEnd: handleChatPanelResizeEnd,
-  });
-  const { historyOpportunityCounts } = useCareerHistoryContext();
-  const requestedActiveTab = controlledActiveTab ?? activeTabState;
-  // Keep the legacy Home view below, but open Tasks for all Home entry points.
-  const activeTab = requestedActiveTab === "home" ? "tasks" : requestedActiveTab;
-  const handleChangeTab = useCallback(
-    (nextTab: CareerWorkspaceTab, options?: CareerWorkspaceNavigationOptions) => {
-      if (controlledOnChangeTab) controlledOnChangeTab(nextTab, options);
-      else setActiveTabState(nextTab);
-    },
-    [controlledOnChangeTab]
-  );
-
-  const handleRequestChatFocus = useCallback(() => {
-    if (typeof document === "undefined") return;
-
-    const chatPanel = document.getElementById("career-chat-panel");
-    const composer = document.getElementById(
-      "career-chat-composer"
-    ) as HTMLTextAreaElement | null;
-
-    chatPanel?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "nearest",
-    });
-    composer?.focus();
-  }, []);
-  const rightPanelScrollRef = useRef<HTMLDivElement | null>(null);
-  const scrollRightPanelToTop = useCallback(() => {
-    rightPanelScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
-  }, []);
-  const handleOpenChatAction = useCallback(
-    (action: CareerComposerPendingAction) => {
-      setPendingChatAction(action);
-      handleRequestChatFocus();
-    },
-    [handleRequestChatFocus]
-  );
-  const pendingInternalRoleFeedbackCount = historyOpportunityCounts.newInternal;
-  const unreadExternalRoleCount = historyOpportunityCounts.newExternalUnread;
-  const desktopActiveTab = activeTab;
-  const requestedHistoryTab = getSingleQueryValue(router.query.historyTab);
   useEffect(() => {
-    if (!router.isReady || activeTab !== "history") return;
-    if (requestedHistoryTab !== "saved" && requestedHistoryTab !== "archived") return;
-    const tab = requestedHistoryTab === "archived"
-      ? "archived"
-      : getMyOpportunityTab(getSavedOpportunityStatusFromQuery(router.query.savedStage));
-    const store = useCareerWorkspaceUiStore.getState();
-    if (store.lastMyOpportunitiesTab !== tab) store.setLastMyOpportunitiesTab(tab);
-  }, [activeTab, requestedHistoryTab, router.isReady, router.query.savedStage]);
-  const desktopNavTab: CareerDesktopNavTab | null =
-    desktopActiveTab === "watchlist"
-      ? null
-      : desktopActiveTab === "documents"
-        ? "profile"
-        : desktopActiveTab;
-  const rightPanelTitle = desktopNavTab
-    ? getCareerDesktopNavLabels(t)[desktopNavTab]
-    : t("career.call.internal_opportunity_call_actions.0fpx491", "회사");
-  const isCallInProgress = inputMode === "call";
+    scrollToTop();
+  }, [activeTab, scrollToTop]);
+  // Preserve entry links used by onboarding, email and explicit call/chat starts.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!mobile || autoOpened.current) return;
+    if (
+      initialMobileChatOpen ||
+      router.query.start === "chat" ||
+      router.query.start === "call"
+    ) {
+      autoOpened.current = true;
+      navigate("chat");
+    }
+  }, [mobile, initialMobileChatOpen, router.query.start, navigate]);
 
-  const detectedMobileViewport = useIsMobile();
-  const isMobileViewport =
-    forcedViewport != null
-      ? forcedViewport === "mobile"
-      : detectedMobileViewport;
-  if (isMobileViewport) {
-    return (
-      <CareerMobileNavigationFrame className="h-svh">
-        <CareerWorkspaceMobileLayout
-          activeTab={activeTab}
-          historyContent={historyContent}
-          initialChatOpen={initialMobileChatOpen}
-          onChangeTab={handleChangeTab}
-          pendingInternalRoleFeedbackCount={pendingInternalRoleFeedbackCount}
-          unreadExternalRoleCount={unreadExternalRoleCount}
-          decisionCount={decisionCount}
-        />
-      </CareerMobileNavigationFrame>
-    );
-  }
+  const followups = (
+    <CareerTasksPanel
+      showTitle={false}
+      onOpenChat={openChat}
+      onOpenChatAction={openChatAction}
+      onOpenOpportunity={(roleId, historyTab, savedStage) =>
+        navigate("history", {
+          historyTarget: { roleId, historyTab, savedStage },
+        })
+      }
+      onOpenProfile={() => navigate("profile")}
+    />
+  );
+  const detailTitle =
+    activeTab === "documents"
+      ? t("career.sky.documents", "자료")
+      : activeTab === "brief"
+        ? t(
+            "career.profile.career_profile_workspace.search_brief_tab",
+            "원하는 조건"
+          )
+        : activeTab === "watchlist"
+          ? t("career.sky.companies", "관심 회사")
+          : t("career.workspace.my_information", "내 정보");
 
   return (
-    <div
-      className={cn(
-        "flex w-full flex-row",
-        fillParent
-          ? "h-full min-h-0 overflow-hidden"
-          : "min-h-svh md:h-svh md:overflow-hidden"
-      )}
-    >
-      <CareerWorkspaceNav
-        activeTab={desktopNavTab}
-        decisionCount={decisionCount}
-        pendingInternalRoleFeedbackCount={pendingInternalRoleFeedbackCount}
-        unreadExternalRoleCount={unreadExternalRoleCount}
-        onChangeTab={(tab) => {
-          if (tab === "history") {
-            handleChangeTab("history", {
-              historyTarget: { historyTab: "new" },
-            });
-          } else {
-            handleChangeTab(tab);
-          }
-          scrollRightPanelToTop();
-        }}
-      />
+    <CareerWorkspaceNavigationContext.Provider value={navContext}>
       <div
-        ref={workspaceRef}
         className={cn(
-          "relative flex min-w-0 flex-1 flex-col md:min-h-0 md:flex-row md:overflow-hidden",
-          fillParent && "min-h-0 flex-1 overflow-hidden",
-          forceDesktopLayout && "min-h-0 flex-1 flex-row overflow-hidden"
+          "career-workspace career-sky-canvas",
+          fillParent && "!h-full"
         )}
+        data-career-theme="sky"
       >
-        <section
-          id="career-chat-panel"
-          className={cn(
-            "flex min-h-0 min-w-0 flex-col border-b border-neutral-1000-a05 bg-chat md:flex-none md:border-b-0",
-            isCallInProgress
-              ? "transition-[flex-basis] duration-500 ease-in-out motion-reduce:transition-none"
-              : "transition-none",
-            forceDesktopLayout
-              ? "h-auto flex-none border-b-0"
-              : fillParent
-                ? "h-full"
-                : "h-[55vh] md:h-auto"
-          )}
-          style={
-            isDesktop
-              ? {
-                  flexBasis: isCallInProgress
-                    ? "100%"
-                    : `calc(${chatPanelWidth}% - ${
-                        CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX / 2
-                      }px)`,
-                }
-              : undefined
-          }
-        >
-          <div className="min-h-0 flex-1">
-            <CareerChatPanel
-              pendingAction={pendingChatAction}
-              onPendingActionHandled={clearPendingChatAction}
-            />
-          </div>
-        </section>
-
+        <CareerWorkspaceNav
+          activeTab={activeTab}
+          isMobile={mobile}
+          opportunityCount={historyOpportunityCounts.new}
+          onChangeTab={(tab) => navigate(tab)}
+        />
         <div
-          aria-hidden={isCallInProgress}
-          inert={isCallInProgress ? true : undefined}
-          style={{
-            width: `calc(${100 - chatPanelWidth}% + ${
-              CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX / 2
-            }px)`,
-          }}
-          className={cn(
-            "absolute inset-y-0 right-0 z-10 flex min-w-0 border-l border-neutral-1000-a05 will-change-transform",
-            isCallInProgress
-              ? "transition-[opacity,translate] duration-500 ease-in-out motion-reduce:transition-none"
-              : "transition-none",
-            isCallInProgress
-              ? "pointer-events-none translate-x-full opacity-0"
-              : "translate-x-0 opacity-100"
-          )}
+          className="career-workspace-body"
+          data-panel={
+            activeTab === "history"
+              ? "history"
+              : isDetail
+                ? "detail"
+                : "followups"
+          }
+          data-call={inputMode === "call" ? "true" : undefined}
         >
-          <div
-            role="separator"
-            tabIndex={isDesktop && !isCallInProgress ? 0 : -1}
-            aria-label={"채팅 패널 너비 조절"}
-            aria-orientation="vertical"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              handleResizeStart(event.clientX);
-            }}
-            onKeyDown={handleResizeKeyDown}
-            className={cn(
-              "group hidden w-2 shrink-0 cursor-col-resize items-center justify-center bg-chat outline-none md:flex",
-              forceDesktopLayout && "flex"
-            )}
-          >
-            <div className="flex h-16 w-1 items-center justify-center rounded-full">
-              <div className="h-10 w-[3px] rounded-full bg-surface-inverse/20 transition-colors group-hover:bg-surface-inverse/35 group-focus-visible:bg-surface-inverse/35" />
-            </div>
-          </div>
-
           <section
-            aria-labelledby="career-right-panel-title"
-            id="career-right-panel"
-            className={cn(
-              "relative flex min-w-0 flex-1 flex-col overflow-hidden bg-chat md:min-h-0",
-              forceDesktopLayout && "min-h-0"
-            )}
+            id="career-chat-panel"
+            className="career-chat-column"
+            hidden={mobile && !isConversation}
+            aria-label={t("career.sky.chat", "채팅")}
           >
-            <header className="flex h-14 shrink-0 items-center border-b border-neutral-1000-a05 px-4">
-              <SectionTitle
-                as="h1"
-                className="truncate font-normal"
-                id="career-right-panel-title"
-              >
-                {rightPanelTitle}
-              </SectionTitle>
-            </header>
-            <div className="relative min-h-0 flex-1">
-              <DocumentEditorPanelProvider
-                onOpenDocument={scrollRightPanelToTop}
-              >
-                <div
-                  className={cn(
-                    "flex h-full min-h-[45svh] flex-col md:min-h-0",
-                    forceDesktopLayout && "min-h-0"
-                  )}
-                >
-                  <div
-                    ref={rightPanelScrollRef}
-                    className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8"
-                  >
-                    <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col">
-                      <CareerWorkspaceContent
-                        activeTab={desktopActiveTab}
-                        historyContent={historyContent}
-                        onChangeTab={handleChangeTab}
-                        onOpenRightPanelDetail={scrollRightPanelToTop}
-                        onRequestChatFocus={handleRequestChatFocus}
-                        onOpenChatAction={handleOpenChatAction}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </DocumentEditorPanelProvider>
-            </div>
+            <CareerChatPanel
+              pendingAction={pendingAction}
+              onPendingActionHandled={clearPendingAction}
+              homeContent={mobile && isHome ? followups : undefined}
+              onMessageSubmit={openChat}
+            />
+          </section>
+          <section
+            id="career-right-panel"
+            className="career-right-column"
+            hidden={mobile && isConversation}
+            aria-label={
+              isConversation
+                ? t("career.sky.followups", "지금 팔로업")
+                : activeTab === "history"
+                  ? t("career.workspace.opportunities", "기회")
+                  : detailTitle
+            }
+          >
+            <DocumentEditorPanelProvider onOpenDocument={scrollToTop}>
+              <div ref={scrollRef} className="career-right-scroll">
+                {!isConversation && (
+                  <header className="career-panel-heading">
+                    <h1>
+                      {activeTab === "history"
+                        ? t("career.workspace.opportunities", "기회")
+                        : detailTitle}
+                    </h1>
+                    {isDetail && (
+                      <MuteButton
+                        variant="transparent"
+                        aria-label={t(
+                          "career.sky.back_to_chat",
+                          "채팅으로 돌아가기"
+                        )}
+                        onClick={() => navigate("chat")}
+                      >
+                        <ArrowLeft className="size-4" />
+                      </MuteButton>
+                    )}
+                  </header>
+                )}
+
+                {isConversation ? (
+                  !mobile && followups
+                ) : activeTab === "history" ? (
+                  (historyContent ?? <CareerHistoryPanel />)
+                ) : activeTab === "watchlist" ? (
+                  <CareerCompanyWatchlistPanel />
+                ) : (
+                  <CareerProfileWorkspace
+                    onChangeView={navigate}
+                    view={
+                      activeTab === "documents"
+                        ? "documents"
+                        : activeTab === "brief"
+                          ? "brief"
+                          : "profile"
+                    }
+                    onDetailOpen={scrollToTop}
+                  />
+                )}
+              </div>
+            </DocumentEditorPanelProvider>
           </section>
         </div>
       </div>
-    </div>
+    </CareerWorkspaceNavigationContext.Provider>
   );
-};
+}
 
-const useMobileUserDisplay = () => {
-  const { preferredLocale, user, talentProfile } = useCareerProfileContext();
-  const authDisplayName =
-    user?.user_metadata?.full_name ??
-    user?.user_metadata?.name ??
-    (typeof user?.email === "string" ? user.email.split("@")[0] : undefined);
-  const displayName = talentProfile.talentUser?.name ?? authDisplayName;
-  const profilePicture = getCareerMenuProfileImageUrl({
-    authenticatedUserImageUrl: getAuthenticatedUserProfileImageUrl(user),
-    talentProfileImageUrl: talentProfile.talentUser?.profile_picture,
-  });
-  const userEmail = talentProfile.talentUser?.email ?? user?.email ?? "";
-  return {
-    displayName: displayName ?? null,
-    preferredLocale,
-    profileCurrentLocation: talentProfile.talentUser?.current_location ?? null,
-    profilePicture,
-    profileLocation: talentProfile.talentUser?.location ?? null,
-    userEmail,
-  };
-};
-
-const CareerWorkspaceMobileHistoryView = ({
-  activeTab,
-  onChangeTab,
-  initialHistoryTarget,
-  onOpenSupport,
-  workspaceTabOptions,
-}: {
-  activeTab: CareerWorkspaceTab;
-  onChangeTab: (
-    tab: CareerWorkspaceTab,
-    options?: CareerWorkspaceNavigationOptions
-  ) => void;
-  initialHistoryTarget?: CareerWorkspaceHistoryTarget | null;
-  onOpenSupport: () => void;
-  workspaceTabOptions: typeof MOBILE_WORKSPACE_TAB_OPTIONS;
-}) => {
-  const t = useCareerT();
-  const router = useRouter();
-  const logCareerEvent = useCareerLogEvent();
-  const {
-    stage,
-    isOnboardingDone,
-    onOpenSettings,
-    onLogout,
-    callStartPending,
-    onStartCallMode,
-    onUseChatOnly,
-  } = useCareerSidebarContext();
-  const {
-    historyOpportunities,
-    historyOpportunityCounts,
-    historyLoading,
-    historyLoadingMore,
-    historyUpdatingOpportunityIds,
-    historyUpdateError,
-    onLoadMoreHistoryOpportunities,
-    onLoadSavedStageHistoryOpportunityPages,
-    getHistoryOpportunityPageFilterState,
-    onLoadHistoryOpportunityByRoleId,
-    onChangeInternalHistoryOpportunityDecision,
-    onUpdateHistoryOpportunityFeedback,
-    onUpdateHistoryOpportunitySavedStage,
-    onUpdateHistoryOpportunityTalentMemo,
-    onMarkHistoryOpportunityClicked,
-    onMarkHistoryOpportunityViewed,
-  } = useCareerHistoryContext();
-  const {
-    displayName,
-    preferredLocale,
-    profileCurrentLocation,
-    profileLocation,
-    profilePicture,
-    userEmail,
-  } = useMobileUserDisplay();
-
-  const jobsTab = getSingleQueryValue(router.query.historyTab)
-    ? getMobileHistoryJobsTab({
-        historyTab: router.query.historyTab,
-        savedStage: router.query.savedStage,
-      })
-    : getInitialMobileHistoryJobsTab(initialHistoryTarget);
-  const [internalDecisionChangeRequest, setInternalDecisionChangeRequest] =
-    useState<InternalOpportunityDecisionChangeRequest | null>(null);
-  const [companyDetailCompanyDbId, setCompanyDetailCompanyDbId] = useState<
-    number | null
-  >(null);
-  const [companyDetailOpportunity, setCompanyDetailOpportunity] =
-    useState<CareerHistoryOpportunity | null>(null);
-  const [infoOpportunityType, setInfoOpportunityType] =
-    useState<CareerOpportunityType | null>(null);
-  const [externalApplyOpportunity, setExternalApplyOpportunity] =
-    useState<CareerHistoryOpportunity | null>(null);
-  const [
-    internalConnectionAcceptanceOpportunity,
-    setInternalConnectionAcceptanceOpportunity,
-  ] = useState<CareerHistoryOpportunity | null>(null);
-  const [negativePromptOpportunityId, setNegativePromptOpportunityId] =
-    useState<string | null>(null);
-  const [negativePromptSelectedOptions, setNegativePromptSelectedOptions] =
-    useState<string[]>([]);
-  const [negativePromptCustomReason, setNegativePromptCustomReason] =
-    useState("");
-  const [chatOpen, setChatOpen] = useState(false);
-  const loadingRoleIdRef = useRef<string | null>(null);
-  const workspaceNavigationPendingRef = useRef(false);
-
-  const requestedRoleId = String(
-    getSingleQueryValue(router.query.id) ?? ""
-  ).trim();
-  const requestedOpportunity = requestedRoleId
-    ? (historyOpportunities.find(
-        (item) => String(item.roleId ?? "").trim() === requestedRoleId
-      ) ?? null)
-    : null;
-  const negativePromptOpportunity = negativePromptOpportunityId
-    ? (historyOpportunities.find(
-        (item) => item.id === negativePromptOpportunityId
-      ) ?? null)
-    : null;
-
-  const updateMobileHistoryLocation = useCallback(
-    (
-      nextTab: JobsDisplayTab,
-      options?: {
-        mode?: "push" | "replace";
-        roleId?: string | null;
-      }
-    ) => {
-      if (!router.isReady) return;
-      if (workspaceNavigationPendingRef.current) return;
-
-      const locationState = getHistoryLocationState(nextTab);
-      const roleId = String(options?.roleId ?? "").trim();
-      const currentPathname =
-        router.asPath.split(/[?#]/)[0]?.replace(/\/+$/, "") || "";
-      const pathname =
-        currentPathname === CAREER_PREVIEW_PATHNAME
-          ? CAREER_PREVIEW_PATHNAME
-          : CAREER_HISTORY_PATHNAME;
-      const query: Record<string, string | string[] | undefined> = {
-        ...router.query,
-        historyTab: locationState.historyTab,
-      };
-      if (pathname === CAREER_PREVIEW_PATHNAME) {
-        query.tab = "history";
-      } else {
-        delete query.tab;
-      }
-
-      if (locationState.savedStage) {
-        query.savedStage = locationState.savedStage;
-      } else {
-        delete query.savedStage;
-      }
-
-      if (roleId) {
-        query.id = roleId;
-      } else {
-        delete query.id;
-      }
-
-      const currentHistoryTab = getSingleQueryValue(router.query.historyTab);
-      const currentSavedStage = getSingleQueryValue(router.query.savedStage);
-      const currentRoleId = String(
-        getSingleQueryValue(router.query.id) ?? ""
-      ).trim();
-      if (
-        currentPathname === pathname &&
-        currentHistoryTab === locationState.historyTab &&
-        (currentSavedStage ?? null) === locationState.savedStage &&
-        currentRoleId === roleId
-      ) {
-        return;
-      }
-
-      const nextLocation = { pathname, query };
-      if (options?.mode === "replace") {
-        void router.replace(nextLocation, undefined, {
-          shallow: true,
-          scroll: false,
-        });
-        return;
-      }
-      void router.push(nextLocation, undefined, {
-        shallow: true,
-        scroll: false,
-      });
-    },
-    [router]
-  );
-
-  const handleOpenCompanyInfo = useEventCallback(
-    (item: CareerHistoryOpportunity) => {
-      const fallbackUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
-      if (!item.companyDbId && !fallbackUrl) return;
-
-      logCareerEvent(
-        "click_mobile_history_open_company",
-        item.companyDbId != null ? { companyId: item.companyDbId } : undefined,
-      );
-      void onMarkHistoryOpportunityClicked(item.id);
-
-      if (item.companyDbId) {
-        setCompanyDetailOpportunity(item);
-        setCompanyDetailCompanyDbId(item.companyDbId);
-        return;
-      }
-
-      if (fallbackUrl) {
-        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-      }
-    },
-  );
-  const handleOpenOpportunityInfo = useEventCallback(
-    (type: CareerOpportunityType) => {
-      logCareerEvent(`click_mobile_history_opportunity_info_${type}`);
-      setInfoOpportunityType(type);
-    },
-  );
-
-  const {
-    hasMore: hasMoreFilteredOpportunities,
-    isLoading: filteredOpportunitiesLoading,
-    loadMore: loadMoreFilteredOpportunities,
-    opportunities: filteredOpportunities,
-  } = useCareerMobileHistoryOpportunities({
-    loadAllProgress: true,
-    historyUpdateError,
-    activeTab: jobsTab,
-    historyLoading,
-    historyOpportunities,
-    historyOpportunityCounts,
-    onLoadMoreHistoryOpportunities,
-    onLoadSavedStageHistoryOpportunityPages,
-    getHistoryOpportunityPageFilterState,
-  });
-  const mobileJobsStatusCounts = useMemo(
-    () => ({
-      new: getJobsTabTotal("new", historyOpportunityCounts),
-      applied: getJobsTabTotal("applied", historyOpportunityCounts),
-      archived: historyOpportunityCounts.archived,
-      closed: historyOpportunityCounts.savedStages.closed,
-      connected: historyOpportunityCounts.savedStages.connected,
-      hidden: historyOpportunityCounts.savedStages.hidden + historyOpportunityCounts.savedStages.closed,
-      saved: historyOpportunityCounts.savedStages.saved,
-    }),
-    [historyOpportunityCounts]
-  );
-  const pendingOpportunityIds = useMemo(
-    () => new Set(historyUpdatingOpportunityIds),
-    [historyUpdatingOpportunityIds]
-  );
-
-  const requestedOpportunityIndex = requestedRoleId
-    ? filteredOpportunities.findIndex(
-        (item) => String(item.roleId ?? "").trim() === requestedRoleId
-      )
-    : -1;
-  const currentOpportunity =
-    jobsTab === "new" && requestedOpportunityIndex >= 0
-      ? filteredOpportunities[requestedOpportunityIndex]
-      : null;
-  const detailOpportunity =
-    jobsTab !== "new" && requestedRoleId && requestedOpportunityIndex >= 0
-      ? filteredOpportunities[requestedOpportunityIndex]
-      : null;
-  const isCareerOnboardingComplete = isOnboardingDone || stage === "completed";
-
-  // Appointment links identify a Role; resolve its current bucket after loading it.
-  useEffect(() => {
-    if (!requestedOpportunity) return;
-    if (isOpportunityInJobsTab(requestedOpportunity, jobsTab)) return;
-    const bucket = getHistoryOpportunityBucket(requestedOpportunity);
-    const targetTab = isSavedHistoryOpportunity(requestedOpportunity)
-      ? getMyOpportunityTab(getSavedOpportunityManagementStatus(requestedOpportunity))
-      : bucket;
-    if (targetTab !== jobsTab) {
-      updateMobileHistoryLocation(targetTab, { mode: "replace", roleId: requestedOpportunity.roleId });
-    }
-  }, [requestedOpportunity, jobsTab, updateMobileHistoryLocation]);
-
-  useEffect(() => {
-    if (
-      !router.isReady ||
-      !requestedRoleId ||
-      requestedOpportunity?.activityTimelineLoaded ||
-      historyLoading ||
-      loadingRoleIdRef.current === requestedRoleId
-    ) {
-      return;
-    }
-
-    loadingRoleIdRef.current = requestedRoleId;
-    void Promise.resolve(onLoadHistoryOpportunityByRoleId(requestedRoleId))
-      .catch(() => null)
-      .finally(() => {
-        if (loadingRoleIdRef.current === requestedRoleId) {
-          loadingRoleIdRef.current = null;
-        }
-      });
-  }, [
-    historyLoading,
-    onLoadHistoryOpportunityByRoleId,
-    requestedOpportunity,
-    requestedRoleId,
-    router.isReady,
-  ]);
-
-  useEffect(() => {
-    if (!currentOpportunity || currentOpportunity.viewedAt) return;
-    void onMarkHistoryOpportunityViewed(currentOpportunity.id);
-  }, [currentOpportunity, onMarkHistoryOpportunityViewed]);
-
-  const handleToggleNewOpportunity = useEventCallback(
-    (item: CareerHistoryOpportunity) => {
-      logCareerEvent("click_mobile_history_toggle_new_opportunity");
-      updateMobileHistoryLocation("new", {
-        roleId: currentOpportunity?.id === item.id ? null : item.roleId,
-      });
-    },
-  );
-
-  const handleChangeJobsTab = useCallback(
-    (nextTab: JobsDisplayTab) => {
-      logCareerEvent(`click_mobile_history_tab_${nextTab}`);
-      updateMobileHistoryLocation(nextTab, {
-        roleId: null,
-      });
-    },
-    [logCareerEvent, updateMobileHistoryLocation]
-  );
-
-  const handleMobileNavigationChange = useCallback(
-    (nextOption: CareerMobileTopBarOptionId) => {
-      if (nextOption === "inbox" || nextOption === "history") {
-        workspaceNavigationPendingRef.current = false;
-        handleChangeJobsTab("new");
-        return;
-      }
-
-      if (nextOption === "jobs") {
-        workspaceNavigationPendingRef.current = false;
-        handleChangeJobsTab(useCareerWorkspaceUiStore.getState().lastMyOpportunitiesTab);
-        return;
-      }
-
-      workspaceNavigationPendingRef.current = true;
-      onChangeTab(nextOption);
-    },
-    [handleChangeJobsTab, onChangeTab]
-  );
-
-  const handleStartOnboardingChatFromGate = useCallback(() => {
-    logCareerEvent("click_mobile_history_internal_connection_onboarding_chat");
-    setChatOpen(true);
-    onUseChatOnly?.();
-  }, [logCareerEvent, onUseChatOnly]);
-
-  const handleStartOnboardingCallFromGate = useCallback(() => {
-    logCareerEvent("click_mobile_history_internal_connection_onboarding_call");
-    setChatOpen(true);
-    void onStartCallMode?.();
-  }, [logCareerEvent, onStartCallMode]);
-
-  const closeDecidedOpportunityInLocation = useCallback(
-    (item: CareerHistoryOpportunity) => {
-      if (jobsTab !== "new" || requestedRoleId !== item.roleId) return;
-      updateMobileHistoryLocation("new", { mode: "replace", roleId: null });
-    },
-    [jobsTab, requestedRoleId, updateMobileHistoryLocation]
-  );
-
-  const [pendingLikes, setPendingLikes] = useState<
-    Array<{
-      id: string;
-      undo: () => void;
-    }>
-  >([]);
-
-  const handleApplyOpportunity = useCallback(
-    (item: CareerHistoryOpportunity) => {
-      logCareerEvent("click_mobile_history_external_apply", {
-        roleId: item.roleId,
-        opportunityId: item.id,
-      });
-      setExternalApplyOpportunity(item);
-    },
-    [logCareerEvent],
-  );
-  const handleKeepOpportunity = useEventCallback(
-    (item: CareerHistoryOpportunity) => {
-      void onUpdateHistoryOpportunityFeedback(item.id, "keep", {
-        fallbackOpportunity: item,
-        interactionSource: "position_tab",
-      });
-    },
-  );
-  const handleInternalDecisionAction = useCallback(
-    (
-      item: CareerHistoryOpportunity,
-      action: CareerInternalOpportunityDecisionAction,
-    ) => setInternalDecisionChangeRequest({ action, item }),
-    [],
-  );
-
-  const handleTrack = useEventCallback((item: CareerHistoryOpportunity) => {
-    logCareerEvent("click_mobile_history_positive");
-    if (item.sourceType === "internal") {
-      logCareerEvent("view_mobile_history_internal_connection_acceptance_modal");
-      setInternalConnectionAcceptanceOpportunity(item);
-      return;
-    }
-    closeDecidedOpportunityInLocation(item);
-    const decision = new Promise<boolean>((resolve) => {
-      let settled = false;
-      const finish = (commit: boolean) => {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timer);
-        setPendingLikes((current) =>
-          current.filter((like) => like.id !== item.id),
-        );
-        resolve(commit);
-      };
-      const timer = window.setTimeout(() => finish(true), 5000);
-      setPendingLikes((current) => [
-        ...current,
-        { id: item.id, undo: () => finish(false) },
-      ]);
-    });
-    void onUpdateHistoryOpportunityFeedback(item.id, "positive", {
-      beforeCommit: () => decision,
-      interactionSource: "position_tab",
-      promptImmediately:
-        jobsTab === "new" &&
-        item.feedback === null &&
-        historyOpportunityCounts.new <= 1,
-    });
-  });
-
-  const requestNegativeFeedback = useCallback(
-    (item: CareerHistoryOpportunity) => {
-      const parsedReason = parseNegativeFeedbackReason(item);
-      setNegativePromptOpportunityId(item.id);
-      setNegativePromptSelectedOptions(parsedReason.selectedOptions);
-      setNegativePromptCustomReason(parsedReason.customReason);
-    },
-    []
-  );
-
-  const toggleNegativeFeedbackOption = useCallback((value: string) => {
-    setNegativePromptSelectedOptions((current) =>
-      current.includes(value)
-        ? current.filter((item) => item !== value)
-        : [...current, value]
-    );
-  }, []);
-
-  const handleDismiss = useEventCallback((item: CareerHistoryOpportunity) => {
-    logCareerEvent("click_mobile_history_negative");
-    requestNegativeFeedback(item);
-  });
-
-  const handleSubmitNegativePrompt = useCallback(() => {
-    if (!negativePromptOpportunity) return;
-
-    logCareerEvent("click_mobile_history_submit_negative_reason");
-    const feedbackReason = serializeNegativeFeedbackReason({
-      customReason: negativePromptCustomReason,
-      item: negativePromptOpportunity,
-      selectedOptions: negativePromptSelectedOptions,
-    });
-
-    closeDecidedOpportunityInLocation(negativePromptOpportunity);
-    if (
-      jobsTab !== "new" &&
-      requestedRoleId === String(negativePromptOpportunity.roleId ?? "").trim()
-    ) {
-      updateMobileHistoryLocation(jobsTab, {
-        mode: "replace",
-        roleId: null,
-      });
-    }
-    if (
-      hasExternalAlreadyAppliedFeedbackReason(negativePromptSelectedOptions)
-    ) {
-      void onUpdateHistoryOpportunityFeedback(
-        negativePromptOpportunity.id,
-        "positive",
-        {
-          feedbackReason: EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON,
-          interactionSource: "position_tab",
-          promptImmediately:
-            jobsTab === "new" &&
-            negativePromptOpportunity.feedback === null &&
-            historyOpportunityCounts.new <= 1,
-          savedStage: "closed",
-        }
-      );
-    } else {
-      void onUpdateHistoryOpportunityFeedback(
-        negativePromptOpportunity.id,
-        "negative",
-        {
-          feedbackReason,
-          interactionSource: "position_tab",
-          promptImmediately:
-            jobsTab === "new" &&
-            negativePromptOpportunity.feedback === null &&
-            historyOpportunityCounts.new <= 1,
-        }
-      );
-    }
-
-    setNegativePromptOpportunityId(null);
-    setNegativePromptSelectedOptions([]);
-    setNegativePromptCustomReason("");
-  }, [
-    historyOpportunityCounts.new,
-    jobsTab,
-    logCareerEvent,
-    negativePromptCustomReason,
-    negativePromptOpportunity,
-    negativePromptSelectedOptions,
-    onUpdateHistoryOpportunityFeedback,
-    closeDecidedOpportunityInLocation,
-    requestedRoleId,
-    updateMobileHistoryLocation,
-  ]);
-
-  const closeNegativePrompt = useCallback(() => {
-    setNegativePromptOpportunityId(null);
-    setNegativePromptSelectedOptions([]);
-    setNegativePromptCustomReason("");
-  }, []);
-
-  const handleOpenDetail = useEventCallback((item: CareerHistoryOpportunity) => {
-    logCareerEvent("click_mobile_history_open_detail");
-    updateMobileHistoryLocation(jobsTab, { roleId: item.roleId });
-  });
-
-  const handleCloseDetail = useCallback(() => {
-    updateMobileHistoryLocation(jobsTab, {
-      mode: "replace",
-      roleId: null,
-    });
-  }, [jobsTab, updateMobileHistoryLocation]);
-
-  const handleStatusChange = useOpportunityStatusChange({
-    update: onUpdateHistoryOpportunitySavedStage,
-    navigate: (status, item) => {
-      const target = getMyOpportunityTab(status);
-      updateMobileHistoryLocation(target, {mode:"replace", roleId: target === "applied" && requestedRoleId ? item.roleId : null});
-    },
-    openChat: () => setChatOpen(true),
-  });
-
-  const handleOpenLink = useEventCallback(
-    (item: CareerHistoryOpportunity, url: string | null | undefined) => {
-      if (!url) return;
-      logCareerEvent(
-        "click_mobile_history_open_jd",
-        item.companyDbId != null ? { companyId: item.companyDbId } : undefined,
-      );
-      void onMarkHistoryOpportunityClicked(item.id);
-      window.open(url, "_blank", "noopener,noreferrer");
-    },
-  );
-
-  const handleInternalDecisionChangeConfirm = useCallback(
-    async (request: InternalOpportunityDecisionChangeRequest) => {
-      logCareerEvent(
-        `click_mobile_history_internal_decision_${request.action}_confirm`
-      );
-      const changed = await onChangeInternalHistoryOpportunityDecision(
-        request.item.id,
-        request.action,
-        request.reason
-      );
-      if (!changed) return false;
-
-      setInternalDecisionChangeRequest(null);
-      if (
-        request.action === "revert" &&
-        detailOpportunity?.id === request.item.id
-      ) {
-        updateMobileHistoryLocation(jobsTab, {
-          mode: "replace",
-          roleId: null,
-        });
-      }
-      return true;
-    },
-    [
-      detailOpportunity,
-      jobsTab,
-      logCareerEvent,
-      onChangeInternalHistoryOpportunityDecision,
-      updateMobileHistoryLocation,
-    ]
-  );
-
+function CareerWorkspaceScreen({ children, ...props }: ScreenProps) {
   return (
-    <>
-      {pendingLikes.length > 0 && (
-        <div
-          className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[80] flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2"
-          aria-live="polite"
-        >
-          {pendingLikes.map((like) => (
-            <MuteButton
-              key={like.id}
-              size="sm"
-              variant="dark"
-              className="border-stroke-strong/80 bg-surface-inverse/80 backdrop-blur-sm rounded-button"
-              onClick={like.undo}
-            >
-              <Undo2 aria-hidden className="size-3" />
-              {t(
-                "career.profile.career_profile_settings_section.0on2o51",
-                "되돌리기"
-              )}
-            </MuteButton>
-          ))}
-        </div>
-      )}
-      <CareerMobileJobsView
-        onChangeWorkspaceTab={onChangeTab}
-        onChangeTopBarOption={handleMobileNavigationChange}
-        workspaceTabOptions={workspaceTabOptions}
-        statusCounts={mobileJobsStatusCounts}
-        opportunities={filteredOpportunities}
-        selectedOpportunity={currentOpportunity}
-        internalOpportunityCount={historyOpportunityCounts.newInternal}
-        totalOpportunityCount={historyOpportunityCounts.new}
-        onToggleOpportunity={handleToggleNewOpportunity}
-        onApply={handleApplyOpportunity}
-        onPositive={handleTrack}
-        onNegative={handleDismiss}
-        onKeep={handleKeepOpportunity}
-        loadingMore={historyLoading || historyLoadingMore}
-        error={historyUpdateError}
-        hasMoreOpportunities={hasMoreFilteredOpportunities}
-        onLoadMoreOpportunities={loadMoreFilteredOpportunities}
-        pendingOpportunityIds={pendingOpportunityIds}
-        activeJobsTab={jobsTab}
-        onChangeJobsTab={handleChangeJobsTab}
-        profilePicture={profilePicture}
-        userName={displayName}
-        userEmail={userEmail}
-        profileLocation={profileLocation}
-        profileCurrentLocation={profileCurrentLocation}
-        preferredLocale={preferredLocale}
-        onOpenSettings={onOpenSettings}
-        onOpenSupport={onOpenSupport}
-        onLogout={onLogout}
-        bottomReservePx={120}
-        isLoading={filteredOpportunitiesLoading}
-        detailOpportunity={detailOpportunity}
-        onCloseDetail={handleCloseDetail}
-        onOpenCompanyInfo={handleOpenCompanyInfo}
-        onOpenChat={() => {
-          logCareerEvent("click_mobile_history_role_action_open_chat");
-          setChatOpen(true);
-        }}
-        onOpenDetail={handleOpenDetail}
-        onOpenLink={handleOpenLink}
-        onOpenOpportunityInfo={handleOpenOpportunityInfo}
-        onInternalDecisionAction={handleInternalDecisionAction}
-        onStatusChange={handleStatusChange}
-        onUpdateTalentMemo={(item, talentMemo) =>
-          onUpdateHistoryOpportunityTalentMemo(item.id, talentMemo)
-        }
-      />
-      <CareerMobileChatLauncher
-        navigation={{
-          activeTab: "history",
-          onChangeTab: handleMobileNavigationChange,
-          options: workspaceTabOptions,
-        }}
-        open={chatOpen}
-        onOpenChange={setChatOpen}
-      >
-        <CareerChatPanel />
-      </CareerMobileChatLauncher>
-      {externalApplyOpportunity ? (
-        <ExternalOpportunityApplyModal
-          key={externalApplyOpportunity.id}
-          item={externalApplyOpportunity}
-          pending={pendingOpportunityIds.has(externalApplyOpportunity.id)}
-          error={historyUpdateError || null}
-          onClose={() => setExternalApplyOpportunity(null)}
-          onSave={(savedStage) => {
-            logCareerEvent(
-              savedStage === "applied"
-                ? "click_mobile_history_external_apply_directly"
-                : "click_mobile_history_external_apply_with_harper",
-              {
-                roleId: externalApplyOpportunity.roleId,
-                opportunityId: externalApplyOpportunity.id,
-              }
-            );
-            return onUpdateHistoryOpportunitySavedStage(
-              externalApplyOpportunity.id,
-              savedStage,
-              externalApplyOpportunity
-            );
-          }}
-          onApplied={() => updateMobileHistoryLocation("applied", {
-            roleId: externalApplyOpportunity.roleId,
-          })}
-          onOpenLink={(url) => handleOpenLink(externalApplyOpportunity, url)}
-          onOpenChat={() => {
-            updateMobileHistoryLocation("saved", {
-              roleId: externalApplyOpportunity.roleId,
-            });
-            setChatOpen(false);
-          }}
-        />
-      ) : null}
-      <InternalConnectionAcceptanceModal
-        item={internalConnectionAcceptanceOpportunity}
-        isOnboardingComplete={isCareerOnboardingComplete}
-        pending={
-          internalConnectionAcceptanceOpportunity
-            ? pendingOpportunityIds.has(
-                internalConnectionAcceptanceOpportunity.id
-              )
-            : false
-        }
-        callPending={Boolean(callStartPending)}
-        onClose={() => setInternalConnectionAcceptanceOpportunity(null)}
-        onAccept={(feedbackReason) => {
-          if (!internalConnectionAcceptanceOpportunity) return;
-          logCareerEvent(
-            "click_mobile_history_submit_internal_connection_acceptance"
-          );
-          closeDecidedOpportunityInLocation(
-            internalConnectionAcceptanceOpportunity
-          );
-          return onUpdateHistoryOpportunityFeedback(
-            internalConnectionAcceptanceOpportunity.id,
-            "positive",
-            {
-              feedbackReason,
-              interactionSource: "position_tab",
-              promptImmediately:
-                jobsTab === "new" &&
-                internalConnectionAcceptanceOpportunity.feedback === null &&
-                historyOpportunityCounts.new <= 1,
-            }
-          );
-        }}
-        onStartChat={handleStartOnboardingChatFromGate}
-        onStartCall={handleStartOnboardingCallFromGate}
-      />
-      <HistoryNegativeFeedbackModal
-        item={negativePromptOpportunity}
-        customReason={negativePromptCustomReason}
-        selectedOptions={negativePromptSelectedOptions}
-        pending={
-          negativePromptOpportunity
-            ? pendingOpportunityIds.has(negativePromptOpportunity.id)
-            : false
-        }
-        onChangeCustomReason={setNegativePromptCustomReason}
-        onToggleOption={toggleNegativeFeedbackOption}
-        onClose={closeNegativePrompt}
-        onSubmit={handleSubmitNegativePrompt}
-      />
-      <HistoryOpportunityInfoModal
-        opportunityType={infoOpportunityType}
-        onClose={() => setInfoOpportunityType(null)}
-      />
-      {internalDecisionChangeRequest ? (
-        <InternalOpportunityDecisionChangeModal
-          error={historyUpdateError}
-          request={internalDecisionChangeRequest}
-          onClose={() => setInternalDecisionChangeRequest(null)}
-          onConfirm={handleInternalDecisionChangeConfirm}
-        />
-      ) : null}
-      <CareerCompanyDetailDrawer
-        companyDbId={companyDetailCompanyDbId}
-        mobileLayout
-        open={companyDetailCompanyDbId !== null}
-        onClose={() => {
-          setCompanyDetailCompanyDbId(null);
-          setCompanyDetailOpportunity(null);
-        }}
-        onOpenChat={() => {
-          setCompanyDetailCompanyDbId(null);
-          setCompanyDetailOpportunity(null);
-          logCareerEvent("click_mobile_company_detail_role_action_open_chat");
-          setChatOpen(true);
-        }}
-        opportunity={companyDetailOpportunity}
-        source="mobile_position_company_detail"
-      />
-    </>
+    <main className="relative w-full text-neutral-primary">
+      {children ?? <CareerWorkspaceRoot {...props} />}
+    </main>
   );
-};
-
-const TAB_TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
-const TAB_MOTION_PROPS = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1 },
-  exit: { opacity: 0 },
-  transition: TAB_TRANSITION,
-} as const;
-
-const CareerWorkspaceMobileLayout = ({
-  activeTab,
-  historyContent,
-  initialChatOpen,
-  onChangeTab,
-  pendingInternalRoleFeedbackCount,
-  unreadExternalRoleCount,
-  decisionCount,
-}: {
-  activeTab: CareerWorkspaceTab;
-  historyContent?: React.ReactNode;
-  initialChatOpen?: boolean;
-  onChangeTab: (
-    tab: CareerWorkspaceTab,
-    options?: CareerWorkspaceNavigationOptions
-  ) => void;
-  pendingInternalRoleFeedbackCount: number;
-  unreadExternalRoleCount: number;
-  decisionCount: number;
-}) => {
-  const t = useCareerT();
-  const logCareerEvent = useCareerLogEvent();
-  const { onOpenSettings, onLogout } = useCareerSidebarContext();
-  const {
-    displayName,
-    preferredLocale,
-    profileCurrentLocation,
-    profileLocation,
-    profilePicture,
-    userEmail,
-  } = useMobileUserDisplay();
-  const [chatOpen, setChatOpen] = useState(() => {
-    if (initialChatOpen) return true;
-    if (typeof window === "undefined") return false;
-    const startQuery = new URLSearchParams(window.location.search).get("start");
-    return startQuery === "call" || startQuery === "chat";
-  });
-  const [pendingChatAction, setPendingChatAction] =
-    useState<CareerComposerPendingAction | null>(null);
-  const clearPendingChatAction = useCallback(
-    () => setPendingChatAction(null),
-    []
-  );
-  const closeChatForDocument = useCallback(() => setChatOpen(false), []);
-  const [inquiryOpen, setInquiryOpen] = useState(false);
-  const [pendingHistoryTarget, setPendingHistoryTarget] =
-    useState<CareerWorkspaceHistoryTarget | null>(null);
-  const baseWorkspaceTabOptions = useMemo(
-    () => getMobileWorkspaceTabOptions(t),
-    [t]
-  );
-  const handleOpenSupport = useCallback(() => {
-    logCareerEvent("click_open_support");
-    setInquiryOpen(true);
-  }, [logCareerEvent]);
-
-  const handleChangeTab = useCallback(
-    (
-      nextTab: CareerWorkspaceTab,
-      options?: CareerWorkspaceNavigationOptions
-    ) => {
-      if (nextTab === "history") {
-        setPendingHistoryTarget(options?.historyTarget ?? null);
-      } else if (activeTab === "history") {
-        setPendingHistoryTarget(null);
-      }
-      onChangeTab(nextTab, options);
-    },
-    [activeTab, onChangeTab]
-  );
-  const handleTopBarOptionChange = useCallback(
-    (nextOption: CareerMobileTopBarOptionId) => {
-      if (nextOption === "inbox" || nextOption === "history") {
-        handleChangeTab("history", { historyTarget: { historyTab: "new" } });
-        return;
-      }
-
-      if (nextOption === "jobs") {
-        handleChangeTab("history", {
-          historyTarget: getLastMyOpportunitiesTarget(),
-        });
-        return;
-      }
-
-      handleChangeTab(nextOption);
-    },
-    [handleChangeTab]
-  );
-  const workspaceTabOptions = useMemo(
-    () =>
-      baseWorkspaceTabOptions.map((option) =>
-        option.id === "tasks" && decisionCount > 0
-          ? { ...option, badgeCount: decisionCount }
-          : option.id === "history"
-            ? {
-                ...option,
-                badgeCount:
-                  pendingInternalRoleFeedbackCount > 0
-                    ? pendingInternalRoleFeedbackCount
-                    : unreadExternalRoleCount,
-                badgeClassName:
-                  pendingInternalRoleFeedbackCount > 0
-                    ? undefined
-                    : "bg-action text-on-inverse",
-              }
-            : option
-      ),
-    [
-      baseWorkspaceTabOptions,
-      pendingInternalRoleFeedbackCount,
-      unreadExternalRoleCount,
-      decisionCount,
-    ]
-  );
-
-  const mobileNavigationTab =
-    activeTab === "documents"
-      ? "profile"
-      : activeTab;
-  const mobileHeader = (
-    <CareerMobileTopBar
-      activeTab={mobileNavigationTab}
-      options={workspaceTabOptions}
-      onChangeTab={handleTopBarOptionChange}
-      profilePicture={profilePicture}
-      userName={displayName}
-      userEmail={userEmail}
-      profileLocation={profileLocation}
-      profileCurrentLocation={profileCurrentLocation}
-      preferredLocale={preferredLocale}
-      onOpenSettings={onOpenSettings}
-      onOpenSupport={handleOpenSupport}
-      onLogout={onLogout}
-    />
-  );
-
-  return (
-    <CareerMobileChatLauncherVisibilityProvider>
-      <AnimatePresence mode="wait" initial={false}>
-        {activeTab === "history" && historyContent == null ? (
-          <motion.div key="history" {...TAB_MOTION_PROPS}>
-            <CareerWorkspaceMobileHistoryView
-              activeTab={activeTab}
-              onChangeTab={handleChangeTab}
-              initialHistoryTarget={pendingHistoryTarget}
-              onOpenSupport={handleOpenSupport}
-              workspaceTabOptions={workspaceTabOptions}
-            />
-          </motion.div>
-        ) : (
-          <motion.div key="shell" {...TAB_MOTION_PROPS}>
-            <CareerMobileShell header={mobileHeader}>
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div key={activeTab} {...TAB_MOTION_PROPS}>
-                  {activeTab === "history" ? (
-                    <div className="px-4 pb-[140px]">{historyContent}</div>
-                  ) : activeTab === "home" ? (
-                    <CareerMobileHomeView
-                      onOpenChatAction={(action) => {
-                        setPendingChatAction(action);
-                        setChatOpen(true);
-                      }}
-                      onOpenChat={() => {
-                        logCareerEvent("click_mobile_open_chat");
-                        setChatOpen(true);
-                      }}
-                      onOpenHistory={(historyTarget) =>
-                        handleChangeTab("history", { historyTarget })
-                      }
-                    />
-                  ) : activeTab === "tasks" ? (
-                    <div className="px-4 pb-[140px]">
-                      <CareerTasksPanel
-                        onOpenChat={() => setChatOpen(true)}
-                        onOpenChatAction={(action) => {
-                          setPendingChatAction(action);
-                          setChatOpen(true);
-                        }}
-                        onOpenOpportunity={(roleId, historyTab, savedStage) =>
-                          handleChangeTab("history", {
-                            historyTarget: {
-                              historyTab,
-                              roleId,
-                              ...(historyTab === "saved"
-                                ? { savedStage: savedStage ?? "connected" }
-                                : {}),
-                            },
-                          })
-                        }
-                        onOpenProfile={() => handleChangeTab("profile")}
-                      />
-                    </div>
-                  ) : activeTab === "watchlist" ? (
-                    <div className="px-4 pb-[140px] pt-2">
-                      <CareerCompanyWatchlistPanel />
-                    </div>
-                  ) : (
-                    <div className="px-4 pb-[140px] pt-2">
-                      <CareerProfileWorkspace
-                        onChangeView={handleChangeTab}
-                        view={
-                          activeTab === "documents"
-                            ? "documents"
-                            : activeTab === "brief"
-                              ? "brief"
-                              : "profile"
-                        }
-                        onDetailOpen={closeChatForDocument}
-                      />
-                    </div>
-                  )}
-                </motion.div>
-              </AnimatePresence>
-            </CareerMobileShell>
-            <CareerMobileChatLauncher
-              navigation={{
-                activeTab: mobileNavigationTab,
-                onChangeTab: handleTopBarOptionChange,
-                options: workspaceTabOptions,
-              }}
-              open={chatOpen}
-              onOpenChange={setChatOpen}
-            >
-              <CareerChatPanel
-                pendingAction={pendingChatAction}
-                onPendingActionHandled={clearPendingChatAction}
-              />
-            </CareerMobileChatLauncher>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {inquiryOpen && (
-        <CareerSupportInquiryModal
-          onClose={() => setInquiryOpen(false)}
-          defaultEmail={userEmail}
-        />
-      )}
-    </CareerMobileChatLauncherVisibilityProvider>
-  );
-};
+}
+export default React.memo(CareerWorkspaceScreen);

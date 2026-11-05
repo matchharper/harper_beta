@@ -304,7 +304,7 @@ export default function CareerTalentContextSection({
           )}
         </div>
       </div>
-      <div className="rounded-xl border border-neutral-1000-a05 bg-bg-floating p-4 md:p-5 md:py-6">
+      <div className="career-glass career-work-surface p-4 md:p-5 md:py-6">
         <dl className="mt-0 divide-y divide-neutral-1000-a05">
           {displayedBrief.map(({ id, label: rowLabel, row }, index) => (
             <Fragment key={id}>

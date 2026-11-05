@@ -93,7 +93,7 @@ export function PreparationComposerView({
       aria-busy={props.busy}
       style={careerTimelineTypographyStyle}
       className={cn(
-        "flex max-h-[min(540px,70dvh)] flex-col p-3 md:p-4",
+        "career-preparation-card career-glass career-work-surface flex max-h-[min(540px,70dvh)] flex-col p-4 md:p-5",
         suggestion &&
           "transition-[background-color,box-shadow] duration-150 motion-reduce:transition-none",
         props.responseFlash && "ring-1 ring-primary/20",
@@ -170,7 +170,7 @@ export function PreparationComposerView({
       ) : null}
       {props.actions}
       <form
-        className="mt-2 flex shrink-0 items-end gap-2"
+        className="career-preparation-input mt-2 flex shrink-0 items-end gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           submit();
@@ -313,7 +313,9 @@ export function PreparationDecisionActions(props: {
               action === props.positive
                 ? "bg-neutral-primary text-on-inverse hover:bg-neutral-primary/80"
                 : "text-red-600",
-              action.selected ? "bg-action text-on-inverse hover:bg-action/80" : "",
+              action.selected
+                ? "bg-action text-on-inverse hover:bg-action/80"
+                : "",
               "rounded-pill"
             )}
             aria-pressed={action.selected === true}

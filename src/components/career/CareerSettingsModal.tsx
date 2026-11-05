@@ -654,7 +654,7 @@ const AccountSectionContent = ({
                 setSaveError("");
                 setSaveInfo("");
               }}
-              className="h-9 w-full rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
+              className="h-9 w-full rounded-control border border-stroke bg-control bg-control-image px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-stroke-focus focus:ring-2 focus:ring-focus-ring"
               autoComplete="name"
             />
           }
@@ -671,7 +671,7 @@ const AccountSectionContent = ({
               readOnly
               value={savedProfile.email}
               onClick={() => setEmailChangeModalOpen(true)}
-              className="h-9 w-full cursor-pointer rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder hover:border-neutral-400 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
+              className="h-9 w-full cursor-pointer rounded-control border border-stroke bg-control bg-control-image px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder hover:border-neutral-400 focus:border-stroke-focus focus:ring-2 focus:ring-focus-ring"
               autoComplete="email"
             />
           }
@@ -1038,9 +1038,9 @@ const CareerSettingsModal = ({
                       setActiveTab(tab.key);
                     }}
                     className={[
-                      "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                      "flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm transition-colors",
                       isActive
-                        ? "bg-neutral-200 text-neutral-primary"
+                        ? "bg-interaction-selected text-neutral-primary shadow-(--shadow-tab-selected)"
                         : "text-neutral-primary hover:bg-bg-weak",
                     ].join(" ")}
                   >

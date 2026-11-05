@@ -77,7 +77,7 @@ export function CareerCoachingActivityCard({
   return (
     <section
       aria-busy={Boolean(pendingAction)}
-      className="max-w-[720px] rounded-xl border border-neutral-1000-a10 bg-bg-floating p-4 text-neutral-primary shadow-(--shadow-xs) sm:p-5"
+      className="max-w-[720px] career-glass career-work-surface p-4 text-neutral-primary sm:p-5"
     >
       <div className="flex items-start gap-3">
         <span

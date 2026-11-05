@@ -4,7 +4,6 @@ import {
   buildInitialRecommendationPendingResult,
 } from "../talentOnboarding/initialRecommendationGuard";
 import { withLlmUsageContext, getLlmUsageContext } from "../llm/usageContext";
-import { resolveWebExternalVariant } from "./devVariant.server";
 import { runExternalV2, type SelectedRole } from "./engine";
 import {
   completeRun,
@@ -41,10 +40,7 @@ export async function saveSelected(
 export async function runExperimentJobRecommendations(
   args: Parameters<typeof runCareerJobPostingRecommendations>[0]
 ) {
-  if (
-    args.evaluation ||
-    process.env.EXTERNAL_RECOMMENDATION_EXPERIMENT === "off"
-  )
+  if (args.evaluation?.dryRun)
     return runCareerJobPostingRecommendations(args);
   if (
     await fetchActiveInitialConversationRun({
@@ -55,28 +51,12 @@ export async function runExperimentJobRecommendations(
     return buildInitialRecommendationPendingResult({
       locale: args.preferredLocale,
     });
-  const variant = await resolveWebExternalVariant(args.admin, args.userId);
-  const run = await createRun(args.admin, args.userId, "web", { variant });
-  const began = Date.now();
+  const run = await createRun(args.admin, args.userId, "web");
   return withLlmUsageContext(
     { ...getLlmUsageContext(), requestId: run.id, userId: args.userId },
     () =>
       externalRunContext.run({ id: run.id }, async () => {
         try {
-          if (variant === "control") {
-            const result = await runCareerJobPostingRecommendations(args);
-            await updateRun(args.admin, run.id, {
-              status: "completed",
-              finished_at: new Date().toISOString(),
-              role_ids: result.postingRoleIds,
-              metrics: {
-                durationMs: Date.now() - began,
-                recommendationCount: result.recommendationCount,
-              },
-              plan: result.searchPlan,
-            });
-            return result;
-          }
           const language = args.preferredLocale?.startsWith("en") ? "en" : "ko";
           const result = await runExternalV2({
             admin: args.admin,

@@ -107,11 +107,6 @@ const nextConfig = {
         destination: "/career",
         permanent: false,
       },
-      {
-        source: "/career/chat",
-        destination: "/career",
-        permanent: false,
-      },
     ];
   },
   async headers() {

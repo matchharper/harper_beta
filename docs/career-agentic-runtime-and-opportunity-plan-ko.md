@@ -450,7 +450,9 @@ membership은 matching이 있는 결과와 없는 내부/수동 저장 공고를
 
 ### 검색 완료와 이어지는 agent
 
-외부 `search_opportunities`의 검색·재개는 같은 도구 호출에서 검색·평가 완료를 기다린 뒤 조회 시점에 만료되지 않은 공고의 mutual fit 점수순 상위 30개 평가와 유효 평가의 전체·남은 개수, 만료 공고 개수, 다음 페이지 cursor, durable run ID, 부분 실패를 반환한다. 만료 여부는 is_expired, expires_at, 마감 상태로 다시 확인하며 만료된 공고는 평가·추천 소속 목록에서 빼고 개수만 제공한다. read_matching의 평가 범위는 매칭 전체 검색 기록이며 검색 이력 페이지의 개수나 runCursor와 분리한다. 명시적인 runId를 전달한 경우에만 해당 검색으로 범위를 좁힌다. 추가 결과는 같은 run ID와 cursor로 조회하며 evaluationLimit(평가 대상 수)와 limit(조회 페이지 크기)은 별개다. 평가 결과 조회는 저장된 run의 평가 참조를 DB 안에서 연결하는 공통 POST 조회를 사용하며, 평가 ID 전체를 GET 주소로 다시 보내지 않는다. Worker의 Behavior Context 준비 작업은 생성하지 않고 저장된 Behavior snapshot을 사용한다. 원본 agent는 반환된 평가로 바로 선택할 수 있으며 `read`는 기존 실행·추가 페이지 조회에 사용한다. 내부 평가와 회사 follow의 백그라운드 실행은 기존 continuation을 사용한다. 어떤 범위를 평가했고 무엇이 아직 없거나 실패했는지 구분한다.
+2026-11-05 로컬 변경(미배포): 외부 평가 조회를 아래 가중합 순서로 변경했다. 동점은 평가 ID 순서로 정렬하며, 최종 추천 선택은 원본 Career agent가 맡는다.
+
+외부 `search_opportunities`의 검색·재개는 같은 도구 호출에서 검색·평가 완료를 기다린 뒤 조회 시점에 만료되지 않은 공고의 `mutualFit×0.30 + candidateInterest×0.50 + companyInterest×0.10 + roleFit×0.10` 가중합 점수순 상위 30개 평가와 유효 평가의 전체·남은 개수, 만료 공고 개수, 다음 페이지 cursor, durable run ID, 부분 실패를 반환한다. 만료 여부는 is_expired, expires_at, 마감 상태로 다시 확인하며 만료된 공고는 평가·추천 소속 목록에서 빼고 개수만 제공한다. read_matching의 평가 범위는 매칭 전체 검색 기록이며 검색 이력 페이지의 개수나 runCursor와 분리한다. 명시적인 runId를 전달한 경우에만 해당 검색으로 범위를 좁힌다. 추가 결과는 같은 run ID와 cursor로 조회하며 evaluationLimit(평가 대상 수)와 limit(조회 페이지 크기)은 별개다. 평가 결과 조회는 저장된 run의 평가 참조를 DB 안에서 연결하는 공통 POST 조회를 사용하며, 평가 ID 전체를 GET 주소로 다시 보내지 않는다. Worker의 Behavior Context 준비 작업은 생성하지 않고 저장된 Behavior snapshot을 사용한다. 원본 agent는 반환된 평가로 바로 선택할 수 있으며 `read`는 기존 실행·추가 페이지 조회에 사용한다. 내부 평가와 회사 follow의 백그라운드 실행은 기존 continuation을 사용한다. 어떤 범위를 평가했고 무엇이 아직 없거나 실패했는지 구분한다.
 
 검색이 끝났다는 이유로 자동 추천·메일을 실행하지 않는다. 사용자가 중간에 “그 조건은 빼줘”라고 했다면 이전 결과는 당시 기준의 결과로 남고 agent가 현재 요청을 이어간다. 원래 요청을 잃지 않으면서 새 요청과 같은 실행의 재시도를 구분한다.
 

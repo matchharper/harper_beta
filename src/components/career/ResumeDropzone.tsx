@@ -152,6 +152,7 @@ const ResumeDropzone = ({
       onDragEnd={() => setDragDepth(0)}
       onDrop={handleDrop}
       className={cn(
+        "career-upload-dropzone",
         isSourceCard
           ? CAREER_PROFILE_SOURCE_CARD_CLASS
           : "group relative flex w-full overflow-hidden rounded-md border text-neutral-primary transition-[border-color,background-color,box-shadow,transform] duration-200",
@@ -176,7 +177,7 @@ const ResumeDropzone = ({
         type="file"
         accept={accept}
         disabled={disabled}
-        className="hidden"
+        className="sr-only"
         onChange={handleChange}
       />
 

@@ -1,7 +1,7 @@
 import { CompanyLogo } from "./CompanyLogo";
 import { FollowButton } from "./FollowButton";
 import { formatFollowedAt } from "./watchlistFormatters";
-import { BareButton } from "@/components/ui/button";
+import { ClickablePanel } from "@/components/ui/clickable-panel";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
@@ -46,10 +46,9 @@ export const CompanyCard = ({
         ));
 
   return (
-    <BareButton
-      type="button"
-      onClick={() => onOpen(item)}
-      className="w-full cursor-pointer rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-4 text-left transition-colors hover:bg-bg-weak focus:outline-none focus-visible:ring-4 focus-visible:ring-neutral-1000-a05"
+    <ClickablePanel
+      onActivate={() => onOpen(item)}
+      className="career-glass w-full cursor-pointer p-4 text-left transition-colors hover:bg-interaction-hover"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3 w-full">
@@ -88,7 +87,7 @@ export const CompanyCard = ({
         {activeTab === "following" ? (
           <></>
         ) : (
-          <div className="min-w-0 rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-2 shadow-(--shadow-sm)">
+          <div className="min-w-0 rounded-control bg-bg-weak px-3 py-2">
             <div className="text-[12px] font-medium text-neutral-muted">
               {reasonLabel}
             </div>
@@ -96,6 +95,6 @@ export const CompanyCard = ({
           </div>
         )}
       </div>
-    </BareButton>
+    </ClickablePanel>
   );
 };

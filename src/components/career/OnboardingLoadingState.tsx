@@ -105,7 +105,7 @@ const StepProgressBar = ({
 );
 
 const PreviewDocument = ({ activeStep }: { activeStep: number }) => (
-  <div className="rounded-2xl bg-bg-floating px-6 py-6 shadow-(--shadow-lg)">
+  <div className="career-glass px-6 py-6">
     <div className="flex items-start gap-3">
       <SkeletonLine className="h-9 w-9 shrink-0 rounded-full" />
       <div className="min-w-0 flex-1 pt-1">
@@ -115,7 +115,7 @@ const PreviewDocument = ({ activeStep }: { activeStep: number }) => (
     </div>
 
     <div className="mt-4 space-y-4">
-      <div className="rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3.5 py-4">
+      <div className="rounded-control bg-bg-weak px-3.5 py-4">
         <p className="text-[12px] font-medium leading-none text-neutral-soft">
           Career signals
         </p>
@@ -126,7 +126,7 @@ const PreviewDocument = ({ activeStep }: { activeStep: number }) => (
 
       <div
         className={cn(
-          "rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3.5 py-4 transition-opacity",
+          "rounded-control bg-bg-weak px-3.5 py-4 transition-opacity",
           activeStep < 1 && "opacity-75"
         )}
       >
@@ -143,7 +143,7 @@ const PreviewDocument = ({ activeStep }: { activeStep: number }) => (
 
       <div
         className={cn(
-          "rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3.5 py-4 transition-opacity",
+          "rounded-control bg-bg-weak px-3.5 py-4 transition-opacity",
           activeStep < 2 && "opacity-65"
         )}
       >
