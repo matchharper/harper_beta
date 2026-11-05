@@ -7,7 +7,6 @@ import {
   FileText,
   MessageSquareText,
 } from "lucide-react";
-import { MuteButton } from "@/components/ui/button";
 import { Typography } from "@/components/ui/typography";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
@@ -106,25 +105,27 @@ export function CareerContentSuggestionCard({
         {item.reason}
       </Typography>
       <div className="career-content-actions">
-        <MuteButton asChild size="md" variant="transparent">
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => onOpen(item)}
-          >
-            {t("career.content.open", "열기")}
-            <ArrowUpRight aria-hidden className="size-3.5" />
-          </a>
-        </MuteButton>
-        <MuteButton
-          size="md"
-          variant="transparent"
+        <a
+          className="career-followup-action career-content-open"
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => onOpen(item)}
+        >
+          {t("career.content.open", "열기")}
+          <ArrowUpRight
+            aria-hidden
+            className="size-4 shrink-0 text-neutral-soft"
+          />
+        </a>
+        <button
+          type="button"
+          className="career-content-dismiss"
           aria-label={`${item.title}: ${t("career.content.dismiss", "관심 없음")}`}
           onClick={() => onDismiss(item)}
         >
           {t("career.content.dismiss", "관심 없음")}
-        </MuteButton>
+        </button>
       </div>
     </article>
   );
