@@ -818,6 +818,7 @@ export const HistoryOpportunityInfoTag = ({
 }) => {
   const t = useCareerT();
   const label = getOpportunityTypeLabel(item, t);
+  const noInfo = item.isUserAdded || Boolean(item.hiringPost);
   const isConnectionOpportunity =
     item.opportunityType === OpportunityType.InternalRecommendation ||
     item.opportunityType === OpportunityType.IntroRequest;
@@ -828,7 +829,7 @@ export const HistoryOpportunityInfoTag = ({
   return (
     <Badge
       onClick={
-        item.isUserAdded ? undefined : () => onOpenInfo(item.opportunityType)
+        noInfo ? undefined : () => onOpenInfo(item.opportunityType)
       }
       icon={
         isConnectionOpportunity ? (
@@ -837,7 +838,7 @@ export const HistoryOpportunityInfoTag = ({
       }
       className={cn(
         "flex shrink-0 flex-row items-center gap-2 text-xs transition-colors md:text-[13px]",
-        !item.isUserAdded && "hover:opacity-90",
+        !noInfo && "hover:opacity-90",
         textColor
       )}
     >

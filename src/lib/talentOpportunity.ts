@@ -91,6 +91,7 @@ type RawRecommendationRow = {
         source_provider: string | null;
         source_type: string;
         status: string;
+        hiring_post?: Json | null;
         type: string[];
         work_mode: string | null;
       })
@@ -152,6 +153,7 @@ type RawPostingRoleRow = EstimatedSalaryFields & {
   source_provider: string | null;
   source_type: string;
   status: string;
+  hiring_post?: Json | null;
   talent_opportunity_recommendation: RawPostingRecommendationRow[] | null;
   type: string[] | null;
   work_mode: string | null;
@@ -228,6 +230,7 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
     source_type,
     source_provider,
     source_job_id,
+    hiring_post:information->hiringPost,
     company_workspace:company_workspace!inner (
       company_name,
       company_description,
@@ -297,6 +300,7 @@ const TALENT_POSTING_ROLE_SELECT = `
   source_type,
   source_provider,
   source_job_id,
+  hiring_post:information->hiringPost,
   company_workspace:company_workspace!inner (
     company_name,
     company_description,
@@ -495,6 +499,8 @@ export type TalentOpportunityHistoryItem = {
   isAccepted: boolean;
   isInternal: boolean;
   isUserAdded: boolean;
+  /** Set when the card came from a social post in which the company says it is hiring. */
+  hiringPost?: TalentOpportunityHiringPost | null;
   internalProgress: TalentInternalRecommendationProgress | null;
   kind: "match" | "recommendation";
   location: string | null;
@@ -577,6 +583,41 @@ export type TalentOpportunityHistoryCounts = {
 };
 
 type TalentOpportunitySourceType = "internal" | "external";
+
+export type TalentOpportunityHiringPost = {
+  posterName: string | null;
+  posterTitle: string | null;
+  posterProfileUrl: string | null;
+  contactMethod: "email" | "message" | "apply_link" | "comment" | "unknown";
+  contactEmail: string | null;
+  applyUrl: string | null;
+  postedAt: string | null;
+};
+
+const HIRING_POST_CONTACT_METHODS = new Set(["email", "message", "apply_link", "comment"]);
+
+export function normalizeHiringPost(value: unknown): TalentOpportunityHiringPost | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const text = (key: string, max = 500) => {
+    const raw = record[key];
+    return typeof raw === "string" && raw.trim() ? raw.trim().slice(0, max) : null;
+  };
+  const method = text("contactMethod", 20) ?? "unknown";
+  const url = (key: string) => {
+    const raw = text(key, 2048);
+    return raw && /^https?:\/\//i.test(raw) ? raw : null;
+  };
+  return {
+    posterName: text("posterName", 120),
+    posterTitle: text("posterTitle", 160),
+    posterProfileUrl: url("posterProfileUrl"),
+    contactMethod: (HIRING_POST_CONTACT_METHODS.has(method) ? method : "unknown") as TalentOpportunityHiringPost["contactMethod"],
+    contactEmail: text("contactEmail", 254),
+    applyUrl: url("applyUrl"),
+    postedAt: text("postedAt", 40),
+  };
+}
 
 function coerceJsonArray<T>(value: unknown) {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -1599,6 +1640,7 @@ function mapRecommendationRow(
     isAccepted: kind === "match",
     isInternal: sourceType === "internal",
     isUserAdded: row.kind === "user_link_import",
+    hiringPost: normalizeHiringPost(role.hiring_post),
     companyRequestIntroProgress: null,
     internalProgress: null,
     kind,
@@ -1731,6 +1773,7 @@ function mapPostingRoleRow(
     isAccepted: kind === "match",
     isInternal: sourceType === "internal",
     isUserAdded: existingRecommendation?.kind === "user_link_import",
+    hiringPost: normalizeHiringPost(row.hiring_post),
     companyRequestIntroProgress: null,
     internalProgress: null,
     kind,

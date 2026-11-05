@@ -41,10 +41,22 @@ export type CareerJobLinkImportResult = {
   createdRecommendation: boolean;
   createdRole: boolean;
   createdWorkspace: boolean;
-  recommendationId: string;
+  /** Null when only the posting was copied and this talent has no card yet. */
+  recommendationId: string | null;
   roleId: string;
   roleSourceProvider: string;
-  savedStage: string;
+  savedStage: string | null;
+};
+
+/** What a hiring post says about its author and how to reach them. */
+export type CareerHiringPost = {
+  posterName?: string | null;
+  posterTitle?: string | null;
+  posterProfileUrl?: string | null;
+  contactMethod: "email" | "message" | "apply_link" | "comment" | "unknown";
+  contactEmail?: string | null;
+  applyUrl?: string | null;
+  postedAt?: string | null;
 };
 
 type ImportCareerJobLinkArgs = {
@@ -52,7 +64,11 @@ type ImportCareerJobLinkArgs = {
   exa?: ExaContentsClient;
   fetcher?: typeof fetch;
   manual?: CareerJobPostingManualFields;
-  savedStage: "applied" | "closed" | "connected" | "saved";
+  /** null copies the posting for evaluation without creating a card. */
+  savedStage: "applied" | "closed" | "connected" | "saved" | null;
+  hiringPost?: CareerHiringPost | null;
+  /** A deadline the posting states; a new copy expires then. */
+  deadline?: string | null;
   preserveExistingProgress?: boolean;
   talentId: string;
   url: string;
@@ -457,7 +473,11 @@ export async function importCareerJobLink(
     "import_talent_job_link",
     {
       p_existing_role_id: existingRole?.role_id ?? null,
-      p_role: buildRolePayload(draft, identity) as Json,
+      p_role: {
+        ...buildRolePayload(draft, identity),
+        ...(args.hiringPost ? { hiringPost: args.hiringPost } : {}),
+        ...(args.deadline ? { deadline: args.deadline } : {}),
+      } as Json,
       p_saved_stage: args.savedStage,
       ...(args.preserveExistingProgress
         ? { p_preserve_existing_progress: true }
@@ -485,7 +505,7 @@ export async function importCareerJobLink(
   } | null;
   const roleId = cleanText(row?.role_id, 120);
   const recommendationId = cleanText(row?.recommendation_id, 120);
-  if (!roleId || !recommendationId) {
+  if (!roleId || (args.savedStage !== null && !recommendationId)) {
     throw new Error("Failed to save job link.");
   }
 
@@ -494,7 +514,7 @@ export async function importCareerJobLink(
     createdRecommendation: row?.created_recommendation === true,
     createdRole: row?.created_role === true,
     createdWorkspace: row?.created_workspace === true,
-    recommendationId,
+    recommendationId: recommendationId || null,
     roleId,
     roleSourceProvider:
       cleanText(row?.role_source_provider, 120) ||

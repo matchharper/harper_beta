@@ -1317,3 +1317,54 @@
     max-width: none;
   }
 }
+
+/* 볼 만한 것: events, articles and posts Harper saved beside the follow-ups. */
+.career-content {
+  margin-top: 24px;
+}
+.career-content-heading {
+  margin: 0 2px 10px;
+  font-size: var(--career-label-size);
+  font-weight: 400;
+  color: var(--career-ink-soft);
+}
+.career-content-card {
+  padding-bottom: 10px;
+}
+.career-content-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--career-label-size);
+  line-height: 1.5;
+  color: var(--career-ink-soft);
+}
+.career-content-new {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-action, #0a84ff);
+}
+.career-content-title {
+  display: block;
+  margin-top: 6px;
+  color: var(--career-ink);
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: -0.2px;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.career-content-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+  margin-right: -6px;
+}
+.career-content-actions a {
+  color: var(--career-ink);
+}

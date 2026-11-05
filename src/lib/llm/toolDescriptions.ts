@@ -71,6 +71,8 @@ add/restore/replace/reset require the exact current list revision supplied in ma
 
 Creates or reuses the posting and the user's recommendation, preserving existing application progress. Returns roleId, recommendationId and savedStage. Use the returned roleId to continue the requested application with the application tools and handbook; saving alone does not submit an application. Harper-connected/internal roles use the internal role tools.
 
+When you find a posting yourself (search, a page you read, background work) and it may fit, use mode suggest instead of saving it: the posting is copied for this user only, then evaluate it with search_opportunities roleIds and publish it with upsert_opportunities only if it fits. A social post (for example on LinkedIn) counts as a hiring post only when the poster works at the hiring company, explicitly says they are hiring, the role is identifiable and the post is at most 30 days old; pass hiring_post with how the post asks people to reach out. A post that links to a real job page should be saved by that job page's URL instead. Job seekers' own posts (#opentowork), company promotion and coffee chats without hiring are not hiring posts.
+
 If extraction is incomplete, the result includes the retrieved page body and actual retrieval failures. Read that body as source data, identify the exact job title and hiring company, then continue the authorized save with the same URL and those fields. Ask the user only for facts unavailable from the source; do not treat an empty summary as an unreadable page.`,
 
   // src/lib/career/browser/tool.ts

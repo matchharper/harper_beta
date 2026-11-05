@@ -1,6 +1,7 @@
 import { withEffectWaiting } from "./externalOperations/effects";
 import { CAREER_WORK_TOOLS } from "./work/tools";
 import { CAREER_ACTION_ITEM_TOOLS } from "./actionItemsTool";
+import { CAREER_CONTENT_SUGGESTION_TOOLS } from "./contentSuggestionsTool";
 import { CAREER_CONTACT_TOOLS } from "@/lib/agentContacts/careerTools";
 import { TALENT_MEETING_TOOLS } from "./meetings/tools";
 import { createHash } from "node:crypto";
@@ -58,6 +59,7 @@ export const CAREER_GENERAL_TOOLS: Record<string, TalentToolDefinition> = {
   ...CAREER_AGENTIC_TOOLS,
   ...CAREER_WORK_TOOLS,
   ...CAREER_ACTION_ITEM_TOOLS,
+  ...CAREER_CONTENT_SUGGESTION_TOOLS,
   suggest_form: {
     ...suggestFormTool.function,
     channels: ["chat"],

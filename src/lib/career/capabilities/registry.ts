@@ -70,6 +70,18 @@ export const CAREER_CAPABILITIES = [
     ],
   },
   {
+    id: "career_content",
+    turns: 2,
+    summary:
+      "Keep events, articles and social posts found for the user in the \"볼 만한 것\" list on Career home so they persist beyond chat until they expire. Job postings and hiring posts go to Jobs through save_job_posting mode suggest, not here.",
+    tools: [
+      [
+        "manage_content_suggestions",
+        "read, save or remove events, articles and posts shown on Career home",
+      ],
+    ],
+  },
+  {
     id: "internal_applications",
     turns: 3,
     summary:

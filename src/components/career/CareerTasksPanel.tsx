@@ -13,6 +13,7 @@ import {
 import CareerHomePanel from "./CareerHomePanel";
 import CareerHomeDevControls from "./CareerHomeDevControls";
 import { CareerActionItemsPanel } from "./CareerActionItemsPanel";
+import { CareerContentSuggestionsPanel } from "./CareerContentSuggestionsPanel";
 import { CareerOpportunitySummary } from "./CareerOpportunitySummary";
 import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
 
@@ -123,6 +124,7 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
       {completed ? (
         <>
           <CareerActionItemsPanel onOpenChatAction={onOpenChatAction} />
+          <CareerContentSuggestionsPanel />
           <CareerOpportunitySummary />
         </>
       ) : !workspaceDataLoading ? (

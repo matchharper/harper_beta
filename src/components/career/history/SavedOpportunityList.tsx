@@ -4,6 +4,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
 import type { CareerHistoryOpportunity } from "../types";
 import OpportunityCard from "./OpportunityCard";
+import { getHiringPostApplyLabel, isHiringPostOpportunity } from "./hiringPost";
 import {
   getOpportunityDeadlineLabel,
   isCareerHistoryOpportunityExpired,
@@ -43,7 +44,9 @@ const SavedOpportunityRow = memo(function SavedOpportunityRow({
           disabled={pending || expired}
           onClick={() => onApply(item)}
         >
-          {t("career.history.external_application.apply", "지원하기")}
+          {isHiringPostOpportunity(item)
+            ? getHiringPostApplyLabel(t)
+            : t("career.history.external_application.apply", "지원하기")}
         </MuteButton>
       }
       collapsedFooter={

@@ -19,6 +19,7 @@ import {
 } from "../opportunityTypeMeta";
 import type { CareerHistoryOpportunity } from "../types";
 import { isCareerHistoryOpportunityExpired } from "./opportunityPostingStatus";
+import { getHiringPostApplyLabel, isHiringPostOpportunity } from "./hiringPost";
 import {
   getCareerOpportunityManagementStatus,
   type CareerOpportunityManagementStatus,
@@ -176,7 +177,9 @@ export default function HistoryOpportunityDetailActions({
           variant="primary"
           onClick={onApply}
         >
-          {t("career.history.external_application.apply", "지원하기")}
+          {isHiringPostOpportunity(item)
+            ? getHiringPostApplyLabel(t)
+            : t("career.history.external_application.apply", "지원하기")}
         </MuteButton>
       ) : null}
     </div>

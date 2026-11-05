@@ -18,6 +18,7 @@ import {
   formatFoundedYear,
 } from "../watchlist/watchlistFormatters";
 import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
+import { getHiringPostLabel, isHiringPostOpportunity } from "./hiringPost";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
 
@@ -148,7 +149,9 @@ export default function OpportunityCard({
     </span>
   );
   const connectionLabel = !isInternal
-    ? t("career.history.new_opportunity_list.open_positions", "직접 지원")
+    ? isHiringPostOpportunity(item)
+      ? getHiringPostLabel(t)
+      : t("career.history.new_opportunity_list.open_positions", "직접 지원")
     : item.opportunityType === OpportunityType.IntroRequest
       ? getCareerOpportunityTypeLabel(item.opportunityType, t)
       : t(

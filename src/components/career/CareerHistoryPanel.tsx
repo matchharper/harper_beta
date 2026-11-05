@@ -188,7 +188,13 @@ export const getOpportunityTypeLabel = (
   item: CareerHistoryOpportunity,
   t: CareerTHelper = fallbackCareerT
 ) =>
-  item.isUserAdded
+  item.hiringPost && !item.isInternal
+    ? t(
+        "career.history.hiring_post.label",
+        // career-i18n-skip-next-line: localized fallback for exported helper.
+        "채용 글"
+      )
+    : item.isUserAdded
     ? t(
         "career.history.job_link_import.source_label",
         // career-i18n-skip-next-line: localized fallback for exported helper.
