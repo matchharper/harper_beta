@@ -351,7 +351,7 @@ export const MailTab = memo(function MailTab({ detail }: MailTabProps) {
           </BareButton>
         </div>
 
-        <div className="rounded-lg border border-neutral-1000-a10 bg-bg-default shadow-[0_16px_42px_color-mix(in_srgb,var(--color-black)_8%,transparent)]">
+        <div className="rounded-lg border border-neutral-1000-a10 bg-bg-default shadow-(--shadow-lg)">
           <div className="border-b border-neutral-1000-a10 px-5 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">

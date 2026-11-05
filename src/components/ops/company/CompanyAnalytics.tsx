@@ -271,7 +271,7 @@ function CompanyMetricChart({
                   .filter((item) => Number(item.value) > 0)
                   .sort((a, b) => Number(b.value) - Number(a.value));
                 return (
-                  <div className="max-h-64 max-w-64 overflow-y-auto rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 text-xs shadow-sm">
+                  <div className="max-h-64 max-w-64 overflow-y-auto rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 text-xs shadow-(--shadow-sm)">
                     <p className="mb-2 font-medium text-neutral-primary">
                       {String(label).replaceAll("-", ".")}
                     </p>

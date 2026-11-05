@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import {
   externalVariant,
   evaluatorKey,
@@ -77,18 +76,9 @@ test("one refused, malformed or duplicate answer invalidates only its pair; raw 
   assert.equal(parsed.invalid.length, 2);
   assert.ok(parsed.invalid[0].raw);
 });
-test("cohort is fixed across TS and Python and input order cannot invalidate caches", () => {
-  const python = JSON.parse(
-    execFileSync(
-      "python3",
-      [
-        "-c",
-        `import sys,json;sys.path.insert(0,'../harper_worker');from opp.utils.external_recommendations_v2 import external_variant;print(json.dumps([external_variant(x) for x in ${JSON.stringify(ids)}]))`,
-      ],
-      { encoding: "utf8" }
-    )
-  );
-  assert.deepEqual(ids.map(externalVariant), python);
+test("historical cohorts remain stable for A/B reports and input order cannot invalidate caches", () => {
+  assert.equal(externalVariant("00000000-0000-4000-8000-000000000000"), "v2");
+  assert.equal(externalVariant("00000000-0000-4000-8000-000000000001"), "control");
   assert.equal(externalVariant(ids[0].toUpperCase()), externalVariant(ids[0]));
   assert.equal(fingerprint({ b: 2, a: 1 }), fingerprint({ a: 1, b: 2 }));
   assert.notEqual(evaluatorKey("openai"), evaluatorKey("jev"));

@@ -256,7 +256,7 @@ export default function CandidChatPanel({
             </div>
             <UiTextarea
               unstyled
-              className="w-full min-h-[220px] rounded-xl bg-black/40 border border-neutral-00/10 p-3 text-xs text-neutral-00/90"
+              className="w-full min-h-[220px] rounded-xl bg-surface-inverse/40 border border-neutral-00/10 p-3 text-xs text-neutral-00/90"
               value={promptDraft}
               onChange={(e) => setPromptDraft(e.target.value)}
             />

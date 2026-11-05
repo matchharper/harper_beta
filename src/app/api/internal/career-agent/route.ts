@@ -19,11 +19,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const admin = getTalentSupabaseAdmin();
     if (body.action === "collect_due") {
+      const maxNewRuns = body.maxNewRuns ?? 100;
+      if (!Number.isSafeInteger(maxNewRuns) || maxNewRuns < 0)
+        return NextResponse.json({ error: "maxNewRuns must be a non-negative integer" }, { status: 400 });
       // These scans have independent durable receipts. Do not spend the
       // function's 60-second budget waiting for each scan before starting the
       // next, or abandon the other scans when one fails.
       const scans = {
-        work: () => collectDueCareerWork({ admin }),
+        work: () => collectDueCareerWork({ admin, limit: maxNewRuns }),
         matching: () => recoverCareerMatchingSearches(admin),
         internalMatching: () => recoverInternalEvaluations(),
         recovery: () => recoverCareerBackgroundRuns(admin),

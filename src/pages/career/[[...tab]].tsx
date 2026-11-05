@@ -16,6 +16,7 @@ type CareerTabPageParams = {
 const CAREER_TAB_PATHS = [
   "/career",
   "/career/tasks",
+  "/career/chat",
   "/career/history",
   "/career/watchlist",
   "/career/profile",

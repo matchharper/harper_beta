@@ -1071,7 +1071,7 @@ export default function OpsOfficialJobsPage() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4 lg:grid-cols-2 rounded-md border border-neutral-1000-a05 shadow-xs">
+            <div className="mt-4 grid gap-4 lg:grid-cols-2 rounded-md border border-neutral-1000-a05 shadow-(--shadow-xs)">
               <div className={cx(opsTheme.panelSoft, "p-4")}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -1096,7 +1096,7 @@ export default function OpsOfficialJobsPage() {
                       isInternalCopyDraft
                         ? "cursor-not-allowed opacity-70"
                         : effectiveIsPublished
-                          ? "bg-black"
+                          ? "bg-surface-inverse"
                           : "bg-neutral-400"
                     )}
                   />
@@ -1273,7 +1273,7 @@ export default function OpsOfficialJobsPage() {
                     ariaLabel="Role description"
                     className={cx(
                       opsTheme.textarea,
-                      "min-h-[480px] focus-within:border-black/80 focus-within:bg-bg-default"
+                      "min-h-[480px] focus-within:border-stroke-strong/80 focus-within:bg-bg-default"
                     )}
                     onValueChange={(value) =>
                       updateDraft("roleDescriptionMarkdown", value)

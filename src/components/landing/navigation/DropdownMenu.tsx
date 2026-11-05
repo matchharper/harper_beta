@@ -40,7 +40,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1 rounded-md
-                  px-1.5 py-1.5 text-sm shadow-sm
+                  px-1.5 py-1.5 text-sm shadow-(--shadow-sm)
                    hover:bg-beige50/80 focus:outline-none focus:ring-2 focus:ring-beige900/8"
       >
         {open ? <X className="w-4 h-4" /> : <>{buttonLabel}</>}
@@ -57,7 +57,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
             className="absolute right-0 mt-1.5 w-44
               rounded-xl backdrop-blur bg-beige50/95 text-beige900
               border border-beige900/8
-              shadow-[0_8px_24px_rgba(0,0,0,0.08)]
+              shadow-(--shadow-menu)
               ring-1 ring-beige900/5"
           >
             <ul className="py-1 text-sm">

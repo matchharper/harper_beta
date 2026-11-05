@@ -22,26 +22,27 @@ export default function CareerGlassDevControls() {
   const [text, setText] = useState("새로운 기회를 살펴보세요.\n어떤 일을 할 때 가장 몰입하나요?\n지금까지의 경험과 다음 도전을 이야기해 주세요.\nHarper와 함께 커리어의 다음 장을 준비하세요.");
   const [copyState, setCopyState] = useState("");
   const shadow = `-${values.offset}px -${values.offset}px ${values.shadowBlur}px rgba(0,0,0,${values.shadowOpacity / 100}), ${values.offset}px ${values.offset}px ${values.shadowBlur}px rgba(0,0,0,${values.shadowOpacity / 100})`;
-  const classes = `rounded-[${values.radius}px] bg-white/${values.background} border-[${values.border}px] border-white/${values.borderOpacity} shadow-[${shadow.replaceAll(" ", "_")}]${values.backdrop ? ` backdrop-blur-[${values.backdrop}px]` : ""}`;
   const style = {
-    "--glass-radius": `${values.radius}px`,
-    "--glass-background": `rgba(255,255,255,${values.background / 100})`,
-    "--glass-border": `${values.border}px`,
-    "--glass-border-color": `rgba(255,255,255,${values.borderOpacity / 100})`,
-    "--glass-shadow": shadow,
-    "--glass-blur": `${values.backdrop}px`,
+    "--radius-card": `${values.radius}px`,
+    "--color-card": `rgba(255,255,255,${values.background / 100})`,
+    "--card-border-width": `${values.border}px`,
+    "--color-card-border": `rgba(255,255,255,${values.borderOpacity / 100})`,
+    "--shadow-card": shadow,
+    "--blur-card": `${values.backdrop}px`,
+    "--background-image-card-image": "none",
   } as CSSProperties;
+  const tokenCss = `:root {\n${Object.entries(style).map(([key, value]) => `  ${key}: ${value};`).join("\n")}\n}`;
 
   return (
     <details className="mt-4 min-w-0" data-career-i18n-skip="true">
       <summary className="cursor-pointer text-[13px] font-medium">Glass 미리보기</summary>
       <div className="mt-3 space-y-4">
-        <div className="relative isolate overflow-hidden rounded-xl border border-neutral-1000-a10 bg-gradient-to-br from-blue-100 via-white to-accent-200 p-5">
+        <div className="relative isolate overflow-hidden rounded-xl border border-neutral-1000-a10 bg-gradient-to-br from-blue-100 via-bg-floating to-accent-200 p-5">
           <p className="min-h-48 whitespace-pre-wrap break-words text-lg leading-10 text-neutral-primary">{text}</p>
           <div
             aria-label="Glass 레이어"
             style={style}
-            className="pointer-events-none absolute inset-x-4 top-1/2 h-24 -translate-y-1/2 rounded-[var(--glass-radius)] border-[length:var(--glass-border)] border-[color:var(--glass-border-color)] bg-[var(--glass-background)] shadow-[var(--glass-shadow)] backdrop-blur-[var(--glass-blur)]"
+            className="pointer-events-none absolute inset-x-4 top-1/2 h-24 -translate-y-1/2 rounded-card border-(length:--card-border-width) border-card-border bg-card bg-card-image shadow-(--shadow-card) backdrop-blur-card"
           />
         </div>
         <label className="block space-y-2 text-xs" htmlFor={`${id}-text`}>
@@ -56,10 +57,10 @@ export default function CareerGlassDevControls() {
             </label>
           ))}
         </div>
-        <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-bg-weak p-3 text-xs"><code>{classes}</code></pre>
+        <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-bg-weak p-3 text-xs"><code>{tokenCss}</code></pre>
         <div className="flex items-center gap-2">
           <MuteButton type="button" size="sm" onClick={() => { setValues(defaults); setCopyState(""); }}>원본 값</MuteButton>
-          <MuteButton type="button" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(classes); setCopyState("복사했습니다."); } catch { setCopyState("복사하지 못했습니다. 위 클래스를 직접 선택해 주세요."); } }}>Tailwind 복사</MuteButton>
+          <MuteButton type="button" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(tokenCss); setCopyState("복사했습니다."); } catch { setCopyState("복사하지 못했습니다. 위 변수를 직접 선택해 주세요."); } }}>CSS 변수 복사</MuteButton>
           <span role="status" className="text-xs text-neutral-muted">{copyState}</span>
         </div>
       </div>

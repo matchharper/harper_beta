@@ -152,9 +152,10 @@ const ResumeDropzone = ({
       onDragEnd={() => setDragDepth(0)}
       onDrop={handleDrop}
       className={cn(
+        "career-upload-dropzone",
         isSourceCard
           ? CAREER_PROFILE_SOURCE_CARD_CLASS
-          : "group relative flex w-full overflow-hidden rounded-[8px] border text-neutral-primary transition-[border-color,background-color,box-shadow,transform] duration-200",
+          : "group relative flex w-full overflow-hidden rounded-md border text-neutral-primary transition-[border-color,background-color,box-shadow,transform] duration-200",
         isSourceCard
           ? "flex-col items-start justify-between border-dashed p-3 text-left shadow-none"
           : isCompact
@@ -164,7 +165,7 @@ const ResumeDropzone = ({
           ? "cursor-not-allowed border-neutral-1000-a05 bg-bg-weak opacity-70"
           : "cursor-pointer",
         isDragActive
-          ? "border-neutral-800 bg-bg-weak shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)]"
+          ? "border-neutral-800 bg-bg-weak shadow-(--shadow-outline)"
           : isSelected
             ? "border-neutral-800 bg-bg-weak hover:bg-bg-weak"
             : "border-dashed border-neutral-400 bg-bg-floating hover:border-neutral-800 hover:bg-bg-weak",
@@ -176,7 +177,7 @@ const ResumeDropzone = ({
         type="file"
         accept={accept}
         disabled={disabled}
-        className="hidden"
+        className="sr-only"
         onChange={handleChange}
       />
 
@@ -194,7 +195,7 @@ const ResumeDropzone = ({
         <span
           className={cn(
             "flex shrink-0 items-center justify-center border transition-colors",
-            isSourceCard ? "h-9 w-9 rounded-[8px]" : "h-11 w-11 rounded-full",
+            isSourceCard ? "h-9 w-9 rounded-md" : "h-11 w-11 rounded-full",
             isDragActive
               ? "border-neutral-800 bg-neutral-1000 text-neutral-00"
               : "border-neutral-1000-a05 bg-bg-weak text-neutral-primary"

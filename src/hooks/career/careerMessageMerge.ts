@@ -21,6 +21,7 @@ export function createCareerMessageMerger() {
     }
 
     const byId = new Map<string, MessageNode>();
+    const byReplyId = new Map<string, MessageNode>();
     const byRequestId = new Map<string, MessageNode>();
     let head: MessageNode | null = null;
     let tail: MessageNode | null = null;
@@ -30,6 +31,7 @@ export function createCareerMessageMerger() {
       else head = node;
       tail = node;
       byId.set(String(message.id), node);
+      if (message.workReplyId) byReplyId.set(`${message.workReplyId}:${message.messageType}`, node);
       if (message.role === "user" && message.clientRequestId) byRequestId.set(message.clientRequestId, node);
     }
 
@@ -37,7 +39,7 @@ export function createCareerMessageMerger() {
     const current = new Map<string, MergedMessage>();
     for (const local of localMessages) {
       const id = String(local.id);
-      const existing = byId.get(id) ?? (local.role === "user" && local.clientRequestId ? byRequestId.get(local.clientRequestId) : undefined);
+      const existing = byId.get(id) ?? (local.workReplyId ? byReplyId.get(`${local.workReplyId}:${local.messageType}`) : undefined) ?? (local.role === "user" && local.clientRequestId ? byRequestId.get(local.clientRequestId) : undefined);
       if (existing) {
         const persisted = existing.message;
         // A history refresh may contain only an application reference. Preserve
@@ -49,8 +51,8 @@ export function createCareerMessageMerger() {
               Date.parse(persisted.simulation.updatedAt));
         if (
           newerSimulation ||
-          local.typing ||
-          (local.thinkingLogs?.length ?? 0) > 0
+          (local.typing && persisted.workPending !== false) ||
+          ((local.thinkingLogs?.length ?? 0) > 0 && !(persisted.workReplyId && persisted.workPending === false))
         ) {
           const cached = previous.get(id);
           const entry =

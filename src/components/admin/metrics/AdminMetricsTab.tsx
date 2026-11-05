@@ -146,15 +146,15 @@ export default function AdminMetricsTab({
 
       {metricsQuery.isLoading ? (
         <div
-          className="border border-black/10 bg-white p-6"
-          style={{ borderRadius: 0 }}
+          className="border border-stroke bg-bg-floating p-6"
+          style={{ borderRadius: "var(--radius-admin)" }}
         >
           <Loading label="Loading metrics..." />
         </div>
       ) : metricsQuery.error ? (
         <div
           className="border border-red-200 bg-red-50 p-4 text-[13px] text-red-700"
-          style={{ borderRadius: 0 }}
+          style={{ borderRadius: "var(--radius-admin)" }}
         >
           {metricsQuery.error instanceof Error
             ? metricsQuery.error.message
@@ -162,8 +162,8 @@ export default function AdminMetricsTab({
         </div>
       ) : selectedMetrics.length === 0 ? (
         <div
-          className="border border-black/10 bg-white p-6 text-[13px] text-black/55"
-          style={{ borderRadius: 0 }}
+          className="border border-stroke bg-bg-floating p-6 text-[13px] text-neutral-primary/55"
+          style={{ borderRadius: "var(--radius-admin)" }}
         >
           상단에서 지표를 하나 이상 선택해 주세요.
         </div>

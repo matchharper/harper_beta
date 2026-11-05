@@ -129,7 +129,7 @@ export default function PaperModalRoot() {
           <motion.button
             type="button"
             aria-label="Close paper modal backdrop"
-            className="absolute inset-0 bg-black/55"
+            className="absolute inset-0 bg-surface-inverse/55"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -142,7 +142,7 @@ export default function PaperModalRoot() {
           <motion.div
             role="dialog"
             aria-modal="true"
-            className="absolute inset-x-0 top-[6vh] mx-auto max-h-[88vh] w-[min(760px,92vw)] scrollbar-none overflow-y-auto rounded-xl bg-bg-default px-6 pb-8 text-neutral-primary shadow-2xl md:px-8"
+            className="absolute inset-x-0 top-[6vh] mx-auto max-h-[88vh] w-[min(760px,92vw)] scrollbar-none overflow-y-auto rounded-xl bg-bg-default px-6 pb-8 text-neutral-primary shadow-(--shadow-2xl) md:px-8"
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}

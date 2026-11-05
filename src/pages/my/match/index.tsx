@@ -89,7 +89,7 @@ function SummaryMetric({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-row items-center justify-between w-full gap-5 py-4 px-4 rounded-md bg-bg-default border border-neutral-1000-a05 shadow-sm h-14">
+    <div className="flex flex-row items-center justify-between w-full gap-5 py-4 px-4 rounded-md bg-bg-default border border-neutral-1000-a05 shadow-(--shadow-sm) h-14">
       <div className="text-sm text-neutral-muted">{label}</div>
       <div className="text-right text-neutral-primary">{value}</div>
     </div>
@@ -376,7 +376,7 @@ export default function MatchPage() {
             <BareButton
               type="button"
               onClick={() => setShowCreateForm(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-black px-3 py-2.5 text-xs font-medium text-neutral-00 transition hover:bg-black/90"
+              className="inline-flex items-center gap-2 rounded-md bg-surface-inverse px-3 py-2.5 text-xs font-medium text-neutral-00 transition hover:bg-surface-inverse/90"
             >
               <Plus size={14} />새 Workspace
             </BareButton>
@@ -438,7 +438,7 @@ export default function MatchPage() {
                     href={data?.bookingUrl ?? "#"}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex flex-col min-w-[232px] items-center justify-center rounded-[12px] bg-black px-6 py-2.5 text-sm font-semibold text-neutral-00 transition hover:brightness-95"
+                    className="inline-flex flex-col min-w-[232px] items-center justify-center rounded-lg bg-surface-inverse px-6 py-2.5 text-sm font-semibold text-neutral-00 transition hover:brightness-95"
                   >
                     <div>이용 신청하기</div>
                     <div className="font-normal text-[13px] text-neutral-00/65 mt-0">
@@ -459,7 +459,7 @@ export default function MatchPage() {
                   {/* <button
                   type="button"
                   onClick={() => setShowCreateForm(true)}
-                  className="mt-2 min-w-[240px] bg-neutral-00/5 inline-flex items-center justify-center gap-2 rounded-[12px] border-neutral-1000-a10 px-6 py-4 text-[15px] text-neutral-00/90 transition hover:border-neutral-00/30 hover:text-neutral-00"
+                  className="mt-2 min-w-[240px] bg-neutral-00/5 inline-flex items-center justify-center gap-2 rounded-lg border-neutral-1000-a10 px-6 py-4 text-[15px] text-neutral-00/90 transition hover:border-neutral-00/30 hover:text-neutral-00"
                 >
                   <Plus size={18} />새 Workspace 만들기
                 </button> */}
@@ -475,7 +475,7 @@ export default function MatchPage() {
                   <div className="flex flex-row w-full items-end justify-between">
                     <div className="w-64"></div>
                     <div className="flex flex-row w-full justify-center items-center gap-4">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-bg-floating">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-bg-floating">
                         {workspace.logoUrl ? (
                           <img
                             src={workspace.logoUrl}
@@ -496,7 +496,7 @@ export default function MatchPage() {
                         type="button"
                         variant="dark"
                         onClick={() => setIsEditingWorkspace(true)}
-                        className="shrink-0 gap-2 rounded-full text-xs"
+                        className="shrink-0 gap-2 rounded-pill text-xs"
                       >
                         <Pencil size={14} />
                         Workspace 수정
@@ -603,7 +603,7 @@ export default function MatchPage() {
                       workspaceId: workspace.companyWorkspaceId,
                     })
                   }
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-black px-3 py-2 text-xs font-medium text-neutral-00 transition hover:bg-black/90"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-surface-inverse px-3 py-2 text-xs font-medium text-neutral-00 transition hover:bg-surface-inverse/90"
                 >
                   <Plus size={15} />
                   Role 추가하기

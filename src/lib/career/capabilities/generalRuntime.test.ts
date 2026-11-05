@@ -15,6 +15,22 @@ const make = (options: Partial<ConstructorParameters<typeof CareerCapabilityRunt
     profile: null, structuredProfileText: "Profile evidence", talentContextSection: "", currentPreferences: { preferredLocale: "ko" } }), ...options,
 });
 
+test("opportunity search does not load internal discovery; an explicit application can resolve its posting", () => {
+  const eligibleTools = ["read_recommended_opportunities", "get_role_context", "get_internal_roles", "apply_to_internal_role"]
+    .map(name => ({ type: "function" as const, function: { name, description: name, parameters: { type: "object", properties: {} } } }));
+  const runtime = make({ eligibleTools, preloads: ["opportunities"] });
+  const opportunities = runtime.resolveStep(false);
+  assert.ok(opportunities.offeredNames.has("read_recommended_opportunities"));
+  assert.ok(opportunities.offeredNames.has("get_role_context"));
+  assert.ok(!opportunities.offeredNames.has("get_internal_roles"));
+  assert.ok(!opportunities.offeredNames.has("apply_to_internal_role"));
+  assert.equal(runtime.claimCall("get_internal_roles", opportunities), "tool_not_offered");
+  assert.equal(runtime.load({ capabilityIds: ["internal_applications"] }, opportunities).ok, true);
+  const application = runtime.resolveStep(false);
+  assert.ok(application.offeredNames.has("get_internal_roles"));
+  assert.ok(application.offeredNames.has("apply_to_internal_role"));
+});
+
 test("Decisions sends readable evidence and one independent choice per eligible bundle/handbook", () => {
   const catalog = buildCareerDecisionCatalog(new Set(tools.map(tool => tool.function.name)));
   const request = buildCareerDecisionRequest(catalog, { messages: [{ role: "user", content: "이 수정본으로 지원해줘.\nForm 81 revision 2" }], currentContext: "Role job:exact; form 81 revision 2" });

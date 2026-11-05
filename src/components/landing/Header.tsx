@@ -3,9 +3,9 @@ import router from "next/router";
 
 const Header = ({ page }: { page: "company" | "candidate" }) => {
   return (
-    <header className="z-20 flex items-center justify-between px-4 lg:px-8 py-4 text-sm bg-black/0 fixed top-0 left-0 w-full">
+    <header className="z-20 flex items-center justify-between px-4 lg:px-8 py-4 text-sm bg-surface-inverse/0 fixed top-0 left-0 w-full">
       <div
-        className="text-lg cursor-pointer font-light text-white font-hedvig w-[10%]"
+        className="text-lg cursor-pointer font-light text-on-inverse font-hedvig w-[10%]"
         onClick={() => router.push("/search")}
       >
         Harper

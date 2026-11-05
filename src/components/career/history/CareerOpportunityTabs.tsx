@@ -33,9 +33,9 @@ export default function CareerOpportunityTabs({
   ].map(({ id, label }) => ({
     value: id,
     label,
-    count: counts[id],
+    count: id === "new" || id === "applied" ? undefined : counts[id],
     countLabel:
-      (id === "new" || id === "applied") && counts[id] != null ? (
+      (id === "new" || id === "applied") && (counts[id] ?? 0) > 0 ? (
         <Badge variant="count" size="xs" radius="full">
           {counts[id]}
         </Badge>
@@ -62,7 +62,7 @@ export default function CareerOpportunityTabs({
   ];
 
   return (
-    <div className={cn("flex min-w-0 items-center gap-2", className)}>
+    <div className={cn("career-opportunity-tabs flex min-w-0 items-center gap-2", className)}>
       <TabBoxes<OpportunityTab>
         activeValue={activeTab as OpportunityTab}
         items={primaryItems}

@@ -154,7 +154,7 @@ export const OpsProfileMemoFeed = memo(function OpsProfileMemoFeed({
           }
         }}
       >
-        <DialogContent className="max-w-md rounded-lg" hideCloseButton>
+        <DialogContent className="max-w-md " hideCloseButton>
           <DialogHeader>
             <DialogTitle>메모를 삭제할까요?</DialogTitle>
             <DialogDescription>

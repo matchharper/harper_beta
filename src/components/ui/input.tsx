@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 
 export const inputSurfaceClassName =
-  "w-full rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-sm font-normal text-neutral-primary outline-none transition-[border-color,background-color] duration-200 placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:bg-bg-weak disabled:text-neutral-disabled disabled:placeholder:text-neutral-placeholder disabled:opacity-70";
+  "w-full rounded-control border-(length:--control-border-width) border-control-border bg-control bg-control-image text-control-foreground shadow-(--shadow-control) backdrop-blur-control px-3 py-2 text-sm font-control outline-none transition-[border-color,background-color] duration-200 placeholder:text-neutral-placeholder focus:border-stroke-focus focus:bg-control-focus focus:ring-2 focus:ring-focus-ring disabled:cursor-not-allowed disabled:bg-control-disabled disabled:text-neutral-disabled disabled:placeholder:text-neutral-placeholder disabled:opacity-70";
 
 export type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
   unstyled?: boolean;
@@ -55,25 +55,25 @@ function getFieldVariantClassName(
   variant: TextFieldVariant,
   status: TextFieldStatus
 ) {
-  if (variant === "headless") return "bg-transparent";
+  if (variant === "headless") return "border-0 bg-transparent bg-none shadow-none backdrop-blur-none";
   if (status === "disabled") {
     return variant === "outline"
-      ? "border border-neutral-1000-a05 bg-bg-weak"
-      : "bg-bg-weak";
+      ? "border-stroke-subtle bg-control-disabled"
+      : "bg-control-disabled";
   }
   if (status === "error") {
     return variant === "outline"
-      ? "border border-critical/30 bg-bg-floating"
-      : "border border-critical/30 bg-bg-weak";
+      ? "border-critical/30 bg-control"
+      : "border-critical/30 bg-control-faded";
   }
   if (status === "focused") {
     return variant === "outline"
-      ? "border border-neutral-800 bg-bg-floating"
-      : "bg-bg-weak";
+      ? "border-stroke-strong bg-control-focus"
+      : "bg-control-faded";
   }
   return variant === "outline"
-    ? "border border-neutral-1000-a10 bg-bg-floating"
-    : "bg-bg-weak";
+    ? "border-control-border bg-control"
+    : "bg-control-faded";
 }
 
 const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
@@ -109,16 +109,16 @@ const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
         {label && variant !== "headless" ? (
           <label
             htmlFor={props.id}
-            className="text-[14px] font-medium leading-[22px] text-neutral-primary"
+            className="text-[14px] font-label leading-[22px] text-control-foreground"
           >
             {label}
           </label>
         ) : null}
         <div
           className={cn(
-            "flex w-full items-center gap-1 px-1 transition-[background-color,border-color]",
+            "flex w-full items-center gap-1 border-(length:--control-border-width) border-transparent bg-control-image text-control-foreground shadow-(--shadow-control) backdrop-blur-control px-1 transition-[background-color,border-color]",
             fieldSizeClassNames[size],
-            rounded ? "rounded-full" : "rounded-md",
+            rounded ? "rounded-pill" : "rounded-control",
             getFieldVariantClassName(variant, resolvedStatus)
           )}
         >
@@ -130,7 +130,7 @@ const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
             ref={ref}
             disabled={resolvedStatus === "disabled"}
             aria-invalid={resolvedStatus === "error" || undefined}
-            className="min-w-0 flex-1 bg-transparent px-2 font-normal text-neutral-primary outline-none placeholder:text-neutral-muted disabled:cursor-not-allowed disabled:text-neutral-disabled disabled:placeholder:text-neutral-placeholder"
+            className="min-w-0 flex-1 bg-transparent px-2 font-control text-control-foreground outline-none placeholder:text-neutral-muted disabled:cursor-not-allowed disabled:text-neutral-disabled disabled:placeholder:text-neutral-placeholder"
             {...props}
           />
           {suffix ? (

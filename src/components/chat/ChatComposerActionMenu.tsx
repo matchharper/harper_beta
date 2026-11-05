@@ -79,7 +79,7 @@ export function ChatComposerActionMenu({
         {trigger ?? (
           <MuteButton
             aria-label={triggerAriaLabel}
-            className={cn("rounded-full text-neutral-muted", className)}
+            className={cn("rounded-pill text-neutral-muted", className)}
             disabled={disabled}
             onPointerDown={() => {
               openedWithPointerRef.current = true;
@@ -140,7 +140,7 @@ export function ChatComposerActionMenu({
                     {index > 0 ? (
                       <DropdownMenuSeparator className="mx-1 my-1" />
                     ) : null}
-                    <DropdownMenuLabel className="flex h-8 w-full items-center overflow-hidden whitespace-nowrap px-2 py-0 font-normal text-black/50">
+                    <DropdownMenuLabel className="flex h-8 w-full items-center overflow-hidden whitespace-nowrap px-2 py-0 font-normal text-neutral-primary/50">
                       <ChatComposerPickerItemContent
                         item={{
                           id: `section-${item.sectionLabel}`,

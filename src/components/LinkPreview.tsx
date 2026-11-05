@@ -25,7 +25,7 @@ const LinkPreview = ({ url }: { url: string }) => {
   return (
     <div
       onClick={() => window.open(url, "_blank")}
-      className="group w-full cursor-pointer rounded-[8px] border border-beige900/10 bg-white/70 px-4 py-3 font-light shadow-[0_8px_24px_rgba(46,23,6,0.04)] transition-all duration-200 hover:border-beige900/20 hover:bg-white hover:shadow-[0_12px_30px_rgba(46,23,6,0.08)]"
+      className="group w-full cursor-pointer rounded-md border border-beige900/10 bg-bg-floating/70 px-4 py-3 font-light shadow-(--shadow-lg) transition-all duration-200 hover:border-beige900/20 hover:bg-bg-floating hover:shadow-(--shadow-lg)"
     >
       {loading ? (
         <div className="flex flex-col items-start justify-start gap-2">

@@ -130,7 +130,7 @@ export default function MatchRoleComposer({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.98 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-1 w-full max-w-[560px] overflow-hidden rounded-[16px] bg-bg-default shadow-[0_32px_90px_rgba(0,0,0,0.12)] ring-1 ring-neutral-1000-a05"
+        className="relative z-1 w-full max-w-[560px] overflow-hidden rounded-xl bg-bg-default shadow-(--shadow-lg) ring-1 ring-neutral-1000-a05"
       >
         <div className="px-5 py-5">
           <div className="flex items-start justify-between gap-6">
@@ -273,7 +273,7 @@ export default function MatchRoleComposer({
             <BareButton
               type="submit"
               disabled={!canSubmit || isSaving}
-              className="inline-flex w-full items-center justify-center rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-neutral-00 transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center rounded-lg bg-surface-inverse px-4 py-2.5 text-sm font-semibold text-neutral-00 transition hover:bg-surface-inverse/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSaving ? "저장 중..." : "저장하기"}
             </BareButton>

@@ -53,27 +53,16 @@
   - `variant="onboarding"`은 기존 인터뷰 진행률·통화/완료 버튼과 체크리스트만
     재사용하며, 온보딩이 완료되면 표시하지 않습니다.
 
-- `CareerTasksPanel.tsx`
-  - `/career/tasks`에서 지금 결정, Harper 제안, Harper가 하는 중을 보여줍니다.
-  - 하단에 `CareerHomeDevControls`를 표시합니다. 데스크톱·모바일 모두 온보딩 완료
-    여부와 관계없이 유지하며, 노출 권한은 Dev Controls의 기존 계정 조건을 따릅니다.
-  - 온보딩 중에는 `CareerHomePanel variant="onboarding"`을 목록 최상단에 표시합니다.
-    완료 여부가 아직 로딩 중이거나 `isOnboardingDone`·`stage="completed"`이면 숨깁니다.
-  - 결정할 일이 있으면 결정 → 제안 → 진행, 없으면 진행 → 제안 순서입니다.
-  - 회사 질문·이력서는 기존 composer 요청 카드, 연결 제안은 포지션 상세,
-    일정 요청은 현재 유효한 일정 선택 화면으로 이어집니다.
-  - pending-actions 조회를 composer·메뉴 숫자와 공유하고, 수락 후 진행 조회는
-    할 일 화면을 열었을 때만 실행합니다. 대기 표시는 경과 시간이 아닌 저장된 단계에 따릅니다.
-  - Harper 제안은 `useCareerTaskSuggestions`로 독립 조회합니다. 미응답 외부 추천은
-    최신 4개 회사 로고를 2×2로 표시하고, 추천 확인 버튼은 가장 최근 새 기회 상세로 이동합니다.
-    사용자가 직접 추가한 기회와 숨긴 기회는 제외합니다. 피드백·목록 갱신 후 다시 조회합니다.
-  - 저장된 개인 링크 수 + 활성 Gmail 연결(1/0)이 1 이하이면 아직 없는 자료의
-    추가를 요청하는 Link2 아이콘과 `/career/documents` 이동 버튼을 표시합니다.
-    미저장 초안은 세지 않으며, 링크가 이미 2개 이상이면 Gmail 조회도 생략합니다.
-    각 추가 제안만 skeleton을 표시하므로 다른 할 일의 표시를 기다리게 하지 않습니다.
-    외부 추천 피드백·자료 보완 항목은 기존 통화·질문 제안 뒤에 항상 마지막으로 표시합니다.
-  - 로컬 미리보기: `?tab=tasks&taskFeedback=1&profileLinks=0&gmail=0`.
-    `profileLinks=0|1|2`, `gmail=0|1`로 자료 보완 표시 경계를 확인할 수 있습니다.
+- `CareerTasksPanel.tsx` / `CareerActionItemsPanel.tsx`
+  - 데스크톱 홈의 오른쪽 패널과 모바일 홈/할 일에 `career_action_items`의 현재 목록을 표시합니다.
+  - 제목·설명·버튼 텍스트·action·우선순위·긴급도를 원본 Career LLM이 `manage_action_items`로 관리합니다.
+    우선순위가 높은 순서, 같은 우선순위는 긴급도 순서로 표시합니다. 최대 10개는 guide의 큐레이션 기준이며 DB/UI가 강제로 자르지 않습니다.
+  - `send_message`는 저장된 텍스트를 채팅에 전송하고, `compose_reply`는 입력창 위에 항목을 선택하여 사용자가 답하거나 파일을 첨부하게 합니다.
+    `compose_reply`를 선택하는 것만으로 메시지를 보내지 않으며, 두 방식 모두 외부 지원·폼 응답 자체를 실행하지 않습니다. 서버가 소유권·revision을 확인하고 정확한 카드 snapshot을 사용자 메시지 payload에 보존합니다.
+  - 재방문·대화·비동기 위임 작업이 같은 context와 도구를 사용합니다. 완료 cursor, 재방문 완료, 화면 재진입/주기 조회로 갱신합니다.
+    고정 제안·진행 section은 표시하지 않으며 원본 대기 요청은 기존 composer 및 관련 화면에서 계속 조회합니다.
+  - 온보딩 전에는 기존 `CareerHomePanel variant="onboarding"`을 사용합니다. Dev Controls는 기존 권한 계약을 유지합니다.
+  - 로컬 미리보기: `/career/preview?tab=tasks`; 두 클릭 동작의 합성 항목을 제공합니다. `taskDecisions=0`은 빈 목록입니다.
 
 - `profile/CareerProfileWorkspace.tsx`
   - 내 정보는 neutral TabBoxes의 프로필 / 내 자료로 구성됩니다. `/career/profile`은 프로필을, `/career/documents`는 내 자료를 선택합니다. 원하는 조건(`/career/brief`)은 독립 사이드 메뉴이며 내 정보 탭을 표시하지 않습니다.

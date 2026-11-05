@@ -219,7 +219,7 @@ function DocumentMeta({
 }) {
   return (
     <div
-      className="text-right text-[12px] font-normal leading-4 text-black/40"
+      className="text-right text-[12px] font-normal leading-4 text-neutral-primary/40"
       data-document-editor-meta=""
       suppressHydrationWarning
     >
@@ -295,13 +295,13 @@ function DocumentEditingSurface({
       <header className="flex h-14 flex-row items-center justify-between shrink-0 border-b border-neutral-1000-a05 px-3">
         <MuteButton onClick={onBack} type="button" variant="transparent">
           <ArrowLeft className="size-4" />
-          <span className="text-[14px] font-normal text-black/50">
+          <span className="text-[14px] font-normal text-neutral-primary/50">
             {documentTitle}
           </span>
         </MuteButton>
         <MuteButton
           aria-label={copyLabel}
-          className="text-black"
+          className="text-neutral-primary"
           disabled={loading || textareaProps.disabled}
           onClick={onCopy}
           type="button"
@@ -583,7 +583,7 @@ export const DocumentEditor = forwardRef<
         {!hidePreview ? (
           <div
             className={cn(
-              "group relative min-h-[340px] w-full overflow-hidden rounded-lg",
+              "group relative min-h-[340px] w-full overflow-hidden rounded-card",
               previewExpanded ? "max-h-none" : "max-h-[440px]",
               disabled && "opacity-60"
             )}
@@ -594,7 +594,7 @@ export const DocumentEditor = forwardRef<
                 `${documentTitle} 문서 열기`
               }
               aria-haspopup="dialog"
-              className="absolute inset-0 h-full min-h-0 cursor-pointer overflow-hidden border-neutral-1000-a05 bg-white p-0 hover:border-neutral-1000-a05 hover:bg-neutral-100 group-hover:border-neutral-1000-a05 group-hover:bg-neutral-100 disabled:cursor-not-allowed"
+              className="absolute inset-0 h-full min-h-0 cursor-pointer overflow-hidden   p-0 hover:border-neutral-1000-a05 hover:bg-card-hover group-hover:border-neutral-1000-a05 group-hover:bg-card-hover disabled:cursor-not-allowed"
               data-document-editor-preview=""
               disabled={disabled}
               onClick={openEditor}
@@ -603,7 +603,7 @@ export const DocumentEditor = forwardRef<
             <div className="pointer-events-none relative z-10 flex min-h-[340px] w-full flex-col justify-between px-5 py-4 text-left">
               <div>
                 {showTitle && (
-                  <span className="shrink-0 text-[12px] font-normal text-black/60">
+                  <span className="shrink-0 text-[12px] font-normal text-neutral-primary/60">
                     {documentTitle}
                   </span>
                 )}
@@ -631,7 +631,7 @@ export const DocumentEditor = forwardRef<
                   </div>
                   {!previewExpanded && previewTruncated ? (
                     <div
-                      className="pointer-events-none absolute inset-x-0 bottom-0 flex h-18 items-end bg-gradient-to-b from-transparent via-white/90 to-white group-hover:via-neutral-100/90 group-hover:to-neutral-100"
+                      className="pointer-events-none absolute inset-x-0 bottom-0 flex h-18 items-end bg-gradient-to-b from-transparent via-card/90 to-card group-hover:via-card-hover/90 group-hover:to-card-hover"
                       data-document-editor-preview-fade=""
                     >
                       <MuteButton

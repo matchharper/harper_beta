@@ -7,7 +7,7 @@ import RichText, { type RichTextVariant } from "@/components/ui/rich-text";
 import { cn } from "@/lib/utils";
 
 export const CHAT_USER_BUBBLE_CLASS =
-  "my-6 md:my-12 ml-auto w-fit max-w-[min(820px,92%)] self-end rounded-[16px] rounded-br-sm bg-black px-3 py-1.5 text-neutral-00 font-light";
+  "my-6 md:my-12 ml-auto w-fit max-w-[min(820px,92%)] self-end rounded-message rounded-br-message-tail bg-message-user shadow-(--shadow-message) backdrop-blur-message px-3 py-1.5 text-message-user-foreground font-body";
 
 export const CHAT_ASSISTANT_BUBBLE_CLASS =
   "w-fit max-w-[min(920px,100%)] self-start text-neutral-primary";
@@ -238,15 +238,15 @@ export function ChatChoiceList({
           disabled={disabled || !onSelect}
           aria-pressed={choice.value === selectedValue}
           className={cn(
-            "flex cursor-pointer w-full items-center justify-start rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-left text-base font-medium text-neutral-primary transition-colors hover:bg-black/4 disabled:cursor-not-allowed disabled:opacity-55",
+            "flex cursor-pointer w-full items-center justify-start rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-left text-base font-medium text-neutral-primary transition-colors hover:bg-surface-tint disabled:cursor-not-allowed disabled:opacity-55",
             typographyClassName,
             choice.value === selectedValue &&
-              "gap-2 border-black disabled:opacity-100"
+              "gap-2 border-stroke-strong disabled:opacity-100"
           )}
         >
           <span className="wrap-break-word min-w-0">{choice.label}</span>
           {choice.value === selectedValue ? (
-            <span aria-hidden="true" className="ml-auto flex size-4 shrink-0 items-center justify-center rounded-full bg-action text-white">
+            <span aria-hidden="true" className="ml-auto flex size-4 shrink-0 items-center justify-center rounded-full bg-action text-on-inverse">
               <Check className="size-3" strokeWidth={2.5} />
             </span>
           ) : null}
@@ -280,7 +280,7 @@ export function ChatLoadOlderButton({
       onClick={() => void onClick()}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex gap-2 h-8 items-center justify-center rounded-[8px] bg-bg-floating px-4 text-xs text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-basement hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex gap-2 h-8 items-center justify-center rounded-md bg-bg-floating px-4 text-xs text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-basement hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60",
         className
       )}
     >

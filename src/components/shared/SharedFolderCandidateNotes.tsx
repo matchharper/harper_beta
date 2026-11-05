@@ -71,13 +71,13 @@ export default function SharedFolderCandidateNotes({
   const containerClassName = useMemo(() => {
     if (variant === "table") {
       return [
-        "flex h-full flex-col border-l border-neutral-00/10 bg-black/15",
+        "flex h-full flex-col border-l border-neutral-00/10 bg-surface-inverse/15",
         compact ? "px-4 py-3" : "min-h-[200px] px-4 py-4",
       ].join(" ");
     }
 
     return [
-      "flex h-full flex-col rounded-sm bg-black/20",
+      "flex h-full flex-col rounded-sm bg-surface-inverse/20",
       compact ? "min-h-[160px] p-3" : "min-h-[220px] p-3",
     ].join(" ");
   }, [compact, variant]);
@@ -262,7 +262,7 @@ export default function SharedFolderCandidateNotes({
                 void handleSave();
               }
             }}
-            className="w-full resize-none rounded-md border border-neutral-00/5 bg-black/10 px-3 py-3 text-[13px] leading-6 text-neutral-00/90 outline-none placeholder:text-neutral-00/60 focus:border-neutral-00/20"
+            className="w-full resize-none rounded-md border border-neutral-00/5 bg-surface-inverse/10 px-3 py-3 text-[13px] leading-6 text-neutral-00/90 outline-none placeholder:text-neutral-00/60 focus:border-neutral-00/20"
             placeholder="메모를 남겨보세요"
           />
           <div className="mt-2 flex items-center justify-between gap-3">

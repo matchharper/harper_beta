@@ -52,7 +52,7 @@ export default function ChatAttachmentDraftList({
           <div
             key={attachment.id}
             className={cn(
-              "relative flex w-fit max-w-full items-start justify-between gap-3 overflow-hidden rounded-[14px] px-3 pr-8 py-2.5 text-left",
+              "relative flex w-fit max-w-full items-start justify-between gap-3 overflow-hidden rounded-lg px-3 pr-8 py-2.5 text-left",
               tone === "light"
                 ? "border border-neutral-1000-a05 bg-bg-floating"
                 : "bg-neutral-00/5"

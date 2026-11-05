@@ -8,7 +8,7 @@ import { CareerFormCard } from "./CareerFormCard";
 import { CareerFormResponseHistory } from "./CareerFormResponseHistory";
 import { GmailIntegrationAction } from "./GmailIntegrationAction";
 import { extractGmailIntegrationMarker } from "@/lib/career/forms/integrationMarker";
-import { BrowserSessionLink } from "../BrowserSessionDock";
+import { BrowserSessionAnchor } from "../BrowserSessionDock";
 import { extractBrowserMarkers } from "@/lib/career/browser/marker";
 import {
   InternalCallWriteButton,
@@ -39,7 +39,12 @@ import type {
 } from "@/components/career/types";
 import { TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE } from "@/lib/career/opportunityFeedbackNote";
 import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
-import { stripStandalonePostingLinksFromText } from "@/lib/career/postingLinks";
+import {
+  isPostingRoleId,
+  normalizePostingRoleId,
+  POSTING_LINK_LABEL,
+  stripStandalonePostingLinksFromText,
+} from "@/lib/career/postingLinks";
 import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildChatTypewriterChunks } from "@/lib/chat/typewriter";
 import { getHarperOwnedUrlRoute } from "@/lib/urlDisplay";
@@ -68,7 +73,10 @@ import {
   type CareerReengagementAction,
 } from "@/lib/career/reengagementActions";
 import Image from "next/image";
-import { renderUserTextWithLinks } from "@/components/ui/reference-link";
+import {
+  ReferenceLink,
+  renderUserTextWithLinks,
+} from "@/components/ui/reference-link";
 import { parseCareerInlineUi } from "@/lib/career/inlineUi";
 import CareerInlineUi, {
   CareerInlineUiUnavailable,
@@ -400,6 +408,32 @@ const CareerMessageBubbleContent = ({
     },
     [router]
   );
+  const renderPostingLink = React.useCallback(
+    ({ href, text }: { href: string; text: string }) => {
+      if (
+        text.trim().toLowerCase() !== POSTING_LINK_LABEL ||
+        !isPostingRoleId(href)
+      ) {
+        return undefined;
+      }
+
+      const roleId = normalizePostingRoleId(href);
+      const opportunity = message.opportunityPreview?.find(
+        (item) => item.roleId === roleId
+      );
+      const label = opportunity
+        ? [opportunity.companyName, opportunity.title]
+            .filter(Boolean)
+            .join(" · ")
+        : "";
+      return (
+        <ReferenceLink href={roleId} onHarperLinkClick={handleHarperLinkClick}>
+          {label || t("career.chat.career_message_bubble.posting_link", "포지션")}
+        </ReferenceLink>
+      );
+    },
+    [handleHarperLinkClick, message.opportunityPreview, t]
+  );
   const isCallTranscript = message.messageType === "call_transcript";
   const isMailMessage = message.messageType === "mail";
   const hasCallAction = !isUser && message.content.includes(CALL_ACTION_MARKER);
@@ -464,14 +498,13 @@ const CareerMessageBubbleContent = ({
         className={cn(
           isUser && "my-0 md:my-0",
           useAssistantBubble && [
-            "career-bubble-enter ml-0 my-0 self-start rounded-2xl bg-black/3 text-neutral-primary px-4 py-3",
+            "career-bubble-enter ml-0 my-0 self-start rounded-message bg-message-assistant text-message-assistant-foreground shadow-(--shadow-message) backdrop-blur-message px-4 py-3",
           ],
           isUser || useAssistantBubble
             ? "max-w-[min(700px,92%)]"
             : "max-w-[min(700px,100%)] md:max-w-[min(700px,94%)]",
           friendly && "md:max-w-[min(640px,92%)]",
           // !isUser && !useAssistantBubble && !isOpportunityFeedbackNote &&
-          // "max-md:rounded-[16px] max-md:rounded-bl-sm max-md:bg-[rgba(245,245,245,1)] max-md:px-3 max-md:py-1.5",
           !isUser && (message.browserSession || message.careerForm) && "w-full",
           isOpportunityFeedbackNote
             ? cn(
@@ -540,6 +573,7 @@ const CareerMessageBubbleContent = ({
                 content={assistantContent}
                 className={careerTimelineAssistantRichTextClassName}
                 onHarperLinkClick={handleHarperLinkClick}
+                renderLink={renderPostingLink}
                 renderEmailLinksAsText
               />
             )}
@@ -554,7 +588,7 @@ const CareerMessageBubbleContent = ({
         ) : null}
         {!isUser &&
           browserExtraction.sessionIds.map((id) => (
-            <BrowserSessionLink key={id} sessionId={id} />
+            <BrowserSessionAnchor key={id} sessionId={id} />
           ))}
         {!isUser &&
         !message.typing &&
@@ -637,7 +671,7 @@ const CareerMessageBubbleContent = ({
                 <button
                   type="button"
                   key={`${message.id}-reengagement-${index}-${actionKey}`}
-                  className="flex flex-row items-center gap-2 max-w-full text-sm text-black/50 hover:text-black py-0.5  min-w-0 justify-start"
+                  className="flex flex-row items-center gap-2 max-w-full text-sm text-neutral-primary/50 hover:text-neutral-primary py-0.5  min-w-0 justify-start"
                   disabled={
                     choiceActionsDisabled || !onSelectReengagementAction
                   }
@@ -669,7 +703,7 @@ const CareerMessageBubbleContent = ({
             }
             disabled={!onStartCallMode || isCallStartPending}
             className={cn(
-              "mt-3 inline-flex h-9 items-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-3 font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60",
+              "mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60",
               careerTimelineMetaTextClassName
             )}
           >
@@ -727,7 +761,7 @@ const CareerMessageBubbleContent = ({
                 internalCallAnswers.submitting ||
                 internalCallAnswers.completed.has(marker.callId)
               }
-              className="h-9 min-w-0 flex-1 text-center inline-flex items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-sm text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-9 min-w-0 flex-1 text-center inline-flex items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-sm text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             >
               <PhoneOutgoing strokeWidth={1.9} size={14} />
               {isCallStartPending

@@ -13,6 +13,7 @@ import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { runToolCall, unwrapToolCall } from "@/lib/llm/toolExecution";
 import { prepareFollowedCompanies, readPreparedFollowContext, shouldPrepareFollowedCompanies } from "../companies/preparation";
 import { withCareerBackgroundToolTrace } from "./toolTrace.server";
+import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 
 export async function readCareerBackgroundRun(admin: TalentAdminClient, runId: string) {
   const { data, error } = await (admin.from as any)("opportunity_discovery_run").select("*").eq("id", runId).single();
@@ -94,9 +95,17 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
     }
   }
   try {
+    const scheduled = ["career_schedule_due", "career_daily_due"].includes(run.trigger) ||
+      (run.trigger === "career_source_reconciled" &&
+        (run.trigger_payload.sourceEvents ?? []).some((event: any) => event.sourceKind === "schedule" || event.dailySourceId) &&
+        !(run.trigger_payload.sourceEvents ?? []).some((event: any) => event.sourceKind === "agent_contact"));
     const execute = () => runCareerChatTurn({
       admin: args.admin, userId: args.userId, conversationId: args.conversationId, userMessage: null,
       agentReplyId: invocation.replyId,
+      assistantModel: scheduled
+        ? process.env.CAREER_SCHEDULED_AGENT_MODEL?.trim() || GPT_6_LUNA_MODEL
+        : undefined,
+      assistantOpenAIResponsesReasoningEffort: scheduled ? "high" : undefined,
       backgroundInvocation: {
         runId: run.id,
         meetingScheduleVersions: inboxContext.meetingScheduleVersions,

@@ -502,7 +502,7 @@ async function copyTextToClipboard(text: string) {
 const labelClass = "block text-[13px] font-normal text-neutral-primary";
 
 const darkBtnClass =
-  "bg-linear-to-b shadow-xs from-[#232323] to-[#101010] text-neutral-00 transition-colors hover:bg-black border border-black/40";
+  "bg-linear-to-b shadow-(--shadow-xs) from-surface-inverse to-surface-inverse text-neutral-00 transition-colors hover:bg-surface-inverse border border-stroke-strong/40";
 
 function PillLink({
   children,
@@ -523,7 +523,7 @@ function PillLink({
         "inline-flex h-11 items-center justify-center rounded-full px-6 text-[15px] font-light",
         variant === "dark"
           ? darkBtnClass
-          : "border border-neutral-1000-a10 bg-bg-floating text-neutral-primary shadow-sm transition-colors hover:bg-bg-weak"
+          : "border border-neutral-1000-a10 bg-bg-floating text-neutral-primary shadow-(--shadow-sm) transition-colors hover:bg-bg-weak"
       )}
     >
       {children}
@@ -625,13 +625,13 @@ function TalentRequestChatMockup({ copy }: { copy: CompanyPageCopy["chat"] }) {
   return (
     <div className="relative z-10 h-full w-full overflow-hidden p-1 text-neutral-00">
       <div className="relative mx-auto mt-16 max-w-[310px] space-y-4 text-[13px] font-normal">
-        <div className="ml-auto w-fit max-w-[88%] rounded-xl border border-white/45 px-4 py-2">
+        <div className="ml-auto w-fit max-w-[88%] rounded-xl border border-bg-floating/45 px-4 py-2">
           {copy.request}
         </div>
         <div className="mr-auto w-fit max-w-[88%] rounded-2xl bg-bg-floating px-4 py-3 text-neutral-primary">
           {copy.prompt}
         </div>
-        <div className="ml-auto w-fit max-w-[88%] rounded-xl border border-white/45 px-4 py-2">
+        <div className="ml-auto w-fit max-w-[88%] rounded-xl border border-bg-floating/45 px-4 py-2">
           {copy.criteria}
         </div>
         <div className="grid">
@@ -671,13 +671,13 @@ function TalentRequestChatMockup({ copy }: { copy: CompanyPageCopy["chat"] }) {
         </div>
         <div
           className={cn(
-            "-mt-2 flex w-full max-w-[286px] items-center gap-2.5 overflow-hidden rounded-xl border border-white/42 bg-white/52 px-3 py-2.5 text-neutral-primary shadow-[0_10px_24px] shadow-black/16 backdrop-blur-[12px] backdrop-saturate-[160%] transition-all duration-500 will-change-transform motion-reduce:transition-none",
+            "-mt-2 flex w-full max-w-[286px] items-center gap-2.5 overflow-hidden rounded-xl border border-bg-floating/42 bg-bg-floating/52 px-3 py-2.5 text-neutral-primary shadow-(--shadow-lg) shadow-black/16 backdrop-blur-md backdrop-saturate-[160%] transition-all duration-500 will-change-transform motion-reduce:transition-none",
             isGmailNotificationVisible
               ? "translate-y-0 opacity-100"
               : "translate-y-2 opacity-0"
           )}
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/78 shadow-[inset_0_1px_0_rgb(255_255_255/0.72)]">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg-floating/78 shadow-(--shadow-inset-highlight)">
             <Image
               src="/images/logos/gmail.svg"
               alt="Gmail"
@@ -718,8 +718,8 @@ function CandidateProfileMockup({
       <div
         className={
           standalone
-            ? "rounded-[20px] border border-neutral-1000-a10 bg-bg-floating p-5 shadow-[0_12px_40px_var(--color-neutral-1000-a05)] md:p-8"
-            : "absolute right-0 top-0 flex h-full w-[92%] -mt-4 flex-col justify-end overflow-hidden rounded-bl-xl bg-bg-floating px-4 pb-4 shadow-sm md:w-[86%] xl:px-5 xl:pb-4"
+            ? "rounded-2xl border border-neutral-1000-a10 bg-bg-floating p-5 shadow-(--shadow-lg) md:p-8"
+            : "absolute right-0 top-0 flex h-full w-[92%] -mt-4 flex-col justify-end overflow-hidden rounded-bl-xl bg-bg-floating px-4 pb-4 shadow-(--shadow-sm) md:w-[86%] xl:px-5 xl:pb-4"
         }
       >
         <div className="flex min-w-0 items-center gap-3">
@@ -955,7 +955,7 @@ const PillBtn = ({
         variant === "light"
           ? "bg-neutral-00 text-neutral-primary border border-neutral-1000-a05 font-normal hover:bg-neutral-100"
           : "bg-neutral-950 text-neutral-00 border border-neutral-1000-a05 font-light hover:bg-neutral-900",
-        "px-3 py-1.5 cursor-pointer rounded-full shadow-xs transition-colors text-[13px] inline-flex items-center gap-2"
+        "px-3 py-1.5 cursor-pointer rounded-full shadow-(--shadow-xs) transition-colors text-[13px] inline-flex items-center gap-2"
       )}
       onClick={onClick}
     >
@@ -1112,7 +1112,7 @@ function ContactSalesSection({
       className={cn(
         "self-start scroll-mt-24",
         compact
-          ? "rounded-[24px] bg-bg-weak p-6 md:p-8"
+          ? "rounded-3xl bg-bg-weak p-6 md:p-8"
           : "rounded-lg border border-neutral-1000-a10 bg-bg-floating p-5"
       )}
     >
@@ -1148,7 +1148,7 @@ function ContactSalesSection({
               <button
                 type="button"
                 onClick={handleShareClick}
-                className="text-neutral-primary text-sm px-2 py-2 rounded-md flex gap-2 flex-row items-center justify-center hover:bg-black/5"
+                className="text-neutral-primary text-sm px-2 py-2 rounded-md flex gap-2 flex-row items-center justify-center hover:bg-surface-tint"
               >
                 <LucideLink className="h-4 w-4" />
                 {copy.share}

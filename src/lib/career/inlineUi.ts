@@ -5,7 +5,10 @@ export type CareerInlineUiReference =
   | { type: "matching"; matchingId: string; runId?: string }
   | { type: "opportunities"; scope: "all" | "saved" | "progress" }
   | { type: "opportunities"; roleIds: string[] }
-  | { type: "brief" };
+  | { type: "brief" }
+  | { type: "meetings"; roleId?: string }
+  | { type: "automations" }
+  | { type: "actions" };
 
 export type CareerInlineUiPart =
   | { kind: "text"; content: string; key: string }
@@ -19,7 +22,11 @@ export function readCareerInlineUiReference(
 ): CareerInlineUiReference | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
-  if (row.type === "brief") return { type: "brief" };
+  if (row.type === "brief" || row.type === "automations" || row.type === "actions") return { type: row.type };
+  if (row.type === "meetings") {
+    if (row.roleId !== undefined && (typeof row.roleId !== "string" || !isPostingRoleId(row.roleId))) return null;
+    return { type: "meetings", ...(typeof row.roleId === "string" ? { roleId: normalizePostingRoleId(row.roleId).toLowerCase() } : {}) };
+  }
   if (
     row.type === "matching" &&
     typeof row.matchingId === "string" &&

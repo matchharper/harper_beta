@@ -181,7 +181,7 @@ export function OrgCandidateRoleMoveDialog({
           {detail.talent.name ?? c("후보자", "Candidate")} · {detail.role.name}
         </span>
       }
-      panelClassName="max-w-lg border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-lg  "
       headerClassName="bg-bg-floating px-5 pb-5 pt-6 sm:px-6"
       bodyClassName="max-h-[calc(100dvh-176px)] overflow-y-auto px-5 pb-5 sm:px-6"
       footerClassName="border-t border-neutral-1000-a05 bg-bg-floating px-5 py-4 sm:px-6"

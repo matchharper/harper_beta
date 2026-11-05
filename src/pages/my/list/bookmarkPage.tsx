@@ -136,7 +136,7 @@ function BookmarkFolderTab({
       </BareButton>
       {/* {isShared ? <Share2 className="h-3 w-3 text-primary" /> : null} */}
       {isActive && (
-        <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-black" />
+        <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-surface-inverse" />
       )}
 
       <ActionDropdown
@@ -671,7 +671,7 @@ export default function BookmarksPage() {
                   <span>{defaultFolder.name}</span>
                   {mode === "folder" &&
                     selectedFolderId === Number(defaultFolder.id) && (
-                      <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-black" />
+                      <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-surface-inverse" />
                     )}
                 </BareButton>
               )}
@@ -692,7 +692,7 @@ export default function BookmarksPage() {
               >
                 Intro 요청됨
                 {mode === "requested" && (
-                  <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-black" />
+                  <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-surface-inverse" />
                 )}
               </BareButton>
 
@@ -725,7 +725,7 @@ export default function BookmarksPage() {
                 type="button"
                 className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition-colors ${
                   currentFolderShare
-                    ? "border-neutral-400 bg-black text-neutral-00 hover:bg-black/90"
+                    ? "border-neutral-400 bg-surface-inverse text-neutral-00 hover:bg-surface-inverse/90"
                     : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:bg-bg-weak"
                 }`}
               >

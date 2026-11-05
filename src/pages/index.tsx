@@ -104,11 +104,11 @@ const ui = {
   pageX: "px-4 md:px-10",
   shell: "mx-auto w-full max-w-[1080px]",
   sectionY: "py-20 md:py-32",
-  btn: "inline-flex h-11 items-center justify-center gap-2 rounded-full border px-5 font-medium shadow-sm transition-colors",
+  btn: "inline-flex h-11 items-center justify-center gap-2 rounded-full border px-5 font-medium shadow-(--shadow-sm) transition-colors",
   btnPrimary:
-    "border-black bg-black text-white hover:bg-neutral-800 px-5 md:px-6 h-12 md:h-14 text-base md:text-md font-medium",
+    "border-stroke-strong bg-surface-inverse text-on-inverse hover:bg-neutral-800 px-5 md:px-6 h-12 md:h-14 text-base md:text-md font-medium",
   btnSecondary:
-    "border-black/10 bg-white text-neutral-950 hover:bg-neutral-100",
+    "border-stroke bg-bg-floating text-neutral-950 hover:bg-neutral-100",
 };
 
 type LandingCopy = {
@@ -701,7 +701,7 @@ function Lines({ lines }: { lines: readonly string[] }) {
 
 function DesktopWindowMockup({ label }: { label: string }) {
   return (
-    <div className="bg-neutral-100 text-neutral-900 [clip-path:inset(0_round_16px)] md:[clip-path:inset(0_round_0px)] md:rounded-t-[14px] pointer-events-auto absolute isolate w-[min(90vw,320px)] overflow-hidden ring-1 ring-white/15 md:pointer-events-none md:w-[94%] md:translate-x-0">
+    <div className="bg-neutral-100 text-neutral-900 [clip-path:inset(0_round_16px)] md:[clip-path:inset(0_round_0px)] md:rounded-t-lg pointer-events-auto absolute isolate w-[min(90vw,320px)] overflow-hidden ring-1 ring-white/15 md:pointer-events-none md:w-[94%] md:translate-x-0">
       <div className="hidden h-8 border-b border-neutral-200 grid-cols-[64px_1fr_76px] items-center px-3 text-[11px] text-neutral-900 ring-1 ring-black/[0.06] md:grid sm:grid-cols-[110px_1fr_110px] sm:px-4 sm:text-[13px]">
         <div className="flex gap-2">
           <span className="h-2 w-2 rounded-full bg-red-500 sm:h-2.5 sm:w-2.5" />
@@ -714,7 +714,7 @@ function DesktopWindowMockup({ label }: { label: string }) {
         <div />
       </div>
 
-      <div className="relative aspect-[390/700] overflow-hidden rounded-[20px] bg-neutral-50 [clip-path:inset(0_round_28px)] md:aspect-[1512/827] md:rounded-none md:[clip-path:none]">
+      <div className="relative aspect-[390/700] overflow-hidden rounded-2xl bg-neutral-50 [clip-path:inset(0_round_28px)] md:aspect-[1512/827] md:rounded-none md:[clip-path:none]">
         <div className="absolute inset-0">
           <CareerWorkspacePreview
             embedded
@@ -729,7 +729,7 @@ function DesktopWindowMockup({ label }: { label: string }) {
 
 function HeroScreenshot({ desktopLabel }: { desktopLabel: string }) {
   return (
-    <div className="shadow-lg md:shadow-lg relative flex items-center md:items-end justify-center mx-auto mt-6 md:mt-12 h-[640px] w-full max-w-[1440px] overflow-hidden rounded-[8px] bg-neutral-200 ring-1 ring-black/[0.06] md:mt-14 md:h-[clamp(600px,55vw,780px)]">
+    <div className="shadow-(--shadow-lg) md:shadow-(--shadow-lg) relative flex items-center md:items-end justify-center mx-auto mt-6 md:mt-12 h-[640px] w-full max-w-[1440px] overflow-hidden rounded-md bg-neutral-200 ring-1 ring-black/[0.06] md:mt-14 md:h-[clamp(600px,55vw,780px)]">
       <Image
         src="/images/river.jpg"
         alt=""
@@ -767,7 +767,7 @@ function heldSmootherstep(value: number) {
 
 function ProductFlowPanel({ copy }: { copy: LandingCopy["workflow"] }) {
   const controlClassName =
-    "flex items-center justify-center rounded-full border border-black/20 px-3 py-2.5";
+    "flex items-center justify-center rounded-full border border-stroke-strong/20 px-3 py-2.5";
   const scrollRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: scrollRef,
@@ -858,7 +858,7 @@ function ProductFlowPanel({ copy }: { copy: LandingCopy["workflow"] }) {
 
             <div
               data-product-flow-sticky-visual
-              className="relative h-[390px] overflow-hidden rounded-[18px] bg-[#F2F0EC] shadow-[0_0_0_1px_rgba(0,0,0,0.05),0_8px_30px_rgba(0,0,0,0.05)]"
+              className="relative h-[390px] overflow-hidden rounded-xl bg-bg-weak shadow-(--shadow-outline)"
             >
               {steps.map((step, index) => (
                 <ProductFlowDesktopVisualLayer
@@ -1096,7 +1096,7 @@ function ProfileSyncVisual({
   return (
     <div
       className={cn(
-        "relative flex min-h-[430px] items-center justify-center overflow-hidden rounded-[18px] bg-[#F2F0EC] p-5 ring-1 ring-black/[0.04] md:min-h-[500px] md:p-8",
+        "relative flex min-h-[430px] items-center justify-center overflow-hidden rounded-xl bg-bg-weak p-5 ring-1 ring-black/[0.04] md:min-h-[500px] md:p-8",
         className
       )}
     >
@@ -1111,16 +1111,16 @@ function ProfileSyncVisual({
             whileInView={{ opacity: 1, y: 0, scale: 1 }}
             viewport={{ once: true, amount: 0.7 }}
             transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
-            className="relative overflow-hidden rounded-[18px] bg-white shadow-[0_14px_40px_rgba(40,30,20,0.10),0_0_0_1px_rgba(0,0,0,0.05)]"
+            className="relative overflow-hidden rounded-xl bg-bg-floating shadow-(--shadow-lg)"
           >
             <div className="relative h-[70px] bg-primary">
-              <div className="absolute left-[22px] top-[38px] flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-white bg-[#ECE5DB] text-[#A0917E]">
+              <div className="absolute left-[22px] top-[38px] flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-bg-floating bg-avatar text-avatar-foreground">
                 <User2 className="h-8 w-8" strokeWidth={1.8} />
               </div>
             </div>
 
             <div className="px-[22px] pb-[18px] pt-[46px]">
-              <div className="text-[17px] font-semibold leading-tight tracking-normal text-[#1F1C1A]">
+              <div className="text-[17px] font-semibold leading-tight tracking-normal text-neutral-primary">
                 {profile.name}
               </div>
               <div className="mt-1 text-[14px] leading-snug text-neutral-700">
@@ -1133,15 +1133,15 @@ function ProfileSyncVisual({
                     className={cn(
                       "whitespace-nowrap rounded-full px-3 py-1 text-[13px] font-medium",
                       index === 0
-                        ? "bg-[#14110F] text-white"
-                        : "border border-black/10 bg-white text-[#3A342D]"
+                        ? "bg-surface-inverse text-on-inverse"
+                        : "border border-stroke bg-bg-floating text-neutral-primary"
                     )}
                   >
                     {skill}
                   </span>
                 ))}
               </div>
-              <div className="mt-[18px] flex items-center gap-2 border-t border-black/[0.07] pt-3.5 text-[13px] font-medium text-[#4D3820]">
+              <div className="mt-[18px] flex items-center gap-2 border-t border-stroke-strong/[0.07] pt-3.5 text-[13px] font-medium text-neutral-muted">
                 <Scan className="h-3 w-3" strokeWidth={1.8} />
                 {profile.status}
               </div>
@@ -1199,7 +1199,7 @@ function ProfileSyncVisual({
                 ease: [0.22, 1, 0.36, 1],
               }}
               className={cn(
-                "absolute z-10 flex h-[54px] w-[54px] items-center justify-center rounded-2xl bg-white text-[#1F1C1A] shadow-[0_10px_26px_rgba(40,30,20,0.16),0_0_0_1px_rgba(0,0,0,0.04)]",
+                "absolute z-10 flex h-[54px] w-[54px] items-center justify-center rounded-2xl bg-bg-floating text-neutral-primary shadow-(--shadow-lg)",
                 badgeClassName
               )}
             >
@@ -1228,7 +1228,7 @@ function ConversationVisual({
   return (
     <div
       className={cn(
-        "relative min-h-[430px] overflow-hidden rounded-[18px] bg-neutral-950 p-6 text-white ring-1 ring-black/[0.04] md:min-h-[500px]",
+        "relative min-h-[430px] overflow-hidden rounded-xl bg-neutral-950 p-6 text-on-inverse ring-1 ring-black/[0.04] md:min-h-[500px]",
         className
       )}
     >
@@ -1265,8 +1265,8 @@ function ConversationVisual({
                   }}
                   className={`w-fit px-4 py-2.5 ${
                     isCandidate
-                      ? "ml-auto max-w-[306px] rounded-[16px] bg-white/10 text-white ring-1 ring-white/54"
-                      : "max-w-[306px] rounded-[16px] bg-white text-neutral-950"
+                      ? "ml-auto max-w-[306px] rounded-xl bg-bg-floating/10 text-on-inverse ring-1 ring-white/54"
+                      : "max-w-[306px] rounded-xl bg-bg-floating text-neutral-950"
                   }`}
                 >
                   {isStreamingMessage ? (
@@ -1280,17 +1280,17 @@ function ConversationVisual({
           </div>
 
           <div className="flex w-full items-center justify-center pt-5">
-            <div className="flex w-fit flex-row gap-2 rounded-full bg-neutral-200/40 p-2 text-black ring-1 ring-white/5">
-              <div className={cx(controlClassName, "bg-white text-black")}>
+            <div className="flex w-fit flex-row gap-2 rounded-full bg-neutral-200/40 p-2 text-neutral-primary ring-1 ring-white/5">
+              <div className={cx(controlClassName, "bg-bg-floating text-neutral-primary")}>
                 <Mic strokeWidth={1.8} className="h-5 w-5" />
               </div>
-              <div className={cx(controlClassName, "bg-white text-black")}>
+              <div className={cx(controlClassName, "bg-bg-floating text-neutral-primary")}>
                 <Captions strokeWidth={1.8} className="h-5 w-5" />
               </div>
               <div
                 className={cx(
                   controlClassName,
-                  "flex flex-row items-center gap-2 border-black bg-black text-white"
+                  "flex flex-row items-center gap-2 border-stroke-strong bg-surface-inverse text-on-inverse"
                 )}
               >
                 <AudioLines strokeWidth={1.8} className="h-5 w-5" />
@@ -1387,7 +1387,7 @@ function RoleBriefingVisual({
   return (
     <div
       className={cn(
-        "rounded-[18px] min-h-[360px] flex items-center justify-center bg-neutral-100 p-4 ring-1 ring-black/[0.04] md:p-5",
+        "rounded-xl min-h-[360px] flex items-center justify-center bg-neutral-100 p-4 ring-1 ring-black/[0.04] md:p-5",
         className
       )}
     >
@@ -1399,7 +1399,7 @@ function RoleBriefingVisual({
         {roleCards.map((card) => (
           <div
             key={card.role}
-            className="relative rounded-[12px] bg-white px-4 py-5 ring ring-black/5"
+            className="relative rounded-lg bg-bg-floating px-4 py-5 ring ring-black/5"
           >
             <div className="absolute top-1 right-2">
               <Badge
@@ -1417,7 +1417,7 @@ function RoleBriefingVisual({
               </Badge>
             </div>
             <div className="grid grid-cols-[38px_1fr_auto] items-start gap-3">
-              <div className="relative h-9 w-9 overflow-hidden rounded-[9px] bg-white ring-1 ring-black/[0.06]">
+              <div className="relative h-9 w-9 overflow-hidden rounded-md bg-bg-floating ring-1 ring-black/[0.06]">
                 <Image
                   src={card.logo}
                   alt=""
@@ -1431,7 +1431,7 @@ function RoleBriefingVisual({
                 <h3 className="mt-0 truncate text-[15px] font-medium leading-[1.28] text-neutral-950 md:text-[16px]">
                   {card.role}
                 </h3>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-black/80 md:text-[13px]">
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-neutral-primary/80 md:text-[13px]">
                   <span className="font-medium">{card.company}</span>
                   <span className="h-1 w-1 shrink-0 rounded-full bg-neutral-300" />
                   <span>{card.meta}</span>
@@ -1459,7 +1459,7 @@ function GmailNotificationVisual({
   return (
     <div
       className={cn(
-        "relative flex items-center justify-center min-h-[410px] overflow-hidden rounded-[18px] bg-neutral-950 p-5 ring-1 ring-black/[0.04] md:min-h-[460px] md:p-8",
+        "relative flex items-center justify-center min-h-[410px] overflow-hidden rounded-xl bg-neutral-950 p-5 ring-1 ring-black/[0.04] md:min-h-[460px] md:p-8",
         className
       )}
     >
@@ -1493,7 +1493,7 @@ function GmailNotificationVisual({
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 className={cx(
-                  "relative flex items-start gap-3 rounded-[18px] bg-white/10 text-white ring-1 ring-white/30 backdrop-blur-md px-4 py-3.5",
+                  "relative flex items-start gap-3 rounded-xl bg-bg-floating/10 text-on-inverse ring-1 ring-white/30 backdrop-blur-md px-4 py-3.5",
                   isFirstNotification
                     ? "z-10 w-[99%]"
                     : "z-20 mt-2 ml-auto w-full"
@@ -1501,7 +1501,7 @@ function GmailNotificationVisual({
               >
                 <div
                   aria-label="Gmail"
-                  className="mt-0.5 h-9 w-9 shrink-0 rounded-[10px] bg-white bg-size-[26px_26px] bg-center bg-no-repeat ring-1 ring-black/[0.04]"
+                  className="mt-0.5 h-9 w-9 shrink-0 rounded-md bg-bg-floating bg-size-[26px_26px] bg-center bg-no-repeat ring-1 ring-black/[0.04]"
                   style={{ backgroundImage: "url('/svgs/gmail.svg')" }}
                 />
                 <div className="min-w-0 flex-1">
@@ -1516,7 +1516,7 @@ function GmailNotificationVisual({
                   <div className="mt-0.5 truncate text-sm md:text-[16px] font-medium">
                     {item.title}
                   </div>
-                  <div className="mt-0.5 line-clamp-2 text-[13px] md:text-[14px] leading-[1.45] text-white/90">
+                  <div className="mt-0.5 line-clamp-2 text-[13px] md:text-[14px] leading-[1.45] text-on-inverse/90">
                     {item.body}
                   </div>
                 </div>
@@ -1549,10 +1549,10 @@ function OpportunityCard({
       data-opportunity-card={item.name}
       aria-hidden={isDuplicate || undefined}
       tabIndex={isDuplicate ? -1 : undefined}
-      className="flex min-h-[178px] w-full flex-col rounded-3xl border border-black/5 bg-white p-6 group"
+      className="flex min-h-[178px] w-full flex-col rounded-3xl border border-stroke-subtle bg-bg-floating p-6 group"
     >
       <div className="text-[15px] md:text-base font-normal">{item.name}</div>
-      <div className="mt-2 text-[13px] md:text-[14px] font-normal leading-6 text-black/50">
+      <div className="mt-2 text-[13px] md:text-[14px] font-normal leading-6 text-neutral-primary/50">
         {item.description}
       </div>
       <div className="mt-auto flex w-fit flex-row items-center gap-1 pt-8 text-sm text-primary transition-colors group-hover:text-neutral-950">
@@ -1644,7 +1644,7 @@ function AudienceModeCard({
       : "object-[50%_44%] brightness-[0.74] contrast-[1.06] saturate-[0.95]";
 
   return (
-    <div className="relative flex min-h-[240px] overflow-hidden rounded-[12px] bg-neutral-950 p-4 text-white ring-1 ring-black/[0.06] md:min-h-[340px] md:p-4">
+    <div className="relative flex min-h-[240px] overflow-hidden rounded-lg bg-neutral-950 p-4 text-on-inverse ring-1 ring-black/[0.06] md:min-h-[340px] md:p-4">
       <Image
         src={card.imageSrc}
         alt=""
@@ -1654,18 +1654,18 @@ function AudienceModeCard({
         sizes="(min-width: 512px) 20vw, 100vw"
         className={cn("object-cover", imageClassName)}
       />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.04)_0%,rgba(0,0,0,0.3)_44%,rgba(0,0,0,0.8)_100%)]" />
+      <div className="absolute inset-0 bg-photo-scrim" />
       <div className="relative flex min-h-full w-full flex-col justify-between">
         <div className="flex items-start justify-between gap-3">
-          <span className="inline-flex min-h-6 items-center rounded-md bg-white/20 px-2.5 py-1 text-[12px] font-semibold leading-tight text-white backdrop-blur-sm">
+          <span className="inline-flex min-h-6 items-center rounded-md bg-bg-floating/20 px-2.5 py-1 text-[12px] font-semibold leading-tight text-on-inverse backdrop-blur-sm">
             {card.eyebrow}
           </span>
         </div>
         <div className="pt-16">
-          <h3 className="max-w-[330px] text-[17px] font-medium leading-[1.3] text-white md:text-[18px]">
+          <h3 className="max-w-[330px] text-[17px] font-medium leading-[1.3] text-on-inverse md:text-[18px]">
             {card.title}
           </h3>
-          <p className="mt-3 max-w-[330px] text-[13px] leading-[1.42] text-white/84 md:text-sm">
+          <p className="mt-3 max-w-[330px] text-[13px] leading-[1.42] text-on-inverse/84 md:text-sm">
             {card.body}
           </p>
         </div>
@@ -1682,7 +1682,7 @@ function AudienceSection({
   priorityImages?: boolean;
 }) {
   return (
-    <div className={`${ui.pageX} ${ui.sectionY} bg-white`}>
+    <div className={`${ui.pageX} ${ui.sectionY} bg-bg-floating`}>
       <div className="mx-auto grid w-full max-w-[1120px] grid-cols-1 gap-2 px-0 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.5fr)_minmax(220px,0.5fr)] md:items-stretch md:px-4">
         <div className="max-w-[720px] flex flex-col w-full items-start justify-between min-h-[300px] bg-neutral-100 p-6 rounded-lg">
           <div className={`${text.h3}`}>{audience.title}</div>
@@ -2109,7 +2109,7 @@ export default function LandingKoVfPage({
 
       <div
         id="top"
-        className="min-h-screen overflow-x-clip break-keep bg-white font-sans text-neutral-950 antialiased"
+        className="min-h-screen overflow-x-clip break-keep bg-bg-floating font-sans text-neutral-950 antialiased"
       >
         <CareerAppBar
           careerStartHref={careerStartHref}
@@ -2217,13 +2217,13 @@ export default function LandingKoVfPage({
                   title={
                     <>
                       <div className={`${text.h2}`}>
-                        <div className="text-black/50 font-medium leading-[1.4]">
+                        <div className="text-neutral-primary/50 font-medium leading-[1.4]">
                           <p
                             dangerouslySetInnerHTML={{
                               __html: copy.how.statement.prefix,
                             }}
                           />
-                          <span className="text-black">
+                          <span className="text-neutral-primary">
                             {copy.how.statement.focus}
                           </span>
                         </div>
@@ -2241,8 +2241,8 @@ export default function LandingKoVfPage({
                     <Reveal key={row.title} once delay={index * 0.06}>
                       <div
                         className={cn(
-                          "relative flex min-h-[288px] w-full flex-col justify-between overflow-hidden rounded-3xl border border-black/5 bg-neutral-100 p-6",
-                          index === 0 && "bg-white"
+                          "relative flex min-h-[288px] w-full flex-col justify-between overflow-hidden rounded-3xl border border-stroke-subtle bg-neutral-100 p-6",
+                          index === 0 && "bg-bg-floating"
                         )}
                       >
                         {index === 0 ? (
@@ -2254,15 +2254,15 @@ export default function LandingKoVfPage({
                               sizes="(min-width: 768px) 50vw, 100vw"
                               className="object-cover opacity-100"
                             />
-                            <div className="absolute inset-0 bg-black/20" />
+                            <div className="absolute inset-0 bg-surface-inverse/20" />
                           </>
                         ) : null}
-                        <span className="relative z-10 inline-flex w-fit self-start rounded-xl border border-black/5 bg-white/10 p-3 backdrop-blur-[2px]">
+                        <span className="relative z-10 inline-flex w-fit self-start rounded-xl border border-stroke-subtle bg-bg-floating/10 p-3 backdrop-blur-overlay">
                           <Icon
                             aria-hidden="true"
                             className={cn(
                               "h-4 w-4 md:h-5 md:w-5",
-                              index === 0 ? "text-neutral-400/80" : "text-black"
+                              index === 0 ? "text-neutral-400/80" : "text-neutral-primary"
                             )}
                             strokeWidth={1.8}
                           />
@@ -2270,14 +2270,14 @@ export default function LandingKoVfPage({
                         <div className="relative z-10">
                           <h3
                             className={cn(
-                              `${text.sm} font-medium ${index === 0 ? "text-white/90" : "text-neutral-800/80"}`
+                              `${text.sm} font-medium ${index === 0 ? "text-on-inverse/90" : "text-neutral-800/80"}`
                             )}
                           >
                             {row.title}
                           </h3>
                           <p
                             className={cn(
-                              `${text.sm} mt-2 max-w-[460px] ${index === 0 ? "text-white/70" : "text-neutral-800/80"}`
+                              `${text.sm} mt-2 max-w-[460px] ${index === 0 ? "text-on-inverse/70" : "text-neutral-800/80"}`
                             )}
                           >
                             <Lines lines={row.body} />
@@ -2295,7 +2295,7 @@ export default function LandingKoVfPage({
                   return (
                     <Reveal key={row.title} once delay={index * 0.06}>
                       <div
-                        className={`flex min-h-[158px] h-full w-full flex-col rounded-3xl border border-black/5 bg-neutral-100 p-6`}
+                        className={`flex min-h-[158px] h-full w-full flex-col rounded-3xl border border-stroke-subtle bg-neutral-100 p-6`}
                       >
                         <div className="flex flex-row items-center justify-start gap-3">
                           <Icon
@@ -2324,19 +2324,19 @@ export default function LandingKoVfPage({
 
           <section
             id="voices"
-            className={`${ui.pageX} ${ui.sectionY} bg-neutral-950 text-white`}
+            className={`${ui.pageX} ${ui.sectionY} bg-neutral-950 text-on-inverse`}
           >
             <div className={ui.shell}>
               <Reveal once>
                 <SectionHeader
                   title={
                     <div
-                      className="text-white leading-[1.4]"
+                      className="text-on-inverse leading-[1.4]"
                       dangerouslySetInnerHTML={{ __html: copy.voices.title }}
                     />
                   }
                   desc={
-                    <span className="text-white/80">{copy.voices.desc}</span>
+                    <span className="text-on-inverse/80">{copy.voices.desc}</span>
                   }
                 />
               </Reveal>
@@ -2345,7 +2345,7 @@ export default function LandingKoVfPage({
                 {copy.voices.items.map((voice, index) => (
                   <Reveal key={voice.name} once delay={index * 0.08}>
                     <div className="h-full md:mt-0 mt-6">
-                      <div className="bg-neutral-800/50 text-[14px] text-white/80 font-sans leading-[1.5] px-8 h-[120px] md:h-[160px] font-medium flex items-center justify-center rounded-[8px]">
+                      <div className="bg-neutral-800/50 text-[14px] text-on-inverse/80 font-sans leading-[1.5] px-8 h-[120px] md:h-[160px] font-medium flex items-center justify-center rounded-md">
                         {voice.quote}
                       </div>
                       <div className="mt-0 flex items-start gap-3 pt-3 md:pt-5">
@@ -2358,18 +2358,18 @@ export default function LandingKoVfPage({
                             className="h-7 w-7 rounded-full object-cover mt-1"
                           />
                         ) : (
-                          <div className="flex mt-1 h-9 w-9 items-center justify-center rounded-full bg-white/10 text-base italic">
+                          <div className="flex mt-1 h-9 w-9 items-center justify-center rounded-full bg-bg-floating/10 text-base italic">
                             <User2 className="w-5 h-5" strokeWidth={1.3} />
                           </div>
                         )}
                         <div>
                           <div className="text-[13px] md:text-[15px] font-normal">
                             {voice.name}{" "}
-                            <span className="text-white/50">
+                            <span className="text-on-inverse/50">
                               to {voice.company}
                             </span>
                           </div>
-                          <div className="text-[12px] md:text-[13px] text-white/50 flex flex-row gap-2 items-center">
+                          <div className="text-[12px] md:text-[13px] text-on-inverse/50 flex flex-row gap-2 items-center">
                             {voice.role}
                           </div>
                         </div>
@@ -2383,14 +2383,14 @@ export default function LandingKoVfPage({
 
           <section
             id="voices"
-            className={`${ui.pageX} pt-12 pb-20 md:pb-32 bg-neutral-950 text-white`}
+            className={`${ui.pageX} pt-12 pb-20 md:pb-32 bg-neutral-950 text-on-inverse`}
           >
             <div className={ui.shell}>
               <Reveal once>
                 <SectionHeader
                   isCenter={true}
                   title={
-                    <div className="text-white text-2xl underline">
+                    <div className="text-on-inverse text-2xl underline">
                       {copy.security.title}
                     </div>
                   }
@@ -2406,7 +2406,7 @@ export default function LandingKoVfPage({
                             `${text.lg} flex items-center gap-3 text-neutral-50 font-medium`
                           )}
                         >
-                          <span className="text-white">
+                          <span className="text-on-inverse">
                             <Icon
                               className="h-[18px] w-[18px]"
                               strokeWidth={1.8}

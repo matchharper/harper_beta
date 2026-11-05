@@ -1,0 +1,67 @@
+{
+  "version": "v2",
+  "provenance": "Six synthetic contextual development probes frozen before all runs. No production data; not an independent holdout.",
+  "hashes": {
+    "cases-v2.json": "b49f81e6aa7691a9198838efdba8843707e66e074fa9c4d6f9bc2ee5f8afd40e",
+    "gold-v2.json": "296217dfa08942bf32f2f1c27ca745b4965a16a55517c54617742ef6f39850ee"
+  },
+  "runner": "scripts/evalCareerVisibleActions.ts --version=v2",
+  "reviewedRun": "2026-11-04T14-19-16.365Z",
+  "sourceRevision": "022eddd9e709cd4188154291143679a7f0d01ef3",
+  "dirtyDiffHash": "2fcf137d60d3c8548a7644b7ce79136e9ddd093f22473e5aa4c3b12ed67d67e7",
+  "sourceHashes": {
+    "src/lib/career/actionItems.ts": "185f083a9585cfba84348ae1c5e0ebd96c94bf3c1611fbc38330e252f403ef94",
+    "src/lib/career/actionItemsTool.ts": "cbf1926436e5cc09db900eca77302bda77859e2f0e9bcc9ec10126c840a79683",
+    "src/lib/career/prompts/conversationPlan.ts": "590d0821309fbde7187b9027f194a3830c55add5861c67cf21459e9eb88d15e4",
+    "src/lib/career/prompts/cases/lifecyclePrompts.ts": "18923343c95f0e0e9277951115eb46f6ae4c92e8eadbf94c89a436058c1ae8c7",
+    "src/lib/career/prompts/mainPrompt2.ts": "d1812ed1bd645cbdb18b66c482eb57b35dcaff40970f2e66d21895b3f44ec410",
+    "src/lib/career/capabilities/runtime.ts": "f648d4338ad9589eb53844305d86311ec7a0e9035aad51dd5c910ac7a9c1d97e",
+    "src/lib/career/work/store.ts": "a81be21efe77de0ea5a84198da39dd3651fd3693128947d51b42061ba18af931",
+    "src/lib/career/work/tools.ts": "223842ee5fae9c20426410e85bdeae2477ad4cb49bdbe18f8b4a28bfb0d1a5ee",
+    "src/lib/career/forms/server.ts": "0bd8b3b104a49ce5e90370dce5c6f5d1cbf4371b4b14fddb7c782a49614d0faf",
+    "src/lib/career/forms/format.ts": "fbe7ff1ae665f6f03cc23484c8cde6e7783f3d50577868881ff859b1ac5960c2",
+    "src/lib/career/reengagementOpportunities.ts": "63c181a6a0e67206ab929d2829be6c17c5f175b6be2a235358381082e866c71b",
+    "src/lib/career/llm.ts": "effc256ae33a180e62b2ef2cd8223231a4febcef1fdbebbeeee97f2c19efba40",
+    "scripts/evalCareerVisibleActions.ts": "e7388fa72fcab6f9fcb44eb218d430a5d0e2b84ba2780a3776a28b94883bbd30"
+  },
+  "models": {
+    "chatAndWork": "gpt-6.1-sol",
+    "reengagement": "claude-haiku-5-5"
+  },
+  "temperature": 0.8,
+  "attemptsPerCasePerRun": 1,
+  "runs": [
+    {
+      "id": "2026-11-04T14-11-51.535Z",
+      "variant": "initial implementation",
+      "findings": "10-item list omitted the ready review; one review used compose_reply although it needed content presentation; visible click text contained internal refs."
+    },
+    {
+      "id": "2026-11-04T14-15-17.809Z",
+      "variant": "legacy return buttons removed; precise click/delete contract",
+      "findings": "Natural send text improved; mixed-state return removed stale items but omitted the replacement home highlight; full list still omitted the ready review."
+    },
+    {
+      "id": "2026-11-04T14-17-09.359Z",
+      "variant": "explicit home-panel publication contract",
+      "findings": "Mixed-state list and click mode correct; full list still deferred curation for permission."
+    },
+    {
+      "id": "2026-11-04T14-19-16.365Z",
+      "variant": "Harper owns current highlight selection",
+      "findings": "All six targeted list outcomes observed. An unnecessary same-instruction update of another running work remains a separate agent-behavior observation."
+    }
+  ],
+  "review": {
+    "reviewer": "Codex",
+    "method": "Read source input paths, rendered provider action guide, conversation context, tool arguments/results and final outputs; evaluated meaning against frozen gold. No runtime output gate or judge model."
+  },
+  "report": "reports/2026-11-04-context-audit.md",
+  "limitations": [
+    "One sample per case and prompt variant; no operational success-rate claim.",
+    "Production tool schemas, loaders, workContext and formatters; work/form execution receipts are synthetic.",
+    "New action tool uses its production executor with in-memory persistence. SQL/RLS and deployment are verified separately.",
+    "No live candidate message, actual submission, background queue E2E or production UI deployment.",
+    "The mixed-state return still reissued an existing instruction to unrelated running work; not silently counted as perfect overall agent behavior."
+  ]
+}

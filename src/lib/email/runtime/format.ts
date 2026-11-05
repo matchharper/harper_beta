@@ -11,6 +11,7 @@ import { stripCareerReengagementActions } from "@/lib/career/reengagementActions
 import { stripMockInterviewMarkers } from "@/lib/career/mockInterviewOffers";
 import { extractStartOfferPayload } from "@/lib/career/simulation/startOfferPayload";
 import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
+import { parseCareerInlineUi } from "@/lib/career/inlineUi";
 import {
   buildHarperEmailFooterHtml,
   HARPER_EMAIL_FOOTER_TEXT,
@@ -116,9 +117,13 @@ function emailPlainText(node: EmailAstNode, parent?: EmailAstNode, depth = 0): s
 // Only application control payloads are removed here. Wording and meaning are
 // authored by the same Career LLM; this renderer only interprets Markdown.
 export function emailVisibleMarkdown(content: string) {
+  const visibleContent = parseCareerInlineUi(content)
+    .filter((part) => part.kind === "text")
+    .map((part) => part.content)
+    .join("\n\n");
   return stripMockInterviewMarkers(
     extractStartOfferPayload(
-      stripCareerReengagementActions(stripOpportunityRunMarkers(content))
+      stripCareerReengagementActions(stripOpportunityRunMarkers(visibleContent))
     ).content
   )
     .replace(

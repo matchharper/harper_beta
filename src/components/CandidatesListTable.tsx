@@ -142,7 +142,7 @@ function CompanyLogoBadge({
     >
       <img src={src} alt={alt} className="h-full w-full object-cover" />
       {masked ? (
-        <span className="absolute inset-0 rounded-full bg-white/5 backdrop-blur-md" />
+        <span className="absolute inset-0 rounded-full bg-bg-floating/5 backdrop-blur-md" />
       ) : null}
     </span>
   );
@@ -322,7 +322,7 @@ function CandidateRow({
                 alt={getSearchSourceLabel(source)}
                 width={source === "github" ? 13 : 12}
                 height={source === "github" ? 13 : 12}
-                className="object-contain rounded-[2px]"
+                className="object-contain rounded-xs"
               />
             </span>
           </Tooltips>
@@ -627,7 +627,7 @@ function CandidateRow({
       return (
         <div
           key={columnId}
-          className={`flex h-full min-w-0 items-center px-4 py-3 border-l ${isDark ? "border-white/5" : "border-beige900/15"}`}
+          className={`flex h-full min-w-0 items-center px-4 py-3 border-l ${isDark ? "border-bg-floating/5" : "border-beige900/15"}`}
         >
           <div className="flex w-full items-center justify-between gap-3">
             {sharedFolderContext.viewer ? (
@@ -638,7 +638,7 @@ function CandidateRow({
                   event.stopPropagation();
                   setSharedNoteCreateRequestKey((current) => current + 1);
                 }}
-                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-[12px] transition-colors ${isDark ? "border border-white/10 bg-white/5 text-neutral-200 hover:bg-white/10" : "border border-beige900/8 bg-beige50 text-beige900 hover:bg-beige50/80"}`}
+                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-[12px] transition-colors ${isDark ? "border border-bg-floating/10 bg-bg-floating/5 text-neutral-200 hover:bg-bg-floating/10" : "border border-beige900/8 bg-beige50 text-beige900 hover:bg-beige50/80"}`}
               >
                 <Plus className="h-3.5 w-3.5" />
                 공유 메모 추가
@@ -698,20 +698,20 @@ function CandidateRow({
         }}
       >
         <div
-          className={`group relative w-full border-b transition-colors ${isDark ? "border-white/5" : "border-beige900/15"} ${
+          className={`group relative w-full border-b transition-colors ${isDark ? "border-bg-floating/5" : "border-beige900/15"} ${
             isProfileRevealed
               ? isDark
-                ? "cursor-pointer hover:bg-[#242424]"
+                ? "cursor-pointer hover:bg-surface-inverse-hover"
                 : "cursor-pointer hover:bg-beige50/80"
               : "cursor-default"
           }`}
         >
           <div
-            className={`inline-grid items-center border-b ${isDark ? "border-white/5" : "border-beige900/15"}`}
+            className={`inline-grid items-center border-b ${isDark ? "border-bg-floating/5" : "border-beige900/15"}`}
             style={{ gridTemplateColumns }}
           >
             <div
-              className={`sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs transition-colors ${isDark ? "text-neutral-500 bg-neutral-900 group-hover:bg-[#242424]" : "text-beige900/65 bg-beige100 group-hover:bg-beige50/80"}`}
+              className={`sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs transition-colors ${isDark ? "text-neutral-500 bg-neutral-900 group-hover:bg-surface-inverse-hover" : "text-beige900/65 bg-beige100 group-hover:bg-beige50/80"}`}
             >
               {canSelectRow ? (
                 <div className="relative flex w-full items-center justify-center">
@@ -748,8 +748,8 @@ function CandidateRow({
                       aria-label={`${c.name ?? "candidate"} 선택`}
                       className={
                         isDark
-                          ? "h-5 w-5 rounded-[4px] border-white/50 bg-black/20"
-                          : "h-5 w-5 rounded-[4px] border-beige900/30 bg-beige900/10"
+                          ? "h-5 w-5 rounded-sm border-bg-floating/50 bg-surface-inverse/20"
+                          : "h-5 w-5 rounded-sm border-beige900/30 bg-beige900/10"
                       }
                     />
                   </div>
@@ -759,14 +759,14 @@ function CandidateRow({
               )}
             </div>
             <div
-              className={`sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 transition-colors border-r ${isDark ? "bg-neutral-900 border-white/5 group-hover:bg-[#242424]" : "bg-beige100 border-beige900/15 group-hover:bg-beige50/80"}`}
+              className={`sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 transition-colors border-r ${isDark ? "bg-neutral-900 border-bg-floating/5 group-hover:bg-surface-inverse-hover" : "bg-beige100 border-beige900/15 group-hover:bg-beige50/80"}`}
             >
               {!isProfileRevealed && !sharedFolderContext?.token ? (
                 <RevealProfileButton
                   candidId={candidId}
                   overlay
-                  overlayClassName={`z-80 justify-end pr-4 ${isDark ? "group-hover:border-accent-200/40 group-hover:bg-black/15" : "group-hover:border-primary/40 group-hover:bg-beige900/8"}`}
-                  className="px-4 py-1.5 text-xs font-medium shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                  overlayClassName={`z-80 justify-end pr-4 ${isDark ? "group-hover:border-accent-200/40 group-hover:bg-surface-inverse/15" : "group-hover:border-primary/40 group-hover:bg-beige900/8"}`}
+                  className="px-4 py-1.5 text-xs font-medium shadow-(--shadow-lg)"
                 />
               ) : null}
               <div
@@ -782,7 +782,7 @@ function CandidateRow({
 
               <div className="min-w-0 flex-1 self-center">
                 <div
-                  className={`text-[14px] font-normal truncate ${isDark ? "text-white" : "text-beige900"}`}
+                  className={`text-[14px] font-normal truncate ${isDark ? "text-on-inverse" : "text-beige900"}`}
                 >
                   {c.name}
                 </div>

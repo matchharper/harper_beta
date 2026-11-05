@@ -364,7 +364,7 @@ const CareerCompanyWatchlistPanel = () => {
           }
         />
         {actionError ? (
-          <div className="mt-4 rounded-[8px] border border-critical/30 bg-critical-faded px-4 py-3 text-[13px] text-critical">
+          <div className="mt-4 rounded-md border border-critical/30 bg-critical-faded px-4 py-3 text-[13px] text-critical">
             {actionError}
           </div>
         ) : null}
@@ -386,7 +386,7 @@ const CareerCompanyWatchlistPanel = () => {
 
       <div className="space-y-4 pb-6">
         {actionError ? (
-          <div className="rounded-[8px] border border-critical/30 bg-critical-faded px-4 py-3 text-[13px] text-critical">
+          <div className="rounded-md border border-critical/30 bg-critical-faded px-4 py-3 text-[13px] text-critical">
             {actionError}
           </div>
         ) : null}

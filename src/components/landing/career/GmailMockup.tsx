@@ -96,7 +96,7 @@ function GmailPhoneMockup({ className }: { className?: string }) {
           className="object-contain z-10"
         />
 
-        <div className="absolute left-[4.5%] right-[4.5%] top-[2.2%] bottom-[1.6%] overflow-hidden rounded-[24px] bg-white text-neutral-950 md:rounded-[30px]">
+        <div className="absolute left-[4.5%] right-[4.5%] top-[2.2%] bottom-[1.6%] overflow-hidden rounded-3xl bg-white text-neutral-950 md:rounded-4xl">
           <GmailStatusBar />
 
           <div className="relative h-[calc(100%-31px)] overflow-hidden bg-white">
@@ -134,17 +134,17 @@ function GmailStatusBar() {
 
       <div className="flex items-center gap-[4px]">
         <span className="flex items-end gap-[1.5px]">
-          <span className="h-[4px] w-[2px] rounded-[1px] bg-black" />
-          <span className="h-[6px] w-[2px] rounded-[1px] bg-black" />
-          <span className="h-[8px] w-[2px] rounded-[1px] bg-black" />
-          <span className="h-[10px] w-[2px] rounded-[1px] bg-neutral-300" />
+          <span className="h-[4px] w-[2px] rounded-xs bg-black" />
+          <span className="h-[6px] w-[2px] rounded-xs bg-black" />
+          <span className="h-[8px] w-[2px] rounded-xs bg-black" />
+          <span className="h-[10px] w-[2px] rounded-xs bg-neutral-300" />
         </span>
 
         <span className="text-[11px] font-semibold leading-none">5G</span>
 
-        <span className="relative h-[10px] w-[18px] rounded-[3px] ring-1 ring-neutral-500">
+        <span className="relative h-[10px] w-[18px] rounded-sm ring-1 ring-neutral-500">
           <span className="absolute -right-[2px] top-[3px] h-[4px] w-[1.5px] rounded-r-sm bg-neutral-500" />
-          <span className="absolute left-[2px] top-[2px] h-[6px] w-[12px] rounded-[2px] bg-black" />
+          <span className="absolute left-[2px] top-[2px] h-[6px] w-[12px] rounded-xs bg-black" />
         </span>
       </div>
     </div>
@@ -188,15 +188,15 @@ function GmailTopBar() {
 function GmailSubject({ copy }: { copy: GmailMockupCopy }) {
   return (
     <div className="grid grid-cols-[1fr_16px] gap-[8px]">
-      <h3 className="text-[13px] font-normal leading-[1.4] tracking-[-0.025em] text-[#202124]">
+      <h3 className="text-[13px] font-normal leading-[1.4] tracking-[-0.025em] text-mock-ink">
         {copy.subject}
-        <span className="ml-[5px] inline-flex translate-y-[-2px] rounded-[4px] bg-[#f1f3f4] px-[5px] py-[2px] text-[8px] font-normal leading-none tracking-[-0.02em] text-[#5f6368]">
+        <span className="ml-[5px] inline-flex translate-y-[-2px] rounded-sm bg-mock-weak px-[5px] py-[2px] text-[8px] font-normal leading-none tracking-[-0.02em] text-mock-muted">
           {copy.inboxLabel}
         </span>
       </h3>
 
       <Star
-        className="mt-[12px] h-[13px] w-[13px] text-[#8a8d91]"
+        className="mt-[12px] h-[13px] w-[13px] text-mock-soft"
         strokeWidth={1.9}
       />
     </div>
@@ -205,12 +205,12 @@ function GmailSubject({ copy }: { copy: GmailMockupCopy }) {
 
 function GmailSummaryCard({ copy }: { copy: GmailMockupCopy }) {
   return (
-    <div className="flex h-[28px] items-center rounded-[12px] bg-[#eef3fb] px-[12px] text-[#5f6368]">
+    <div className="flex h-[28px] items-center rounded-lg bg-mock-surface px-[12px] text-mock-muted">
       <div className="flex items-center gap-[8px]">
         <span className="relative flex h-[14px] w-[14px] items-center justify-center">
           <Sparkles className="h-[10px] w-[10px]" strokeWidth={1.9} />
-          <span className="absolute -left-[3px] top-[6px] h-[1.2px] w-[6px] rounded-full bg-[#5f6368]" />
-          <span className="absolute -left-[3px] top-[10px] h-[1.2px] w-[6px] rounded-full bg-[#5f6368]" />
+          <span className="absolute -left-[3px] top-[6px] h-[1.2px] w-[6px] rounded-full bg-mock-muted" />
+          <span className="absolute -left-[3px] top-[10px] h-[1.2px] w-[6px] rounded-full bg-mock-muted" />
         </span>
 
         <span className="text-[10px] font-medium tracking-[-0.02em]">
@@ -228,22 +228,22 @@ function GmailSenderRow({ copy }: { copy: GmailMockupCopy }) {
 
       <div className="min-w-0 pt-[2px]">
         <div className="flex min-w-0 items-center gap-[7px]">
-          <span className="truncate text-[11px] font-normal leading-none tracking-[-0.02em] text-[#202124]">
+          <span className="truncate text-[11px] font-normal leading-none tracking-[-0.02em] text-mock-ink">
             Harper
           </span>
-          <span className="shrink-0 text-[10.5px] leading-none tracking-[-0.02em] text-[#5f6368]">
+          <span className="shrink-0 text-[10.5px] leading-none tracking-[-0.02em] text-mock-muted">
             {copy.timeLabel}
           </span>
         </div>
 
-        <div className="mt-[6px] flex items-center gap-[3px] text-[9.5px] leading-none tracking-[-0.02em] text-[#3c4043]">
+        <div className="mt-[6px] flex items-center gap-[3px] text-[9.5px] leading-none tracking-[-0.02em] text-mock-ink">
           <span>{copy.toLabel}</span>
           <span className="translate-y-[-1px] text-[9px]">⌄</span>
         </div>
       </div>
 
-      <div className="flex items-center gap-[10px] pt-[2px] text-[#5f6368]">
-        <Smile className="h-[15px] w-[15px] text-[#8a8d91]" strokeWidth={2} />
+      <div className="flex items-center gap-[10px] pt-[2px] text-mock-muted">
+        <Smile className="h-[15px] w-[15px] text-mock-soft" strokeWidth={2} />
         <Reply className="h-[16px] w-[16px]" strokeWidth={2.2} />
         <MoreHorizontal className="h-[17px] w-[17px]" strokeWidth={2.7} />
       </div>
@@ -263,7 +263,7 @@ function GmailBody({ copy }: { copy: GmailMockupCopy }) {
       <p>---</p>
 
       <div>
-        <p className="font-semibold text-[#1a73e8] underline underline-offset-[2px]">
+        <p className="font-semibold text-mock-link underline underline-offset-[2px]">
           {copy.body.roleTitle}
         </p>
 
@@ -276,7 +276,7 @@ function GmailBody({ copy }: { copy: GmailMockupCopy }) {
 function GmailReplyActions({ copy }: { copy: GmailMockupCopy }) {
   const iconSize = "h-[13px] w-[13px]";
   const pill =
-    "flex h-[26px] items-center justify-center gap-[7px] rounded-full bg-white text-[10px] font-normal tracking-[-0.02em] text-[#3c4043] ring-1 ring-[#c9cccf]";
+    "flex h-[26px] items-center justify-center gap-[7px] rounded-full bg-white text-[10px] font-normal tracking-[-0.02em] text-mock-ink ring-1 ring-mock-border";
 
   return (
     <div className="absolute bottom-[43px] left-0 right-0 bg-white px-[9px] pb-[7px] pt-[7px]">
@@ -302,16 +302,16 @@ function GmailReplyActions({ copy }: { copy: GmailMockupCopy }) {
 function GmailBottomNav() {
   const iconSize = "h-[14px] w-[14px]";
   return (
-    <div className="absolute pb-1 bottom-0 left-0 right-0 flex flex-row h-[46px] items-center justify-between bg-[#edf3fb] text-[#3c4043]">
+    <div className="absolute pb-1 bottom-0 left-0 right-0 flex flex-row h-[46px] items-center justify-between bg-mock-surface text-mock-ink">
       <button
         type="button"
         aria-label="Mail"
         className="relative flex h-[28px] w-full px-2 items-center justify-center"
       >
-        <div className=" rounded-full bg-[#bfe7ff] py-2 px-4">
+        <div className=" rounded-full bg-mock-selected py-2 px-4">
           <Captions className={iconSize} />
 
-          <span className="absolute right-[4px] top-[-4px] rounded-full bg-[#d93025] px-[5px] py-[2px] text-[9px] font-semibold leading-none text-white">
+          <span className="absolute right-[4px] top-[-4px] rounded-full bg-mock-critical px-[5px] py-[2px] text-[9px] font-semibold leading-none text-white">
             99+
           </span>
         </div>
@@ -325,7 +325,7 @@ function GmailBottomNav() {
         <div className="relative">
           <MessageSquare className={iconSize} strokeWidth={2.3} />
 
-          <span className="absolute right-[-12px] top-[-10px] rounded-full bg-[#d93025] px-[5px] py-[2px] text-[9px] font-semibold leading-none text-white">
+          <span className="absolute right-[-12px] top-[-10px] rounded-full bg-mock-critical px-[5px] py-[2px] text-[9px] font-semibold leading-none text-white">
             1
           </span>
         </div>

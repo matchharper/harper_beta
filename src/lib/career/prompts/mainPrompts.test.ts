@@ -62,6 +62,15 @@ test("onboarding, voice and background calls retain their separate contracts", (
     const plan = buildCareerConversationPromptPlan({ ...base, ...overrides });
     assert.equal(plan.promptBlocks.some(block => block.key === "career_main"), false);
     assert.ok(plan.promptBlocks.some(block => block.key === "chat_core"));
+    assert.equal(plan.promptBlocks.some(block => block.key === "career_chat_display"), false);
+  }
+});
+
+test("the main web prompt loads the live workspace display contract", () => {
+  const plan = buildCareerConversationPromptPlan(base);
+  const display = plan.promptBlocks.find(block => block.key === "career_chat_display")!.text;
+  for (const type of ["matching", "opportunities", "brief", "meetings", "automations", "actions"]) {
+    assert.ok(display.includes(`"type":"${type}"`), type);
   }
 });
 
@@ -73,6 +82,10 @@ test("friendly chat replaces tone at its source and keeps the execution contract
   const original = professional.promptBlocks.find(b => b.key === "career_main")!.text;
   assert.equal(main.split("## Communication")[0], original.split("## Communication")[0]);
   assert.ok(main.includes("해요체"));
+  assert.ok(original.includes("해요체"));
+  assert.ok(original.includes("friendly personal chat"));
+  assert.ok(!original.includes("Keep chat compact"));
+  assert.ok(!professional.promptBlocks.find(b => b.key === "career_chat_display")!.text.includes("[[bubble]]"));
   assert.ok(!main.includes("Be warm, calm, professional and direct."));
   assert.ok(friendly.promptBlocks.find(b => b.key === "career_chat_display")!.text.includes("[[bubble]]"));
   for (const overrides of [{ channel: "voice" as const }, { backgroundInvocation: true }, { isOnboardingDone: false }]) {

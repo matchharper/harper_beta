@@ -140,7 +140,7 @@ export function ManualInternalRecommendationModal({
         open={open && !reasonModalOpen}
         onClose={handleClose}
         title="Internal 추천 등록"
-        panelClassName="flex h-[760px] max-h-[88vh] max-w-[1120px] flex-col border border-neutral-1000-a05 bg-bg-default"
+        panelClassName="flex h-[760px] max-h-[88vh] max-w-[1120px] flex-col   "
         headerClassName="shrink-0 border-b border-neutral-1000-a05 bg-bg-default pr-16"
         bodyClassName="min-h-0 flex-1 overflow-hidden bg-bg-default p-0"
         footerClassName="shrink-0 border-t border-neutral-1000-a05 bg-bg-default"
@@ -265,7 +265,7 @@ export function ManualInternalRecommendationModal({
                               className={cx(
                                 "cursor-pointer align-top transition hover:opacity-80",
                                 active
-                                  ? "bg-black text-neutral-00"
+                                  ? "bg-surface-inverse text-neutral-00"
                                   : "text-neutral-muted"
                               )}
                             >
@@ -395,7 +395,7 @@ export function ManualInternalRecommendationModal({
         onClose={handleReasonClose}
         title="추천 이유 입력"
         description="추천 이유를 작성해주세요. 작성하지 않거나 대충 작성하더라도 Harper가 알아서 잘 작성해서 추천하게 됩니다."
-        panelClassName="max-w-[560px] border border-neutral-1000-a05 bg-bg-default"
+        panelClassName="max-w-[560px]   "
         headerClassName="border-b border-neutral-1000-a05 bg-bg-default pr-16"
         bodyClassName="bg-bg-default p-5"
         footerClassName="border-t border-neutral-1000-a05 bg-bg-default"

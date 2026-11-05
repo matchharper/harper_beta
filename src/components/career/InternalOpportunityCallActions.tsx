@@ -112,7 +112,7 @@ export function InternalOpportunityCallActions({
             )}
           >
             <span
-              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-black/5 text-neutral-muted"
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-tint text-neutral-muted"
               aria-hidden="true"
             >
               {callPending ? (

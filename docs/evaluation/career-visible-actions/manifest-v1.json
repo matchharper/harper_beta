@@ -1,0 +1,40 @@
+{
+  "version": "v1",
+  "provenance": "Four synthetic development challenges derived from the requested feature. Frozen before model execution; not an independent holdout.",
+  "hashes": {
+    "cases-v1.json": "8a91c54e0ef2893108a6c998469c28078df55bed71b21525d0cdee04658d78f6",
+    "gold-v1.json": "0c875d9b2215bd32ff72e90a37a766f7f0cf47d84a515c5a938aef43e8639e16"
+  },
+  "runner": "scripts/evalCareerVisibleActions.ts",
+  "reviewedRun": "2026-11-04T13-55-54.752Z",
+  "sourceRevision": "022eddd9e709cd4188154291143679a7f0d01ef3",
+  "dirtyDiffHash": "76129c0009eb9305e496790f1d4d0fb240e4dc0bdb3b088cf7299587c10d459c",
+  "sourceHashes": {
+    "src/lib/career/actionItems.ts": "a2458a3689ac0aa22739c7bb221e65e74c5509d061ce9188d98c44ca96dc22bb",
+    "src/lib/career/actionItemsTool.ts": "0efc400b7eaaa5adfacd00351f09a9cadb1bea1c6041844a8daacaf5c18daa06",
+    "src/lib/career/prompts/conversationPlan.ts": "590d0821309fbde7187b9027f194a3830c55add5861c67cf21459e9eb88d15e4",
+    "src/lib/career/prompts/cases/lifecyclePrompts.ts": "796e6c7cb9e8652eb8b9d3d4b4d9149e1f501b6ab8a1e1a91bb545a5193e7cf2",
+    "src/lib/career/prompts/mainPrompt2.ts": "d1812ed1bd645cbdb18b66c482eb57b35dcaff40970f2e66d21895b3f44ec410",
+    "src/lib/career/capabilities/runtime.ts": "f648d4338ad9589eb53844305d86311ec7a0e9035aad51dd5c910ac7a9c1d97e",
+    "src/lib/career/llm.ts": "effc256ae33a180e62b2ef2cd8223231a4febcef1fdbebbeeee97f2c19efba40",
+    "scripts/evalCareerVisibleActions.ts": "361829c94be36f2aee1569a147021ec22c74ca8a048a2f5095eb9f240aea719f"
+  },
+  "models": {
+    "chatAndBackground": "gpt-6.1-sol",
+    "reengagement": "claude-haiku-5-5"
+  },
+  "temperature": 0.8,
+  "timeoutMs": 180000,
+  "attemptsPerCase": 1,
+  "review": {
+    "reviewer": "Codex",
+    "method": "Direct reading of complete provider exchanges, tool arguments/results and final visible output against frozen gold.",
+    "outcome": "4/4 targeted cases met their stated intent; no production success-rate claim."
+  },
+  "report": "reports/2026-11-04-visible-actions.md",
+  "limitations": [
+    "Only manage_action_items was exposed; selector and complete tool-choice competition were not evaluated.",
+    "Synthetic context and in-memory persistence; SQL/RLS separately tested with PGlite.",
+    "No hosted migration, application submission, email delivery or production E2E."
+  ]
+}

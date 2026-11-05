@@ -166,7 +166,7 @@ export function BillingSlots({
               "Renewed monthly and shared across all roles."
             )}
           />
-          <Card className="rounded-[20px] bg-bg-default py-3.5 px-5 shadow-none">
+          <Card className="rounded-2xl bg-bg-default py-3.5 px-5 shadow-none">
             <p className="text-[14px] font-normal">
               {c("월간 한도", "Monthly allowance")}
             </p>
@@ -247,7 +247,7 @@ export function BillingSlots({
               disabled={!canManage || busy}
               onClick={onAddSlot}
             >
-              <Plus className="size-4 text-black" aria-hidden />
+              <Plus className="size-4 text-neutral-primary" aria-hidden />
               <span className="text-[13px] font-medium">
                 {c("슬롯 추가", "Add a slot")}
               </span>
@@ -265,7 +265,7 @@ export function BillingSlots({
           return (
             <Card
               key={slot.id}
-              className="flex min-w-0 flex-col rounded-[20px] bg-bg-default px-5 py-4 shadow-none"
+              className="flex min-w-0 flex-col rounded-2xl bg-bg-default px-5 py-4 shadow-none"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">

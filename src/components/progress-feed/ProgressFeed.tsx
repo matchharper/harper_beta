@@ -756,7 +756,7 @@ export function ProgressFeed({
                       className={cx(
                         "relative flex size-6 shrink-0 items-center justify-center rounded-full border",
                         stage.state === "now"
-                          ? "border-neutral-900 bg-neutral-900 text-white"
+                          ? "border-neutral-900 bg-neutral-900 text-on-inverse"
                           : stage.state === "done"
                             ? "border-neutral-1000-a10 bg-bg-weak text-neutral-600"
                             : "border-dashed border-neutral-1000-a10 bg-bg-default text-neutral-soft"

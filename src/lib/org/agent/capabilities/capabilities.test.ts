@@ -9,17 +9,16 @@ import { getEnabledOrgAgentTools } from "../tools";
 import { EXTERNAL_SOURCING_TOOL_NAMES } from "../externalSourcing";
 import { buildCompanySystemInput } from "../input";
 
-test("each domain tool has exactly one base or capability owner", () => {
+test("domain tools are discoverable, including shared correspondence capabilities", () => {
   const names = [...COMPANY_BASE_TOOLS, ...COMPANY_CAPABILITIES.flatMap((c) => [...c.toolIds])];
-  assert.equal(new Set(names).size, names.length);
-  assert.deepEqual([...names].sort(), getEnabledOrgAgentTools("slack").map((t) => t.function.name).sort());
+  assert.deepEqual([...new Set(names)].filter(name => name !== "recommend_talents").sort(), getEnabledOrgAgentTools("slack").map((t) => t.function.name).sort());
   for (const c of COMPANY_CAPABILITIES) for (const id of c.policyIds) assert.ok(getCompanyPolicy(id, "slack").length > 0);
 });
 
 test("initial request includes core communication, deferring heavy schemas AND detailed policies", () => {
   const resolved = resolveCompanyCapabilities({ surface: "slack", mode: "progressive", loaded: new Set() });
-  assert.deepEqual([...resolved.offeredToolNames].sort(), [...COMPANY_BASE_TOOLS, "list_contacts", "read_contact", "contact_talent", "load_capabilities"].sort());
-  assert.deepEqual(resolved.policyIds, ["candidate_contact"]);
+  assert.deepEqual([...resolved.offeredToolNames].sort(), [...COMPANY_BASE_TOOLS, "list_contacts", "read_contact", "read_agent_messages", "contact_talent", "load_capabilities"].sort());
+  assert.deepEqual(resolved.policyIds, ["agent_correspondence", "candidate_contact"]);
   const system = buildCompanySystemInput({ resolved, surface: "slack" });
   // external_sourcing is offered only to workspaces that have it turned on (tested below).
   for (const c of COMPANY_CAPABILITIES) if (c.id !== "external_sourcing") assert.ok(system.includes(c.id));
@@ -31,7 +30,7 @@ test("continuation warms only the last real Harper turn's actual tools, never us
   const row = (toolNames: string[], source: OrgAgentConversationInput["source"] = "harper", role: OrgAgentConversationInput["role"] = "assistant"): OrgAgentConversationInput => ({
     id: 1, role, source, toolNames, content: "contact_talent update_data", speaker: "test", references: "", complete: true,
   });
-  assert.deepEqual([...continuationCapabilities([row(["contact_talent", "invented"]), row(["update_data"], "company", "user"), row(["update_data"], "candidate_contact")])], ["candidate_contact"]);
+  assert.deepEqual([...continuationCapabilities([row(["contact_talent", "invented"]), row(["update_data"], "company", "user"), row(["update_data"], "candidate_contact")])], ["agent_correspondence"]);
   assert.equal(continuationCapabilities([row(["contact_talent"]), row(["read_talent"]) ]).size, 0);
   assert.equal(continuationCapabilities([row([])]).size, 0);
   assert.equal(continuationCapabilities().size, 0);

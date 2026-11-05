@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export const INTERNAL_ONLY_HATCH_BACKGROUND =
-  "repeating-linear-gradient(135deg, transparent 0, transparent 5px, rgba(0, 0, 0, 0.05) 5px, rgba(0, 0, 0, 0.05) 6px)";
+  "repeating-linear-gradient(135deg, transparent 0, transparent 5px, var(--color-stroke-subtle) 5px, var(--color-stroke-subtle) 6px)";
 
 export function InternalOnlyHatch({ className }: { className?: string }) {
   return (
@@ -32,7 +32,7 @@ export function InternalOnlySurface({
     >
       <InternalOnlyHatch />
       {showLabel ? (
-        <span className="pointer-events-none absolute right-3 top-3 z-20 rounded-sm bg-neutral-1000 px-2 py-1 text-[10px] font-medium text-neutral-00 shadow-sm">
+        <span className="pointer-events-none absolute right-3 top-3 z-20 rounded-sm bg-neutral-1000 px-2 py-1 text-[10px] font-medium text-neutral-00 shadow-(--shadow-sm)">
           {label}
         </span>
       ) : null}

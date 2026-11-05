@@ -189,7 +189,7 @@ export function OrgDocumentsPage({
   );
 
   return (
-    <div className="min-h-screen w-full bg-white pb-24 text-neutral-primary">
+    <div className="min-h-screen w-full bg-bg-floating pb-24 text-neutral-primary">
       <div className="mx-auto w-full max-w-[840px] pt-4 sm:pt-7">
         {!activeSectionId ? (
           <>
@@ -206,7 +206,7 @@ export function OrgDocumentsPage({
             <div className="mt-10 grid grid-cols-1 gap-3 md:grid-cols-2">
               {sectionHeadings.map((heading, index) => (
                 <CardButton
-                  className="min-h-[128px] items-start justify-between gap-5 rounded-xl px-5 py-5"
+                  className="min-h-[128px] items-start justify-between gap-5  px-5 py-5"
                   key={heading.id}
                   onClick={() => navigateToSection(heading.id)}
                 >

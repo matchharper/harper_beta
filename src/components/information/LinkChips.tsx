@@ -34,9 +34,9 @@ function LinkChips({ links, size = "default", theme = "cream" }: Props) {
             className={`inline-flex items-center justify-center rounded-md transition-all duration-200
               ${
                 isSm
-                  ? "bg-white/0 p-0 hover:bg-white/0"
+                  ? "bg-bg-floating/0 p-0 hover:bg-bg-floating/0"
                   : isDark
-                    ? "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
+                    ? "bg-bg-floating/5 px-2.5 py-1.5 text-sm text-on-inverse hover:bg-bg-floating/20"
                     : "bg-beige500/55 px-2.5 py-1.5 text-sm text-beige900 hover:bg-beige500/70"
               }`}
           >
@@ -54,7 +54,7 @@ function LinkChips({ links, size = "default", theme = "cream" }: Props) {
               />
             </Tooltips>
             {!isSm && (
-              <span className={`ml-2 font-normal ${isDark ? "text-white" : "text-beige900"}`}>{label}</span>
+              <span className={`ml-2 font-normal ${isDark ? "text-on-inverse" : "text-beige900"}`}>{label}</span>
             )}
           </a>
         );
@@ -94,13 +94,13 @@ export const LinkChip = ({
         `mt-2 inline-flex items-center justify-center rounded-md transition-all duration-200
         ${
           isSm
-            ? "bg-white/0 p-0 hover:bg-white/0"
+            ? "bg-bg-floating/0 p-0 hover:bg-bg-floating/0"
             : isMd
               ? isDark
-                ? "bg-white/5 px-2 py-1 text-xs text-white hover:bg-white/10"
+                ? "bg-bg-floating/5 px-2 py-1 text-xs text-on-inverse hover:bg-bg-floating/10"
                 : "bg-beige500/55 px-2 py-1 text-xs text-beige900 hover:bg-beige500/70"
               : isDark
-                ? "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
+                ? "bg-bg-floating/5 px-2.5 py-1.5 text-sm text-on-inverse hover:bg-bg-floating/20"
                 : "bg-beige500/55 px-2.5 py-1.5 text-sm text-beige900 hover:bg-beige500/70"
         } `,
         className
@@ -121,7 +121,7 @@ export const LinkChip = ({
           }
         />
       </Tooltips>
-      {!isSm && <span className={`ml-2 font-light ${isDark ? "text-white" : "text-beige900"}`}>{label}</span>}
+      {!isSm && <span className={`ml-2 font-light ${isDark ? "text-on-inverse" : "text-beige900"}`}>{label}</span>}
     </a>
   );
 };

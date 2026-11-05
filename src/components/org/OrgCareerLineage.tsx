@@ -71,7 +71,7 @@ function CareerLineageLogo({
         <img
           key={logoUrl}
           alt=""
-          className="absolute inset-0 size-full bg-white object-contain p-1.5"
+          className="absolute inset-0 size-full bg-bg-floating object-contain p-1.5"
           onError={(event) => {
             event.currentTarget.style.display = "none";
           }}

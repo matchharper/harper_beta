@@ -357,7 +357,7 @@ const CareerEmailChangeModal = ({
       }
       mobileBottomSheet
       headerClassName="border-b-0"
-      panelClassName="max-w-[440px] bg-bg-floating"
+      panelClassName="max-w-[440px] "
     >
       <div className="px-4 py-1 pb-5 sm:px-5">
         {hasPendingEmail ? (
@@ -483,7 +483,7 @@ const CareerEmailChangeModal = ({
             <BareButton
               type="submit"
               disabled={sendPending}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-medium text-neutral-00 disabled:opacity-60"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-surface-inverse px-4 text-sm font-medium text-neutral-00 disabled:opacity-60"
             >
               {sendPending && <Loader2 className="h-4 w-4 animate-spin" />}
               {t("career.settings.email_change.send", "인증 메일 보내기")}

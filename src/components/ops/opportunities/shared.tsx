@@ -134,8 +134,8 @@ export function ActionButton({
       className={cx(
         "rounded-md px-3 py-2 text-xs transition",
         active
-          ? "bg-black text-neutral-00"
-          : "bg-bg-default/65 text-neutral-primary border border-neutral-1000-a10 hover:bg-black/5"
+          ? "bg-surface-inverse text-neutral-00"
+          : "bg-bg-default/65 text-neutral-primary border border-neutral-1000-a10 hover:bg-surface-tint"
       )}
     >
       {children}
@@ -165,7 +165,7 @@ export function Token({
       className={cx(
         "inline-flex items-center rounded-md px-2 py-1 text-[11px]",
         active
-          ? "bg-black text-neutral-00"
+          ? "bg-surface-inverse text-neutral-00"
           : "bg-bg-floating text-neutral-primary"
       )}
     >
@@ -196,7 +196,7 @@ export function RoleOptionCard({
       className={cx(
         "rounded-md px-3 py-3 transition border-2 border-neutral-1000-a05",
         active
-          ? "bg-black text-neutral-00"
+          ? "bg-surface-inverse text-neutral-00"
           : "bg-bg-default/65 text-neutral-primary"
       )}
     >

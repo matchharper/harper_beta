@@ -10,29 +10,12 @@ import {
 } from "../talentOnboarding/admin";
 import { fetchActiveInitialConversationRun } from "../talentOnboarding/initialRecommendationGuard";
 import { fetchTalentPostingCardsByRoleIds } from "../talentOpportunity";
-import {
-  fetchExternalFitCache,
-  runCareerJobPostingRecommendations,
-  sqlLiteral,
-} from "../talentOnboarding/jobPostingRecommendations";
 import { withLlmUsageContext } from "../llm/usageContext";
-import { createRun, updateRun, externalRunContext, completeRun } from "./runs";
+import { updateRun, externalRunContext } from "./runs";
 import { loadExternalContext } from "./context";
-import {
-  hydrate,
-  rerankCandidates,
-  runExternalV2,
-  summary,
-  type EngineArgs,
-} from "./engine";
+import { runExternalV2, type EngineArgs } from "./engine";
 import { saveSelected } from "./web";
-import {
-  eligibilitySql,
-  executeSql,
-  ROLE_SELECT,
-  ROLE_JOINS,
-} from "./retrieval";
-import { fitProvider, externalVariant } from "./contract";
+import { V2_RUN_VERSION } from "./contract";
 
 export const DAILY_EXTERNAL_TOPIC = "career-daily-external-v1";
 
@@ -61,35 +44,6 @@ export async function startDailyRun(
   void admin; void userId; void timeZone; void locale;
   return;
 
-}
-async function controlCached(args: EngineArgs) {
-  const loaded = await loadExternalContext(args.admin, args.userId);
-  const rows = await executeSql(
-    args.admin,
-    `SELECT ${ROLE_SELECT} FROM public.talent_external_fit f JOIN public.company_roles cr ON cr.role_id=f.role_id ${ROLE_JOINS}
-    WHERE f.talent_id=${sqlLiteral(args.userId)}::uuid
-      AND f.meta<>'{}'::jsonb AND ${eligibilitySql({ userId: args.userId, blockedCompanies: loaded.blockedCompanies })}
-    ORDER BY f.created_at DESC`,
-    200
-  );
-  const cards = await hydrate(args, rows);
-  const cache = await fetchExternalFitCache({
-    admin: args.admin,
-    userId: args.userId,
-    roleIds: cards.map((c) => c.roleId),
-  });
-  // Legacy uses a much higher numeric scale. Do not apply this threshold to Decisions.
-  const ranked = cards
-    .flatMap((card) => {
-      const fit = cache.get(card.roleId);
-      return fit?.hasScore && fit.score100 >= 70 && summary(card, args.language)
-        ? [{ card, fit: { legacyScore: fit.score100 }, score: fit.score100 }]
-        : [];
-    })
-    .sort((a, b) => b.score - a.score);
-  if (new Set(ranked.map((r) => r.card.companyWorkspaceId)).size < 5)
-    return null;
-  return rerankCandidates(args, loaded.context, ranked, undefined, "control");
 }
 export async function processDailyRun(
   message: unknown,
@@ -123,10 +77,7 @@ export async function processDailyRun(
       .eq("lease_token", token);
     if (error) throw new Error(error.message);
   };
-  if (
-    run.day_key !== dayKey(run.time_zone) ||
-    process.env.EXTERNAL_RECOMMENDATION_EXPERIMENT === "off"
-  ) {
+  if (run.day_key !== dayKey(run.time_zone)) {
     await patch({ status: "skipped", finished_at: new Date().toISOString() });
     return;
   }
@@ -157,66 +108,26 @@ export async function processDailyRun(
           reuseDefault: true,
           provider: run.provider,
         };
-        if (run.variant === "v2") {
-          let result = await runExternalV2({ ...args, cachedOnly: true });
-          const cacheProbe = result.metrics;
-          const cacheOnly =
-            !result.metrics.cacheInsufficient && result.selected.length > 0;
-          if (!cacheOnly) result = await runExternalV2(args);
-          await saveSelected(admin, runId, result.selected);
-          await patch({
-            provider: result.provider,
-            metrics: {
-              ...result.metrics,
-              ...(!cacheOnly ? { cacheProbe } : {}),
-              cacheOnly,
-              durationMs: Date.now() - began,
-            },
-            plan: result.plan
-              ? { ...result.plan, titleVectors: undefined }
-              : null,
-          });
-        } else {
-          const cached = await controlCached(args);
-          if (cached?.length) await saveSelected(admin, runId, cached);
-          else {
-            const { data: conversation, error: conversationError } = await admin
-              .from("talent_conversations")
-              .select("id")
-              .eq("user_id", run.talent_id)
-              .order("updated_at", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            if (conversationError || !conversation)
-              throw new Error("No active career conversation");
-            await runCareerJobPostingRecommendations({
-              admin,
-              userId: run.talent_id,
-              conversationId: conversation.id,
-              preferredLocale: run.locale,
-              request:
-                args.language === "ko"
-                  ? "현재 프로필과 전체 Search Brief를 기준으로 지금 살펴볼 만한 외부 공고를 최대 5개 추천해주세요."
-                  : "Recommend up to five external opportunities worth considering now, based on my current profile and complete Search Brief.",
-              strategy: "legacy",
-            });
-            // Zero results still consume today's attempt and must clear Searching.
-            const { data } = await (
-              admin.from("external_recommendation_runs" as never) as any
-            )
-              .select("status")
-              .eq("id", runId)
-              .single();
-            if (data?.status !== "completed")
-              await completeRun(admin, runId, []);
-          }
-          await patch({
-            metrics: {
-              durationMs: Date.now() - began,
-              cacheOnly: Boolean(cached?.length),
-            },
-          });
-        }
+        // A queued control run keeps its lease and daily identity but executes V2.
+        await patch({ variant: "v2", experiment: V2_RUN_VERSION });
+        let result = await runExternalV2({ ...args, cachedOnly: true });
+        const cacheProbe = result.metrics;
+        const cacheOnly =
+          !result.metrics.cacheInsufficient && result.selected.length > 0;
+        if (!cacheOnly) result = await runExternalV2(args);
+        await saveSelected(admin, runId, result.selected);
+        await patch({
+          provider: result.provider,
+          metrics: {
+            ...result.metrics,
+            ...(!cacheOnly ? { cacheProbe } : {}),
+            cacheOnly,
+            durationMs: Date.now() - began,
+          },
+          plan: result.plan
+            ? { ...result.plan, titleVectors: undefined }
+            : null,
+        });
       } catch (error) {
         // Bounded retries preserve fit caches and the once-per-day execution identity.
         const { data: current } = await (

@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime";
 import type { NextRouter } from "next/router";
 import type { CareerChatPanelContextValue } from "./CareerChatPanelContext";
+import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
 import type { CareerSidebarContextValue } from "./CareerSidebarContext";
 
 test("jobs draft survives URL cleanup and session bootstrap without remounting the chat", async (t) => {
@@ -72,6 +73,10 @@ test("jobs draft survives URL cleanup and session bootstrap without remounting t
     initialChatDraftKey: "official_jobs:ko:engineer",
     initialChatOpportunityMention: { roleId: "role-engineer", label: "Engineer" },
   } as unknown as CareerChatPanelContextValue;
+  let pendingAction: CareerComposerPendingAction | undefined;
+  const clearPendingAction = () => { pendingAction = undefined; };
+  let home = false;
+  let submissions = 0;
   const render = () => act(async () => {
     root.render(
       <QueryClientProvider client={client}>
@@ -79,7 +84,7 @@ test("jobs draft survives URL cleanup and session bootstrap without remounting t
           <MessagesProvider locale="ko">
             <CareerSidebarProvider value={{} as CareerSidebarContextValue}>
               <CareerChatPanelProvider value={panel}>
-                <CareerChatPanel />
+                <CareerChatPanel pendingAction={pendingAction} onPendingActionHandled={clearPendingAction} homeContent={home ? <div>홈 팔로업</div> : undefined} onMessageSubmit={() => { submissions += 1; }} />
               </CareerChatPanelProvider>
             </CareerSidebarProvider>
           </MessagesProvider>
@@ -114,6 +119,40 @@ test("jobs draft survives URL cleanup and session bootstrap without remounting t
     await render();
     assert.equal(composer(), original, "refreshing the same conversation preserves edits");
     assert.equal(composer().value, `${draft} 근무 방식도 궁금해요.`);
+
+    // Selecting a reply retains the user's input and renders context above the composer.
+    const followup = {
+      kind: "action_item", id: "followup-1", revision: 3,
+      title: "면접 일정 답변", description: "가능한 시간을 알려주세요.",
+      buttonText: "답변하기", priority: 1, urgency: "normal",
+      action: { type: "compose_reply", text: "면접 일정 요청" },
+    } as const;
+    pendingAction = followup;
+    await render();
+    assert.equal(composer(), original);
+    assert.equal(composer().value, `${draft} 근무 방식도 궁금해요.`);
+    const context = dom.window.document.querySelector('.career-reply-card');
+    assert.ok(context);
+    assert.equal(composer().closest('[data-expanded]')?.contains(context), false, "reply context is outside the composer surface");
+    assert.ok(context.compareDocumentPosition(composer()) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+    await act(async () => dom.window.document.querySelector<HTMLButtonElement>('button[aria-label="선택한 항목 닫기"]')!.click());
+    assert.equal(composer().value, `${draft} 근무 방식도 궁금해요.`, "dismissing the request preserves the answer draft");
+
+    home = true;
+    await render();
+    assert.equal(composer(), original, "home and chat share the same editable input");
+    await act(async () => original.focus());
+    assert.equal(submissions, 0, "focusing the home composer does not navigate");
+    assert.equal(composer().value, `${draft} 근무 방식도 궁금해요.`);
+    panel = { ...panel, onSendChatMessage: async ({onSuccess}) => { onSuccess?.(); } };
+    await render();
+    await act(async () => dom.window.document.querySelector<HTMLButtonElement>('button[aria-label="메시지 보내기"]')!.click());
+    assert.equal(submissions, 1, "only sending requests the chat view");
+    assert.equal(composer().value, "");
+    const sentComposer = composer();
+    home = false;
+    await render();
+    assert.equal(composer(), sentComposer, "switching from home to chat preserves the cleared composer");
 
     panel = { ...panel, conversationId: "conversation-b" };
     await render();

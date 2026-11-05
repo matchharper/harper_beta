@@ -128,7 +128,7 @@ export function ReferralProgramIntroduction({
               size="md"
               radius="full"
               variant="subtle"
-              className="bg-bg-floating px-2.5 font-normal text-neutral-muted shadow-sm"
+              className="bg-bg-floating px-2.5 font-normal text-neutral-muted shadow-(--shadow-sm)"
             >
               {role}
             </Badge>
@@ -198,7 +198,7 @@ export function ReferralProgramReward({
           </p>
         </div>
       </div>
-      <div className="mt-4 rounded-lg border border-neutral-1000-a05 p-4 shadow-sm">
+      <div className="mt-4 rounded-lg border border-neutral-1000-a05 p-4 shadow-(--shadow-sm)">
         <div className="text-[12px] font-medium leading-4 text-neutral-soft">
           {t("career.referral.modal.example_reward_heading", "예시 보상")}
         </div>
@@ -251,7 +251,7 @@ export function ReferralProgramReward({
           )}
         </p>
       </div>
-      <div className="mt-3 rounded-lg border border-primary/20 bg-primary-faded p-4 shadow-sm">
+      <div className="mt-3 rounded-lg border border-primary/20 bg-primary-faded p-4 shadow-(--shadow-sm)">
         <div className="text-[12px] font-medium leading-4 text-neutral-soft">
           {t(
             "career.common.referral_program_overview.0ywfa9z",

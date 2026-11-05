@@ -1,0 +1,8 @@
+{
+  "version": "v1",
+  "provenance": "Synthetic development probes frozen before generation",
+  "hashes": {
+    "cases-v1.json": "2606c419997861f6999e9ef5802e4e612183979a22f46c2ad4330dafb1fb86f2",
+    "gold-v1.json": "bc2317b2f0f1da47cca7a05f940b5ee22c63ed150b2f39b635076e5fe82ba0a0"
+  }
+}

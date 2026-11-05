@@ -98,7 +98,7 @@ function ScoreControl({
       >
         <Minus className="h-3.5 w-3.5" />
       </BareButton>
-      <span className="inline-flex h-7 min-w-12 items-center justify-center rounded-md bg-black px-2 text-sm font-semibold tabular-nums text-neutral-00">
+      <span className="inline-flex h-7 min-w-12 items-center justify-center rounded-md bg-surface-inverse px-2 text-sm font-semibold tabular-nums text-neutral-00">
         {disabled ? (
           <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
         ) : (

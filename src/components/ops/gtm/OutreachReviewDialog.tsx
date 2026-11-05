@@ -212,7 +212,7 @@ export default function OutreachReviewDialog({
     >
       <DialogContent
         className={`${styles.dialog} ${styles.recordDialog} ${styles.sidePanel}`}
-        overlayClassName="bg-black/15 backdrop-blur-none"
+        overlayClassName="bg-surface-inverse/15 backdrop-blur-none"
         aria-describedby={undefined}
         onInteractOutside={(event) => {
           if (pending || autoSaving || dirty) event.preventDefault();
@@ -227,7 +227,7 @@ export default function OutreachReviewDialog({
         {notice && (
           <div
             role="status"
-            className="bg-action/20 text-sm text-black p-2 rounded-md"
+            className="bg-action/20 text-sm text-neutral-primary p-2 rounded-md"
           >
             {notice}
           </div>

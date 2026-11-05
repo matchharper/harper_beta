@@ -28,7 +28,7 @@ import { BareButton, MuteButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME =
-  "border-white md:border-black/4 bg-white/50 shadow-[0_2px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm";
+  "border-(length:--composer-border-width) border-composer-border-mobile md:border-composer-border bg-composer bg-composer-image text-composer-foreground shadow-(--shadow-composer) backdrop-blur-composer font-composer";
 
 export function ChatComposerSurface({
   className,
@@ -38,7 +38,7 @@ export function ChatComposerSurface({
     <div
       {...props}
       className={cn(
-        "group/chat-composer origin-bottom overflow-hidden rounded-xl border transition-[background-color,border-color,box-shadow,opacity,transform] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+        "group/chat-composer origin-bottom overflow-hidden rounded-composer transition-[background-color,border-color,box-shadow,opacity,transform] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
         CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME,
         className
       )}
@@ -71,7 +71,7 @@ export const ChatComposerCollapsedFrame = forwardRef<
     <MuteButton
       ref={ref}
       className={cn(
-        "grid h-12 w-full gap-0.5 grid-cols-[auto_minmax(0,1fr)_auto] items-center rounded-full border px-2 py-0 text-left transition-[background-color,border-color,box-shadow,opacity,transform] duration-200 ease-out active:scale-[0.99] motion-reduce:transition-none",
+        "grid h-12 w-full gap-0.5 grid-cols-[auto_minmax(0,1fr)_auto] items-center rounded-composer-collapsed px-2 py-0 text-left transition-[background-color,border-color,box-shadow,opacity,transform] duration-200 ease-out active:scale-[0.99] motion-reduce:transition-none",
         CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME,
         className
       )}
@@ -79,7 +79,7 @@ export const ChatComposerCollapsedFrame = forwardRef<
       variant="default"
       {...props}
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-black">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-primary">
         {leadingAction}
       </span>
       <span
@@ -252,7 +252,7 @@ export const ChatComposerFrame = forwardRef<
       }}
       onPointerUp={finishPointerInteraction}
       className={cn(
-        "max-md:data-[expanded=false]:data-[has-context=false]:rounded-full",
+        "max-md:data-[expanded=false]:data-[has-context=false]:rounded-composer-collapsed",
         pointerActive &&
           "max-md:scale-[1.01] max-md:opacity-85 max-md:duration-[180ms]",
         className
@@ -297,7 +297,7 @@ export const ChatComposerFrame = forwardRef<
           onChange={handleChange}
           onFocus={handleFocus}
           className={cn(
-            "min-h-[72px] min-w-0 resize-none border-none px-3.5 py-4 text-[16px] leading-5 text-neutral-primary outline-none transition-[min-height,padding,opacity] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] placeholder:text-sm placeholder:text-neutral-placeholder disabled:cursor-not-allowed md:text-sm motion-reduce:transition-none",
+            "min-h-[72px] min-w-0 resize-none border-none px-3.5 py-4 text-[16px] leading-5 text-composer-foreground outline-none transition-[min-height,padding,opacity] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] placeholder:text-sm placeholder:text-neutral-placeholder disabled:cursor-not-allowed md:text-sm motion-reduce:transition-none",
             expanded
               ? "max-md:col-span-2 max-md:col-start-1 max-md:row-start-1 max-md:min-h-12 max-md:w-full max-md:px-3.5 max-md:py-3"
               : cn(
@@ -411,7 +411,7 @@ export default function ChatComposer({
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
           placeholder={m.chat.composerPlaceholder}
-          className="w-full min-h-[94px] max-h-[140px] resize-none rounded-[20px] border border-neutral-1000-a05 bg-bg-default px-4 py-2.5 text-[13px] text-neutral-primary outline-none transition focus:border-neutral-1000-a10"
+          className={cn(CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME, "w-full min-h-[94px] max-h-[140px] resize-none rounded-composer px-4 py-2.5 text-[13px] outline-none transition focus:border-stroke-focus")}
         />
 
         <div className="absolute bottom-2 right-2 flex items-center gap-2">
@@ -430,10 +430,10 @@ export default function ChatComposer({
           <BareButton
             type="button"
             onClick={handleSendClick}
-            className={`flex h-8 w-8 items-center justify-center rounded-[12px] cursor-pointer hover:opacity-90 ${
+            className={`flex h-8 w-8 items-center justify-center rounded-lg cursor-pointer hover:opacity-90 ${
               isStreaming
-                ? "bg-black/70 text-neutral-00"
-                : "bg-black text-neutral-00 disabled:opacity-50"
+                ? "bg-surface-inverse/70 text-neutral-00"
+                : "bg-surface-inverse text-neutral-00 disabled:opacity-50"
             }`}
             disabled={!isStreaming && disabledSend}
             aria-label="Send"

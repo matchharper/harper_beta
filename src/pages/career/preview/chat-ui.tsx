@@ -440,8 +440,8 @@ function PreviewContent() {
           onClose={() => setDetailId(null)}
           title={detailItem?.companyName}
           overlayClassName="items-stretch justify-end p-0 sm:p-0"
-          backdropClassName="bg-black/10 backdrop-blur-none"
-          panelClassName="h-dvh max-h-dvh max-w-[720px] rounded-none border-0 border-l border-neutral-1000-a05 shadow-lg data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100"
+          backdropClassName="bg-surface-inverse/10 backdrop-blur-none"
+          panelClassName="h-dvh max-h-dvh max-w-[720px] rounded-none border-0 border-l   data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100"
           bodyClassName="px-5 pb-6 sm:px-8"
         >
           {detailItem && (

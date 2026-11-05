@@ -882,7 +882,7 @@ export default function CareerReferralModal({
       open={open}
       onClose={onClose}
       ariaLabel={t("career.referral.modal.aria_label", "Harper 초대하기")}
-      panelClassName="scrollbar-thin scrollbar-thumb-neutral-1000-a05 scrollbar-track-neutral-1000-a0 max-h-[min(760px,calc(100svh-32px))] w-[min(720px,calc(100vw-32px))] overflow-y-auto rounded-xl bg-bg-default"
+      panelClassName="scrollbar-thin scrollbar-thumb-neutral-1000-a05 scrollbar-track-neutral-1000-a0 max-h-[min(760px,calc(100svh-32px))] w-[min(720px,calc(100vw-32px))] overflow-y-auto  "
       bodyClassName="p-0"
       closeButtonClassName="text-neutral-soft hover:bg-bg-weak hover:text-neutral-primary"
     >

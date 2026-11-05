@@ -141,7 +141,7 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
               : "",
             formatFollowRoles(roles),
             nextOffset === null
-              ? "End of current roles."
+              ? "End of external roles and existing internal recommendations."
               : `More roles: follow_company action=read follow_id=${company.id} offset=${nextOffset}`,
           ].join("\n\n"),
         };

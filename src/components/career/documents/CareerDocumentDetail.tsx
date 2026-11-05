@@ -248,7 +248,7 @@ export function CareerDocumentDetail({
           {title}
         </span>
       </nav>
-      <article className="min-h-[480px] rounded-xl border border-neutral-1000-a05 bg-bg-floating px-5 py-6 shadow-sm sm:px-6 md:min-h-[calc(100svh-180px)]">
+      <article className="min-h-[480px] career-glass career-work-surface px-5 py-6 sm:px-6 md:min-h-[calc(100svh-180px)]">
         <div className="mx-auto w-full max-w-[800px]">
           <header className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-neutral-1000-a05 pb-5">
             <h1 className="min-w-0 break-words text-base font-medium text-neutral-primary sm:text-lg">

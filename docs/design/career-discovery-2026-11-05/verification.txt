@@ -1,0 +1,41 @@
+Harper career discovery prototype — 2026-11-05
+
+Scope
+- New standalone HTML and research outputs only, under docs/design/career-discovery-2026-11-05.
+- No changes to existing production components, DB rows, or infrastructure.
+- Read-only Supabase aggregate queries. No names, emails, candidate IDs, or individual work histories exported.
+- All visual data embedded in index.html; no runtime data API or CDN dependency.
+
+Data checks
+- Embedded JSON parses; weekly cells sum to the 28-day totals.
+- Salary percentile arrays are ordered.
+- Flow ribbon widths are proportional to displayed route-level distinct-person counts.
+- Repeated employer episodes merged by company ID; nonoverlapping adjacent employment only.
+- Employer aliases across different IDs remain unresolved; observed sample, not population.
+- Full-time/part-time not distinguishable in experience_user; the default 365-day tenure filter is not a full-time filter.
+- Job archives, crawler coverage changes, duplicates, and every salary source have not been audited.
+- Three identified salary records with stored annual bounds of 1–2 or 180–250 USD are excluded by explicit IDs in queries.sql; no production validation or correction added.
+- No observed employee salary history is implied by the public posting range statistics.
+
+Browser verification through CUA
+- Desktop 1280px, mobile 390px; narrow 320px heatmap viewport.
+- Home cards switch across company movement, hiring, and salary; links open matching detail tabs.
+- Employer selection and 365-day tenure checkbox update route counts and details.
+- Route selection updates prior-employer median tenure, destination active job count, and editable question draft.
+- The question draft is local only; no message sent.
+- Hiring topic selection updates the active jobs, company count, and observed-period totals.
+- Salary topic and input update comparisons; empty input presents a usable validation message.
+- USD 202,500 versus USD 200,000 displays +1.3% after rounding correction.
+- Browser console had no errors or warnings at inspection.
+- No horizontal page overflow at inspected desktop, mobile, or narrow heatmap widths.
+- Checked long employer labels, dominant NAVER Cloud ribbon, chart axes, and numeric contrast.
+- Reference links were researched via web tools; no third-party account actions were performed.
+
+Artifacts
+- index.html: self-contained interactive prototype and six-idea/eight-reference research view.
+- data.json: aggregate snapshot; queries.sql: principal read-only aggregation queries.
+- home-desktop.png / home-mobile.png: placement under application status.
+- flow-desktop.png / hiring-desktop.png / salary-desktop.png: expanded views.
+
+Not verified
+- Live product integration, production performance, RLS/API contracts, full accessibility audit, all source-level deduplication, and statistical representativeness.

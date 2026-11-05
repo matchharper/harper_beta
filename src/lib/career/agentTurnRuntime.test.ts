@@ -291,3 +291,18 @@ test("legacy internal-evaluation checkpoints finish without rebuilding or replay
   assert.equal(calls.find(c=>c.name==="finish_career_agent_turn")?.args.p_record.status,"cancelled");
   assert.equal(calls.some(c=>c.name==="release_career_agent_turn"),false);
 });
+
+test("a delegated continuation receives the exact action selected for a later ordinary chat reply", async () => {
+  const { args } = fixture();
+  const action = { id: "00000000-0000-4000-8000-000000000071", revision: 2,
+    title: "Cedar 입사 가능일", description: "입사 가능한 날짜를 알려주세요", buttonText: "답하기",
+    action: { type: "compose_reply", text: "work 00000000-0000-4000-8000-000000000051, form 84 revision 1" }, priority: 1, urgency: "normal" };
+  const rows = [{ id: 42, role: "user", message_type: "chat", payload: { careerActionItem: action }, content: "11월 말이요", created_at: "2026-11-04T13:00:00Z" }];
+  const query: any = { then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(resolve) };
+  for (const name of ["select", "eq", "gt", "order", "limit", "or"]) query[name] = () => query;
+  const context = await readCareerContinuationUserContext({ ...args, admin: { from: () => query } as any, sourceMessage: { id: 41 } as any });
+  assert.ok(context.includes("11월 말이요"));
+  assert.ok(context.includes(action.title));
+  assert.ok(context.includes(action.action.text));
+  assert.ok(context.includes("revision 2"));
+});

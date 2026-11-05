@@ -18,7 +18,7 @@ export function CareerCallIdlePrompt({
       role="status"
       aria-live="polite"
       className={cn(
-        "flex items-center gap-3 rounded-xl border border-neutral-1000-a10 bg-bg-floating px-4 py-3 text-neutral-primary shadow-sm",
+        "flex items-center gap-3 career-glass px-4 py-3 text-neutral-primary",
         compact ? "mx-4 mb-2" : "w-full max-w-sm"
       )}
     >

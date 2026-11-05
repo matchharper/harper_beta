@@ -102,7 +102,7 @@ function BlogAnalyticsTooltip({
     );
 
   return (
-    <div className="max-w-[340px] rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-2.5 text-xs shadow-xl">
+    <div className="max-w-[340px] rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-2.5 text-xs shadow-(--shadow-xl)">
       <div className="border-b border-neutral-1000-a05 pb-2">
         <div className="font-medium text-neutral-primary">
           {formatDate(row.date)}

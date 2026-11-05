@@ -9,10 +9,10 @@ const GridSectionLayout = ({
 }) => {
   return (
     <div
-      className={`flex flex-col items-center justify-start px-0 md:px-20 w-full text-black border-t ${borderSoft}`}
+      className={`flex flex-col items-center justify-start px-0 md:px-20 w-full text-neutral-primary border-t ${borderSoft}`}
     >
       <div
-        className={`flex flex-col items-center justify-start border-0 sm:border-x w-full h-full text-center ${borderSoft === "border-neutral-300" ? "border-black" : borderSoft
+        className={`flex flex-col items-center justify-start border-0 sm:border-x w-full h-full text-center ${borderSoft === "border-neutral-300" ? "border-stroke-strong" : borderSoft
           }`}
       >
         {children}
@@ -30,7 +30,7 @@ export const BaseSectionLayout = ({
 }) => {
   return (
     <div
-      className={`flex flex-col items-center justify-start px-0 md:px-40 w-full text-white`}
+      className={`flex flex-col items-center justify-start px-0 md:px-40 w-full text-on-inverse`}
     >
       <div
         className={`flex flex-col items-center justify-start w-full h-full text-center relative`}

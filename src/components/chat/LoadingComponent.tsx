@@ -132,13 +132,13 @@ export default function CandidateCarousel({
 
                   <div className="relative z-1 flex flex-col items-center gap-1.5">
                     <div
-                      className="h-3 w-16 rounded-[5px]"
+                      className="h-3 w-16 rounded-sm"
                       style={{
                         backgroundColor: matched ? matchedFill : unmatchedFill,
                       }}
                     />
                     <div
-                      className="h-2.5 w-11 rounded-[5px]"
+                      className="h-2.5 w-11 rounded-sm"
                       style={{
                         backgroundColor: matched ? matchedFill : unmatchedFill,
                       }}

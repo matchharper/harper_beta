@@ -114,7 +114,7 @@ export default function CareerInitialOpportunitySearchStatus({
     <section
       aria-live="polite"
       className={cn(
-        "mt-6 w-full rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-5 text-neutral-primary shadow-sm md:px-6",
+        "career-glass mt-6 w-full px-4 py-5 text-neutral-primary md:px-6",
         className
       )}
       data-search-status={status}

@@ -183,7 +183,7 @@ export const CareerProfileSharingSettingsSection = ({
             <MuteButton
               variant="default"
               size="lg"
-              className="w-full justify-between bg-neutral-50 hover:bg-neutral-100 rounded-full shadow-none border-none px-4 text-sm"
+              className="w-full justify-between bg-bg-weak hover:bg-interaction-hover rounded-control shadow-none border-none px-4 text-sm"
               aria-haspopup="dialog"
               aria-expanded={profileVisibilityPanelOpen}
               disabled={
@@ -285,7 +285,7 @@ export const CareerProfileSharingSettingsSection = ({
                     {blockedCompanies.map((companyName) => (
                       <div
                         key={companyName}
-                        className="inline-flex items-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating py-1.5 pl-3 pr-1.5 text-sm text-neutral-primary shadow-xs"
+                        className="inline-flex items-center gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating py-1.5 pl-3 pr-1.5 text-sm text-neutral-primary shadow-(--shadow-xs)"
                       >
                         <span>{companyName}</span>
                         <ActionButton

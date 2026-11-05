@@ -105,12 +105,12 @@ export const FallingTagsSmall = ({
             }}
           >
             <motion.div
-              className={`select-none rounded-lg pl-2 pr-4 py-2 text-[10px] md:text-xs font-medium shadow-xl \
+              className={`select-none rounded-lg pl-2 pr-4 py-2 text-[10px] md:text-xs font-medium shadow-(--shadow-xl) \
                 flex flex-row items-center justify-start gap-1.5 cursor-grab \
                 active:cursor-grabbing border ${
                   theme === "white"
-                    ? "bg-white border-neutral-400/50 text-neutral-800"
-                    : "bg-bg-floating0/10 border-white/10 text-white"
+                    ? "bg-bg-floating border-neutral-400/50 text-neutral-800"
+                    : "bg-bg-floating0/10 border-bg-floating/10 text-on-inverse"
                 } backdrop-blur-sm`}
               drag
               dragElastic={0.25}

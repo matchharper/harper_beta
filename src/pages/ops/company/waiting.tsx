@@ -234,7 +234,7 @@ export default function OpsCompanyWaitingPage() {
                       className={cx(
                         "rounded-md px-3 py-2 text-sm transition",
                         active
-                          ? "bg-black text-neutral-00"
+                          ? "bg-surface-inverse text-neutral-00"
                           : "bg-bg-default/60 text-neutral-primary hover:bg-bg-default/80"
                       )}
                     >

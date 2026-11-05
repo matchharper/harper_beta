@@ -136,3 +136,13 @@ test("exact thread MIME bodies preserve source links and separate sent replies",
   assert.match(result.emails[0].content!, /https:\/\/meet.example.test\/join/);
   assert.equal(result.emails[1].content, "Tuesday works.");
 });
+
+test("unreferenced upcoming appointments are rendered, not only stored in the version fence", async () => {
+  const result = await prepareCareerInboxContext({admin:{} as any,userId:"owner",run:{trigger_payload:{}}} as any, {
+    search: async () => { throw Error("no integration"); },
+    readSchedules: async () => ({schedules:[{id:"today",version:3,title:"Today's interview",status:"confirmed",timezone:"Asia/Seoul",confirmed_start_at:"2030-01-10T06:00:00Z"}] as any,nextOffset:null}),
+  });
+  assert.ok(result.text.includes("Today's interview"));
+  assert.ok(result.text.includes("2030-01-10 15:00"));
+  assert.deepEqual(result.meetingScheduleVersions,{today:3});
+});

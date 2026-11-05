@@ -123,7 +123,7 @@ const ItemBox = ({
               <img
                 src={logoUrl}
                 alt={name}
-                className={`transition-all duration-200 ${logoSize} mt-px rounded-full object-cover border border-transparent bg-black/90 ${disableEntityClick ? "" : "cursor-pointer hover:border-neutral-800"}`}
+                className={`transition-all duration-200 ${logoSize} mt-px rounded-full object-cover border border-transparent bg-surface-inverse/90 ${disableEntityClick ? "" : "cursor-pointer hover:border-neutral-800"}`}
               />
             ) : (
               <>

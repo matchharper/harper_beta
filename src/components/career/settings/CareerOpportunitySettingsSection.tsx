@@ -281,7 +281,7 @@ export default function CareerOpportunitySettingsSection() {
         title={subscriptionConfirmCopy.title}
         description={subscriptionConfirmCopy.description}
         headerClassName="border-b-0"
-        panelClassName="max-w-[420px] border-neutral-1000-a10 bg-bg-floating"
+        panelClassName="max-w-[420px]  "
         bodyClassName={subscriptionError ? "px-5 pt-5" : undefined}
         footer={
           <div className="flex justify-end gap-2">

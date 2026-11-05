@@ -263,7 +263,7 @@ export async function readCareerCheckInContext(args: {
 }) {
   const schedule = await readCareerCheckIn(args);
   return schedule
-    ? `Persistent Career check-in:\n${formatCareerSchedules([schedule])}`
+    ? `Opted-in external opportunity discovery (not an idle Career check-in):\n${formatCareerSchedules([schedule])}`
     : "";
 }
 
@@ -275,7 +275,7 @@ export function formatCareerSchedules(
     `Schedule times: ${PROMPT_TIME_ZONE}.`,
     ...schedules.map((item) =>
       [
-        `Schedule ${item.id}; revision ${item.revision}; ${item.status}; ${item.title}${item.schedule_key === "career_check_in" ? "; persistent Career check-in" : ""}`,
+        `Schedule ${item.id}; revision ${item.revision}; ${item.status}; ${item.title}${item.schedule_key === "career_check_in" ? "; opted-in external discovery" : ""}`,
         `Instruction: ${item.instruction}`,
         `${item.status === "paused" || item.status === "cancelled" ? "Saved execution time (inactive)" : "Next execution"}: ${item.next_run_at ? formatLlmDateTime(item.next_run_at) : "none"}; recurrence: ${item.interval_days != null ? `every ${item.interval_days} days` : (item.recurrence ?? "one time")}; recurrence timezone: ${item.timezone}`,
         item.last_run_id
@@ -322,6 +322,9 @@ export async function collectDueCareerSchedules(args: {
   now?: Date;
   limit?: number;
 }) {
+  // Zero capacity defers collection without advancing any saved occurrence.
+  // The dispatch endpoint still performs recovery and delivery maintenance.
+  if (args.limit === 0) return { runIds: [] as string[] };
   const now = args.now ?? new Date();
   const { data, error } = await database(args.admin)
     .from("talent_agent_schedules")
@@ -361,8 +364,8 @@ export async function collectDueCareerWork(args: {
   admin: TalentAdminClient;
   limit?: number;
 }) {
-  const schedules = await collectDueCareerSchedules(args);
-  return { runIds: schedules.runIds, scheduleCount: schedules.runIds.length };
+  const { collectCareerProcessing } = await import("./daily");
+  return collectCareerProcessing(args);
 }
 export {
   finishCareerSourceEvents,
@@ -385,7 +388,7 @@ export async function readCareerScheduleFollowIndex(args: {
     `Saved Career work (times: ${PROMPT_TIME_ZONE}):`,
     checkIn.status === "fulfilled"
       ? checkIn.value
-      : "Persistent Career check-in could not be read. Its timing and active state are unknown; read it before changing it.",
+      : "The external discovery schedule could not be read. Its timing and active state are unknown; read it before changing it.",
     ...(schedules.status === "fulfilled"
       ? schedules.value.schedules
           .filter((item) => item.schedule_key !== "career_check_in")

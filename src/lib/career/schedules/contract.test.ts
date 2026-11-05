@@ -1,3 +1,4 @@
+import { setupDaily } from "./dailyTestSupport";
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { collectDueCareerWork, formatCareerSchedules, nextScheduleOccurrence } from './server';
@@ -165,7 +166,7 @@ test('actual schedule tool normalizes explicit timezones and recurrence follows 
 });
 
 test('periodic collection ignores followed company changes and only queues due active schedules', async () => {
-  const db = await setup();
+  const db = await setupDaily();
   try {
     await follow(db, { action: 'follow', scope: 'company', company_db_id: 1 }, 'company');
     await follow(db, { action: 'follow', scope: 'workspace', company_workspace_id: workspace }, 'workspace');

@@ -142,6 +142,7 @@ test("matching panels share dismissal and filter recommended positions with the 
     "fetch",
     async (input: unknown, init?: RequestInit) => {
       const url = new URL(String(input), "https://matching-ui.invalid");
+      if (url.pathname === "/api/logs") return Response.json({ ok: true });
       requests.push(url);
       if (url.pathname === "/api/talent/opportunities") {
         assert.equal(init?.method, "PATCH");

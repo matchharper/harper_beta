@@ -71,7 +71,7 @@ const CareerInPageTabs = <T extends string>({
                   className={cn(
                     "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none",
                     active
-                      ? "bg-black text-neutral-00"
+                      ? "bg-surface-inverse text-neutral-00"
                       : "bg-bg-weak text-neutral-muted"
                   )}
                 >

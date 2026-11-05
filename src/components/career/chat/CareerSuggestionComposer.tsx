@@ -113,7 +113,7 @@ export function CareerSuggestionHistory({ form }: { form: CareerForm }) {
   return (
     <PreviewUI
       onClick={() => context?.open(form)}
-      icon={<MessageCircleDashed className="h-5 w-5 text-black/40" />}
+      icon={<MessageCircleDashed className="h-5 w-5 text-neutral-primary/40" />}
       title={form.title ?? form.items.map((item) => item.label).join(" · ")}
       description={form.items.map((item) => item.label).join(" · ")}
     />
@@ -141,7 +141,7 @@ export function CareerSuggestionComposerSlot({
       <div
         id={panelId}
         hidden={!form}
-        className="max-h-[50dvh] overflow-y-auto overscroll-contain pb-3"
+        className="career-response-scroll"
       >
         {form ? (
           form.kind === "suggestion" ? (
@@ -164,7 +164,7 @@ export function CareerSuggestionComposerSlot({
                 ref={triggerRef}
                 size="sm"
                 variant={form ? "dark" : "default"}
-                className={form ? "bg-black text-white" : undefined}
+                className={form ? "bg-surface-inverse text-on-inverse" : undefined}
                 aria-expanded={Boolean(form)}
                 aria-controls={panelId}
                 onClick={() => (form ? close() : context.open())}

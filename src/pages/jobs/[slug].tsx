@@ -192,14 +192,14 @@ export default function OfficialJobDetailPage({
             <div className="relative mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
               <div className="min-w-0">
                 {job.vertical && (
-                  <span className="py-1.5 px-4 rounded-full bg-black/5 text-[14px] font-normal text-black">
+                  <span className="py-1.5 px-4 rounded-full bg-surface-tint text-[14px] font-normal text-neutral-primary">
                     {job.vertical}
                   </span>
                 )}
-                <h1 className="mt-6 max-w-[680px] text-[24px] md:text-[32px] wrap-break-word font-normal md:font-medium leading-[1.4] text-black">
+                <h1 className="mt-6 max-w-[680px] text-[24px] md:text-[32px] wrap-break-word font-normal md:font-medium leading-[1.4] text-neutral-primary">
                   {job.roleTitle}
                 </h1>
-                <div className="mt-4 max-w-[720px] text-black text-[13px] md:text-[15px] flex flex-row flex-wrap items-center gap-4">
+                <div className="mt-4 max-w-[720px] text-neutral-primary text-[13px] md:text-[15px] flex flex-row flex-wrap items-center gap-4">
                   {job.employmentType && (
                     <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       <BriefcaseBusiness className="h-3.5 w-3.5 shrink-0" />
@@ -222,7 +222,7 @@ export default function OfficialJobDetailPage({
                     </span>
                   )}
                 </div>
-                <p className="mt-6 max-w-[720px] break-keep text-[14px] md:text-[16px] leading-7 text-black/70">
+                <p className="mt-6 max-w-[720px] break-keep text-[14px] md:text-[16px] leading-7 text-neutral-primary/70">
                   {job.shortDescription}
                 </p>
                 <div className="mt-8 flex flex-col gap-2 w-full md:w-fit">
@@ -234,13 +234,13 @@ export default function OfficialJobDetailPage({
                     onClick={() => trackApplyClick("detail_primary")}
                   />
                 </div>
-                <div className="mt-14 space-y-8 rounded-[4px] border border-white/0 md:border-beige900/10 bg-white/0 md:bg-white/35 p-0 md:p-8">
+                <div className="mt-14 space-y-8 rounded-sm border border-bg-floating/0 md:border-beige900/10 bg-bg-floating/0 md:bg-bg-floating/35 p-0 md:p-8">
                   <OfficialJobMarkdown content={job.roleDescriptionMarkdown} />
                 </div>
               </div>
 
               <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
-                <section className="rounded-[8px] border border-beige900/10 bg-white/65 p-4">
+                <section className="rounded-md border border-beige900/10 bg-bg-floating/65 p-4">
                   <div className="flex items-start gap-4">
                     <div className="min-w-0 p-1">
                       <h2 className="text-[18px] font-medium leading-snug text-beige900">
@@ -249,7 +249,7 @@ export default function OfficialJobDetailPage({
                     </div>
                   </div>
 
-                  <dl className="mt-5 overflow-hidden rounded-[4px] border border-beige900/5 bg-beige50/65">
+                  <dl className="mt-5 overflow-hidden rounded-sm border border-beige900/5 bg-beige50/65">
                     <JobFact
                       icon={<MapPin className="h-3.5 w-3.5" />}
                       label={copy.detail.facts.location}
@@ -293,7 +293,7 @@ export default function OfficialJobDetailPage({
                     height={440}
                     className="h-auto w-full object-cover"
                   />
-                  <p className="mt-2 text-center w-full text-[13px] leading-6 text-black/70">
+                  <p className="mt-2 text-center w-full text-[13px] leading-6 text-neutral-primary/70">
                     이제 구직을 AI에게 외주 맡겨보세요.
                     <br />
                     Harper가 커리어를 책임지는 에이전트가 되어드리겠습니다.

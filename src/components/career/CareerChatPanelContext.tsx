@@ -119,6 +119,7 @@ export type CareerChatPanelContextValue = {
     opportunityMentions?: CareerOpportunityMention[];
     viewedRoleId?: string;
     pendingAction?: CareerPendingActionReference;
+    actionItem?: { id: string; revision: number };
     onSuccess?: () => void;
     onError?: () => void;
   }) => void | Promise<void>;
@@ -218,6 +219,7 @@ type CareerChatActivityContextValue = Pick<
   CareerChatPanelCoreContextValue,
   | "inputMode"
   | "chatPending"
+  | "chatAdmissionPending"
   | "assistantTyping"
   | "sessionPending"
   | "onboardingWrapupPending"
@@ -272,6 +274,7 @@ export const CareerChatPanelProvider = ({
   const {
     inputMode,
     chatPending,
+    chatAdmissionPending,
     assistantTyping,
     sessionPending,
     onboardingWrapupPending,
@@ -287,6 +290,7 @@ export const CareerChatPanelProvider = ({
     () => ({
       inputMode,
       chatPending,
+      chatAdmissionPending,
       assistantTyping,
       sessionPending,
       onboardingWrapupPending,
@@ -301,6 +305,7 @@ export const CareerChatPanelProvider = ({
     [
       inputMode,
       chatPending,
+      chatAdmissionPending,
       assistantTyping,
       sessionPending,
       onboardingWrapupPending,

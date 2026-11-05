@@ -26,7 +26,7 @@ const ACTION_BUTTONS = [
     icon: ArrowRight,
     label: "연결 요청",
     status: "requested" as const,
-    tone: "bg-black text-neutral-00 hover:bg-black/90",
+    tone: "bg-surface-inverse text-neutral-00 hover:bg-surface-inverse/90",
   },
   {
     icon: Ban,
@@ -150,7 +150,7 @@ export default function MatchMemoPanel({
                 rows={4}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                className="w-full resize-none rounded-[14px] border border-neutral-1000-a05 bg-bg-default px-4 py-3 text-sm text-neutral-primary outline-none placeholder:text-neutral-placeholder transition hover:border-neutral-1000-a10 focus:border-neutral-1000-a10"
+                className="w-full resize-none rounded-lg border border-neutral-1000-a05 bg-bg-default px-4 py-3 text-sm text-neutral-primary outline-none placeholder:text-neutral-placeholder transition hover:border-neutral-1000-a10 focus:border-neutral-1000-a10"
                 placeholder="후보자와 연결을 요청하거나, 거절하거나, 보류하는 이유를 적어주세요."
               />
               <div className="flex items-center justify-end gap-3">
@@ -168,7 +168,7 @@ export default function MatchMemoPanel({
                   type="button"
                   onClick={() => void confirmDecision()}
                   disabled={updateDecision.isPending}
-                  className="rounded-md bg-black px-4 py-2.5 text-sm font-medium text-neutral-00 transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-md bg-surface-inverse px-4 py-2.5 text-sm font-medium text-neutral-00 transition hover:bg-surface-inverse/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {updateDecision.isPending ? "저장 중..." : "사유와 함께 저장"}
                 </BareButton>

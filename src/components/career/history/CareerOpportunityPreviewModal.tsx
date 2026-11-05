@@ -111,7 +111,7 @@ export default function CareerOpportunityPreviewModal({
       ariaLabel={t("career.history.job_actions.preview_modal", "기회 상세")}
       backdropClassName="z-[100]"
       overlayClassName="z-[100] items-start pt-6 sm:pt-10"
-      panelClassName="w-[calc(100vw-24px)] max-w-[880px] border border-neutral-1000-a05 bg-bg-floating sm:w-[min(880px,86vw)]"
+      panelClassName="w-[calc(100vw-24px)] max-w-[880px]    sm:w-[min(880px,86vw)]"
       bodyClassName="max-h-[88svh] overflow-y-auto bg-bg-floating px-3 pb-3 pt-14 sm:max-h-[82svh] sm:px-5 sm:pb-5"
       mobileBottomSheet
     >

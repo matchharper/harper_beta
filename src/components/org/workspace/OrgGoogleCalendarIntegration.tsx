@@ -183,7 +183,7 @@ export function OrgGoogleCalendarIntegration({
     <OrgSection className={className}>
       <div className="">
         <div className="flex flex-row gap-4 w-fit">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-white border border-black/5">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-bg-floating border border-stroke-subtle">
             <Image
               alt={c("", "")}
               height={32}

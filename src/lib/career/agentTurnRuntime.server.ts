@@ -1,4 +1,5 @@
 import { workContext } from "./work/store";
+import { formatCareerActionItemResponse } from "./actionItems";
 import { CareerAgentReplyUnavailable } from "./agentReplyError";
 export { CareerAgentReplyUnavailable } from "./agentReplyError";
 import { createCareerCapabilityTurn } from "./capabilities/server";
@@ -53,7 +54,7 @@ export async function readCareerContinuationUserContext(args: Pick<PrepareCareer
       // Ordinary user prose is immutable evidence. Artifact clicks use the
       // shared projection, which preserves the exact selected action and values.
       const content = row.message_type === "chat" || row.message_type === "mail"
-        ? [row.content ?? "", ...(isCareerTurnStopped(row.payload) ? [CAREER_TURN_STOP_FACT] : [])].join("\n")
+        ? [row.content ?? "", formatCareerActionItemResponse(row.payload), ...(isCareerTurnStopped(row.payload) ? [CAREER_TURN_STOP_FACT] : [])].filter(Boolean).join("\n")
         : formatTalentMessageContentForLlmPrompt(row, {
             includeCreatedAt: false, timeZone: args.promptArgs.timeZone,
             preferredLocale: args.promptArgs.currentPreferences?.preferredLocale,

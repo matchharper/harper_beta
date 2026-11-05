@@ -1794,7 +1794,7 @@ const CareerTalentProfilePanel = ({
         </>
       ) : (
         <>
-          <div className="rounded-[12px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-5 py-6 text-sm leading-6 text-neutral-muted shadow-sm">
+          <div className="rounded-lg border border-dashed border-neutral-1000-a10 bg-bg-floating px-5 py-6 text-sm leading-6 text-neutral-muted shadow-(--shadow-sm)">
             <div>
               {t(
                 "career.profile.career_talent_profile_panel.0q45tnt",
@@ -1860,7 +1860,7 @@ const CareerTalentProfilePanel = ({
           "휴대폰 번호 수정"
         )}
         mobileBottomSheet
-        panelClassName="max-w-[520px] border border-neutral-1000-a05 bg-bg-floating"
+        panelClassName="max-w-[520px]   "
       >
         {null}
       </TalentCareerModal>

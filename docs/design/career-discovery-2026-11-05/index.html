@@ -1,0 +1,1247 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Harper · 다음은, 어디일까</title>
+<style>
+:root{--ink:#1d1d1f;--secondary:#6e6e73;--soft:#8b8b93;--surface:rgba(255,255,255,.56);--line:rgba(29,29,31,.085);--purple:#7a6ad8;--blue:#568dd6;--coral:#e78a74;--mint:#60a89a;--radius:18px;--shadow:0 1px 0 #ffffffc0 inset,0 18px 40px -22px #1e191438,0 1px 2px #1e191408;--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Apple SD Gothic Neo",system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;color:var(--ink);font:14px/1.5 var(--font);background:radial-gradient(760px 520px at 10% 6%,#fff,transparent 62%),radial-gradient(820px 600px at 94% 98%,#d8dee8e6,transparent 66%),linear-gradient(180deg,#f5f6f8,#e9ecf0);min-height:100vh}button,input,select,textarea{font:inherit}button,select{cursor:pointer}button{color:inherit}a{color:inherit;text-underline-offset:4px}button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #568dd6a8;outline-offset:4px}button{border:0;background:none}button:disabled{cursor:default;opacity:.4}h1,h2,h3,p{margin:0}h1,h2,h3{font-weight:500;word-break:keep-all}button,select,input,textarea{max-width:100%}[hidden]{display:none!important}.muted{color:var(--secondary)}.small{font-size:12px}.eyebrow{font-size:11px;letter-spacing:1.7px;color:var(--secondary);font-weight:500}.num{font-variant-numeric:tabular-nums}.glass{background:linear-gradient(180deg,#ffffff85,#ffffff57);box-shadow:var(--shadow);border-radius:var(--radius);backdrop-filter:blur(24px)}.labbar{min-height:48px;border-bottom:1px solid var(--line);padding:8px 28px;display:flex;gap:20px;align-items:center;justify-content:space-between;background:#ffffff50}.labbrand{font-size:11px;letter-spacing:1.6px;white-space:nowrap}.switcher{display:flex;gap:4px;flex-wrap:wrap;background:#ffffff40;padding:3px;border-radius:10px}.switcher button{padding:6px 14px;border-radius:8px;font-size:12px}.switcher button[aria-pressed=true]{background:#fff;box-shadow:0 1px 4px #0000000d}.labdate{font-size:11px;color:var(--secondary)}.topbar{height:76px;max-width:1440px;margin:auto;padding:0 40px;display:flex;align-items:center;justify-content:space-between}.wordmark{font-size:23px;font-weight:500;letter-spacing:-1.4px}.brand-dot{display:inline-block;width:8px;height:8px;background:var(--coral);border-radius:50%;margin:0 0 2px 3px}.product-nav{color:var(--secondary);display:flex;gap:28px;font-size:13px}.product-nav span:first-child{color:var(--ink)}.avatar{width:30px;height:30px;border-radius:50%;background:#ffffffa0;display:grid;place-items:center;font-size:11px}.home-layout{max-width:1220px;margin:22px auto 0;padding:0 40px 60px;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:70px}.conversation{min-height:660px;display:flex;flex-direction:column;justify-content:center;padding:28px 32px 30px 0}.conversation .glyph{width:38px;height:38px;margin-bottom:26px;border-radius:13px;background:#fff9;display:grid;place-items:center;font-size:23px;box-shadow:var(--shadow)}.conversation h1{font-size:28px;line-height:1.45;letter-spacing:-.8px;font-weight:400}.conversation p{color:var(--secondary);font-size:14px;margin-top:18px;max-width:350px;line-height:1.8}.conversation .chat-visual{margin-top:72px;padding:18px 20px;min-height:98px;display:flex;justify-content:space-between;align-items:center;color:var(--soft)}.chat-visual .arrow{border-radius:50%;background:#1d1d1f;color:white;width:30px;height:30px;display:grid;place-items:center}.mocklabel{font-size:11px;color:var(--soft);margin-top:12px}.follow-head{font-size:12px;color:var(--secondary);margin-bottom:16px}.follow-head h2{font-size:16px;color:var(--ink);margin-top:6px}.follow-item{padding:18px 20px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}.follow-item strong{display:block;font-size:15px;font-weight:400}.follow-item span{display:block;font-size:12px;color:var(--secondary);margin-top:3px}.summary{padding:17px 20px 20px}.summary-title{font-size:12px;color:var(--soft);display:flex;justify-content:space-between;margin-bottom:8px}.summary-grid{display:grid;grid-template-columns:repeat(3,1fr)}.summary-grid b{display:block;font-size:32px;font-weight:300;letter-spacing:-1px;line-height:1.25}.summary-grid span{font-size:12px;color:var(--secondary)}.discovery-head{display:flex;align-items:center;justify-content:space-between;margin:29px 2px 12px}.discovery-head h2{font-size:13px;font-weight:500}.discovery-head .mini-arrow{color:var(--secondary);font-size:12px;padding:5px}.home-card{padding:24px 23px 18px;position:relative;overflow:hidden;background:linear-gradient(135deg,#fffdfbde,#f2eff9bd 58%,#eaf0f6d4);box-shadow:var(--shadow);border-radius:20px}.card-tag{font-size:10px;letter-spacing:1.6px;color:#81758c;display:flex;align-items:center;gap:7px}.card-tag:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--purple)}.home-card h3{font-size:23px;line-height:1.35;letter-spacing:-.65px;margin-top:11px;font-weight:400}.home-chart{height:174px;margin-top:4px}.home-chart svg{width:100%;height:100%;overflow:visible}.card-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #7a6ad815;padding-top:13px}.card-footer span{font-size:10px;color:var(--secondary)}.text-button{font-size:12px;padding:6px 0;font-weight:500}.dots{display:flex;justify-content:center;gap:9px;margin-top:15px}.dots button{width:26px;height:24px;padding:8px}.dots button:after{content:"";display:block;width:6px;height:6px;border-radius:50%;background:#b6b6c3}.dots button[aria-pressed=true]:after{background:#66606f}.home-footnote{font-size:11px;color:var(--secondary);text-align:center;margin-top:8px}.explorer{max-width:1200px;padding:24px 40px 64px;margin:auto}.explore-title{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin:4px 0 28px}.explore-title h1{font-size:38px;font-weight:400;letter-spacing:-1.8px;line-height:1.25;margin-top:10px}.explore-title p{font-size:13px;color:var(--secondary);margin-top:12px}.stamp{text-align:right;font-size:12px;color:var(--secondary);line-height:1.8;white-space:nowrap}.tabs{display:flex;gap:26px;border-bottom:1px solid var(--line);margin-bottom:30px}.tabs button{padding:12px 0 13px;color:var(--secondary);font-size:14px;position:relative}.tabs button[aria-selected=true]{color:var(--ink)}.tabs button[aria-selected=true]:after{content:"";height:2px;background:var(--ink);position:absolute;bottom:-1px;left:0;right:0}.explore-surface{padding:30px 34px;background:#ffffff80;border-radius:24px;box-shadow:var(--shadow)}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}.panel-head h2{font-size:23px;line-height:1.4;letter-spacing:-.6px;font-weight:400}.panel-head p{color:var(--secondary);font-size:12px;margin-top:8px}.filter{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.field{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--secondary)}select{border:1px solid var(--line);border-radius:10px;background:#ffffffd0;padding:9px 30px 9px 12px;color:var(--ink)}.check{font-size:12px;color:var(--secondary);display:flex;gap:6px;align-items:center}.check input{accent-color:var(--purple);width:15px;height:15px}.company-choices{display:flex;gap:8px;flex-wrap:wrap;margin:23px 0 0}.company-choices button{padding:8px 15px;border-radius:999px;font-size:12px;border:1px solid var(--line);background:#ffffff40}.company-choices button[aria-pressed=true]{background:#1d1d1f;color:white;border-color:#1d1d1f}.atlas{width:100%;position:relative;height:380px}.atlas svg{width:100%;height:100%;overflow:visible}.atlas path{transition:opacity .22s,filter .22s}.atlas .destinations{position:absolute;inset:0;pointer-events:none}.destination{position:absolute;right:0;display:flex;align-items:center;justify-content:space-between;gap:12px;width:181px;height:42px;text-align:left;padding:0 8px;border-radius:9px;pointer-events:auto}.destination:hover,.destination[aria-pressed=true]{background:#ffffffd9}.destination .dest-name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.destination .dest-n{font-size:13px;white-space:nowrap}.destination i{font-style:normal;font-size:11px;color:var(--soft);padding-left:3px}.chart-legend{display:flex;justify-content:space-between;gap:20px;color:var(--secondary);font-size:11px;margin-top:-8px;margin-bottom:18px}.detail-strip{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:22px;padding:22px 0 0;border-top:1px solid var(--line);align-items:center}.detail-strip .detail-label{font-size:11px;color:var(--secondary);margin-bottom:6px}.detail-value{font-size:25px;font-weight:300;letter-spacing:-.6px}.detail-value small{font-size:12px;letter-spacing:0;color:var(--secondary);margin-left:4px}.detail-name{font-size:16px;font-weight:400}.primary{background:#25252a;color:white;padding:11px 17px;border-radius:11px;font-size:12px}.primary:hover{background:#42424a}.method{margin-top:22px;font-size:12px;color:var(--secondary);line-height:1.8}.method summary{cursor:pointer;width:fit-content;user-select:none}.method p{max-width:880px;margin-top:10px}.draft{margin-top:18px;padding:18px 20px;background:#fff9;border-radius:14px}.draft .small{margin-bottom:8px}.draft textarea{display:block;width:100%;min-height:80px;background:transparent;border:0;resize:vertical;color:var(--ink);font-size:14px;line-height:1.7}.draft button{font-size:12px;text-decoration:underline;padding:8px 0}.hiring-hero{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:start;margin:28px 0}.hero-value{font-size:54px;font-weight:300;letter-spacing:-2px;line-height:1.1}.hero-value small{font-size:17px;letter-spacing:0;margin-left:8px;color:var(--secondary)}.hero-meta{display:flex;gap:24px;padding-top:10px;font-size:12px;color:var(--secondary)}.hero-meta b{font-weight:500;color:var(--ink)}.hiring-key{padding-top:6px;text-align:right;font-size:11px;color:var(--secondary)}.heat-scale{display:flex;gap:3px;justify-content:flex-end;margin-top:8px}.heat-scale i{width:22px;height:9px;border-radius:2px;background:var(--purple)}.heatmap{display:grid;grid-template-columns:170px repeat(4,minmax(54px,1fr)) 180px;gap:7px 10px;align-items:center}.heatmap .colhead{font-size:11px;color:var(--secondary);text-align:center;margin-bottom:7px}.heatmap .colhead:last-of-type{text-align:right}.topic{font-size:13px;text-align:left;padding:14px 8px;border-radius:9px;display:flex;align-items:center;gap:8px}.topic[aria-pressed=true]{background:#ffffffc9}.topic[aria-pressed=true]:before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--purple)}.heatcell{height:46px;border-radius:7px;display:grid;place-items:center;font-size:13px;font-variant-numeric:tabular-nums}.activebar{display:flex;align-items:center;justify-content:flex-end;gap:10px;font-size:13px}.bartrack{width:105px;height:7px;background:#b5b7c018;border-radius:3px}.barfill{height:100%;background:#a4aec4;border-radius:3px}.activebar span{width:45px;text-align:right}.observation-note{font-size:11px;color:var(--secondary);margin-top:21px;line-height:1.7}.salaryplot{height:350px;width:100%;position:relative;margin-top:28px}.salaryplot svg{width:100%;height:100%;overflow:visible}.salary-selects{position:absolute;left:0;top:0;display:flex;flex-direction:column;gap:0}.salary-selects button{text-align:left;height:45px;border-radius:8px;padding:8px;font-size:12px;width:150px}.salary-selects button[aria-pressed=true]{background:#fff}.salary-bottom{display:grid;grid-template-columns:1.15fr 1fr;gap:36px;border-top:1px solid var(--line);padding-top:24px}.salary-bignum{font-size:36px;font-weight:300;letter-spacing:-1px;margin-top:5px}.salary-bignum small{font-size:12px;letter-spacing:0;color:var(--secondary)}.range-label{font-size:11px;color:var(--secondary);margin-top:7px}.salary-input{display:flex;align-items:center;gap:8px;margin-top:10px}.salary-input input{width:150px;border:1px solid var(--line);background:#ffffffb0;border-radius:10px;padding:10px 12px}.comparison{font-size:12px;color:var(--secondary);margin-top:10px}.comparison strong{font-weight:500;color:var(--ink)}.notes{max-width:1020px;margin:20px auto 60px;padding:20px 40px}.notes h1{font-size:32px;font-weight:400;letter-spacing:-1px}.notes .intro{color:var(--secondary);margin:15px 0 30px;max-width:760px;line-height:1.9}.idea-list{display:grid;grid-template-columns:1fr 1fr;gap:14px}.idea{padding:24px;background:#ffffff7c;border-radius:18px;box-shadow:var(--shadow)}.idea .status{font-size:10px;letter-spacing:.5px;color:var(--secondary)}.idea h3{font-size:19px;font-weight:400;margin:10px 0 12px;letter-spacing:-.3px}.idea p{font-size:13px;line-height:1.8;color:var(--secondary)}.idea .example{margin:16px 0 10px;color:var(--ink);font-size:14px}.research{margin-top:44px}.research h2{font-size:20px;font-weight:400;margin-bottom:18px}.reference-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}.ref{padding:16px 0;border-top:1px solid var(--line)}.ref a{font-size:14px}.ref p{font-size:12px;color:var(--secondary);margin-top:7px;line-height:1.8}.truth-table{width:100%;border-collapse:collapse;font-size:12px;line-height:1.8}.truth-table td,.truth-table th{text-align:left;vertical-align:top;padding:12px 10px;border-bottom:1px solid var(--line)}.truth-table th{font-weight:500}.page-footer{max-width:1120px;padding:0 0 20px;margin:auto;font-size:11px;color:var(--secondary);display:flex;justify-content:space-between;gap:20px}.mini-salary-row{display:flex;align-items:center;justify-content:space-between;font-size:12px;margin:10px 0}.mini-salary-row b{font-weight:400}.mini-pay-number{font-size:38px;font-weight:300;letter-spacing:-1px;margin-top:23px}.mini-pay-band{height:9px;position:relative;background:#d8d1eb70;border-radius:9px;margin:12px 0 5px}.mini-pay-band:after{content:"";position:absolute;left:var(--median-position,50%);top:-5px;width:3px;height:19px;background:var(--purple);border-radius:2px}.home-chart .mini-market{padding-top:17px}.mini-market .mini-row{display:grid;grid-template-columns:85px 1fr 50px;gap:10px;align-items:center;margin-bottom:13px;font-size:11px}.mini-market .mini-row i{height:8px;background:#ada0d3;border-radius:5px}.mini-market .mini-row b{font-weight:400;text-align:right}.hint{background:#fff8;border-radius:12px;padding:16px 18px;margin-top:28px;color:var(--secondary);font-size:12px;line-height:1.8}.backlink{font-size:12px;padding:4px 0;color:var(--secondary);margin-bottom:20px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+body[data-mode="explore"] .topbar,body[data-mode="notes"] .topbar{height:52px}body[data-mode="explore"] .explorer{padding-top:12px}.explore-title{margin-bottom:20px}.tabs{margin-bottom:22px}@media(min-width:1500px){.home-layout{margin-top:45px}.conversation{min-height:720px}}
+@media(max-width:1050px){.home-layout{gap:32px;padding-inline:28px;grid-template-columns:minmax(0,1fr) 390px}.conversation{padding-right:0}.explorer{padding-inline:28px}.explore-surface{padding:25px}.heatmap{grid-template-columns:145px repeat(4,minmax(45px,1fr)) 130px}.bartrack{width:70px}.detail-strip{gap:16px}.labdate{display:none}}
+@media(max-width:760px){.labbar{padding:10px 16px;gap:8px;flex-wrap:wrap}.labbrand{font-size:10px}.switcher button{font-size:11px;padding:6px 10px}.topbar{height:65px;padding:0 22px}.product-nav{gap:18px;font-size:12px}.home-layout{display:block;padding:0 20px 30px;margin:12px auto;max-width:460px}.conversation{display:none}.home-column{width:100%}.follow-item{padding:16px 18px}.explorer{padding:15px 18px 45px}.explore-title{margin:4px 0 20px}.explore-title h1{font-size:30px}.explore-title p{max-width:250px}.stamp{display:none}.tabs{gap:25px;margin-bottom:23px}.tabs button{font-size:13px}.explore-surface{padding:22px 18px;border-radius:20px}.panel-head{display:block}.panel-head h2{font-size:21px}.panel-head .filter{margin-top:14px}.company-choices{gap:6px;margin-top:18px}.company-choices button{padding:8px 12px;font-size:11px}.atlas{height:380px}.destination{width:126px;height:42px;gap:5px;padding:0 4px}.destination .dest-name{font-size:11px}.destination .dest-n{font-size:12px}.chart-legend{display:block;font-size:10px;margin-top:-3px}.chart-legend span{display:block;margin-bottom:3px}.detail-strip{grid-template-columns:1fr 1fr;gap:17px 12px;padding-top:18px}.detail-value{font-size:24px}.detail-strip .primary{grid-column:1/-1;width:100%;margin-top:2px}.detail-name{font-size:14px}.detail-strip>div:first-child{grid-column:1/-1}.method{font-size:11px}.heatmap{grid-template-columns:92px repeat(4,minmax(30px,1fr));gap:6px}.heatmap .active-col{display:none}.topic{font-size:11px;padding:9px 3px;gap:4px;min-height:42px}.heatcell{height:39px;font-size:11px;border-radius:5px}.heatmap .colhead{font-size:11px}.hero-value{font-size:42px}.hero-value small{font-size:14px}.hero-meta{gap:12px;flex-wrap:wrap;font-size:11px}.hiring-hero{margin:23px 0}.hiring-key{font-size:10px}.heat-scale i{width:12px}.salaryplot{height:350px}.salary-selects button{width:100px;font-size:11px;padding:5px;height:45px}.salary-bottom{grid-template-columns:1fr;gap:20px}.salary-bignum{font-size:34px}.notes{padding:12px 20px;margin-top:10px}.notes h1{font-size:28px}.idea-list,.reference-grid{grid-template-columns:1fr}.idea{padding:22px}.page-footer{padding:0 20px 22px;font-size:10px}.page-footer span:last-child{display:none}.truth-table td,.truth-table th{padding:10px 5px;font-size:11px}.home-card{padding:22px 21px 17px}.home-card h3{font-size:22px}.home-footnote{font-size:10px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="labbar"><span class="labbrand">HARPER / DISCOVERY STUDY</span><nav class="switcher" aria-label="시안 보기"><button data-mode="home" aria-pressed="true">홈에 놓기</button><button data-mode="explore" aria-pressed="false">크게 둘러보기</button><button data-mode="notes" aria-pressed="false">아이디어 · 근거</button></nav><span class="labdate">실제 집계 · 2026.11.05</span></div>
+<header class="topbar"><span class="wordmark">harper<span class="brand-dot"></span></span><div class="product-nav" aria-label="제품 화면 맥락"><span>채팅</span><span>기회</span></div><span class="avatar" aria-label="예시 사용자">H</span></header>
+<main>
+<section id="home" class="home-layout" aria-label="팔로업 아래 탐색 카드 시안">
+<div class="conversation"><div class="glyph" aria-hidden="true">✳</div><h1>다음 기회를 찾는 동안,<br>다른 가능성도 만나보세요.</h1><p>지금의 경험이 어디로 이어질 수 있을지.<br>Harper가 모아 온 경력과 채용 공고에서<br>작은 힌트를 찾아볼 수 있어요.</p><div class="chat-visual glass" aria-hidden="true"><span>Harper와 이야기하기</span><span class="arrow">↑</span></div><div class="mocklabel">로컬 디자인 시안 · 지원 현황은 예시, 탐색 통계는 실제 집계</div></div>
+<aside class="home-column"><div class="follow-head">11월 5일 목요일<h2>지금 팔로업 1</h2></div><div class="follow-item glass"><div><strong>관심 있는 기회를 살펴보세요</strong><span>새로 도착한 추천을 모아뒀어요</span></div><span aria-hidden="true">↗</span></div><section class="summary glass"><h2 class="summary-title">지원 현황 <span>예시</span></h2><div class="summary-grid"><div><b>12</b><span>저장함</span></div><div><b>4</b><span>지원함</span></div><div><b>2</b><span>진행중</span></div></div></section>
+<div class="discovery-head"><h2>잠깐, 커리어 구경</h2><button class="mini-arrow" data-open="flow">둘러보기 ↗</button></div><article class="home-card"><div class="card-tag" id="home-tag">NEXT CHAPTER</div><h3 id="home-title">쿠팡 다음에는<br>어디로 갔을까?</h3><div id="home-chart" class="home-chart"></div><div class="card-footer"><span id="home-caption">2020–2026 · 1년 이상 재직한 경력</span><button class="text-button" id="home-open">경로 펼쳐보기 ↗</button></div></article><div class="dots" aria-label="탐색 카드 선택"><button data-card="0" aria-label="회사 이동 카드" aria-pressed="true"></button><button data-card="1" aria-label="채용 흐름 카드" aria-pressed="false"></button><button data-card="2" aria-label="연봉 분포 카드" aria-pressed="false"></button></div><p class="home-footnote">Harper가 보유한 경력·공고 데이터에서 발견한 이야기</p></aside>
+</section>
+<section id="explore" class="explorer" hidden><div class="explore-title"><div><span class="eyebrow">HARPER CAREER ATLAS</span><h1>다음은, 어디일까.</h1><p>사람들이 지나간 길과, 지금 열려 있는 가능성.</p></div><div class="stamp">269,554명의 경력 데이터<br>2026년 11월 5일 집계</div></div>
+<div class="tabs" role="tablist" aria-label="커리어 데이터"><button role="tab" id="tab-flow" aria-controls="panel-flow" aria-selected="true" data-tab="flow">이 회사 다음엔</button><button role="tab" id="tab-hiring" aria-controls="panel-hiring" aria-selected="false" data-tab="hiring">요즘 열린 일</button><button role="tab" id="tab-salary" aria-controls="panel-salary" aria-selected="false" data-tab="salary">연봉의 스펙트럼</button></div>
+<div id="panel-flow" class="explore-surface" role="tabpanel" aria-labelledby="tab-flow"><div class="panel-head"><div><h2><span id="flow-company">쿠팡</span> 다음에는 어디로 갔을까?</h2><p>이력에서 이어진 다음 회사 · 2020.01–2026.11</p></div><label class="check"><input type="checkbox" id="tenure" checked>1년 이상 재직한 경력만</label></div><div class="company-choices" aria-label="출발 회사"><button data-company="2824374" aria-pressed="true">쿠팡</button><button data-company="16783" aria-pressed="false">네이버</button><button data-company="10571084" aria-pressed="false">토스</button><button data-company="1753" aria-pressed="false">삼성전자</button></div><div id="atlas" class="atlas"></div><div class="chart-legend"><span>선의 두께 = 해당 경로에서 관측한 사람 수 · 상위 6개 목적지</span><span id="flow-denominator"></span></div><div class="detail-strip" aria-live="polite"><div><div class="detail-label">선택한 경로</div><div class="detail-name" id="detail-route"></div></div><div><div class="detail-label">이전 회사 재직 기간 중앙값</div><div class="detail-value" id="detail-tenure"></div></div><div><div class="detail-label">도착 회사의 국내 공고</div><div class="detail-value" id="detail-jobs"></div></div><button class="primary" id="make-question">이 경로로 질문 만들기 ↗</button></div><div class="draft" id="draft" hidden><div class="small muted">Harper에게 물어볼 질문 초안 · 시안에서는 전송되지 않아요</div><textarea aria-label="Harper에게 물어볼 질문" id="question"></textarea><button id="copy-question">질문 복사</button><span id="copy-status" class="small muted" role="status"></span></div><details class="method"><summary>어떤 경력을 집계했나요?</summary><p>Harper의 experience_user와 company_db를 연결했습니다. 같은 사람의 연속된 동일 회사 이력을 합친 뒤, 종료일과 다음 시작일이 겹치지 않는 인접 경력을 셌습니다. 경로별 사람 수이며, 같은 사람이 여러 경로에 포함될 수 있습니다. 모든 직군을 포함하고, 체크를 해제하면 인턴 등 짧은 경력도 포함됩니다. 계열사·법인 이동을 포함하며, 실제 외부 이직만을 뜻하지 않습니다. 회사 ID가 다른 동일 회사 표기는 통합하지 않은 탐색용 집계입니다. 전체 임직원을 대표하거나 입사 확률을 나타내지 않습니다. 현재 공고는 해당 회사 ID에 연결된 국내 외부 공고 수입니다.</p></details></div>
+<div id="panel-hiring" class="explore-surface" role="tabpanel" aria-labelledby="tab-hiring" hidden><div class="panel-head"><div><h2>어떤 일이 많이 열려 있을까?</h2><p>대한민국 · 직행에서 수집한 공고 · 제목 키워드별</p></div><span class="small muted">최근 4주 관측</span></div><div class="hiring-hero"><div><div class="small muted" id="hiring-selected-label"></div><div class="hero-value num" id="hiring-number"></div><div class="hero-meta" id="hiring-meta"></div></div><div class="hiring-key">주별 공고 수<div class="heat-scale"><i style="opacity:.12"></i><i style="opacity:.3"></i><i style="opacity:.5"></i><i style="opacity:.7"></i></div><div style="margin-top:4px">적음 → 많음</div></div></div><div id="heatmap" class="heatmap" aria-label="직무 키워드별 주간 신규 관측 공고 수"></div><p class="observation-note" id="hiring-observation"></p><details class="method"><summary>채용 증가율로 읽어도 될까요?</summary><p>지금 보이는 것은 저장된 공고의 게시일별 관측 수입니다. 수집 대상 확대·누락·공고 재등록이 섞일 수 있어 시장 전체의 채용 증가율로 해석하지 않습니다. 주간 구간은 UTC 기준 10/05–10/12, 10/12–10/19, 10/19–10/26, 10/26–11/02이며 마지막 날짜는 제외합니다. 현재 열린 공고는 is_expired가 true가 아닌 행입니다. 직무 분류는 이 시안을 위한 제목 키워드 집계이며 중복 포함될 수 있습니다. 제품화할 때는 동일 회사·동일 수집원의 관측 범위와 수집 성공률을 함께 비교해야 합니다.</p></details></div>
+<div id="panel-salary" class="explore-surface" role="tabpanel" aria-labelledby="tab-salary" hidden><div class="panel-head"><div><h2>같은 일도, 연봉의 폭은 꽤 넓어요.</h2><p>미국 · USD / 연 · 공고에 명시된 연봉 밴드 중간값</p></div><span class="small muted">추정 연봉 제외</span></div><div id="salaryplot" class="salaryplot"></div><div class="chart-legend"><span>가는 선: 10–90백분위 · 굵은 선: 가운데 50% · 점: 중앙값</span></div><div class="salary-bottom"><div><div class="small muted" id="salary-label"></div><div class="salary-bignum num" id="salary-median"></div><div class="range-label" id="salary-range"></div></div><div><label class="small muted" for="salary-input">비교할 연봉 · USD / 연</label><div class="salary-input"><span>$</span><input id="salary-input" type="number" min="1" step="5000" value="180000" inputmode="numeric"></div><p class="comparison" id="salary-comparison" aria-live="polite"></p></div></div><details class="method"><summary>실제 받는 연봉과는 무엇이 다른가요?</summary><p>공고의 (최저 연봉 + 최고 연봉) ÷ 2를 표본 값으로 계산한 분포입니다. 실제 근로자의 연봉·입사 오퍼·이직 인상률이 아닙니다. 미국, USD, 연 단위, 양쪽 범위가 존재하는 비추정 외부 공고만 포함했습니다. 직급·도시가 섞여 있어 개인의 적정 연봉으로 해석할 수 없습니다. 저장된 연봉이 연 $1–2 또는 $180–250인 단위 확인 필요 공고 3건은 이 탐색 집계에서 제외했습니다. 나머지 원문 금액을 전수 검증한 것은 아닙니다. 국내 활성 공고 28,528건 중 비추정 KRW/연 공고는 2건으로, 국내 실제 연봉 순위를 만들기에는 부족했습니다.</p></details></div>
+</section>
+<section id="notes" class="notes" hidden><span class="eyebrow">PRODUCT NOTES / 2026.11.05</span><h1 style="margin-top:12px">데이터를 구경하다가,<br>내 다음 선택을 발견하게.</h1><p class="intro">추천은 <b>회사 이동 지도 → 지금 열린 공고 → Harper에게 질문</b>의 흐름입니다. 홈에는 카드 한 장만 두고 주제를 바꿔 보게 합니다. 궁금해진 사람에게만 상세 탐색을 펼칩니다. 이 시안의 숫자는 Harper DB를 읽기 전용으로 집계한 값이며, 지원 현황과 왼쪽 대화 영역만 배치 예시입니다.</p>
+<div class="idea-list">
+<article class="idea"><span class="status">먼저 만들기 · 경력 + 회사 + 공고</span><h3>이 회사 다음엔?</h3><p class="example">“쿠팡 다음 회사로 무신사를 택한 사람들은?”</p><p>가장 많이 이어진 경로와 재직 기간, 현재 공고를 한 화면에. 회사 이름 하나가 새로운 탐색의 시작점이 됩니다. 네이버는 계열사 이동도 많아서, 외부 이직과 내부 이동을 분리하면 더 재밌습니다.</p></article>
+<article class="idea"><span class="status">먼저 만들기 · 경력 + 회사</span><h3>나와 비슷하게 시작한 사람들</h3><p class="example">“이 경험으로 갈 수 있는 뜻밖의 회사는?”</p><p>사용자의 직무·경력과 가까운 이력을 찾아 다음 회사와 역할을 보여줍니다. 인기 순위보다 개인적인 발견이 큽니다. 기존 검색·경력 context와 일반 도구를 재사용하고, 유사성 판단은 원본 LLM에 맡깁니다.</p></article>
+<article class="idea"><span class="status">현재 분포부터 · 채용 공고</span><h3>요즘 열린 일</h3><p class="example">“AI 이름이 붙은 국내 공고는 얼마나 있을까?”</p><p>직무별 현재 공고·회사 수와 주간 관측 히트맵. 채용 수요의 변화를 주장하기 전에 수집 범위부터 맞춥니다. 이후 공고 원문의 기술 요구를 연결하면 ‘배우면 선택지가 넓어지는 기술’로 확장할 수 있습니다.</p></article>
+<article class="idea"><span class="status">공시 연봉이 충분한 시장부터 · 공고 급여</span><h3>연봉의 스펙트럼</h3><p class="example">“평균 하나 말고, 보통 어느 구간일까?”</p><p>직군·직급·지역별 분위수를 비교합니다. 현재는 미국 공고로 시연했습니다. 국내 Harper 추정치를 보여주려면 ‘예상 공고 연봉’으로 별도 표시해야 하고 실제 평균 연봉이나 상승률과 섞으면 안 됩니다.</p></article>
+<article class="idea"><span class="status">전후 실측 데이터 확인이 먼저</span><h3>이직 한 번의 변화</h3><p class="example">“같은 연차에서 옮긴 사람은 얼마나 올랐을까?”</p><p>같은 사람의 이직 전·후 기본급, 시점·통화·급여 구성, 확정 오퍼가 연결될 때 가치가 큽니다. 이번에 확인한 구조에는 집계 가능한 전후 연봉 테이블이 없었습니다. 목표 연봉이나 두 집단 평균의 차이를 인상률로 대체하지 않습니다.</p></article>
+<article class="idea"><span class="status">다음 확장 · 경력 + 공고 내용</span><h3>의외로 연결되는 두 직무</h3><p class="example">“데이터 분석 다음에 PM이 된 사람들은?”</p><p>회사명뿐 아니라 역할의 이동을 보여주는 갈림길 지도. 실제 이동 이력과 공고의 요구 경험을 함께 제시하고, 해당 사용자에게 연결되는 이유는 Harper와 대화로 탐색합니다. 별도 적합도 점수는 만들 필요가 없습니다.</p></article>
+</div>
+<div class="research"><h2>직접 확인한 데이터</h2><table class="truth-table"><thead><tr><th>보유 데이터</th><th>이번 확인</th><th>해석과 다음 준비</th></tr></thead><tbody><tr><td>경력 이력</td><td>1,138,917건 / 269,554명</td><td>회사 ID와 시작·종료일 존재. 동일 회사 중복 ID·동시 재직·인턴·법인 이동을 구분해야 합니다.</td></tr><tr><td>외부 공고</td><td>273,510건<br>활성 119,599건</td><td>게시일·수집일·만료 여부·국가·근무 방식·급여. 현재 보유 공고 기준이며 전체 시장이 아닙니다.</td></tr><tr><td>국내 활성 공고</td><td>28,528건<br>추정 KRW/연 19,859건</td><td>양쪽 급여가 있는 비추정 공고는 8건이나 통화·기간이 섞임. 비추정 KRW/연은 2건입니다.</td></tr><tr><td>실제 이직 전후 급여</td><td>구조화된 연결 표본 미확인</td><td>Memory·개별 오퍼 문서 안의 존재 여부는 조사하지 않음. ‘데이터가 전혀 없다’는 결론은 아닙니다.</td></tr></tbody></table><div class="hint">제품화한다면: 홈 카드 선택에는 사용자의 기존 경력·관심 회사·원하는 조건을 활용합니다. 원본 LLM이 관련 있는 발견을 고르고 일반 조회 도구가 근거 집계를 반환하게 합니다. 개인 식별 정보를 보내지 않는 집계 응답, 접근 권한, 소수 집단의 재식별 방지는 실제 공개 경계에서 설계합니다. 이 로컬 시안은 개인 이름·연락처·개별 이력을 포함하지 않습니다.</div></div>
+<div class="research"><h2>찾아본 레퍼런스와 가져올 요소</h2><div class="reference-grid">
+<div class="ref"><a href="https://www.talentflow.fyi/" target="_blank" rel="noreferrer">TalentFlow ↗</a><p>회사 간 이동에서 바로 다음 회사·채용 탐색으로 연결하는 구조. Harper에서는 불투명한 종합 점수보다 경로의 실제 표본을 보여주는 편이 좋습니다.</p></div>
+<div class="ref"><a href="https://www.reveliolabs.com/solutions/enterprise" target="_blank" rel="noreferrer">Revelio Labs · Talent flows ↗</a><p>유입·유출 회사, 인재 수급, 시장 급여를 함께 연결. 회사명 정규화와 직무·레벨·지역 비교의 필요성도 참고했습니다.</p></div>
+<div class="ref"><a href="https://www.levels.fyi/heatmap/" target="_blank" rel="noreferrer">Levels.fyi · Pay heatmap ↗</a><p>하나의 평균보다 지역별 급여 구간과 분위수를 탐색하는 방식. 여기서는 같은 축에 분위수 선을 놓아 비교를 쉽게 했습니다.</p></div>
+<div class="ref"><a href="https://hiringlab.indeed.com/2024/04/16/new-data-portal/" target="_blank" rel="noreferrer">Indeed Hiring Lab ↗</a><p>공고 수·임금·원격 근무를 분리한 카드, 기간과 지역을 고르는 흐름, 원자료 표로 이어지는 구조를 참고했습니다.</p></div>
+<div class="ref"><a href="https://www.linkedin.com/help/learning/answer/a6231389" target="_blank" rel="noreferrer">LinkedIn · Next Role Explorer ↗</a><p>직무·역량을 기반으로 다음 역할을 탐색. ‘나와 비슷한 사람’과 ‘의외의 직무 전환’ 아이디어의 참고점입니다.</p></div>
+<div class="ref"><a href="https://workforcereport.adp.com/" target="_blank" rel="noreferrer">ADP · Pay Insights ↗</a><p>동일 근로자의 현재 급여와 12개월 전 급여를 연결하고 이직 여부를 구분합니다. 전후 연결 표본 없이 이직 인상률을 말하면 안 되는 이유입니다.</p></div>
+<div class="ref"><a href="https://observablehq.github.io/notebook-kit/ex/d3/sankey" target="_blank" rel="noreferrer">Observable · Sankey ↗</a><p>선의 두께를 수량에 비례시키는 흐름도. 회사 선택과 경로 선택이 있는 단순한 1단계 지도로 풀었습니다.</p></div>
+<div class="ref"><a href="https://pudding.cool/about/" target="_blank" rel="noreferrer">The Pudding ↗</a><p>차트 목록보다 한 가지 궁금증으로 들어가는 데이터 스토리. 홈 카드도 지표 이름 대신 질문으로 시작하도록 했습니다.</p></div>
+</div></div>
+<div class="research"><h2>이 시안의 범위</h2><p class="small muted" style="line-height:1.9">실제 제품 파일·DB를 변경하지 않은 독립 HTML입니다. 홈 카드 3종, 회사 4곳, 재직 기간 선택, 경로 상세, 주간 히트맵, 연봉 분위수 비교가 동작합니다. 통계는 2026-11-05 조회 스냅샷이며 실시간 갱신되지 않습니다. 공고별 중복과 모든 원문 금액을 전수 검증한 운영 통계는 아닙니다. 자동 발송·지원·팔로우·배포는 포함하지 않습니다. 재현용 집계 SQL과 데이터 JSON을 같은 폴더에 보관했습니다.</p></div>
+</section>
+</main><footer class="page-footer"><span>Harper discovery study · 2026.11.05</span><span>경력은 집계로, 다음 선택은 대화로.</span></footer>
+<script id="snapshot" type="application/json">{
+  "asOf": "2026-11-05",
+  "stats": {
+    "experiences": 1138917,
+    "profiles": 269554,
+    "companies": 318550,
+    "active_jobs": 119599
+  },
+  "hiring": [
+    {
+      "id": "backend",
+      "label": "백엔드",
+      "active": 595,
+      "companies": 367,
+      "w1": 59,
+      "w2": 64,
+      "w3": 91,
+      "w4": 49,
+      "prev28": 205,
+      "last28": 263
+    },
+    {
+      "id": "data",
+      "label": "데이터 엔지니어",
+      "active": 150,
+      "companies": 106,
+      "w1": 14,
+      "w2": 19,
+      "w3": 25,
+      "w4": 17,
+      "prev28": 48,
+      "last28": 75
+    },
+    {
+      "id": "design",
+      "label": "프로덕트 디자인",
+      "active": 204,
+      "companies": 142,
+      "w1": 21,
+      "w2": 30,
+      "w3": 35,
+      "w4": 22,
+      "prev28": 64,
+      "last28": 108
+    },
+    {
+      "id": "frontend",
+      "label": "프론트엔드",
+      "active": 201,
+      "companies": 146,
+      "w1": 19,
+      "w2": 19,
+      "w3": 26,
+      "w4": 16,
+      "prev28": 68,
+      "last28": 80
+    },
+    {
+      "id": "ml",
+      "label": "AI · 머신러닝",
+      "active": 1464,
+      "companies": 630,
+      "w1": 119,
+      "w2": 172,
+      "w3": 222,
+      "w4": 161,
+      "prev28": 568,
+      "last28": 674
+    },
+    {
+      "id": "pm",
+      "label": "프로덕트 매니저",
+      "active": 247,
+      "companies": 138,
+      "w1": 13,
+      "w2": 18,
+      "w3": 36,
+      "w4": 29,
+      "prev28": 82,
+      "last28": 96
+    }
+  ],
+  "salaries": [
+    {
+      "id": "backend",
+      "label": "백엔드",
+      "n": 345,
+      "mean": "206307",
+      "percentiles": [
+        163500,
+        187500,
+        202500,
+        225000,
+        250000
+      ],
+      "minimum": "17000",
+      "maximum": "485000.0"
+    },
+    {
+      "id": "data",
+      "label": "데이터 엔지니어",
+      "n": 131,
+      "mean": "197642",
+      "percentiles": [
+        140337,
+        156750,
+        190000,
+        220375,
+        270000
+      ],
+      "minimum": "45000",
+      "maximum": "405000.0"
+    },
+    {
+      "id": "design",
+      "label": "프로덕트 디자인",
+      "n": 260,
+      "mean": "201988",
+      "percentiles": [
+        152500,
+        172233.125,
+        194500,
+        226985.5,
+        258650
+      ],
+      "minimum": "50000",
+      "maximum": "460000.0"
+    },
+    {
+      "id": "frontend",
+      "label": "프론트엔드",
+      "n": 123,
+      "mean": "201749",
+      "percentiles": [
+        150000,
+        177500,
+        200000,
+        225000,
+        255800
+      ],
+      "minimum": "40000",
+      "maximum": "450000"
+    },
+    {
+      "id": "ml",
+      "label": "AI · 머신러닝",
+      "n": 1775,
+      "mean": "218960",
+      "percentiles": [
+        148403,
+        176543.75,
+        212000,
+        252000,
+        295000
+      ],
+      "minimum": "13000",
+      "maximum": "850000.0"
+    },
+    {
+      "id": "pm",
+      "label": "프로덕트 매니저",
+      "n": 908,
+      "mean": "207652",
+      "percentiles": [
+        159550,
+        177500,
+        200250,
+        230000,
+        262500
+      ],
+      "minimum": "30000",
+      "maximum": "581400.0"
+    }
+  ],
+  "flows": [
+    {
+      "source": 1753,
+      "destination": 16783,
+      "name": "NAVER Corp",
+      "linkedin_url": "https://www.linkedin.com/company/naver",
+      "people": 99,
+      "median_tenure": 2.66666666666667,
+      "rk": 1,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 75,
+      "median_tenure": 4,
+      "rk": 2,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 825160,
+      "name": "Hyundai Motor Company",
+      "linkedin_url": "https://www.linkedin.com/company/hyundai-motor-company/",
+      "people": 60,
+      "median_tenure": 3.16906228610541,
+      "rk": 3,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 1441,
+      "name": "Google",
+      "linkedin_url": "https://www.linkedin.com/company/google/",
+      "people": 59,
+      "median_tenure": 7.08555783709788,
+      "rk": 4,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 15096106,
+      "name": "Seoul National University",
+      "linkedin_url": "https://www.linkedin.com/school/seoulnational-university/",
+      "people": 46,
+      "median_tenure": 0.167008898015058,
+      "rk": 5,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 19120,
+      "name": "SK hynix",
+      "linkedin_url": "https://www.linkedin.com/company/sk-hynix",
+      "people": 45,
+      "median_tenure": 2.74880219028063,
+      "rk": 6,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 3996614,
+      "name": "Kakao Corp",
+      "linkedin_url": "https://www.linkedin.com/company/kakaocorp/",
+      "people": 35,
+      "median_tenure": 2.00136892539357,
+      "rk": 7,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 2382910,
+      "name": "Amazon Web Services (AWS)",
+      "linkedin_url": "https://www.linkedin.com/company/amazon-web-services",
+      "people": 34,
+      "median_tenure": 4.99931553730322,
+      "rk": 8,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 77752302,
+      "name": "Samsung Semiconductor",
+      "linkedin_url": "https://www.linkedin.com/company/samsungsemiconductor/",
+      "people": 33,
+      "median_tenure": 6.5845311430527,
+      "rk": 9,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 15095344,
+      "name": "Korea Advanced Institute of Science and Technology",
+      "linkedin_url": "https://www.linkedin.com/school/%ED%95%9C%EA%B5%AD%EA%B3%BC%ED%95%99%EA%B8%B0%EC%88%A0%EC%9B%90-kaist-/",
+      "people": 32,
+      "median_tenure": 0.418891170431211,
+      "rk": 10,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 162479,
+      "name": "Apple",
+      "linkedin_url": "https://www.linkedin.com/company/apple/",
+      "people": 31,
+      "median_tenure": 5.24845995893224,
+      "rk": 11,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 165992,
+      "name": "SK Telecom",
+      "linkedin_url": "https://www.linkedin.com/company/sk-telecom",
+      "people": 30,
+      "median_tenure": 3.91786447638604,
+      "rk": 12,
+      "total": 2873
+    },
+    {
+      "source": 16783,
+      "destination": 26665462,
+      "name": "NAVER Cloud",
+      "linkedin_url": "https://www.linkedin.com/company/navercloud/",
+      "people": 199,
+      "median_tenure": 2.33264887063655,
+      "rk": 1,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 53,
+      "median_tenure": 4.08213552361396,
+      "rk": 2,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 9318303,
+      "name": "LINE Plus Corp",
+      "linkedin_url": "https://www.linkedin.com/company/line-messenger",
+      "people": 51,
+      "median_tenure": 3.08555783709788,
+      "rk": 3,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 42772889,
+      "name": "NAVER FINANCIAL",
+      "linkedin_url": "https://www.linkedin.com/company/naver-financial/",
+      "people": 45,
+      "median_tenure": 2.91854893908282,
+      "rk": 4,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 3996614,
+      "name": "Kakao Corp",
+      "linkedin_url": "https://www.linkedin.com/company/kakaocorp/",
+      "people": 38,
+      "median_tenure": 0.245037645448323,
+      "rk": 5,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 1753,
+      "name": "Samsung Electronics",
+      "linkedin_url": "https://www.linkedin.com/company/samsung-electronics/",
+      "people": 32,
+      "median_tenure": 0.414784394250513,
+      "rk": 6,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 13340368,
+      "name": "NAVER WEBTOON",
+      "linkedin_url": "https://www.linkedin.com/company/naver-webtoon-corp/",
+      "people": 28,
+      "median_tenure": 2.74880219028063,
+      "rk": 7,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 165992,
+      "name": "SK Telecom",
+      "linkedin_url": "https://www.linkedin.com/company/sk-telecom",
+      "people": 24,
+      "median_tenure": 1.50171115674196,
+      "rk": 8,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 10571084,
+      "name": "Toss",
+      "linkedin_url": "https://www.linkedin.com/company/tossglobal/",
+      "people": 24,
+      "median_tenure": 1.79192334017796,
+      "rk": 9,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 14479249,
+      "name": "Karrot",
+      "linkedin_url": "https://www.linkedin.com/company/daangn/",
+      "people": 23,
+      "median_tenure": 2.83093771389459,
+      "rk": 10,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 6476200,
+      "name": "(주)우아한형제들 (Woowa Bros.)",
+      "linkedin_url": "https://www.linkedin.com/company/woowa-bros-/",
+      "people": 22,
+      "median_tenure": 3.25119780971937,
+      "rk": 11,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 13389963,
+      "name": "NAVER LABS Corp.",
+      "linkedin_url": "https://www.linkedin.com/company/naverlabs/",
+      "people": 18,
+      "median_tenure": 3.29363449691992,
+      "rk": 12,
+      "total": 1675
+    },
+    {
+      "source": 2824374,
+      "destination": 14593491,
+      "name": "MUSINSA 무신사",
+      "linkedin_url": "https://www.linkedin.com/company/musinsacom/",
+      "people": 47,
+      "median_tenure": 4,
+      "rk": 1,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 10571084,
+      "name": "Toss",
+      "linkedin_url": "https://www.linkedin.com/company/tossglobal/",
+      "people": 37,
+      "median_tenure": 1.91649555099247,
+      "rk": 2,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 27052530,
+      "name": "Bucketplace (Ohouse)",
+      "linkedin_url": "https://www.linkedin.com/company/bucketplace/",
+      "people": 37,
+      "median_tenure": 2.91581108829569,
+      "rk": 3,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 6476200,
+      "name": "(주)우아한형제들 (Woowa Bros.)",
+      "linkedin_url": "https://www.linkedin.com/company/woowa-bros-/",
+      "people": 36,
+      "median_tenure": 2.16837782340862,
+      "rk": 4,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 16783,
+      "name": "NAVER Corp",
+      "linkedin_url": "https://www.linkedin.com/company/naver",
+      "people": 34,
+      "median_tenure": 2.7501711156742,
+      "rk": 5,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 2741466,
+      "name": "마이리얼트립 (Myrealtrip)",
+      "linkedin_url": "https://www.linkedin.com/company/myrealtrip",
+      "people": 28,
+      "median_tenure": 3.28815879534565,
+      "rk": 6,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 69347140,
+      "name": "Coupang Pay",
+      "linkedin_url": "https://www.linkedin.com/company/coupangpay/",
+      "people": 26,
+      "median_tenure": 3.53867214236824,
+      "rk": 7,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 10043024,
+      "name": "위대한상상(요기요)",
+      "linkedin_url": "https://www.linkedin.com/company/yogiyokorea",
+      "people": 22,
+      "median_tenure": 1.99863107460643,
+      "rk": 8,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 79116546,
+      "name": "Flipster",
+      "linkedin_url": "https://www.linkedin.com/company/flipster-official/",
+      "people": 20,
+      "median_tenure": 2.41478439425051,
+      "rk": 9,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 1586,
+      "name": "Amazon",
+      "linkedin_url": "https://www.linkedin.com/company/amazon",
+      "people": 15,
+      "median_tenure": 1.99863107460643,
+      "rk": 10,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 1753,
+      "name": "Samsung Electronics",
+      "linkedin_url": "https://www.linkedin.com/company/samsung-electronics/",
+      "people": 15,
+      "median_tenure": 2.08350444900753,
+      "rk": 11,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 9318303,
+      "name": "LINE Plus Corp",
+      "linkedin_url": "https://www.linkedin.com/company/line-messenger",
+      "people": 15,
+      "median_tenure": 1.50581793292266,
+      "rk": 12,
+      "total": 1400
+    },
+    {
+      "source": 10571084,
+      "destination": 69924947,
+      "name": "Toss Securities",
+      "linkedin_url": "https://www.linkedin.com/company/toss-securities/",
+      "people": 45,
+      "median_tenure": 2.33538672142368,
+      "rk": 1,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 67515813,
+      "name": "Toss Payments(토스페이먼츠)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-payments/",
+      "people": 37,
+      "median_tenure": 1.66735112936345,
+      "rk": 2,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 82568965,
+      "name": "Toss Place(토스플레이스)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-place/",
+      "people": 27,
+      "median_tenure": 1.66461327857632,
+      "rk": 3,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 74324665,
+      "name": "Toss Bank(토스뱅크)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-bank/",
+      "people": 21,
+      "median_tenure": 2.32991101984942,
+      "rk": 4,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 14,
+      "median_tenure": 2.33401779603012,
+      "rk": 5,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 3996614,
+      "name": "Kakao Corp",
+      "linkedin_url": "https://www.linkedin.com/company/kakaocorp/",
+      "people": 12,
+      "median_tenure": 0.123203285420945,
+      "rk": 6,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 80128583,
+      "name": "Toss CX (토스씨엑스)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-cx",
+      "people": 12,
+      "median_tenure": 1.75085557837098,
+      "rk": 7,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 14479249,
+      "name": "Karrot",
+      "linkedin_url": "https://www.linkedin.com/company/daangn/",
+      "people": 11,
+      "median_tenure": 0.503764544832307,
+      "rk": 8,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 16783,
+      "name": "NAVER Corp",
+      "linkedin_url": "https://www.linkedin.com/company/naver",
+      "people": 10,
+      "median_tenure": 1.12799452429843,
+      "rk": 9,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 13714067,
+      "name": "카카오뱅크 Kakaobank",
+      "linkedin_url": "https://www.linkedin.com/company/kakaobank/",
+      "people": 9,
+      "median_tenure": 1.9192334017796,
+      "rk": 10,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 65282143,
+      "name": "flex",
+      "linkedin_url": "https://www.linkedin.com/company/flexteamofficial/",
+      "people": 9,
+      "median_tenure": 3.41957563312799,
+      "rk": 11,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 75656332,
+      "name": "moyo",
+      "linkedin_url": "https://www.linkedin.com/company/%EB%AA%A8%EC%9A%94%EF%BD%9C%EB%AA%A8%EB%91%90%EC%9D%98%EC%9A%94%EA%B8%88%EC%A0%9C/",
+      "people": 8,
+      "median_tenure": 1.91649555099247,
+      "rk": 12,
+      "total": 665
+    }
+  ],
+  "flowsLong": [
+    {
+      "source": 1753,
+      "destination": 16783,
+      "name": "NAVER Corp",
+      "linkedin_url": "https://www.linkedin.com/company/naver",
+      "people": 76,
+      "median_tenure": 3.50034223134839,
+      "rk": 1,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 70,
+      "median_tenure": 4.45722108145106,
+      "rk": 2,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 1441,
+      "name": "Google",
+      "linkedin_url": "https://www.linkedin.com/company/google/",
+      "people": 52,
+      "median_tenure": 7.87405886379192,
+      "rk": 3,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 825160,
+      "name": "Hyundai Motor Company",
+      "linkedin_url": "https://www.linkedin.com/company/hyundai-motor-company/",
+      "people": 43,
+      "median_tenure": 5.91375770020534,
+      "rk": 4,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 2382910,
+      "name": "Amazon Web Services (AWS)",
+      "linkedin_url": "https://www.linkedin.com/company/amazon-web-services",
+      "people": 28,
+      "median_tenure": 5.91375770020534,
+      "rk": 5,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 77752302,
+      "name": "Samsung Semiconductor",
+      "linkedin_url": "https://www.linkedin.com/company/samsungsemiconductor/",
+      "people": 27,
+      "median_tenure": 8,
+      "rk": 6,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 3996614,
+      "name": "Kakao Corp",
+      "linkedin_url": "https://www.linkedin.com/company/kakaocorp/",
+      "people": 26,
+      "median_tenure": 2.45722108145106,
+      "rk": 7,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 162479,
+      "name": "Apple",
+      "linkedin_url": "https://www.linkedin.com/company/apple/",
+      "people": 25,
+      "median_tenure": 5.91375770020534,
+      "rk": 8,
+      "total": 2082
+    },
+    {
+      "source": 16783,
+      "destination": 26665462,
+      "name": "NAVER Cloud",
+      "linkedin_url": "https://www.linkedin.com/company/navercloud/",
+      "people": 154,
+      "median_tenure": 3.29226557152635,
+      "rk": 1,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 45,
+      "median_tenure": 4.41615331964408,
+      "rk": 2,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 9318303,
+      "name": "LINE Plus Corp",
+      "linkedin_url": "https://www.linkedin.com/company/line-messenger",
+      "people": 34,
+      "median_tenure": 4,
+      "rk": 3,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 42772889,
+      "name": "NAVER FINANCIAL",
+      "linkedin_url": "https://www.linkedin.com/company/naver-financial/",
+      "people": 34,
+      "median_tenure": 3.20876112251882,
+      "rk": 4,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 10571084,
+      "name": "Toss",
+      "linkedin_url": "https://www.linkedin.com/company/tossglobal/",
+      "people": 19,
+      "median_tenure": 2.16563997262149,
+      "rk": 5,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 13340368,
+      "name": "NAVER WEBTOON",
+      "linkedin_url": "https://www.linkedin.com/company/naver-webtoon-corp/",
+      "people": 18,
+      "median_tenure": 3.79192334017796,
+      "rk": 6,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 13389963,
+      "name": "NAVER LABS Corp.",
+      "linkedin_url": "https://www.linkedin.com/company/naverlabs/",
+      "people": 18,
+      "median_tenure": 3.29363449691992,
+      "rk": 7,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 6476200,
+      "name": "(주)우아한형제들 (Woowa Bros.)",
+      "linkedin_url": "https://www.linkedin.com/company/woowa-bros-/",
+      "people": 14,
+      "median_tenure": 5.20465434633812,
+      "rk": 8,
+      "total": 848
+    },
+    {
+      "source": 2824374,
+      "destination": 14593491,
+      "name": "MUSINSA 무신사",
+      "linkedin_url": "https://www.linkedin.com/company/musinsacom/",
+      "people": 43,
+      "median_tenure": 4.33127994524298,
+      "rk": 1,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 27052530,
+      "name": "Bucketplace (Ohouse)",
+      "linkedin_url": "https://www.linkedin.com/company/bucketplace/",
+      "people": 34,
+      "median_tenure": 3.33333333333333,
+      "rk": 2,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 6476200,
+      "name": "(주)우아한형제들 (Woowa Bros.)",
+      "linkedin_url": "https://www.linkedin.com/company/woowa-bros-/",
+      "people": 33,
+      "median_tenure": 2.16837782340862,
+      "rk": 3,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 16783,
+      "name": "NAVER Corp",
+      "linkedin_url": "https://www.linkedin.com/company/naver",
+      "people": 32,
+      "median_tenure": 3.16495550992471,
+      "rk": 4,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 2741466,
+      "name": "마이리얼트립 (Myrealtrip)",
+      "linkedin_url": "https://www.linkedin.com/company/myrealtrip",
+      "people": 28,
+      "median_tenure": 3.28815879534565,
+      "rk": 5,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 10571084,
+      "name": "Toss",
+      "linkedin_url": "https://www.linkedin.com/company/tossglobal/",
+      "people": 26,
+      "median_tenure": 3.00342231348391,
+      "rk": 6,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 69347140,
+      "name": "Coupang Pay",
+      "linkedin_url": "https://www.linkedin.com/company/coupangpay/",
+      "people": 24,
+      "median_tenure": 3.66461327857632,
+      "rk": 7,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 10043024,
+      "name": "위대한상상(요기요)",
+      "linkedin_url": "https://www.linkedin.com/company/yogiyokorea",
+      "people": 22,
+      "median_tenure": 1.99863107460643,
+      "rk": 8,
+      "total": 1098
+    },
+    {
+      "source": 10571084,
+      "destination": 69924947,
+      "name": "Toss Securities",
+      "linkedin_url": "https://www.linkedin.com/company/toss-securities/",
+      "people": 40,
+      "median_tenure": 2.49555099247091,
+      "rk": 1,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 67515813,
+      "name": "Toss Payments(토스페이먼츠)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-payments/",
+      "people": 25,
+      "median_tenure": 2.49418206707734,
+      "rk": 2,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 74324665,
+      "name": "Toss Bank(토스뱅크)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-bank/",
+      "people": 20,
+      "median_tenure": 2.33127994524298,
+      "rk": 3,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 82568965,
+      "name": "Toss Place(토스플레이스)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-place/",
+      "people": 19,
+      "median_tenure": 3.66324435318275,
+      "rk": 4,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 11,
+      "median_tenure": 2.49965776865161,
+      "rk": 5,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 80128583,
+      "name": "Toss CX (토스씨엑스)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-cx",
+      "people": 10,
+      "median_tenure": 1.75222450376454,
+      "rk": 6,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 65282143,
+      "name": "flex",
+      "linkedin_url": "https://www.linkedin.com/company/flexteamofficial/",
+      "people": 8,
+      "median_tenure": 3.79466119096509,
+      "rk": 7,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 13714067,
+      "name": "카카오뱅크 Kakaobank",
+      "linkedin_url": "https://www.linkedin.com/company/kakaobank/",
+      "people": 7,
+      "median_tenure": 2.00136892539357,
+      "rk": 8,
+      "total": 364
+    }
+  ],
+  "jobs": [
+    {
+      "company_db_id": 1441,
+      "n": 84
+    },
+    {
+      "company_db_id": 16783,
+      "n": 32
+    },
+    {
+      "company_db_id": 162479,
+      "n": 24
+    },
+    {
+      "company_db_id": 825160,
+      "n": 59
+    },
+    {
+      "company_db_id": 2382910,
+      "n": 4
+    },
+    {
+      "company_db_id": 2741466,
+      "n": 17
+    },
+    {
+      "company_db_id": 2824374,
+      "n": 536
+    },
+    {
+      "company_db_id": 3996614,
+      "n": 24
+    },
+    {
+      "company_db_id": 6476200,
+      "n": 61
+    },
+    {
+      "company_db_id": 9318303,
+      "n": 16
+    },
+    {
+      "company_db_id": 10043024,
+      "n": 6
+    },
+    {
+      "company_db_id": 10571084,
+      "n": 259
+    },
+    {
+      "company_db_id": 13340368,
+      "n": 43
+    },
+    {
+      "company_db_id": 13389963,
+      "n": 6
+    },
+    {
+      "company_db_id": 13714067,
+      "n": 26
+    },
+    {
+      "company_db_id": 14593491,
+      "n": 114
+    },
+    {
+      "company_db_id": 26665462,
+      "n": 9
+    },
+    {
+      "company_db_id": 27052530,
+      "n": 37
+    },
+    {
+      "company_db_id": 42772889,
+      "n": 1
+    },
+    {
+      "company_db_id": 65282143,
+      "n": 4
+    },
+    {
+      "company_db_id": 67515813,
+      "n": 2
+    },
+    {
+      "company_db_id": 69924947,
+      "n": 11
+    },
+    {
+      "company_db_id": 74324665,
+      "n": 22
+    },
+    {
+      "company_db_id": 80128583,
+      "n": 33
+    },
+    {
+      "company_db_id": 82568965,
+      "n": 17
+    }
+  ],
+  "countries": [
+    {
+      "country_code": "US",
+      "n": 56003,
+      "stated_range": 34796
+    },
+    {
+      "country_code": "KR",
+      "n": 28528,
+      "stated_range": 8
+    },
+    {
+      "country_code": "IN",
+      "n": 5241,
+      "stated_range": 653
+    },
+    {
+      "country_code": null,
+      "n": 4529,
+      "stated_range": 681
+    },
+    {
+      "country_code": "GB",
+      "n": 4285,
+      "stated_range": 1015
+    },
+    {
+      "country_code": "CA",
+      "n": 1985,
+      "stated_range": 1210
+    },
+    {
+      "country_code": "DE",
+      "n": 1813,
+      "stated_range": 291
+    },
+    {
+      "country_code": "FR",
+      "n": 1227,
+      "stated_range": 213
+    },
+    {
+      "country_code": "IL",
+      "n": 1192,
+      "stated_range": 2
+    },
+    {
+      "country_code": "JP",
+      "n": 1165,
+      "stated_range": 64
+    },
+    {
+      "country_code": "SG",
+      "n": 1006,
+      "stated_range": 65
+    },
+    {
+      "country_code": "AU",
+      "n": 993,
+      "stated_range": 104
+    }
+  ],
+  "krpay": [
+    {
+      "salary_is_predicted": true,
+      "salary_currency": "KRW",
+      "salary_period": "year",
+      "n": 19859
+    },
+    {
+      "salary_is_predicted": false,
+      "salary_currency": "USD",
+      "salary_period": "year",
+      "n": 2
+    },
+    {
+      "salary_is_predicted": false,
+      "salary_currency": "KPW",
+      "salary_period": "year",
+      "n": 2
+    },
+    {
+      "salary_is_predicted": false,
+      "salary_currency": "KRW",
+      "salary_period": "year",
+      "n": 2
+    },
+    {
+      "salary_is_predicted": false,
+      "salary_currency": "GBP",
+      "salary_period": "year",
+      "n": 1
+    },
+    {
+      "salary_is_predicted": false,
+      "salary_currency": "USD",
+      "salary_period": "day",
+      "n": 1
+    }
+  ]
+}
+</script>
+<script>
+(()=>{'use strict';const D=JSON.parse(document.getElementById('snapshot').textContent);const $=id=>document.getElementById(id);const fmt=n=>Number(n).toLocaleString('ko-KR');const dollar=n=>'$'+Math.round(n).toLocaleString('en-US');const names={1753:'삼성전자',16783:'네이버',2824374:'쿠팡',10571084:'토스',26665462:'네이버클라우드',9318303:'라인플러스',42772889:'네이버파이낸셜',3996614:'카카오',13340368:'네이버웹툰',165992:'SK텔레콤',14479249:'당근',6476200:'우아한형제들',13389963:'네이버랩스',14593491:'무신사',27052530:'오늘의집',2741466:'마이리얼트립',69347140:'쿠팡페이',10043024:'요기요',79116546:'Flipster',1586:'Amazon',69924947:'토스증권',67515813:'토스페이먼츠',82568965:'토스플레이스',74324665:'토스뱅크',80128583:'토스씨엑스',13714067:'카카오뱅크',65282143:'flex',75656332:'모요',825160:'현대자동차',1441:'Google',15096106:'서울대학교',19120:'SK하이닉스',2382910:'AWS',77752302:'삼성반도체',15095344:'KAIST',162479:'Apple'};const palette=['#a79acb','#93b5cd','#dcad9d','#a1bab0','#b5a2be','#c6b795'];let mode='home',tab='flow',source=2824374,long=true,dest=null,homeCard=0,job='ml',salary='backend';const ns='http://www.w3.org/2000/svg';const el=(tag,attrs={},text)=>{const n=document.createElementNS(ns,tag);for(const[k,v]of Object.entries(attrs))n.setAttribute(k,v);if(text!==undefined)n.textContent=text;return n};const txt=(svg,x,y,s,attrs={})=>svg.appendChild(el('text',{x,y,fill:'#6e6e73','font-size':12,...attrs},s));const routeRows=()=> (long?D.flowsLong:D.flows).filter(x=>x.source===source).slice(0,6);const name=id=>names[id]||String(id);
+function setMode(next){mode=next;document.body.dataset.mode=next;['home','explore','notes'].forEach(k=>$(k).hidden=k!==next);document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===next));if(next==='explore')renderTab();if(next==='home')renderHome();window.scrollTo({top:0,behavior:'instant'})}function setTab(next){tab=next;setMode('explore');document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===next));['flow','hiring','salary'].forEach(k=>$('panel-'+k).hidden=k!==next);renderTab()}function renderTab(){document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===tab));['flow','hiring','salary'].forEach(k=>$('panel-'+k).hidden=k!==tab);if(tab==='flow')renderFlow();if(tab==='hiring')renderHiring();if(tab==='salary')renderSalary()}
+function renderHome(){document.querySelectorAll('[data-card]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.card===homeCard));const hc=$('home-chart');hc.replaceChildren();if(homeCard===0){$('home-tag').textContent='NEXT CHAPTER';$('home-title').innerHTML='쿠팡 다음에는<br>어디로 갔을까?';$('home-caption').textContent='2020–2026 · 1년 이상 재직한 경력';$('home-open').textContent='경로 펼쳐보기 ↗';const w=hc.clientWidth||374;const s=el('svg',{viewBox:`0 0 ${w} 174`,role:'img','aria-label':'쿠팡 다음 경력: 무신사 43명, 오늘의집 34명, 우아한형제들 33명. 상위 3개 경로.'});const arr=D.flowsLong.filter(r=>r.source===2824374).slice(0,3),total=arr.reduce((v,r)=>v+r.people,0);let y0=55;arr.forEach((r,i)=>{let h=r.people/total*73,yy=29+i*55,tx=w-128;s.appendChild(el('path',{d:`M 56 ${y0} C ${w*.4} ${y0},${w*.47} ${yy},${tx} ${yy} L ${tx} ${yy+h} C ${w*.47} ${yy+h},${w*.4} ${y0+h},56 ${y0+h} Z`,fill:palette[i],opacity:.68}));s.appendChild(el('rect',{x:tx,y:yy,width:3,height:h,rx:1,fill:palette[i]}));txt(s,tx+11,yy+h/2+4,name(r.destination),{'font-size':11,fill:'#4b4b51'});txt(s,w,yy+h/2+4,r.people+'명',{'font-size':11,'text-anchor':'end',fill:'#4b4b51'});y0+=h});s.appendChild(el('rect',{x:52,y:55,width:4,height:73,rx:2,fill:'#88789f'}));txt(s,0,95,'쿠팡',{'font-size':12,fill:'#4b4b51'});hc.append(s)}else if(homeCard===1){$('home-tag').textContent='OPEN POSSIBILITIES';$('home-title').innerHTML='요즘 어떤 일이<br>많이 열려 있을까?';$('home-caption').textContent='국내 · 직행 공고 · 11월 5일 집계';$('home-open').textContent='채용 흐름 보기 ↗';const list=document.createElement('div');list.className='mini-market';['ml','backend','pm','design'].forEach(id=>{const d=D.hiring.find(x=>x.id===id),row=document.createElement('div');row.className='mini-row';row.innerHTML=`<span>${d.label}</span><i style="width:${d.active/1464*100}%"></i><b>${fmt(d.active)}</b>`;list.append(row)});hc.append(list)}else{$('home-tag').textContent='PAY PERSPECTIVE';$('home-title').innerHTML='백엔드 공고의 연봉,<br>가운데는 얼마일까?';$('home-caption').textContent='미국 공고 · USD/연 · 추정 제외';$('home-open').textContent='연봉 분포 보기 ↗';const d=D.salaries.find(x=>x.id==='backend');hc.innerHTML=`<div class="mini-pay-number">${dollar(d.percentiles[2])}</div><div class="small muted">공고 연봉 밴드 중간값의 중앙값</div><div class="mini-pay-band" style="--median-position:${(d.percentiles[2]-d.percentiles[1])/(d.percentiles[3]-d.percentiles[1])*100}%"></div><div class="mini-salary-row muted"><span>${dollar(d.percentiles[1])}</span><span>가운데 50%</span><span>${dollar(d.percentiles[3])}</span></div><div class="small muted">${d.n}개 공고</div>`}}
+function renderFlow(){const rows=routeRows();if(!rows.some(r=>r.destination===dest))dest=rows[0].destination;$('flow-company').textContent=name(source);document.querySelectorAll('[data-company]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.company===source));const wrap=$('atlas');const w=wrap.clientWidth||960,mobile=w<600,h=380,x0=mobile?42:144,x1=w-(mobile?140:205),total=rows.reduce((s,r)=>s+r.people,0),sourceH=Math.min(mobile?138:192,44*total/Math.max(...rows.map(r=>r.people)));let sy=(h-sourceH)/2;const svg=el('svg',{viewBox:`0 0 ${w} 380`,role:'img','aria-label':`${name(source)} 다음 경력 상위 6개 경로. ${rows.map(r=>name(r.destination)+' '+r.people+'명').join(', ')}`});txt(svg,mobile?0:20,mobile?92:174,name(source),{'font-size':mobile?16:23,fill:'#1d1d1f','font-weight':400});txt(svg,mobile?0:20,mobile?112:196,'이전 회사',{'font-size':10,fill:'#8b8b93'});txt(svg,x1+10,24,'이력상 다음 회사',{'font-size':10,fill:'#8b8b93'});svg.appendChild(el('rect',{x:x0-4,y:sy,width:5,height:sourceH,rx:2,fill:'#9585ad'}));const dests=document.createElement('div');dests.className='destinations';rows.forEach((r,i)=>{const thick=r.people/total*sourceH,ty=57+i*53,y=ty-thick/2;const path=el('path',{d:`M${x0},${sy} C${x0+(x1-x0)*.55},${sy} ${x1-(x1-x0)*.45},${y} ${x1},${y} L${x1},${y+thick} C${x1-(x1-x0)*.45},${y+thick} ${x0+(x1-x0)*.55},${sy+thick} ${x0},${sy+thick} Z`,fill:palette[i],opacity:r.destination===dest?.88:.4});path.dataset.destination=r.destination;path.append(el('title',{},`${name(source)} → ${name(r.destination)} ${r.people}명`));svg.append(path,el('rect',{x:x1,y,width:4,height:thick,rx:1,fill:palette[i]}));const b=document.createElement('button');b.className='destination';b.style.top=(ty-21)/380*100+'%';b.setAttribute('aria-pressed',r.destination===dest);b.setAttribute('aria-label',`${name(r.destination)} ${r.people}명 경로 보기`);b.innerHTML=`<span class="dest-name">${name(r.destination)}</span><span class="dest-n num">${r.people}<i>명</i></span>`;b.onclick=()=>{dest=r.destination;$('draft').hidden=true;renderFlow()};dests.append(b);sy+=thick});wrap.replaceChildren(svg,dests);const selected=rows.find(r=>r.destination===dest);$('flow-denominator').textContent=`경로별 인원 합계 ${fmt(total)}명 · 경로 간 중복 가능`;$('detail-route').textContent=`${name(source)} → ${name(dest)} · ${selected.people}명`;$('detail-tenure').innerHTML=selected.median_tenure.toFixed(1)+'<small>년</small>';const jobs=D.jobs.find(r=>r.company_db_id===dest);$('detail-jobs').innerHTML=jobs?fmt(jobs.n)+'<small>개</small>':'<span class="small muted">연결된 공고 없음</span>'}
+function renderHiring(){const selected=D.hiring.find(x=>x.id===job);$('hiring-selected-label').textContent=selected.label+' · 현재 열린 공고';$('hiring-number').innerHTML=fmt(selected.active)+'<small>개</small>';$('hiring-meta').innerHTML=`<span><b>${fmt(selected.companies)}</b>개 회사</span><span>최근 4주 관측 <b>${fmt(selected.last28)}</b>개</span>`;const map=$('heatmap');map.replaceChildren();const cell=(text,cls)=>{const n=document.createElement('div');n.className=cls;n.textContent=text;return n};map.append(cell('제목 키워드','colhead'));['10/05 주','10/12 주','10/19 주','10/26 주'].forEach(t=>map.append(cell(t,'colhead')));map.append(cell('현재 열린 공고','colhead active-col'));const max=Math.max(...D.hiring.flatMap(r=>[r.w1,r.w2,r.w3,r.w4]));['ml','backend','pm','design','frontend','data'].forEach(id=>{const r=D.hiring.find(x=>x.id===id);const b=document.createElement('button');b.className='topic';b.textContent=r.label;b.setAttribute('aria-pressed',id===job);b.onclick=()=>{job=id;renderHiring()};map.append(b);['w1','w2','w3','w4'].forEach((wk,i)=>{const c=cell(r[wk],'heatcell');c.style.background=`rgba(122,106,216,${.06+r[wk]/max*.52})`;c.style.color='#443955';c.setAttribute('aria-label',`${r.label}, ${['10월 5일','10월 12일','10월 19일','10월 26일'][i]} 주, ${r[wk]}개 공고`);map.append(c)});const bar=cell('','activebar active-col');bar.innerHTML=`<div class="bartrack"><div class="barfill" style="width:${r.active/1464*100}%"></div></div><span class="num">${fmt(r.active)}</span>`;map.append(bar)});$('hiring-observation').textContent=`${selected.label}: 직전 4주 ${selected.prev28}개 → 최근 4주 ${selected.last28}개 관측. 수집 범위가 달라질 수 있어 시장 채용 증가율로 표시하지 않았어요.`}
+function renderSalary(){const wrap=$('salaryplot'),w=wrap.clientWidth||900,mobile=w<600,left=mobile?110:185,right=mobile?10:60,x=v=>left+(v-100000)/250000*(w-left-right);const svg=el('svg',{viewBox:`0 0 ${w} 350`,role:'img','aria-label':'미국 공고 연봉 밴드 중간값의 분위수 비교. USD 연 단위. 실제 지급 급여가 아닙니다.'});[100000,150000,200000,250000,300000,350000].forEach((tick,i)=>{svg.append(el('line',{x1:x(tick),x2:x(tick),y1:5,y2:282,stroke:'#1d1d1f0b','stroke-width':1}));if(!mobile||i%2===0)txt(svg,x(tick),306,'$'+tick/1000+'k',{'text-anchor':'middle','font-size':10})});const buttons=document.createElement('div');buttons.className='salary-selects';['ml','backend','pm','frontend','design','data'].forEach((id,i)=>{const d=D.salaries.find(r=>r.id===id),p=d.percentiles,y=22.5+i*45,active=id===salary;svg.append(el('line',{x1:x(p[0]),x2:x(p[4]),y1:y,y2:y,stroke:active?'#8c78b4':'#bac1cb','stroke-width':2,'stroke-linecap':'round'}),el('line',{x1:x(p[1]),x2:x(p[3]),y1:y,y2:y,stroke:active?'#b3a2d0':'#cdd2da','stroke-width':12,'stroke-linecap':'round'}),el('circle',{cx:x(p[2]),cy:y,r:active?5:3.5,fill:active?'#6e548f':'#8792a2'}));if(!mobile)txt(svg,w-2,y+4,dollar(p[2]),{'text-anchor':'end','font-size':12,fill:active?'#4f3b6a':'#6e6e73'});const b=document.createElement('button');b.textContent=d.label;b.setAttribute('aria-pressed',active);b.onclick=()=>{salary=id;renderSalary()};buttons.append(b)});wrap.replaceChildren(svg,buttons);const d=D.salaries.find(x=>x.id===salary);$('salary-label').textContent=`${d.label} · ${fmt(d.n)}개 공고의 중앙값`;$('salary-median').innerHTML=dollar(d.percentiles[2])+' <small>/ 연</small>';$('salary-range').textContent=`가운데 50%: ${dollar(d.percentiles[1])}–${dollar(d.percentiles[3])}`;renderComparison()}
+function renderComparison(){const v=Number($('salary-input').value),d=D.salaries.find(x=>x.id===salary),p=$('salary-comparison');if(!Number.isFinite(v)||v<=0){p.textContent='비교할 연봉을 양수로 입력해 주세요.';return}const diff=(d.percentiles[2]-v)/v*100;p.innerHTML=`입력값 대비 공고 중앙값 <strong>${diff>0?'+':''}${diff.toFixed(1)}%</strong><br>이직 시 받을 인상률을 뜻하지 않아요.`}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>setTab(b.dataset.open));document.querySelectorAll('[data-card]').forEach(b=>b.onclick=()=>{homeCard=+b.dataset.card;renderHome()});$('home-open').onclick=()=>setTab(['flow','hiring','salary'][homeCard]);document.querySelectorAll('[data-company]').forEach(b=>b.onclick=()=>{source=+b.dataset.company;dest=null;$('draft').hidden=true;renderFlow()});$('tenure').onchange=e=>{long=e.target.checked;dest=null;$('draft').hidden=true;renderFlow()};$('salary-input').oninput=renderComparison;$('make-question').onclick=()=>{const r=routeRows().find(r=>r.destination===dest);$('draft').hidden=false;$('copy-status').textContent='';$('copy-question').textContent='질문 복사';$('question').value=`${name(source)}에서 ${name(dest)}로 이어진 경력이 ${r.people}명 관측됐네요. 이 경로가 제 경험과도 연결될지 살펴보고, ${name(dest)}의 현재 채용 중 저에게 맞는 기회가 있는지 알려주세요.`};$('copy-question').onclick=async()=>{try{await navigator.clipboard.writeText($('question').value);$('copy-status').textContent=' · 복사했어요'}catch{$('question').focus();$('question').select();$('copy-status').textContent=' · 텍스트를 선택했어요. 복사해 주세요.'}};let lastWidth=0;new ResizeObserver(()=>{const width=document.documentElement.clientWidth;if(width===lastWidth)return;lastWidth=width;if(mode==='home')renderHome();else if(mode==='explore')renderTab()}).observe(document.documentElement);renderHome();
+})();
+</script>
+</body>
+</html>

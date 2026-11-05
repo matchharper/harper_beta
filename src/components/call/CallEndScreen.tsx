@@ -146,7 +146,7 @@ const RecruiterCallSummaryScreen: React.FC<RecruiterCallSummaryProps> = ({
         <BareButton
           type="button"
           onClick={onClickProfile}
-          className="flex flex-row items-center justify-center gap-2 cursor-pointer hover:opacity-90 rounded-lg bg-neutral-1000 text-white py-4 w-full"
+          className="flex flex-row items-center justify-center gap-2 cursor-pointer hover:opacity-90 rounded-lg bg-neutral-1000 text-on-inverse py-4 w-full"
         >
           계속하기
           <ArrowRight className="w-4 h-4" />

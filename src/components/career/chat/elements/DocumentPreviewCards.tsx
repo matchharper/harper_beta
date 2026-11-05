@@ -42,7 +42,7 @@ function DocumentPreviewCard({ document }: { document: CareerDocumentLink }) {
         closeMobileChat?.();
         void router.push(getCareerDocumentHref(document.id));
       }}
-      icon={<FileText className="h-5 w-5 text-black/40" />}
+      icon={<FileText className="h-5 w-5 text-neutral-primary/40" />}
       title={document.title}
       description={
         metadata?.description?.trim() ||
@@ -88,12 +88,12 @@ export const PreviewUI = ({
     </>
   );
   const className =
-    "group w-[320px] max-w-full gap-4 rounded-3xl flex flex-row items-center px-5 bg-black/4 border-none";
+    "career-glass career-work-surface group w-[320px] max-w-full gap-4 flex flex-row items-center px-5";
   return onClick ? (
     <CardButton
       onClick={onClick}
       disabled={disabled}
-      className={`${className} hover:bg-black/8`}
+      className={`${className} hover:bg-surface-inverse/8`}
     >
       {content}
     </CardButton>

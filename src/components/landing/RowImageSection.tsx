@@ -44,7 +44,7 @@ const RowImageSection = ({
     >
       {/* media */}
       <motion.div
-        className="h-[26vw] min-h-[250px] md:min-h-[380px] w-full flex relative overflow-hidden justify-end items-end rounded-3xl bg-white/10 md:bg-white/5"
+        className="h-[26vw] min-h-[250px] md:min-h-[380px] w-full flex relative overflow-hidden justify-end items-end rounded-3xl bg-bg-floating/10 md:bg-bg-floating/5"
         variants={fadeSlide}
         custom={mediaFrom}
         initial="hidden"

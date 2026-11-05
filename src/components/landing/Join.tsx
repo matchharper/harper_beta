@@ -29,7 +29,7 @@ export const Selections = ({
                 <div
                     key={option}
                     onClick={() => handleClick(option)}
-                    className={`flex flex-row text-base md:text-base transition-all duration-200 items-center gap-2 cursor-pointer border-2 py-2 px-3 min-w-[200px] rounded-[4px]
+                    className={`flex flex-row text-base md:text-base transition-all duration-200 items-center gap-2 cursor-pointer border-2 py-2 px-3 min-w-[200px] rounded-sm
               ${flash ? "animate-pulse" : ""}
               ${selected === option
                             ? "bg-neutral-1000/20  hover:bg-neutral-1000/20 border-neutral-1000"
@@ -38,7 +38,7 @@ export const Selections = ({
               `}
                 >
                     {showOptionNumbers && index < 9 ? (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-[4px] border border-neutral-300 bg-white text-[11px] font-semibold text-neutral-800">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-sm border border-neutral-300 bg-bg-floating text-[11px] font-semibold text-neutral-800">
                             {index + 1}
                         </span>
                     ) : null}
@@ -89,7 +89,7 @@ export const TextInput = ({
                     autoFocus={autoFocus}
                 />
             )}
-            <div className="transition-colors duration-200 rounded-full w-full h-px bg-white/0 group-focus-within:bg-neutral-1000"></div>
+            <div className="transition-colors duration-200 rounded-full w-full h-px bg-bg-floating/0 group-focus-within:bg-neutral-1000"></div>
         </div>
     );
 };

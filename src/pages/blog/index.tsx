@@ -312,7 +312,7 @@ export default function BlogListPage({
                     </div>
 
                     <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                      <div className="absolute inset-0 bg-black/3" />
+                      <div className="absolute inset-0 bg-interaction-hover" />
                     </div>
                   </Link>
 

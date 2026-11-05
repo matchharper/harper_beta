@@ -50,7 +50,7 @@ export function PushNavigationFrame({
           className={cn(
             "relative z-10 flex h-full w-full flex-col bg-bg-default transition-[translate,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
             open
-              ? "translate-x-[var(--push-navigation-width)] shadow-[-12px_0_32px_-12px_rgba(0,0,0,0.12)]"
+              ? "translate-x-[var(--push-navigation-width)] shadow-(--shadow-panel-slide)"
               : "translate-x-0",
             surfaceClassName
           )}

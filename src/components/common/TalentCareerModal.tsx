@@ -94,8 +94,7 @@ const TalentCareerModal = ({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           className={cn(
-            "fixed inset-0 z-80 bg-black/10",
-            mobileBottomSheet && "max-md:bg-black/20",
+            "fixed inset-0 z-80 bg-overlay backdrop-blur-overlay",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             backdropClassName
@@ -134,14 +133,14 @@ const TalentCareerModal = ({
               if (!closeOnBackdrop) event.preventDefault();
             }}
             className={cn(
-              "relative flex max-h-[calc(100dvh-3rem)] w-full max-w-[720px] flex-col overflow-hidden rounded-3xl border border-neutral-1000-a10 bg-bg-default shadow-[0_24px_80px_rgba(17,24,39,0.2)] outline-none pointer-events-auto",
+              "relative flex max-h-[calc(100dvh-3rem)] w-full max-w-[720px] flex-col overflow-hidden rounded-modal border-(length:--modal-border-width) border-modal-border bg-modal bg-modal-image text-modal-foreground shadow-(--shadow-modal) backdrop-blur-modal outline-none pointer-events-auto",
               "data-[state=open]:animate-in data-[state=closed]:animate-out",
               "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
               "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
               mobileBottomSheet
                 ? [
                     "max-md:flex max-md:max-h-[calc(100dvh-env(safe-area-inset-top)-24px)] max-md:flex-col",
-                    "max-md:rounded-b-none max-md:rounded-t-[28px] max-md:border-b-0 max-md:pb-[env(safe-area-inset-bottom)]",
+                    "max-md:rounded-b-none max-md:rounded-t-sheet max-md:border-b-0 max-md:pb-[env(safe-area-inset-bottom)]",
                     "max-md:data-[state=closed]:slide-out-to-bottom max-md:data-[state=open]:slide-in-from-bottom",
                     "max-md:data-[state=closed]:zoom-out-100 max-md:data-[state=open]:zoom-in-100",
                   ]
@@ -154,7 +153,7 @@ const TalentCareerModal = ({
               {showCloseButton ? (
                 <DialogPrimitive.Close
                   className={cn(
-                    "absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-black/5",
+                    "absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-surface-tint",
                     mobileBottomSheet &&
                       "max-md:rounded-full max-md:border-0 max-md:bg-neutral-50 max-md:text-neutral-primary max-md:shadow-none max-md:hover:bg-bg-weak max-md:focus-visible:outline-2 max-md:focus-visible:outline-offset-2 max-md:focus-visible:outline-neutral-1000-a10",
                     closeButtonClassName
@@ -192,7 +191,7 @@ const TalentCareerModal = ({
                   )}
                 >
                   {eyebrow && (
-                    <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-neutral-soft">
+                    <div className="text-[11px] font-heading uppercase tracking-[0.18em] text-neutral-soft">
                       {eyebrow}
                     </div>
                   )}
@@ -206,7 +205,7 @@ const TalentCareerModal = ({
                       {hasTitle && (
                         <DialogPrimitive.Title
                           className={cn(
-                            "mt-0 text-base font-medium tracking-[-0.02em] text-neutral-primary",
+                            "mt-0 text-base font-heading tracking-[-0.02em] text-modal-foreground",
                             showCloseButton && "max-sm:pr-8"
                           )}
                         >
@@ -219,7 +218,7 @@ const TalentCareerModal = ({
                     </div>
                   ) : (
                     hasTitle && (
-                      <DialogPrimitive.Title className="mt-0 text-base font-medium tracking-[-0.02em] text-neutral-primary">
+                      <DialogPrimitive.Title className="mt-0 text-base font-heading tracking-[-0.02em] text-modal-foreground">
                         {title}
                       </DialogPrimitive.Title>
                     )

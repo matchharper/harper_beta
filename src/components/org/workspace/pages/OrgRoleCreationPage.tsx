@@ -466,7 +466,7 @@ function OrgRoleCreationDetails({
           {mobile ? (
             <MuteButton
               aria-label={c("역할 상세 닫기", "Close role details")}
-              className="ml-1 rounded-full"
+              className="ml-1 rounded-pill"
               onClick={onClose}
               size="md"
               variant="transparent"
@@ -539,7 +539,7 @@ function OrgRoleCreationDetails({
             })}
           </div>
           {!mobile && onToggleExpanded ? (
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center bg-linear-to-r from-transparent via-white to-white pl-8 pr-2">
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center bg-linear-to-r from-transparent via-bg-floating to-bg-floating pl-8 pr-2">
               <MuteButton
                 aria-controls="role-creation-details-panel"
                 aria-expanded={expanded}
@@ -1019,13 +1019,13 @@ export function OrgRoleCreationPage() {
             initialMessage={isNewRolePage && typeof router.query.prefill === "string" ? router.query.prefill : undefined}
             header={
               <>
-                <header className="absolute inset-x-0 top-0 z-30 flex h-12 items-center gap-2 bg-linear-to-b from-white/30 to-white/0 px-3 md:hidden">
+                <header className="absolute inset-x-0 top-0 z-30 flex h-12 items-center gap-2 bg-linear-to-b from-bg-floating/30 to-bg-floating/0 px-3 md:hidden">
                   {isNewRolePage ? (
                     <span aria-hidden className="size-8 shrink-0" />
                   ) : (
                     <MuteButton
                       aria-label={c("메뉴 열기", "Open menu")}
-                      className="border border-white/20 bg-white/10 backdrop-blur-xs hover:bg-white/20"
+                      className="border border-bg-floating/20 bg-bg-floating/10 backdrop-blur-xs hover:bg-bg-floating/20"
                       onClick={openNavigation}
                       size="md"
                       variant="transparent"
@@ -1047,7 +1047,7 @@ export function OrgRoleCreationPage() {
                   {roleId ? (
                     <MuteButton
                       aria-label={c("역할 상세 열기", "Open role details")}
-                      className="border border-white/20 bg-white/10 backdrop-blur-xs hover:bg-white/20"
+                      className="border border-bg-floating/20 bg-bg-floating/10 backdrop-blur-xs hover:bg-bg-floating/20"
                       onClick={() => setMobileDetailsOpen(true)}
                       size="md"
                       variant="transparent"

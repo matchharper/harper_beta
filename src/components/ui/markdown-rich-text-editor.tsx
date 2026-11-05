@@ -152,7 +152,7 @@ function FormatButton({
     <MuteButton
       aria-label={ariaLabel}
       aria-pressed={active}
-      className="rounded-[5px]"
+      className="rounded-button"
       disabled={disabled}
       onClick={onClick}
       size="sm"
@@ -379,7 +379,7 @@ export function MarkdownRichTextEditor({
         <div
           role="toolbar"
           aria-label="메일 서식"
-          className="sticky top-0 z-10 flex flex-wrap items-center gap-1 border-b border-neutral-1000-a10 bg-white p-2"
+          className="sticky top-0 z-10 flex flex-wrap items-center gap-1 border-b border-neutral-1000-a10 bg-bg-floating p-2"
         >
           <select
             aria-label="메일 문단 서식"
@@ -472,7 +472,7 @@ export function MarkdownRichTextEditor({
         >
           {editingLink ? (
             <form
-              className="w-[min(360px,calc(100vw-24px))] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-2 shadow-lg"
+              className="w-[min(360px,calc(100vw-24px))] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-2 shadow-(--shadow-lg)"
               onSubmit={submitLink}
             >
               <div className="flex items-center gap-1.5">
@@ -513,7 +513,7 @@ export function MarkdownRichTextEditor({
               ) : null}
             </form>
           ) : (
-            <div className="flex items-center gap-0.5 rounded-lg border border-neutral-1000-a10 bg-bg-floating p-1 shadow-lg">
+            <div className="flex items-center gap-0.5 rounded-lg border border-neutral-1000-a10 bg-bg-floating p-1 shadow-(--shadow-lg)">
               <DropdownMenu
                 modal={false}
                 onOpenChange={(open) => {

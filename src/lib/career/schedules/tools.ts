@@ -81,7 +81,7 @@ export const CAREER_SCHEDULE_TOOLS: Record<string, TalentToolDefinition> = {
         target_refs: {
           type: "object",
           description:
-            "Optional durable subject references. Set meetingScheduleIds to exact appointment IDs for preparation/reminders; current appointment facts are reloaded at execution. To revisit an existing company-requested follow-up, set companyFollowupIds to its exact followup IDs; current pending requests will be read again at execution.",
+            "Optional durable subject references. Set flexibleTiming=true only when execution may move within the same Korea calendar day to combine with other pending work. Omit or set false for a user-requested exact time or time-dependent action. Set meetingScheduleIds to exact appointment IDs for preparation/reminders; current appointment facts are reloaded at execution. To revisit an existing company-requested follow-up, set companyFollowupIds to its exact followup IDs; current pending requests will be read again at execution.",
         },
         timezone: { type: "string" },
         next_run_at: {

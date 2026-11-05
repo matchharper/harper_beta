@@ -26,7 +26,7 @@ export const FollowButton = ({
         "h-7 shrink-0 px-2 text-[12px]",
         following
           ? "bg-bg-weak text-neutral-muted border-none"
-          : "bg-black text-neutral-00"
+          : "bg-surface-inverse text-neutral-00"
       )}
     >
       {disabled ? (

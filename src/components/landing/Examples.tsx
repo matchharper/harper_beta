@@ -30,10 +30,10 @@ type UseCaseCardItem = {
 const Metric = ({ label, value }: Stat) => {
   return (
     <div className="flex flex-col gap-1">
-      <div className="text-[11px] md:text-xs text-white/45 font-light">
+      <div className="text-[11px] md:text-xs text-on-inverse/45 font-light">
         {label}
       </div>
-      <div className="text-[14px] md:text-[15px] text-white/85 font-medium">
+      <div className="text-[14px] md:text-[15px] text-on-inverse/85 font-medium">
         {value}
       </div>
     </div>
@@ -49,8 +49,8 @@ const QueryExample = ({
 }) => {
   return (
     <div className="mt-5">
-      <div className="text-[12px] md:text-[13px] text-white/40 font-light mb-2 flex flex-row items-center gap-1">
-        <Search className="w-3 h-3 text-white/40" />
+      <div className="text-[12px] md:text-[13px] text-on-inverse/40 font-light mb-2 flex flex-row items-center gap-1">
+        <Search className="w-3 h-3 text-on-inverse/40" />
         쿼리 예시
       </div>
 
@@ -61,7 +61,7 @@ const QueryExample = ({
           {avatars.slice(0, 5).map((src, i) => (
             <div
               key={`${src}-${i}`}
-              className="w-5 h-5 rounded-full overflow-hidden ring-1 ring-white/10 bg-white/5"
+              className="w-5 h-5 rounded-full overflow-hidden ring-1 ring-white/10 bg-bg-floating/5"
             >
               <Image src={src} alt={`avatar-${i}`} width={28} height={28} />
             </div>
@@ -78,9 +78,9 @@ const UseCaseCard = ({ item }: { item: UseCaseCardItem }) => {
       className="
         w-full
         rounded-2xl
-        bg-white/5
+        bg-bg-floating/5
         ring-1 ring-white/10
-        shadow-[0_18px_60px_rgba(0,0,0,0.35)]
+        shadow-(--shadow-lg)
         px-6 md:px-7
         py-6 md:py-7
         flex flex-col
@@ -88,21 +88,21 @@ const UseCaseCard = ({ item }: { item: UseCaseCardItem }) => {
       "
     >
       <div className="flex items-start gap-4">
-        <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
+        <div className="w-11 h-11 rounded-xl bg-bg-floating/5 flex items-center justify-center shrink-0">
           {item.icon}
         </div>
 
         <div className="flex flex-col gap-1">
-          <div className="text-[18px] md:text-[20px] font-medium text-white/90">
+          <div className="text-[18px] md:text-[20px] font-medium text-on-inverse/90">
             {item.title}
           </div>
-          <div className="text-[13px] md:text-[14px] font-normal text-white/55 leading-relaxed">
+          <div className="text-[13px] md:text-[14px] font-normal text-on-inverse/55 leading-relaxed">
             {item.desc}
           </div>
         </div>
       </div>
       <div className="flex items-start gap-4">
-        <div className="w-11 rounded-xl bg-white/0 hidden md:flex items-center justify-center shrink-0"></div>
+        <div className="w-11 rounded-xl bg-bg-floating/0 hidden md:flex items-center justify-center shrink-0"></div>
 
         <div className="flex flex-col gap-2">
           <div className="mt-5 flex items-center gap-10">
@@ -119,7 +119,7 @@ const UseCaseCard = ({ item }: { item: UseCaseCardItem }) => {
           <button
             type="button"
             onClick={item.onCtaClick}
-            className="mt-auto pt-6 text-left text-[12px] md:text-[13px] text-white/70 hover:text-accent-200 transition"
+            className="mt-auto pt-6 text-left text-[12px] md:text-[13px] text-on-inverse/70 hover:text-accent-200 transition"
           >
             {item.ctaLabel ?? "찾으러 가기 →"}
           </button>
@@ -143,7 +143,7 @@ export default function UseCaseGridSection({
   const defaultItems: UseCaseCardItem[] = [
     {
       key: "part_time_marketer",
-      icon: <Users className="w-5 h-5 text-white/80" />,
+      icon: <Users className="w-5 h-5 text-on-inverse/80" />,
       title: "파트타임 마케터",
       desc: "해외진출을 위한 파트타임 마케터를 찾아, 초기 제품의 성장을 함께 이끌어보세요.",
       stats: [
@@ -161,7 +161,7 @@ export default function UseCaseGridSection({
     },
     {
       key: "deep_learning_researcher",
-      icon: <GraduationCap className="w-5 h-5 text-white/80" />,
+      icon: <GraduationCap className="w-5 h-5 text-on-inverse/80" />,
       title: "딥러닝 리서처",
       desc: "채용 시장에 나오지 않은 뛰어난 연구자를 찾아 AI 역량을 강화하세요.",
       stats: [
@@ -179,7 +179,7 @@ export default function UseCaseGridSection({
     },
     {
       key: "developer",
-      icon: <Briefcase className="w-5 h-5 text-white/80" />,
+      icon: <Briefcase className="w-5 h-5 text-on-inverse/80" />,
       title: "개발자",
       desc: "스타트업에 바로 기여할 수 있는 실전 경험 중심의 개발자를 빠르게 찾으세요.",
       stats: [
@@ -193,7 +193,7 @@ export default function UseCaseGridSection({
     },
     {
       key: "recent_funded_founder",
-      icon: <Handshake className="w-5 h-5 text-white/80" />,
+      icon: <Handshake className="w-5 h-5 text-on-inverse/80" />,
       title: "최근 투자받은 스타트업 Founder",
       desc: "최근 투자 유치 후 팀을 확장 중인 창업자를 찾아 협업·영업·네트워킹 기회를 만드세요.",
       stats: [
@@ -216,8 +216,8 @@ export default function UseCaseGridSection({
     <Animate>
       <BaseSectionLayout>
         <div className="w-full flex flex-col items-start justify-center text-left px-4 md:px-0">
-          <Head1 className="text-white">{title}</Head1>
-          <div className="text-sm md:text-base text-white/55 font-normal mt-6 max-w-[720px]">
+          <Head1 className="text-on-inverse">{title}</Head1>
+          <div className="text-sm md:text-base text-on-inverse/55 font-normal mt-6 max-w-[720px]">
             {subtitle}
             <br />
             Harper는 개인정보를 판매하지 않으며, 공개된 전문 프로필 정보를

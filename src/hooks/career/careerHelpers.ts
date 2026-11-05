@@ -1,3 +1,4 @@
+import type { CareerTurnEvent } from "@/lib/career/turnDisplay";
 import type { ApplicationQuestionHistory } from "@/lib/career/simulation/questionHistory";
 import type {ApplicationDraft} from "@/lib/career/simulation/preparation";
 import type {
@@ -78,11 +79,21 @@ export const toUiMessage = (message: {
   recommendationSearchRelation?: CareerMessage["recommendationSearchRelation"];
   recommendationSearchRun?: CareerMessage["recommendationSearchRun"];
   recommendationStatusAfterCharCount?: number | null;
+  workEvents?: CareerTurnEvent[];
+  workReplyId?: string;
+  workStartedAt?: string;
+  workCompletedAt?: string;
+  workPending?: boolean;
   thinkingLogs?: unknown;
   turnStopped?: boolean;
   turnPending?: boolean;
   clientRequestId?: string;
 }): CareerMessage => ({
+  workEvents: message.workEvents,
+  workReplyId: message.workReplyId,
+  workStartedAt: message.workStartedAt,
+  workCompletedAt: message.workCompletedAt,
+  workPending: message.workPending,
   turnStopped: message.turnStopped,
   turnPending: message.turnPending,
   clientRequestId: message.clientRequestId,

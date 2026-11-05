@@ -17,7 +17,7 @@ const ProgressBar = ({ currentStep, totalSteps }: ProgressBarProps) => {
         initial={{ width: 0 }}
         animate={{ width: `${progress * 100}%` }}
         transition={{ duration: 0.35, ease: "easeInOut" }}
-        className="h-full bg-black"
+        className="h-full bg-surface-inverse"
       />
       <div className="block h-full w-[3px] bg-bg-default"></div>
     </div>

@@ -319,7 +319,7 @@ export async function maybeSummarizeTalentConversation(args: {
 }
 
 function isVisibleSummaryRecentMessage(message: TalentMessageRow) {
-  if(["simulation_session","simulation_action","application_start_offer"].includes(message.message_type??""))return false;
+  if(["career_turn_activity","simulation_session","simulation_action","application_start_offer"].includes(message.message_type??""))return false;
   if (
     message.message_type ===
       TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION ||

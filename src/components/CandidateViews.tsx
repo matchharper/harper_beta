@@ -633,7 +633,7 @@ const CandidateViews = ({
                         aria-label="선택 전체 취소"
                         className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
                           isDark
-                            ? "border border-white/10 bg-black/10 text-white/75 hover:bg-white/10 hover:text-white"
+                            ? "border border-bg-floating/10 bg-surface-inverse/10 text-on-inverse/75 hover:bg-bg-floating/10 hover:text-on-inverse"
                             : "border border-beige900/8 bg-beige500/55 text-beige900/75 hover:bg-beige500/70 hover:text-beige900"
                         }`}
                       >
@@ -653,11 +653,11 @@ const CandidateViews = ({
                           className={`inline-flex flex-row gap-2 items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-normal transition duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
                             isDark
                               ? hasCheckedCandidates
-                                ? "border border-accent-200 bg-accent-200 text-black hover:opacity-90"
-                                : "border border-white/80 bg-linear-to-br from-white/85 via-white/75 to-white/70 text-black hover:bg-white"
+                                ? "border border-accent-200 bg-accent-200 text-neutral-primary hover:opacity-90"
+                                : "border border-bg-floating/80 bg-linear-to-br from-bg-floating/85 via-bg-floating/75 to-bg-floating/70 text-neutral-primary hover:bg-bg-floating"
                               : hasCheckedCandidates
                                 ? "border border-beige900 bg-beige900 text-beige100 hover:opacity-90"
-                                : "border border-beige900/20 bg-white/80 text-beige900 hover:bg-white"
+                                : "border border-beige900/20 bg-bg-floating/80 text-beige900 hover:bg-bg-floating"
                           }`}
                         >
                           {hasCheckedCandidates ? (
@@ -687,8 +687,8 @@ const CandidateViews = ({
                 sideOffset={10}
                 contentClassName={
                   isDark
-                    ? "w-[240px] border-white/10 bg-neutral-900 text-white shadow-2xl"
-                    : "w-[240px] border-beige900/10 bg-beige100 text-beige900 shadow-2xl"
+                    ? "w-[240px] border-bg-floating/10 bg-neutral-900 text-on-inverse shadow-(--shadow-2xl)"
+                    : "w-[240px] border-beige900/10 bg-beige100 text-beige900 shadow-(--shadow-2xl)"
                 }
                 modal={false}
                 trigger={
@@ -696,7 +696,7 @@ const CandidateViews = ({
                     type="button"
                     className={`inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm transition-colors duration-200 ${
                       isDark
-                        ? "bg-black/10 border border-white/5 text-white/80 hover:border-white/15 hover:bg-black/5 hover:text-white"
+                        ? "bg-surface-inverse/10 border border-bg-floating/5 text-on-inverse/80 hover:border-bg-floating/15 hover:bg-surface-tint hover:text-on-inverse"
                         : "bg-beige500/55 border border-beige900/8 text-beige900/80 hover:border-beige900/15 hover:bg-beige500/40 hover:text-beige900"
                     }`}
                   >
@@ -704,7 +704,7 @@ const CandidateViews = ({
                     <span className="font-normal">Filter:</span>
                     <span
                       className={`max-w-[180px] truncate ${
-                        isDark ? "text-white/55" : "text-beige900/55"
+                        isDark ? "text-on-inverse/55" : "text-beige900/55"
                       }`}
                     >
                       {appliedFilterSummary}
@@ -714,7 +714,7 @@ const CandidateViews = ({
               >
                 <div
                   className={`px-2 py-2 text-xs font-medium ${
-                    isDark ? "text-white/50" : "text-beige900/50"
+                    isDark ? "text-on-inverse/50" : "text-beige900/50"
                   }`}
                 >
                   선택한 조건에 해당하는 후보를 결과에서 제외합니다.
@@ -725,7 +725,7 @@ const CandidateViews = ({
                     setDraftExcludedStatuses([]);
                     setDraftExcludeUnopenedProfiles(false);
                   }}
-                  className={isDark ? "text-white/85" : "text-beige900/85"}
+                  className={isDark ? "text-on-inverse/85" : "text-beige900/85"}
                 >
                   <span>전체보기</span>
                   {draftExcludedStatuses.length === 0 &&
@@ -748,9 +748,9 @@ const CandidateViews = ({
                   onCheckedChange={() => {
                     setDraftExcludeUnopenedProfiles((current) => !current);
                   }}
-                  className={`cursor-pointer rounded-[10px] py-2 ${
+                  className={`cursor-pointer rounded-md py-2 ${
                     isDark
-                      ? "text-white/85 focus:bg-white/10 focus:text-white"
+                      ? "text-on-inverse/85 focus:bg-bg-floating/10 focus:text-on-inverse"
                       : "text-beige900/85 focus:bg-beige500/55 focus:text-beige900"
                   }`}
                 >
@@ -767,9 +767,9 @@ const CandidateViews = ({
                     onCheckedChange={() => {
                       toggleDraftExcludedStatus(option.value);
                     }}
-                    className={`cursor-pointer rounded-[10px] py-2 ${
+                    className={`cursor-pointer rounded-md py-2 ${
                       isDark
-                        ? "text-white/85 focus:bg-white/10 focus:text-white"
+                        ? "text-on-inverse/85 focus:bg-bg-floating/10 focus:text-on-inverse"
                         : "text-beige900/85 focus:bg-beige500/55 focus:text-beige900"
                     }`}
                   >
@@ -789,7 +789,7 @@ const CandidateViews = ({
                     }}
                     className={`inline-flex h-8 items-center justify-center rounded-md px-3 text-xs transition-colors duration-200 ${
                       isDark
-                        ? "text-white/60 hover:bg-white/5 hover:text-white"
+                        ? "text-on-inverse/60 hover:bg-bg-floating/5 hover:text-on-inverse"
                         : "text-beige900/60 hover:bg-beige500/55 hover:text-beige900"
                     }`}
                   >
@@ -801,7 +801,7 @@ const CandidateViews = ({
                     disabled={!hasPendingFilterChanges}
                     className={`inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium transition duration-200 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40 ${
                       isDark
-                        ? "bg-accent-200 text-black"
+                        ? "bg-accent-200 text-neutral-primary"
                         : "bg-beige900 text-beige100"
                     }`}
                   >
@@ -813,14 +813,14 @@ const CandidateViews = ({
             <div
               className={`relative inline-flex rounded-lg ${
                 isDark
-                  ? "bg-black/10 border border-white/5"
+                  ? "bg-surface-inverse/10 border border-bg-floating/5"
                   : "bg-beige500/55 border border-beige900/8"
               }`}
             >
               <span
                 aria-hidden="true"
                 className={`absolute left-0.5 top-0.5 h-7 w-8 rounded-md transition-transform duration-300 ease-out ${
-                  isDark ? "bg-white/20" : "bg-beige900/15"
+                  isDark ? "bg-bg-floating/20" : "bg-beige900/15"
                 }`}
                 style={{
                   transform:
@@ -832,7 +832,7 @@ const CandidateViews = ({
                   type="button"
                   className={`relative z-10 flex h-8 w-9 items-center justify-center rounded-lg transition-colors duration-200 ${
                     isDark
-                      ? "text-white/80 hover:text-white"
+                      ? "text-on-inverse/80 hover:text-on-inverse"
                       : "text-beige900/80 hover:text-beige900"
                   }`}
                   onClick={() => changeViewType("table")}
@@ -845,7 +845,7 @@ const CandidateViews = ({
                   type="button"
                   className={`relative z-10 flex h-8 w-9 items-center justify-center rounded-lg transition-colors duration-200 ${
                     isDark
-                      ? "text-white/80 hover:text-white"
+                      ? "text-on-inverse/80 hover:text-on-inverse"
                       : "text-beige900/80 hover:text-beige900"
                   }`}
                   onClick={() => changeViewType("card")}
@@ -862,12 +862,12 @@ const CandidateViews = ({
         <div
           className={`mx-auto mt-8 flex w-full max-w-[720px] flex-col items-center justify-center gap-3 rounded-2xl px-6 py-10 text-center ${
             isDark
-              ? "border border-white/10 bg-white/3"
-              : "border border-beige900/10 bg-white/60"
+              ? "border border-bg-floating/10 bg-bg-floating/3"
+              : "border border-beige900/10 bg-bg-floating/60"
           }`}
         >
           <div
-            className={`text-sm ${isDark ? "text-white/75" : "text-beige900/75"}`}
+            className={`text-sm ${isDark ? "text-on-inverse/75" : "text-beige900/75"}`}
           >
             현재 필터 조건에 맞는 후보가 없습니다.
           </div>
@@ -879,7 +879,7 @@ const CandidateViews = ({
               onClick={resetExcludedMarkFilter}
               className={`inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm transition-colors duration-200 ${
                 isDark
-                  ? "border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white"
+                  ? "border border-bg-floating/10 bg-bg-floating/5 text-on-inverse/80 hover:bg-bg-floating/10 hover:text-on-inverse"
                   : "border border-beige900/8 bg-beige500/55 text-beige900/80 hover:bg-beige500/70 hover:text-beige900"
               }`}
             >
@@ -901,7 +901,7 @@ const CandidateViews = ({
               <div
                 className={`inline-grid items-center py-2 text-xs font-light w-full relative ${
                   isDark
-                    ? "text-neutral-300 bg-neutral-900 border-y border-white/5"
+                    ? "text-neutral-300 bg-neutral-900 border-y border-bg-floating/5"
                     : "text-beige900/80 bg-beige100 border-y border-beige900/8"
                 }`}
                 style={{ gridTemplateColumns }}
@@ -909,14 +909,14 @@ const CandidateViews = ({
                 <div
                   className={`sticky left-0 z-30 w-full h-full ${
                     isDark
-                      ? "bg-neutral-900 border-r border-white/5"
+                      ? "bg-neutral-900 border-r border-bg-floating/5"
                       : "bg-beige100 border-r border-beige900/8"
                   }`}
                 />
                 <div
                   className={`sticky left-14 z-30 px-4 ${
                     isDark
-                      ? "bg-neutral-900 border-r border-white/5"
+                      ? "bg-neutral-900 border-r border-bg-floating/5"
                       : "bg-beige100 border-r border-beige900/8"
                   }`}
                 >
@@ -954,7 +954,7 @@ const CandidateViews = ({
                         <Tooltips text={column.tooltip ?? column.label}>
                           <div
                             className={`w-full pl-2 pr-4 text-left truncate border-r ${
-                              isDark ? "border-white/5" : "border-beige900/8"
+                              isDark ? "border-bg-floating/5" : "border-beige900/8"
                             }`}
                           >
                             {column.label}
@@ -1001,7 +1001,7 @@ const CandidateViews = ({
                       onDrop={(e) => onDrop(e, columnId)}
                       onDragEnd={onDragEnd}
                       className={`relative px-4 flex items-center justify-between gap-2 border-r ${
-                        isDark ? "border-white/5" : "border-beige900/8"
+                        isDark ? "border-bg-floating/5" : "border-beige900/8"
                       } ${column.draggable ? "cursor-grab" : "cursor-default"}`}
                     >
                       {isDragOverTarget && (

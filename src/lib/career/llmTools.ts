@@ -82,6 +82,7 @@ export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
 export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   "read_agent_messages", "contact_user",
   "manage_work",
+  "manage_action_items",
   TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   // 최신/외부 웹 정보가 필요한 질문용. 예: 최근 투자, 최신 뉴스.
   TALENT_TOOL_NAMES.WEB_SEARCH,
@@ -104,7 +105,7 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_PROFILE,
   TALENT_TOOL_NAMES.ASSIGN_TO_ROLE,
   TALENT_TOOL_NAMES.SAVE_JOB_POSTING,
-  // 내부 Harper-connected role을 role title/company keyword로 직접 조회할 때.
+  // 사용자가 명시적으로 고른 공개 Harper-connected 공고를 식별할 때.
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
   // 특정 internal role에 대한 후보자의 우선 검토/연결 요청을 등록하거나 철회할 때.
   TALENT_TOOL_NAMES.APPLY_TO_INTERNAL_ROLE,

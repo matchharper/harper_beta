@@ -250,7 +250,7 @@ export function ApplicationReviewPanel({
   return (
     <section
       aria-label={t("career.application.review.open", "지원서 확인")}
-      className="w-full min-w-0 rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-4 text-neutral-primary sm:p-5"
+      className="career-glass career-work-surface w-full min-w-0 p-[18px] text-neutral-primary"
     >
       <h3 className="mb-5 text-sm font-semibold leading-6">{view.roleName}</h3>
       {content}

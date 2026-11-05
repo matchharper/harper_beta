@@ -6,29 +6,29 @@ import { motion, type HTMLMotionProps } from "motion/react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium outline-none transition-[background-color,border-color,color,opacity,transform] duration-150 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-55 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-button border-(length:--button-border-width) shadow-(--shadow-button) backdrop-blur-button font-button outline-none transition-[background-color,border-color,color,opacity,transform] duration-150 focus-visible:ring-2 focus-visible:ring-focus-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-55 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "border border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak",
+          "border-(length:--button-border-width) border-button-border bg-button bg-button-image text-button-foreground hover:border-stroke-focus hover:bg-button-hover",
         primary:
-          "border border-neutral-1000 bg-neutral-1000 text-neutral-00 hover:bg-neutral-900",
+          "border-(length:--button-border-width) border-surface-inverse bg-surface-inverse text-on-inverse hover:bg-surface-inverse-hover",
         black:
-          "border border-black bg-black text-neutral-00 hover:bg-neutral-900",
+          "border-(length:--button-border-width) border-surface-inverse bg-surface-inverse text-on-inverse hover:bg-surface-inverse-hover",
         secondary:
-          "border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak",
+          "border-(length:--button-border-width) border-stroke-subtle bg-button bg-button-image text-button-foreground hover:border-button-border hover:bg-button-hover",
         critical:
-          "border border-critical bg-critical text-neutral-00 hover:bg-critical/90",
+          "border-(length:--button-border-width) border-critical bg-critical text-on-inverse hover:bg-critical/90",
         positive:
-          "border border-positive bg-positive text-neutral-00 hover:bg-positive/90",
+          "border-(length:--button-border-width) border-positive bg-positive text-on-inverse hover:bg-positive/90",
       },
       size: {
         default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
+        sm: "h-8 rounded-button px-3 text-xs",
         md: "h-9 px-4 py-2 text-sm",
-        lg: "h-11 rounded-md px-5 text-base",
-        xl: "h-12 rounded-lg px-6 text-base",
+        lg: "h-11 rounded-button px-5 text-base",
+        xl: "h-12 rounded-button px-6 text-base",
         icon: "h-9 w-9",
       },
     },
@@ -60,35 +60,35 @@ const BareButton = React.forwardRef<HTMLButtonElement, BareButtonProps>(
 BareButton.displayName = "BareButton";
 
 const muteButtonVariants = cva(
-  "inline-flex h-fit items-center justify-center rounded-md border font-normal shadow-xs outline-none transition-[background-color,border-color,color,box-shadow,opacity] duration-150 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-basement disabled:pointer-events-none disabled:opacity-40",
+  "inline-flex h-fit items-center justify-center rounded-button border-(length:--button-border-width) backdrop-blur-button font-button shadow-(--shadow-button) outline-none transition-[background-color,border-color,color,box-shadow,opacity] duration-150 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-basement disabled:pointer-events-none disabled:opacity-40",
   {
     variants: {
       variant: {
-        dark: "border-neutral-1000 bg-neutral-1000 text-neutral-00 hover:border-neutral-900 hover:bg-neutral-900 active:border-neutral-800 active:bg-neutral-800",
+        dark: "border-surface-inverse bg-surface-inverse text-on-inverse hover:border-surface-inverse-hover hover:bg-surface-inverse-hover active:border-button-selected-border active:bg-surface-inverse-pressed",
         primary:
-          "border-primary bg-primary text-neutral-00 hover:border-primary/90 hover:bg-primary/90 active:border-primary/80 active:bg-primary/80",
+          "border-primary bg-primary text-on-inverse hover:border-primary/90 hover:bg-primary/90 active:border-primary/80 active:bg-primary/80",
         positive:
-          "border-positive-strong bg-positive-strong text-neutral-00 hover:bg-positive-strong/90 active:border-positive-strong/80 active:bg-positive-strong/80",
+          "border-positive-strong bg-positive-strong text-on-inverse hover:bg-positive-strong/90 active:border-positive-strong/80 active:bg-positive-strong/80",
         critical:
-          "border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 active:border-critical/80 active:bg-critical/80",
+          "border-critical bg-critical text-on-inverse hover:border-critical/90 hover:bg-critical/90 active:border-critical/80 active:bg-critical/80",
         default:
-          "border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-black/3 active:bg-bg-weak",
+          "border-button-border bg-button bg-button-image text-button-foreground hover:border-button-border hover:bg-button-hover active:bg-button-pressed",
         transparent:
-          "border-transparent bg-transparent text-neutral-muted shadow-none hover:border-transparent hover:bg-black/3 hover:text-neutral-primary active:bg-black/5",
+          "border-transparent bg-transparent text-neutral-muted shadow-none hover:border-transparent hover:bg-button-hover hover:text-button-foreground active:bg-button-pressed",
         warn: "border-critical/25 bg-critical-faded text-critical hover:border-critical/40 hover:bg-critical-faded/70 active:border-critical/50 active:bg-critical-faded",
         // A chip that is on but can't be changed (aria-disabled) shows no hover.
         neutral:
-          "border-neutral-1000-a05 bg-bg-weak text-neutral-primary hover:border-neutral-1000-a10 hover:bg-neutral-1000-a10 active:border-neutral-1000-a10 active:bg-neutral-1000-a10 aria-disabled:cursor-default aria-disabled:hover:border-neutral-1000-a05 aria-disabled:hover:bg-bg-weak aria-disabled:active:border-neutral-1000-a05 aria-disabled:active:bg-bg-weak",
+          "border-stroke-subtle bg-button-selected text-button-foreground hover:border-button-border hover:bg-button-pressed active:border-button-border active:bg-button-pressed aria-disabled:cursor-default aria-disabled:hover:border-stroke-subtle aria-disabled:hover:bg-button-selected aria-disabled:active:border-stroke-subtle aria-disabled:active:bg-button-selected",
         // The chosen one among toggle chips (a reason, a template, a writer).
         selected:
-          "border-neutral-800 bg-bg-weak text-neutral-primary hover:border-neutral-800 hover:bg-neutral-1000-a10 active:border-neutral-800 active:bg-neutral-1000-a10",
+          "border-button-selected-border bg-button-selected text-button-foreground hover:border-button-selected-border hover:bg-button-pressed active:border-button-selected-border active:bg-button-pressed",
         // A chip for something being made that is not saved yet.
         draft:
-          "border-dashed border-neutral-800 bg-bg-weak text-neutral-primary hover:bg-neutral-1000-a10 active:bg-neutral-1000-a10",
-        link: "border-transparent bg-transparent text-link shadow-none hover:border-transparent hover:text-blue-700 active:text-blue-700",
+          "border-dashed border-button-selected-border bg-button-selected text-button-foreground hover:bg-button-pressed active:bg-button-pressed",
+        link: "border-transparent bg-transparent text-link shadow-none hover:border-transparent hover:text-link-hover active:text-link-hover",
         // White on a tinted surface, e.g. a chip floating above the chat.
         raised:
-          "border-white bg-white text-black shadow-sm hover:border-white hover:bg-white/90 active:border-white active:bg-white/80",
+          "border-button-border bg-button bg-button-image text-button-foreground shadow-(--shadow-button) hover:border-button-border hover:bg-button/90 active:border-button-border active:bg-button/80",
       },
       size: {
         sm: "px-[5px] py-[5px] text-xs gap-1",
@@ -236,22 +236,22 @@ export type ActionButtonProps = Omit<ButtonProps, "size" | "variant"> & {
 
 const actionButtonVariantClassName: Record<ActionButtonVariant, string> = {
   primary:
-    "h-11 border border-neutral-1000 bg-neutral-1000 px-5 text-[14px] text-neutral-00 hover:bg-neutral-900 hover:text-neutral-00",
+    "h-11 border-(length:--button-border-width) border-surface-inverse bg-surface-inverse px-5 text-[14px] text-on-inverse hover:bg-surface-inverse-hover hover:text-on-inverse",
   secondary:
-    "h-10 border border-neutral-1000-a10 bg-bg-floating px-4 text-[13px] text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
-  icon: "h-10 w-10 border border-neutral-1000-a10 bg-bg-floating p-0 text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
+    "h-10 border-(length:--button-border-width) border-button-border bg-button px-4 text-[13px] text-button-foreground hover:border-stroke-focus hover:bg-button-hover hover:text-button-foreground",
+  icon: "h-10 w-10 border-(length:--button-border-width) border-button-border bg-button p-0 text-button-foreground hover:border-stroke-focus hover:bg-button-hover hover:text-button-foreground",
 };
 
 const actionButtonActiveClassName: Partial<
   Record<ActionButtonVariant, string>
 > = {
   secondary:
-    "bg-neutral-1000 text-neutral-00 hover:bg-neutral-900 hover:text-neutral-00 hover:border-neutral-1000-a10",
+    "bg-surface-inverse text-on-inverse hover:bg-surface-inverse-hover hover:text-on-inverse hover:border-button-border",
 };
 
 const actionButtonRadiusClassName: Record<ActionButtonRadius, string> = {
-  pill: "rounded-full",
-  rounded: "rounded-lg",
+  pill: "rounded-pill",
+  rounded: "rounded-button",
 };
 
 const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProps>(
@@ -278,7 +278,7 @@ const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProps>(
         variant="secondary"
         asChild={asChild}
         className={cn(
-          "gap-2 whitespace-nowrap font-medium transition-all duration-150 ease-out hover:-translate-y-px disabled:pointer-events-auto disabled:cursor-not-allowed disabled:opacity-60",
+          "gap-2 whitespace-nowrap font-button transition-all duration-150 ease-out hover:-translate-y-px disabled:pointer-events-auto disabled:cursor-not-allowed disabled:opacity-60",
           actionButtonVariantClassName[actionVariant],
           actionButtonRadiusClassName[resolvedRadius],
           active &&
@@ -306,10 +306,10 @@ const CardButton = React.forwardRef<HTMLButtonElement, CardButtonProps>(
       type={type}
       variant="default"
       className={cn(
-        "h-auto w-full justify-start whitespace-normal rounded-lg px-4 py-4 text-left",
+        "h-auto w-full justify-start whitespace-normal rounded-card border-(length:--card-border-width) bg-card-image shadow-(--shadow-card) backdrop-blur-card px-4 py-4 text-left",
         selected
-          ? "border-neutral-800 bg-bg-weak text-neutral-primary outline outline-[0.5px] outline-neutral-800 hover:border-neutral-800 hover:bg-neutral-100"
-          : "border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-neutral-100",
+          ? "border-button-selected-border bg-card-selected text-card-foreground outline outline-[0.5px] outline-stroke-strong hover:border-button-selected-border hover:bg-card-hover"
+          : "border-card-border bg-card text-card-foreground hover:border-stroke-focus hover:bg-card-hover",
         className
       )}
       {...props}
@@ -380,16 +380,16 @@ export type AnimatedButtonProps = Omit<
 
 const animatedButtonVariantClassNames: Record<AnimatedButtonVariant, string> = {
   default:
-    "border border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak",
+    "border-(length:--button-border-width) border-button-border bg-button bg-button-image text-button-foreground hover:border-stroke-focus hover:bg-button-hover",
   primary:
-    "border border-neutral-1000 bg-neutral-1000 text-neutral-00 hover:bg-neutral-900",
-  black: "border border-black bg-black text-neutral-00 hover:bg-neutral-900",
+    "border-(length:--button-border-width) border-surface-inverse bg-surface-inverse text-on-inverse hover:bg-surface-inverse-hover",
+  black: "border-(length:--button-border-width) border-surface-inverse bg-surface-inverse text-on-inverse hover:bg-surface-inverse-hover",
   secondary:
-    "border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak",
+    "border-(length:--button-border-width) border-stroke-subtle bg-button bg-button-image text-button-foreground hover:border-button-border hover:bg-button-hover",
   critical:
-    "border border-critical bg-critical text-neutral-00 hover:bg-critical/90",
+    "border-(length:--button-border-width) border-critical bg-critical text-on-inverse hover:bg-critical/90",
   positive:
-    "border border-positive bg-positive text-neutral-00 hover:bg-positive/90",
+    "border-(length:--button-border-width) border-positive bg-positive text-on-inverse hover:bg-positive/90",
 };
 
 function getAnimatedButtonSizeClassName(size: AnimatedButtonSize) {
@@ -440,7 +440,7 @@ const AnimatedButton = React.forwardRef<HTMLButtonElement, AnimatedButtonProps>(
         whileHover={disabled ? undefined : { y: -1 }}
         whileTap={disabled ? undefined : { scale: 0.985 }}
         className={cn(
-          "group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-[8px] font-medium tracking-normal outline-none transition-[background-color,border-color,opacity] duration-200 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-basement disabled:cursor-not-allowed disabled:opacity-60",
+          "group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-button border-(length:--button-border-width) shadow-(--shadow-button) backdrop-blur-button font-button tracking-normal outline-none transition-[background-color,border-color,opacity] duration-200 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-basement disabled:cursor-not-allowed disabled:opacity-60",
           animatedButtonVariantClassNames[variant],
           getAnimatedButtonSizeClassName(size),
           className
@@ -448,7 +448,7 @@ const AnimatedButton = React.forwardRef<HTMLButtonElement, AnimatedButtonProps>(
         {...props}
       >
         {variant === "secondary" ? (
-          <span className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+          <span className="absolute inset-0 bg-button/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
         ) : null}
         {animate ? (
           <span className="relative flex h-full items-start overflow-hidden">
@@ -495,7 +495,7 @@ const PrimaryButton = React.forwardRef<
     ref={ref}
     type={type}
     variant="primary"
-    className={cn("h-9 rounded-[8px] px-3.5 text-sm", className)}
+    className={cn("h-9 rounded-button px-3.5 text-sm", className)}
     {...props}
   />
 ));
@@ -509,7 +509,7 @@ const SecondaryButton = React.forwardRef<
     ref={ref}
     type={type}
     variant="secondary"
-    className={cn("h-10 rounded-[8px] px-4 text-sm", className)}
+    className={cn("h-10 rounded-button px-4 text-sm", className)}
     {...props}
   />
 ));
@@ -528,10 +528,10 @@ const ToggleButton = ({
     type={type}
     {...props}
     className={cn(
-      "inline-flex min-h-[36px] min-w-[calc(30%-4px)] items-center rounded-md border px-5 py-3 text-sm font-medium leading-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55",
+      "inline-flex min-h-[36px] min-w-[calc(30%-4px)] items-center rounded-button border-(length:--button-border-width) shadow-(--shadow-button) backdrop-blur-button px-5 py-3 text-sm font-button leading-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-55",
       active
-        ? "border-neutral-800 bg-bg-weak text-neutral-primary outline outline-[0.5px] outline-neutral-800"
-        : "border-neutral-1000-a10 bg-bg-floating text-neutral-muted hover:border-neutral-800 hover:bg-bg-weak hover:text-neutral-primary",
+        ? "border-button-selected-border bg-button-selected text-button-foreground outline outline-[0.5px] outline-stroke-strong"
+        : "border-button-border bg-button text-neutral-muted hover:border-button-selected-border hover:bg-button-hover hover:text-button-foreground",
       className
     )}
   >

@@ -93,7 +93,7 @@ export function PreparationComposerView({
       aria-busy={props.busy}
       style={careerTimelineTypographyStyle}
       className={cn(
-        "flex max-h-[min(540px,70dvh)] flex-col p-3 md:p-4",
+        "career-preparation-card career-glass career-work-surface flex max-h-[min(540px,70dvh)] flex-col p-4 md:p-5",
         suggestion &&
           "transition-[background-color,box-shadow] duration-150 motion-reduce:transition-none",
         props.responseFlash && "ring-1 ring-primary/20",
@@ -156,11 +156,11 @@ export function PreparationComposerView({
           </div>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 z-10 h-4 bg-linear-to-b from-white/50 to-transparent"
+            className="pointer-events-none absolute inset-x-0 top-0 z-10 h-4 bg-linear-to-b from-bg-floating/50 to-transparent"
           />
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-4 bg-linear-to-t from-white/50 to-transparent"
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-4 bg-linear-to-t from-bg-floating/50 to-transparent"
           />
         </div>
       ) : props.body ? (
@@ -170,7 +170,7 @@ export function PreparationComposerView({
       ) : null}
       {props.actions}
       <form
-        className="mt-2 flex shrink-0 items-end gap-2"
+        className="career-preparation-input mt-2 flex shrink-0 items-end gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           submit();
@@ -207,7 +207,7 @@ export function PreparationComposerView({
           <MuteButton
             type="submit"
             variant="primary"
-            className={suggestion ? "size-8 rounded-full p-0" : undefined}
+            className={suggestion ? "size-8 rounded-pill p-0" : undefined}
             disabled={props.busy}
             aria-label={t("career.prep.saveNext", "답변 저장 후 다음")}
           >
@@ -304,17 +304,19 @@ export function PreparationDecisionActions(props: {
   busy: boolean;
 }) {
   return (
-    <div className="grid auto-rows-fr grid-cols-2 shrink-0 gap-2 bg-linear-to-t from-white to-transparent">
+    <div className="grid auto-rows-fr grid-cols-2 shrink-0 gap-2 bg-linear-to-t from-bg-floating to-transparent">
       {[props.negative, props.positive].map((action) =>
         action ? (
           <MuteButton
             key={action.id}
             className={cn(
               action === props.positive
-                ? "bg-neutral-primary text-white hover:bg-neutral-primary/80"
+                ? "bg-neutral-primary text-on-inverse hover:bg-neutral-primary/80"
                 : "text-red-600",
-              action.selected ? "bg-action text-white hover:bg-action/80" : "",
-              "rounded-full"
+              action.selected
+                ? "bg-action text-on-inverse hover:bg-action/80"
+                : "",
+              "rounded-pill"
             )}
             aria-pressed={action.selected === true}
             disabled={props.busy}
@@ -340,11 +342,11 @@ export function PreparationOptionList(props: {
         <CardButton
           key={option.id}
           disabled={props.busy}
-          className="flex w-full items-center justify-start gap-2 rounded-xl min-h-10 sm:min-h-9 px-2 py-1 text-left text-[length:inherit] text-sm font-normal leading-[inherit]"
+          className="flex w-full items-center justify-start gap-2  min-h-10 sm:min-h-9 px-2 py-1 text-left text-[length:inherit] text-sm font-normal leading-[inherit]"
           selected={props.selectedIds?.includes(option.id)}
           onClick={() => props.onSelect(option.id)}
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-black text-xs text-white">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-surface-inverse text-xs text-on-inverse">
             {index + 1}
           </span>
           <span>

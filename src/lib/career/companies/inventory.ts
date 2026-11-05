@@ -70,7 +70,10 @@ export async function readFollowInventory(
           WHERE lower(btrim(b.name)) IN (lower(btrim(cw.company_name)),lower(btrim(cw.published_name)),cw.company_workspace_id::text))
         AND ((coalesce(s.get_external_recommendation,true) AND s.status IS DISTINCT FROM 'stopped' AND ${eligibilitySql({ userId, blockedCompanies: [], includePreviouslyRecommended: true })})
           OR (coalesce(s.get_internal_recommendation,true) AND coalesce(s.profile_visibility,'')<>'dont_share'
-            AND cr.source_type='internal' AND cr.status='active' AND NOT coalesce(cr.is_expired,false)
+            AND cr.source_type='internal'
+            AND EXISTS (SELECT 1 FROM public.talent_opportunity_recommendation p
+              WHERE p.talent_id=${owner} AND p.role_id=cr.role_id)
+            AND cr.status='active' AND NOT coalesce(cr.is_expired,false)
             AND (cr.expires_at IS NULL OR cr.expires_at>now())
             AND public.role_matching_slot_type_v1(cr.role_id,now()) IN ('free','paid')))
       GROUP BY cr.role_id,cw.company_name
@@ -81,14 +84,11 @@ export async function readFollowInventory(
         ORDER BY id) FROM follows),'[]'::jsonb) companies,
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',r.role_id,'followIds',r.follow_ids,'source',r.source_type,
         'name',r.name,'company',r.company_name,'postedAt',r.posted_at,'createdAt',r.created_at,
-        'recommendationId',prior.id,'evaluation',coalesce(ext.item,int.item)) ORDER BY r.role_id)
+        'recommendationId',prior.id,'evaluation',ext.item) ORDER BY r.role_id)
         FROM roles r
         LEFT JOIN LATERAL (SELECT jsonb_build_object('id',e.id,'evaluatedAt',e.evaluated_at,'assessment',jsonb_build_object('fit',e.assessment->'fit'),'runId',e.run_id) item
           FROM public.talent_external_evaluations e WHERE r.source_type='external' AND e.talent_id=${owner} AND e.role_id=r.role_id
           ORDER BY e.evaluated_at DESC,e.id DESC LIMIT 1) ext ON true
-        LEFT JOIN LATERAL (SELECT jsonb_build_object('id',e.id,'evaluatedAt',e.evaluated_at,'assessment',e.assessment,'stage',e.stage,'runId',e.discovery_run_id) item
-          FROM public.company_role_candidate_evaluations e WHERE r.source_type='internal' AND e.talent_id=${owner} AND e.role_id=r.role_id
-          ORDER BY e.stage DESC,e.evaluated_at DESC,e.id DESC LIMIT 1) int ON true
         LEFT JOIN LATERAL (SELECT p.id FROM public.talent_opportunity_recommendation p
           WHERE p.talent_id=${owner} AND p.role_id=r.role_id ORDER BY p.id DESC LIMIT 1) prior ON true
       ),'[]'::jsonb) roles`,

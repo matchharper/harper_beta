@@ -354,7 +354,7 @@ function CareerMobileChatLauncher({
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           <div className="flex justify-center pt-2 pb-1">
-            <div className="h-[3px] w-10 rounded-full bg-black/20" />
+            <div className="h-[3px] w-10 rounded-full bg-surface-inverse/20" />
           </div>
           {actionBar && !showMinimizedCall ? (
             <div className="px-4 pt-1 pb-0.5">{actionBar}</div>
@@ -374,7 +374,7 @@ function CareerMobileChatLauncher({
                 onTouchStart={(event) => event.stopPropagation()}
                 onTouchMove={(event) => event.stopPropagation()}
               >
-                <div className="flex items-center gap-2 rounded-full bg-black/5 px-3 py-2">
+                <div className="flex items-center gap-2 rounded-full bg-surface-tint px-3 py-2">
                   <BareButton
                     type="button"
                     onClick={() => {
@@ -388,7 +388,7 @@ function CareerMobileChatLauncher({
                     className={cn(
                       "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
                       voiceMuted
-                        ? "bg-black/15 text-neutral-soft"
+                        ? "bg-surface-inverse/15 text-neutral-soft"
                         : "bg-bg-floating text-neutral-primary"
                     )}
                     aria-label={voiceMuted ? "음소거 해제" : "음소거"}
@@ -461,7 +461,7 @@ function CareerMobileChatLauncher({
       >
         <DrawerPrimitive.Portal>
           <DrawerPrimitive.Overlay
-            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
+            className="fixed inset-0 z-40 bg-surface-inverse/20 backdrop-blur-overlay"
             style={{
               top: "var(--career-mobile-chat-viewport-top, 0px)",
             }}
@@ -511,7 +511,7 @@ function CareerMobileChatLauncher({
                       <MuteButton
                         aria-label="메뉴 열기"
                         className={cn(
-                          "pointer-events-auto rounded-full text-neutral-muted",
+                          "pointer-events-auto rounded-pill text-neutral-muted",
                           CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME
                         )}
                         size="md"
@@ -523,14 +523,14 @@ function CareerMobileChatLauncher({
                 ) : null}
                 <DrawerPrimitive.Handle
                   preventCycle
-                  className="pointer-events-auto !h-[3px] !w-10 !rounded-full !bg-black/20"
+                  className="pointer-events-auto !h-[3px] !w-10 !rounded-full !bg-surface-inverse/20"
                 />
                 <DrawerPrimitive.Close asChild>
                   <MuteButton
                     aria-label="채팅 접기"
                     className={cn(
                       "pointer-events-auto",
-                      "fixed right-3 z-[70] rounded-full text-neutral-muted",
+                      "fixed right-3 z-[70] rounded-pill text-neutral-muted",
                       CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME
                     )}
                     size="md"

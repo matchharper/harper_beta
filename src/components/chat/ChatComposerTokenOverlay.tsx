@@ -40,7 +40,7 @@ export const ChatComposerTokenOverlay = forwardRef<
           return canClickToken(segment.token) && onTokenClick ? (
             <span
               aria-label={getTokenAriaLabel?.(segment.token)}
-              className="pointer-events-auto cursor-pointer rounded-[4px] text-link hover:bg-bg-weak focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-1000-a10"
+              className="pointer-events-auto cursor-pointer rounded-sm text-link hover:bg-bg-weak focus-visible:outline focus-visible:outline-2 focus-visible:outline-neutral-1000-a10"
               data-chat-composer-token=""
               key={`token:${segment.token.id}:${index}`}
               onClick={() => onTokenClick(segment.token)}
@@ -58,7 +58,7 @@ export const ChatComposerTokenOverlay = forwardRef<
           ) : (
             <span
               aria-hidden="true"
-              className="rounded-[4px] text-link"
+              className="rounded-sm text-link"
               key={`token:${segment.token.id}:${index}`}
             >
               {segment.text}

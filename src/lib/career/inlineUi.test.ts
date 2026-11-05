@@ -42,3 +42,16 @@ test("collections have one unambiguous scope and validated, deduplicated identif
   assert.equal(readCareerInlineUiReference({ type: "opportunities", roleIds: [] }), null);
   for (const scope of ["all", "saved", "progress"]) assert.deepEqual(readCareerInlineUiReference({ type: "opportunities", scope }), { type: "opportunities", scope });
 });
+
+
+test("workspace references retain valid owned-reader scopes and reject malformed role identifiers", () => {
+  for (const type of ["meetings", "automations", "actions"] as const) {
+    const reference = { type };
+    assert.deepEqual(readCareerInlineUiReference(reference), reference);
+    assert.equal(parseCareerInlineUi(formatCareerInlineUiReference(reference))[0].kind, "ui");
+  }
+  assert.deepEqual(readCareerInlineUiReference({type:"meetings",roleId:id}), {type:"meetings",roleId:id});
+  for (const roleId of ["", "another-user", [id], null]) {
+    assert.equal(readCareerInlineUiReference({type:"meetings",roleId}), null);
+  }
+});

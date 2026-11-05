@@ -147,7 +147,7 @@ function MentionText({
         segment.reference ? (
           <OrgTalentReferenceBadge
             key={`${segment.reference.talentId}:${index}`}
-            className="border-white/30 text-white hover:bg-white/10 focus-visible:ring-white/40"
+            className="border-bg-floating/30 text-on-inverse hover:bg-bg-floating/10 focus-visible:ring-white/40"
             talentId={segment.reference.talentId}
             label={segment.reference.label}
             href={orgTalentReferenceHref({
@@ -188,19 +188,19 @@ function OrgCompanyInfoCard({
         "Open company info used in the role description"
       )}
       className={cn(
-        "w-fit min-w-[min(360px,100%)] rounded-lg border-black/5 items-center gap-3 px-3 pr-6 py-4 mb-2 font-normal hover:bg-neutral-100 hover:border-black/5",
+        "w-fit min-w-[min(360px,100%)]  border-stroke-subtle items-center gap-3 px-3 pr-6 py-4 mb-2 font-normal hover:bg-neutral-100 hover:border-stroke-subtle",
         className
       )}
       onClick={onClick}
     >
-      <span className="flex size-10 bg-black/4 shrink-0 items-center justify-center rounded-md text-black/70">
+      <span className="flex size-10 bg-surface-tint shrink-0 items-center justify-center rounded-md text-neutral-primary/70">
         <Building2 aria-hidden className="size-4.5" strokeWidth={1.7} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[13px] text-black font-medium">
+        <span className="block text-[13px] text-neutral-primary font-medium">
           {c("회사 정보", "Company info")}
         </span>
-        <span className="block text-[13px] leading-4 text-black/50">
+        <span className="block text-[13px] leading-4 text-neutral-primary/50">
           {c(
             "현재 후보자에게 소개되는 회사 정보를 확인해 보세요.",
             "Review the company info currently shown to the candidate."
@@ -498,7 +498,7 @@ export function OrgAgentMessageBubble({
             showUserAttribution &&
               isUser &&
               !isOwnUserMessage &&
-              "rounded-[14px] border border-neutral-1000-a10 bg-bg-floating px-3 py-1.5 text-neutral-primary",
+              "rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3 py-1.5 text-neutral-primary",
             message.status === "failed" &&
               "border border-critical/20 bg-critical-faded"
           )}

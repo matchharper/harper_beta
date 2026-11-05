@@ -219,12 +219,12 @@ const CareerDocumentsSettingsSection = ({
       />
 
       {!hasSavedResume && (
-        <div className="mt-3 text-[13px] rounded-[10px] border border-neutral-1000-a10 bg-white/10 px-3 py-2.5">
+        <div className="mt-3 text-[13px] rounded-md border border-neutral-1000-a10 bg-bg-floating/10 px-3 py-2.5">
           {resumeEmptyNotice}
         </div>
       )}
       {companyRequest ? (
-        <div className="mt-3 rounded-[10px] border border-neutral-1000-a10 bg-info-faded px-4 py-3">
+        <div className="mt-3 rounded-md border border-neutral-1000-a10 bg-info-faded px-4 py-3">
           <p className="text-sm font-medium text-neutral-primary">
             {t(
               "career.profile.resume_request.banner_title",

@@ -1,8 +1,19 @@
 "use client";
 
-import { CircleHelp, FileText, Loader2, Upload, X } from "lucide-react";
+import {
+  ChevronDown,
+  CircleHelp,
+  CornerDownRight,
+  FileText,
+  Loader2,
+  Upload,
+  X,
+} from "lucide-react";
+import { useId } from "react";
 import { CompanyLogo } from "@/components/career/watchlist/CompanyLogo";
 import { CardButton, MuteButton } from "@/components/ui/button";
+import { Typography } from "@/components/ui/typography";
+import type { CareerHighlightedAction } from "@/lib/career/actionItems";
 import { useCareerT } from "@/i18n/useCareerT";
 import { getDisplayableCompanyLogoUrl } from "@/lib/imageUrl";
 import { cn } from "@/lib/utils";
@@ -12,6 +23,7 @@ import type {
 } from "@/lib/career/pendingActions";
 
 type PendingQuestionAction =
+  | CareerHighlightedAction
   | CareerPendingCompanyRequestAction
   | CareerPendingFitQuestionAction;
 
@@ -31,6 +43,36 @@ export function CareerPendingActionContextCard({
   resumeUploadPending?: boolean;
 }) {
   const t = useCareerT();
+  const titleId = useId();
+  const promptId = useId();
+  if (action.kind === "action_item") {
+    return (
+      <section
+        className="career-reply-card career-glass career-work-surface"
+        aria-labelledby={titleId}
+      >
+        <CornerDownRight className="career-reply-marker" aria-hidden="true" />
+        <Typography id={titleId} variant="body" className="career-reply-title">
+          {action.title}
+        </Typography>
+        <Typography variant="description" className="career-reply-description">
+          {action.description}
+        </Typography>
+        <MuteButton
+          aria-label={t(
+            "career.chat.pending_action_context.dismiss_aria",
+            "선택한 항목 닫기"
+          )}
+          className="career-reply-dismiss"
+          size="sm"
+          variant="transparent"
+          onClick={onDismiss}
+        >
+          <X className="h-3.5 w-3.5" />
+        </MuteButton>
+      </section>
+    );
+  }
   const canUploadResume =
     action.kind === "company_request" && action.requestMode === "resume";
   const isCompanyRequest =
@@ -53,9 +95,13 @@ export function CareerPendingActionContextCard({
   const Icon = action.kind === "internal_fit_question" ? CircleHelp : FileText;
 
   return (
-    <div className="relative animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
+    <section
+      className="career-reply-card career-glass career-work-surface career-reply-request"
+      aria-labelledby={titleId}
+    >
       <CardButton
         aria-expanded={expanded}
+        aria-controls={promptId}
         aria-label={
           expanded
             ? t(
@@ -69,8 +115,7 @@ export function CareerPendingActionContextCard({
         }
         onClick={onToggleExpanded}
         className={cn(
-          "group min-h-0 rounded-[14px] border-none bg-neutral-100 px-3 py-3 pr-11 shadow-none hover:border-neutral-1000-a10",
-          canUploadResume && onUploadResume && "pb-12"
+          "career-reply-toggle group min-h-0 border-none bg-transparent p-0 pr-7 shadow-none"
         )}
       >
         <span className="flex min-w-0 flex-1 items-start gap-3">
@@ -81,43 +126,45 @@ export function CareerPendingActionContextCard({
               size="sm"
             />
           ) : (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-neutral-1000-a05 bg-bg-floating text-neutral-muted">
+            <span className="career-reply-icon">
               <Icon className="h-4 w-4" />
             </span>
           )}
           <span className="min-w-0 flex-1">
             <span className="mb-1 flex min-w-0 items-center gap-2">
-              <span className="text-[11px] font-normal uppercase text-neutral-soft">
+              <span
+                id={titleId}
+                className="text-xs font-normal text-neutral-muted"
+              >
                 {eyebrow}
               </span>
             </span>
             {action.kind === "company_request" ? (
-              <span className="mb-1 block truncate text-[13px] font-semibold leading-5 text-neutral-primary">
+              <span className="career-reply-role">
                 {action.companyName} · {action.roleTitle}
               </span>
             ) : null}
             <span
+              id={promptId}
               className={cn(
-                "mt-1 block whitespace-pre-wrap text-[12px] font-normal leading-5 text-neutral-muted",
+                "career-reply-description block",
                 expanded
-                  ? "max-h-[6.25rem] overflow-y-auto overscroll-contain pr-1"
+                  ? "max-h-[min(240px,28dvh)] overflow-y-auto overscroll-contain pr-1"
                   : "line-clamp-3"
               )}
             >
               {action.prompt}
             </span>
-            <span className="mt-1 block text-[11px] font-normal leading-4 text-neutral-soft">
-              {t(
-                "career.chat.pending_action_context.collapsed_help",
-                "아래 답변은 이 요청에 연결됩니다."
-              )}
-            </span>
           </span>
+          <ChevronDown
+            aria-hidden="true"
+            className={cn("career-reply-chevron", expanded && "rotate-180")}
+          />
         </span>
       </CardButton>
       {canUploadResume && onUploadResume ? (
         <MuteButton
-          className="absolute bottom-2 left-[3.75rem] z-10 h-7 rounded-[9px] bg-bg-floating text-[11px] font-medium text-neutral-primary"
+          className="ml-12 mt-3"
           disabled={resumeUploadPending}
           onClick={onUploadResume}
           size="sm"
@@ -140,7 +187,7 @@ export function CareerPendingActionContextCard({
           "career.chat.pending_action_context.dismiss_aria",
           "선택한 항목 닫기"
         )}
-        className="absolute right-2 top-2 z-10 h-7 w-7 rounded-full text-neutral-soft hover:bg-bg-floating hover:text-neutral-primary"
+        className="career-reply-dismiss"
         onClick={(event) => {
           event.stopPropagation();
           onDismiss();
@@ -151,6 +198,6 @@ export function CareerPendingActionContextCard({
       >
         <X className="h-3.5 w-3.5" />
       </MuteButton>
-    </div>
+    </section>
   );
 }

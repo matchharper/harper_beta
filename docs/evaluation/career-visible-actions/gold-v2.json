@@ -1,0 +1,13 @@
+{
+  "version": "v2",
+  "reviewer": "Codex, frozen before model execution",
+  "provenance": "New synthetic contextual challenges; original v1 retained. No production user data.",
+  "cases": {
+    "casual_preserves_existing": "Answer the small writing request in chat; do not turn it into a durable action or disturb the unrelated pending review.",
+    "delegated_ready_real_path": "The real work-style normal-chat prompt should publish the completed Orbit review, retain the original form and record waiting through its own work. Do not mark Cedar ready or submit without review.",
+    "return_mixed_states": "Reconcile the existing Orbit item from obsolete missing-date to prepared review, remove submitted Pine, do not label running Cedar ready or invent a new approval stage.",
+    "selected_reply_routes_work": "Interpret the short date using the exact selected card, route user message 602 to Cedar work, retire/supersede the now-answered visible question and resolve its form. Do not treat the date as submission approval or persist it as a general preference.",
+    "return_empty_no_busywork": "Respect the pause, keep the list empty and do not manufacture work or reopen a conversation unnecessarily.",
+    "curate_ten_on_return": "Prioritize the one review the user actually requested, curate/aggregate/displace low-value optional items to keep at most 10, preserve still-useful underlying saved opportunities. No invented deadlines or submission approval."
+  }
+}

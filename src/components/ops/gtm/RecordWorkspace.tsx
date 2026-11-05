@@ -332,7 +332,7 @@ export default function RecordWorkspace({
     >
       <DialogContent
         className={`${styles.dialog} ${styles.recordDialog} ${styles.sidePanel}`}
-        overlayClassName="bg-black/15 backdrop-blur-none"
+        overlayClassName="bg-surface-inverse/15 backdrop-blur-none"
         aria-describedby={undefined}
         onInteractOutside={(event) => {
           if (dirty || pending || autoSaving) event.preventDefault();

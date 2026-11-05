@@ -16,7 +16,7 @@ const Role = () => {
   };
 
   return (
-    <main className="min-h-screen bg-white text-black px-4 pt-24 flex flex-row items-start justify-center gap-8 lg:gap-[64px]">
+    <main className="min-h-screen bg-bg-floating text-neutral-primary px-4 pt-24 flex flex-row items-start justify-center gap-8 lg:gap-[64px]">
       <Appbar />
       <div className="flex flex-col gap-2 lg:w-[50%] md:w-[60%] w-full">
         <div className="text-neutral-1000 mb-10 text-[14px] cursor-pointer flex flex-row items-center gap-1">
@@ -54,7 +54,7 @@ const Role = () => {
         </div>
       </div>
       <div className="w-[32%] min-w-[340px] pt-16">
-        <div className="flex flex-col px-6 py-9 border border-neutral-300 rounded-[8px] gap-4">
+        <div className="flex flex-col px-6 py-9 border border-neutral-300 rounded-md gap-4">
           <InputForm
             label="이름"
             value={name}
@@ -75,7 +75,7 @@ const Role = () => {
           />
           <BareButton
             onClick={onApply}
-            className="hover:opacity-90 mt-8 cursor-pointer text-white bg-neutral-1000 w-full h-[38px] px-3 py-2 rounded-[6px] text-[14px] font-medium leading-5"
+            className="hover:opacity-90 mt-8 cursor-pointer text-on-inverse bg-neutral-1000 w-full h-[38px] px-3 py-2 rounded-md text-[14px] font-medium leading-5"
           >
             지원하기
           </BareButton>
@@ -104,7 +104,7 @@ const InputForm = ({
       <UiInput
         unstyled
         placeholder={placeholder}
-        className="w-full h-[36px] px-3 py-2 border border-neutral-500 rounded-[5px] text-[13px] font-light leading-5 focus:ring-1 focus:ring-neutral-1000 outline-none"
+        className="w-full h-[36px] px-3 py-2 border border-neutral-500 rounded-sm text-[13px] font-light leading-5 focus:ring-1 focus:ring-neutral-1000 outline-none"
         value={value}
         onChange={onChange}
       />

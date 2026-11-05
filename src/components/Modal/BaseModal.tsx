@@ -38,7 +38,7 @@ const BaseModal = ({
   return (
     <div className="fixed inset-0 z-50 flex w-full items-center justify-center px-4">
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-overlay backdrop-blur-overlay"
         onClick={() => {
           if (!isCloseDisabled) onClose();
         }}
@@ -47,7 +47,7 @@ const BaseModal = ({
       <div
         role="dialog"
         aria-modal="true"
-        className={`relative z-50 max-h-[calc(100svh-48px)] w-full overflow-y-auto rounded-[20px] border border-neutral-1000-a05 bg-bg-default p-5 shadow-[0_20px_60px_rgba(31,28,26,0.16)] outline-none transition-[max-width,padding] duration-300 ease-in-out sm:p-6 ${
+        className={`relative z-50 max-h-[calc(100svh-48px)] w-full overflow-y-auto rounded-modal border-(length:--modal-border-width) border-modal-border bg-modal bg-modal-image text-modal-foreground shadow-(--shadow-modal) backdrop-blur-modal p-5 outline-none transition-[max-width,padding] duration-300 ease-in-out sm:p-6 ${
           isCloseButton ? sizeClass : "max-w-[520px]"
         }`}
       >
@@ -68,7 +68,7 @@ const BaseModal = ({
           )}
           <BareButton
             type="button"
-            className="inline-flex h-11 min-w-[92px] items-center justify-center rounded-xl bg-black px-5 text-sm font-medium text-neutral-00 transition-colors duration-200 hover:bg-neutral-primary disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex h-11 min-w-[92px] items-center justify-center rounded-xl bg-surface-inverse px-5 text-sm font-medium text-neutral-00 transition-colors duration-200 hover:bg-neutral-primary disabled:cursor-not-allowed disabled:opacity-70"
             onClick={onConfirm}
             disabled={isLoading || isConfirmDisabled}
           >

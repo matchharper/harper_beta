@@ -1,0 +1,191 @@
+{
+  "version": "v3",
+  "provenance": "Synthetic targeted development probes derived from v2; no production data or independent holdout.",
+  "hashes": {
+    "cases-v3.json": "e6f667d99d35d4a6b12f8676455b95020b652508f677be7623b29304527e4c44",
+    "gold-v3.json": "d257acda07e4d8d17bb734bb65aefb0ad772fcf67fc1feeb289169aafe915d46"
+  },
+  "runner": "scripts/evalCareerVisibleActions.ts --version=v3",
+  "review": {
+    "reviewer": "Codex",
+    "method": "Read actual provider guide/context, complete tool arguments and text receipts, displayed outputs and final state. No automated semantic gate.",
+    "result": "See report; v3 ordering failures and broader curation are retained, not counted as full passes."
+  },
+  "runs": [
+    {
+      "id": "2026-11-04T15-43-58.153Z",
+      "cases": [
+        {
+          "id": "casual_preserves_existing",
+          "toolCalls": 0,
+          "itemCount": 1,
+          "error": null
+        },
+        {
+          "id": "empty_return_two_ready_steps",
+          "toolCalls": 4,
+          "itemCount": 2,
+          "error": null
+        },
+        {
+          "id": "mixed_batch_partial_changes",
+          "toolCalls": 2,
+          "itemCount": 2,
+          "error": null
+        },
+        {
+          "id": "return_empty_no_busywork",
+          "toolCalls": 0,
+          "itemCount": 0,
+          "error": null
+        },
+        {
+          "id": "unavailable_list_reconcile",
+          "toolCalls": 2,
+          "itemCount": 2,
+          "error": null
+        }
+      ],
+      "sourceRevision": "022eddd9e709cd4188154291143679a7f0d01ef3",
+      "sourceHashes": {
+        "src/lib/career/actionItems.ts": "1e19ddd1d1b6b39a63a92353cf143d4ac45c9749e9766d2dc73b5d6dffe9ef02",
+        "src/lib/career/actionItemsTool.ts": "5648f6a57cdfc27e6eda0ad128761674f325b7813bb759a78dfe27c30d2c2cf1",
+        "src/lib/career/prompts/conversationPlan.ts": "590d0821309fbde7187b9027f194a3830c55add5861c67cf21459e9eb88d15e4",
+        "src/lib/career/prompts/cases/lifecyclePrompts.ts": "18923343c95f0e0e9277951115eb46f6ae4c92e8eadbf94c89a436058c1ae8c7",
+        "src/lib/career/prompts/mainPrompt2.ts": "ab7f626e1dc94f92de4482d206a32c37b6978c5530f20529c0d887b99d898246",
+        "src/lib/career/capabilities/runtime.ts": "f648d4338ad9589eb53844305d86311ec7a0e9035aad51dd5c910ac7a9c1d97e",
+        "src/lib/career/work/store.ts": "a81be21efe77de0ea5a84198da39dd3651fd3693128947d51b42061ba18af931",
+        "src/lib/career/work/tools.ts": "223842ee5fae9c20426410e85bdeae2477ad4cb49bdbe18f8b4a28bfb0d1a5ee",
+        "src/lib/career/forms/server.ts": "0bd8b3b104a49ce5e90370dce5c6f5d1cbf4371b4b14fddb7c782a49614d0faf",
+        "src/lib/career/forms/format.ts": "fbe7ff1ae665f6f03cc23484c8cde6e7783f3d50577868881ff859b1ac5960c2",
+        "src/lib/career/reengagementOpportunities.ts": "63c181a6a0e67206ab929d2829be6c17c5f175b6be2a235358381082e866c71b",
+        "src/lib/career/llm.ts": "effc256ae33a180e62b2ef2cd8223231a4febcef1fdbebbeeee97f2c19efba40",
+        "scripts/evalCareerVisibleActions.ts": "e50379ba8498f66f365410c94223970dfee14b636a62d422236b464d54b8d47c"
+      },
+      "model": "gpt-6.1-sol",
+      "returnModel": "claude-haiku-5-5",
+      "temperature": 0.8
+    },
+    {
+      "id": "2026-11-04T15-45-41.444Z",
+      "cases": [
+        {
+          "id": "empty_return_two_ready_steps",
+          "toolCalls": 5,
+          "itemCount": 2,
+          "error": null
+        }
+      ],
+      "sourceRevision": "022eddd9e709cd4188154291143679a7f0d01ef3",
+      "sourceHashes": {
+        "src/lib/career/actionItems.ts": "90b6873e55142dad1f58214610a499abe5bbfec5d1fdc474c4c6bf16c7be11c3",
+        "src/lib/career/actionItemsTool.ts": "4615fd6ea8b18c20bcafda9435d2019153b098e9e2a91a3095a3b93f1f1d3442",
+        "src/lib/career/prompts/conversationPlan.ts": "590d0821309fbde7187b9027f194a3830c55add5861c67cf21459e9eb88d15e4",
+        "src/lib/career/prompts/cases/lifecyclePrompts.ts": "18923343c95f0e0e9277951115eb46f6ae4c92e8eadbf94c89a436058c1ae8c7",
+        "src/lib/career/prompts/mainPrompt2.ts": "ab7f626e1dc94f92de4482d206a32c37b6978c5530f20529c0d887b99d898246",
+        "src/lib/career/capabilities/runtime.ts": "f648d4338ad9589eb53844305d86311ec7a0e9035aad51dd5c910ac7a9c1d97e",
+        "src/lib/career/work/store.ts": "a81be21efe77de0ea5a84198da39dd3651fd3693128947d51b42061ba18af931",
+        "src/lib/career/work/tools.ts": "223842ee5fae9c20426410e85bdeae2477ad4cb49bdbe18f8b4a28bfb0d1a5ee",
+        "src/lib/career/forms/server.ts": "0bd8b3b104a49ce5e90370dce5c6f5d1cbf4371b4b14fddb7c782a49614d0faf",
+        "src/lib/career/forms/format.ts": "fbe7ff1ae665f6f03cc23484c8cde6e7783f3d50577868881ff859b1ac5960c2",
+        "src/lib/career/reengagementOpportunities.ts": "63c181a6a0e67206ab929d2829be6c17c5f175b6be2a235358381082e866c71b",
+        "src/lib/career/llm.ts": "effc256ae33a180e62b2ef2cd8223231a4febcef1fdbebbeeee97f2c19efba40",
+        "scripts/evalCareerVisibleActions.ts": "c1ce5f49ed3adc70644a07c9534ab90ba57d2aa4dfcc645a4bb6554c4a76ed50"
+      },
+      "model": "gpt-6.1-sol",
+      "returnModel": "claude-haiku-5-5",
+      "temperature": 0.8
+    },
+    {
+      "id": "2026-11-04T15-46-54.220Z",
+      "cases": [
+        {
+          "id": "empty_return_two_ready_steps",
+          "toolCalls": 1,
+          "itemCount": 2,
+          "error": null
+        }
+      ],
+      "sourceRevision": "022eddd9e709cd4188154291143679a7f0d01ef3",
+      "sourceHashes": {
+        "src/lib/career/actionItems.ts": "b9a38e02f7a5a5632f778c55aeaa2e25770ad3fbb6418140b318347ccd64e169",
+        "src/lib/career/actionItemsTool.ts": "39b4d0dcc42058493c953046019412eaabc484e73045fbfe0df2b9d4acc7821c",
+        "src/lib/career/prompts/conversationPlan.ts": "590d0821309fbde7187b9027f194a3830c55add5861c67cf21459e9eb88d15e4",
+        "src/lib/career/prompts/cases/lifecyclePrompts.ts": "18923343c95f0e0e9277951115eb46f6ae4c92e8eadbf94c89a436058c1ae8c7",
+        "src/lib/career/prompts/mainPrompt2.ts": "ab7f626e1dc94f92de4482d206a32c37b6978c5530f20529c0d887b99d898246",
+        "src/lib/career/capabilities/runtime.ts": "f648d4338ad9589eb53844305d86311ec7a0e9035aad51dd5c910ac7a9c1d97e",
+        "src/lib/career/work/store.ts": "a81be21efe77de0ea5a84198da39dd3651fd3693128947d51b42061ba18af931",
+        "src/lib/career/work/tools.ts": "223842ee5fae9c20426410e85bdeae2477ad4cb49bdbe18f8b4a28bfb0d1a5ee",
+        "src/lib/career/forms/server.ts": "0bd8b3b104a49ce5e90370dce5c6f5d1cbf4371b4b14fddb7c782a49614d0faf",
+        "src/lib/career/forms/format.ts": "fbe7ff1ae665f6f03cc23484c8cde6e7783f3d50577868881ff859b1ac5960c2",
+        "src/lib/career/reengagementOpportunities.ts": "63c181a6a0e67206ab929d2829be6c17c5f175b6be2a235358381082e866c71b",
+        "src/lib/career/llm.ts": "effc256ae33a180e62b2ef2cd8223231a4febcef1fdbebbeeee97f2c19efba40",
+        "scripts/evalCareerVisibleActions.ts": "c1ce5f49ed3adc70644a07c9534ab90ba57d2aa4dfcc645a4bb6554c4a76ed50"
+      },
+      "model": "gpt-6.1-sol",
+      "returnModel": "claude-haiku-5-5",
+      "temperature": 0.8
+    },
+    {
+      "id": "2026-11-04T15-48-00.243Z",
+      "cases": [
+        {
+          "id": "empty_return_two_ready_steps",
+          "toolCalls": 4,
+          "itemCount": 2,
+          "error": null
+        }
+      ],
+      "sourceRevision": "022eddd9e709cd4188154291143679a7f0d01ef3",
+      "sourceHashes": {
+        "src/lib/career/actionItems.ts": "b9a38e02f7a5a5632f778c55aeaa2e25770ad3fbb6418140b318347ccd64e169",
+        "src/lib/career/actionItemsTool.ts": "39b4d0dcc42058493c953046019412eaabc484e73045fbfe0df2b9d4acc7821c",
+        "src/lib/career/prompts/conversationPlan.ts": "590d0821309fbde7187b9027f194a3830c55add5861c67cf21459e9eb88d15e4",
+        "src/lib/career/prompts/cases/lifecyclePrompts.ts": "e752fa504d4155d350a7f2dc925a8606875a0abdcb70f253c948e234d485b7c2",
+        "src/lib/career/prompts/mainPrompt2.ts": "ab7f626e1dc94f92de4482d206a32c37b6978c5530f20529c0d887b99d898246",
+        "src/lib/career/capabilities/runtime.ts": "f648d4338ad9589eb53844305d86311ec7a0e9035aad51dd5c910ac7a9c1d97e",
+        "src/lib/career/work/store.ts": "a81be21efe77de0ea5a84198da39dd3651fd3693128947d51b42061ba18af931",
+        "src/lib/career/work/tools.ts": "223842ee5fae9c20426410e85bdeae2477ad4cb49bdbe18f8b4a28bfb0d1a5ee",
+        "src/lib/career/forms/server.ts": "0bd8b3b104a49ce5e90370dce5c6f5d1cbf4371b4b14fddb7c782a49614d0faf",
+        "src/lib/career/forms/format.ts": "fbe7ff1ae665f6f03cc23484c8cde6e7783f3d50577868881ff859b1ac5960c2",
+        "src/lib/career/reengagementOpportunities.ts": "63c181a6a0e67206ab929d2829be6c17c5f175b6be2a235358381082e866c71b",
+        "src/lib/career/llm.ts": "effc256ae33a180e62b2ef2cd8223231a4febcef1fdbebbeeee97f2c19efba40",
+        "scripts/evalCareerVisibleActions.ts": "c1ce5f49ed3adc70644a07c9534ab90ba57d2aa4dfcc645a4bb6554c4a76ed50"
+      },
+      "model": "gpt-6.1-sol",
+      "returnModel": "claude-haiku-5-5",
+      "temperature": 0.8
+    },
+    {
+      "id": "2026-11-04T15-50-36.547Z",
+      "cases": [
+        {
+          "id": "return_empty_no_busywork",
+          "toolCalls": 0,
+          "itemCount": 0,
+          "error": null
+        }
+      ],
+      "sourceRevision": "022eddd9e709cd4188154291143679a7f0d01ef3",
+      "sourceHashes": {
+        "src/lib/career/actionItems.ts": "b9a38e02f7a5a5632f778c55aeaa2e25770ad3fbb6418140b318347ccd64e169",
+        "src/lib/career/actionItemsTool.ts": "39b4d0dcc42058493c953046019412eaabc484e73045fbfe0df2b9d4acc7821c",
+        "src/lib/career/prompts/conversationPlan.ts": "590d0821309fbde7187b9027f194a3830c55add5861c67cf21459e9eb88d15e4",
+        "src/lib/career/prompts/cases/lifecyclePrompts.ts": "3071905526afd01d28ea18afd111e9130944f0032257f01e2137694b01f98d61",
+        "src/lib/career/prompts/mainPrompt2.ts": "ab7f626e1dc94f92de4482d206a32c37b6978c5530f20529c0d887b99d898246",
+        "src/lib/career/capabilities/runtime.ts": "f648d4338ad9589eb53844305d86311ec7a0e9035aad51dd5c910ac7a9c1d97e",
+        "src/lib/career/work/store.ts": "a81be21efe77de0ea5a84198da39dd3651fd3693128947d51b42061ba18af931",
+        "src/lib/career/work/tools.ts": "223842ee5fae9c20426410e85bdeae2477ad4cb49bdbe18f8b4a28bfb0d1a5ee",
+        "src/lib/career/forms/server.ts": "0bd8b3b104a49ce5e90370dce5c6f5d1cbf4371b4b14fddb7c782a49614d0faf",
+        "src/lib/career/forms/format.ts": "fbe7ff1ae665f6f03cc23484c8cde6e7783f3d50577868881ff859b1ac5960c2",
+        "src/lib/career/reengagementOpportunities.ts": "63c181a6a0e67206ab929d2829be6c17c5f175b6be2a235358381082e866c71b",
+        "src/lib/career/llm.ts": "effc256ae33a180e62b2ef2cd8223231a4febcef1fdbebbeeee97f2c19efba40",
+        "scripts/evalCareerVisibleActions.ts": "c1ce5f49ed3adc70644a07c9534ab90ba57d2aa4dfcc645a4bb6554c4a76ed50"
+      },
+      "model": "gpt-6.1-sol",
+      "returnModel": "claude-haiku-5-5",
+      "temperature": 0.8
+    }
+  ],
+  "report": "reports/2026-11-05-context-and-batch.md"
+}

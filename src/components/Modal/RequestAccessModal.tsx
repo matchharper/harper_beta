@@ -102,7 +102,7 @@ export function RequestAccessForm({
         disabled={isSubmitting}
         className={
           submitButtonClassName ??
-          "mt-12 inline-flex w-full items-center justify-center rounded-full bg-black px-5 py-3.5 text-sm font-medium text-neutral-00 transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-70"
+          "mt-12 inline-flex w-full items-center justify-center rounded-full bg-surface-inverse px-5 py-3.5 text-sm font-medium text-neutral-00 transition hover:bg-surface-inverse/90 disabled:cursor-not-allowed disabled:opacity-70"
         }
       >
         {isSubmitting ? (

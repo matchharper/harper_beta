@@ -788,7 +788,7 @@ test("legacy internal matching receipts never become model-visible scoring conte
     ],
     evaluationCursor: id(9),
   });
-  assert.match(output, /get_internal_roles/);
+  assert.match(output, /read_recommended_opportunities/);
   assert.doesNotMatch(output, new RegExp(`${id(7)}|${id(9)}|assessment|mutualFit|evaluation|partial`, "i"));
 });
 

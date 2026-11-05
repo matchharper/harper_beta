@@ -270,7 +270,7 @@ const CareerResumeLinksSettingsSection = ({
         closeOnBackdrop={false}
         showCloseButton={false}
         overlayClassName="z-120"
-        panelClassName="max-w-none w-[min(1080px,94vw)] max-h-[92svh] border-0 bg-bg-floating/40"
+        panelClassName="max-w-none w-[min(1080px,94vw)] max-h-[92svh] border-0 bg-modal/40"
         bodyClassName="max-h-[92svh] overflow-y-auto py-0"
       >
         <LoadingState isOnboarding={false} />

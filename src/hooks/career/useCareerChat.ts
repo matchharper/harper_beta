@@ -57,6 +57,7 @@ type SendChatArgs = {
   opportunityMentions?: CareerOpportunityMention[];
   viewedRoleId?: string;
   pendingAction?: CareerPendingActionReference;
+  actionItem?: { id: string; revision: number };
   onSuccess?: () => void;
   onError?: () => void;
 };
@@ -428,6 +429,8 @@ export const useCareerChat = ({
     const stoppedAssistantMessage = activeStreamAssistant
       ? {
           ...activeStreamAssistant,
+          workPending: false,
+          workCompletedAt: new Date().toISOString(),
           turnStopped: true,
           thinkingLogs: logs,
           typing: false,
@@ -695,7 +698,7 @@ export const useCareerChat = ({
         // Exact failed transport envelopes retain identity on an explicit retry.
         // This does not deduplicate new successful messages by their wording.
         const draftKey = JSON.stringify([user.id, conversationId, args.text, args.link, args.messageType,
-          args.opportunityMentions, args.viewedRoleId, args.formResponseMessageId, fileIds]);
+          args.opportunityMentions, args.viewedRoleId, args.actionItem, args.formResponseMessageId, fileIds]);
         const admission = failedAdmissions.current.get(draftKey) ?? { requestId: crypto.randomUUID(), body: undefined };
         const clientRequestId = admission.requestId;
         const pendingAdmission = { conversationId, stopped: false };
@@ -715,6 +718,7 @@ export const useCareerChat = ({
           const body = admission.body ?? JSON.stringify({ durable: true, conversationId, clientRequestId, message: args.text,
             link: args.link, messageType: args.messageType, opportunityMentions: args.opportunityMentions,
             viewedRoleId: args.viewedRoleId, uploadedDocumentIds, formResponseMessageId: args.formResponseMessageId,
+            actionItem: args.actionItem,
             locale, textChatModel, conversationVersion, promptVariant, timeZone: getCareerBrowserTimeZone() });
           admission.body = body;
           const response = await fetchWithAuth("/api/talent/chat", { method: "POST", body });
@@ -862,6 +866,7 @@ export const useCareerChat = ({
             opportunityMentions: args.opportunityMentions,
             viewedRoleId: args.viewedRoleId,
             pendingAction: args.pendingAction,
+            actionItem: args.actionItem,
             textChatModel,
             promptVariant,
             conversationVersion,
@@ -898,6 +903,8 @@ export const useCareerChat = ({
             activeStreamAssistantIdRef.current = streamAssistantId;
             const streamAssistant: CareerMessage = {
               id: streamAssistantId,
+              ...(conversationVersion === "professional" && realUserMessage ? { workReplyId: `message:${realUserMessage.id}` } : {}),
+              workStartedAt: new Date().toISOString(),
               suppressRolePreviews,
               role: "assistant",
               content: "",
@@ -1231,6 +1238,17 @@ export const useCareerChat = ({
               return;
             }
 
+            if (event === "assistant_progress") {
+              const payload = isRecord(data) ? toStreamMessagePayload(data.message) : null;
+              if (!payload) return;
+              ensureStreamAssistant();
+              activeStreamAssistantRef.current = { ...toUiMessage(payload), id: streamAssistantId, typing: false, workPending: true };
+              setLocalMessages(prev => prev.map(item => String(item.id) === streamAssistantId
+                ? { ...item, ...payload, id: item.id, content: "", typing: false, workPending: true }
+                : item));
+              return;
+            }
+
             if (event === "assistant_message") {
               const payload = isRecord(data)
                 ? toStreamMessagePayload(data.message)
@@ -1532,8 +1550,10 @@ export const useCareerChat = ({
             (item) =>
               (Boolean(args.formResponseMessageId) || item.id !== tempId) &&
               (!pendingAssistantMessageId ||
-                String(item.id) !== pendingAssistantMessageId)
-          )
+                String(item.id) !== pendingAssistantMessageId || item.workEvents !== undefined)
+          ).map(item => String(item.id) === pendingAssistantMessageId && item.workEvents !== undefined
+            ? { ...item, typing: false, workPending: false, workCompletedAt: item.workCompletedAt ?? new Date().toISOString() }
+            : item)
         );
         activeStreamAssistantIdRef.current = null;
         activeStreamAssistantRef.current = null;

@@ -27,7 +27,7 @@ import { showToast } from "./toast/toast";
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
 function sanitizeSummaryReason(raw: string, isDark = true) {
-  const strongClass = isDark ? "font-medium text-white" : "font-medium text-beige900";
+  const strongClass = isDark ? "font-medium text-on-inverse" : "font-medium text-beige900";
   return (
     String(raw ?? "")
       .replace(/<br\s*\/?>/gi, "\n")
@@ -271,12 +271,12 @@ function CandidateCard({
           }
           logEvent("candidate_card_click: " + candidId);
         }}
-        className={`group relative block w-full rounded-[28px] transition-colors duration-200 ${
-          isDark ? "bg-white/5 text-white" : "bg-beige50 border border-beige900/10 text-beige900 shadow-sm"
+        className={`group relative block w-full rounded-sheet transition-colors duration-200 ${
+          isDark ? "bg-bg-floating/5 text-on-inverse" : "bg-beige50 border border-beige900/10 text-beige900 shadow-(--shadow-sm)"
         } ${
           isProfileRevealed
             ? isDark
-              ? "cursor-pointer hover:bg-white/10"
+              ? "cursor-pointer hover:bg-bg-floating/10"
               : "cursor-pointer hover:bg-beige50/80 hover:border-beige900/16"
             : "cursor-default"
         } ${hasSharedFolderNotes ? "h-fit min-w-0" : ""}`}
@@ -296,7 +296,7 @@ function CandidateCard({
               }}
               disabled={selectionDisabled}
               aria-label={`${c.name ?? "candidate"} 선택`}
-              className={isDark ? "h-6 w-6 rounded-md border-white/50 bg-black/35 backdrop-blur-sm hover:bg-black/20" : "h-6 w-6 rounded-md border-beige900/30 bg-beige900/10 backdrop-blur-sm hover:bg-beige900/15"}
+              className={isDark ? "h-6 w-6 rounded-md border-bg-floating/50 bg-surface-inverse/35 backdrop-blur-sm hover:bg-surface-inverse/20" : "h-6 w-6 rounded-md border-beige900/30 bg-beige900/10 backdrop-blur-sm hover:bg-beige900/15"}
             />
           </div>
         ) : null}
@@ -308,7 +308,7 @@ function CandidateCard({
               <RevealProfileButton
                 candidId={candidId}
                 overlay
-                overlayClassName={`rounded-t-[28px] ${isDark ? "group-hover/content:border-accent-200/50 group-hover/content:bg-black/15" : "group-hover/content:border-primary/40 group-hover/content:bg-beige900/8"}`}
+                overlayClassName={`rounded-t-sheet ${isDark ? "group-hover/content:border-accent-200/50 group-hover/content:bg-surface-inverse/15" : "group-hover/content:border-primary/40 group-hover/content:bg-beige900/8"}`}
               />
             )}
             <div className="flex flex-row flex-1 items-start gap-4">
@@ -354,7 +354,7 @@ function CandidateCard({
                                   alt={getSearchSourceLabel(source)}
                                   width={source === "github" ? 17 : 15}
                                   height={source === "github" ? 17 : 15}
-                                  className="object-contain rounded-[2px]"
+                                  className="object-contain rounded-xs"
                                 />
                               </span>
                             </Tooltips>
@@ -495,7 +495,7 @@ function CandidateCard({
                 <div className="mt-8 flex w-full items-start gap-3">
                   <div className="min-w-0">
                     <div className={`text-xs ${isDark ? "text-neutral-600" : "text-beige900/55"}`}>Related paper</div>
-                    <div className={`mt-1 line-clamp-2 text-[15px] font-normal ${isDark ? "text-white/95" : "text-beige900"}`}>
+                    <div className={`mt-1 line-clamp-2 text-[15px] font-normal ${isDark ? "text-on-inverse/95" : "text-beige900"}`}>
                       {evidencePaper.title}
                     </div>
                     {evidencePaperMeta && (
@@ -537,7 +537,7 @@ function CandidateCard({
           </div>
           {shouldShowInlineMemo && (
             <div
-              className={`w-full border-t pt-4 ${isDark ? "border-white/10" : "border-beige900/8"} ${hasSharedFolderNotes ? "px-5 pb-5" : "px-6 pb-6"}`}
+              className={`w-full border-t pt-4 ${isDark ? "border-bg-floating/10" : "border-beige900/8"} ${hasSharedFolderNotes ? "px-5 pb-5" : "px-6 pb-6"}`}
             >
               <CandidateMemoDock
                 userId={userId}
@@ -645,7 +645,7 @@ const CriteriaBox = ({
     <div className="mt-5">
       <Tooltips text={tooltipText}>
         <div
-          className={`flex-row inline-flex items-center font-normal gap-1 py-1.5 px-2 rounded-md text-[12px] cursor-default ${isDark ? "bg-white/5" : "bg-beige500/55"} ${badeStyle}`}
+          className={`flex-row inline-flex items-center font-normal gap-1 py-1.5 px-2 rounded-md text-[12px] cursor-default ${isDark ? "bg-bg-floating/5" : "bg-beige500/55"} ${badeStyle}`}
         >
           {badgeIcon}
           <span>{criteria}</span>

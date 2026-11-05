@@ -90,7 +90,7 @@ export default function CareerMobileTopBar({
           type="button"
           variant="transparent"
           aria-label={t("career.workspace.expand_sidebar", "메뉴 펼치기")}
-          className="relative z-10 inline-flex h-11 max-w-[calc(100vw-112px)] items-center gap-2 rounded-md px-2.5 text-base font-medium text-neutral-primary transition active:bg-bg-weak"
+          className="relative z-10 inline-flex h-11 max-w-[calc(100vw-112px)] items-center gap-2 rounded-button px-2.5 text-base font-medium text-neutral-primary transition active:bg-bg-weak"
         >
           <Menu aria-hidden className="h-5 w-5 shrink-0" />
           <span className="min-w-0 truncate">{activeOption?.label}</span>

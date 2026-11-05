@@ -317,7 +317,7 @@ export default function OpsAnswerExamplesPage() {
                       className={cx(
                         "block w-full rounded-md px-4 py-3 text-left transition",
                         active
-                          ? "bg-black text-neutral-00"
+                          ? "bg-surface-inverse text-neutral-00"
                           : "bg-bg-default/65 text-neutral-primary hover:bg-bg-default"
                       )}
                     >

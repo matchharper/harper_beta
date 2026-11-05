@@ -31,7 +31,7 @@ const CareerProfileSourceCard = ({
     <>
       <span
         className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-bg-weak",
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-bg-weak",
           muted && "grayscale opacity-45"
         )}
       >
@@ -57,7 +57,7 @@ const CareerProfileSourceCard = ({
         <CardButton
           aria-label={ariaLabel}
           onClick={onActivate}
-          className="h-full w-full flex-col items-start rounded-none border-0 bg-transparent p-3 shadow-none hover:border-0 hover:bg-transparent focus-visible:ring-inset"
+          className="h-full w-full flex-col items-start rounded-card border-0 bg-transparent bg-none p-3 shadow-none backdrop-blur-none hover:border-0 hover:bg-transparent focus-visible:ring-inset"
         >
           {content}
         </CardButton>

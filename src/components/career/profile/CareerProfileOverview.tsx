@@ -53,7 +53,7 @@ const getProfileLinkIconSrc = (index: number) => {
 };
 
 const profileEditMobileFieldClassName =
-  "rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[13px] font-normal leading-5 text-neutral-primary placeholder:text-neutral-placeholder hover:bg-bg-floating focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05";
+  "rounded-control border border-stroke bg-control bg-control-image px-2.5 text-[13px] font-normal leading-5 text-neutral-primary placeholder:text-neutral-placeholder hover:bg-bg-floating focus:border-stroke-focus focus:bg-bg-floating focus:ring-2 focus:ring-focus-ring";
 
 const profileEditInputClassName = cn(
   profileEditMobileFieldClassName,
@@ -136,7 +136,7 @@ const ProfileAvatar = ({
               />
             ) : null}
             {uploadPending ? (
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/30 text-neutral-00">
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-surface-inverse/30 text-neutral-00">
                 <Loader2 className="h-4 w-4 animate-spin" />
               </span>
             ) : null}
@@ -366,7 +366,7 @@ export const ProfileHeader = ({
                       alt=""
                       width={16}
                       height={16}
-                      className="h-4 w-4 rounded-[3px] object-contain"
+                      className="h-4 w-4 rounded-sm object-contain"
                     />
                   ) : Icon ? (
                     <Icon className="h-3.5 w-3.5" />

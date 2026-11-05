@@ -97,7 +97,7 @@ export default function ChatAttachmentActionMenu({
             type="button"
             disabled={disabled}
             className={cn(
-              "inline-flex h-9 w-9 items-center justify-center rounded-[12px] bg-neutral-00/5 text-neutral-00/70 transition hover:bg-neutral-00/10 hover:text-neutral-00/90 disabled:cursor-not-allowed disabled:opacity-40",
+              "inline-flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-00/5 text-neutral-00/70 transition hover:bg-neutral-00/10 hover:text-neutral-00/90 disabled:cursor-not-allowed disabled:opacity-40",
               className
             )}
             aria-label="첨부 추가"
@@ -130,7 +130,7 @@ export default function ChatAttachmentActionMenu({
 
         {isLinkEditorOpen && (
           <div className="px-1 pb-1 pt-2">
-            <div className="rounded-[12px] bg-neutral-00/5 px-2 py-2">
+            <div className="rounded-lg bg-neutral-00/5 px-2 py-2">
               <UiInput
                 unstyled
                 ref={linkInputRef}

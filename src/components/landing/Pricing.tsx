@@ -105,20 +105,20 @@ export default function PricingSection({
   }, [billing, isEnglish, pricing]);
 
   return (
-    <section id="pricing" className="w-full bg-black text-white">
+    <section id="pricing" className="w-full bg-surface-inverse text-on-inverse">
       <Animate>
         <BaseSectionLayout>
           <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
-            {/* <Head1 className="text-white">Pricing</Head1> */}
-            <Head1 className="mt-4 md:mt-6 text-white">{pricing.title}</Head1>
+            {/* <Head1 className="text-on-inverse">Pricing</Head1> */}
+            <Head1 className="mt-4 md:mt-6 text-on-inverse">{pricing.title}</Head1>
             <div className="mt-3 text-sm md:text-base text-neutral-500 font-light">
               {pricing.subtitle}
             </div>
 
             <div className="mt-8 md:mt-10">
               <BillingToggle billing={billing} setBilling={setBilling} />
-              {/* <div className="mt-3 text-xs text-white/45">
-                                연간 결제 시 <span className="text-white/70">20% 할인</span>{" "}
+              {/* <div className="mt-3 text-xs text-on-inverse/45">
+                                연간 결제 시 <span className="text-on-inverse/70">20% 할인</span>{" "}
                                 적용된 월 환산 가격입니다.
                             </div> */}
             </div>
@@ -162,12 +162,12 @@ function BillingToggle({
 
   return (
     <div className="relative inline-flex items-center">
-      <div className="relative flex items-center bg-white/10 border border-white/10 rounded-full p-1 backdrop-blur">
+      <div className="relative flex items-center bg-bg-floating/10 border border-bg-floating/10 rounded-full p-1 backdrop-blur">
         <button
           type="button"
           onClick={() => setBilling("monthly")}
           className={`relative z-10 px-6 md:px-7 py-2.5 rounded-full text-sm md:text-sm transition-colors ${
-            !isYearly ? "text-black" : "text-white/70 hover:text-white"
+            !isYearly ? "text-neutral-primary" : "text-on-inverse/70 hover:text-on-inverse"
           }`}
         >
           {pricing.billing.monthly}
@@ -175,14 +175,14 @@ function BillingToggle({
         <button
           type="button"
           onClick={() => setBilling("yearly")}
-          className={`relative z-10 px-6 md:px-7 py-2.5 rounded-full text-sm md:text-sm transition-colors ${isYearly ? "text-black" : "text-white/70 hover:text-white"}`}
+          className={`relative z-10 px-6 md:px-7 py-2.5 rounded-full text-sm md:text-sm transition-colors ${isYearly ? "text-neutral-primary" : "text-on-inverse/70 hover:text-on-inverse"}`}
         >
           {pricing.billing.yearly}
         </button>
 
         {/* sliding pill */}
         <motion.div
-          className="absolute top-1 bottom-1 w-[50%] rounded-full bg-white"
+          className="absolute top-1 bottom-1 w-[50%] rounded-full bg-bg-floating"
           initial={false}
           animate={{ x: isYearly ? "93%" : "0%" }}
           transition={{ type: "spring", stiffness: 500, damping: 40 }}
@@ -191,7 +191,7 @@ function BillingToggle({
 
       {/* discount badge */}
       <div className="absolute -right-6 -top-3 md:-right-8 md:-top-3">
-        <div className="px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold bg-accent-200 text-black shadow-sm">
+        <div className="px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold bg-accent-200 text-neutral-primary shadow-(--shadow-sm)">
           {pricing.billing.discountLabel}
         </div>
       </div>
@@ -230,16 +230,16 @@ function PlanCard({
     <div
       className={[
         "relative w-full rounded-xl md:rounded-xl overflow-hidden",
-        "bg-white/5 border border-white/10",
+        "bg-bg-floating/5 border border-bg-floating/10",
         "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-20",
-        isPrimary ? "bg-white/10" : "",
+        isPrimary ? "bg-bg-floating/10" : "",
       ].join(" ")}
     >
       <div className="flex flex-col items-start justify-start">
         <div className="text-[24px] md:text-[28px] font-medium tracking-tight">
           {name}
         </div>
-        <div className="mt-0 text-left w-full text-sm text-white/55 leading-6 min-h-6">
+        <div className="mt-0 text-left w-full text-sm text-on-inverse/55 leading-6 min-h-6">
           {tagline}
         </div>
 
@@ -255,7 +255,7 @@ function PlanCard({
               <div className="text-[20px] md:text-[28px] font-medium tracking-tight leading-none">
                 {formatPrice(isEnglish, price)}
               </div>
-              <div className="flex justify-end items-end text-base md:text-lg text-white/60 pb-0">
+              <div className="flex justify-end items-end text-base md:text-lg text-on-inverse/60 pb-0">
                 {priceUnit}
               </div>
             </div>
@@ -269,24 +269,24 @@ function PlanCard({
             className={[
               "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",
               isPrimary
-                ? "bg-accent-200 text-black hover:opacity-95"
-                : "bg-white/10 text-accent-200 border border-white/0 hover:bg-accent-200/10",
+                ? "bg-accent-200 text-neutral-primary hover:opacity-95"
+                : "bg-bg-floating/10 text-accent-200 border border-bg-floating/0 hover:bg-accent-200/10",
             ].join(" ")}
           >
             {buttonLabel}
           </button>
         </div>
 
-        <div className="mt-7 md:mt-8 h-px w-full bg-white/10" />
+        <div className="mt-7 md:mt-8 h-px w-full bg-bg-floating/10" />
 
         <ul className="mt-6 md:mt-7 flex flex-col gap-4">
           {features.map((f, idx) => (
             <li key={idx} className="flex items-start gap-3 text-sm md:text-sm">
               {f.endsWith("및:") || f.endsWith(":") ? (
                 <>
-                  <span className="mt-[6px] w-2 h-2 rounded-full bg-white/25" />
+                  <span className="mt-[6px] w-2 h-2 rounded-full bg-bg-floating/25" />
                   <span
-                    className="text-white/80 font-medium"
+                    className="text-on-inverse/80 font-medium"
                     dangerouslySetInnerHTML={{ __html: f }}
                   />
                 </>
@@ -294,7 +294,7 @@ function PlanCard({
                 <>
                   <Check className="w-4 h-4 mt-0.5 text-accent-200" />
                   <span
-                    className="text-white/70 text-left"
+                    className="text-on-inverse/70 text-left"
                     dangerouslySetInnerHTML={{ __html: f }}
                   ></span>
                 </>

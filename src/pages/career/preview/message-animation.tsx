@@ -111,7 +111,7 @@ export default function MessageAnimationPreview() {
             action={
               <MuteButton
                 aria-label="메시지 보내기"
-                className="size-8 rounded-full p-0"
+                className="size-8 rounded-pill p-0"
                 disabled={!draft.trim()}
                 onClick={sendDraft}
                 variant="dark"

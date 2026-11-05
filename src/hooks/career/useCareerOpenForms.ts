@@ -1,10 +1,29 @@
-import { useEffect, useRef } from "react";
+import type { CareerMessage } from "@/components/career/types";
+import { createContext, useContext, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCareerApi } from "./useCareerApi";
 import type { CareerForm } from "@/lib/career/forms/schema";
 import type { CareerWorkActivity } from "@/lib/career/work/activity";
 
+export type CareerOpenFormsSnapshot = {
+  completionCursor: string | null;
+  forms: CareerForm[];
+  latestMessageId: number | null;
+  pending: number;
+  canStop?: boolean;
+  retrying?: boolean;
+  activities?: CareerWorkActivity[];
+  activeInvocationIds?: string[];
+  turns?: CareerMessage[];
+};
+
+/** Read-only snapshots for isolated local component previews. */
+export const CareerOpenFormsSnapshotContext = createContext<
+  CareerOpenFormsSnapshot | undefined
+>(undefined);
+
 export function useCareerOpenForms(conversationId?: string | null) {
+  const snapshot = useContext(CareerOpenFormsSnapshotContext);
   const { fetchWithAuth } = useCareerApi();
   const queryClient = useQueryClient();
   const lastObserved = useRef<
@@ -17,21 +36,13 @@ export function useCareerOpenForms(conversationId?: string | null) {
   >(undefined);
   const query = useQuery({
     queryKey: ["career-open-forms", conversationId],
-    enabled: Boolean(conversationId),
+    enabled: Boolean(conversationId) && snapshot === undefined,
     queryFn: async () => {
       const response = await fetchWithAuth(
         `/api/talent/work?conversationId=${encodeURIComponent(conversationId!)}`
       );
       if (!response.ok) throw new Error("Work status unavailable");
-      return (await response.json()) as {
-        completionCursor: string | null;
-        forms: CareerForm[];
-        latestMessageId: number | null;
-        pending: number;
-        canStop?: boolean;
-        retrying?: boolean;
-        activities?: CareerWorkActivity[];
-      };
+      return (await response.json()) as CareerOpenFormsSnapshot;
     },
     refetchInterval: (query) =>
       query.state.data?.activities?.length ? 1000 : 5000,
@@ -40,12 +51,15 @@ export function useCareerOpenForms(conversationId?: string | null) {
     refetchOnReconnect: true,
   });
   useEffect(() => {
-    if (!query.data) return;
+    if (snapshot !== undefined || !query.data) return;
     const prior =
       lastObserved.current?.conversationId === conversationId
         ? lastObserved.current
         : undefined;
-    if (query.data.latestMessageId !== prior?.messageId) {
+    if (
+      query.data.latestMessageId !== prior?.messageId ||
+      query.data.completionCursor !== prior?.completionCursor
+    ) {
       void queryClient.invalidateQueries(
         { queryKey: ["career-message-history", conversationId] },
         { cancelRefetch: false }
@@ -61,6 +75,7 @@ export function useCareerOpenForms(conversationId?: string | null) {
         "career-history-summary",
         "career-task-progress",
         "career-pending-actions",
+        "career-action-items",
       ]) {
         void queryClient.invalidateQueries(
           { queryKey: [key] },
@@ -73,6 +88,14 @@ export function useCareerOpenForms(conversationId?: string | null) {
       messageId: query.data.latestMessageId,
       completionCursor: query.data.completionCursor,
     };
-  }, [conversationId, query.data, queryClient]);
-  return query;
+  }, [conversationId, query.data, query.dataUpdatedAt, queryClient, snapshot]);
+  return snapshot === undefined
+    ? query
+    : {
+        ...query,
+        data: snapshot,
+        isPending: false,
+        isLoading: false,
+        isError: false,
+      };
 }

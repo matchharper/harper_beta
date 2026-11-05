@@ -32,12 +32,12 @@ const HoverHistory = ({
         >
           <DropdownMenu open={hoverHistory} onOpenChange={setHoverHistory}>
             <DropdownMenuTrigger asChild>
-              <BareButton className="flex items-center justify-between px-3 py-2 text-[12px] text-neutral-primary cursor-pointer hover:bg-bg-floating rounded-[6px]">
+              <BareButton className="flex items-center justify-between px-3 py-2 text-[12px] text-neutral-primary cursor-pointer hover:bg-bg-floating rounded-md">
                 <History size={16} />
               </BareButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              className="w-64 border border-neutral-1000-a05 text-neutral-primary px-1 bg-bg-basement mt-[-4px]"
+              className="w-64   text-neutral-primary px-1 bg-bg-basement mt-[-4px]"
               side="right"
               align="start"
               sideOffset={0}

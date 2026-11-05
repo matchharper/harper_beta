@@ -81,7 +81,7 @@ export default function OpportunityRecommendationPreview({
               key={`${item.id}-reason-${index}`}
               className="flex items-start gap-2 text-sm"
             >
-              <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-black/40" />
+              <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-surface-inverse/40" />
               <div
                 className="min-w-0"
                 dangerouslySetInnerHTML={{ __html: reason }}
@@ -93,7 +93,7 @@ export default function OpportunityRecommendationPreview({
               key={`${item.id}-concern-${index}`}
               className="flex items-start gap-2 text-sm"
             >
-              <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-black" />
+              <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-surface-inverse" />
               <div className="text-sm leading-6 text-neutral-muted">
                 {t(
                   "career.history.opportunity_list_card.0l12x89",

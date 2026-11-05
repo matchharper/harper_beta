@@ -9,6 +9,7 @@ import {
   type CareerPromptDateTimeOptions,
 } from "@/lib/career/prompts/promptUtils";
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
+import { formatCareerActionItemResponse } from "./actionItems";
 import {
   parseCareerForm,
   parseCareerFormResponse,
@@ -189,6 +190,8 @@ export function formatTalentMessageContentForLlmPrompt(
   }
 
   const viewed = payload?.viewedOpportunity;
+  const selectedAction = message.role === "user" ? formatCareerActionItemResponse(payload) : "";
+  if (selectedAction) formattedContent += `\n\n${selectedAction}`;
   if (message.role === "user" && viewed && typeof viewed === "object" &&
       "roleId" in viewed && typeof viewed.roleId === "string" &&
       "label" in viewed && typeof viewed.label === "string") {

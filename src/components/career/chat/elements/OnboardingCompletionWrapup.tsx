@@ -37,7 +37,7 @@ export const OnboardingCompletionWrapup = memo(
               type="button"
               onClick={() => void onRegenerate()}
               disabled={regenerating}
-              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-neutral-800/25 bg-bg-floating px-2.5 text-[13px] font-medium text-neutral-muted transition-colors hover:border-neutral-800/45 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60 md:text-[11px]"
+              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-800/25 bg-bg-floating px-2.5 text-[13px] font-medium text-neutral-muted transition-colors hover:border-neutral-800/45 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60 md:text-[11px]"
             >
               {regenerating ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

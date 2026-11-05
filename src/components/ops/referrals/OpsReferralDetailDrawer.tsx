@@ -171,13 +171,13 @@ export const OpsReferralDetailDrawer = memo(function OpsReferralDetailDrawer({
         type="button"
         aria-label="상세 닫기"
         onClick={onClose}
-        className="absolute inset-0 h-full w-full cursor-default bg-black/30"
+        className="absolute inset-0 h-full w-full cursor-default bg-surface-inverse/30"
       />
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby="ops-referral-detail-title"
-        className="absolute bottom-0 right-0 top-0 flex w-full max-w-[580px] flex-col overflow-hidden bg-bg-default shadow-[0_24px_90px_color-mix(in_srgb,var(--color-neutral-1000)_22%,transparent)]"
+        className="absolute bottom-0 right-0 top-0 flex w-full max-w-[580px] flex-col overflow-hidden bg-bg-default shadow-(--shadow-modal)"
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-1000-a05 px-5 py-4">
           <div className="min-w-0">
@@ -296,7 +296,7 @@ export const OpsReferralDetailDrawer = memo(function OpsReferralDetailDrawer({
               />
             </DetailField>
             <section className="pt-1">
-              <div className="rounded-md shadow-sm border border-neutral-1000-a05 bg-bg-floating p-4">
+              <div className="rounded-md shadow-(--shadow-sm) border border-neutral-1000-a05 bg-bg-floating p-4">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-neutral-primary">
                     지급정보 요청

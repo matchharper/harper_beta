@@ -193,7 +193,7 @@ export function ColumnSettings({
                       key={column.key}
                       style={{
                         background:
-                          column.key === activeKey ? "#e8f0fe" : undefined,
+                          column.key === activeKey ? "var(--color-grid-selected)" : undefined,
                       }}
                     >
                       <input

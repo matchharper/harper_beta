@@ -14,7 +14,7 @@ export const CompanyEmptyState = ({
   }
 
   return (
-    <div className="rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-5 py-10 text-center shadow-sm">
+    <div className="career-glass px-5 py-10 text-center">
       <Building2 className="mx-auto h-6 w-6 text-neutral-disabled" />
       <h3 className="mt-4 text-[16px] font-medium text-neutral-primary">
         {t(

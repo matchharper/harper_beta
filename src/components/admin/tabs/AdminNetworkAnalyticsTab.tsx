@@ -48,17 +48,17 @@ export default function AdminNetworkAnalyticsTab({
   return (
     <>
       <div className="mb-4 flex items-center justify-between w-full">
-        <div className="text-[12px] text-black/55">
-          Loaded logs: <span className="text-black">{logs.length}</span> ·
-          Users: <span className="text-black">{grouped.length}</span> · Device:{" "}
-          <span className="text-black">{deviceFilterLabel}</span>
+        <div className="text-[12px] text-neutral-primary/55">
+          Loaded logs: <span className="text-neutral-primary">{logs.length}</span> ·
+          Users: <span className="text-neutral-primary">{grouped.length}</span> · Device:{" "}
+          <span className="text-neutral-primary">{deviceFilterLabel}</span>
         </div>
 
         {loading && (
           <Loading
             size="sm"
             label="Loading…"
-            className="text-[12px] text-black/55"
+            className="text-[12px] text-neutral-primary/55"
             inline={true}
           />
         )}
@@ -66,48 +66,48 @@ export default function AdminNetworkAnalyticsTab({
 
       {error ? (
         <div
-          className="mb-4 border border-black/15 bg-black/5 p-4 text-[13px] flex items-start justify-between gap-4"
-          style={{ borderRadius: 0 }}
+          className="mb-4 border border-stroke-strong/15 bg-surface-tint p-4 text-[13px] flex items-start justify-between gap-4"
+          style={{ borderRadius: "var(--radius-admin)" }}
         >
           <div>
             <div className="font-semibold">Error</div>
-            <div className="text-black/70 mt-1">{error}</div>
+            <div className="text-neutral-primary/70 mt-1">{error}</div>
           </div>
           <BareButton
             onClick={onRefresh}
-            className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/5"
-            style={{ borderRadius: 0 }}
+            className="h-9 px-3 text-[13px] border border-stroke-strong/15 hover:border-stroke-strong/30 hover:bg-surface-tint"
+            style={{ borderRadius: "var(--radius-admin)" }}
           >
             Retry
           </BareButton>
         </div>
       ) : !funnelSummary ? (
         <div
-          className="border border-black/10 p-8 text-center text-[13px] text-black/55"
-          style={{ borderRadius: 0 }}
+          className="border border-stroke p-8 text-center text-[13px] text-neutral-primary/55"
+          style={{ borderRadius: "var(--radius-admin)" }}
         >
           No Talent Network data.
         </div>
       ) : (
         <>
           <div
-            className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-            style={{ borderRadius: 0 }}
+            className="mb-4 border border-stroke p-4 text-[12px] text-neutral-primary/80"
+            style={{ borderRadius: "var(--radius-admin)" }}
           >
-            <div className="font-semibold text-black mb-2">
+            <div className="font-semibold text-neutral-primary mb-2">
               Talent Network overview
             </div>
             <div className="leading-6">
               유입 유저:{" "}
-              <span className="font-medium text-black">
+              <span className="font-medium text-neutral-primary">
                 {funnelSummary.totalUsers}
               </span>{" "}
               · 디바이스:{" "}
-              <span className="font-medium text-black">
+              <span className="font-medium text-neutral-primary">
                 {deviceFilterLabel}
               </span>{" "}
               · 시작 화면 도달:{" "}
-              <span className="font-medium text-black">
+              <span className="font-medium text-neutral-primary">
                 {funnelSummary.onboardingStartUsers}
               </span>{" "}
               (
@@ -116,7 +116,7 @@ export default function AdminNetworkAnalyticsTab({
                 funnelSummary.totalUsers
               )}
               ) · 제출 완료:{" "}
-              <span className="font-medium text-black">
+              <span className="font-medium text-neutral-primary">
                 {funnelSummary.submittedUsers}
               </span>{" "}
               (
@@ -129,16 +129,16 @@ export default function AdminNetworkAnalyticsTab({
           </div>
 
           <div
-            className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-            style={{ borderRadius: 0 }}
+            className="mb-4 border border-stroke p-4 text-[12px] text-neutral-primary/80"
+            style={{ borderRadius: "var(--radius-admin)" }}
           >
-            <div className="font-semibold text-black mb-2">
+            <div className="font-semibold text-neutral-primary mb-2">
               A/B variant comparison
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-left">
                 <thead>
-                  <tr className="border-b border-black/10 text-black">
+                  <tr className="border-b border-stroke text-neutral-primary">
                     <th className="py-2 pr-3 font-semibold">Variant</th>
                     <th className="py-2 pr-3 font-semibold">UI</th>
                     <th className="py-2 pr-3 text-right font-semibold">
@@ -159,15 +159,15 @@ export default function AdminNetworkAnalyticsTab({
                   {variantSummaries.map((item) => (
                     <tr
                       key={item.abtestType}
-                      className="border-b border-black/5 align-top last:border-b-0"
+                      className="border-b border-stroke-subtle align-top last:border-b-0"
                     >
-                      <td className="py-2 pr-3 font-medium text-black">
+                      <td className="py-2 pr-3 font-medium text-neutral-primary">
                         {item.label}
-                        <div className="text-[11px] font-normal text-black/45">
+                        <div className="text-[11px] font-normal text-neutral-primary/45">
                           {item.abtestType}
                         </div>
                       </td>
-                      <td className="py-2 pr-3 text-black/65">
+                      <td className="py-2 pr-3 text-neutral-primary/65">
                         {getVariantDescription(item.abtestType) || "-"}
                       </td>
                       <td className="py-2 pr-3 text-right">
@@ -199,16 +199,16 @@ export default function AdminNetworkAnalyticsTab({
           </div>
 
           <div
-            className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-            style={{ borderRadius: 0 }}
+            className="mb-4 border border-stroke p-4 text-[12px] text-neutral-primary/80"
+            style={{ borderRadius: "var(--radius-admin)" }}
           >
-            <div className="font-semibold text-black mb-2">
+            <div className="font-semibold text-neutral-primary mb-2">
               Onboarding step comparison
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[820px] text-left">
                 <thead>
-                  <tr className="border-b border-black/10 text-black">
+                  <tr className="border-b border-stroke text-neutral-primary">
                     <th className="py-2 pr-3 font-semibold">Step</th>
                     {variantColumns.map((variant) => (
                       <th
@@ -229,12 +229,12 @@ export default function AdminNetworkAnalyticsTab({
                     return (
                       <tr
                         key={step.key}
-                        className="border-b border-black/5 last:border-b-0"
+                        className="border-b border-stroke-subtle last:border-b-0"
                       >
                         <td
                           className={`py-2 pr-3 ${isProfileIdentityRow ? "pl-6" : ""}`}
                         >
-                          <span className="font-medium text-black">
+                          <span className="font-medium text-neutral-primary">
                             Step {step.step}
                           </span>{" "}
                           {step.label}
@@ -270,19 +270,19 @@ export default function AdminNetworkAnalyticsTab({
           </div>
 
           <div
-            className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-            style={{ borderRadius: 0 }}
+            className="mb-4 border border-stroke p-4 text-[12px] text-neutral-primary/80"
+            style={{ borderRadius: "var(--radius-admin)" }}
           >
-            <div className="font-semibold text-black mb-2">
+            <div className="font-semibold text-neutral-primary mb-2">
               Button clicks by variant
             </div>
             {buttonSummary.length === 0 ? (
-              <div className="text-black/55">No button click data.</div>
+              <div className="text-neutral-primary/55">No button click data.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[980px] text-left">
                   <thead>
-                    <tr className="border-b border-black/10 text-black">
+                    <tr className="border-b border-stroke text-neutral-primary">
                       <th className="py-2 pr-3 font-semibold">Event</th>
                       <th className="py-2 pr-3 text-right font-semibold">
                         Total Users
@@ -304,14 +304,14 @@ export default function AdminNetworkAnalyticsTab({
                     {buttonSummary.map((item) => (
                       <tr
                         key={item.eventType}
-                        className="border-b border-black/5 align-top last:border-b-0"
+                        className="border-b border-stroke-subtle align-top last:border-b-0"
                       >
                         <td className="py-2 pr-3">
                           <div className="break-all">
-                            <div className="text-black">
+                            <div className="text-neutral-primary">
                               {formatTalentNetworkEventName(item.eventType)}
                             </div>
-                            <div className="text-[11px] text-black/45">
+                            <div className="text-[11px] text-neutral-primary/45">
                               {item.eventType}
                             </div>
                           </div>

@@ -253,7 +253,7 @@ function StateCard({
   title: string;
 }) {
   return (
-    <div className="mx-auto max-w-lg rounded-xl border border-neutral-1000-a05 bg-bg-floating p-8 text-center shadow-sm">
+    <div className="mx-auto max-w-lg rounded-xl border border-neutral-1000-a05 bg-bg-floating p-8 text-center shadow-(--shadow-sm)">
       <div className="mx-auto flex size-11 items-center justify-center rounded-full bg-bg-weak">
         <CalendarCheck className="size-5 text-neutral-muted" />
       </div>
@@ -543,7 +543,7 @@ export default function MeetingInvitationPage() {
             </p>
           ) : null}
 
-          <div className="mt-6 flex flex-col overflow-hidden rounded-2xl border border-neutral-1000-a05 bg-bg-floating shadow-sm md:h-[min(520px,calc(100svh-12rem))]">
+          <div className="mt-6 flex flex-col overflow-hidden rounded-2xl border border-neutral-1000-a05 bg-bg-floating shadow-(--shadow-sm) md:h-[min(520px,calc(100svh-12rem))]">
             <MeetingAvailabilitySplitLayout
               calendar={
                 <MeetingAvailabilityCalendar
@@ -654,7 +654,7 @@ export default function MeetingInvitationPage() {
             </footer>
           </div>
           {selectedSlotIds.length > 0 ? (
-            <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-1000-a05 bg-bg-floating px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] md:hidden">
+            <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-1000-a05 bg-bg-floating px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-(--shadow-dock) md:hidden">
               <div className="mx-auto max-w-5xl">
                 {error ? (
                   <p

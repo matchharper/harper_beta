@@ -65,7 +65,7 @@ export function OrgCandidateSelectionBar({
       <div
         className={cn(
           "sticky top-0 z-20 mb-2 flex min-h-10 items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors",
-          count ? "bg-neutral-200" : "bg-white"
+          count ? "bg-neutral-200" : "bg-bg-floating"
         )}
       >
         <Checkbox

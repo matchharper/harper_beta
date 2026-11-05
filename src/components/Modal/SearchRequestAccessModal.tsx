@@ -67,11 +67,11 @@ export default function SearchRequestAccessModal({
       <BareButton
         type="button"
         aria-label="Close request access modal"
-        className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-surface-inverse/60 backdrop-blur-overlay"
         onClick={onClose}
       />
 
-      <div className="relative z-50 w-full max-w-[960px] overflow-hidden rounded-2xl border border-neutral-1000-a05 bg-bg-default shadow-2xl">
+      <div className="relative z-50 w-full max-w-[960px] overflow-hidden rounded-2xl border border-neutral-1000-a05 bg-bg-default shadow-(--shadow-2xl)">
         <div className="grid w-full gap-0 lg:grid-cols-[0.96fr_1.04fr]">
           <div className="border-b border-neutral-1000-a05 p-6 pb-8 lg:border-b-0 lg:border-r lg:p-8">
             <div className="flex flex-col items-start justify-start">
@@ -152,7 +152,7 @@ export default function SearchRequestAccessModal({
                   <BareButton
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full rounded-md bg-black py-2.5 text-sm font-medium text-neutral-00 transition duration-300 hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-md bg-surface-inverse py-2.5 text-sm font-medium text-neutral-00 transition duration-300 hover:bg-surface-inverse/90 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isSubmitting ? (
                       <LoaderCircle className="mx-auto h-4 w-4 animate-spin" />
@@ -165,7 +165,7 @@ export default function SearchRequestAccessModal({
             )}
           </div>
 
-          <div className="bg-black">
+          <div className="bg-surface-inverse">
             <div className="flex h-full min-h-[280px] w-full flex-col overflow-hidden bg-gradpastel2">
               <div className="flex flex-1 items-center justify-center px-1 py-4">
                 <video
@@ -175,7 +175,7 @@ export default function SearchRequestAccessModal({
                   loop
                   muted
                   playsInline
-                  className="h-full w-full object-cover shadow-lg"
+                  className="h-full w-full object-cover shadow-(--shadow-lg)"
                 />
               </div>
             </div>

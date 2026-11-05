@@ -189,7 +189,7 @@ export function RoleCreateModal({
       title={mode === "edit" ? "기회 수정" : "기회 추가"}
       description=""
       overlayClassName="items-start overflow-y-auto px-4 py-10 sm:px-6 sm:py-14 lg:py-16"
-      panelClassName="flex max-h-[calc(100svh-4rem)] max-w-[860px] flex-col border border-neutral-1000-a05 bg-bg-default"
+      panelClassName="flex max-h-[calc(100svh-4rem)] max-w-[860px] flex-col   "
       bodyClassName="flex-1 overflow-y-auto bg-bg-default px-5 py-5"
       footerClassName="shrink-0 border-t border-neutral-1000-a05 bg-bg-default"
       footer={

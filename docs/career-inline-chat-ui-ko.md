@@ -27,25 +27,29 @@ assistant의 웹 채팅 본문에서 독립된 한 줄을 해석한다. 앞뒤 �
 ## 조회·스트리밍 경계
 
 - `inlineUi.ts`가 식별자와 UI 종류를 파싱하고 `CareerMessageBubble`이 본문 사이에 렌더링한다. 사용자 메시지, 코드 블록, 인용문 속 예시는 실행하지 않는다. 스트리밍 중 미완성 참조는 숨기고, 완성된 잘못된 참조는 unavailable 표시로 끝낸다.
-- `messageType`이 웹 채팅일 때만 UI를 마운트한다. mail/call 등 비웹 메시지의 참조는 표시/조회하지 않는다. 이메일 전송·TTS·모델 이력 projection까지 연결한 것은 아니다.
+- `messageType`이 웹 채팅일 때만 UI를 마운트한다. mail/call 등 비웹 메시지의 참조는 표시/조회하지 않는다. 기존 채널별 표시 참조 제거 계약을 유지한다.
 - 매칭은 기존 React Query cache와 cursor를 공유한다. 명시한 기회는 기존 history 페이지 크기인 10개씩 묶어 조회하며 같은 참조는 cache를 공유한다. 카드별 요청이나 polling을 추가하지 않는다.
 - 매칭 API는 로그인 사용자 소유의 matching과 선택한 run의 소유권/소속을 확인한다. 기회 batch GET은 로그인 사용자의 기존 이력만 반환하며 열람·추천·feedback·archive를 기록하지 않는다. 일부 항목을 조회할 수 없으면 이를 표시한다.
 - 매칭 사유는 기존 사용자용 `recommendationNote`/`recommendationSummary`가 있을 때만 표시한다. private assessment를 그대로 노출하거나 표시 단계에서 새 사유를 만들지 않는다.
 
 현재 매칭 reader는 외부 공고 평가를 조회하며 만료 공고를 제외한다. 추천 여부도 기존 추천 이력 기준이다. 따라서 내부 Role·만료 공고까지 포함한 모든 과거 평가, 특정 실행 당시의 추천 여부/공고 내용 snapshot을 구현했다고 해석하면 안 된다. 예시 화면의 사유는 synthetic fixture이며, 실제 미추천 공고에 설명이 없으면 사유 행이 생략된다.
 
-## LLM 가이드 연결 계획 — 미적용
+## LLM 가이드 연결 — Floating Sky에서 적용
 
-1. **원본 웹 표시 계약을 수정한다.** `src/lib/career/prompts/mainPrompt2.ts`의 `careerTextChatDisplayRules`에서 기존 개별 `[posting](roleId)` 설명을 확장한다. 개별 공고는 기존 카드, 매칭/기회 목록/조건은 위 참조를 사용할 수 있음을 설명한다. 별도 렌더링 tool이나 새 능력 registry 항목은 만들지 않는다.
-2. **모델에는 표시 의도와 최소 참조만 맡긴다.** 매칭 ID는 현재 resource index 또는 기존 `list_matchings`/조회 결과에서 가져온다. 특정 실행이면 조회 결과의 실제 run ID를 쓴다. 기회 제목·상태·조건 전문을 JSON에 복제하지 않는다. 설명이나 판단에 데이터가 필요하면 기존 read 도구로 읽고, 표시만 필요한 목록은 UI가 읽는다. 추천 실행은 계속 기존 `upsert_opportunities` 등의 실행 경로가 담당한다.
-3. **채널에 맞춰 제공한다.** `conversationPlan.ts`의 `career_chat_display`는 현재 메인 웹 채팅에만 들어가고, 이메일 `adaptEmailPromptBlocks`는 이미 이 block을 제거한다. 연결할 때 온보딩·백그라운드 완료 등 웹 전달 경로도 실제 출력 채널을 기준으로 확인한다. 음성·메일에는 넣지 않는다. 저장된 웹 대화가 음성/메일 context·요약·후속 호출로 넘어가는 경로도 확인하고, 표시 참조를 해당 채널의 사실 projection으로 처리한다. 웹 원본 메시지는 재렌더링을 위해 유지한다.
-4. **실제 모델 입력과 화면으로 확인한다.** 자유로운 요청에서 모델이 알려진 ID를 선택하는지, 불필요한 read 없이 표시할 수 있는지, 설명에 필요한 사실은 읽는지 확인한다. 기존 개별 공고·Gmail·document와 함께 사용할 때의 순서, professional/friendly 모드, 스트리밍·새로고침·음성·이메일을 확인한다. 프롬프트 문자열 검사만으로 완료 판정하지 않는다.
+원본 `careerTextChatDisplayRules`에 위 참조 문법과 실제 조회 범위, 실행과 표시의 차이를 연결했다. `conversationPlan.ts`는 온보딩이 끝난 메인 웹 채팅에 이 계약을 제공한다. voice·email·background 자체 prompt에는 웹 표시 가이드를 추가하지 않았다. 이메일 renderer는 같은 parser로 웹 표시 참조를 제외한다. 인용·코드 속 문법은 그대로 남긴다. 실제 음성 출력 경로는 이번 디자인 검증 범위에 포함하지 않았다.
 
-추가할 가이드의 초안:
+추가 참조:
 
-> 웹 채팅에서는 기존 Career 데이터를 본문 중간에 펼쳐 보여줄 수 있다. 매칭 검토 목록에는 matching 참조, 저장/진행중 또는 특정 기회 묶음에는 opportunities 참조, 현재 원하는 조건에는 brief 참조를 독립된 한 줄로 사용한다. 매칭과 기회의 식별자는 context나 조회 결과에 있는 실제 값을 사용한다. 참조는 저장된 데이터를 보여주는 것이며 추천·지원·조건 변경을 실행하거나 그 사실을 증명하지 않는다. 어떤 UI가 사용자 목적에 도움이 되는지와 주변 설명은 대화 맥락에 따라 판단한다.
+```text
+[[career_ui:{"type":"meetings"}]]
+[[career_ui:{"type":"meetings","roleId":"<실제 role UUID>"}]]
+[[career_ui:{"type":"automations"}]]
+[[career_ui:{"type":"actions"}]]
+```
 
-실제 적용 시 위 설명에 정확한 marker 문법과 scope 의미를 함께 둔다. 특정 질문에 대한 정해진 답변이나 필수 사용 횟수는 추가하지 않는다.
+일정은 `UpcomingAppointments`, 예약된 작업은 `CareerAutomationSettingsSection section="schedules"`, 할 일은 `CareerActionItemsPanel`을 재사용한다. 각 reader의 로그인·소유권 계약과 기존 중지/재개/취소·답변 작성 행동을 그대로 사용한다. 모델이 UI를 표시하는 것만으로 mutation은 발생하지 않는다. 할 일 선택은 현재 workspace의 채팅 탐색 context를 사용하며 모바일에서도 올바른 채팅 탭을 연다.
+
+새 가이드를 공급하는 prompt plan과 parser/render 경로를 로컬에서 확인한다. 실제 LLM 호출에서 UI 선택 빈도·문체 품질을 평가한 것은 아니며, 그 결과를 보장하지 않는다.
 
 ## 로컬 확인
 

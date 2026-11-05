@@ -35,7 +35,7 @@ export default function DemoPage() {
 
         <main className="mx-auto flex w-full max-w-[1280px] flex-col px-5 pt-8 md:px-8 pb-48 md:pt-12">
           <section className="w-full">
-            <p className="text-[14px] font-normal uppercase text-black/50">
+            <p className="text-[14px] font-normal uppercase text-neutral-primary/50">
               Product · Intro
             </p>
             <p className="mt-4 font-hedvig text-[28px] font-extralight md:text-[36px] leading-[1.3] md:leading-[1.5]">
@@ -48,7 +48,7 @@ export default function DemoPage() {
           <div className="grid w-full place-items-center">
             <figure className="mt-10 w-full max-w-[840px] md:mt-14">
               <DemoVideo />
-              <p className="mt-3 flex justify-center items-center w-full font-normal text-center text-[13px] text-black/50 sm:text-[14px]">
+              <p className="mt-3 flex justify-center items-center w-full font-normal text-center text-[13px] text-neutral-primary/50 sm:text-[14px]">
                 Watch the 72-second demo • matchharper.com/demo
               </p>
             </figure>

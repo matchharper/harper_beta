@@ -984,7 +984,7 @@ function BoardCanvas({
             <div
               className={cn(
                 "absolute rounded-lg transition-shadow duration-150",
-                lifted ? "shadow-xl" : "shadow-sm hover:shadow-md",
+                lifted ? "shadow-(--shadow-xl)" : "shadow-(--shadow-sm) hover:shadow-(--shadow-md)",
                 selectedIds.has(id) && "ring-2 ring-neutral-800"
               )}
               data-board-card
@@ -1040,7 +1040,7 @@ function BoardCanvas({
               {selected ? (
                 // Kept at its real size whatever the zoom.
                 <div
-                  className="absolute bottom-full left-0 mb-1.5 flex origin-bottom-left items-center gap-0.5 rounded-md border border-neutral-1000-a05 bg-bg-floating p-0.5 shadow-sm"
+                  className="absolute bottom-full left-0 mb-1.5 flex origin-bottom-left items-center gap-0.5 rounded-md border border-neutral-1000-a05 bg-bg-floating p-0.5 shadow-(--shadow-sm)"
                   style={{ transform: `scale(${1 / viewport.zoom})` }}
                 >
                   <MuteButton
@@ -1146,7 +1146,7 @@ function BoardCanvas({
         />
       ) : null}
       <div
-        className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg border border-neutral-1000-a05 bg-bg-floating p-1 shadow-sm"
+        className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg border border-neutral-1000-a05 bg-bg-floating p-1 shadow-(--shadow-sm)"
         data-board-controls
       >
         {canWrite ? (

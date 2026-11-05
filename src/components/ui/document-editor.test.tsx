@@ -31,9 +31,9 @@ test("renders a taller clickable document preview", () => {
   assert.match(html, /min-h-\[340px\]/);
   assert.match(html, /max-h-\[440px\]/);
   assert.match(html, /max-h-\[268px\]/);
-  assert.match(html, /rounded-lg/);
+  assert.match(html, /rounded-card/);
   assert.match(html, /border-neutral-1000-a05/);
-  assert.match(html, /hover:bg-neutral-100/);
+  assert.match(html, /hover:bg-card-hover/);
   assert.match(html, />Request</);
   assert.match(html, />첫 문장</);
   assert.doesNotMatch(html, /uppercase|tracking-/);

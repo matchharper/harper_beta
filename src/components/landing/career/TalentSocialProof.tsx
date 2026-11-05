@@ -69,7 +69,7 @@ const TalentSocialProof = ({
 
   return (
     <div className="relative z-10 mx-auto w-full max-w-[1180px] px-4 pb-8 pt-8 text-center md:pb-10 md:pt-10">
-      <h2 className="font-sans text-[13px] font-medium text-black/40 sm:text-[14px]">
+      <h2 className="font-sans text-[13px] font-medium text-neutral-primary/40 sm:text-[14px]">
         {title}
       </h2>
 

@@ -20,15 +20,15 @@ export default function AdminWaitlistCompanyTab({
   return (
     <>
       <div className="mb-4 flex items-center justify-between w-full">
-        <div className="text-[12px] text-black/55">
-          Rows: <span className="text-black">{rows.length}</span>
+        <div className="text-[12px] text-neutral-primary/55">
+          Rows: <span className="text-neutral-primary">{rows.length}</span>
         </div>
 
         {loading && (
           <Loading
             size="sm"
             label="Loading…"
-            className="text-[12px] text-black/55"
+            className="text-[12px] text-neutral-primary/55"
             inline={true}
           />
         )}
@@ -36,17 +36,17 @@ export default function AdminWaitlistCompanyTab({
 
       {error ? (
         <div
-          className="border border-black/15 bg-black/5 p-4 text-[13px] flex items-start justify-between gap-4"
-          style={{ borderRadius: 0 }}
+          className="border border-stroke-strong/15 bg-surface-tint p-4 text-[13px] flex items-start justify-between gap-4"
+          style={{ borderRadius: "var(--radius-admin)" }}
         >
           <div>
             <div className="font-semibold">Error</div>
-            <div className="text-black/70 mt-1">{error}</div>
+            <div className="text-neutral-primary/70 mt-1">{error}</div>
           </div>
           <BareButton
             onClick={onRefresh}
-            className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/5"
-            style={{ borderRadius: 0 }}
+            className="h-9 px-3 text-[13px] border border-stroke-strong/15 hover:border-stroke-strong/30 hover:bg-surface-tint"
+            style={{ borderRadius: "var(--radius-admin)" }}
           >
             Retry
           </BareButton>
@@ -54,19 +54,19 @@ export default function AdminWaitlistCompanyTab({
       ) : null}
 
       <div
-        className="border border-black/10 w-full"
-        style={{ borderRadius: 0 }}
+        className="border border-stroke w-full"
+        style={{ borderRadius: "var(--radius-admin)" }}
       >
         {loading ? (
           <Loading
             size="sm"
             label="Loading…"
-            className="p-6 text-[13px] text-black/55"
+            className="p-6 text-[13px] text-neutral-primary/55"
           />
         ) : rows.length === 0 ? (
           <div className="p-10 text-center">
             <div className="text-[14px] font-semibold">No rows</div>
-            <div className="text-[13px] text-black/55 mt-2">
+            <div className="text-[13px] text-neutral-primary/55 mt-2">
               No company waitlist data yet.
             </div>
           </div>
@@ -74,19 +74,19 @@ export default function AdminWaitlistCompanyTab({
           rows.map((row) => (
             <div
               key={`${row.email}-${row.created_at}`}
-              className="border-t border-black/10 first:border-t-0 w-full"
+              className="border-t border-stroke first:border-t-0 w-full"
             >
               <div className="px-5 py-4 w-full">
                 <div className="flex flex-row items-start justify-between gap-4">
                   <div className="text-[14px] font-semibold break-all">
                     {row.email}
                   </div>
-                  <div className="text-[12px] text-black/55 whitespace-nowrap">
+                  <div className="text-[12px] text-neutral-primary/55 whitespace-nowrap">
                     {formatKST(row.created_at)}
                   </div>
                 </div>
 
-                <div className="mt-3 text-[13px] text-black/80 w-full space-y-1">
+                <div className="mt-3 text-[13px] text-neutral-primary/80 w-full space-y-1">
                   <div>Name: {row.name ?? "-"}</div>
                   <div className="break-all">
                     Company: {row.company ?? "-"}

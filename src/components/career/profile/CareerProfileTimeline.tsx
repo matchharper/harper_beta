@@ -63,7 +63,7 @@ export const TimelineBlock = ({
       {!isLast && (
         <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-linear-to-b from-neutral-1000-a10 via-neutral-1000-a05 to-transparent" />
       )}
-      <div className="relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-bg-default bg-bg-weak text-[17px] font-semibold leading-none text-neutral-muted shadow-sm">
+      <div className="relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border-2 border-bg-default bg-bg-weak text-[17px] font-semibold leading-none text-neutral-muted shadow-(--shadow-sm)">
         <span className="absolute inset-0 flex items-center justify-center">
           {fallbackLogoText || icon}
         </span>
@@ -118,7 +118,7 @@ export const TimelineBlock = ({
           />
         )}
         {memo && (
-          <div className="mt-3 flex items-start gap-2 rounded-[6px] px-1 py-2">
+          <div className="mt-3 flex items-start gap-2 rounded-md px-1 py-2">
             {/* <div>
               <Face size={28} />
             </div> */}
@@ -159,7 +159,7 @@ export const ProfileSectionHeader = ({
 );
 
 export const EmptyEditState = ({ label }: { label: string }) => (
-  <div className="rounded-[10px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 text-sm text-neutral-muted">
+  <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 text-sm text-neutral-muted">
     {label}
   </div>
 );
@@ -168,7 +168,7 @@ const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => (
   <BareButton
     type="button"
     onClick={onClick}
-    className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary md:h-8 md:w-8"
+    className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary md:h-8 md:w-8"
     aria-label="항목 삭제"
   >
     <Trash2 className="h-4 w-4" />
@@ -176,16 +176,16 @@ const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => (
 );
 
 const profileEditMobileFieldClassName =
-  "rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[13px] font-normal leading-5 text-neutral-primary placeholder:text-neutral-placeholder hover:bg-bg-floating focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05";
+  "rounded-control border border-stroke bg-control bg-control-image px-2.5 text-[13px] font-normal leading-5 text-neutral-primary placeholder:text-neutral-placeholder hover:bg-bg-floating focus:border-stroke-focus focus:bg-bg-floating focus:ring-2 focus:ring-focus-ring";
 
 export const profileEditPlainInputClassName = cn(
   profileEditMobileFieldClassName,
-  "h-9 py-1.5 md:h-auto md:rounded-[4px] md:border-neutral-1000-a05 md:px-1.5 md:py-1 md:hover:bg-bg-weak md:focus:border-neutral-1000-a10 md:focus:ring-1"
+  "h-9 py-1.5 md:h-auto md:rounded-sm md:border-neutral-1000-a05 md:px-1.5 md:py-1 md:hover:bg-bg-weak md:focus:border-neutral-1000-a10 md:focus:ring-1"
 );
 
 export const profileEditPlainTextareaClassName = cn(
   profileEditMobileFieldClassName,
-  "min-h-[72px] py-1.5 md:min-h-[74px] md:rounded-[6px] md:border-neutral-1000-a05 md:px-1.5 md:py-1.5 md:hover:bg-bg-weak md:focus:border-neutral-1000-a10 md:focus:ring-1"
+  "min-h-[72px] py-1.5 md:min-h-[74px] md:rounded-md md:border-neutral-1000-a05 md:px-1.5 md:py-1.5 md:hover:bg-bg-weak md:focus:border-neutral-1000-a10 md:focus:ring-1"
 );
 
 export const TimelineEditBlock = ({
@@ -226,7 +226,7 @@ export const TimelineEditBlock = ({
       )}
       <label
         className={cn(
-          "relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-bg-default bg-bg-weak text-[17px] font-semibold leading-none text-neutral-muted",
+          "relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border-2 border-bg-default bg-bg-weak text-[17px] font-semibold leading-none text-neutral-muted",
           onLogoFileChange &&
             "cursor-pointer transition-transform hover:scale-[1.03]",
           logoUploadPending && "pointer-events-none opacity-75"

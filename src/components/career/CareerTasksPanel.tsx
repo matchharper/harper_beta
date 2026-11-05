@@ -1,50 +1,20 @@
-import { CareerTodayExternalRecommendations } from "./CareerDailyExternalRecommendations";
-import {
-  CalendarClock,
-  ChevronRight,
-  CircleHelp,
-  FileText,
-  Handshake,
-  Info,
-  Link2,
-  Loader2,
-  MessageSquareText,
-  PhoneCall,
-  RefreshCw,
-  Scan,
-  Search,
-} from "lucide-react";
-import { useRouter } from "next/router";
-import { memo, useState, type ReactNode } from "react";
-import { BareButton, MuteButton } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  SectionDescription,
-  SectionHeader,
-  SectionTitle,
-} from "@/components/ui/section-header";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Text } from "@/components/ui/text";
+"use client";
+
+import { memo, useEffect, useState } from "react";
 import { useCareerT } from "@/i18n/useCareerT";
-import { useCareerApi } from "@/hooks/career/useCareerApi";
-import { useCareerTasks } from "@/hooks/career/useCareerTasks";
-import { useCareerTaskSuggestions } from "@/hooks/career/useCareerTaskSuggestions";
-import { useCareerRecentInfo } from "@/hooks/career/useCareerRecentInfo";
 import { useMessages } from "@/i18n/useMessage";
-import { useCareerChatActivityContext } from "./CareerChatPanelContext";
-import CareerHomeDevControls from "./CareerHomeDevControls";
-import CareerHomePanel from "./CareerHomePanel";
-import CareerWelcomeHeader from "./CareerWelcomeHeader";
+import { useCareerActionItems } from "@/hooks/career/useCareerActionItems";
+import { MuteButton } from "@/components/ui/button";
+import { useCareerSidebarContext } from "./CareerSidebarContext";
 import {
-  useCareerProfileContext,
-  useCareerSidebarContext,
-} from "./CareerSidebarContext";
-import { CompanyLogo } from "./watchlist/CompanyLogo";
-import { getCareerTaskSectionOrder } from "@/lib/career/taskItems";
-import type {
-  CareerComposerPendingAction,
-  CareerPendingAction,
-} from "@/lib/career/pendingActions";
+  useCareerChatActivityContext,
+  useCareerChatPanelContext,
+} from "./CareerChatPanelContext";
+import CareerHomePanel from "./CareerHomePanel";
+import CareerHomeDevControls from "./CareerHomeDevControls";
+import { CareerActionItemsPanel } from "./CareerActionItemsPanel";
+import { CareerOpportunitySummary } from "./CareerOpportunitySummary";
+import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
 
 type CareerTasksPanelProps = {
   onOpenChat: () => void;
@@ -58,872 +28,111 @@ type CareerTasksPanelProps = {
   showTitle?: boolean;
 };
 
-function TaskRow({
-  icon,
-  meta,
-  title,
-  description,
-  action,
-  align = "col",
-  emphasized = false,
-  truncateDescription = true,
-}: {
-  icon: ReactNode;
-  meta?: string;
-  title: string;
-  description?: string | null;
-  action?: ReactNode;
-  align?: "row" | "col";
-  emphasized?: boolean;
-  truncateDescription?: boolean;
-}) {
-  return (
-    <article className="flex items-start gap-3 border-b border-neutral-1000-a05 py-5 last:border-b-0">
-      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-bg-weak text-neutral-muted">
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        {meta ? (
-          <Text as="p" type="caption" tone="muted" className="mb-1">
-            {meta}
-          </Text>
-        ) : null}
-        <Text
-          as="h3"
-          type="body"
-          className={emphasized ? "font-medium" : undefined}
-        >
-          {title}
-        </Text>
-        {description ? (
-          <Text
-            as="p"
-            type="desc"
-            tone="muted"
-            className={`mt-1.5 whitespace-pre-wrap break-words${truncateDescription ? " line-clamp-2" : ""}`}
-          >
-            {description}
-          </Text>
-        ) : null}
-        {action && align === "col" ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2">{action}</div>
-        ) : null}
-      </div>
-      {action && align === "row" ? (
-        <div className="flex flex-wrap items-center gap-2">{action}</div>
-      ) : null}
-    </article>
-  );
-}
+function CareerNextStepsButton({ onOpenChat }: { onOpenChat: () => void }) {
+  const t = useCareerT();
+  const {
+    user,
+    conversationId,
+    sessionPending,
+    profilePending,
+    chatAdmissionPending,
+    chatPending,
+    assistantTyping,
+    inputMode,
+    isOnboardingDone,
+    stage,
+    onSendChatMessage,
+  } = useCareerChatPanelContext();
+  const completed = isOnboardingDone || stage === "completed";
 
-function TaskSuggestionSkeleton({ label }: { label: string }) {
   return (
-    <div
-      role="status"
-      className="flex items-start gap-3 border-b border-neutral-1000-a05 py-5 last:border-b-0"
+    <MuteButton
+      className="mt-4 w-full"
+      size="lg"
+      disabled={
+        !user ||
+        !conversationId ||
+        sessionPending ||
+        profilePending ||
+        chatAdmissionPending ||
+        inputMode === "call" ||
+        (!completed && (stage === "profile" || chatPending || assistantTyping))
+      }
+      onClick={() => {
+        onOpenChat();
+        void onSendChatMessage({
+          channel: "chat",
+          text: t(
+            "career.tasks.suggest_next_steps.message",
+            "지금 하면 좋은 일을 알려주세요"
+          ),
+        });
+      }}
     >
-      <Skeleton className="mt-0.5 h-9 w-9 shrink-0 rounded-lg" />
-      <div className="min-w-0 flex-1 space-y-3">
-        <Skeleton className="h-4 w-2/3" />
-        <Skeleton className="h-3 w-5/6" />
-        <Skeleton className="h-7 w-24" />
-      </div>
-      <span className="sr-only">{label}</span>
-    </div>
+      {t("career.tasks.suggest_next_steps.label", "할 일을 알려주세요")}
+    </MuteButton>
   );
 }
 
 const CareerTasksPanel = memo(function CareerTasksPanel({
   onOpenChat,
   onOpenChatAction,
-  onOpenOpportunity,
-  onOpenProfile,
-  showTitle = true,
 }: CareerTasksPanelProps) {
   const t = useCareerT();
   const { locale } = useMessages();
-  const router = useRouter();
-  const tasks = useCareerTasks(true);
-  const { fetchWithAuth } = useCareerApi();
-  const [withdrawingRoleId, setWithdrawingRoleId] = useState<string | null>(
-    null
-  );
-  const [withdrawalError, setWithdrawalError] = useState<string | null>(null);
-  const withdrawPriorityReview = async (roleId: string) => {
-    setWithdrawingRoleId(roleId);
-    setWithdrawalError(null);
-    try {
-      const response = await fetchWithAuth(
-        `/api/talent/pending-actions?priorityReviewRoleId=${encodeURIComponent(roleId)}`,
-        {
-          method: "DELETE",
-        }
-      );
-      if (!response.ok) throw new Error("Withdrawal failed");
-      tasks.refetch();
-    } catch {
-      setWithdrawalError(roleId);
-    } finally {
-      setWithdrawingRoleId(null);
-    }
-  };
-  const taskSuggestions = useCareerTaskSuggestions();
-  const {
-    user,
-    isOnboardingDone,
-    stage,
-    workspaceDataLoading,
-    callStartPending,
-    onStartCallMode,
-    onStartConversationStarter,
-    onOpenSettings,
-  } = useCareerSidebarContext();
-  const { talentPreferences, profileVisibility } = useCareerProfileContext();
-  const {
-    inputMode,
-    chatPending,
-    assistantTyping,
-    sessionPending,
-    onboardingWrapupPending,
-    opportunityFeedbackFollowUpPending,
-    callWrapUpPending,
-  } = useCareerChatActivityContext();
+  const { isOnboardingDone, stage, workspaceDataLoading } =
+    useCareerSidebarContext();
+  const actions = useCareerActionItems();
+  const { tasksOverride } = useCareerChatActivityContext();
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const completed = isOnboardingDone || stage === "completed";
-  const recentInfo = useCareerRecentInfo({
-    enabled: completed && router.pathname !== "/career/preview",
-    userId: user?.id,
-  });
-  const recentItems =
-    recentInfo.data?.pages.flatMap((page) => page.items) ?? [];
-  const showCompletedState = completed || workspaceDataLoading;
-  const actionLocked = Boolean(
-    workspaceDataLoading ||
-    sessionPending ||
-    chatPending ||
-    assistantTyping ||
-    onboardingWrapupPending ||
-    opportunityFeedbackFollowUpPending ||
-    callWrapUpPending ||
-    callStartPending ||
-    inputMode === "call"
-  );
-  const canStartCall =
-    !actionLocked &&
-    Boolean(completed ? onStartConversationStarter : onStartCallMode);
-  const internalEnabled =
-    talentPreferences?.getInternalRecommendation !== false &&
-    profileVisibility !== "dont_share";
-  const externalEnabled =
-    profileVisibility !== "dont_share" &&
-    talentPreferences?.getExternalRecommendation !== false &&
-    tasks.searchStatus !== "stopped";
-  const externalPausedBySetting =
-    talentPreferences?.getExternalRecommendation === false;
-
-  const startCall = (action?: CareerPendingAction) => {
-    onOpenChat();
-    if (action?.kind === "internal_opportunity_call") {
-      void onStartCallMode?.({ internalCallRequestId: action.callRequest.id });
-    } else if (completed) {
-      void onStartConversationStarter?.({
-        mode: "call",
-        starterId: "career_check_in",
-      });
-    } else {
-      void onStartCallMode?.();
-    }
-  };
-
-  const callAction = (action?: CareerPendingAction) => (
-    <MuteButton
-      size="sm"
-      disabled={
-        action?.kind === "internal_opportunity_call"
-          ? actionLocked || !onStartCallMode
-          : !canStartCall
-      }
-      onClick={() => startCall(action)}
-    >
-      <PhoneCall className="h-3.5 w-3.5" />
-      {action &&
-      "callRequest" in action &&
-      action.callRequest.status === "in_progress"
-        ? t("career.tasks.resume_call", "이어서 통화하기")
-        : t("career.tasks.start_call", "통화하기")}
-    </MuteButton>
-  );
-
-  const suggestions = tasks.suggestions.map((action) => {
-    if (action.kind === "internal_fit_question") {
-      return (
-        <TaskRow
-          key={action.id}
-          icon={<CircleHelp className="h-4 w-4" />}
-          title={t(
-            "career.tasks.fit_question",
-            "더 잘 맞는 기회를 찾기 위해 확인하고 싶어요"
-          )}
-          description={action.prompt}
-          action={
-            <MuteButton
-              size="sm"
-              disabled={actionLocked}
-              onClick={() => onOpenChatAction(action)}
-            >
-              {t("career.tasks.answer", "답변하기")}
-            </MuteButton>
-          }
-        />
-      );
-    }
-    if (action.kind === "internal_opportunity_call") {
-      return (
-        <TaskRow
-          key={action.id}
-          icon={<PhoneCall className="h-4 w-4" />}
-          meta={`${action.callRequest.companyName} · ${action.callRequest.roleTitle}`}
-          title={t("career.tasks.connection_call", "연결 전에 짧게 이야기해요")}
-          description={
-            action.callRequest.reason ??
-            t(
-              "career.tasks.connection_call_description",
-              "포지션에 대해 이야기하고, 회사에 소개할 경험을 함께 정리해요."
-            )
-          }
-          action={callAction(action)}
-        />
-      );
-    }
-    return null;
-  });
-  if (!showCompletedState) {
-    suggestions.push(
-      <TaskRow
-        key="check-in"
-        icon={<PhoneCall className="h-4 w-4" />}
-        title={t("career.tasks.onboarding_call", "5분 커리어 인터뷰로 시작해요")}
-        description={t(
-          "career.tasks.onboarding_call_description",
-          "경험과 원하는 조건을 알려주시면 맞는 기회를 찾기 시작해요."
-        )}
-        action={callAction()}
-      />
-    );
-  }
-
-  const searchActivity = (() => {
-    if (!showCompletedState) {
-      return {
-        title: t(
-          "career.tasks.learning",
-          "어떤 팀이 잘 맞을지 알아가고 있어요"
-        ),
-        description: t(
-          "career.tasks.learning_description",
-          "커리어 인터뷰를 마치면 경험과 조건에 맞는 기회를 찾기 시작해요."
-        ),
-      };
-    }
-    if (tasks.progressError) {
-      return {
-        title: t("career.tasks.search_error", "정보를 불러오지 못했어요"),
-        description: null,
-      };
-    }
-    if (workspaceDataLoading || tasks.progressLoading) {
-      return {
-        title: t("career.tasks.loading_search", "할 일을 확인하고 있어요"),
-        description: null,
-      };
-    }
-    if (profileVisibility === "dont_share") {
-      return {
-        title: t(
-          "career.tasks.search_paused_all",
-          "새 추천과 연결을 쉬고 있어요"
-        ),
-        description:
-          externalPausedBySetting || tasks.searchStatus === "stopped"
-            ? t(
-                "career.tasks.search_paused_all_description",
-                "프로필 공개 범위를 바꾸면 내부 연결부터 다시 살펴볼 수 있어요."
-              )
-            : t(
-                "career.tasks.search_paused_external_on_description",
-                "프로필 공개 범위를 바꾸면 적절한 기회를 다시 살펴볼게요."
-              ),
-      };
-    }
-    if (externalEnabled) {
-      return profileVisibility === "open_to_matches"
-        ? {
-            title: t(
-              "career.tasks.searching",
-              "적합한 기회를 계속 찾고 있어요"
-            ),
-            description: t(
-              "career.tasks.searching_open_description",
-              "• 일반 채용 공고도 추천해드려요.\n• 허용하신 설정에 따라 회사에 먼저 회원님을 소개할 수 있어요."
-            ),
-            showSettings: true,
-          }
-        : {
-            title: t(
-              "career.tasks.searching",
-              "적합한 기회를 계속 찾고 있어요"
-            ),
-            description: t(
-              "career.tasks.searching_exceptional_description",
-              "• 일반 채용 공고도 추천해드려요.\n• 회사에 먼저 회원님을 소개하지 않아요."
-            ),
-            showSettings: true,
-          };
-    }
-    if (internalEnabled && profileVisibility === "open_to_matches") {
-      return {
-        title: t(
-          "career.tasks.internal_search_open",
-          "제가 연결시켜 드릴 수 있는 기회들만 알려드리고 있어요."
-        ),
-        description: externalPausedBySetting
-          ? t(
-              "career.tasks.internal_search_open_description",
-              "• 일반적인 공고 추천은 받지 않겠다고 하셨어요.\n• 허용하신 설정에 따라 회사에 먼저 회원님을 소개할 수 있어요."
-            )
-          : t(
-              "career.tasks.internal_search_open_stopped_description",
-              "• 일반 채용 공고 추천은 중지되어 있어요.\n• 허용하신 설정에 따라 회사에 먼저 회원님을 소개할 수 있어요."
-            ),
-        showSettings: true,
-      };
-    }
-    if (internalEnabled) {
-      return {
-        title: t(
-          "career.tasks.internal_search",
-          "제가 연결시켜 드릴 수 있는 기회들만 알려드리고 있어요."
-        ),
-        description: externalPausedBySetting
-          ? t(
-              "career.tasks.internal_search_exceptional_description",
-              "• 일반적인 공고 추천은 받지 않겠다고 하셨어요.\n• 회사에 먼저 회원님을 소개하지 않아요."
-            )
-          : t(
-              "career.tasks.internal_search_stopped_description",
-              "일반 채용 공고 추천은 중지되어 있어요. 제가 연결시켜 드릴 수 있는 기회는 계속 알려드리고, 회사에 회원님을 소개하기 전에 의사를 확인해요."
-            ),
-        showSettings: true,
-      };
-    }
-    return {
-      title: t("career.tasks.search_paused", "추천을 쉬고 있어요"),
-      description: t(
-        "career.tasks.search_paused_description",
-        "프로필에서 받고 싶은 추천을 다시 설정할 수 있어요."
-      ),
-    };
-  })();
-
-  const sections = {
-    decisions: {
-      title: t("career.tasks.decisions", "지금 결정"),
-      description: t(
-        "career.tasks.decisions_description",
-        "답변이나 선택을 기다리는 일이에요."
-      ),
-      count: tasks.decisionCount,
-      content: (
-        <>
-          {tasks.meetingSchedules.map((meeting) => (
-            <TaskRow
-              key={meeting.scheduleId}
-              emphasized
-              icon={<CalendarClock className="h-4 w-4" />}
-              meta={`${meeting.companyName} · ${meeting.roleTitle}`}
-              title={t(
-                "career.tasks.meeting",
-                "인터뷰 가능한 시간을 알려주세요"
-              )}
-              action={
-                <MuteButton
-                  variant="primary"
-                  size="sm"
-                  onClick={() => void router.push(meeting.invitationPath)}
-                >
-                  {t("career.tasks.schedule", "일정 선택하기")}
-                </MuteButton>
-              }
-            />
-          ))}
-          {[...tasks.decisions]
-            .sort(
-              (a, b) =>
-                Number(b.kind === "company_request") -
-                Number(a.kind === "company_request")
-            )
-            .map((action) => {
-              if (action.kind === "company_request") {
-                return (
-                  <TaskRow
-                    key={action.id}
-                    emphasized
-                    icon={
-                      action.requestMode === "resume" ? (
-                        <FileText className="h-4 w-4" />
-                      ) : (
-                        <MessageSquareText className="h-4 w-4" />
-                      )
-                    }
-                    meta={`${action.companyName} · ${action.roleTitle}`}
-                    title={
-                      action.requestMode === "resume"
-                        ? t(
-                            "career.tasks.resume_request",
-                            "회사에서 최신 이력서를 요청했어요"
-                          )
-                        : t(
-                            "career.tasks.company_question",
-                            "회사에서 응답을 기다리고 있어요"
-                          )
-                    }
-                    description={action.prompt}
-                    action={
-                      <MuteButton
-                        variant="primary"
-                        size="sm"
-                        disabled={actionLocked}
-                        onClick={() => onOpenChatAction(action)}
-                      >
-                        {action.requestMode === "resume"
-                          ? t("career.tasks.share_resume", "이력서 공유하기")
-                          : t("career.tasks.review_request", "요청 확인하기")}
-                      </MuteButton>
-                    }
-                  />
-                );
-              }
-              if (action.kind !== "internal_opportunity") return null;
-              return (
-                <TaskRow
-                  key={action.id}
-                  emphasized
-                  icon={
-                    <CompanyLogo
-                      logoUrl={action.companyLogoUrl}
-                      name={action.companyName}
-                      size="sm"
-                    />
-                  }
-                  meta={`${action.companyName} · ${action.isCompanyIntro ? t("career.tasks.intro_request", "먼저 온 관심") : t("career.tasks.harper_offer", "Harper 연결")}`}
-                  title={action.roleTitle}
-                  description={
-                    action.recommendationSummary ??
-                    t(
-                      "career.tasks.connection_offer",
-                      "연결 제안을 확인하고, 수락하거나 질문을 남겨주세요."
-                    )
-                  }
-                  action={
-                    <MuteButton
-                      variant="primary"
-                      size="sm"
-                      onClick={() => onOpenOpportunity(action.roleId, "new")}
-                    >
-                      <Handshake className="h-3.5 w-3.5" />
-                      {t("career.tasks.view_offer", "제안 보기")}
-                    </MuteButton>
-                  }
-                />
-              );
-            })}
-        </>
-      ),
-    },
-    suggestions: {
-      title: t("career.tasks.suggestions", "이어서 해볼 것"),
-      count: 0,
-      content: (
-        <>
-          <CareerTodayExternalRecommendations
-            onOpenOpportunity={onOpenOpportunity}
-          />
-          {suggestions}
-          {taskSuggestions.externalLoading ? (
-            <TaskSuggestionSkeleton
-              label={t(
-                "career.tasks.loading_feedback",
-                "추천 피드백을 확인하고 있어요"
-              )}
-            />
-          ) : taskSuggestions.externalError ? (
-            <TaskRow
-              icon={<RefreshCw className="h-4 w-4" />}
-              title={t(
-                "career.tasks.feedback_error",
-                "추천 피드백 현황을 불러오지 못했어요"
-              )}
-              action={
-                <MuteButton size="sm" onClick={taskSuggestions.retryExternal}>
-                  {t("career.tasks.retry", "다시 불러오기")}
-                </MuteButton>
-              }
-            />
-          ) : taskSuggestions.externalFeedback.length > 0 ? (
-            <TaskRow
-              icon={
-                <div className="grid grid-cols-2 grid-rows-2 gap-0.5">
-                  {taskSuggestions.externalFeedback.map((item) => (
-                    <CompanyLogo
-                      key={item.id}
-                      logoUrl={item.companyLogoUrl}
-                      name={item.companyName}
-                      size="xs"
-                    />
-                  ))}
-                </div>
-              }
-              title={t(
-                "career.tasks.feedback_request",
-                "기회에 대한 생각 남기기"
-              )}
-              description={t(
-                "career.tasks.feedback_request_description",
-                "마음에 드는 기회인지 알려주시면 다음 추천에 반영할게요."
-              )}
-              action={
-                <MuteButton
-                  size="sm"
-                  onClick={() =>
-                    onOpenOpportunity(
-                      taskSuggestions.externalFeedback[0].roleId,
-                      "new"
-                    )
-                  }
-                >
-                  {t("career.tasks.review_recommendations", "찾은 기회 보기")}
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </MuteButton>
-              }
-            />
-          ) : null}
-        </>
-      ),
-    },
-    working: {
-      title: t("career.tasks.working", "Harper가 하고 있는 일"),
-      count: 0,
-      content: (
-        <>
-          {tasks.progressLoading ? (
-            <div role="status" className="space-y-3 py-5">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-4 w-1/2" />
-              <span className="sr-only">
-                {t(
-                  "career.tasks.loading_progress",
-                  "진행 상황을 불러오고 있어요"
-                )}
-              </span>
-            </div>
-          ) : null}
-          {tasks.progressError ? (
-            <div className="py-4 text-sm text-neutral-muted">
-              {t(
-                "career.tasks.progress_error",
-                "연결 진행 상황을 불러오지 못했어요."
-              )}{" "}
-              <MuteButton size="sm" onClick={tasks.refetch}>
-                {t("career.tasks.retry", "다시 불러오기")}
-              </MuteButton>
-            </div>
-          ) : null}
-          {tasks.connections.map((connection) => (
-            <TaskRow
-              key={connection.id}
-              icon={
-                <CompanyLogo
-                  logoUrl={connection.companyLogoUrl}
-                  name={connection.companyName}
-                  size="sm"
-                />
-              }
-              meta={`${connection.companyName} · ${connection.roleTitle}`}
-              title={
-                connection.stage === "awaiting_company"
-                  ? t(
-                      "career.tasks.awaiting_company",
-                      "회사 답변을 기다리고 있어요. 필요할 때 팔로업까지 제가 진행해요."
-                    )
-                  : t(
-                      "career.tasks.preparing_connection",
-                      "회사 측에 소개를 전달하고 있어요"
-                    )
-              }
-              action={
-                <MuteButton
-                  variant="neutral"
-                  size="sm"
-                  onClick={() => onOpenOpportunity(connection.roleId, "saved")}
-                >
-                  {t("career.tasks.view_progress", "자세히 보기")}
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </MuteButton>
-              }
-            />
-          ))}
-          <TaskRow
-            icon={<Scan className="h-4 w-4" />}
-            title={searchActivity.title}
-            description={searchActivity.description}
-            truncateDescription={!searchActivity.showSettings}
-            action={
-              searchActivity.showSettings ? (
-                <Text as="p" type="desc" tone="muted">
-                  {t(
-                    "career.tasks.search_settings_prompt",
-                    "이 설정을 바꾸고 싶으시면 저에게 이야기해주시거나, "
-                  )}
-                  <BareButton
-                    type="button"
-                    onClick={onOpenSettings}
-                    className="rounded-sm underline underline-offset-2 hover:text-neutral-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                  >
-                    {t(
-                      "career.tasks.search_settings_link",
-                      "여기서 조정해주세요."
-                    )}
-                  </BareButton>
-                </Text>
-              ) : null
-            }
-          />
-          {tasks.priorityReviews.map((review) => (
-            <TaskRow
-              key={review.id}
-              icon={<Search className="h-4 w-4" />}
-              meta={`${review.companyName} · ${review.roleTitle}`}
-              title={
-                review.reviewState === "reviewing"
-                  ? t(
-                      "career.tasks.priority_review_running",
-                      "프로필을 검토하고 있어요"
-                    )
-                  : review.reviewState === "reviewed"
-                    ? t(
-                        "career.tasks.priority_review_done",
-                        "프로필 검토를 마쳤어요"
-                      )
-                    : review.reviewState === "delayed"
-                      ? t(
-                          "career.tasks.priority_review_delayed",
-                          "프로필 검토가 지연되고 있어요"
-                        )
-                      : t(
-                          "career.tasks.priority_review_requested",
-                          "관심 있는 기회로 저장했어요"
-                        )
-              }
-              description={t(
-                "career.tasks.priority_review_waiting",
-                "관심 있는 역할의 정보를 살펴보고 있어요. 소개를 원하시면 저에게 말씀해 주세요."
-              )}
-              action={
-                <>
-                  <MuteButton
-                    size="sm"
-                    disabled={
-                      withdrawingRoleId !== null ||
-                      router.pathname === "/career/preview"
-                    }
-                    onClick={() => void withdrawPriorityReview(review.roleId)}
-                  >
-                    {withdrawingRoleId === review.roleId && (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    )}
-                    {t(
-                      "career.tasks.priority_review_withdraw",
-                      "검토 요청 취소"
-                    )}
-                  </MuteButton>
-                  {withdrawalError === review.roleId && (
-                    <Text
-                      as="p"
-                      type="caption"
-                      className="text-critical"
-                      role="alert"
-                    >
-                      {t(
-                        "career.tasks.priority_review_withdraw_error",
-                        "요청을 취소하지 못했어요. 다시 시도해 주세요."
-                      )}
-                    </Text>
-                  )}
-                </>
-              }
-            />
-          ))}
-        </>
-      ),
-    },
-  };
-
   return (
-    <div className="mx-auto w-full max-w-2xl py-7 text-neutral-primary">
-      {!tasks.loading && tasks.decisionCount === 0 ? (
-        <div className="hidden lg:block">
-          <CareerWelcomeHeader align="left" />
+    <div className="career-followups">
+      <header className="career-followups-header">
+        <div className="career-followups-date" suppressHydrationWarning>
+          {now
+            ? new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-US", {
+                month: "long",
+                day: "numeric",
+                weekday: "long",
+              }).format(now)
+            : "\u00a0"}
+          {now && (
+            <>
+              {" "}
+              ·{" "}
+              {new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+              }).format(now)}
+            </>
+          )}
         </div>
+        <h1>
+          {t("career.sky.followups", "지금 팔로업")}
+          {!actions.isPending && !actions.isError && (
+            <> {actions.data?.length ?? 0}</>
+          )}
+        </h1>
+      </header>
+      {completed ? (
+        <>
+          <CareerActionItemsPanel onOpenChatAction={onOpenChatAction} />
+          <CareerOpportunitySummary />
+        </>
+      ) : !workspaceDataLoading ? (
+        <CareerHomePanel variant="onboarding" onOpenChat={onOpenChat} />
       ) : null}
-      {showTitle ? (
-        <SectionHeader className="mb-8">
-          <SectionTitle as="h1" type="head1">
-            {t("career.tasks.title", "할 일")}
-          </SectionTitle>
-        </SectionHeader>
-      ) : null}
-      {!completed && !workspaceDataLoading && (
-        <div className="mb-8">
-          <CareerHomePanel variant="onboarding" onOpenChat={onOpenChat} />
-        </div>
+      {tasksOverride === undefined && (
+        <CareerHomeDevControls onOpenChat={onOpenChat} />
       )}
-      {tasks.error ? (
-        <div
-          role="status"
-          className="mb-6 flex flex-wrap items-center gap-3 rounded-lg bg-info-faded p-3 text-sm text-neutral-primary"
-        >
-          <span className="flex-1">
-            {t(
-              "career.tasks.error",
-              "일부 할 일을 불러오지 못했어요. 다시 확인해 주세요."
-            )}
-          </span>
-          <MuteButton size="sm" onClick={tasks.refetch}>
-            <RefreshCw className="h-3.5 w-3.5" />
-            {t("career.tasks.retry", "다시 불러오기")}
-          </MuteButton>
-        </div>
-      ) : null}
-      {tasks.loading ? (
-        <div
-          role="status"
-          className="mb-8 flex items-center gap-2 text-sm text-neutral-muted"
-        >
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("career.tasks.loading", "할 일을 불러오고 있어요")}
-        </div>
-      ) : null}
-      <div className="space-y-9">
-        {getCareerTaskSectionOrder(tasks.decisionCount > 0).map((key) => {
-          const section = sections[key];
-          return (
-            <section
-              key={key}
-              aria-labelledby={`career-tasks-${key}`}
-              data-career-task-section={key}
-            >
-              <SectionHeader className="gap-1.5">
-                <div className="flex items-center gap-2">
-                  <SectionTitle id={`career-tasks-${key}`}>
-                    {section.title}
-                  </SectionTitle>
-                  {section.count > 0 ? (
-                    <span className="text-[13px] mb-[1px] tracking-wider font-normal text-neutral-muted">
-                      ({section.count})
-                    </span>
-                  ) : null}
-                </div>
-              </SectionHeader>
-              <div>{section.content}</div>
-            </section>
-          );
-        })}
-        {recentItems.length > 0 || recentInfo.hasNextPage ? (
-          <section
-            aria-labelledby="career-tasks-recent"
-            data-career-task-section="recent"
-          >
-            <SectionHeader className="gap-1.5">
-              <SectionTitle id="career-tasks-recent">
-                {t("career.tasks.recent_info", "최근 정보")}
-              </SectionTitle>
-            </SectionHeader>
-            <div>
-              {recentItems.map((item) => (
-                <TaskRow
-                  key={item.id}
-                  icon={
-                    item.kind === "company_deliver" ? (
-                      <MessageSquareText className="h-4 w-4" />
-                    ) : (
-                      <Info className="h-4 w-4" />
-                    )
-                  }
-                  meta={`${item.companyName} · ${item.roleName} · ${new Intl.DateTimeFormat(locale || "ko", { year: "numeric", month: "short", day: "numeric" }).format(new Date(item.occurredAt))}`}
-                  title={
-                    item.kind === "company_deliver"
-                      ? t(
-                          "career.tasks.company_update",
-                          "회사에서 소식을 전했어요"
-                        )
-                      : item.kind === "role_ended"
-                        ? t(
-                            "career.tasks.role_ended",
-                            "이 포지션의 채용이 종료되어 프로세스가 종료됐어요"
-                          )
-                        : t(
-                            "career.tasks.process_ended",
-                            "이 포지션의 프로세스가 종료됐어요"
-                          )
-                  }
-                  description={item.body}
-                  action={
-                    item.kind === "company_deliver" ? undefined : (
-                      <MuteButton
-                        variant="neutral"
-                        size="sm"
-                        onClick={() =>
-                          onOpenOpportunity(item.roleId, "saved", "closed")
-                        }
-                      >
-                        {t("career.tasks.view_progress", "자세히 보기")}
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      </MuteButton>
-                    )
-                  }
-                />
-              ))}
-              {recentInfo.hasNextPage ? (
-                <div className="pt-3">
-                  <MuteButton
-                    size="sm"
-                    variant="transparent"
-                    disabled={recentInfo.isFetchingNextPage}
-                    onClick={() => void recentInfo.fetchNextPage()}
-                  >
-                    {recentInfo.isFetchingNextPage
-                      ? t(
-                          "career.tasks.loading_older",
-                          "지난 기록을 불러오고 있어요"
-                        )
-                      : t("career.tasks.more_history", "지난 기록 더보기")}
-                  </MuteButton>
-                </div>
-              ) : null}
-              {recentInfo.isFetchNextPageError ? (
-                <Text as="p" type="caption" tone="muted" className="pt-2">
-                  {t(
-                    "career.tasks.older_error",
-                    "지난 기록을 불러오지 못했어요. 다시 시도해 주세요."
-                  )}
-                </Text>
-              ) : null}
-            </div>
-          </section>
-        ) : null}
-      </div>
-      <CareerHomeDevControls onOpenChat={onOpenChat} />
+      <CareerNextStepsButton onOpenChat={onOpenChat} />
     </div>
   );
 });
-
 export default CareerTasksPanel;

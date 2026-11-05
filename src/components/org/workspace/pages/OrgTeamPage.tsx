@@ -232,7 +232,7 @@ function CompanyLinkBadge({ href, label }: { href: string; label: string }) {
           <img
             alt={c("", "")}
             aria-hidden="true"
-            className="size-3.5 rounded-[3px] object-contain"
+            className="size-3.5 rounded-sm object-contain"
             src={iconUrl}
           />
         ) : null
@@ -306,7 +306,7 @@ function CompanyEditableLink({
       <Popover.Portal>
         <Popover.Content
           align="start"
-          className="z-[140] w-[min(360px,calc(100vw-32px))] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] outline-none"
+          className="z-[140] w-[min(360px,calc(100vw-32px))] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-(--shadow-lg) outline-none"
           data-inline-editable-interaction=""
           sideOffset={6}
         >
@@ -366,12 +366,12 @@ function CompanyInfoRow({
         className="w-[180px] py-1 pr-4 text-left align-center font-normal"
         scope="row"
       >
-        <span className="flex items-center gap-2 text-[13px] leading-5 text-black">
+        <span className="flex items-center gap-2 text-[13px] leading-5 text-neutral-primary">
           <span className="shrink-0">{icon}</span>
           {label}
         </span>
       </th>
-      <td className="min-w-0 py-2 pl-4 align-top text-[13px] leading-5 text-black">
+      <td className="min-w-0 py-2 pl-4 align-top text-[13px] leading-5 text-neutral-primary">
         {value}
       </td>
     </tr>
@@ -1500,7 +1500,7 @@ export function OrgTeamPage({
                                   member.email ||
                                   c("팀원", "Member"),
                               })}
-                              className="-mr-1 -mt-1 rounded-full"
+                              className="-mr-1 -mt-1 rounded-pill"
                               size="md"
                               variant="transparent"
                             >
@@ -1566,7 +1566,7 @@ export function OrgTeamPage({
                               value={member.authority}
                             >
                               <SelectTrigger
-                                className="h-8 w-[116px] bg-bg-default text-[12px]"
+                                className="h-8 w-[116px]  text-[12px]"
                                 size="sm"
                               >
                                 <SelectValue>
@@ -1638,7 +1638,7 @@ export function OrgTeamPage({
                                 "{p0} invite actions",
                                 { p0: invitation.email }
                               )}
-                              className="-mr-1 -mt-1 rounded-full"
+                              className="-mr-1 -mt-1 rounded-pill"
                               size="md"
                               variant="transparent"
                             >

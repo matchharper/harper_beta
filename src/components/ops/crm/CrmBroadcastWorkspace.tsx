@@ -168,7 +168,7 @@ function BroadcastPreview({
             className={cx(
               "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium",
               viewport === "desktop"
-                ? "bg-bg-default text-neutral-primary shadow-sm"
+                ? "bg-bg-default text-neutral-primary shadow-(--shadow-sm)"
                 : "text-neutral-muted"
             )}
           >
@@ -181,7 +181,7 @@ function BroadcastPreview({
             className={cx(
               "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium",
               viewport === "mobile"
-                ? "bg-bg-default text-neutral-primary shadow-sm"
+                ? "bg-bg-default text-neutral-primary shadow-(--shadow-sm)"
                 : "text-neutral-muted"
             )}
           >
@@ -626,7 +626,7 @@ export function CrmBroadcastWorkspace() {
                     className={cx(
                       "w-full rounded-md px-3 py-3 text-left transition",
                       selected
-                        ? "bg-black text-neutral-00"
+                        ? "bg-surface-inverse text-neutral-00"
                         : "bg-bg-default hover:bg-bg-weak"
                     )}
                   >

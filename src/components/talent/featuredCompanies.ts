@@ -35,7 +35,7 @@ export const FEATURED_COMPANIES: FeaturedCompanyProfile[] = [
     tags: ["핀테크", "Consumer Product", "Execution", "Product Quality"],
     officialUrl: "https://toss.im/career/toss",
     mark: "T",
-    badgeClassName: "bg-[#EEF2FF] text-[#2F5BFF]",
+    badgeClassName: "bg-action-faded text-action",
   },
   {
     id: "karrot",
@@ -56,7 +56,7 @@ export const FEATURED_COMPANIES: FeaturedCompanyProfile[] = [
     tags: ["Hyperlocal", "Community", "Marketplace", "Trust"],
     officialUrl: "https://about.daangn.com/company/",
     mark: "D",
-    badgeClassName: "bg-[#FFF1E8] text-[#FF6A1A]",
+    badgeClassName: "bg-primary-faded text-primary",
   },
   {
     id: "rebellions",
@@ -77,7 +77,7 @@ export const FEATURED_COMPANIES: FeaturedCompanyProfile[] = [
     tags: ["AI Chip", "Infra", "Deep Tech", "Systems"],
     officialUrl: "https://rebellions.ai/",
     mark: "R",
-    badgeClassName: "bg-[#FEECEC] text-[#D92D20]",
+    badgeClassName: "bg-critical-faded text-critical",
   },
   {
     id: "wonderful",
@@ -98,7 +98,7 @@ export const FEATURED_COMPANIES: FeaturedCompanyProfile[] = [
     tags: ["AI Agents", "Enterprise", "Multilingual", "Applied AI"],
     officialUrl: "https://www.wonderful.ai/about-us",
     mark: "W",
-    badgeClassName: "bg-[#EAFBF3] text-[#0E9F6E]",
+    badgeClassName: "bg-positive-faded text-positive",
   },
 ];
 

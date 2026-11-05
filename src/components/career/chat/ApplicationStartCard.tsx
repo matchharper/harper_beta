@@ -149,7 +149,7 @@ export function ApplicationStartCard({
           />
         </div>
       )}
-      <section className="w-full max-w-[480px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating text-neutral-primary">
+      <section className="w-full max-w-[480px] overflow-hidden career-glass career-work-surface text-neutral-primary">
         <header className="font-medium p-4 pb-0">
           {t("career.apply.prepare_title", "Harper와 준비하기")}
         </header>
@@ -200,7 +200,7 @@ export function ApplicationStartCard({
             >
               <SelectTrigger
                 aria-labelledby={`resume-label-${messageId}`}
-                className="data-[size=default]:h-auto min-h-12 gap-3 rounded-lg px-3 py-2"
+                className="data-[size=default]:h-auto min-h-12 gap-3  px-3 py-2"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg-weak text-neutral-muted">
                   <FileText className="h-5 w-5" aria-hidden />

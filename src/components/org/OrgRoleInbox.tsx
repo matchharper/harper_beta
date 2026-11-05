@@ -185,7 +185,7 @@ export function OrgRoleInbox() {
     count > 0 ? (
       <span
         aria-label={c("다시 볼 후보 {p0}명", "{p0} to review", { p0: count })}
-        className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-critical px-1 text-[10px] font-medium leading-none text-white tabular-nums"
+        className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-critical px-1 text-[10px] font-medium leading-none text-on-inverse tabular-nums"
       >
         {count}
       </span>
@@ -307,10 +307,10 @@ export function OrgRoleInbox() {
               variant="borderless"
               size="small"
               className="
-                mr-auto w-fit gap-1.5 bg-white
+                mr-auto w-fit gap-1.5 bg-bg-floating
                 [&_[role=tab]]:h-8
                 [&_[role=tab]]:px-3
-                [&_[role=tab]]:bg-white
+                [&_[role=tab]]:bg-bg-floating
                 [&_[role=tab][aria-selected=true]]:bg-neutral-200
               "
               aria-label={c("인박스 유형", "Inbox type")}

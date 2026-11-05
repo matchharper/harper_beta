@@ -99,7 +99,7 @@ export function CareerMobileJobsList({
           type="button"
           onClick={onLoadMore}
           disabled={isLoading || !onLoadMore}
-          className="mt-1 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-4 py-3 text-[13px] font-medium text-neutral-primary transition active:bg-bg-weak disabled:opacity-55"
+          className="mt-1 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-4 py-3 text-[13px] font-medium text-neutral-primary transition active:bg-bg-weak disabled:opacity-55"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin text-neutral-muted" />

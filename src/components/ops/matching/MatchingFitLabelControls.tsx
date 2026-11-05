@@ -240,7 +240,7 @@ export function MatchingFitLabelFilter({
               onChange(draftLabels);
               setOpen(false);
             }}
-            className="h-7 rounded-md bg-black px-2.5 text-[11px] font-medium text-neutral-00 transition hover:bg-black/88"
+            className="h-7 rounded-md bg-surface-inverse px-2.5 text-[11px] font-medium text-neutral-00 transition hover:bg-surface-inverse/88"
           >
             확인
           </BareButton>

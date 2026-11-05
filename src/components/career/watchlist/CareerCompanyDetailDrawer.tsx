@@ -198,10 +198,10 @@ const CareerCompanyDetailDrawer = ({
       overlayClassName="z-[81] items-stretch justify-end p-0 sm:p-0"
       backdropClassName={
         mobileLayout
-          ? "bg-black/25 backdrop-blur-[1px]"
+          ? "bg-surface-inverse/25 backdrop-blur-xs"
           : "bg-transparent backdrop-blur-none"
       }
-      panelClassName="flex h-dvh max-h-[100dvh] w-full max-w-[760px] flex-col rounded-none border-0 border-l border-neutral-1000-a05 bg-bg-floating data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100"
+      panelClassName="flex h-dvh max-h-[100dvh] w-full max-w-[760px] flex-col rounded-none border-0 border-l   data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100"
       bodyClassName={cn(
         "min-h-0 flex-1 overflow-y-auto overscroll-contain pb-8 pt-12",
         mobileLayout ? "overflow-x-hidden px-4" : "px-5 sm:px-7"

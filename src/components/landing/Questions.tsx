@@ -51,7 +51,7 @@ function QuestionAnswer({
   return (
     <div
       className={`border-b w-full gap-4 ${
-        isDark ? "border-white/20" : "border-neutral-1000-a10"
+        isDark ? "border-bg-floating/20" : "border-neutral-1000-a10"
       } ${size.wrapper} ${index === length - 1 ? "border-b-0" : ""}`}
     >
       <button
@@ -71,7 +71,7 @@ function QuestionAnswer({
         <span
           className={`${size.question} transition-colors ${
             isDark
-              ? `hover:text-white ${open ? "text-white" : "text-neutral-500"}`
+              ? `hover:text-on-inverse ${open ? "text-on-inverse" : "text-neutral-500"}`
               : `hover:text-neutral-primary ${open || variant === "compact" ? "text-neutral-primary" : "text-neutral-muted"}`
           }`}
         >
@@ -107,7 +107,7 @@ function QuestionAnswer({
               className="overflow-hidden"
             >
               <div
-                className={`${size.answer} ${isDark ? "text-white/70" : "text-neutral-muted"} text-left`}
+                className={`${size.answer} ${isDark ? "text-on-inverse/70" : "text-neutral-muted"} text-left`}
               >
                 {answer}
               </div>

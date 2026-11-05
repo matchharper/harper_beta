@@ -3,6 +3,38 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-05 전체 로컬 코드 운영 배포 (웹·Worker 완료)
+
+사용자의 명시적 커밋·beta/Worker 배포 요청으로 웹의 전체 로컬 소스·테스트·문서 549개 파일을 `a153215ed6437709f6fab61617e42894de7e2aac`, Worker 소스·테스트를 `2f87741c426a99f5b6871a9ab43a33961dbc8838`로 커밋하고 각 origin/main에 fast-forward push했다. 기존의 추적된 Worker Python bytecode 변경은 생성 캐시이므로 소스 커밋에서 제외하고 로컬에 보존했다. DB migration·번역 데이터는 재적용하지 않았다.
+
+웹은 Git-triggered Vercel `dpl_375AtxKrZG9vJkGc2BTTAMzpqH1J`에서 READY를 확인했고 운영 도메인 matchharper.com·app.matchharper.com·www.matchharper.com 연결을 확인했다. 로컬/운영 빌드의 컴파일·타입 검사·448개 페이지 생성이 완료됐다. 홈페이지 200, 새 action-items와 internal Career API의 무인증 401을 확인했다. 후보자별 일일 처리와 예약 병합, 내부 기회 탐색 범위, 홈 행동 목록, 대화 진행·최종 답변 표시와 공통 디자인 변경을 포함한다. 이 문서 동기화의 후속 커밋은 제품 소스를 변경하지 않는다.
+
+Worker는 기존 호스트의 불변 release artifact를 준비하고 해당 release의 handoff 검사 16개를 통과한 뒤, 17:08:45 UTC 이후 opportunity-current를 원자적으로 교체하고 scheduler 하나만 graceful restart했다. scheduler PID 3009741과 새 Worker 슬롯의 cwd·revision이 새 release와 일치한다. 기존 여섯 슬롯에 stop/restart 신호를 보내지 않았고 이전 invocation은 자연 종료했다. 기존 release와 Python 환경은 보존했으며 Restart=no·TimeoutStopUSec=infinity·고정 최대 6개 슬롯 계약을 유지한다. 변경이 없는 다른 Worker 서비스는 재시작하지 않았다. 기록한 기존 handed_off 2건은 전환 후에도 동일 상태이며 배포 때문에 실패로 변경되지 않았다. 새 Worker 로그에서 refill 실패·예외는 관측되지 않았다.
+
+배포 직후 새 웹의 error/fatal 로그는 없었고 실제 고객 발송·지원 제출을 수동으로 발생시키지 않았다. 이는 배포 revision·기본 응답·프로세스 확인이며 다음 오전 9시 일일 실행이나 실제 메일 수신 E2E 완료를 뜻하지 않는다. 운영 반영된 동작을 기준으로 Notion [Career](https://www.notion.so/3b57277d26df81028ccce63a24db9922), [추천](https://www.notion.so/3b57277d26df817aa35cd4fcd3bca0f2), [Role 생명주기](https://www.notion.so/3b57277d26df810997b6e5480848ab87), [회사 제품 종합](https://www.notion.so/3fe7277d26df812dbc7def98e67aa45c)의 영향받는 절·기준일·변경 이력을 갱신했다.
+
+## 2026-11-05 Career 일일 처리·자동 외부 탐색 제한 (운영 DB 적용·웹/Worker 미배포)
+
+사용자의 운영 DB 적용·점검 요청으로 01:49 KST에 `career_daily_processing`(운영 version `20261104164906`)을 적용했다. 로컬 정본은 `supabase/migrations/20261104153622_career_daily_processing.sql`이다. 같은 migration을 다시 적용하지 않는다. 후보자별 비긴급 사건 저장·실행 소유권·발송 영수증, 기존 collector의 후보자별 중복 접수 방지, 외부 탐색 설정의 DB 경계를 준비했다. 자동 check-in의 목적은 외부 탐색으로 좁히고 Stopped 또는 외부 추천 off인 활성 예약 2,876건을 일시 중지했다. 해당 조건의 잔여 활성 자동 예약은 0건이다. 사용자 메시지 참조만으로 일반 프로필 답장을 별도 위임 예약으로 오인하지 않게 했고, 사용자가 직접 작성한 정확한 목적만 별도 예약으로 보존한다.
+
+모든 기존 예약의 ID·주기·반복 정의·다음 시각 해시는 적용 전후 `424ea2c6f36e79f9d65f260f1aa7db1c`로 동일하다. 직접 중지한 예약·별도 예약을 유지했으며, 확인 중 새 가입으로 생긴 자동 예약 1건은 기존 행 비교에서 제외했다. 미전달 talent-first 선정 207건을 사건으로 저장했고 확인 시점 유효한 사건은 196건이다. 무효 사건은 현재 상태 검사에서 제외된다. 새 `career_daily_due` 실행은 0건이다. 과거 거절·종료 전체 backfill, 실제 사용자 연락·LLM 실행 테스트는 하지 않았다.
+
+운영 함수 14개의 본문 정본 일치, SECURITY INVOKER·anon/authenticated 실행 차단·service_role 실행 허용, 새 테이블 RLS·서버 전용 접근, 유효한 index 3개·trigger 4개를 확인했다. Worker invoker trigger에는 필요한 추천 컬럼의 SELECT만 추가했다. 신규 보안 WARN/ERROR는 없고 서버 전용 무정책 RLS INFO 1개만 추가됐다. 적용 직후 16:49~16:53 UTC PostgreSQL 로그의 ERROR/FATAL/PANIC는 0건이다. 영향 경로 검사 묶음 112 pass·0 fail·1 다중 연결 PostgreSQL skip, 이후 전체 예약 검사 51 pass·0 fail·1 skip(일일 DB 21개 포함), Worker handoff 16/16, 최종 전체 TypeScript 검사가 통과했다. 실제 다중 연결 경쟁·실제 수신자 연락은 검증하지 않았다.
+
+기존 웹 호출자와의 마지막 호환성 점검에서 설정으로 중지된 예약을 명시적으로 다시 중지해도 설정 중지 표식이 남는 실패를 재현했다. 새 웹의 보정 로직 대신 예약 쓰기 함수 원본을 수정하고 01:56 KST에 `career_explicit_schedule_pause`(운영 `20261104165630`, 로컬 `supabase/migrations/20261104165800_career_explicit_schedule_pause.sql`)를 적용했다. 함수 본문·SECURITY INVOKER·권한이 검증한 정본과 일치하며 기존 데이터 일괄 변경은 없다. 두 적용 사이 해당 명시적 중지는 0건이었고, 적용 후 부적격 활성 자동 예약도 0건이다. 이 migration도 재적용하지 않는다.
+
+로컬 audit에서는 종료 후 재개·재종료, 발송 중 재개, 자기 실행의 전달 완료, 사건 소유권 이전, 선정 지연·수정, 공개 회사명 차단을 보완했다. 취소된 팔로업의 source 참조를 Worker에서 보존하고, 예약 재조정이 일반 대화 모델로 바뀌지 않도록 수정했다. DB 경계는 운영에 반영됐지만 웹·Worker 수집·병합·source fence·모델 선택·prompt 코드는 미배포다. 기존 운영 웹 revision은 `022eddd9e709cd4188154291143679a7f0d01ef3`이며 push·배포·재시작은 하지 않았다. 자동 점검이 중지된 사용자의 비긴급 사건은 새 코드 배포 전까지 저장만 될 수 있다. 상세는 `docs/career/daily-processing-ko.md`를 따른다.
+
+현재 운영 정책과 미배포 범위를 구분해 Notion [Career](https://www.notion.so/3b57277d26df81028ccce63a24db9922), [추천](https://www.notion.so/3b57277d26df817aa35cd4fcd3bca0f2), [Role·후속 연락 생명주기](https://www.notion.so/3b57277d26df810997b6e5480848ab87)의 해당 절·기준일·변경 이력을 갱신했다.
+
+## 2026-11-04 Career 홈 액션 목록 (운영 DB 적용·웹/Worker 미배포)
+
+사용자의 명시적인 마이그레이션 적용 요청으로 `career_action_items`(운영 version `20261104140800`)를 적용했다. 로컬 정본은 `supabase/migrations/20261104134635_career_action_items.sql`이다. 적용 전 같은 테이블·함수가 없음을 확인했으며 같은 migration을 다시 적용하지 않는다.
+
+제목·설명·버튼·클릭 동작·우선순위·긴급도를 저장하는 목록과 소유권·revision·생성 멱등성 경계의 서버 전용 저장 함수를 추가했다. 운영 함수 본문의 정확한 일치, RLS와 본인 읽기 정책, anon 전체 차단, authenticated 쓰기/RPC 차단, service_role 실행을 확인했다. 보안 advisor의 219개 finding 중 새 테이블·함수 관련 항목은 없다. 목록은 0건이며 사용자 데이터 생성·backfill·작업 접수·지원 제출·연락은 하지 않았다.
+
+웹·Worker 배포와 재시작은 하지 않았다. DB 저장 계약만 선반영했으며 실제 새 할 일 UI·LLM 도구·맥락은 코드 배포가 필요하다. 미배포 제품 동작을 Notion에 live로 기록하지 않았다.
+
 ## 2026-11-04 Career 종료 이력 기록 분리 (운영 DB 적용·웹/Worker 미배포)
 
 사용자의 종료 알림용 DB migration 적용 요청으로 `career_opportunity_read_lifecycle`(운영 version `20261104080151`)을 적용했다. 로컬 정본은 `supabase/migrations/20261104071842_career_opportunity_read_lifecycle.sql`이다. 같은 migration을 다시 적용하지 않는다.

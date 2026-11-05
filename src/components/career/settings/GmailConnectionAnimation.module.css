@@ -30,13 +30,13 @@
   z-index: 3;
   width: 64px;
   height: 58px;
-  border-radius: 17px;
+  border-radius: var(--radius-xl);
 }
 
 .letter {
   width: 36px;
   height: 29px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--color-neutral-700);
 }
 
@@ -186,7 +186,7 @@
   position: absolute;
   inset: 0;
   border: 1px solid var(--color-neutral-1000-a10);
-  border-radius: 11px;
+  border-radius: var(--radius-lg);
   background: var(--color-bg-floating);
 }
 
@@ -207,7 +207,7 @@
   width: 28px;
   height: 5px;
   margin-bottom: 15px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--color-neutral-400);
 }
 
@@ -229,14 +229,14 @@
 .paperBullet {
   width: 6px;
   height: 6px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--color-primary);
 }
 
 .paperLine {
   width: 40px;
   height: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--color-neutral-300);
 }
 

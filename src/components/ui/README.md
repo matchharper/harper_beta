@@ -2,16 +2,24 @@
 
 `src/components/ui` is the single source of truth for shared product UI. Do not add domain-specific forks such as `beige/*`, `career/*`, or duplicate `Tag`/`Pill` components. Extend the existing component when a shared UI state is missing.
 
-Color usage must follow `src/styles/Design.md`.
+Appearance usage must follow `src/styles/Design.md`; component variables live in `src/styles/design-tokens.css`. Use `/dev/design-tokens` in development to exercise the real components with current, flat and glass presets.
 
 ## Rules
 
-1. Use semantic tokens first: `bg-bg-*`, `text-neutral-*`, `primary`, `positive`, `info`, `critical`.
-2. Do not use old aliases in new code: `gray-*`, `paper`, `layer-*`, `fg-*`, `stroke-*`, `status-*`.
-3. Interactive resting surfaces should usually be `bg-bg-floating`; hover, active, selected, and nested weak surfaces should use `bg-bg-weak`.
+1. Use semantic tokens first: component surface tokens (`bg-card`, `bg-control`, `bg-menu`, `bg-modal`), `bg-bg-*`, `text-neutral-*`, `primary`, `positive`, `info`, `critical`.
+2. Do not use old aliases in new code: `gray-*`, `paper`, `layer-*`, `fg-*`, `status-*`. Use the defined `stroke*` or component border tokens.
+3. Let shared components own appearance. Their background, background image, border color/width, radius, shadow and backdrop blur have independent variables that inherit shared defaults. Keep layout at the callsite; avoid repeating default appearance overrides.
 4. Use `beige*` only for legacy compatibility. Do not create new beige components.
 5. Prefer shared components over repeated class strings. Page layout can stay local; repeated controls belong here.
 6. Use `BareButton` only as a migration bridge when replacing raw button markup would otherwise change current layout too much.
+
+For custom surfaces, combine the properties explicitly, for example:
+
+```tsx
+<div className="bg-card bg-card-image text-card-foreground rounded-card border-(length:--card-border-width) border-card-border shadow-(--shadow-card) backdrop-blur-card" />
+```
+
+Use `shadow-(--shadow-...)` so runtime changes read the original variable instead of a build-time expanded alias. Use the shared `cn` from either `@/lib/cn` or `@/lib/utils`; it preserves independent color/image utilities and respects caller overrides. Set global overrides on `:root` to include portals; local overrides must target the final component token. To remove all surface effects explicitly, use `bg-transparent bg-none shadow-none backdrop-blur-none`.
 
 ## Components
 
@@ -94,7 +102,7 @@ Use `Input`, `TextField`, `Textarea`, `Select`, `Checkbox`, `Switch`, and `Radio
 <Switch checked={enabled} onCheckedChange={setEnabled} />
 ```
 
-Controls should rest on `bg-bg-floating` with neutral borders and use `text-neutral-placeholder` for placeholders.
+Controls use `bg-control`, `border-control-border` and `rounded-control` and use `text-neutral-placeholder` for placeholders.
 
 Use `FilterChipGroup` when multiple temporary list filters can be active at the
 same time. Keep `Switch` for persistent settings.
@@ -116,13 +124,13 @@ same time. Keep `Switch` for persistent settings.
 
 Use `Tabs` for tab lists, `ActionDropdown` for simple command menus, and `DropdownMenu` primitives for grouped menus, radio items, check items, or submenus.
 
-Dropdown triggers and menu content should use `bg-bg-floating`; menu item hover and selected states should use `bg-bg-weak`.
+Dropdown content uses the `menu` surface family; item hover and selection use `menu-hover` and `menu-selected`. Triggers use the button/control component family.
 
 ### Cards And Panels
 
 Use `Card` for repeated content blocks, `InlinePanel` for lightweight grouped content inside a page, `ClickablePanel` for a panel area that opens a detail view, and `ProgressBar` for progress.
 
-Cards and panels should default to `bg-bg-floating`; nested metadata boxes and icon wells should use `bg-bg-weak`.
+Cards and panels use the `card` surface family; nested metadata boxes and icon wells can use `bg-bg-weak`.
 
 ## Adding Or Changing Components
 

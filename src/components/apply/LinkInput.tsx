@@ -25,7 +25,7 @@ const LinkInput = ({
       <UiInput
         unstyled
         placeholder={placeholder}
-        className="w-full h-[36px] px-3 py-2 border border-neutral-400 rounded-[5px] text-[14px] font-light leading-5 focus:ring-1 focus:ring-info/30 outline-none"
+        className="w-full h-[36px] px-3 py-2 border border-neutral-400 rounded-sm text-[14px] font-light leading-5 focus:ring-1 focus:ring-info/30 outline-none"
         value={value}
         onChange={onChange}
       />

@@ -88,7 +88,7 @@ function ProjectCard({ project }: { project: Project }) {
 export default function CandidateGithubCardDark() {
   const { locale } = useMessages();
   return (
-    <div className="w-full max-w-[1040px] overflow-hidden rounded-[28px] border border-zinc-900 bg-[#111113] shadow-2xl">
+    <div className="w-full max-w-[1040px] overflow-hidden rounded-sheet border border-zinc-900 bg-marketing-panel shadow-(--shadow-2xl)">
       <div className="px-6 py-6 pb-2 md:px-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="flex min-w-0 items-start gap-3">
@@ -129,7 +129,7 @@ export default function CandidateGithubCardDark() {
           ))}
         </div>
       </div>
-      <div className="mb-4 flex w-full items-center justify-center px-4 text-center text-sm text-white/50">
+      <div className="mb-4 flex w-full items-center justify-center px-4 text-center text-sm text-on-inverse/50">
         + 21 more projects
       </div>
     </div>

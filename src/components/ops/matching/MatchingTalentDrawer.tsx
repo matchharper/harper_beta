@@ -29,13 +29,13 @@ export function MatchingTalentDrawer({
         type="button"
         aria-label="닫기"
         onClick={onClose}
-        className="absolute inset-0 h-full w-full cursor-default bg-black/35"
+        className="absolute inset-0 h-full w-full cursor-default bg-surface-inverse/35"
       />
       <div
         role="dialog"
         aria-modal="true"
         className={cx(
-          "absolute bottom-0 right-0 top-0 flex w-[90vw] min-w-0 flex-col overflow-hidden bg-bg-default shadow-[0_24px_90px_color-mix(in_srgb,var(--color-neutral-1000)_22%,transparent)]"
+          "absolute bottom-0 right-0 top-0 flex w-[90vw] min-w-0 flex-col overflow-hidden bg-bg-default shadow-(--shadow-modal)"
         )}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-neutral-1000-a05 bg-bg-default px-5 py-3">

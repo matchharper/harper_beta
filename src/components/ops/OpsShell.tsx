@@ -354,7 +354,7 @@ function GoogleLoginButton({
       type="button"
       onClick={onClick}
       disabled={authPending}
-      className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] font-medium text-neutral-700 shadow-sm transition duration-200 hover:border-neutral-200 hover:shadow-none active:shadow-inner disabled:cursor-not-allowed disabled:opacity-55"
+      className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] font-medium text-neutral-700 shadow-(--shadow-sm) transition duration-200 hover:border-neutral-200 hover:shadow-none active:shadow-inner disabled:cursor-not-allowed disabled:opacity-55"
     >
       {authPending ? (
         <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -534,7 +534,7 @@ function OpsInternalDataExclusionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="ops-internal-data-exclusion-title"
-        className="w-full max-w-lg rounded-lg bg-bg-default p-5 shadow-[0_28px_90px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)]"
+        className="w-full max-w-lg rounded-lg bg-bg-default p-5 shadow-(--shadow-lg)"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -825,8 +825,8 @@ export default function OpsShell({
 
   if (spreadsheet) {
     return (
-      <div className="flex h-svh flex-col overflow-hidden bg-white text-black">
-        <header className="flex min-h-12 shrink-0 items-center gap-5 overflow-x-auto border-b border-[#c9cdd2] bg-white px-4">
+      <div className="flex h-svh flex-col overflow-hidden bg-bg-floating text-neutral-primary">
+        <header className="flex min-h-12 shrink-0 items-center gap-5 overflow-x-auto border-b border-grid-border bg-bg-floating px-4">
           <Link href="/ops" className="shrink-0 text-sm font-semibold">
             Harper Ops
           </Link>
@@ -839,8 +839,8 @@ export default function OpsShell({
                 className={cx(
                   "flex h-12 items-center border-b-2 px-3 text-sm",
                   activeNavGroup.id === group.id
-                    ? "border-[#1a73e8] text-[#1a73e8]"
-                    : "border-transparent text-black"
+                    ? "border-grid-accent text-grid-accent"
+                    : "border-transparent text-neutral-primary"
                 )}
               >
                 {group.label}
@@ -892,7 +892,7 @@ export default function OpsShell({
               <EyeOff className="h-3.5 w-3.5" />
               내부 데이터 제외
               {exclusionTermCount > 0 ? (
-                <span className="rounded bg-black px-1.5 py-0.5 text-[10px] leading-none text-neutral-00">
+                <span className="rounded bg-surface-inverse px-1.5 py-0.5 text-[10px] leading-none text-neutral-00">
                   {exclusionTermCount}
                 </span>
               ) : null}

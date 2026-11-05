@@ -11,7 +11,7 @@ export default function CareerCallProposalCard({
   children: ReactNode;
 }) {
   return (
-    <div className="mt-3 w-[94%] max-w-[440px] rounded-md border border-neutral-200 bg-bg-floating px-4 py-4 text-neutral-primary">
+    <div className="mt-3 w-[94%] max-w-[440px] career-glass px-4 py-4 text-neutral-primary">
       <div className="flex flex-col items-center justify-center gap-3">
         <div className="min-w-0 w-full flex flex-col items-start justify-center [overflow-wrap:anywhere]">
           <div className="text-sm font-normal leading-snug">{title}</div>

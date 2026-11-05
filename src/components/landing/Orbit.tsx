@@ -26,7 +26,7 @@ export default function OrbitIcons() {
   const duration = 18;
 
   return (
-    <div className="w-full flex items-center justify-center bg-white/0">
+    <div className="w-full flex items-center justify-center bg-bg-floating/0">
       <div className="flex items-center justify-center relative w-full h-[480px] rounded-3xl overflow-hidden">
         <motion.div
           className="flex items-center justify-center mt-[520px] md:mt-[480px]"
@@ -44,7 +44,7 @@ export default function OrbitIcons() {
                   transform: `rotate(${a}deg) translateX(${r}px) rotate(90deg)`,
                 }}
               >
-                <div className="md:w-16 md:h-16 w-12 h-12 rounded-2xl bg-white shadow-[0_14px_40px_rgba(0,0,0,0.55)] flex items-center justify-center">
+                <div className="md:w-16 md:h-16 w-12 h-12 rounded-2xl bg-bg-floating shadow-(--shadow-lg) flex items-center justify-center">
                   <Image
                     src={`/images/logos/${Icon}`}
                     alt={Icon}
@@ -70,7 +70,7 @@ export function OrbitIconsSmall() {
   const duration = 18;
 
   return (
-    <div className="w-full flex items-center justify-center bg-white/0">
+    <div className="w-full flex items-center justify-center bg-bg-floating/0">
       <div className="flex items-center justify-center relative w-full h-[480px] rounded-3xl overflow-hidden">
         <motion.div
           className="flex items-center justify-center mt-[320px] md:mt-[480px]"
@@ -88,7 +88,7 @@ export function OrbitIconsSmall() {
                   transform: `rotate(${a}deg) translateX(${r}px) rotate(90deg)`,
                 }}
               >
-                <div className="md:w-16 md:h-16 w-12 h-12 rounded-2xl bg-white shadow-[0_14px_40px_rgba(0,0,0,0.15)] flex items-center justify-center">
+                <div className="md:w-16 md:h-16 w-12 h-12 rounded-2xl bg-bg-floating shadow-(--shadow-lg) flex items-center justify-center">
                   <Image
                     src={`/images/logos/${Icon}`}
                     alt={Icon}

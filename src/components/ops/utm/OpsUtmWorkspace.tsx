@@ -127,7 +127,7 @@ function ChartTooltip({
     row.landing > 0 ? row.onboardingCompleted / row.landing : null;
 
   return (
-    <div className="min-w-[190px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-3 shadow-xl">
+    <div className="min-w-[190px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-3 shadow-(--shadow-xl)">
       <div className="text-xs font-medium text-neutral-primary">
         {row.label}
       </div>
@@ -392,7 +392,7 @@ function DeviceCompositionTooltip({
   if (!active || !row) return null;
 
   return (
-    <div className="rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-xs shadow-xl">
+    <div className="rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-xs shadow-(--shadow-xl)">
       <div className="font-medium text-neutral-primary">{row.label}</div>
       <div className="mt-1 text-neutral-muted">
         {formatRate(row.rate)} · {row.count.toLocaleString("ko-KR")}회

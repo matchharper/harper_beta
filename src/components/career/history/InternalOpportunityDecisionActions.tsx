@@ -172,7 +172,7 @@ export function InternalOpportunityDecisionChangeModal({
       closeOnBackdrop={!submitting}
       title={title}
       description={description}
-      panelClassName="max-w-[520px] rounded-[16px] border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-[520px]   "
       headerClassName="px-5 py-5 pr-14 sm:px-6"
       bodyClassName="px-5 py-5 sm:px-6"
       footer={
@@ -200,13 +200,13 @@ export function InternalOpportunityDecisionChangeModal({
         </div>
       }
     >
-      <div className="flex items-start gap-3 rounded-[10px] border border-neutral-1000-a05 shadow-xs bg-bg-floating p-3">
+      <div className="flex items-start gap-3 career-glass p-3">
         <div className="truncate flex flex-row items-center gap-1 text-[14px] font-normal text-neutral-primary">
-          <span className="bg-black/5 p-1 px-2 flex flex-row items-center gap-2 rounded-sm">
+          <span className="bg-surface-tint p-1 px-2 flex flex-row items-center gap-2 rounded-sm">
             {request.item.title}
           </span>
           <span className="px-1">at</span>{" "}
-          <span className="bg-black/5 p-1 pr-2 flex flex-row items-center gap-2 rounded-sm">
+          <span className="bg-surface-tint p-1 pr-2 flex flex-row items-center gap-2 rounded-sm">
             {request.item.companyLogoUrl && (
               <Image
                 src={request.item.companyLogoUrl ?? ""}
@@ -235,7 +235,7 @@ export function InternalOpportunityDecisionChangeModal({
       {attempted && error ? (
         <div
           role="alert"
-          className="mt-3 rounded-[10px] border border-critical/20 bg-critical-faded px-3 py-2.5 text-[13px] leading-5 text-critical"
+          className="mt-3 rounded-md border border-critical/20 bg-critical-faded px-3 py-2.5 text-[13px] leading-5 text-critical"
         >
           {error}
         </div>

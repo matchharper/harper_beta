@@ -408,7 +408,7 @@ export function OrgSettingsPage() {
                   sizes="(min-width: 1216px) 912px, (min-width: 768px) calc(100vw - 304px), calc(100vw - 32px)"
                   src="/images/bluesky.jpg"
                 />
-                <div className="relative flex flex-col gap-4 rounded-2xl bg-white/70 backdrop-blur-sm px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:w-[60%]">
+                <div className="relative flex flex-col gap-4 rounded-2xl bg-bg-floating/70 backdrop-blur-sm px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:w-[60%]">
                   <div>
                     <div className="text-[15px] font-normal text-neutral-primary">
                       {status.teamName || "Harper"}
@@ -957,15 +957,15 @@ const SettingCardButton = ({
     <CardButton
       aria-pressed={activeIntegration === currentIntegration}
       className={cn(
-        "w-[380px] border-black/4 bg-white flex flex-row gap-3 items-center rounded-xl p-4 shadow-xs py-2 h-[80px]",
+        "w-[380px] border-stroke-subtle  flex flex-row gap-3 items-center  p-4 shadow-(--shadow-xs) py-2 h-[80px]",
         activeIntegration === currentIntegration
-          ? "hover:border-black/4 bg-neutral-100"
-          : "hover:border-black/10"
+          ? "hover:border-stroke-subtle bg-neutral-100"
+          : "hover:border-stroke"
       )}
       onClick={() => selectIntegration(currentIntegration)}
       selected={activeIntegration === currentIntegration}
     >
-      <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-white border border-black/5">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-bg-floating border border-stroke-subtle">
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">

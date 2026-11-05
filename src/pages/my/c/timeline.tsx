@@ -358,7 +358,7 @@ const Timeline = ({
           </div>
 
           {/* Timeline */}
-          <div className="rounded-lg bg-bg-default border border-neutral-1000-a05 shadow-sm p-3 min-h-[240px]">
+          <div className="rounded-lg bg-bg-default border border-neutral-1000-a05 shadow-(--shadow-sm) p-3 min-h-[240px]">
             <div className="flex flex-col gap-4">
               {progress.steps.slice(0, shownCount).map((step, idx) => {
                 const isLast = idx === progress.steps.length - 1;

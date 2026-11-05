@@ -389,7 +389,7 @@ function OpportunityRunsTable({
                           pathname: "/ops/career",
                           query: { userId: item.talent.userId },
                         }}
-                        className="text-sm font-semibold text-neutral-primary transition hover:text-black"
+                        className="text-sm font-semibold text-neutral-primary transition hover:text-neutral-primary"
                       >
                         {getOpportunityRunDisplayName(item)}
                       </Link>

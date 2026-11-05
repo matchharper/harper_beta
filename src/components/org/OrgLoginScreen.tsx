@@ -201,7 +201,7 @@ export function OrgLoginScreen({
         type="button"
         onClick={() => void handleLogin()}
         disabled={loginPending}
-        className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] font-medium text-neutral-700 shadow-sm transition duration-200 hover:border-neutral-200 hover:shadow-none active:shadow-inner disabled:cursor-not-allowed disabled:opacity-55"
+        className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] font-medium text-neutral-700 shadow-(--shadow-sm) transition duration-200 hover:border-neutral-200 hover:shadow-none active:shadow-inner disabled:cursor-not-allowed disabled:opacity-55"
       >
         {loginPending ? (
           <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -354,7 +354,7 @@ export function OrgLoginScreen({
               type="button"
               onClick={() => void handleLogin()}
               disabled={loginPending}
-              className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] font-medium text-neutral-700 shadow-sm transition duration-200 hover:border-neutral-200 hover:shadow-none active:shadow-inner disabled:cursor-not-allowed disabled:opacity-55"
+              className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] font-medium text-neutral-700 shadow-(--shadow-sm) transition duration-200 hover:border-neutral-200 hover:shadow-none active:shadow-inner disabled:cursor-not-allowed disabled:opacity-55"
             >
               {loginPending ? (
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -388,7 +388,7 @@ export function OrgLoginScreen({
                 "예: 지난주 AI 엔지니어 채용에 관해 미팅했습니다.",
                 "Example: Met last week about hiring an AI engineer."
               )}
-              className="mt-1.5 h-20 w-full resize-none rounded-md bg-black/3 px-2.5 py-2 text-[14px] font-normal leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
+              className="mt-1.5 h-20 w-full resize-none rounded-md bg-interaction-hover px-2.5 py-2 text-[14px] font-normal leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
             />
             <AnimatePresence initial={false}>
               {!isAuthenticated && collectEmail ? (

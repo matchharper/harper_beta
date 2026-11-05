@@ -46,12 +46,12 @@ const INTERVALS: Array<{
 ];
 
 const tooltipStyle = {
-  background: "var(--color-bg-floating)",
-  border: "1px solid var(--color-neutral-1000-a10)",
-  borderRadius: "8px",
-  boxShadow:
-    "0 16px 36px color-mix(in srgb, var(--color-neutral-1000) 12%, transparent)",
-  color: "var(--color-neutral-primary)",
+  background: "var(--color-popover)",
+  border: "var(--popover-border-width) solid var(--color-popover-border)",
+  borderRadius: "var(--radius-popover)",
+  boxShadow: "var(--shadow-popover)",
+  backdropFilter: "blur(var(--blur-popover))",
+  color: "var(--color-popover-foreground)",
   fontSize: "12px",
 };
 
@@ -127,7 +127,7 @@ function MetricCard({
   value: number;
 }) {
   return (
-    <div className="rounded-md bg-bg-floating px-4 py-4 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-neutral-00)_75%,transparent)]">
+    <div className="rounded-md bg-bg-floating px-4 py-4 shadow-(--shadow-inset-highlight)">
       <div className="text-[12px] font-medium text-neutral-muted">{label}</div>
       <div className="mt-2 text-[26px] font-semibold tabular-nums tracking-[-0.04em] text-neutral-primary">
         {formatCount(value)}
@@ -197,7 +197,7 @@ export default function AdminCareerActivityTab({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-lg bg-bg-default/90 p-4 shadow-[0_14px_40px_color-mix(in_srgb,var(--color-neutral-1000)_7%,transparent)]">
+      <section className="rounded-lg bg-bg-default/90 p-4 shadow-(--shadow-lg)">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-[13px] font-semibold text-neutral-primary">
@@ -333,7 +333,7 @@ export default function AdminCareerActivityTab({
           </section>
 
           <section className="grid gap-4 xl:grid-cols-2">
-            <div className="rounded-lg bg-bg-default/90 p-4 shadow-[0_14px_40px_color-mix(in_srgb,var(--color-neutral-1000)_7%,transparent)]">
+            <div className="rounded-lg bg-bg-default/90 p-4 shadow-(--shadow-lg)">
               <div className="text-[13px] font-semibold text-neutral-primary">
                 인원 추이
               </div>
@@ -413,7 +413,7 @@ export default function AdminCareerActivityTab({
               </div>
             </div>
 
-            <div className="rounded-lg bg-bg-default/90 p-4 shadow-[0_14px_40px_color-mix(in_srgb,var(--color-neutral-1000)_7%,transparent)]">
+            <div className="rounded-lg bg-bg-default/90 p-4 shadow-(--shadow-lg)">
               <div className="text-[13px] font-semibold text-neutral-primary">
                 Activity 구성
               </div>
@@ -492,7 +492,7 @@ export default function AdminCareerActivityTab({
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-lg bg-bg-default/90 shadow-[0_14px_40px_color-mix(in_srgb,var(--color-neutral-1000)_7%,transparent)]">
+          <section className="overflow-hidden rounded-lg bg-bg-default/90 shadow-(--shadow-lg)">
             <div className="flex flex-col gap-1 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-[13px] font-semibold text-neutral-primary">
                 버킷별 원본 수치
@@ -568,7 +568,7 @@ export default function AdminCareerActivityTab({
             </div>
           </section>
 
-          <section className="rounded-lg bg-bg-default/90 p-4 text-[12px] leading-5 text-neutral-muted shadow-[0_14px_40px_color-mix(in_srgb,var(--color-neutral-1000)_7%,transparent)]">
+          <section className="rounded-lg bg-bg-default/90 p-4 text-[12px] leading-5 text-neutral-muted shadow-(--shadow-lg)">
             <div className="font-semibold text-neutral-primary">지표 정의</div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <div>

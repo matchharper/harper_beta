@@ -224,7 +224,7 @@ function BillingToggle({
   return (
     <div className="relative inline-flex items-center">
       <div
-        className={`relative flex items-center ${isDark ? "bg-white/10 border border-white/10" : "border border-neutral-1000-a05 bg-bg-weak"} rounded-full p-1 backdrop-blur`}
+        className={`relative flex items-center ${isDark ? "bg-bg-floating/10 border border-bg-floating/10" : "border border-neutral-1000-a05 bg-bg-weak"} rounded-full p-1 backdrop-blur`}
       >
         <BareButton
           type="button"
@@ -232,10 +232,10 @@ function BillingToggle({
           className={`relative z-10 px-6 py-2 rounded-full text-sm md:text-sm transition-colors ${
             !isYearly
               ? isDark
-                ? "text-black"
+                ? "text-neutral-primary"
                 : "text-neutral-00"
               : isDark
-                ? "text-white/70 hover:text-white"
+                ? "text-on-inverse/70 hover:text-on-inverse"
                 : "text-neutral-muted hover:text-neutral-primary"
           }`}
         >
@@ -247,10 +247,10 @@ function BillingToggle({
           className={`relative z-10 px-6 py-2 rounded-full text-sm md:text-sm transition-colors ${
             isYearly
               ? isDark
-                ? "text-black"
+                ? "text-neutral-primary"
                 : "text-neutral-00"
               : isDark
-                ? "text-white/70 hover:text-white"
+                ? "text-on-inverse/70 hover:text-on-inverse"
                 : "text-neutral-muted hover:text-neutral-primary"
           }`}
         >
@@ -259,7 +259,7 @@ function BillingToggle({
 
         {/* sliding pill */}
         <motion.div
-          className={`absolute top-1 bottom-1 w-[48%] rounded-full ${isDark ? "bg-white" : "bg-black"}`}
+          className={`absolute top-1 bottom-1 w-[48%] rounded-full ${isDark ? "bg-bg-floating" : "bg-surface-inverse"}`}
           initial={false}
           animate={{ x: isYearly ? "100%" : "0%" }}
           transition={{ type: "spring", stiffness: 500, damping: 40 }}
@@ -269,7 +269,7 @@ function BillingToggle({
       {/* discount badge */}
       <div className="absolute -right-6 -top-3 md:-right-8 md:-top-3">
         <div
-          className={`px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold ${isDark ? "bg-accent-200 text-black" : "bg-primary text-neutral-00"} shadow-sm`}
+          className={`px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold ${isDark ? "bg-accent-200 text-neutral-primary" : "bg-primary text-neutral-00"} shadow-(--shadow-sm)`}
         >
           {pricing.billing.discountLabel}
         </div>
@@ -315,10 +315,10 @@ function PlanCard({
       className={[
         "relative w-full rounded-xl md:rounded-3xl overflow-hidden",
         isDark
-          ? `border border-white/5 shadow-md ${isPrimary ? "bg-white/10" : "bg-white/5"}`
+          ? `border border-bg-floating/5 shadow-(--shadow-md) ${isPrimary ? "bg-bg-floating/10" : "bg-bg-floating/5"}`
           : isPrimary
-            ? "border border-primary/30 bg-primary-faded/35 shadow-sm"
-            : "border border-neutral-1000-a05 bg-bg-floating shadow-sm",
+            ? "border border-primary/30 bg-primary-faded/35 shadow-(--shadow-sm)"
+            : "border border-neutral-1000-a05 bg-bg-floating shadow-(--shadow-sm)",
         "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-20",
       ].join(" ")}
     >
@@ -327,7 +327,7 @@ function PlanCard({
           {name}
         </div>
         <div
-          className={`mt-0 text-left w-full text-sm ${isDark ? "text-white/55" : "text-neutral-soft"} leading-6 min-h-6`}
+          className={`mt-0 text-left w-full text-sm ${isDark ? "text-on-inverse/55" : "text-neutral-soft"} leading-6 min-h-6`}
         >
           {tagline}
         </div>
@@ -345,7 +345,7 @@ function PlanCard({
                 {formatPrice(isEnglish, price)}
               </div>
               <div
-                className={`text-base md:text-lg ${isDark ? "text-white/60" : "text-neutral-muted"} pb-1`}
+                className={`text-base md:text-lg ${isDark ? "text-on-inverse/60" : "text-neutral-muted"} pb-1`}
               >
                 {priceUnit}
               </div>
@@ -362,10 +362,10 @@ function PlanCard({
               "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",
               isPrimary
                 ? isDark
-                  ? "bg-accent-200 text-black hover:opacity-95"
+                  ? "bg-accent-200 text-neutral-primary hover:opacity-95"
                   : "bg-primary text-neutral-00 hover:bg-primary/90"
                 : isDark
-                  ? "bg-white/10 text-accent-200 border border-white/0 hover:bg-accent-200/10"
+                  ? "bg-bg-floating/10 text-accent-200 border border-bg-floating/0 hover:bg-accent-200/10"
                   : "border border-neutral-1000-a05 bg-bg-weak text-neutral-primary hover:bg-bg-floating",
               "disabled:opacity-60 disabled:cursor-not-allowed",
             ].join(" ")}
@@ -375,7 +375,7 @@ function PlanCard({
         </div>
 
         <div
-          className={`mt-7 md:mt-8 h-px w-full ${isDark ? "bg-white/10" : "bg-neutral-1000-a10"}`}
+          className={`mt-7 md:mt-8 h-px w-full ${isDark ? "bg-bg-floating/10" : "bg-neutral-1000-a10"}`}
         />
 
         <ul className="mt-6 md:mt-7 flex flex-col gap-4">
@@ -384,10 +384,10 @@ function PlanCard({
               {f.endsWith("및:") || f.endsWith(":") ? (
                 <>
                   <span
-                    className={`mt-[6px] w-2 h-2 rounded-full ${isDark ? "bg-white/25" : "bg-neutral-1000-a10"}`}
+                    className={`mt-[6px] w-2 h-2 rounded-full ${isDark ? "bg-bg-floating/25" : "bg-neutral-1000-a10"}`}
                   />
                   <span
-                    className={`${isDark ? "text-white/80" : "text-neutral-primary"} font-medium`}
+                    className={`${isDark ? "text-on-inverse/80" : "text-neutral-primary"} font-medium`}
                     dangerouslySetInnerHTML={{ __html: f }}
                   />
                 </>
@@ -397,7 +397,7 @@ function PlanCard({
                     className={`w-4 h-4 mt-0.5 ${isDark ? "text-accent-200" : "text-primary"}`}
                   />
                   <span
-                    className={`${isDark ? "text-white/70" : "text-neutral-muted"} text-left`}
+                    className={`${isDark ? "text-on-inverse/70" : "text-neutral-muted"} text-left`}
                     dangerouslySetInnerHTML={{ __html: f }}
                   ></span>
                 </>

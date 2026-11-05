@@ -1,8 +1,6 @@
 import { CareerSuggestionProvider } from "./chat/CareerSuggestionComposer";
 import { InternalCallAnswersProvider } from "./chat/InternalCallAnswers";
-import {
-  ApplicationHistoryProvider,
-} from "./chat/ApplicationPreparationContext";
+import { ApplicationHistoryProvider } from "./chat/ApplicationPreparationContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useCareerChatPanelContext } from "./CareerChatPanelContext";
@@ -28,7 +26,7 @@ import type {
 const DEFAULT_COMPOSER_OVERLAY_HEIGHT_PX = 168;
 // Extra empty space after the last timeline item, on top of the composer height.
 // Increase this when the final chat should sit farther above the composer.
-const TIMELINE_BOTTOM_VISIBLE_GAP_PX = 120;
+const TIMELINE_BOTTOM_VISIBLE_GAP_PX = 28;
 
 const CareerCallLoadingScreen = () => {
   const t = useCareerT();
@@ -92,9 +90,13 @@ const CallSessionView = ({
 const CareerChatPanelContent = ({
   pendingAction,
   onPendingActionHandled,
+  homeContent,
+  onMessageSubmit,
 }: {
   pendingAction?: CareerComposerPendingAction | null;
   onPendingActionHandled?: () => void;
+  homeContent?: React.ReactNode;
+  onMessageSubmit?: () => void;
 } = {}) => {
   const t = useCareerT();
   const router = useRouter();
@@ -252,7 +254,8 @@ const CareerChatPanelContent = ({
   const chatLayoutStyle = useMemo(
     () =>
       ({
-        "--career-chat-content-max-width": "760px",
+        "--career-chat-content-max-width":
+          "calc(var(--career-chat-width, 560px) + 40px)",
         "--career-composer-height": `${composerOverlayHeight}px`,
         "--career-timeline-bottom-padding": `${
           composerOverlayHeight + TIMELINE_BOTTOM_VISIBLE_GAP_PX
@@ -269,16 +272,21 @@ const CareerChatPanelContent = ({
       className="relative isolate flex min-h-0 flex-1 flex-col overflow-clip [transform:translate(0)]"
       style={chatLayoutStyle}
     >
-      <CareerTimelineSection
-        onOpenPendingAction={handleOpenPendingAction}
-        pendingActionActivationPending={pendingActionActivationPending}
-      />
+      {homeContent && <div className="career-mobile-home">{homeContent}</div>}
+      <div className="career-chat-timeline" hidden={Boolean(homeContent)}>
+        <CareerTimelineSection
+          onOpenPendingAction={handleOpenPendingAction}
+          pendingActionActivationPending={pendingActionActivationPending}
+        />
+      </div>
       <div
         ref={composerOverlayRef}
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-[linear-gradient(to_bottom,transparent,white_40px)]"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-composer-fade"
       >
         <div className="pointer-events-auto">
           <CareerComposerSection
+            showConversationActions={!homeContent}
+            onMessageSubmit={onMessageSubmit}
             onPendingActionHandlerChange={handlePendingActionHandlerChange}
           />
         </div>
@@ -289,7 +297,7 @@ const CareerChatPanelContent = ({
   const callSessionActive = callStartPending || inputMode === "call";
 
   return (
-    <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-bg-floating">
+    <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-chat">
       {inputMode !== "call" && (
         <div
           className={cn(

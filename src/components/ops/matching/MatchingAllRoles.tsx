@@ -428,7 +428,7 @@ export function MatchingAllRoles({
                                 disabled={rowPending}
                                 onClick={(event) => event.stopPropagation()}
                                 onKeyDown={(event) => event.stopPropagation()}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-soft outline-none transition hover:bg-black/5 hover:text-neutral-primary disabled:opacity-50"
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-soft outline-none transition hover:bg-surface-tint hover:text-neutral-primary disabled:opacity-50"
                               >
                                 {rowPending ? (
                                   <LoaderCircle className="h-3.5 w-3.5 animate-spin" />

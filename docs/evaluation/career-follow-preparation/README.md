@@ -13,3 +13,7 @@ Current cache policy: successful company hiring searches are shared for 72 hours
 - Metrics: completion/error, provider request/token usage, search/evaluation calls and delivery attempts. Gate: manual review of complete outputs against gold plus SQL/orchestration tests in `src/lib/career/companies/preparation.test.ts`; no runtime semantic keyword gate.
 - Provenance: fictional company, synthetic profile, source text and scores. Not sampled production outcomes. Frozen case changes require another dataset version; run manifests pin runtime source hashes.
 - Limits: this does not measure live search coverage or hosted queue/delivery reliability. Parent registry README is locally deleted by pre-existing work; its HEAD copy was read without restoring it. This README registers the new task.
+
+## Internal inventory scope check (2026-11-04)
+
+The frozen v2 `new_fit_and_hiring` case was reused for the internal-discovery scope change. The runner source capture now names current policy/tool/handbook files instead of removed `hiringNews.ts`, uses `career_schedule_due`, and captures either candidate delivery adapter without sending. The original failed preflight and complete subsequent trace remain in ignored runs. See the [scope report](../career-agent-autonomy/reports/2026-11-04-internal-discovery-scope.md) for observations and the separate concurrent action-items fixture limitation. This does not claim a full background-workflow pass or deployment.

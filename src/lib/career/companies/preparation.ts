@@ -85,14 +85,9 @@ async function recoverPreparationChildren(
 }
 
 export function shouldPrepareFollowedCompanies(run: CareerBackgroundRun) {
-  return (
-    run.trigger_payload.createdBy === "career_dev_controls" ||
-    (run.trigger_payload.sourceEvents ?? []).some(
-      (event: any) =>
-        event.sourceKind === "schedule" &&
-        event.scheduleKey === "career_check_in"
-    )
-  );
+  // Production work starts from exact pending sources. The original agent can
+  // read saved company evidence and request missing evaluations when needed.
+  return run.trigger_payload.createdBy === "career_dev_controls";
 }
 
 /** The scheduler's existing invocation owns this preparation. Child evaluation
@@ -244,7 +239,7 @@ export function formatFollowOverview(inventory: FollowInventory) {
         role.followIds.includes(company.id)
       );
       // A compact index, not an evaluation limit. Full evidence is paginated by
-      // the existing follow_company tool; every unseen role was admitted above.
+      // the existing follow_company tool. Internal roles already have recommendations.
       const recent = [...roles]
         .sort((a, b) =>
           (b.postedAt ?? b.createdAt).localeCompare(a.postedAt ?? a.createdAt)
@@ -266,9 +261,9 @@ export function formatFollowOverview(inventory: FollowInventory) {
           : "",
         company.scope === "name"
           ? "Followed by name; no linked directory roles."
-          : `${roles.length} currently available roles. Index contains ${selected.length} roles.`,
+          : `${roles.length} external roles and existing internal recommendations. Index contains ${selected.length} roles.`,
         formatFollowRoles(selected),
-        `Read all roles with follow_company action=read, follow_id=${company.id}.`,
+        `Read this scope with follow_company action=read, follow_id=${company.id}.`,
       ]
         .filter(Boolean)
         .join("\n");
@@ -282,7 +277,7 @@ export async function readPreparedFollowContext(
 ) {
   const inventory = await readFollowInventory(admin, userId);
   const lines = [
-    "Followed companies and current opportunities.",
+    "Followed companies, external opportunities and existing internal recommendations.",
     formatFollowOverview(inventory),
     state.error ? `Followed-company preparation incomplete: ${state.error}` : "",
   ];

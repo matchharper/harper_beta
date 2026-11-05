@@ -1,0 +1,47 @@
+{
+  "version": "v4",
+  "provenance": "Additional explicit display-order probe, distinct from v3 intent to view an application first. All v3 failures retained; no claim this replaces that broader behavior.",
+  "hashes": {
+    "cases-v4.json": "ccb6157e568b0d36cdf8bc635de91bd78367bc923f3929b4b3ee9ec1d5d90cc3",
+    "gold-v4.json": "c1621a4acbef1e1950c250319dfc70dda78f9d5a67accbbd3c2fe8972fb69fe1"
+  },
+  "runner": "scripts/evalCareerVisibleActions.ts --version=v4",
+  "review": {
+    "reviewer": "Codex",
+    "method": "Read actual provider guide/context, complete tool arguments and text receipts, displayed outputs and final state. No automated semantic gate.",
+    "result": "Explicit display-order probe observed Orbit above urgent Cedar; narrow diagnostic, not a replacement for v3."
+  },
+  "runs": [
+    {
+      "id": "2026-11-04T15-49-49.855Z",
+      "cases": [
+        {
+          "id": "explicit_display_order_on_return",
+          "toolCalls": 1,
+          "itemCount": 2,
+          "error": null
+        }
+      ],
+      "sourceRevision": "022eddd9e709cd4188154291143679a7f0d01ef3",
+      "sourceHashes": {
+        "src/lib/career/actionItems.ts": "b9a38e02f7a5a5632f778c55aeaa2e25770ad3fbb6418140b318347ccd64e169",
+        "src/lib/career/actionItemsTool.ts": "39b4d0dcc42058493c953046019412eaabc484e73045fbfe0df2b9d4acc7821c",
+        "src/lib/career/prompts/conversationPlan.ts": "590d0821309fbde7187b9027f194a3830c55add5861c67cf21459e9eb88d15e4",
+        "src/lib/career/prompts/cases/lifecyclePrompts.ts": "3071905526afd01d28ea18afd111e9130944f0032257f01e2137694b01f98d61",
+        "src/lib/career/prompts/mainPrompt2.ts": "ab7f626e1dc94f92de4482d206a32c37b6978c5530f20529c0d887b99d898246",
+        "src/lib/career/capabilities/runtime.ts": "f648d4338ad9589eb53844305d86311ec7a0e9035aad51dd5c910ac7a9c1d97e",
+        "src/lib/career/work/store.ts": "a81be21efe77de0ea5a84198da39dd3651fd3693128947d51b42061ba18af931",
+        "src/lib/career/work/tools.ts": "223842ee5fae9c20426410e85bdeae2477ad4cb49bdbe18f8b4a28bfb0d1a5ee",
+        "src/lib/career/forms/server.ts": "0bd8b3b104a49ce5e90370dce5c6f5d1cbf4371b4b14fddb7c782a49614d0faf",
+        "src/lib/career/forms/format.ts": "fbe7ff1ae665f6f03cc23484c8cde6e7783f3d50577868881ff859b1ac5960c2",
+        "src/lib/career/reengagementOpportunities.ts": "63c181a6a0e67206ab929d2829be6c17c5f175b6be2a235358381082e866c71b",
+        "src/lib/career/llm.ts": "effc256ae33a180e62b2ef2cd8223231a4febcef1fdbebbeeee97f2c19efba40",
+        "scripts/evalCareerVisibleActions.ts": "c1ce5f49ed3adc70644a07c9534ab90ba57d2aa4dfcc645a4bb6554c4a76ed50"
+      },
+      "model": "gpt-6.1-sol",
+      "returnModel": "claude-haiku-5-5",
+      "temperature": 0.8
+    }
+  ],
+  "report": "reports/2026-11-05-context-and-batch.md"
+}

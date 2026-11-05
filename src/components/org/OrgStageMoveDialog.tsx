@@ -918,7 +918,7 @@ export function OrgStageMoveDialog({
         mobileBottomSheet
         onClose={handleClose}
         open={open}
-        panelClassName="max-w-lg border-neutral-1000-a05 bg-bg-floating"
+        panelClassName="max-w-lg  "
         title={
           count > 1
             ? c("{p0}명과 연결", "Connect with {p0} candidates", { p0: count })

@@ -32,9 +32,9 @@ function Message({
       )}
       <div
         className={cn(
-          "rounded-[2px_16px_16px] bg-bg-default px-[15px] py-3 text-[13px] leading-[1.65] text-neutral-primary break-keep [overflow-wrap:anywhere] shadow-[0_2px_5px_var(--color-neutral-1000-a05)]",
+          "rounded-xl rounded-tl-xs bg-bg-default px-[15px] py-3 text-[13px] leading-[1.65] text-neutral-primary break-keep [overflow-wrap:anywhere] shadow-(--shadow-lg)",
           from === "person" &&
-            "rounded-[16px_16px_2px] bg-[color-mix(in_srgb,var(--color-primary)_9%,var(--color-bg-default))]"
+            "rounded-xl rounded-br-xs bg-[color-mix(in_srgb,var(--color-primary)_9%,var(--color-bg-default))]"
         )}
       >
         {children}
@@ -74,7 +74,7 @@ export function PendingConnectionPreview() {
   };
 
   return (
-    <div className="relative isolate overflow-hidden rounded-[20px] bg-primary-faded">
+    <div className="relative isolate overflow-hidden rounded-2xl bg-primary-faded">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_5%_5%,var(--color-action-faded),transparent_65%),radial-gradient(ellipse_at_95%_90%,var(--color-accent-200),transparent_65%),linear-gradient(135deg,var(--color-bg-default),transparent)] opacity-80"
@@ -87,7 +87,7 @@ export function PendingConnectionPreview() {
           "An introduction, from candidate to company"
         )}
         tabIndex={0}
-        className="overflow-hidden outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--color-neutral-1000-a10)]"
+        className="overflow-hidden outline-none focus-visible:shadow-(--shadow-inset-highlight)"
         onFocus={() => setPlaying(false)}
         onKeyDown={(event) => {
           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -166,8 +166,8 @@ export function PendingConnectionPreview() {
                       "Thursday at 3 works for both of you. Google Meet invites are in your calendars!"
                     )}
                   </Message>
-                  <div className="mt-3 flex w-full max-w-[420px] items-center gap-3 self-center rounded-3xl border border-[color-mix(in_srgb,var(--color-bg-default)_85%,transparent)] bg-[color-mix(in_srgb,var(--color-bg-default)_76%,transparent)] px-4 py-[15px] shadow-[0_8px_24px_var(--color-neutral-1000-a10),inset_0_1px_0_var(--color-bg-default)] backdrop-blur-[24px] backdrop-saturate-[1.3] [font-family:-apple-system,BlinkMacSystemFont,sans-serif] [@media(max-width:480px)]:px-3.5 [@media(max-width:480px)]:py-[13px] [--delay:900ms] group-data-[animate=true]/scene:animate-in group-data-[animate=true]/scene:fade-in-0 group-data-[animate=true]/scene:slide-in-from-bottom-3 [--tw-animation-duration:600ms] ease-[cubic-bezier(0.22,1,0.36,1)] [--tw-animation-fill-mode:both] [--tw-animation-delay:var(--delay,0ms)] group-data-[animate=true]/scene:motion-reduce:animate-none">
-                    <span className="flex size-[42px] shrink-0 items-center justify-center rounded-[11px] bg-bg-default shadow-[0_1px_2px_var(--color-neutral-1000-a05)]">
+                  <div className="mt-3 flex w-full max-w-[420px] items-center gap-3 self-center rounded-3xl border border-[color-mix(in_srgb,var(--color-bg-default)_85%,transparent)] bg-[color-mix(in_srgb,var(--color-bg-default)_76%,transparent)] px-4 py-[15px] shadow-(--shadow-lg) backdrop-blur-xl backdrop-saturate-[1.3] [font-family:-apple-system,BlinkMacSystemFont,sans-serif] [@media(max-width:480px)]:px-3.5 [@media(max-width:480px)]:py-[13px] [--delay:900ms] group-data-[animate=true]/scene:animate-in group-data-[animate=true]/scene:fade-in-0 group-data-[animate=true]/scene:slide-in-from-bottom-3 [--tw-animation-duration:600ms] ease-[cubic-bezier(0.22,1,0.36,1)] [--tw-animation-fill-mode:both] [--tw-animation-delay:var(--delay,0ms)] group-data-[animate=true]/scene:motion-reduce:animate-none">
+                    <span className="flex size-[42px] shrink-0 items-center justify-center rounded-lg bg-bg-default shadow-(--shadow-lg)">
                       <Image
                         src="/images/logos/google-meet.svg"
                         alt=""

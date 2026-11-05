@@ -123,7 +123,7 @@ function EmailListItem({
       className={cx(
         "w-full rounded-md border px-3 py-3 text-left transition",
         selected
-          ? "border-neutral-800 bg-bg-default shadow-[0_12px_30px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)]"
+          ? "border-neutral-800 bg-bg-default shadow-(--shadow-lg)"
           : "border-neutral-1000-a05 bg-bg-default/60 hover:border-neutral-1000-a10 hover:bg-bg-default"
       )}
     >
@@ -448,7 +448,7 @@ export default function OpsDebuggingEmailsPage() {
                   className={cx(
                     "h-9 rounded px-3 text-xs font-medium transition",
                     scope === option.id
-                      ? "bg-bg-default text-neutral-primary shadow-sm"
+                      ? "bg-bg-default text-neutral-primary shadow-(--shadow-sm)"
                       : "text-neutral-muted hover:text-neutral-primary"
                   )}
                 >

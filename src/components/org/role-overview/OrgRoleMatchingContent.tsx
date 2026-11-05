@@ -242,7 +242,7 @@ function MatchingContent({
                 size="large"
                 title={c("Hiring Brief", "Hiring Brief")}
               />
-              <div className="mt-1 text-[14px] font-normal leading-5 text-black/60">
+              <div className="mt-1 text-[14px] font-normal leading-5 text-neutral-primary/60">
                 {c(
                   "인재를 평가할 때 내부적으로 사용하는 기준입니다.",
                   "Your internal brief for finding and evaluating candidates."

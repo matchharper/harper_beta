@@ -85,7 +85,7 @@ test("shows Working during tool execution and Worked with elapsed time after com
   );
 
   assert.match(workingHtml, />Working</);
-  assert.match(workedHtml, /Worked · 8m 4s/);
+  assert.match(workedHtml, /Worked for 8m 4s/);
 });
 
 test("application question wait reuses the work panel without an active spinner", () => {
@@ -99,4 +99,13 @@ test("application question wait reuses the work panel without an active spinner"
   assert.match(html, /답변을 기다리고 있어요/);
   assert.doesNotMatch(html, /animate-spin|>Working</);
   assert.match(html, /aria-expanded="false"/);
+});
+
+test("empty progress has no disclosure or visible empty log body", () => {
+  const html = renderToStaticMarkup(
+    <ChatThinkingLogPanel active hasToolWork={false} logs={[]} />
+  );
+  assert.match(html, />Thinking</);
+  assert.doesNotMatch(html, /aria-expanded|lucide-chevron/);
+  assert.match(html, /<div hidden="" class="mb-2">/);
 });

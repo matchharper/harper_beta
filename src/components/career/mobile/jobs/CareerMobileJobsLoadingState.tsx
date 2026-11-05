@@ -17,7 +17,7 @@ export function CareerMobileJobsLoadingState() {
       aria-label={"저장된 정보를 불러오는 중입니다..."}
       className="flex flex-1 flex-col gap-3 px-4 pb-28 pt-4"
     >
-      <section className="rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-4 shadow-sm">
+      <section className="rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-4 shadow-(--shadow-sm)">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
             <Skeleton className="h-4 w-24 rounded-full" />

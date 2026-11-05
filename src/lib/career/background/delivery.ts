@@ -1,3 +1,4 @@
+import { careerContactSourceIds } from "./sourceCoverage";
 import { changedTalentSchedules } from "../meetings/server";
 import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
@@ -15,6 +16,10 @@ import { resumeCareerAgentAfterWork } from "../agentContinuation";
 import { send } from "@vercel/queue";
 import { scheduleCareerDevelopmentJob } from "../developmentQueue.server";
 
+export const CAREER_DELIVERY_SOURCE_IDS = {
+  type: "array", items: { type: "string" },
+  description: "Required when this invocation has pending daily sources: exact source IDs covered by this message. Use [] when none are covered. Include only the updates/reminders actually communicated; receipt tracking does not infer coverage from an email being sent. Omit for messages unrelated to pending daily sources.",
+};
 export const CAREER_DELIVERY_TOPIC = "career-agent-email-v1";
 const pending = new Set(["queued", "retry", "sending"]);
 const terminal = new Set([
@@ -165,7 +170,11 @@ export async function deliverCareerEmailReceipt(
       return finishResult(admin, receipt, "context_changed");
     }
     const companyFollowups =
-      runRead.data.trigger_payload?.companyRequestFollowups;
+      runRead.data.trigger_payload?.companyRequestFollowups?.filter((target: any) => {
+        const source = runRead.data.trigger_payload?.sourceEvents?.find((e: any) =>
+          e.sourceKind === "company_followup" && e.sourceId === target.followupId);
+        return !source?.dailySourceId || (payload.sourceIds ?? []).includes(source.dailySourceId);
+      });
     if (Array.isArray(companyFollowups) && companyFollowups.length) {
       const allowed = await rpc(admin, "begin_company_followup_delivery_v1", {
         p_talent: receipt.talent_id,
@@ -380,6 +389,8 @@ export function formatCareerEmailReceipt(receipt: any) {
     receipt.payload?.resendEmailId
       ? `Provider receipt: ${receipt.payload.resendEmailId}; readership is unknown.`
       : "No stored provider receipt. If an attempt already occurred, this does not prove non-delivery.",
+    receipt.status === "sent" ? "This email is also saved in the candidate’s Career history." : "",
+    receipt.payload?.sourceIds?.length ? `Communicated pending source IDs: ${receipt.payload.sourceIds.join(", ")}.` : "",
     receipt.sent_at ? `Sent: ${formatLlmDateTime(receipt.sent_at)}` : "",
     receipt.error_message ? `Execution detail: ${receipt.error_message}` : "",
     `Prepared subject: ${receipt.payload?.emailPayload?.subject ?? ""}`,
@@ -403,6 +414,7 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
           type: "string",
           enum: ["deliver", "read", "retry", "cancel"],
         },
+        sourceIds: CAREER_DELIVERY_SOURCE_IDS,
         subject: { type: "string" },
         body: { type: "string", description: "Finished Markdown email body. Use actual line breaks for paragraphs and descriptive Markdown links instead of displaying raw URLs, e.g. [포지션](https://matchharper.com/jobs/<job-id>) with the actual URL; the body is rendered directly as email, without chat cards." },
       },
@@ -495,6 +507,10 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
           !input.body.trim()
         )
           throw new Error("Subject and body are required for delivery");
+        const sourceRun = await (admin.from as any)("opportunity_discovery_run").select("trigger_payload")
+          .eq("id", invocation.runId).eq("talent_id", context.userId).single();
+        if (sourceRun.error) throw sourceRun.error;
+        const sourceIds = careerContactSourceIds(sourceRun.data, input.sourceIds);
         const { data: talent, error } = await admin
           .from("talent_users")
           .select("email,deleted_at")
@@ -526,6 +542,7 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
           p_payload: {
             emailPayload,
             bodyMarkdown: input.body,
+            sourceIds,
             meetingScheduleVersions: invocation.meetingScheduleVersions,
             sourceMessageCursor: invocation.sourceMessageCursor,
             parentReplyId: context.resumeRequestId,

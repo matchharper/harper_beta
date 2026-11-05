@@ -46,16 +46,16 @@ function Toast({ item, onClose }: { item: ToastItem; onClose: () => void }) {
       isSpring={true}
       triggerOnce={true}
       className={[
-        "pointer-events-auto flex items-center gap-2 rounded-full border px-4 py-2 text-xs sm:text-sm shadow-lg backdrop-blur",
+        "pointer-events-auto flex items-center gap-2 rounded-toast border-(length:--surface-border-width) px-4 py-2 text-xs sm:text-sm shadow-(--shadow-toast) backdrop-blur-toast",
         item.variant === "dark"
-          ? "border-black bg-black text-white"
+          ? "border-surface-inverse bg-surface-inverse text-on-inverse"
           : item.variant === "success"
-            ? "border-black/5 bg-black/3 text-black"
+            ? "border-toast-border bg-toast bg-toast-image text-toast-foreground"
             : item.variant === "error"
-              ? "border-red-400/50 bg-red-200/90 text-black"
+              ? "border-critical/30 bg-critical-faded text-critical"
               : item.variant === "white"
-                ? "border-white bg-white/80 text-black"
-                : "border-white bg-white/60 text-black",
+                ? "border-toast-border bg-toast bg-toast-image text-toast-foreground"
+                : "border-toast-border bg-toast bg-toast-image text-toast-foreground",
         "",
       ].join(" ")}
       aria-live="polite"

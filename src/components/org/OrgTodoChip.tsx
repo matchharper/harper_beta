@@ -608,7 +608,7 @@ export function OrgTodoArea({
         side="top"
         surface={false}
       >
-        <div className="mx-auto max-h-[min(60svh,560px)] max-w-[1120px] overflow-y-auto rounded-xl border border-neutral-1000-a10 bg-bg-floating pb-1 shadow-lg">
+        <div className="mx-auto max-h-[min(60svh,560px)] max-w-[1120px] overflow-y-auto rounded-xl border border-neutral-1000-a10 bg-bg-floating pb-1 shadow-(--shadow-lg)">
           <OrgTodoList
             columns={ORG_TODO_CHIP_COLUMNS}
             onApprove={onApprove}

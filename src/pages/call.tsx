@@ -169,7 +169,7 @@ const Call: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen max-w-[100vw] flex-col items-center justify-center gap-2 bg-white font-inter text-black">
+    <div className="flex h-screen max-w-[100vw] flex-col items-center justify-center gap-2 bg-bg-floating font-inter text-neutral-primary">
       <div className="flex w-[90vw] flex-row items-stretch justify-between gap-8">
         <div
           className={`flex items-center justify-center transition-transform duration-300 ${
@@ -184,12 +184,12 @@ const Call: React.FC = () => {
               )}
             </div>
 
-            <div className="relative flex h-[380px] w-full items-center justify-center rounded-lg border border-neutral-100 shadow-sm">
+            <div className="relative flex h-[380px] w-full items-center justify-center rounded-lg border border-neutral-100 shadow-(--shadow-sm)">
               <div className="flex flex-col items-center justify-center gap-3">
-                <div className="relative flex h-[140px] w-[140px] items-center justify-center rounded-full bg-[linear-gradient(45deg,#6d28d9,#8b5cf6,#c084fc,#e879f9,#f472b6)] bg-size-[300%_300%] transition-all animate-gradientx">
+                <div className="relative flex h-[140px] w-[140px] items-center justify-center rounded-full bg-call-orb bg-size-[300%_300%] transition-all animate-gradientx">
                   {isPlayingTts && <MicPulseRings count={2} />}
                 </div>
-                <div className="text-xl font-light text-black">Harper</div>
+                <div className="text-xl font-light text-neutral-primary">Harper</div>
               </div>
             </div>
 
@@ -215,22 +215,22 @@ const Call: React.FC = () => {
                         onClick={
                           isRecording ? handleStopRecording : handleStartCall
                         }
-                        className={`flex h-16 items-center justify-center rounded-full border border-black/30 backdrop-blur transition-all duration-300 active:scale-95 ${
+                        className={`flex h-16 items-center justify-center rounded-full border border-stroke-strong/30 backdrop-blur transition-all duration-300 active:scale-95 ${
                           isActiveButton ? "scale-95" : "scale-100"
                         } ${
                           isRecording
                             ? "w-64 bg-neutral-900"
-                            : "w-16 bg-white disabled:opacity-40"
+                            : "w-16 bg-bg-floating disabled:opacity-40"
                         }`}
                       >
                         {isRecording ? (
-                          <Space className="h-5 w-5 text-white" />
+                          <Space className="h-5 w-5 text-on-inverse" />
                         ) : (
-                          <AudioLines className="h-5 w-5 text-black/90" />
+                          <AudioLines className="h-5 w-5 text-neutral-primary/90" />
                         )}
                       </BareButton>
 
-                      <span className="text-sm font-light text-black/80">
+                      <span className="text-sm font-light text-neutral-primary/80">
                         {isRecording
                           ? "Click or Push Spacebar to send"
                           : "Interrupt"}
@@ -241,15 +241,15 @@ const Call: React.FC = () => {
                       <BareButton
                         type="button"
                         onClick={toggleMute}
-                        className="flex h-16 w-16 items-center justify-center rounded-full border border-black/30 transition active:scale-95"
+                        className="flex h-16 w-16 items-center justify-center rounded-full border border-stroke-strong/30 transition active:scale-95"
                       >
                         {isMuted ? (
-                          <MicOff className="h-5 w-5 text-black/90" />
+                          <MicOff className="h-5 w-5 text-neutral-primary/90" />
                         ) : (
-                          <Mic className="h-5 w-5 text-black/90" />
+                          <Mic className="h-5 w-5 text-neutral-primary/90" />
                         )}
                       </BareButton>
-                      <span className="text-base font-light text-black/90">
+                      <span className="text-base font-light text-neutral-primary/90">
                         {isMuted ? "Muted" : "Mute"}
                       </span>
                     </div>
@@ -262,7 +262,7 @@ const Call: React.FC = () => {
                       >
                         <PhoneOff className="h-5 w-5 text-red-600" />
                       </BareButton>
-                      <span className="text-base text-black/90">End Call</span>
+                      <span className="text-base text-neutral-primary/90">End Call</span>
                     </div>
                   </div>
                 </div>
@@ -277,7 +277,7 @@ const Call: React.FC = () => {
           }`}
         >
           <div className="flex w-full flex-row items-center justify-between gap-2">
-            <div className="h-6 w-full text-sm text-black/50">{message}</div>
+            <div className="h-6 w-full text-sm text-neutral-primary/50">{message}</div>
             <div className="flex w-full items-center justify-end">
               <BareButton
                 type="button"
@@ -319,7 +319,7 @@ const Call: React.FC = () => {
                     현재 환경이 대화하기 적합한지 확인하고 싶다면 아래의 테스트
                     버튼을 눌러주세요.
                   </div>
-                  <div className="mt-3 text-sm text-black/60">
+                  <div className="mt-3 text-sm text-neutral-primary/60">
                     테스트는 Chrome 계열 브라우저에서 가장 안정적입니다.
                   </div>
 
@@ -330,7 +330,7 @@ const Call: React.FC = () => {
                         눌러주세요.
                       </div>
 
-                      <div className="flex h-12 items-center justify-start rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm text-black/80">
+                      <div className="flex h-12 items-center justify-start rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm text-neutral-primary/80">
                         {TEST_SCRIPT}
                       </div>
 
@@ -365,7 +365,7 @@ const Call: React.FC = () => {
                     <BareButton
                       type="button"
                       onClick={handleStartTest}
-                      className="flex w-full items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 py-4 text-black hover:bg-neutral-300/40"
+                      className="flex w-full items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 py-4 text-neutral-primary hover:bg-neutral-300/40"
                     >
                       {isTestDone ? (
                         wrongCount > 0 ? (
@@ -374,7 +374,7 @@ const Call: React.FC = () => {
                           "테스트 완료. 다시 테스트 하기"
                         )
                       ) : isTestLoading ? (
-                        <LoaderCircle className="h-6 w-6 animate-spin text-black" />
+                        <LoaderCircle className="h-6 w-6 animate-spin text-neutral-primary" />
                       ) : (
                         "Test"
                       )}
@@ -384,7 +384,7 @@ const Call: React.FC = () => {
                   {isTest && !isTestDone && !isTestLoading && (
                     <div className="flex w-full flex-col items-center justify-center gap-2">
                       <div className="flex w-full items-center gap-3">
-                        <Mic className="h-4 w-4 text-black" />
+                        <Mic className="h-4 w-4 text-neutral-primary" />
 
                         <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-300">
                           <div
@@ -397,7 +397,7 @@ const Call: React.FC = () => {
                       <BareButton
                         type="button"
                         onClick={handleCheckTest}
-                        className="w-full rounded-lg border border-neutral-300 bg-neutral-100 py-4 text-black hover:bg-neutral-300"
+                        className="w-full rounded-lg border border-neutral-300 bg-neutral-100 py-4 text-neutral-primary hover:bg-neutral-300"
                       >
                         제출하기
                       </BareButton>
@@ -407,7 +407,7 @@ const Call: React.FC = () => {
                   <BareButton
                     type="button"
                     onClick={handleStartCall}
-                    className="w-full rounded-lg bg-neutral-1000 py-4 text-white hover:opacity-90"
+                    className="w-full rounded-lg bg-neutral-1000 py-4 text-on-inverse hover:opacity-90"
                   >
                     Start Call
                   </BareButton>
@@ -426,7 +426,7 @@ const Call: React.FC = () => {
                           className="flex w-full flex-col gap-2"
                         >
                           <div className="pt-2">
-                            <div className="whitespace-pre-wrap text-black/80">
+                            <div className="whitespace-pre-wrap text-neutral-primary/80">
                               {transcript}
                             </div>
                           </div>
@@ -443,14 +443,14 @@ const Call: React.FC = () => {
 
                       {isThinking && harperSaying === "" && (
                         <div className="pt-2">
-                          <div className="whitespace-pre-wrap text-black/80">
+                          <div className="whitespace-pre-wrap text-neutral-primary/80">
                             Thinking...
                           </div>
                         </div>
                       )}
 
                       <div className="pt-2">
-                        <div className="whitespace-pre-wrap font-semibold text-black/90">
+                        <div className="whitespace-pre-wrap font-semibold text-neutral-primary/90">
                           {harperSaying}
                         </div>
                         {userTranscript && (

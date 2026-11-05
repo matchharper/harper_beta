@@ -42,45 +42,45 @@ export const ORG_DOCUMENTS_MARKDOWN_STYLES = {
   action:
     "mt-8 font-normal focus-visible:ring-black/10 focus-visible:ring-offset-white",
   blockquote:
-    "mt-6 border-l-2 border-[#d8d1cc] py-0.5 pl-5 text-[16px] font-normal italic leading-7 text-[#504a46]",
+    "mt-6 border-l-2 border-stroke py-0.5 pl-5 text-[16px] font-normal italic leading-7 text-neutral-muted",
   callout: {
     container:
-      "mt-6 flex gap-3.5 rounded-xl border border-[#eee7e3] bg-[#faf7f5] px-4 py-4",
+      "mt-6 flex gap-3.5 rounded-xl border border-stroke-subtle bg-bg-weak px-4 py-4",
     content:
-      "mt-1 text-[15px] leading-[1.7] text-[#504a46] [&_p:first-child]:mt-0",
-    icon: "mt-0.5 size-[17px] shrink-0 text-[#8a766a]",
-    label: "text-[14px] font-semibold leading-5 text-[#272321]",
+      "mt-1 text-[15px] leading-[1.7] text-neutral-muted [&_p:first-child]:mt-0",
+    icon: "mt-0.5 size-[17px] shrink-0 text-neutral-soft",
+    label: "text-[14px] font-semibold leading-5 text-neutral-primary",
   },
-  code: "rounded-md bg-[#f4f1ef] px-1.5 py-0.5 font-mono text-[0.88em] text-[#272321]",
+  code: "rounded-md bg-bg-weak px-1.5 py-0.5 font-mono text-[0.88em] text-neutral-primary",
   codeBlock:
-    "mt-5 rounded-xl border-[#e9e4e1] bg-[#f7f5f4] text-[13px] leading-6 text-[#2b2725]",
-  codeBlockLabel: "mb-2 text-[13px] font-medium leading-5 text-[#716b67]",
-  em: "italic text-[#504a46]",
-  h1: "scroll-mt-36 text-[34px] font-medium leading-[1.2] tracking-[-0.035em] text-[#181717] sm:text-[36px] xl:scroll-mt-12",
+    "mt-5 rounded-xl border-stroke-subtle bg-bg-weak text-[13px] leading-6 text-neutral-primary",
+  codeBlockLabel: "mb-2 text-[13px] font-medium leading-5 text-neutral-muted",
+  em: "italic text-neutral-muted",
+  h1: "scroll-mt-36 text-[34px] font-medium leading-[1.2] tracking-[-0.035em] text-neutral-primary sm:text-[36px] xl:scroll-mt-12",
   eyebrow: "normal-case text-primary",
-  h2: "mt-2 text-[23px] font-medium leading-8 tracking-[-0.025em] text-[#181717] sm:text-[24px]",
-  h3: "scroll-mt-36 mt-11 text-[18px] font-medium leading-7 tracking-[-0.012em] text-[#272321] xl:scroll-mt-12",
-  h4: "scroll-mt-36 mt-9 text-[16px] font-semibold leading-7 text-[#272321] xl:scroll-mt-12",
-  hr: "my-12 border-[#e9e6e4]",
-  image: "mt-6 h-auto max-w-full rounded-xl border border-[#ebe7e4]",
-  lead: "mt-2 text-[16px] font-normal leading-7 text-black",
-  link: "text-[#7c4f35] underline decoration-[#c9a994] decoration-1 underline-offset-4 transition-colors hover:text-[#573824] hover:decoration-current focus-visible:outline-none focus-visible:decoration-current",
-  list: "mt-3 list-disc space-y-2 pl-[19px] text-[16px] font-normal leading-7 text-[#403f3f] marker:text-[#a39b96] [&>li]:pl-1",
+  h2: "mt-2 text-[23px] font-medium leading-8 tracking-[-0.025em] text-neutral-primary sm:text-[24px]",
+  h3: "scroll-mt-36 mt-11 text-[18px] font-medium leading-7 tracking-[-0.012em] text-neutral-primary xl:scroll-mt-12",
+  h4: "scroll-mt-36 mt-9 text-[16px] font-semibold leading-7 text-neutral-primary xl:scroll-mt-12",
+  hr: "my-12 border-stroke-subtle",
+  image: "mt-6 h-auto max-w-full rounded-xl border border-stroke-subtle",
+  lead: "mt-2 text-[16px] font-normal leading-7 text-neutral-primary",
+  link: "text-link underline decoration-link/40 decoration-1 underline-offset-4 transition-colors hover:text-link-hover hover:decoration-current focus-visible:outline-none focus-visible:decoration-current",
+  list: "mt-3 list-disc space-y-2 pl-[19px] text-[16px] font-normal leading-7 text-neutral-primary marker:text-neutral-soft [&>li]:pl-1",
   orderedList:
-    "mt-3 list-decimal space-y-2.5 pl-[22px] text-[16px] font-normal leading-7 text-[#403f3f] marker:font-medium marker:text-[#716b67] [&>li]:pl-1",
-  paragraph: "mt-4 text-[16px] font-normal leading-7 text-[#403f3f] first:mt-0",
+    "mt-3 list-decimal space-y-2.5 pl-[22px] text-[16px] font-normal leading-7 text-neutral-primary marker:font-medium marker:text-neutral-muted [&>li]:pl-1",
+  paragraph: "mt-4 text-[16px] font-normal leading-7 text-neutral-primary first:mt-0",
   quote: {
     container: "mt-6",
     content:
-      "mt-2 border-l-2 border-[#d8d1cc] py-0.5 pl-5 text-[16px] font-normal italic leading-7 text-[#504a46] [&_p:first-child]:mt-0",
-    label: "text-[13px] font-medium leading-5 text-[#716b67]",
+      "mt-2 border-l-2 border-stroke py-0.5 pl-5 text-[16px] font-normal italic leading-7 text-neutral-muted [&_p:first-child]:mt-0",
+    label: "text-[13px] font-medium leading-5 text-neutral-muted",
   },
-  strong: "font-semibold text-[#272321]",
+  strong: "font-semibold text-neutral-primary",
   table:
-    "w-full border-collapse text-left text-[14px] leading-6 text-[#504a46]",
-  tableCell: "border-t border-[#ebe7e4] px-4 py-3 align-top",
-  tableHead: "bg-[#f7f5f4] px-4 py-3 font-semibold text-[#272321]",
-  tableWrapper: "mt-6 overflow-x-auto rounded-xl border border-[#ebe7e4]",
+    "w-full border-collapse text-left text-[14px] leading-6 text-neutral-muted",
+  tableCell: "border-t border-stroke-subtle px-4 py-3 align-top",
+  tableHead: "bg-bg-weak px-4 py-3 font-semibold text-neutral-primary",
+  tableWrapper: "mt-6 overflow-x-auto rounded-xl border border-stroke-subtle",
 } as const;
 
 export const ORG_DOCUMENTS_SECTION_EYEBROWS: Record<string, string> = {

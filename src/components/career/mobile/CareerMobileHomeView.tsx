@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { CareerActionItemsPanel } from "../CareerActionItemsPanel";
+import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
 import {
   Check,
   ChevronRight,
@@ -82,6 +84,7 @@ type HomeHistoryTarget = {
 };
 
 type CareerMobileHomeViewProps = {
+  onOpenChatAction: (action: CareerComposerPendingAction) => void;
   onOpenChat: () => void;
   onOpenHistory: (target?: HomeHistoryTarget) => void;
 };
@@ -104,7 +107,7 @@ const ChecklistItem = ({
       aria-hidden
       className={cn(
         "mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors",
-        state === "done" && "border-neutral-800 bg-black text-neutral-00",
+        state === "done" && "border-neutral-800 bg-surface-inverse text-neutral-00",
         state === "current" &&
           "border-neutral-800 bg-bg-floating text-neutral-muted",
         state === "pending" &&
@@ -157,7 +160,7 @@ const SummaryCard = ({
     <ActionButton
       actionVariant="secondary"
       onClick={onClick}
-      className="w-full flex flex-col w-[50%] items-center justify-center gap-4 h-24 rounded-3xl shadow-xs"
+      className="w-full flex flex-col w-[50%] items-center justify-center gap-4 h-24 rounded-3xl shadow-(--shadow-xs)"
     >
       <span className={cn("inline-flex items-center justify-center")}>
         {icon}
@@ -241,7 +244,7 @@ const CareerMobileHomeSkeleton = () => {
       className="flex flex-col gap-6 px-4 pb-[160px] pt-4"
     >
       <section className="relative flex min-h-[44svh] flex-col items-center justify-center gap-2 overflow-hidden pb-2">
-        <div className="mt-0 w-full rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-5 shadow-sm">
+        <div className="mt-0 w-full rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-5 shadow-(--shadow-sm)">
           <div className="flex w-full flex-col items-center justify-center gap-2 px-2 py-2">
             <Skeleton className="h-5 w-44 rounded-full" />
             <Skeleton className="h-4 w-full max-w-[260px] rounded-full" />
@@ -277,6 +280,7 @@ const CareerMobileHomeSkeleton = () => {
 };
 
 const CareerMobileHomeView = ({
+  onOpenChatAction,
   onOpenChat,
   onOpenHistory,
 }: CareerMobileHomeViewProps) => {
@@ -412,6 +416,7 @@ const CareerMobileHomeView = ({
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-[160px] pt-4">
+      {isOnboardingCompleted && <CareerActionItemsPanel onOpenChatAction={onOpenChatAction} />}
       <InternalRoleDecisionBanner
         onConfirm={(roleId) =>
           onOpenHistory({
@@ -475,7 +480,7 @@ const CareerMobileHomeView = ({
       </div>
 
       {!isOnboardingCompleted ? (
-        <section className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-5 py-5 shadow-sm">
+        <section className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-5 py-5 shadow-(--shadow-sm)">
           <div className="text-[15px] font-medium text-neutral-primary">
             {t(
               "career.home.career_home_panel.1ol18h9",

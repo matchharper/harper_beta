@@ -1,11 +1,7 @@
 import { formatInternalCallQuestionContext } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import type { CareerReengagementPendingAction } from "@/lib/career/pendingActions";
-import {
-  CAREER_REENGAGEMENT_ACTIONS_END,
-  CAREER_REENGAGEMENT_ACTIONS_START,
-  prependCareerReengagementAction,
-} from "@/lib/career/reengagementActions";
+import { prependCareerReengagementAction } from "@/lib/career/reengagementActions";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
   formatCareerPromptKoreanDateTime,
@@ -123,20 +119,15 @@ export function buildCareerSessionStartTurnInstruction(args: {
     : [];
   return [
     "## Session re-engagement",
-    `사용자가 새 메시지를 보내지 않은 상태에서 Career에 다시 접속했다. 이번 발화는 다시 방문한 사용자를 자연스러운 인사로 맞이하며 새로 대화를 여는 차례다. 이전 대화는 과거 맥락이며, 마지막 답변의 뒷부분을 이어 쓰거나 과거 사용자 발화를 새 요청으로 취급하지 않는다. 먼저 ${outputLanguage}로 반갑게 인사를 건네고, 현재 관심사와 상황에 맞는 이야기를 자연스럽게 연결한다.`,
+    `사용자가 새 메시지를 보내지 않은 상태에서 Career에 다시 접속했다. 재접속 자체는 새 요청이나 추가 동의가 아니다. 대화와 기록에 남은 사용자 목적·선호·제약과 이미 위임한 일을 현재 상태에 이어서 적용하고, 지금 알아두거나 행동할 것이 있는지 판단한다. 대화가 도움이 되면 ${outputLanguage}로 자연스럽게 말을 건넬 수 있다.`,
+    "사용자의 목적·관심사·현재 맥락을 바탕으로 지금 도움이 될 만한 할 일 혹은 미완료 작업을 스스로 제안하고, manage_action_items로 실제 할 일 목록에 남긴다. 사용자가 새 메시지를 보내지 않아도 홈에서 제안을 발견하고 시작할 수 있어야 한다. 현재 목록을 함께 살펴 해결되거나 달라진 항목은 삭제·수정하고 같은 목적을 중복 생성하지 않는다. 유용한 항목이 없으면 빈 목록을 유지해도 된다. 목록 정리와 채팅 발화 여부는 별개이며, 목록만 갱신하고 no-message로 끝낼 수 있다.",
     "제공된 매칭 결과와 현재 관심사·추천 이력을 보고 소개할 가치가 있는 포지션이 있다면, 말로만 기회를 언급하기보다 가능하면 upsert_opportunities로 실제 추천 목록에 반영한다. 기존 결과가 부족하거나 현재 방향과 맞지 않으면 추가 결과를 읽거나 새로 검색할 수 있다. 마지막 검색과 평가 시점, 진행 중인 작업, 최근 대화와 미결정 사항을 참고해 지금 도움이 되는 행동을 판단한다.",
     `- currentAccessAt: ${currentAccessAtLabel}`,
     `- previousChatAt: ${previousChatAtLabel}`,
-    "시각은 24시간제이며 내부 판단용이다. 사용자에게 날짜·시각·경과 시간을 말하거나 이전 대화를 방금 일처럼 표현하지 마라.",
+    "위 접속·대화 시각은 24시간제이며 내부 판단용이다. 접속 간격을 사용자에게 설명하거나 이전 대화를 방금 일처럼 표현하지 마라. 실제 마감·약속 시각은 행동 판단에 필요한 원본 사실이다.",
     ...reengagementHistoryLines,
     ...pendingActionLines,
     `맥락에 맞는 유용한 메시지를 만들 수 없으면 정확히 ${CAREER_SESSION_START_NO_MESSAGE_MARKER}만 출력한다.`,
-    "본문에서 사용자가 바로 실행할 수 있는 선택을 제안했다면 아래 raw JSON 블록에 맞는 액션을 붙인다. 실행 선택이 없으면 블록을 생략하고 일반 CAREER_CHOICE_BUTTONS는 쓰지 않는다. 마커와 JSON은 코드 펜스 없이 출력한다.",
-    CAREER_REENGAGEMENT_ACTIONS_START,
-    '{"actions":[{"label":"사용자에게 보일 짧은 문구","action":{"type":"send_message","message":"클릭하면 사용자가 Harper에게 보낼 완전한 메시지"}},{"label":"사용자에게 보일 짧은 문구","action":{"type":"open_path","path":"/career/profile"}},{"label":"처리할 항목에 답하기","action":{"type":"open_pending_action","actionKey":"위에 제공된 정확한 actionKey"}},{"label":"통화 시작하기","action":{"type":"start_call","actionKey":"위에 제공된 통화 action의 정확한 actionKey"}}]}',
-    CAREER_REENGAGEMENT_ACTIONS_END,
-    "action block을 출력할 때 시작·종료 marker는 위 문자열을 ASCII 그대로 각각 한 번씩 별도 줄에 쓰고, 종료 marker 뒤에 다른 문자나 문장부호를 붙이지 않는다.",
-    "액션은 본문에 맞는 것만 최대 4개까지 만든다. label과 실제 action의 대상·범위·전달 채널을 맞춘다. pending action을 열거나 통화를 시작할 때는 위에 제공된 정확한 actionKey를 사용한다. send_message는 즉시 전송돼도 자연스러운 완전한 문장으로 쓴다. open_path는 /career, /career/profile, /career/history, /career/watchlist와 그 하위 query만 쓴다.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -322,7 +313,9 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(
  * Internal 수락시 추가적인 정보 질문을 위해 voice call을 진행할 때 사용되는 프롬프트
  */
 export function buildInternalOpportunityRealtimeInstruction(
-  callRequest: InternalOpportunityCallRequest & { preferredLocale?: string | null }
+  callRequest: InternalOpportunityCallRequest & {
+    preferredLocale?: string | null;
+  }
 ) {
   return [
     "## Accepted internal opportunity call",

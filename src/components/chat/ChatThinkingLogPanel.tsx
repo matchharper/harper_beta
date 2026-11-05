@@ -1,7 +1,6 @@
 import {
   BookOpen,
   Check,
-  ChevronDown,
   ChevronRight,
   CircleAlert,
   ExternalLink,
@@ -11,7 +10,7 @@ import {
   ScanSearch,
   Send,
 } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 
 import { BareButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,6 +19,7 @@ export type ChatThinkingLogEntry = {
   id?: string;
   icon?: "read" | "write" | "send" | "run" | "search" | "link";
   label: string;
+  content?: ReactNode;
   status?: "done" | "error" | "running";
 };
 
@@ -119,17 +119,21 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
   startedAt,
   statusLabel: statusLabelOverride,
 }: ChatThinkingLogPanelProps) {
-  const [expanded, setExpanded] = useState(active);
+  const [expanded, setExpanded] = useState(false);
   const isExpanded = active || expanded;
-  const duration =
-    !active && hasToolWork
-      ? formatChatWorkDuration(startedAt, completedAt)
-      : null;
+  const [now, setNow] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    if (!active || !startedAt) return;
+    setNow(new Date().toISOString());
+    const timer = setInterval(() => setNow(new Date().toISOString()), 1000);
+    return () => clearInterval(timer);
+  }, [active, startedAt]);
+  const duration = formatChatWorkDuration(startedAt, active ? now : completedAt);
   const statusLabel =
     statusLabelOverride ??
     (hasToolWork ? (active ? "Working" : "Worked") : "Thinking");
 
-  if (logs.length === 0) return null;
+  if (logs.length === 0 && !startedAt && !active) return null;
 
   return (
     <div
@@ -139,11 +143,12 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
       )}
       aria-live={active ? "polite" : undefined}
     >
-      <div
+      <BareButton
+        disabled={logs.length === 0}
         onClick={() => setExpanded((previous) => !previous)}
-        aria-expanded={isExpanded}
+        aria-expanded={logs.length > 0 ? isExpanded : undefined}
         className={cn(
-          "inline-flex w-fit items-center gap-1.5 cursor-default rounded-[8px] py-1 font-normal text-neutral-soft transition-colors hover:text-neutral-900"
+          "inline-flex w-fit items-center gap-1.5 cursor-default rounded-md py-1 font-normal text-neutral-soft transition-colors hover:text-neutral-900"
         )}
       >
         {active ? <Loader2 className="h-4 w-4 animate-spin" /> : <></>}
@@ -151,23 +156,25 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
           {statusLabel}
           {duration ? ` for ${duration}` : ""}
         </span>
-        <ChevronRight
-          className={cn(
-            "h-4 w-4 transition-transform duration-200",
-            isExpanded ? "rotate-90" : ""
-          )}
-          strokeWidth={1.6}
-        />
-      </div>
-      {isExpanded ? (
-        <div className="mb-2">
+        {logs.length > 0 && (
+          <ChevronRight
+            className={cn(
+              "h-4 w-4 transition-transform duration-200",
+              isExpanded ? "rotate-90" : ""
+            )}
+            strokeWidth={1.6}
+          />
+        )}
+      </BareButton>
+      {
+        <div hidden={!isExpanded || logs.length === 0} className="mb-2">
           <ol className="flex flex-col gap-1.5">
             {logs.map((log, index) => {
               const entry: ChatThinkingLogEntry =
                 typeof log === "string" ? { label: log } : log;
               return (
                 <li
-                  key={entry.id || `${index}-${entry.label}`}
+                  key={entry.id ?? index}
                   className={cn(
                     "wrap-break-word flex items-start gap-2 text-neutral-muted"
                   )}
@@ -178,13 +185,13 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
                       status={entry.status}
                     />
                   ) : null}
-                  <span>{entry.label}</span>
+                  {entry.content ?? <span>{entry.label}</span>}
                 </li>
               );
             })}
           </ol>
         </div>
-      ) : null}
+      }
     </div>
   );
 });

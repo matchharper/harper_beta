@@ -44,12 +44,12 @@ function normalizeLinks(raw: any): string[] {
 
 function ErrorCard({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-900 px-6 font-sans text-white">
-      <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-white/5 p-6">
+    <div className="flex min-h-screen items-center justify-center bg-neutral-900 px-6 font-sans text-on-inverse">
+      <div className="w-full max-w-md rounded-sheet border border-bg-floating/10 bg-bg-floating/5 p-6">
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 text-neutral-500" />
           <div>
-            <div className="text-base font-medium text-white">{title}</div>
+            <div className="text-base font-medium text-on-inverse">{title}</div>
             <div className="mt-2 text-sm leading-6 text-neutral-500">{desc}</div>
           </div>
         </div>
@@ -127,13 +127,13 @@ export default function SharedFolderCandidatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-900 font-sans text-white">
+    <div className="min-h-screen bg-neutral-900 font-sans text-on-inverse">
       <div className="sticky top-0 z-20 border-b border-b-white/5 bg-neutral-900/90 backdrop-blur">
         <div className="mx-auto flex max-w-[980px] items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <Link
               href={`/share/folder/${encodeURIComponent(token)}`}
-              className="inline-flex items-center gap-2 text-sm text-neutral-300 transition-colors hover:text-white"
+              className="inline-flex items-center gap-2 text-sm text-neutral-300 transition-colors hover:text-on-inverse"
             >
               <ChevronLeft className="h-4 w-4" />
               {folder?.name ?? "Shared folder"}
@@ -145,7 +145,7 @@ export default function SharedFolderCandidatePage() {
       <div className="mx-auto max-w-[980px] space-y-10 px-4 py-10">
         <div className="">
           <div className="mb-5 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/15 px-3 py-1.5">
+            <span className="inline-flex items-center gap-2 rounded-full border border-bg-floating/10 bg-surface-inverse/15 px-3 py-1.5">
               <Lock className="h-3.5 w-3.5" />
               공유 폴더에서 열람 중
             </span>
@@ -166,7 +166,7 @@ export default function SharedFolderCandidatePage() {
                   href={candid.linkedin_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-sm text-neutral-200 transition-colors hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-xl border border-bg-floating/10 bg-surface-inverse/15 px-3 py-2 text-sm text-neutral-200 transition-colors hover:bg-bg-floating/10"
                 >
                   <ExternalLink className="h-4 w-4" />
                   LinkedIn

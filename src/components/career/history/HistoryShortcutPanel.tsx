@@ -17,7 +17,7 @@ import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 
 const ShortcutKey = ({ children }: { children: React.ReactNode }) => (
-  <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded-[4px] bg-bg-weak px-1 text-[9.5px] font-medium leading-none text-neutral-muted shadow-[0_1px_0_color-mix(in_srgb,var(--color-neutral-1000)_5%,transparent)]">
+  <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-bg-weak px-1 text-[9.5px] font-medium leading-none text-neutral-muted shadow-(--shadow-lg)">
     {children}
   </kbd>
 );
@@ -42,7 +42,7 @@ const ShortcutActionButton = ({
     onClick={onClick}
     disabled={disabled}
     className={cn(
-      "inline-flex h-10 min-w-[92px] flex-1 items-center justify-center gap-1 rounded-[8px] px-2 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55",
+      "inline-flex h-10 min-w-[92px] flex-1 items-center justify-center gap-1 rounded-md px-2 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55",
       className
     )}
   >
@@ -66,7 +66,7 @@ const ShortcutNavButton = ({
     onClick={onClick}
     disabled={disabled}
     aria-label={label}
-    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-bg-weak text-neutral-primary transition-colors hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40"
+    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-bg-weak text-neutral-primary transition-colors hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40"
   >
     {children}
   </BareButton>
@@ -99,11 +99,11 @@ const HistoryShortcutPanel = ({
   const positiveActionClassName =
     item.isInternal || item.sourceType === "internal"
       ? "bg-primary text-neutral-00 hover:opacity-90"
-      : "bg-black text-neutral-00 hover:opacity-90";
+      : "bg-surface-inverse text-neutral-00 hover:opacity-90";
 
   return (
     <div className="space-y-2.5">
-      <div className="flex text-sm flex-wrap items-center gap-1 rounded-[10px] sm:flex-nowrap">
+      <div className="flex text-sm flex-wrap items-center gap-1 rounded-md sm:flex-nowrap">
         <ShortcutNavButton
           onClick={onPrev}
           disabled={activeIndex <= 0}

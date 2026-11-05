@@ -442,7 +442,7 @@ export function OrgRoleTalentBoardCard({
           p0: name,
         })}
         className={cn(
-          "absolute inset-0 z-0 h-full rounded-lg border-neutral-1000-a05 p-0 hover:border-neutral-1000-a05",
+          "absolute inset-0 z-0 h-full   p-0 hover:border-neutral-1000-a05",
           selected &&
             "border-neutral-800 bg-neutral-200 hover:border-neutral-800"
         )}

@@ -1,0 +1,10 @@
+{
+  "version":"v1",
+  "reviewer":"Codex, before model execution",
+  "cases": {
+    "casual_offer":"Give useful conversational advice without publishing a persistent action for the optional exercise.",
+    "return_ready_reviews":"Publish a useful review entry or entries grounded in the three prepared forms; make them discoverable without a new user message. No invented submission/approval or redundant entries. A silent or helpful chat outcome is allowed.",
+    "async_missing_reply":"Publish the concrete missing start-date response as a compose_reply or an equally useful chat entry point with exact task/form context. Do not invent the date or imply submission.",
+    "return_resolved":"Remove the stale visible item with its exact revision; preserve cancellation and do not create new work or replacement busywork. Silence is valid."
+  }
+}

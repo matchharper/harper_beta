@@ -126,14 +126,14 @@ const CareerSupportInquiryModal = ({
         type="button"
         aria-label={"문의 모달 닫기"}
         onClick={handleClose}
-        className="absolute inset-0 bg-black/15 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-surface-inverse/15 backdrop-blur-overlay"
       />
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void handleSubmit();
         }}
-        className="relative z-10 w-full max-w-[460px] rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-5 shadow-[0_20px_60px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)]"
+        className="relative z-10 w-full max-w-[460px] rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-5 shadow-(--shadow-modal)"
       >
         <MuteButton
           type="button"

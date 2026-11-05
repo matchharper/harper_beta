@@ -1,3 +1,4 @@
+import { createCareerAssistantMessageWriter } from "@/lib/career/assistantMessageWriter";
 import { CareerTurnCancelled, watchCareerTurnCancellation } from "@/lib/career/turnCancellation.server";
 import { createCareerFormPresenter } from "@/lib/career/forms/server";
 import { throwIfToolControlError } from "@/lib/llm/toolError";
@@ -139,6 +140,7 @@ import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 import { normalizeCareerPendingActionReference } from "@/lib/career/pendingActions";
+import { readCareerActionItem } from "@/lib/career/actionItems.server";
 import {
   extractRecommendJobPostingsReceipt,
   type RecommendJobPostingsReceipt,
@@ -183,6 +185,7 @@ type Body = {
   opportunityMentions?: unknown;
   viewedRoleId?: unknown;
   pendingAction?: unknown;
+  actionItem?: { id?: unknown; revision?: unknown };
   textChatModel?: unknown;
   promptVariant?: unknown;
   conversationVersion?: unknown;
@@ -510,6 +513,7 @@ async function fetchStoppedRecommendationSourceMessage(args: {
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
+  const requestStartedAt = new Date().toISOString();
   let releaseAgentTurn: (() => Promise<void>) | undefined;
   let executionSignal = req.signal;
   let standaloneCancellation: ReturnType<typeof watchCareerTurnCancellation> | undefined;
@@ -885,6 +889,18 @@ export async function POST(req: NextRequest) {
       ReturnType<typeof fetchActiveInternalFitHoldQuestion>
     > = null;
     let selectedInternalOpportunity: TalentOpportunityHistoryItem | null = null;
+    let selectedActionItem = null;
+    if (body.actionItem !== undefined) {
+      const reference = body.actionItem;
+      if (!reference || typeof reference.id !== "string" || !Number.isSafeInteger(reference.revision) ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reference.id)) {
+        return NextResponse.json({ error: "Invalid action reference" }, { status: 400 });
+      }
+      selectedActionItem = await readCareerActionItem({ admin, userId: user.id, id: reference.id });
+      if (!selectedActionItem || selectedActionItem.revision !== reference.revision) {
+        return NextResponse.json({ error: "This action has changed. Refresh the action list before responding." }, { status: 409 });
+      }
+    }
 
     if (talentSetting?.is_onboarding_done && pendingActionReference) {
       if (pendingActionReference.kind === "company_request") {
@@ -972,6 +988,7 @@ export async function POST(req: NextRequest) {
         p_user_id: user.id, p_conversation_id: conversationId, p_content: normalizedContent,
         p_message_type: userMessageType, p_is_mobile: isMobile,
         p_payload: { ...initialCareerCapabilityPayload(capabilityMode), careerTextChatModel: textChatModel.model,
+          ...(selectedActionItem ? { careerActionItem: selectedActionItem } : {}),
           careerConversationVersion: conversationVersion, clientRequestId: body.clientRequestId ?? crypto.randomUUID(),
           ...(promptExperiment ? { careerPromptExperiment: promptExperiment } : {}),
           ...(viewedOpportunity ? { viewedOpportunity: { roleId: viewedOpportunity.roleId, label: `${viewedOpportunity.companyName} · ${viewedOpportunity.title}` } } : {}),
@@ -997,6 +1014,7 @@ export async function POST(req: NextRequest) {
             content: normalizedContent,
             message_type: userMessageType,
             payload: {
+              ...(selectedActionItem ? { careerActionItem: selectedActionItem } : {}),
               ...(trackCapabilities ? initialCareerCapabilityPayload(capabilityMode) : {}),
               careerTextChatModel: textChatModel.model,
               careerConversationVersion: conversationVersion,
@@ -1237,6 +1255,7 @@ export async function POST(req: NextRequest) {
       .filter((value): value is string => Boolean(value))
       .join("\n\n");
     const currentPromptArgs = (): Parameters<typeof buildCareerConversationPromptPlan>[0] => ({
+        isMobile,
         activeInternalFitHoldQuestion,
         conversationVersion,
         careerCoachingActivity,
@@ -1371,17 +1390,31 @@ export async function POST(req: NextRequest) {
       message => onArtifactMessage(message, false),
       capabilityTurn?.replyId ?? `message:${insertedUserMessage.id}`
     );
+    const messageWriter = !isOnboardingActive && conversationVersion === "professional" && requestChannel === "chat"
+      ? await createCareerAssistantMessageWriter({ admin, userId: user.id, conversationId, isMobile,
+          replyId: capabilityTurn?.replyId ?? `message:${insertedUserMessage.id}`,
+          startedAt: requestStartedAt,
+          check: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
+        }) : null;
+    const replyPayload = () => ({ suppressRolePreviews, careerTurnSourceMessageId: insertedUserMessage.id,
+      ...(capabilityTurn ? { agentTurn: capabilityTurn.getCompletionPayload() } : {}),
+      ...(savedInternalCallAnswers ? { internalCallAnswerMessageId: savedInternalCallAnswers.message.id } : {}),
+      workStartedAt: requestStartedAt, workCompletedAt: new Date().toISOString(),
+    });
     const commitAssistantProgressRow = async (text: string) => {
       const content = stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(text));
       if (!content.trim()) return null;
+      if (messageWriter) return messageWriter.progress(content, thinkingLogs);
       const { data, error } = await admin.from("talent_messages").insert(withIsMobile({
         conversation_id: conversationId, user_id: user.id, role: "assistant",
-        content, message_type: "chat", payload: { suppressRolePreviews, careerTurnSourceMessageId: insertedUserMessage.id }, thinking_logs: thinkingLogs,
+        content, message_type: "chat", payload: { suppressRolePreviews, careerTurnSourceMessageId: insertedUserMessage.id, workStartedAt: requestStartedAt, workCompletedAt: new Date().toISOString() }, thinking_logs: thinkingLogs,
       }, isMobile)).select("*").single();
       if (error || !data) throw new Error(error?.message ?? "Failed to save assistant progress");
       return data as TalentMessageRow;
     };
     const finishArtifactOnlyTurn = async () => {
+      const row = await messageWriter?.finish("", thinkingLogs, replyPayload());
+      if (row) onArtifactMessage(toResponseMessage(row), false);
       await formPresenter.flush();
       await capabilityTurn?.complete();
       await commitDeliveredProcessClosureNotices({
@@ -1412,6 +1445,7 @@ export async function POST(req: NextRequest) {
       };
       return { response, profileSnapshot };
     };
+    let emitTurnProgress: ((message: TalentMessageResponse) => void) | null = null;
     let emitToolStatus: ((message: string) => void) | null = null;
     let emitRecommendationStatus:
       | ((status: RecommendJobPostingStatus) => void)
@@ -1426,6 +1460,9 @@ export async function POST(req: NextRequest) {
       thinkingLogs = appendThinkingLog(thinkingLogs, normalized);
       if (previousLast !== normalized) {
         emitToolStatus?.(normalized);
+        void messageWriter?.logs(thinkingLogs).then(row => {
+          if (row) emitTurnProgress?.(toResponseMessage(row));
+        });
       }
     };
     const recordRecommendationStatus = (
@@ -1636,11 +1673,13 @@ export async function POST(req: NextRequest) {
           };
           emitArtifactMessage = (message) =>
             send("artifact_message", { message, suppressRolePreviews });
+          emitTurnProgress = (message) => send("assistant_progress", { message });
           emitToolStatus = (message) => send("tool_status", { message });
           emitRecommendationStatus = (status) =>
             send("recommendation_search_status", status);
           emitOpportunityRecommendationsChanged = (roleId) =>
             send("opportunity_recommendations_changed", { roleId });
+          let committedAssistantText = "";
           let pendingAssistantText = "";
           let streamedAssistantText = "";
           let recommendationToolStarted = false;
@@ -1656,10 +1695,15 @@ export async function POST(req: NextRequest) {
 
             const visibleDelta = pendingAssistantText.slice(0, safeLength);
             pendingAssistantText = pendingAssistantText.slice(safeLength);
+            if (messageWriter && committedAssistantText && streamedAssistantText === committedAssistantText) {
+              streamedAssistantText += "\n\n";
+              send("text_delta", { delta: "\n\n" });
+            }
             streamedAssistantText += visibleDelta;
             send("text_delta", { delta: visibleDelta });
           };
           const flushVisibleText = (finalText: string) => {
+            if (messageWriter) return;
             if (!finalText.startsWith(streamedAssistantText)) {
               pendingAssistantText = "";
               streamedAssistantText = finalText;
@@ -1680,7 +1724,13 @@ export async function POST(req: NextRequest) {
             if (!content.trim()) return;
             const message = await commitAssistantProgressRow(content);
             if (!message) return;
-            flushVisibleText(content);
+            flushVisibleText(messageWriter ? message.content : content);
+            if (messageWriter) {
+              committedAssistantText = content;
+              send("assistant_progress", { message: toResponseMessage(message) });
+              onArtifactMessage(toResponseMessage(message), false);
+              return;
+            }
             send("assistant_message", { message: toResponseMessage(message as TalentMessageRow), continuing: true });
             pendingAssistantText = "";
             streamedAssistantText = "";
@@ -1709,6 +1759,8 @@ export async function POST(req: NextRequest) {
               message: toResponseMessage(insertedUserMessage as TalentMessageRow),
             });
             if(suppressRolePreviews) send("application_mode", {suppressRolePreviews:true});
+            const initialActivity = await messageWriter?.start();
+            if (initialActivity) send("assistant_progress", { message: toResponseMessage(initialActivity) });
             let assistantText: string;
             try {
               assistantText = await runCareerChatAssistantStream({
@@ -1723,11 +1775,14 @@ export async function POST(req: NextRequest) {
                 stopAfterToolNames: toolSelection.stopAfterToolNames,
                 systemBlocks,
                 responseLocale,
-                onTextDelta: (delta) => {
-                  if (!recommendationToolStarted) sendVisibleTextDelta(delta);
+                onTextDelta: async (delta) => {
+                  if (messageWriter) {
+                    const row = await messageWriter.delta(stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(delta)), thinkingLogs);
+                    if (row) send("assistant_progress", { message: toResponseMessage(row) });
+                  } else if (!recommendationToolStarted) sendVisibleTextDelta(delta);
                 },
                 onAssistantMessage: commitAssistantProgress,
-                onToolStart: (tool) => {
+                onToolStart: async (tool) => {
                   if (tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
                     recommendationToolStarted = true;
                     markRecommendationStatusAnchor();
@@ -1882,11 +1937,12 @@ export async function POST(req: NextRequest) {
               send("done", { ok: true, stopped: true });
               return;
             }
-            flushVisibleText(safeAssistantText);
+            flushVisibleText(messageWriter ? [committedAssistantText, safeAssistantText].filter(Boolean).join("\n\n") : safeAssistantText);
             send("assistant_text_done", { ok: true });
 
-            const { data: insertedAssistantMessage, error: assistantError } =
-              await admin
+            const { data: insertedAssistantMessage, error: assistantError } = messageWriter
+              ? { data: await messageWriter.finish(safeAssistantText, thinkingLogs, replyPayload()), error: null }
+              : await admin
                 .from("talent_messages")
                 .insert(
                   withIsMobile(
@@ -1896,7 +1952,7 @@ export async function POST(req: NextRequest) {
                       role: "assistant",
                       content: safeAssistantText,
                       message_type: "chat",
-                      payload: {suppressRolePreviews, careerTurnSourceMessageId: insertedUserMessage.id, ...(capabilityTurn ? { agentTurn: capabilityTurn.getCompletionPayload() } : {}), ...(savedInternalCallAnswers ? { internalCallAnswerMessageId: savedInternalCallAnswers.message.id } : {})},
+                      payload: replyPayload(),
                       thinking_logs: thinkingLogs,
                     },
                     isMobile
@@ -1905,9 +1961,9 @@ export async function POST(req: NextRequest) {
                 .select("*")
                 .single();
 
-            if (assistantError) {
+            if (assistantError || !insertedAssistantMessage) {
               throw new Error(
-                assistantError.message ?? "Failed to insert assistant message"
+                assistantError?.message ?? "Failed to insert assistant message"
               );
             }
 
@@ -2010,7 +2066,7 @@ export async function POST(req: NextRequest) {
               await attachPostingPreviewsToMessages({
                 admin,
                 messages: [
-                  ...auxiliaryAssistantMessages,
+                  ...auxiliaryAssistantMessages.filter(message => message.id !== insertedAssistantMessage.id),
                   withRecommendationStatusAnchor({
                     ...toResponseMessage(
                       insertedAssistantMessage as TalentMessageRow
@@ -2095,6 +2151,7 @@ export async function POST(req: NextRequest) {
             send("talent_profile", profileSnapshot);
             send("done", { ok: true });
           } catch (error) {
+            await messageWriter?.interrupt().catch(() => undefined);
             if (error instanceof CareerReplyContinuation) { send("done", { ok: true, continuationQueued: true }); return; }
             if (error instanceof CareerTurnCancelled || executionSignal.aborted) {
               send("done", { ok: true, stopped: true });
@@ -2122,6 +2179,7 @@ export async function POST(req: NextRequest) {
           } finally {
             await releaseAgentTurn?.();
             emitArtifactMessage = null;
+            emitTurnProgress = null;
             emitToolStatus = null;
             emitRecommendationStatus = null;
             emitOpportunityRecommendationsChanged = null;
@@ -2146,8 +2204,8 @@ export async function POST(req: NextRequest) {
         onAssistantMessage: async (text) => {
           const row = await commitAssistantProgressRow(text);
           if (!row) return;
-          auxiliaryAssistantMessages.push(toResponseMessage(row));
-          thinkingLogs = [];
+          onArtifactMessage(toResponseMessage(row), false);
+          if (!messageWriter) thinkingLogs = [];
         },
         toolRuntime: capabilityTurn?.runtime,
                 hasDeliveredArtifact: () => deliveredArtifact || formPresenter.hasPending(),
@@ -2291,8 +2349,9 @@ export async function POST(req: NextRequest) {
       });
     }
     // --- Save assistant message ---
-    const { data: insertedAssistantMessage, error: assistantError } =
-      await admin
+    const { data: insertedAssistantMessage, error: assistantError } = messageWriter
+      ? { data: await messageWriter.finish(safeAssistantText, thinkingLogs, replyPayload()), error: null }
+      : await admin
         .from("talent_messages")
         .insert(
           withIsMobile(
@@ -2302,7 +2361,7 @@ export async function POST(req: NextRequest) {
               role: "assistant",
               content: safeAssistantText,
               message_type: "chat",
-              payload: {suppressRolePreviews, careerTurnSourceMessageId: insertedUserMessage.id, ...(capabilityTurn ? { agentTurn: capabilityTurn.getCompletionPayload() } : {}), ...(savedInternalCallAnswers ? { internalCallAnswerMessageId: savedInternalCallAnswers.message.id } : {})},
+              payload: replyPayload(),
               thinking_logs: thinkingLogs,
             },
             isMobile
@@ -2311,7 +2370,7 @@ export async function POST(req: NextRequest) {
         .select("*")
         .single();
 
-    if (assistantError) {
+    if (assistantError || !insertedAssistantMessage) {
       await notifyUnsupportedUnicodeEscapeError({
         conversationId,
         error: assistantError,
@@ -2329,7 +2388,7 @@ export async function POST(req: NextRequest) {
       await releaseAgentTurn?.();
       return NextResponse.json(
         {
-          error: assistantError.message ?? "Failed to insert assistant message",
+          error: assistantError?.message ?? "Failed to insert assistant message",
         },
         { status: 500 }
       );
@@ -2414,7 +2473,7 @@ export async function POST(req: NextRequest) {
     const assistantResponseMessages = await attachPostingPreviewsToMessages({
       admin,
       messages: [
-        ...auxiliaryAssistantMessages,
+        ...auxiliaryAssistantMessages.filter(message => message.id !== insertedAssistantMessage.id),
         {
           ...toResponseMessage(insertedAssistantMessage as TalentMessageRow),
           thinkingLogs: finalAssistantThinkingLogs,

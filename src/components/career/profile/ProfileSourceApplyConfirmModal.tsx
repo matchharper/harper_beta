@@ -39,7 +39,7 @@ const ProfileSourceApplyConfirmModal = ({
         "career.profile.source_apply.title",
         "새로운 내용을 프로필에 반영할까요?"
       )}
-      panelClassName="max-w-[520px] rounded-[16px] border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-[520px]   "
       headerClassName="px-5 py-5 pr-14 sm:px-6"
       bodyClassName="px-5 py-5 sm:px-6"
       footer={

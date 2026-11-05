@@ -277,7 +277,7 @@ export function OrgTeamsSection() {
                   }
                 >
                   <OrgTableCell className="max-w-40 py-3 sm:max-w-none">
-                    <span className="truncate text-black font-normal text-base">
+                    <span className="truncate text-neutral-primary font-normal text-base">
                       {team.name}
                     </span>
                     <p className="mt-1 truncate text-[12px] text-neutral-muted">

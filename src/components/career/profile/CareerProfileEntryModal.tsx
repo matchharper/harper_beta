@@ -300,7 +300,7 @@ const CareerProfileEntryModal = ({
       closeOnBackdrop={!isSubmitting}
       showCloseButton={!isSubmitting}
       mobileBottomSheet
-      panelClassName="max-w-[640px] border border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-w-[640px]   "
       bodyClassName="bg-bg-floating px-4 py-5 sm:px-5"
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">

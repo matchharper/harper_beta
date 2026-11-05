@@ -1,0 +1,12 @@
+{
+ "requestTime":"2026-11-05T00:00:00Z",
+ "cases":[
+  {"id":"combined_updates","trigger":"career_daily_due","sources":[
+    {"sourceKind":"process_closure","sourceId":"a-progress","revision":1,"dailySourceId":"10000000-0000-4000-8000-000000000001","recommendationId":"20000000-0000-4000-8000-000000000001","roleIds":["30000000-0000-4000-8000-000000000001"],"summary":"Aster declined the candidate's pending connection. The company authorized a closure notice; no candidate-facing reason was provided."},
+    {"sourceKind":"role_closure","sourceId":"b-role","revision":1,"dailySourceId":"10000000-0000-4000-8000-000000000002","recommendationId":"20000000-0000-4000-8000-000000000002","roleIds":["30000000-0000-4000-8000-000000000002"],"summary":"Birch ended its Platform Role. The candidate had accepted this process, not final-offer stage."},
+    {"sourceKind":"talent_selection","sourceId":"c-review","revision":1,"dailySourceId":"10000000-0000-4000-8000-000000000003","roleIds":["30000000-0000-4000-8000-000000000003"],"summary":"Cedar's company-side agent selected this exact platform engineer Role as a talent-first proposal. Not yet published. No introduction consent."},
+    {"sourceKind":"appointment","sourceId":"interview","revision":1,"dailySourceId":"10000000-0000-4000-8000-000000000004","summary":"Today at 15:00 KST the candidate has a confirmed interview at Dune. Yesterday the candidate received a complete preparation pack and said it was sufficient. No changes."}
+  ]},
+  {"id":"immediate_company_question","trigger":"agent_contact_received","sources":[{"sourceKind":"agent_contact","sourceId":"company-message","rootId":"existing-introduction","roleId":"30000000-0000-4000-8000-000000000003","summary":"The company asks the candidate's agent to confirm whether the candidate is interested in resuming the paused discussion. The candidate has not answered this question."}]}
+ ]
+}

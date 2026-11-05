@@ -47,7 +47,7 @@ export function CareerMobileJobStatusDropdown({
             type="button"
             aria-label={`${statusLabel} 상태 변경`}
             disabled={disabled}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-neutral-200 text-neutral-primary transition-colors hover:bg-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-control bg-bg-weak text-neutral-primary transition-colors hover:bg-interaction-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             <EllipsisVertical className="h-4 w-4" />
           </BareButton>

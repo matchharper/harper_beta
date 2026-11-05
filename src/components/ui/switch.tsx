@@ -55,14 +55,14 @@ const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
         data-state={resolvedChecked ? "checked" : "unchecked"}
         disabled={disabled}
         className={cn(
-          "inline-flex h-6 w-10 shrink-0 items-center rounded-full border border-transparent bg-neutral-400 p-[1px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55 data-[state=checked]:bg-black",
+          "inline-flex h-6 w-10 shrink-0 items-center rounded-full border border-transparent bg-switch-track p-[1px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55 data-[state=checked]:bg-switch-checked",
           className
         )}
         {...props}
         onClick={handleClick}
       >
         <span
-          className="size-5 rounded-full bg-bg-floating transition-transform data-[state=checked]:translate-x-4"
+          className="size-5 rounded-full bg-switch-thumb transition-transform data-[state=checked]:translate-x-4"
           data-state={resolvedChecked ? "checked" : "unchecked"}
         />
       </button>
@@ -113,7 +113,7 @@ const AppleSwitch = React.forwardRef<HTMLButtonElement, SwitchProps>(
         data-state={resolvedChecked ? "checked" : "unchecked"}
         disabled={disabled}
         className={cn(
-          "relative inline-flex h-[22px] w-[42px] shrink-0 touch-manipulation appearance-none items-center rounded-full border-0 bg-[#e5e5ea] p-0 transition-colors duration-[250ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] [-webkit-tap-highlight-color:transparent] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-floating disabled:cursor-not-allowed disabled:opacity-55 data-[state=checked]:bg-[#34c759] motion-reduce:transition-none",
+          "relative inline-flex h-[22px] w-[42px] shrink-0 touch-manipulation appearance-none items-center rounded-full border-0 bg-switch-track p-0 transition-colors duration-[250ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] [-webkit-tap-highlight-color:transparent] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-floating disabled:cursor-not-allowed disabled:opacity-55 data-[state=checked]:bg-switch-checked motion-reduce:transition-none",
           className
         )}
         {...props}
@@ -122,7 +122,7 @@ const AppleSwitch = React.forwardRef<HTMLButtonElement, SwitchProps>(
         <span
           aria-hidden="true"
           className={cn(
-            "absolute left-[2px] top-[2px] size-[18px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.25),0_1px_1px_rgba(0,0,0,0.12)] transition-transform duration-[250ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-transform motion-reduce:transition-none",
+            "absolute left-[2px] top-[2px] size-[18px] rounded-full bg-switch-thumb shadow-(--shadow-switch-thumb) transition-transform duration-[250ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-transform motion-reduce:transition-none",
             resolvedChecked ? "translate-x-5" : "translate-x-0"
           )}
         />

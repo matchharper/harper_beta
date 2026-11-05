@@ -88,7 +88,7 @@ export default function InternalConnectionAcceptanceModal({
           "career.common.internal_connection_onboarding_modal.1yorbt8",
           "내부 기회 연결은 회사에 회원님을 소개하고 추천하는 단계라, 회사에서 궁금해할만한 정보를 저에게 알려주셔야 이후 단계를 진행할 수 있어요."
         )}
-        panelClassName="w-full max-w-[520px] rounded-[16px] border border-neutral-1000-a05 bg-bg-floating"
+        panelClassName="w-full max-w-[520px]    "
         headerClassName="border-b border-neutral-1000-a05 px-5 py-5 sm:px-6"
         bodyClassName="px-5 py-5 sm:px-6"
         footerClassName="border-t border-neutral-1000-a05 px-5 py-4 sm:px-6"
@@ -112,7 +112,7 @@ export default function InternalConnectionAcceptanceModal({
               trigger={
                 <BareButton
                   type="button"
-                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-[14px] font-medium text-neutral-00 transition-colors hover:bg-black/90 sm:w-auto"
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-4 text-[14px] font-medium text-neutral-00 transition-colors hover:bg-surface-inverse/90 sm:w-auto"
                 >
                   {t(
                     "career.common.internal_connection_onboarding_modal.059fa2p",
@@ -163,7 +163,7 @@ export default function InternalConnectionAcceptanceModal({
         }
       >
         <div className="space-y-4">
-          <div className="rounded-[10px] border border-positive/30 bg-positive-faded px-4 py-3 text-[13px] leading-5 text-positive">
+          <div className="rounded-md border border-positive/30 bg-positive-faded px-4 py-3 text-[13px] leading-5 text-positive">
             {t(
               "career.common.internal_connection_onboarding_modal.1sj53gq",
               "이 대화가 끝나면 Harper가 회원님 기준에 맞게 연결을 진행할 수 있습니다."
@@ -204,7 +204,7 @@ export default function InternalConnectionAcceptanceModal({
     <TalentCareerModal
       open
       onClose={closeModal}
-      panelClassName="max-h-[calc(100svh-2rem)] max-w-[560px] overflow-x-hidden overflow-y-auto border border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-h-[calc(100svh-2rem)] max-w-[560px] overflow-x-hidden overflow-y-auto   "
       bodyClassName="bg-bg-floating px-5"
       mobileBottomSheet
       footer={
@@ -359,7 +359,7 @@ export default function InternalConnectionAcceptanceModal({
           type="button"
           aria-expanded={openMoreWarning}
           onClick={() => setOpenMoreWarning((prev) => !prev)}
-          className="mt-4 relative group flex w-full flex-row gap-2 rounded-sm bg-neutral-200 px-3 py-3 text-left text-neutral-primary transition-colors hover:bg-neutral-300"
+          className="mt-4 relative group flex w-full flex-row gap-2 rounded-control bg-bg-weak px-3 py-3 text-left text-neutral-primary transition-colors hover:bg-interaction-hover"
         >
           <Handshake className="mt-0.5 h-4 w-4 shrink-0 text-neutral-primary" />
           <div className="min-w-0 flex-1">

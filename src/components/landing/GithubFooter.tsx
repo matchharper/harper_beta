@@ -27,7 +27,7 @@ const Footer = ({
   };
 
   return (
-    <div className="mx-auto flex w-full flex-col items-start justify-between gap-8 border-t border-white/20 bg-black px-4 py-10 text-neutral-00 md:flex-row md:items-stretch md:gap-0 md:px-8 md:py-8">
+    <div className="mx-auto flex w-full flex-col items-start justify-between gap-8 border-t border-bg-floating/20 bg-surface-inverse px-4 py-10 text-neutral-00 md:flex-row md:items-stretch md:gap-0 md:px-8 md:py-8">
       <div className="flex flex-1 flex-col items-start justify-start gap-4 md:gap-6">
         <div className="text-left text-3xl font-semibold font-garamond">
           Harper
@@ -43,7 +43,7 @@ const Footer = ({
                 ? onClickStart("click_footer_start")
                 : router.push("/")
             }
-            className="text-white underline cursor-pointer"
+            className="text-on-inverse underline cursor-pointer"
           >
             Start Now
           </div>
@@ -52,7 +52,7 @@ const Footer = ({
           <Dot size={8} />
           <Link
             href="/privacy"
-            className="cursor-pointer hover:text-white/90 text-white/80"
+            className="cursor-pointer hover:text-on-inverse/90 text-on-inverse/80"
           >
             Privacy
           </Link>
@@ -64,7 +64,7 @@ const Footer = ({
                 "_blank"
               )
             }
-            className="cursor-pointer hover:text-white/90 text-white/80"
+            className="cursor-pointer hover:text-on-inverse/90 text-on-inverse/80"
           >
             Refund Policy
           </div>
@@ -73,17 +73,17 @@ const Footer = ({
       <div className="mt-4 flex w-full flex-1 flex-row items-start justify-start gap-8 md:mt-0 md:items-end md:justify-end">
         <div className="flex flex-1 flex-col items-start justify-between gap-4 self-stretch md:items-end">
           <div className="flex w-full flex-col items-start justify-start gap-3 text-xs md:items-end md:text-sm">
-            <div className="text-white mb-2">About us</div>
+            <div className="text-on-inverse mb-2">About us</div>
             <div className="flex flex-col items-start justify-start gap-2 md:items-end">
               <div
                 onClick={handleContactUs}
-                className="cursor-pointer hover:text-white/90 text-white/80"
+                className="cursor-pointer hover:text-on-inverse/90 text-on-inverse/80"
               >
                 {m.companyLanding.footer.contact}
               </div>
               <div
                 onClick={() => router.push("/blog")}
-                className="cursor-pointer hover:text-white/90 text-white/80"
+                className="cursor-pointer hover:text-on-inverse/90 text-on-inverse/80"
               >
                 blog
               </div>

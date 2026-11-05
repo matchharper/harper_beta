@@ -237,6 +237,13 @@ export const CareerFlowProvider = ({
     setThinkingLogs: setSessionReengagementThinkingLogs,
     thinkingLogs: sessionReengagementThinkingLogs,
   } = sessionReengagementState;
+  const wasReengagementPending = useRef(false);
+  useEffect(() => {
+    if (wasReengagementPending.current && !sessionReengagementPending) {
+      void queryClient.invalidateQueries({ queryKey: ["career-action-items"] });
+    }
+    wasReengagementPending.current = sessionReengagementPending;
+  }, [queryClient, sessionReengagementPending]);
   const [
     opportunityFeedbackFollowUpPending,
     setOpportunityFeedbackFollowUpPending,

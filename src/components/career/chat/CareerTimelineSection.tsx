@@ -1,3 +1,5 @@
+import { createCareerTurnProjection } from "@/hooks/career/careerTurnProjection";
+import { useCareerOpenForms } from "@/hooks/career/useCareerOpenForms";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { ApplicationQuestionHistoryRow } from "./ApplicationQuestionHistoryRow";
 import { ApplicationReviewEntry } from "./ApplicationReviewPanel";
@@ -70,7 +72,6 @@ import { CareerMessageActions } from "./CareerMessageActions";
 import { useRouter } from "next/router";
 import React from "react";
 import {
-  careerTimelineBodyTextClassName,
   careerTimelineMetaTextClassName,
   careerTimelineTypographyStyle,
 } from "./careerTimelineTypography";
@@ -79,7 +80,7 @@ import { OnboardingCompletionWrapup } from "./elements/OnboardingCompletionWrapu
 import { OpportunityPreviewCards } from "./elements/OpportunityPreviewCards";
 import { RecommendationSearchStatusPanel } from "./elements/RecommendationSearchStatusPanel";
 import { ThinkingLogPanel } from "./elements/ThinkingLogPanel";
-import { CareerWorkActivity } from "./CareerWorkActivity";
+import { CareerWorkActivity, CareerWorkActivityStatus } from "./CareerWorkActivity";
 import { TimelinePendingPanel } from "./elements/TimelinePendingPanel";
 import {
   CareerCoachingActivityCard,
@@ -159,24 +160,6 @@ const getRecommendationStatusAnchor = (
   return fallbackAnchor <= message.content.length ? fallbackAnchor : null;
 };
 
-const StatusMessage = ({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) => (
-  <div
-    className={cn(
-      "text-neutral-muted",
-      careerTimelineBodyTextClassName,
-      className
-    )}
-  >
-    {children}
-  </div>
-);
-
 const InterestChoiceButton = ({
   selected,
   children,
@@ -188,9 +171,9 @@ const InterestChoiceButton = ({
     type="button"
     {...props}
     className={cn(
-      "w-fit rounded-[8px] border border-neutral-1000-a05 px-3 py-1.5 text-left text-[14px] leading-6 transition-colors",
+      "w-fit rounded-md border border-neutral-1000-a05 px-3 py-1.5 text-left text-[14px] leading-6 transition-colors",
       selected
-        ? "border-neutral-800 bg-black text-neutral-00"
+        ? "border-neutral-800 bg-surface-inverse text-neutral-00"
         : "bg-bg-floating text-neutral-muted hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
       props.className
     )}
@@ -363,15 +346,16 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
       data-career-message-role={message.role}
       className={cn("group relative flex flex-col gap-2", startsNewSpeaker && "mt-3")}
     >
-      {!isUser && textLogs.length > 0 && (
+      {!isUser && (textLogs.length > 0 || message.workEvents || message.workStartedAt || message.workPending) && (
         <ThinkingLogPanel
           active={
-            isAssistantStreamActive ||
+            message.workPending || isAssistantStreamActive ||
             (isOnboardingCompletionWrapup && onboardingWrapupPending)
           }
-          completedAt={message.createdAt}
+          completedAt={message.workCompletedAt ?? message.createdAt}
           logs={textLogs}
-          startedAt={turnStartedAt}
+          events={message.workEvents}
+          startedAt={message.workStartedAt ?? turnStartedAt}
         />
       )}
       {!isUser &&
@@ -532,7 +516,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
             onOpenOpportunity={onOpenOpportunity}
           />
         )}
-      {!message.browserSession && (
+      {message.messageType !== "career_turn_activity" && (
         <CareerMessageActions
           message={message}
           onDeleteMessage={onDeleteMessage}
@@ -542,7 +526,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
   );
 
   return (
-    <Fragment key={String(message.id)}>
+    <Fragment key={message.workReplyId ?? String(message.id)}>
       {dateLabel && (
         <TimelineDateDivider ariaPrefix={dateAriaPrefix} label={dateLabel} />
       )}
@@ -644,7 +628,7 @@ export const TimelineMessageList = memo(function TimelineMessageList({
     // a duration; message chronology must not manufacture hours of work.
     rows.push(
       <TimelineMessageRow
-        key={String(message.id)}
+        key={message.workReplyId ?? String(message.id)}
         message={message}
         startsNewSpeaker={
           !dateLabel && index > 0 && messages[index - 1].role !== message.role
@@ -972,9 +956,12 @@ const CareerTimelineSection = ({
     syncScrollState,
   ]);
 
+  const workStatus = useCareerOpenForms(conversationId);
+  const projectTurns = useMemo(() => createCareerTurnProjection(), [conversationId]);
+  const projectedMessages = useMemo(() => projectTurns(messages, friendly ? undefined : workStatus.data), [messages, workStatus.data, projectTurns, friendly]);
   const timelineMessages = useMemo(
     () =>
-      messages.filter(
+      projectedMessages.filter(
         (message) =>
           !(
             message.role === "user" &&
@@ -982,7 +969,7 @@ const CareerTimelineSection = ({
             message.content.trim() === CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE
           )
       ),
-    [messages]
+    [projectedMessages]
   );
   const hasTimelineMessages = timelineMessages.length > 0;
   const latestTimelineMessage = timelineMessages[timelineMessages.length - 1];
@@ -1200,6 +1187,7 @@ const CareerTimelineSection = ({
   if (!user) {
     return (
       <div
+        data-career-timeline
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 pt-4 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
         style={TIMELINE_SCROLL_STYLE}
       >
@@ -1320,9 +1308,9 @@ const CareerTimelineSection = ({
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 pt-4 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
       style={TIMELINE_SCROLL_STYLE}
     >
-      <div className={cn("mx-auto flex w-full max-w-[var(--career-chat-content-max-width)] flex-col gap-2 px-5 py-1", friendly && "md:px-8")}>
+      <div className={cn("mx-auto flex w-full max-w-[var(--career-chat-content-max-width)] flex-col gap-2 px-5 py-1")}>
         {showLoadOlderButton && hasOlderMessages && (
-          <div className="sticky top-0 z-10 flex justify-center pb-2">
+          <div className="sticky top-[var(--career-content-inset-top,0px)] z-10 flex justify-center pb-2">
             <ChatLoadOlderButton
               label={t(
                 "career.chat.career_timeline_section.0t1ynxd",
@@ -1439,26 +1427,31 @@ const CareerTimelineSection = ({
           !onboardingWrapupPending &&
           !callWrapUpPending &&
           chatPending &&
-          !assistantTyping &&
-          (activeRecommendationSearchStatus ? (
-            <RecommendationSearchStatusPanel
-              active
-              onCancel={onCancelActiveRecommendationSearch}
-              status={activeRecommendationSearchStatus}
-            />
-          ) : activeThinkingLogs.length > 0 ? (
-            <ThinkingLogPanel active logs={activeThinkingLogs} />
-          ) : (
-            <StatusMessage>
-              <span className="career-thinking-shimmer inline-block text-sm font-medium">
-                Thinking...
-              </span>
-            </StatusMessage>
-          ))}
+          !timelineMessages.some(message => message.workPending) &&
+          !assistantTyping && (
+            <div className={timelineMessages.at(-1)?.role === "user" ? "mt-3" : undefined}>
+              {activeRecommendationSearchStatus ? (
+                <RecommendationSearchStatusPanel
+                  active
+                  onCancel={onCancelActiveRecommendationSearch}
+                  status={activeRecommendationSearchStatus}
+                />
+              ) : activeThinkingLogs.length > 0 ? (
+                <ThinkingLogPanel active logs={activeThinkingLogs} />
+              ) : (
+                <CareerWorkActivityStatus admitting />
+              )}
+            </div>
+          )}
 
         {!sessionPending && stage !== "profile" && !onboardingWrapupPending &&
           !callWrapUpPending && !chatPending && !assistantTyping && (
-            <CareerWorkActivity conversationId={conversationId} admitting={chatAdmissionPending} />
+            <CareerWorkActivity
+              className={timelineMessages.at(-1)?.role === "user" ? "mt-3" : undefined}
+              conversationId={conversationId}
+              admitting={chatAdmissionPending && !timelineMessages.some(message => message.workPending)}
+              visibleReplyIds={timelineMessages.map(message => message.workReplyId ?? "")}
+            />
           )}
 
         {profilePending && (
@@ -1502,7 +1495,7 @@ const CareerTimelineSection = ({
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <label
                     htmlFor="career-resume-upload"
-                    className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-4 text-sm text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak"
+                    className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-4 text-sm text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak"
                   >
                     <Upload className="h-4 w-4" />
                     {t(
@@ -1576,7 +1569,7 @@ const CareerTimelineSection = ({
                         <BareButton
                           type="button"
                           onClick={() => onRemoveProfileLink(index)}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-neutral-1000-a10 bg-bg-floating text-neutral-soft transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-1000-a10 bg-bg-floating text-neutral-soft transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
                         >
                           <X className="h-4 w-4" />
                         </BareButton>

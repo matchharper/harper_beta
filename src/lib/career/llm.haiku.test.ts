@@ -12,9 +12,13 @@ test("Haiku event replies call Anthropic directly, including tool continuations"
   globalThis.fetch = async (url, init) => {
     if (String(url).includes("/rest/v1/")) return Response.json([]);
     assert.equal(String(url), "https://api.anthropic.com/v1/messages");
-    assert.equal(new Headers(init?.headers).get("x-api-key"), "test-anthropic-key");
+    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer test-anthropic-key");
     const body = JSON.parse(String(init?.body));
     assert.equal(body.model, CLAUDE_HAIKU_MODEL);
+    assert.equal(new Headers(init?.headers).get("x-stainless-lang"), "js");
+    assert.equal(body.output_config, undefined);
+    assert.equal(body.thinking, undefined);
+    assert.equal(body.temperature, undefined);
     requests.push(body);
     const useTool = requests.length === 2;
     return Response.json({
@@ -34,13 +38,14 @@ test("Haiku event replies call Anthropic directly, including tool continuations"
     for (const withTools of [false, true]) {
       const result = await runCareerChatAssistant({
         primaryModel: CLAUDE_HAIKU_MODEL,
+        anthropicEffort: null,
         systemBlocks: [{ key: "event", text: "Report the saved facts to the user." }],
         messages: [{ role: "user", content: "The company interest was saved." }],
         tools: withTools ? [{ type: "function", function: {
           name: "read_document", description: "Read saved facts.", parameters: { type: "object" },
         } }] : [],
         executeTool: async () => { toolCalls += 1; return { ok: true, content: "Company interest is saved." }; },
-        usageLabel: "test:haiku-event-reply",
+        usageLabel: "career:background-agent",
       });
       assert.equal(result, "확인한 내용을 기억해 두었어요.");
     }

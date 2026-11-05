@@ -224,7 +224,7 @@ export function CareerFormView({
             key={action.id}
             type="button"
             variant={action === positive ? "dark" : "default"}
-            className="w-full rounded-full"
+            className="w-full rounded-pill"
             disabled={disabled}
             onClick={() =>
               void onRespond({
@@ -249,7 +249,7 @@ export function CareerFormView({
     <section
       data-career-form-id={form.formId}
       data-career-form-revision={form.revision}
-      className="w-full max-w-[640px] space-y-5 rounded-3xl bg-black/4 p-4"
+      className="career-glass career-work-surface w-full max-w-[640px] space-y-5 p-[18px]"
     >
       {form.title ? (
         <h3 className="text-base font-normal text-neutral-primary">

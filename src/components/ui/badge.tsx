@@ -8,19 +8,19 @@ import { AlertCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex shrink-0 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center whitespace-nowrap shadow-(--shadow-badge) backdrop-blur-badge font-badge transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        solid: "bg-bg-weak text-neutral-primary",
-        faded: "bg-bg-weak text-neutral-primary",
+        solid: "bg-badge text-badge-foreground",
+        faded: "bg-badge text-badge-foreground",
         outline:
           "border border-neutral-1000-a10 bg-transparent text-neutral-primary",
         subtle:
           "border border-transparent bg-bg-floating text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary",
-        inverse: "bg-black text-neutral-00",
+        inverse: "bg-surface-inverse text-neutral-00",
         // A count of new or waiting things beside a tab or a heading.
-        count: "bg-action font-normal tabular-nums text-white",
+        count: "bg-action font-normal tabular-nums text-on-inverse",
       },
       tone: {
         neutral: "",
@@ -36,15 +36,15 @@ const badgeVariants = cva(
         lg: "h-7 gap-1.5 px-2.5 text-[13px] leading-[18px] [&_svg]:size-4",
       },
       radius: {
-        md: "rounded-md",
-        full: "rounded-full",
+        md: "rounded-badge",
+        full: "rounded-pill",
       },
     },
     compoundVariants: [
       {
         tone: "primary",
         variant: "solid",
-        className: "bg-black text-neutral-00",
+        className: "bg-surface-inverse text-neutral-00",
       },
       {
         tone: "primary",
@@ -59,7 +59,7 @@ const badgeVariants = cva(
       {
         tone: "critical",
         variant: "solid",
-        className: "bg-critical text-white",
+        className: "bg-critical text-on-inverse",
       },
       {
         tone: "critical",
@@ -74,7 +74,7 @@ const badgeVariants = cva(
       {
         tone: "positive",
         variant: "solid",
-        className: "bg-positive text-white",
+        className: "bg-positive text-on-inverse",
       },
       {
         tone: "positive",
@@ -89,7 +89,7 @@ const badgeVariants = cva(
       {
         tone: "warning",
         variant: "solid",
-        className: "bg-info text-white",
+        className: "bg-info text-on-inverse",
       },
       {
         tone: "warning",
@@ -192,7 +192,7 @@ const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
             {dismissible ? (
               <button
                 aria-label="Dismiss"
-                className="-mr-1 inline-flex size-4 items-center justify-center rounded-full hover:bg-black-a10"
+                className="-mr-1 inline-flex size-4 items-center justify-center rounded-full hover:bg-interaction-hover"
                 type="button"
                 onClick={onDismiss}
               >

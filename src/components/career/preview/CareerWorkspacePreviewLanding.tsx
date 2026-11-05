@@ -554,7 +554,7 @@ const CareerWorkspacePreviewLanding = ({
   const [activeTab, setActiveTab] = useState<CareerWorkspaceTab | "chat">(
     initialTab
   );
-  const workspaceActiveTab = activeTab === "chat" ? "home" : activeTab;
+  const workspaceActiveTab = activeTab;
   const [autoLoopEnabled, setAutoLoopEnabled] = useState(autoPlayConversation);
   const [conversationLoopKey, setConversationLoopKey] = useState(0);
   const [visibleConversationCount, setVisibleConversationCount] = useState(

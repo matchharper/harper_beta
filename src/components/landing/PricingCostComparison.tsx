@@ -40,11 +40,11 @@ const salarySliderClassName = [
   "[--thumb-scale:1] [--thumb-opacity:1] hover:[--thumb-scale:1.03] active:[--thumb-scale:1.08] active:[--thumb-opacity:0.9] active:[--thumb-border:1px_solid_var(--color-white)] active:cursor-grabbing",
   "[--thumb-shadow:0_0_0_0.5px_color-mix(in_srgb,var(--color-white)_24%,transparent),0_2px_4px_color-mix(in_srgb,var(--color-black)_24%,transparent),0_6px_14px_color-mix(in_srgb,var(--color-black)_30%,transparent)]",
   "active:[--thumb-shadow:0_0_0_0.5px_color-mix(in_srgb,var(--color-white)_35%,transparent),0_3px_6px_color-mix(in_srgb,var(--color-black)_24%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-black)_40%,transparent)]",
-  "[&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-[linear-gradient(to_right,var(--slider-fill)_var(--slider-progress),var(--slider-track)_var(--slider-progress))] [&::-webkit-slider-runnable-track]:shadow-[inset_0_1px_2px_color-mix(in_srgb,var(--color-black)_16%,transparent)]",
-  "[&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-[var(--slider-track)] [&::-moz-range-track]:shadow-[inset_0_1px_2px_color-mix(in_srgb,var(--color-black)_16%,transparent)] [&::-moz-range-progress]:h-1.5 [&::-moz-range-progress]:rounded-full [&::-moz-range-progress]:bg-[var(--slider-fill)]",
-  "[&::-webkit-slider-thumb]:-mt-2 [&::-webkit-slider-thumb]:box-border [&::-webkit-slider-thumb]:h-[22px] [&::-webkit-slider-thumb]:w-10 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-[0.5px] [&::-webkit-slider-thumb]:border-white/50",
+  "[&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-[linear-gradient(to_right,var(--slider-fill)_var(--slider-progress),var(--slider-track)_var(--slider-progress))] [&::-webkit-slider-runnable-track]:shadow-(--shadow-inset-highlight)",
+  "[&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-[var(--slider-track)] [&::-moz-range-track]:shadow-(--shadow-inset-highlight) [&::-moz-range-progress]:h-1.5 [&::-moz-range-progress]:rounded-full [&::-moz-range-progress]:bg-[var(--slider-fill)]",
+  "[&::-webkit-slider-thumb]:-mt-2 [&::-webkit-slider-thumb]:box-border [&::-webkit-slider-thumb]:h-[22px] [&::-webkit-slider-thumb]:w-10 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-[0.5px] [&::-webkit-slider-thumb]:border-bg-floating/50",
   "[&::-webkit-slider-thumb]:bg-[linear-gradient(180deg,var(--color-white),color-mix(in_srgb,var(--color-white)_94%,var(--color-black)))] [&::-webkit-slider-thumb]:[box-shadow:var(--thumb-shadow)] [&::-webkit-slider-thumb]:[transform:scale(var(--thumb-scale))] [&::-webkit-slider-thumb]:[opacity:var(--thumb-opacity)] [&::-webkit-slider-thumb]:[transition:transform_220ms_cubic-bezier(0.2,0.8,0.2,1),box-shadow_220ms_ease,opacity_180ms_ease,filter_180ms_ease]",
-  "[&::-moz-range-thumb]:box-border [&::-moz-range-thumb]:h-[22px] [&::-moz-range-thumb]:w-10 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-[0.5px] [&::-moz-range-thumb]:border-white/50",
+  "[&::-moz-range-thumb]:box-border [&::-moz-range-thumb]:h-[22px] [&::-moz-range-thumb]:w-10 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-[0.5px] [&::-moz-range-thumb]:border-bg-floating/50",
   "[&::-moz-range-thumb]:bg-[linear-gradient(180deg,var(--color-white),color-mix(in_srgb,var(--color-white)_94%,var(--color-black)))] [&::-moz-range-thumb]:[box-shadow:var(--thumb-shadow)] [&::-moz-range-thumb]:[transform:scale(var(--thumb-scale))] [&::-moz-range-thumb]:[opacity:var(--thumb-opacity)] [&::-moz-range-thumb]:[transition:transform_220ms_cubic-bezier(0.2,0.8,0.2,1),box-shadow_220ms_ease,opacity_180ms_ease,filter_180ms_ease]",
   "focus-visible:[&::-webkit-slider-thumb]:outline-2 focus-visible:[&::-webkit-slider-thumb]:outline-solid focus-visible:[&::-webkit-slider-thumb]:outline-[var(--slider-focus)] focus-visible:[&::-webkit-slider-thumb]:outline-offset-[5px]",
   "focus-visible:[&::-moz-range-thumb]:outline-2 focus-visible:[&::-moz-range-thumb]:outline-solid focus-visible:[&::-moz-range-thumb]:outline-[var(--slider-focus)] focus-visible:[&::-moz-range-thumb]:outline-offset-[5px]",
@@ -200,7 +200,7 @@ function CostBar({
                 : "border-orange-600 bg-orange-600/80"
               : isLight
                 ? "border-neutral-1000/20 bg-neutral-1000/12"
-                : "border-white/29 bg-white/16"
+                : "border-bg-floating/29 bg-bg-floating/16"
           )}
           style={{ "--bar-height": height } as MotionStyle}
         >
@@ -209,7 +209,7 @@ function CostBar({
               "absolute bottom-[calc(100%+11px)] left-1/2 -translate-x-1/2 text-[10px] leading-none tracking-[-0.03em] whitespace-nowrap tabular-nums md:text-[12px]",
               isLight
                 ? "text-neutral-primary group-data-[highlight]/bar:text-orange-700"
-                : "text-white/85 group-data-[highlight]/bar:text-orange-600"
+                : "text-on-inverse/85 group-data-[highlight]/bar:text-orange-600"
             )}
           >
             <AnimatedNumber
@@ -233,7 +233,7 @@ function CostBar({
         <span
           className={cn(
             "text-[10px] md:text-[11px]",
-            isLight ? "text-neutral-muted" : "text-white/60"
+            isLight ? "text-neutral-muted" : "text-on-inverse/60"
           )}
         >
           {caption}
@@ -261,7 +261,7 @@ function AxisLabel({
     <span
       className={cn(
         "absolute -top-1.5 right-[calc(100%+10px)] font-mono text-[9px] leading-none tabular-nums",
-        isLight ? "text-neutral-muted" : "text-white/56"
+        isLight ? "text-neutral-muted" : "text-on-inverse/56"
       )}
     >
       <AnimatedNumber
@@ -400,11 +400,11 @@ export function PricingCostComparison({
         className={cn(
           "scroll-mt-[128px] font-normal transition-colors duration-200 motion-reduce:transition-none",
           embedded
-            ? "mt-7 overflow-hidden rounded-[20px] border"
+            ? "mt-7 overflow-hidden rounded-2xl border"
             : "mt-16 md:mt-[100px] border-y",
           isLight
             ? "border-neutral-1000-a10 bg-bg-basement text-neutral-primary"
-            : "border-white/8 bg-[color-mix(in_srgb,var(--color-black)_97%,var(--color-white))] text-white"
+            : "border-bg-floating/8 bg-[color-mix(in_srgb,var(--color-black)_97%,var(--color-white))] text-on-inverse"
         )}
       >
         {/* 배경은 화면 전체 너비, 내용은 중앙 최대 1160px */}
@@ -415,13 +415,13 @@ export function PricingCostComparison({
           <div
             className={cn(
               !embedded && "border-x",
-              isLight ? "border-neutral-1000-a10" : "border-white/8"
+              isLight ? "border-neutral-1000-a10" : "border-bg-floating/8"
             )}
           >
             <header
               className={cn(
                 "border-b md:flex md:items-end md:justify-between md:gap-8 p-4 pb-8 md:p-6 md:pb-20",
-                isLight ? "border-neutral-1000-a10" : "border-white/8"
+                isLight ? "border-neutral-1000-a10" : "border-bg-floating/8"
               )}
             >
               <div>
@@ -443,7 +443,7 @@ export function PricingCostComparison({
               <div
                 className={cn(
                   "min-w-0 border-b px-6 pt-7 pb-[18px] md:border-r md:border-b-0 md:px-8 md:py-8",
-                  isLight ? "border-neutral-1000-a10" : "border-white/8"
+                  isLight ? "border-neutral-1000-a10" : "border-bg-floating/8"
                 )}
               >
                 <div>
@@ -452,7 +452,7 @@ export function PricingCostComparison({
                       htmlFor={`${id}-salary`}
                       className={cn(
                         "shrink-0",
-                        isLight ? "text-neutral-primary" : "text-white/80"
+                        isLight ? "text-neutral-primary" : "text-on-inverse/80"
                       )}
                     >
                       {c("채용 연봉", "Annual salary")}
@@ -507,7 +507,7 @@ export function PricingCostComparison({
                     id={`${id}-hire-count-label`}
                     htmlFor={`${id}-hire-count`}
                     className={
-                      isLight ? "text-neutral-primary" : "text-white/80"
+                      isLight ? "text-neutral-primary" : "text-on-inverse/80"
                     }
                   >
                     {c("채용 인원", "Number of hires")}
@@ -525,7 +525,7 @@ export function PricingCostComparison({
                       className={cn(
                         "w-28",
                         !isLight &&
-                          "border-white/14 bg-white/5 text-white hover:bg-white/10 focus-visible:border-white/40 focus-visible:ring-white/10"
+                          "border-bg-floating/14 bg-control/5 text-on-inverse hover:bg-control/10 focus-visible:border-bg-floating/40 focus-visible:ring-white/10"
                       )}
                     >
                       <SelectValue />
@@ -543,7 +543,7 @@ export function PricingCostComparison({
                 <dl
                   className={cn(
                     "mt-7 rounded-xl px-5 py-1 text-[14px] leading-[1.6] tracking-[-0.015em] transition-colors duration-200 motion-reduce:transition-none md:mt-8",
-                    isLight ? "bg-bg-weak" : "bg-white/5"
+                    isLight ? "bg-bg-weak" : "bg-bg-floating/5"
                   )}
                 >
                   {/* 헤드헌터 */}
@@ -551,7 +551,7 @@ export function PricingCostComparison({
                     <dt
                       className={cn(
                         "max-w-[46%] break-keep",
-                        isLight ? "text-neutral-muted" : "text-white/82"
+                        isLight ? "text-neutral-muted" : "text-on-inverse/82"
                       )}
                     >
                       {c("헤드헌터 수수료", "Recruiter placement fee")}
@@ -574,7 +574,7 @@ export function PricingCostComparison({
                           className={cn(
                             "w-18 px-2 tabular-nums",
                             !isLight &&
-                              "border-white/14 bg-white/5 text-white hover:bg-white/10 focus-visible:border-white/40 focus-visible:ring-white/10"
+                              "border-bg-floating/14 bg-control/5 text-on-inverse hover:bg-control/10 focus-visible:border-bg-floating/40 focus-visible:ring-white/10"
                           )}
                         >
                           <SelectValue />
@@ -602,13 +602,13 @@ export function PricingCostComparison({
                   <div
                     className={cn(
                       "flex items-start justify-between gap-3 py-4 border-t",
-                      isLight ? "border-neutral-1000-a05" : "border-white/5"
+                      isLight ? "border-neutral-1000-a05" : "border-bg-floating/5"
                     )}
                   >
                     <dt
                       className={cn(
                         "max-w-[46%] break-keep",
-                        isLight ? "text-neutral-muted" : "text-white/82"
+                        isLight ? "text-neutral-muted" : "text-on-inverse/82"
                       )}
                     >
                       {c("채용 공고 광고비", "Job ads")}
@@ -617,7 +617,7 @@ export function PricingCostComparison({
                       {formatKrw(AD_MONTHLY_KRW)}
                       <span
                         className={
-                          isLight ? "text-neutral-muted" : "text-white/50"
+                          isLight ? "text-neutral-muted" : "text-on-inverse/50"
                         }
                       >
                         {c(" / 월", " / mo")}
@@ -634,13 +634,13 @@ export function PricingCostComparison({
                   <div
                     className={cn(
                       "flex items-center justify-between gap-3 py-4 border-t",
-                      isLight ? "border-neutral-1000-a05" : "border-white/5"
+                      isLight ? "border-neutral-1000-a05" : "border-bg-floating/5"
                     )}
                   >
                     <dt
                       className={cn(
                         "max-w-[46%] break-keep",
-                        isLight ? "text-neutral-muted" : "text-white/82"
+                        isLight ? "text-neutral-muted" : "text-on-inverse/82"
                       )}
                     >
                       {c("채용 사이트 수수료", "Job board placement fee")}
@@ -655,7 +655,7 @@ export function PricingCostComparison({
                   <div
                     className={cn(
                       "flex items-start justify-between gap-3 py-4 border-t",
-                      isLight ? "border-neutral-1000-a05" : "border-white/5"
+                      isLight ? "border-neutral-1000-a05" : "border-bg-floating/5"
                     )}
                   >
                     <dt
@@ -670,7 +670,7 @@ export function PricingCostComparison({
                       {formatKrw(harperMonthlyKrw)}
                       <span
                         className={
-                          isLight ? "text-neutral-muted" : "text-white/50"
+                          isLight ? "text-neutral-muted" : "text-on-inverse/50"
                         }
                       >
                         {c(" / 월", " / mo")}
@@ -694,7 +694,7 @@ export function PricingCostComparison({
                     "-mx-1 my-0 bg-size-[12px_12px] px-2.5 pt-5 pb-3 transition-colors duration-200 motion-reduce:transition-none md:mx-0 md:px-5 md:pt-6",
                     isLight
                       ? "bg-bg-weak/60 bg-[radial-gradient(color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)_0.8px,transparent_0.8px)]"
-                      : "bg-white/3 bg-[radial-gradient(color-mix(in_srgb,var(--color-white)_8%,transparent)_0.8px,transparent_0.8px)]"
+                      : "bg-bg-floating/3 bg-[radial-gradient(color-mix(in_srgb,var(--color-white)_8%,transparent)_0.8px,transparent_0.8px)]"
                   )}
                   aria-labelledby={`${id}-chart-title`}
                 >
@@ -704,7 +704,7 @@ export function PricingCostComparison({
                   >
                     <span
                       className={
-                        isLight ? "text-neutral-muted" : "text-white/76"
+                        isLight ? "text-neutral-muted" : "text-on-inverse/76"
                       }
                     >
                       {c(
@@ -733,7 +733,7 @@ export function PricingCostComparison({
                               position,
                               isLight
                                 ? "border-neutral-1000-a05 last:border-neutral-1000/25"
-                                : "border-white/5 last:border-white/28"
+                                : "border-bg-floating/5 last:border-bg-floating/28"
                             )}
                           >
                             <AxisLabel

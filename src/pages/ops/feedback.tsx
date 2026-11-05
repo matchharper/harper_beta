@@ -250,12 +250,12 @@ function ConfirmReplyDialog({
   willSendEmail: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 px-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-inverse/20 px-4 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="feedback-reply-confirm-title"
-        className="w-full max-w-sm rounded-lg border border-neutral-1000-a05 bg-bg-floating p-5 shadow-[0_24px_80px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)]"
+        className="w-full max-w-sm rounded-lg border border-neutral-1000-a05 bg-bg-floating p-5 shadow-(--shadow-lg)"
       >
         <h2
           id="feedback-reply-confirm-title"

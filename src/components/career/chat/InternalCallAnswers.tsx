@@ -20,6 +20,7 @@ import type {
 } from "@/lib/career/internalCallAnswers";
 import { QuestionComposer } from "./QuestionComposer";
 import { useApplicationComposerDraft } from "./useApplicationComposerDraft";
+import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
 
 const Context = createContext<{
   open?: (callId: string) => Promise<void>;
@@ -56,75 +57,81 @@ export function InternalCallAnswersProvider({
   const [submitting, setSubmitting] = useState(false);
   const lock = useRef(false);
   const current = useRef(0);
-  const open = useCallback(async (callId: string) => {
-    if (lock.current || !conversationId) return;
-    const request = ++current.current;
-    setLoadingId(callId);
-    setError("");
-    try {
-      const response = await fetchWithAuth(
-        `/api/talent/opportunities/internal-call-answers?callId=${encodeURIComponent(callId)}`
-      );
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      if (request !== current.current) return;
-      if (
-        data.call.replyCompleted ||
-        (!data.call.submitted && data.call.status === "completed")
-      )
-        setCompleted((prev) => new Set(prev).add(callId));
-      else setCall(data.call);
-    } catch {
-      if (request === current.current)
+  const open = useCallback(
+    async (callId: string) => {
+      if (lock.current || !conversationId) return;
+      const request = ++current.current;
+      setLoadingId(callId);
+      setError("");
+      try {
+        const response = await fetchWithAuth(
+          `/api/talent/opportunities/internal-call-answers?callId=${encodeURIComponent(callId)}`
+        );
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        if (request !== current.current) return;
+        if (
+          data.call.replyCompleted ||
+          (!data.call.submitted && data.call.status === "completed")
+        )
+          setCompleted((prev) => new Set(prev).add(callId));
+        else setCall(data.call);
+      } catch {
+        if (request === current.current)
+          setError(
+            t(
+              "career.internal_call.answers.load_error",
+              "질문을 불러오지 못했어요. 다시 시도해 주세요."
+            )
+          );
+      } finally {
+        if (request === current.current) setLoadingId(null);
+      }
+    },
+    [conversationId, fetchWithAuth, t]
+  );
+  const save = useCallback(
+    async (responses: InternalCallAnswer[]) => {
+      if (!call || !conversationId || lock.current) return false;
+      lock.current = true;
+      setSubmitting(true);
+      setError("");
+      try {
+        let succeeded = false;
+        await onSendChatMessage({
+          text: "",
+          internalCallAnswerSubmission: {
+            callId: call.id,
+            questions: call.questions,
+            responses,
+          },
+          onSuccess: () => {
+            succeeded = true;
+          },
+        });
+        if (!succeeded) throw new Error("Chat submission did not complete");
+        setCompleted((prev) => new Set(prev).add(call.id));
+        setCall(null);
+        void queryClient.invalidateQueries({ queryKey: ["career-session"] });
+        void queryClient.invalidateQueries({
+          queryKey: ["career-pending-actions"],
+        });
+        return true;
+      } catch {
         setError(
           t(
-            "career.internal_call.answers.load_error",
-            "질문을 불러오지 못했어요. 다시 시도해 주세요."
+            "career.prep.error",
+            "처리하지 못했어요. 입력은 유지됩니다. 상태를 확인한 뒤 다시 시도해 주세요."
           )
         );
-    } finally {
-      if (request === current.current) setLoadingId(null);
-    }
-  }, [conversationId, fetchWithAuth, t]);
-  const save = useCallback(async (responses: InternalCallAnswer[]) => {
-    if (!call || !conversationId || lock.current) return false;
-    lock.current = true;
-    setSubmitting(true);
-    setError("");
-    try {
-      let succeeded = false;
-      await onSendChatMessage({
-        text: "",
-        internalCallAnswerSubmission: {
-          callId: call.id,
-          questions: call.questions,
-          responses,
-        },
-        onSuccess: () => {
-          succeeded = true;
-        },
-      });
-      if (!succeeded) throw new Error("Chat submission did not complete");
-      setCompleted((prev) => new Set(prev).add(call.id));
-      setCall(null);
-      void queryClient.invalidateQueries({ queryKey: ["career-session"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["career-pending-actions"],
-      });
-      return true;
-    } catch {
-      setError(
-        t(
-          "career.prep.error",
-          "처리하지 못했어요. 입력은 유지됩니다. 상태를 확인한 뒤 다시 시도해 주세요."
-        )
-      );
-      return false;
-    } finally {
-      lock.current = false;
-      setSubmitting(false);
-    }
-  }, [call, conversationId, onSendChatMessage, queryClient, t]);
+        return false;
+      } finally {
+        lock.current = false;
+        setSubmitting(false);
+      }
+    },
+    [call, conversationId, onSendChatMessage, queryClient, t]
+  );
   const close = useCallback(() => {
     if (!lock.current) {
       ++current.current;
@@ -133,14 +140,19 @@ export function InternalCallAnswersProvider({
     }
   }, []);
   const value = useMemo(
-    () => ({ call, completed, loadingId, error, open, save, submitting, close }),
+    () => ({
+      call,
+      completed,
+      loadingId,
+      error,
+      open,
+      save,
+      submitting,
+      close,
+    }),
     [call, completed, loadingId, error, open, save, submitting, close]
   );
-  return (
-    <Context.Provider value={value}>
-      {children}
-    </Context.Provider>
-  );
+  return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
 export function InternalCallWriteButton({
@@ -181,10 +193,17 @@ export function InternalCallWriteButton({
 
 export function InternalCallAnswersSlot({ children }: { children: ReactNode }) {
   const ctx = useInternalCallAnswers();
-  return ctx.call ? (
-    <InternalCallQuestionComposer key={ctx.call.id} call={ctx.call} />
-  ) : (
-    <>{children}</>
+  return (
+    <>
+      <CareerAnimatedRegion open={Boolean(ctx.call)}>
+        {ctx.call ? (
+          <div className="career-response-scroll">
+            <InternalCallQuestionComposer key={ctx.call.id} call={ctx.call} />
+          </div>
+        ) : null}
+      </CareerAnimatedRegion>
+      {children}
+    </>
   );
 }
 
@@ -234,7 +253,7 @@ function InternalCallQuestionComposer({
   };
   if (index >= call.questions.length)
     return (
-      <ChatComposerSurface className="p-3 md:p-4">
+      <ChatComposerSurface className="career-glass career-work-surface p-4 md:p-5">
         <div className="max-h-[min(420px,55dvh)] space-y-4 overflow-y-auto">
           {responses.map((response) => (
             <div key={response.questionIndex}>

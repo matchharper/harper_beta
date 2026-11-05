@@ -26,7 +26,7 @@ function getStageClassName(stage: string) {
     return "border-primary/20 bg-primary-faded text-primary";
   }
   if (stage === "final_offer") {
-    return "border-black bg-black text-neutral-00";
+    return "border-stroke-strong bg-surface-inverse text-neutral-00";
   }
   if (stage === "process_stopped") {
     return "border-critical/20 bg-critical-faded text-critical";
@@ -135,7 +135,7 @@ export const OpsReferralDateDropdown = memo(function OpsReferralDateDropdown({
           sideOffset={6}
           align="start"
           onClick={(event) => event.stopPropagation()}
-          className="z-[140] w-[300px] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-2 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] outline-none"
+          className="z-[140] w-[300px] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-2 shadow-(--shadow-lg) outline-none"
         >
           <Calendar
             mode="single"
@@ -269,7 +269,7 @@ export const OpsReferralAmountDropdown = memo(
             sideOffset={6}
             align="start"
             onClick={(event) => event.stopPropagation()}
-            className="z-[140] w-[280px] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] outline-none"
+            className="z-[140] w-[280px] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-(--shadow-lg) outline-none"
           >
             <form
               onSubmit={(event) => {

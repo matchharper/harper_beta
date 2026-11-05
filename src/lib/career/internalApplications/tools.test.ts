@@ -263,7 +263,7 @@ test("chat and voice cannot read or control an internal evaluator through search
   const validate = new Ajv().compile(tool.parameters);
   for (const action of ["search", "read", "resume", "cancel"]) {
     assert.equal(validate({ source: "internal", action, runId: "old-private-run" }), false);
-    await assert.rejects(() => tool.execute!({ source: "internal", action, runId: "old-private-run" }, undefined), /get_internal_roles/);
+    await assert.rejects(() => tool.execute!({ source: "internal", action, runId: "old-private-run" }, undefined), /read_recommended_opportunities/);
   }
 });
 

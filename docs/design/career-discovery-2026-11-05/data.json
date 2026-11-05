@@ -1,0 +1,1181 @@
+{
+  "asOf": "2026-11-05",
+  "stats": {
+    "experiences": 1138917,
+    "profiles": 269554,
+    "companies": 318550,
+    "active_jobs": 119599
+  },
+  "hiring": [
+    {
+      "id": "backend",
+      "label": "백엔드",
+      "active": 595,
+      "companies": 367,
+      "w1": 59,
+      "w2": 64,
+      "w3": 91,
+      "w4": 49,
+      "prev28": 205,
+      "last28": 263
+    },
+    {
+      "id": "data",
+      "label": "데이터 엔지니어",
+      "active": 150,
+      "companies": 106,
+      "w1": 14,
+      "w2": 19,
+      "w3": 25,
+      "w4": 17,
+      "prev28": 48,
+      "last28": 75
+    },
+    {
+      "id": "design",
+      "label": "프로덕트 디자인",
+      "active": 204,
+      "companies": 142,
+      "w1": 21,
+      "w2": 30,
+      "w3": 35,
+      "w4": 22,
+      "prev28": 64,
+      "last28": 108
+    },
+    {
+      "id": "frontend",
+      "label": "프론트엔드",
+      "active": 201,
+      "companies": 146,
+      "w1": 19,
+      "w2": 19,
+      "w3": 26,
+      "w4": 16,
+      "prev28": 68,
+      "last28": 80
+    },
+    {
+      "id": "ml",
+      "label": "AI · 머신러닝",
+      "active": 1464,
+      "companies": 630,
+      "w1": 119,
+      "w2": 172,
+      "w3": 222,
+      "w4": 161,
+      "prev28": 568,
+      "last28": 674
+    },
+    {
+      "id": "pm",
+      "label": "프로덕트 매니저",
+      "active": 247,
+      "companies": 138,
+      "w1": 13,
+      "w2": 18,
+      "w3": 36,
+      "w4": 29,
+      "prev28": 82,
+      "last28": 96
+    }
+  ],
+  "salaries": [
+    {
+      "id": "backend",
+      "label": "백엔드",
+      "n": 345,
+      "mean": "206307",
+      "percentiles": [
+        163500,
+        187500,
+        202500,
+        225000,
+        250000
+      ],
+      "minimum": "17000",
+      "maximum": "485000.0"
+    },
+    {
+      "id": "data",
+      "label": "데이터 엔지니어",
+      "n": 131,
+      "mean": "197642",
+      "percentiles": [
+        140337,
+        156750,
+        190000,
+        220375,
+        270000
+      ],
+      "minimum": "45000",
+      "maximum": "405000.0"
+    },
+    {
+      "id": "design",
+      "label": "프로덕트 디자인",
+      "n": 260,
+      "mean": "201988",
+      "percentiles": [
+        152500,
+        172233.125,
+        194500,
+        226985.5,
+        258650
+      ],
+      "minimum": "50000",
+      "maximum": "460000.0"
+    },
+    {
+      "id": "frontend",
+      "label": "프론트엔드",
+      "n": 123,
+      "mean": "201749",
+      "percentiles": [
+        150000,
+        177500,
+        200000,
+        225000,
+        255800
+      ],
+      "minimum": "40000",
+      "maximum": "450000"
+    },
+    {
+      "id": "ml",
+      "label": "AI · 머신러닝",
+      "n": 1775,
+      "mean": "218960",
+      "percentiles": [
+        148403,
+        176543.75,
+        212000,
+        252000,
+        295000
+      ],
+      "minimum": "13000",
+      "maximum": "850000.0"
+    },
+    {
+      "id": "pm",
+      "label": "프로덕트 매니저",
+      "n": 908,
+      "mean": "207652",
+      "percentiles": [
+        159550,
+        177500,
+        200250,
+        230000,
+        262500
+      ],
+      "minimum": "30000",
+      "maximum": "581400.0"
+    }
+  ],
+  "flows": [
+    {
+      "source": 1753,
+      "destination": 16783,
+      "name": "NAVER Corp",
+      "linkedin_url": "https://www.linkedin.com/company/naver",
+      "people": 99,
+      "median_tenure": 2.66666666666667,
+      "rk": 1,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 75,
+      "median_tenure": 4,
+      "rk": 2,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 825160,
+      "name": "Hyundai Motor Company",
+      "linkedin_url": "https://www.linkedin.com/company/hyundai-motor-company/",
+      "people": 60,
+      "median_tenure": 3.16906228610541,
+      "rk": 3,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 1441,
+      "name": "Google",
+      "linkedin_url": "https://www.linkedin.com/company/google/",
+      "people": 59,
+      "median_tenure": 7.08555783709788,
+      "rk": 4,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 15096106,
+      "name": "Seoul National University",
+      "linkedin_url": "https://www.linkedin.com/school/seoulnational-university/",
+      "people": 46,
+      "median_tenure": 0.167008898015058,
+      "rk": 5,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 19120,
+      "name": "SK hynix",
+      "linkedin_url": "https://www.linkedin.com/company/sk-hynix",
+      "people": 45,
+      "median_tenure": 2.74880219028063,
+      "rk": 6,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 3996614,
+      "name": "Kakao Corp",
+      "linkedin_url": "https://www.linkedin.com/company/kakaocorp/",
+      "people": 35,
+      "median_tenure": 2.00136892539357,
+      "rk": 7,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 2382910,
+      "name": "Amazon Web Services (AWS)",
+      "linkedin_url": "https://www.linkedin.com/company/amazon-web-services",
+      "people": 34,
+      "median_tenure": 4.99931553730322,
+      "rk": 8,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 77752302,
+      "name": "Samsung Semiconductor",
+      "linkedin_url": "https://www.linkedin.com/company/samsungsemiconductor/",
+      "people": 33,
+      "median_tenure": 6.5845311430527,
+      "rk": 9,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 15095344,
+      "name": "Korea Advanced Institute of Science and Technology",
+      "linkedin_url": "https://www.linkedin.com/school/%ED%95%9C%EA%B5%AD%EA%B3%BC%ED%95%99%EA%B8%B0%EC%88%A0%EC%9B%90-kaist-/",
+      "people": 32,
+      "median_tenure": 0.418891170431211,
+      "rk": 10,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 162479,
+      "name": "Apple",
+      "linkedin_url": "https://www.linkedin.com/company/apple/",
+      "people": 31,
+      "median_tenure": 5.24845995893224,
+      "rk": 11,
+      "total": 2873
+    },
+    {
+      "source": 1753,
+      "destination": 165992,
+      "name": "SK Telecom",
+      "linkedin_url": "https://www.linkedin.com/company/sk-telecom",
+      "people": 30,
+      "median_tenure": 3.91786447638604,
+      "rk": 12,
+      "total": 2873
+    },
+    {
+      "source": 16783,
+      "destination": 26665462,
+      "name": "NAVER Cloud",
+      "linkedin_url": "https://www.linkedin.com/company/navercloud/",
+      "people": 199,
+      "median_tenure": 2.33264887063655,
+      "rk": 1,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 53,
+      "median_tenure": 4.08213552361396,
+      "rk": 2,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 9318303,
+      "name": "LINE Plus Corp",
+      "linkedin_url": "https://www.linkedin.com/company/line-messenger",
+      "people": 51,
+      "median_tenure": 3.08555783709788,
+      "rk": 3,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 42772889,
+      "name": "NAVER FINANCIAL",
+      "linkedin_url": "https://www.linkedin.com/company/naver-financial/",
+      "people": 45,
+      "median_tenure": 2.91854893908282,
+      "rk": 4,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 3996614,
+      "name": "Kakao Corp",
+      "linkedin_url": "https://www.linkedin.com/company/kakaocorp/",
+      "people": 38,
+      "median_tenure": 0.245037645448323,
+      "rk": 5,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 1753,
+      "name": "Samsung Electronics",
+      "linkedin_url": "https://www.linkedin.com/company/samsung-electronics/",
+      "people": 32,
+      "median_tenure": 0.414784394250513,
+      "rk": 6,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 13340368,
+      "name": "NAVER WEBTOON",
+      "linkedin_url": "https://www.linkedin.com/company/naver-webtoon-corp/",
+      "people": 28,
+      "median_tenure": 2.74880219028063,
+      "rk": 7,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 165992,
+      "name": "SK Telecom",
+      "linkedin_url": "https://www.linkedin.com/company/sk-telecom",
+      "people": 24,
+      "median_tenure": 1.50171115674196,
+      "rk": 8,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 10571084,
+      "name": "Toss",
+      "linkedin_url": "https://www.linkedin.com/company/tossglobal/",
+      "people": 24,
+      "median_tenure": 1.79192334017796,
+      "rk": 9,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 14479249,
+      "name": "Karrot",
+      "linkedin_url": "https://www.linkedin.com/company/daangn/",
+      "people": 23,
+      "median_tenure": 2.83093771389459,
+      "rk": 10,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 6476200,
+      "name": "(주)우아한형제들 (Woowa Bros.)",
+      "linkedin_url": "https://www.linkedin.com/company/woowa-bros-/",
+      "people": 22,
+      "median_tenure": 3.25119780971937,
+      "rk": 11,
+      "total": 1675
+    },
+    {
+      "source": 16783,
+      "destination": 13389963,
+      "name": "NAVER LABS Corp.",
+      "linkedin_url": "https://www.linkedin.com/company/naverlabs/",
+      "people": 18,
+      "median_tenure": 3.29363449691992,
+      "rk": 12,
+      "total": 1675
+    },
+    {
+      "source": 2824374,
+      "destination": 14593491,
+      "name": "MUSINSA 무신사",
+      "linkedin_url": "https://www.linkedin.com/company/musinsacom/",
+      "people": 47,
+      "median_tenure": 4,
+      "rk": 1,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 10571084,
+      "name": "Toss",
+      "linkedin_url": "https://www.linkedin.com/company/tossglobal/",
+      "people": 37,
+      "median_tenure": 1.91649555099247,
+      "rk": 2,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 27052530,
+      "name": "Bucketplace (Ohouse)",
+      "linkedin_url": "https://www.linkedin.com/company/bucketplace/",
+      "people": 37,
+      "median_tenure": 2.91581108829569,
+      "rk": 3,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 6476200,
+      "name": "(주)우아한형제들 (Woowa Bros.)",
+      "linkedin_url": "https://www.linkedin.com/company/woowa-bros-/",
+      "people": 36,
+      "median_tenure": 2.16837782340862,
+      "rk": 4,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 16783,
+      "name": "NAVER Corp",
+      "linkedin_url": "https://www.linkedin.com/company/naver",
+      "people": 34,
+      "median_tenure": 2.7501711156742,
+      "rk": 5,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 2741466,
+      "name": "마이리얼트립 (Myrealtrip)",
+      "linkedin_url": "https://www.linkedin.com/company/myrealtrip",
+      "people": 28,
+      "median_tenure": 3.28815879534565,
+      "rk": 6,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 69347140,
+      "name": "Coupang Pay",
+      "linkedin_url": "https://www.linkedin.com/company/coupangpay/",
+      "people": 26,
+      "median_tenure": 3.53867214236824,
+      "rk": 7,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 10043024,
+      "name": "위대한상상(요기요)",
+      "linkedin_url": "https://www.linkedin.com/company/yogiyokorea",
+      "people": 22,
+      "median_tenure": 1.99863107460643,
+      "rk": 8,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 79116546,
+      "name": "Flipster",
+      "linkedin_url": "https://www.linkedin.com/company/flipster-official/",
+      "people": 20,
+      "median_tenure": 2.41478439425051,
+      "rk": 9,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 1586,
+      "name": "Amazon",
+      "linkedin_url": "https://www.linkedin.com/company/amazon",
+      "people": 15,
+      "median_tenure": 1.99863107460643,
+      "rk": 10,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 1753,
+      "name": "Samsung Electronics",
+      "linkedin_url": "https://www.linkedin.com/company/samsung-electronics/",
+      "people": 15,
+      "median_tenure": 2.08350444900753,
+      "rk": 11,
+      "total": 1400
+    },
+    {
+      "source": 2824374,
+      "destination": 9318303,
+      "name": "LINE Plus Corp",
+      "linkedin_url": "https://www.linkedin.com/company/line-messenger",
+      "people": 15,
+      "median_tenure": 1.50581793292266,
+      "rk": 12,
+      "total": 1400
+    },
+    {
+      "source": 10571084,
+      "destination": 69924947,
+      "name": "Toss Securities",
+      "linkedin_url": "https://www.linkedin.com/company/toss-securities/",
+      "people": 45,
+      "median_tenure": 2.33538672142368,
+      "rk": 1,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 67515813,
+      "name": "Toss Payments(토스페이먼츠)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-payments/",
+      "people": 37,
+      "median_tenure": 1.66735112936345,
+      "rk": 2,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 82568965,
+      "name": "Toss Place(토스플레이스)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-place/",
+      "people": 27,
+      "median_tenure": 1.66461327857632,
+      "rk": 3,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 74324665,
+      "name": "Toss Bank(토스뱅크)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-bank/",
+      "people": 21,
+      "median_tenure": 2.32991101984942,
+      "rk": 4,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 14,
+      "median_tenure": 2.33401779603012,
+      "rk": 5,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 3996614,
+      "name": "Kakao Corp",
+      "linkedin_url": "https://www.linkedin.com/company/kakaocorp/",
+      "people": 12,
+      "median_tenure": 0.123203285420945,
+      "rk": 6,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 80128583,
+      "name": "Toss CX (토스씨엑스)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-cx",
+      "people": 12,
+      "median_tenure": 1.75085557837098,
+      "rk": 7,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 14479249,
+      "name": "Karrot",
+      "linkedin_url": "https://www.linkedin.com/company/daangn/",
+      "people": 11,
+      "median_tenure": 0.503764544832307,
+      "rk": 8,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 16783,
+      "name": "NAVER Corp",
+      "linkedin_url": "https://www.linkedin.com/company/naver",
+      "people": 10,
+      "median_tenure": 1.12799452429843,
+      "rk": 9,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 13714067,
+      "name": "카카오뱅크 Kakaobank",
+      "linkedin_url": "https://www.linkedin.com/company/kakaobank/",
+      "people": 9,
+      "median_tenure": 1.9192334017796,
+      "rk": 10,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 65282143,
+      "name": "flex",
+      "linkedin_url": "https://www.linkedin.com/company/flexteamofficial/",
+      "people": 9,
+      "median_tenure": 3.41957563312799,
+      "rk": 11,
+      "total": 665
+    },
+    {
+      "source": 10571084,
+      "destination": 75656332,
+      "name": "moyo",
+      "linkedin_url": "https://www.linkedin.com/company/%EB%AA%A8%EC%9A%94%EF%BD%9C%EB%AA%A8%EB%91%90%EC%9D%98%EC%9A%94%EA%B8%88%EC%A0%9C/",
+      "people": 8,
+      "median_tenure": 1.91649555099247,
+      "rk": 12,
+      "total": 665
+    }
+  ],
+  "flowsLong": [
+    {
+      "source": 1753,
+      "destination": 16783,
+      "name": "NAVER Corp",
+      "linkedin_url": "https://www.linkedin.com/company/naver",
+      "people": 76,
+      "median_tenure": 3.50034223134839,
+      "rk": 1,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 70,
+      "median_tenure": 4.45722108145106,
+      "rk": 2,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 1441,
+      "name": "Google",
+      "linkedin_url": "https://www.linkedin.com/company/google/",
+      "people": 52,
+      "median_tenure": 7.87405886379192,
+      "rk": 3,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 825160,
+      "name": "Hyundai Motor Company",
+      "linkedin_url": "https://www.linkedin.com/company/hyundai-motor-company/",
+      "people": 43,
+      "median_tenure": 5.91375770020534,
+      "rk": 4,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 2382910,
+      "name": "Amazon Web Services (AWS)",
+      "linkedin_url": "https://www.linkedin.com/company/amazon-web-services",
+      "people": 28,
+      "median_tenure": 5.91375770020534,
+      "rk": 5,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 77752302,
+      "name": "Samsung Semiconductor",
+      "linkedin_url": "https://www.linkedin.com/company/samsungsemiconductor/",
+      "people": 27,
+      "median_tenure": 8,
+      "rk": 6,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 3996614,
+      "name": "Kakao Corp",
+      "linkedin_url": "https://www.linkedin.com/company/kakaocorp/",
+      "people": 26,
+      "median_tenure": 2.45722108145106,
+      "rk": 7,
+      "total": 2082
+    },
+    {
+      "source": 1753,
+      "destination": 162479,
+      "name": "Apple",
+      "linkedin_url": "https://www.linkedin.com/company/apple/",
+      "people": 25,
+      "median_tenure": 5.91375770020534,
+      "rk": 8,
+      "total": 2082
+    },
+    {
+      "source": 16783,
+      "destination": 26665462,
+      "name": "NAVER Cloud",
+      "linkedin_url": "https://www.linkedin.com/company/navercloud/",
+      "people": 154,
+      "median_tenure": 3.29226557152635,
+      "rk": 1,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 45,
+      "median_tenure": 4.41615331964408,
+      "rk": 2,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 9318303,
+      "name": "LINE Plus Corp",
+      "linkedin_url": "https://www.linkedin.com/company/line-messenger",
+      "people": 34,
+      "median_tenure": 4,
+      "rk": 3,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 42772889,
+      "name": "NAVER FINANCIAL",
+      "linkedin_url": "https://www.linkedin.com/company/naver-financial/",
+      "people": 34,
+      "median_tenure": 3.20876112251882,
+      "rk": 4,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 10571084,
+      "name": "Toss",
+      "linkedin_url": "https://www.linkedin.com/company/tossglobal/",
+      "people": 19,
+      "median_tenure": 2.16563997262149,
+      "rk": 5,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 13340368,
+      "name": "NAVER WEBTOON",
+      "linkedin_url": "https://www.linkedin.com/company/naver-webtoon-corp/",
+      "people": 18,
+      "median_tenure": 3.79192334017796,
+      "rk": 6,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 13389963,
+      "name": "NAVER LABS Corp.",
+      "linkedin_url": "https://www.linkedin.com/company/naverlabs/",
+      "people": 18,
+      "median_tenure": 3.29363449691992,
+      "rk": 7,
+      "total": 848
+    },
+    {
+      "source": 16783,
+      "destination": 6476200,
+      "name": "(주)우아한형제들 (Woowa Bros.)",
+      "linkedin_url": "https://www.linkedin.com/company/woowa-bros-/",
+      "people": 14,
+      "median_tenure": 5.20465434633812,
+      "rk": 8,
+      "total": 848
+    },
+    {
+      "source": 2824374,
+      "destination": 14593491,
+      "name": "MUSINSA 무신사",
+      "linkedin_url": "https://www.linkedin.com/company/musinsacom/",
+      "people": 43,
+      "median_tenure": 4.33127994524298,
+      "rk": 1,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 27052530,
+      "name": "Bucketplace (Ohouse)",
+      "linkedin_url": "https://www.linkedin.com/company/bucketplace/",
+      "people": 34,
+      "median_tenure": 3.33333333333333,
+      "rk": 2,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 6476200,
+      "name": "(주)우아한형제들 (Woowa Bros.)",
+      "linkedin_url": "https://www.linkedin.com/company/woowa-bros-/",
+      "people": 33,
+      "median_tenure": 2.16837782340862,
+      "rk": 3,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 16783,
+      "name": "NAVER Corp",
+      "linkedin_url": "https://www.linkedin.com/company/naver",
+      "people": 32,
+      "median_tenure": 3.16495550992471,
+      "rk": 4,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 2741466,
+      "name": "마이리얼트립 (Myrealtrip)",
+      "linkedin_url": "https://www.linkedin.com/company/myrealtrip",
+      "people": 28,
+      "median_tenure": 3.28815879534565,
+      "rk": 5,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 10571084,
+      "name": "Toss",
+      "linkedin_url": "https://www.linkedin.com/company/tossglobal/",
+      "people": 26,
+      "median_tenure": 3.00342231348391,
+      "rk": 6,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 69347140,
+      "name": "Coupang Pay",
+      "linkedin_url": "https://www.linkedin.com/company/coupangpay/",
+      "people": 24,
+      "median_tenure": 3.66461327857632,
+      "rk": 7,
+      "total": 1098
+    },
+    {
+      "source": 2824374,
+      "destination": 10043024,
+      "name": "위대한상상(요기요)",
+      "linkedin_url": "https://www.linkedin.com/company/yogiyokorea",
+      "people": 22,
+      "median_tenure": 1.99863107460643,
+      "rk": 8,
+      "total": 1098
+    },
+    {
+      "source": 10571084,
+      "destination": 69924947,
+      "name": "Toss Securities",
+      "linkedin_url": "https://www.linkedin.com/company/toss-securities/",
+      "people": 40,
+      "median_tenure": 2.49555099247091,
+      "rk": 1,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 67515813,
+      "name": "Toss Payments(토스페이먼츠)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-payments/",
+      "people": 25,
+      "median_tenure": 2.49418206707734,
+      "rk": 2,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 74324665,
+      "name": "Toss Bank(토스뱅크)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-bank/",
+      "people": 20,
+      "median_tenure": 2.33127994524298,
+      "rk": 3,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 82568965,
+      "name": "Toss Place(토스플레이스)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-place/",
+      "people": 19,
+      "median_tenure": 3.66324435318275,
+      "rk": 4,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 2824374,
+      "name": "Coupang",
+      "linkedin_url": "https://www.linkedin.com/company/coupang/",
+      "people": 11,
+      "median_tenure": 2.49965776865161,
+      "rk": 5,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 80128583,
+      "name": "Toss CX (토스씨엑스)",
+      "linkedin_url": "https://www.linkedin.com/company/toss-cx",
+      "people": 10,
+      "median_tenure": 1.75222450376454,
+      "rk": 6,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 65282143,
+      "name": "flex",
+      "linkedin_url": "https://www.linkedin.com/company/flexteamofficial/",
+      "people": 8,
+      "median_tenure": 3.79466119096509,
+      "rk": 7,
+      "total": 364
+    },
+    {
+      "source": 10571084,
+      "destination": 13714067,
+      "name": "카카오뱅크 Kakaobank",
+      "linkedin_url": "https://www.linkedin.com/company/kakaobank/",
+      "people": 7,
+      "median_tenure": 2.00136892539357,
+      "rk": 8,
+      "total": 364
+    }
+  ],
+  "jobs": [
+    {
+      "company_db_id": 1441,
+      "n": 84
+    },
+    {
+      "company_db_id": 16783,
+      "n": 32
+    },
+    {
+      "company_db_id": 162479,
+      "n": 24
+    },
+    {
+      "company_db_id": 825160,
+      "n": 59
+    },
+    {
+      "company_db_id": 2382910,
+      "n": 4
+    },
+    {
+      "company_db_id": 2741466,
+      "n": 17
+    },
+    {
+      "company_db_id": 2824374,
+      "n": 536
+    },
+    {
+      "company_db_id": 3996614,
+      "n": 24
+    },
+    {
+      "company_db_id": 6476200,
+      "n": 61
+    },
+    {
+      "company_db_id": 9318303,
+      "n": 16
+    },
+    {
+      "company_db_id": 10043024,
+      "n": 6
+    },
+    {
+      "company_db_id": 10571084,
+      "n": 259
+    },
+    {
+      "company_db_id": 13340368,
+      "n": 43
+    },
+    {
+      "company_db_id": 13389963,
+      "n": 6
+    },
+    {
+      "company_db_id": 13714067,
+      "n": 26
+    },
+    {
+      "company_db_id": 14593491,
+      "n": 114
+    },
+    {
+      "company_db_id": 26665462,
+      "n": 9
+    },
+    {
+      "company_db_id": 27052530,
+      "n": 37
+    },
+    {
+      "company_db_id": 42772889,
+      "n": 1
+    },
+    {
+      "company_db_id": 65282143,
+      "n": 4
+    },
+    {
+      "company_db_id": 67515813,
+      "n": 2
+    },
+    {
+      "company_db_id": 69924947,
+      "n": 11
+    },
+    {
+      "company_db_id": 74324665,
+      "n": 22
+    },
+    {
+      "company_db_id": 80128583,
+      "n": 33
+    },
+    {
+      "company_db_id": 82568965,
+      "n": 17
+    }
+  ],
+  "countries": [
+    {
+      "country_code": "US",
+      "n": 56003,
+      "stated_range": 34796
+    },
+    {
+      "country_code": "KR",
+      "n": 28528,
+      "stated_range": 8
+    },
+    {
+      "country_code": "IN",
+      "n": 5241,
+      "stated_range": 653
+    },
+    {
+      "country_code": null,
+      "n": 4529,
+      "stated_range": 681
+    },
+    {
+      "country_code": "GB",
+      "n": 4285,
+      "stated_range": 1015
+    },
+    {
+      "country_code": "CA",
+      "n": 1985,
+      "stated_range": 1210
+    },
+    {
+      "country_code": "DE",
+      "n": 1813,
+      "stated_range": 291
+    },
+    {
+      "country_code": "FR",
+      "n": 1227,
+      "stated_range": 213
+    },
+    {
+      "country_code": "IL",
+      "n": 1192,
+      "stated_range": 2
+    },
+    {
+      "country_code": "JP",
+      "n": 1165,
+      "stated_range": 64
+    },
+    {
+      "country_code": "SG",
+      "n": 1006,
+      "stated_range": 65
+    },
+    {
+      "country_code": "AU",
+      "n": 993,
+      "stated_range": 104
+    }
+  ],
+  "krpay": [
+    {
+      "salary_is_predicted": true,
+      "salary_currency": "KRW",
+      "salary_period": "year",
+      "n": 19859
+    },
+    {
+      "salary_is_predicted": false,
+      "salary_currency": "USD",
+      "salary_period": "year",
+      "n": 2
+    },
+    {
+      "salary_is_predicted": false,
+      "salary_currency": "KPW",
+      "salary_period": "year",
+      "n": 2
+    },
+    {
+      "salary_is_predicted": false,
+      "salary_currency": "KRW",
+      "salary_period": "year",
+      "n": 2
+    },
+    {
+      "salary_is_predicted": false,
+      "salary_currency": "GBP",
+      "salary_period": "year",
+      "n": 1
+    },
+    {
+      "salary_is_predicted": false,
+      "salary_currency": "USD",
+      "salary_period": "day",
+      "n": 1
+    }
+  ]
+}

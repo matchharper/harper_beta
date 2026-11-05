@@ -61,12 +61,12 @@ export default function AdminCareerFunnelPanel({
   const maxCount = Math.max(...steps.map((step) => step.count), 1);
 
   return (
-    <Card className="rounded-md border-black/10 shadow-none">
+    <Card className="rounded-md border-stroke shadow-none">
       <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-[14px] font-semibold text-black">
+        <CardTitle className="text-[14px] font-semibold text-neutral-primary">
           Landing to Career Funnel
         </CardTitle>
-        <CardDescription className="text-[12px] leading-5 text-black/50">
+        <CardDescription className="text-[12px] leading-5 text-neutral-primary/50">
           랜딩 진입부터 첫 추천 이후 재접속까지의 핵심 흐름입니다.
         </CardDescription>
       </CardHeader>
@@ -86,28 +86,28 @@ export default function AdminCareerFunnelPanel({
                 >
                   <BareButton
                     type="button"
-                    className="inline-flex cursor-help items-center gap-1 bg-transparent p-0 text-left text-[12px] font-medium text-black"
+                    className="inline-flex cursor-help items-center gap-1 bg-transparent p-0 text-left text-[12px] font-medium text-neutral-primary"
                   >
                     {index + 1}. {step.label}
-                    <Info className="h-3 w-3 text-black/40" aria-hidden />
+                    <Info className="h-3 w-3 text-neutral-primary/40" aria-hidden />
                   </BareButton>
                 </Tooltips>
-                <div className="mt-0.5 text-[11px] text-black/40">
+                <div className="mt-0.5 text-[11px] text-neutral-primary/40">
                   {step.detail}
                 </div>
               </div>
-              <div className="h-8 border border-black/10 bg-black/[0.03]">
+              <div className="h-8 border border-stroke bg-surface-inverse/[0.03]">
                 <div
-                  className="h-full bg-black"
+                  className="h-full bg-surface-inverse"
                   style={{ width }}
                   aria-hidden="true"
                 />
               </div>
               <div className="flex items-center justify-between gap-2 md:block md:text-right">
-                <div className="text-[15px] font-semibold leading-5 text-black">
+                <div className="text-[15px] font-semibold leading-5 text-neutral-primary">
                   {step.count.toLocaleString("ko-KR")}
                 </div>
-                <div className="text-[11px] leading-4 text-black/45">
+                <div className="text-[11px] leading-4 text-neutral-primary/45">
                   prev {formatRate(step.rateFromPrevious)} · entry{" "}
                   {formatRate(step.rateFromEntry)}
                 </div>
@@ -116,23 +116,23 @@ export default function AdminCareerFunnelPanel({
           );
         })}
 
-        <div className="border-t border-black/10 pt-3">
+        <div className="border-t border-stroke pt-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <Tooltips text="landing_logs.type의 source suffix 기준 분해입니다. 과거에 source suffix 없이 들어온 new_visit/new_session/login_email 로그는 unknown으로 표시됩니다.">
               <BareButton
                 type="button"
-                className="inline-flex cursor-help items-center gap-1 bg-transparent p-0 text-left text-[12px] font-medium text-black"
+                className="inline-flex cursor-help items-center gap-1 bg-transparent p-0 text-left text-[12px] font-medium text-neutral-primary"
               >
                 Landing log sources
-                <Info className="h-3 w-3 text-black/40" aria-hidden />
+                <Info className="h-3 w-3 text-neutral-primary/40" aria-hidden />
               </BareButton>
             </Tooltips>
-            <div className="text-[11px] text-black/40">type suffix 기준</div>
+            <div className="text-[11px] text-neutral-primary/40">type suffix 기준</div>
           </div>
           <div className="overflow-x-auto">
             <Table className="min-w-[520px]">
               <TableHeader>
-                <TableRow className="border-black/10 hover:bg-transparent">
+                <TableRow className="border-stroke hover:bg-transparent">
                   <TableHead className="h-8 px-2 text-[11px]">Source</TableHead>
                   <TableHead className="h-8 px-2 text-right text-[11px]">
                     Entry
@@ -148,24 +148,24 @@ export default function AdminCareerFunnelPanel({
                   <TableRow>
                     <TableCell
                       colSpan={4}
-                      className="px-2 py-4 text-center text-[11px] text-black/45"
+                      className="px-2 py-4 text-center text-[11px] text-neutral-primary/45"
                     >
                       source가 붙은 landing log가 아직 없습니다.
                     </TableCell>
                   </TableRow>
                 ) : (
                   landingSources.map((source) => (
-                    <TableRow key={source.source} className="border-black/10">
-                      <TableCell className="px-2 py-1.5 text-[11px] font-medium text-black">
+                    <TableRow key={source.source} className="border-stroke">
+                      <TableCell className="px-2 py-1.5 text-[11px] font-medium text-neutral-primary">
                         {source.source}
                       </TableCell>
-                      <TableCell className="px-2 py-1.5 text-right text-[11px] text-black/65">
+                      <TableCell className="px-2 py-1.5 text-right text-[11px] text-neutral-primary/65">
                         {source.entryCount.toLocaleString("ko-KR")}
                       </TableCell>
-                      <TableCell className="px-2 py-1.5 text-right text-[11px] text-black/65">
+                      <TableCell className="px-2 py-1.5 text-right text-[11px] text-neutral-primary/65">
                         {source.loginCount.toLocaleString("ko-KR")}
                       </TableCell>
-                      <TableCell className="max-w-[260px] truncate px-2 py-1.5 text-[11px] text-black/45">
+                      <TableCell className="max-w-[260px] truncate px-2 py-1.5 text-[11px] text-neutral-primary/45">
                         {source.eventTypes.join(", ") || "-"}
                       </TableCell>
                     </TableRow>

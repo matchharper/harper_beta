@@ -122,11 +122,13 @@ test("messages and work admission do not reload the workspace; completed work re
     assert.deepEqual(
       invalidated.sort(),
       [
+        "career-message-history",
         "career-session",
         "career-history-opportunities",
         "career-history-summary",
         "career-task-progress",
         "career-pending-actions",
+        "career-action-items",
       ].sort()
     );
     invalidated.length = 0;

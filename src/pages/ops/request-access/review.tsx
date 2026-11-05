@@ -168,7 +168,7 @@ function EmailClientPreview({
             className={cx(
               "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors",
               viewport === "desktop"
-                ? "bg-bg-default text-neutral-900 shadow-sm"
+                ? "bg-bg-default text-neutral-900 shadow-(--shadow-sm)"
                 : "text-neutral-500 hover:text-neutral-700"
             )}
           >
@@ -181,7 +181,7 @@ function EmailClientPreview({
             className={cx(
               "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors",
               viewport === "mobile"
-                ? "bg-bg-default text-neutral-900 shadow-sm"
+                ? "bg-bg-default text-neutral-900 shadow-(--shadow-sm)"
                 : "text-neutral-500 hover:text-neutral-700"
             )}
           >
@@ -592,7 +592,7 @@ export default function OpsRequestAccessReviewPage() {
                             className={cx(
                               "rounded-md px-3 py-2 text-sm transition",
                               locale === option
-                                ? "bg-black text-neutral-00"
+                                ? "bg-surface-inverse text-neutral-00"
                                 : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
                             )}
                           >

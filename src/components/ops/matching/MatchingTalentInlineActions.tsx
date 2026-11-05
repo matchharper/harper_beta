@@ -82,7 +82,7 @@ export function MatchingTagPill({
         <BareButton
           type="button"
           onClick={onRemove}
-          className="inline-flex h-4 w-4 items-center justify-center rounded text-current opacity-70 transition hover:bg-white/70 hover:opacity-100 disabled:cursor-not-allowed"
+          className="inline-flex h-4 w-4 items-center justify-center rounded text-current opacity-70 transition hover:bg-bg-floating/70 hover:opacity-100 disabled:cursor-not-allowed"
           aria-label={`${getMatchingTagLabel(tag)} 태그 삭제`}
         >
           <X className="h-3 w-3" />

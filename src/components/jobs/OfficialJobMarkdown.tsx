@@ -15,7 +15,7 @@ const markdownComponents: Components = {
     </h3>
   ),
   h3: ({ children }) => (
-    <h4 className="mt-8 text-[20px] font-normal leading-tight text-black first:mt-0 md:text-[26px]">
+    <h4 className="mt-8 text-[20px] font-normal leading-tight text-neutral-primary first:mt-0 md:text-[26px]">
       {children}
     </h4>
   ),

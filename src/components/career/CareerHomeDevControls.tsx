@@ -56,12 +56,9 @@ import {
   CAREER_PROMPT_VARIANTS,
 } from "@/lib/career/prompts/promptExperiment";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
+import { useBrowserSessionDevPreview } from "./BrowserSessionDock";
 import CareerGlassDevControls from "./CareerGlassDevControls";
 import { GmailIntegrationActionContent } from "./chat/GmailIntegrationAction";
-import type {
-  DevExternalVariant,
-  DevExternalVariantSnapshot,
-} from "@/lib/externalRecommendationsV2/devVariant";
 
 const CareerRecommendationSearchPreview = dynamic(
   () => import("./CareerRecommendationSearchPreview")
@@ -203,6 +200,7 @@ export default function CareerHomeDevControls({
   const setConversationVersion = useCareerWorkspaceUiStore(
     (state) => state.setConversationVersion
   );
+  const browserPreview = useBrowserSessionDevPreview();
   const [browserUseOpen, setBrowserUseOpen] = React.useState(false);
   const [pendingActionsOpen, setPendingActionsOpen] = React.useState(false);
   const { fetchWithAuth } = useCareerApi();
@@ -370,47 +368,6 @@ export default function CareerHomeDevControls({
     } finally {
       wonderfulResetSubmitting.current = false;
       setWonderfulResetPending(false);
-    }
-  };
-  const externalVariantQueryKey = ["career-dev-external-variant", user?.id];
-  const externalVariantQuery = useQuery({
-    queryKey: externalVariantQueryKey,
-    enabled: showDevRunControls && Boolean(user?.id),
-    queryFn: async (): Promise<DevExternalVariantSnapshot> => {
-      const response = await fetchWithAuth("/api/talent/dev-external-variant");
-      if (!response.ok) throw new Error("추천 버전을 불러오지 못했습니다.");
-      return response.json();
-    },
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    retry: false,
-  });
-  const externalVariantSnapshot = externalVariantQuery.data;
-  const [externalVariantSaving, setExternalVariantSaving] =
-    React.useState(false);
-  const [externalVariantError, setExternalVariantError] = React.useState("");
-  const saveExternalVariant = async (selection: DevExternalVariant) => {
-    if (externalVariantSaving) return;
-    setExternalVariantSaving(true);
-    setExternalVariantError("");
-    try {
-      const response = await fetchWithAuth("/api/talent/dev-external-variant", {
-        method: "POST",
-        body: JSON.stringify({ selection }),
-      });
-      if (!response.ok) throw new Error("추천 버전을 저장하지 못했습니다.");
-      queryClient.setQueryData(
-        externalVariantQueryKey,
-        (await response.json()) as DevExternalVariantSnapshot
-      );
-    } catch (error) {
-      setExternalVariantError(
-        error instanceof Error
-          ? error.message
-          : "추천 버전을 저장하지 못했습니다."
-      );
-    } finally {
-      setExternalVariantSaving(false);
     }
   };
   const reengagementPendingActions = useCareerReengagementPendingActions({
@@ -680,7 +637,7 @@ export default function CareerHomeDevControls({
   return (
     <div
       data-career-i18n-skip="true"
-      className="mt-5 rounded-2xl border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 shadow-sm"
+      className="mt-5 rounded-2xl border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 shadow-(--shadow-sm)"
     >
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <Text as="div" type="eyebrow">
@@ -803,10 +760,21 @@ export default function CareerHomeDevControls({
           onClose={() => setBackgroundRunModalOpen(false)}
         />
       ) : null}
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <MuteButton onClick={() => setBrowserUseOpen(true)}>
           <Play className="size-3.5" />
           Browser Use
+        </MuteButton>
+        <MuteButton
+          aria-pressed={browserPreview.open}
+          disabled={!browserPreview.setOpen}
+          onClick={() => {
+            browserPreview.setOpen?.(!browserPreview.open);
+            if (!browserPreview.open) onOpenChat();
+          }}
+        >
+          <Play className="size-3.5" />
+          지원 중 미리보기
         </MuteButton>
       </div>
       {browserUseOpen ? (
@@ -857,57 +825,6 @@ export default function CareerHomeDevControls({
           <BriefcaseBusiness className="size-3.5" />
           fit 목록 보기
         </MuteButton>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Text as="span" type="subtle">
-          recommend_job_posting
-        </Text>
-        {(
-          [
-            { value: "auto", label: "자동" },
-            { value: "control", label: "기존 버전" },
-            { value: "v2", label: "V2" },
-          ] as const
-        ).map((option) => (
-          <MuteButton
-            key={option.value}
-            aria-pressed={externalVariantSnapshot?.selection === option.value}
-            variant={
-              externalVariantSnapshot?.selection === option.value
-                ? "dark"
-                : "default"
-            }
-            disabled={
-              !externalVariantSnapshot ||
-              externalVariantSaving ||
-              !externalVariantSnapshot.experimentEnabled
-            }
-            onClick={() => void saveExternalVariant(option.value)}
-          >
-            {option.label}
-          </MuteButton>
-        ))}
-        <Text as="span" type="subtle" role="status">
-          {externalVariantSaving
-            ? "저장 중…"
-            : externalVariantSnapshot
-              ? `현재 적용: ${externalVariantSnapshot.effectiveVariant === "v2" ? "V2" : "기존 버전"}`
-              : externalVariantQuery.isError
-                ? "버전 확인 실패"
-                : "버전 확인 중…"}
-        </Text>
-        <Text as="div" type="subtle" className="w-full">
-          이 계정·브라우저의 다음 추천 호출부터 적용 · 정기 Worker 추천은 자동
-          배정 유지
-          {externalVariantSnapshot?.experimentEnabled === false
-            ? " · 추천 실험이 비활성화되어 있습니다."
-            : ""}
-        </Text>
-        {externalVariantError || externalVariantQuery.error ? (
-          <Text as="div" type="subtle" role="alert">
-            {externalVariantError || externalVariantQuery.error?.message}
-          </Text>
-        ) : null}
       </div>
       {externalFitsOpen && user?.id ? (
         <CareerExternalFitsDevModal
@@ -1310,7 +1227,7 @@ export default function CareerHomeDevControls({
                     logCareerEvent("click_home_dev_sql_prompt_history");
                     setDevSqlRequest(prompt);
                   }}
-                  className="max-w-full rounded-lg border border-neutral-1000-a05 bg-bg-floating px-2.5 py-1.5 text-left text-[12px] leading-4 text-neutral-primary transition-colors hover:border-neutral-800/40 hover:bg-bg-weak focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                  className="max-w-full rounded-button border border-neutral-1000-a05 bg-bg-floating px-2.5 py-1.5 text-left text-[12px] leading-4 text-neutral-primary transition-colors hover:border-neutral-800/40 hover:bg-bg-weak focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
                 >
                   <span className="block max-w-[240px] truncate sm:max-w-[320px]">
                     {prompt}
@@ -1327,7 +1244,7 @@ export default function CareerHomeDevControls({
           </div>
         ) : null}
         {devSqlDraft ? (
-          <div className="mt-3 space-y-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3 py-3 shadow-sm">
+          <div className="mt-3 space-y-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3 py-3 shadow-(--shadow-sm)">
             {devSqlDraft.explanation ? (
               <Text as="div" type="caption" className="text-neutral-primary">
                 {devSqlDraft.explanation}

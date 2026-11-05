@@ -481,7 +481,7 @@ export function OrgMeetingScheduleDialog({
           if (!isBusy) handleClose();
         }}
         open={open}
-        panelClassName="max-w-2xl border-neutral-1000-a05 bg-bg-floating"
+        panelClassName="max-w-2xl  "
         showCloseButton={!isBusy}
         title={c("인터뷰 일정 요청", "Interview scheduling request")}
       >
@@ -915,7 +915,7 @@ export function OrgMeetingScheduleDialog({
                     <MuteButton
                       aria-pressed={selected}
                       className={cn(
-                        "h-8 rounded-full",
+                        "h-8 rounded-pill",
                         selected &&
                           "border-primary/25 bg-primary-faded text-primary"
                       )}

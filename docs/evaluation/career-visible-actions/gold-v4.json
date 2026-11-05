@@ -1,0 +1,8 @@
+{
+  "version": "v4",
+  "reviewer": "Codex, frozen before execution",
+  "provenance": "Additional explicit display-order probe, distinct from v3 intent to view an application first. All v3 failures retained; no claim this replaces that broader behavior.",
+  "cases": {
+    "explicit_display_order_on_return": "Maintain the explicitly requested home ordering: Orbit above Cedar, although Cedar has an urgent time label. Orbit has no deadline and should not be portrayed as time-critical. Publish both concrete next steps, with truthful click effects and no external action."
+  }
+}

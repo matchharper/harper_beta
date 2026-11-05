@@ -57,6 +57,7 @@ export type CareerExternalFeedbackOpportunity = {
 
 export type CareerTasksSnapshot = CareerPendingActionsSnapshot &
   CareerTaskProgressSnapshot & {
+    actionItems?: import("./actionItems").CareerActionItem[];
     externalFeedback?: CareerExternalFeedbackOpportunity[];
     gmailConnected?: boolean;
   };

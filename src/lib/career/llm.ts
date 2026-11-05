@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { formatToolResultText } from "@/lib/llm/promptText";
 import { tracedLlmFetch } from "@/lib/llm/providerTrace";
 import { DEFAULT_CAREER_TEXT_CHAT_MODEL, resolveCareerTextChatModel, careerTextAssistantModelOptions, isCareerTextChatModelId, type CareerTextChatModelId } from "./textChatModelConfig";
@@ -265,7 +266,7 @@ type AnthropicMessageResponse = {
   id?: string;
   model?: string;
   stop_reason?: string | null;
-  usage?: Record<string, unknown>;
+  usage?: Anthropic.Usage | Record<string, unknown>;
 };
 
 type AnthropicStreamEvent = {
@@ -319,7 +320,7 @@ type LlmToolCostAttribution = {
   toolNames: readonly string[];
 };
 
-type AnthropicEffort = "low" | "medium" | "high" | "xhigh" | "max";
+export type AnthropicEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 const MAX_STREAMING_TOOL_CALLS_PER_TURN = 3;
 const RESUME_TOOL_CALL_LIMIT = 8;
@@ -835,18 +836,21 @@ function resolveCareerChatEffort(
 }
 
 function buildAnthropicOutputConfig(args: {
+  // null delegates effort to the model; undefined retains the existing chat setting.
+  anthropicEffort?: AnthropicEffort | null;
   model: string;
   usageLabel?: string;
 }) {
-  if (!supportsAnthropicEffort(args.model)) return {};
+  if (args.anthropicEffort === null || !supportsAnthropicEffort(args.model)) return {};
   return {
     output_config: {
-      effort: resolveCareerChatEffort(args.usageLabel),
+      effort: args.anthropicEffort ?? resolveCareerChatEffort(args.usageLabel),
     },
   };
 }
 
 async function createAnthropicMessage(args: {
+  anthropicEffort?: AnthropicEffort | null;
   abortSignal?: AbortSignal;
   messages: AnthropicMessage[];
   model: string;
@@ -868,6 +872,7 @@ async function createAnthropicMessage(args: {
     system: buildAnthropicSystemBlocks(args.systemBlocks),
     messages: args.messages,
     ...buildAnthropicOutputConfig({
+      anthropicEffort: args.anthropicEffort,
       model: args.model,
       usageLabel: args.usageLabel,
     }),
@@ -887,26 +892,18 @@ async function createAnthropicMessage(args: {
     usageLabel: args.usageLabel,
   });
 
-  const response = await tracedLlmFetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify(requestBody),
-    cache: "no-store",
-    signal: args.abortSignal,
+  const client = new Anthropic({
+    apiKey,
+    authToken: null,
+    baseURL: "https://api.anthropic.com",
+    fetch: tracedLlmFetch,
+    // The existing agent runtime owns retries and durable continuation.
+    maxRetries: 0,
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Anthropic Messages API request failed (${response.status}): ${errorText}`
-    );
-  }
-
-  const json = (await response.json()) as AnthropicMessageResponse;
+  const json = await client.messages.create(
+    requestBody as Anthropic.MessageCreateParamsNonStreaming,
+    { signal: args.abortSignal },
+  ) as AnthropicMessageResponse;
   logLlmTokenUsage({
     label: args.usageLabel,
     meta: {
@@ -952,6 +949,7 @@ async function createAnthropicMessage(args: {
 }
 
 async function createAnthropicMessageText(args: {
+  anthropicEffort?: AnthropicEffort | null;
   abortSignal?: AbortSignal;
   messages: AnthropicMessage[];
   model: string;
@@ -966,6 +964,7 @@ async function createAnthropicMessageText(args: {
 }
 
 async function createAnthropicMessageStreamResponse(args: {
+  anthropicEffort?: AnthropicEffort | null;
   abortSignal?: AbortSignal;
   messages: AnthropicMessage[];
   model: string;
@@ -989,6 +988,7 @@ async function createAnthropicMessageStreamResponse(args: {
     messages: args.messages,
     stream: true,
     ...buildAnthropicOutputConfig({
+      anthropicEffort: args.anthropicEffort,
       model: args.model,
       usageLabel: args.usageLabel,
     }),
@@ -1288,6 +1288,7 @@ async function createAnthropicMessageStreamResponse(args: {
 }
 
 async function createAnthropicMessageStream(args: {
+  anthropicEffort?: AnthropicEffort | null;
   abortSignal?: AbortSignal;
   messages: AnthropicMessage[];
   model: string;
@@ -1340,6 +1341,7 @@ async function recoverVisibleTextFromAnthropicMessages(args: {
         ? await createAnthropicMessageStream({
       abortSignal: args.abortSignal,
             messages: recoveryMessages,
+            anthropicEffort: args.modelConfig.anthropicEffort,
             model: args.modelConfig.primaryModel,
             onTextDelta: args.onTextDelta,
             systemBlocks: args.systemBlocks,
@@ -1349,6 +1351,7 @@ async function recoverVisibleTextFromAnthropicMessages(args: {
         : await createAnthropicMessageText({
       abortSignal: args.abortSignal,
             messages: recoveryMessages,
+            anthropicEffort: args.modelConfig.anthropicEffort,
             model: args.modelConfig.primaryModel,
             systemBlocks: args.systemBlocks,
             temperature: CAREER_LLM_CONFIG.chat.temperature,
@@ -1459,6 +1462,7 @@ async function runDirectTextCompletion(args: {
 }
 
 type CareerAssistantModelConfig = {
+  anthropicEffort?: AnthropicEffort | null;
   anthropicOverloadFallbackModel: string;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   fallbackModel: string;
@@ -1508,6 +1512,7 @@ export function runCareerChatAssistant(
 }
 
 async function runCareerChatAssistantImpl(args: {
+  anthropicEffort?: AnthropicEffort | null;
   toolRuntime?: CareerCapabilityRuntime;
   abortSignal?: AbortSignal;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
@@ -1539,6 +1544,7 @@ async function runCareerChatAssistantImpl(args: {
   const modelConfig = {
     ...(args.modelConfig ?? assistantModelConfig()),
     ...(args.primaryModel ? { primaryModel: args.primaryModel } : {}),
+    ...(args.anthropicEffort !== undefined ? { anthropicEffort: args.anthropicEffort } : {}),
     ...(args.toolRuntime?.resumedModel
       ? { primaryModel: args.toolRuntime.resumedModel }
       : {}),
@@ -1645,6 +1651,7 @@ async function runCareerChatAssistantImpl(args: {
       const text = await createAnthropicMessageText({
       abortSignal: args.abortSignal,
         messages: workingMessages,
+        anthropicEffort: modelConfig.anthropicEffort,
         model: modelConfig.primaryModel,
         systemBlocks: args.systemBlocks,
         temperature,
@@ -1706,6 +1713,7 @@ async function runCareerChatAssistantImpl(args: {
         createAnthropicMessage({
           abortSignal,
           messages: workingMessages,
+          anthropicEffort: modelConfig.anthropicEffort,
           model: modelConfig.primaryModel,
           systemBlocks: systemBlocksForStep,
           temperature,
@@ -1983,6 +1991,7 @@ async function runCareerChatAssistantImpl(args: {
     const finalText = await createAnthropicMessageText({
       abortSignal: args.abortSignal,
       messages: finalMessages,
+      anthropicEffort: modelConfig.anthropicEffort,
       model: modelConfig.primaryModel,
       systemBlocks: finalSystemBlocks,
       temperature,
@@ -2036,6 +2045,7 @@ async function runCareerChatAssistantImpl(args: {
 }
 
 export async function recoverCareerChatAssistantText(args: {
+  anthropicEffort?: AnthropicEffort | null;
   abortSignal?: AbortSignal;
   checkCancellation?: () => Promise<void>;
   primaryModel?: string;
@@ -2072,6 +2082,7 @@ export async function recoverCareerChatAssistantText(args: {
       ...assistantModelConfig(),
       ...(isCareerTextChatModelId(args.primaryModel) ? careerTextAssistantModelOptions(args.primaryModel) : {}),
       ...(args.primaryModel ? { primaryModel: args.primaryModel } : {}),
+      ...(args.anthropicEffort !== undefined ? { anthropicEffort: args.anthropicEffort } : {}),
     },
     onTextDelta: args.onTextDelta,
     reason: "route_empty_assistant_text",
@@ -2093,6 +2104,7 @@ export function runCareerChatAssistantStream(
 }
 
 async function runCareerChatAssistantStreamImpl(args: {
+  anthropicEffort?: AnthropicEffort | null;
   toolRuntime?: CareerCapabilityRuntime;
   abortSignal?: AbortSignal;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
@@ -2124,6 +2136,7 @@ async function runCareerChatAssistantStreamImpl(args: {
   const modelConfig = {
     ...(args.modelConfig ?? assistantModelConfig()),
     ...(args.primaryModel ? { primaryModel: args.primaryModel } : {}),
+    ...(args.anthropicEffort !== undefined ? { anthropicEffort: args.anthropicEffort } : {}),
     ...(args.toolRuntime?.resumedModel
       ? { primaryModel: args.toolRuntime.resumedModel }
       : {}),
@@ -2216,6 +2229,7 @@ async function runCareerChatAssistantStreamImpl(args: {
       const text = await createAnthropicMessageStream({
       abortSignal: args.abortSignal,
         messages: workingMessages,
+        anthropicEffort: modelConfig.anthropicEffort,
         model: modelConfig.primaryModel,
         onTextDelta: forwardTextDelta,
         systemBlocks: args.systemBlocks,
@@ -2287,6 +2301,7 @@ async function runCareerChatAssistantStreamImpl(args: {
         createAnthropicMessageStreamResponse({
           abortSignal,
           messages: workingMessages,
+          anthropicEffort: modelConfig.anthropicEffort,
           model: modelConfig.primaryModel,
           onToolUseStart: async (tool) => {
             startedAnyTool = true;
@@ -2614,6 +2629,7 @@ async function runCareerChatAssistantStreamImpl(args: {
     const finalText = await createAnthropicMessageStream({
       abortSignal: args.abortSignal,
       messages: workingMessages,
+      anthropicEffort: modelConfig.anthropicEffort,
       model: modelConfig.primaryModel,
       onTextDelta: forwardTextDelta,
       systemBlocks: finalSystemBlocks,

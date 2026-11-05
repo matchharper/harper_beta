@@ -573,7 +573,7 @@ const Talent = () => {
           {/* Right: panel (flat, like reference detail panel) */}
           <div className="w-full lg:col-span-4 lg:self-stretch">
             <FakeSticky top={54} className="hidden lg:block lg:h-full">
-              <div className="rounded-lg border border-neutral-300 shadow-md px-5 py-5">
+              <div className="rounded-lg border border-neutral-300 shadow-(--shadow-md) px-5 py-5">
                 <button
                   type="button"
                   onClick={handleStartConversation}
@@ -710,7 +710,7 @@ const Talent = () => {
             onClick={handleShowMore}
             className={[
               "pointer-events-auto inline-flex items-center justify-center rounded-full flex-row gap-2",
-              "bg-neutral-200 cursor-pointer hover:bg-neutral-300 px-5 py-1.5 text-sm font-medium text-neutral-1000 shadow-md backdrop-blur",
+              "bg-neutral-200 cursor-pointer hover:bg-neutral-300 px-5 py-1.5 text-sm font-medium text-neutral-1000 shadow-(--shadow-md) backdrop-blur",
               "transition-all duration-300",
               isMoreButtonFading
                 ? "translate-y-2 opacity-0"

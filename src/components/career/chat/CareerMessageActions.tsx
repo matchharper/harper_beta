@@ -1,3 +1,5 @@
+import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
+import { MuteButton } from "@/components/ui/button";
 import { CAREER_BUBBLE_BREAK } from "@/lib/career/conversationVersion";
 import { useChatMessageFocus } from "@/components/chat/useChatMessageFocus";
 import { ChatComposerSurface } from "@/components/chat/ChatComposer";
@@ -25,11 +27,17 @@ export const CareerMessageActions = ({
   onDeleteMessage?: (messageId: string | number) => boolean | Promise<boolean>;
 }) => {
   const t = useCareerT();
+  const friendly = useCareerWorkspaceUiStore(
+    (state) => state.conversationVersion === "friendly"
+  );
+  const isUser = message.role === "user";
   const { locale } = useMessages();
   const [copied, setCopied] = useState(false);
   const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [dismissedUntilPointerLeaves, setDismissedUntilPointerLeaves] =
+    useState(false);
   const [contextPoint, setContextPoint] = useState<{
     x: number;
     y: number;
@@ -38,7 +46,10 @@ export const CareerMessageActions = ({
   const logCareerEvent = useCareerLogEvent();
   const messageId = Number(message.id);
   const enabled =
-    Number.isSafeInteger(messageId) && messageId > 0 && !message.typing;
+    Number.isSafeInteger(messageId) &&
+    messageId > 0 &&
+    !message.typing &&
+    !message.workPending;
   const contextAnchor = useMemo(
     () => ({
       current: {
@@ -66,7 +77,7 @@ export const CareerMessageActions = ({
     const container = actionsRef.current?.closest<HTMLElement>(
       "[data-career-message-container]"
     );
-    if (!enabled || !container) return;
+    if (!enabled || !friendly || !container) return;
     const mobile = window.matchMedia("(max-width: 767px)");
     const context = (event: MouseEvent) => {
       if (mobile.matches || !(event.target instanceof Element)) return;
@@ -91,7 +102,7 @@ export const CareerMessageActions = ({
       container.removeEventListener("contextmenu", context);
       mobile.removeEventListener("change", breakpoint);
     };
-  }, [enabled]);
+  }, [enabled, friendly]);
 
   useEffect(() => {
     if (!contextPoint) return;
@@ -107,7 +118,67 @@ export const CareerMessageActions = ({
     };
   }, [contextPoint]);
 
-  if (!enabled) return null;
+  useEffect(() => {
+    if (friendly || !deleteArmed || focusedMessage) return;
+
+    const actions = actionsRef.current;
+    const ownerDocument = actions?.ownerDocument;
+    if (!actions || !ownerDocument) return;
+
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target || actions.contains(target)) return;
+
+      const messageContainer = actions.closest(
+        "[data-career-message-container]"
+      );
+      setDeleteArmed(false);
+      setDismissedUntilPointerLeaves(
+        Boolean(messageContainer?.contains(target))
+      );
+
+      const activeElement = ownerDocument.activeElement;
+      if (activeElement && actions.contains(activeElement)) {
+        (activeElement as HTMLElement).blur();
+      }
+    };
+
+    ownerDocument.addEventListener(
+      "pointerdown",
+      handleOutsidePointerDown,
+      true
+    );
+    return () =>
+      ownerDocument.removeEventListener(
+        "pointerdown",
+        handleOutsidePointerDown,
+        true
+      );
+  }, [friendly, deleteArmed, focusedMessage]);
+
+  useEffect(() => {
+    if (!dismissedUntilPointerLeaves) return;
+
+    const messageContainer = actionsRef.current?.closest(
+      "[data-career-message-container]"
+    );
+    if (!messageContainer) return;
+
+    const handlePointerLeave = () => setDismissedUntilPointerLeaves(false);
+    messageContainer.addEventListener("pointerleave", handlePointerLeave, {
+      once: true,
+    });
+    return () =>
+      messageContainer.removeEventListener("pointerleave", handlePointerLeave);
+  }, [dismissedUntilPointerLeaves]);
+
+  // Optimistic messages need the same footer space as persisted messages.
+  // Enabling actions after admission must not push the following work row down.
+  if (!enabled) {
+    return friendly ? null : (
+      <div aria-hidden="true" className="hidden md:block h-7 shrink-0" />
+    );
+  }
 
   const handleCopy = async () => {
     logCareerEvent("click_chat_message_copy", {
@@ -117,7 +188,11 @@ export const CareerMessageActions = ({
     });
 
     try {
-      await navigator.clipboard.writeText(message.role === "assistant" ? message.content.replaceAll(CAREER_BUBBLE_BREAK, "\n\n") : message.content);
+      await navigator.clipboard.writeText(
+        message.role === "assistant"
+          ? message.content.replaceAll(CAREER_BUBBLE_BREAK, "\n\n")
+          : message.content
+      );
       setCopied(true);
       if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
       copyResetTimer.current = setTimeout(() => setCopied(false), 2000);
@@ -177,7 +252,7 @@ export const CareerMessageActions = ({
       <button
         type="button"
         aria-label={t("career.chat.message.copy", "메시지 복사")}
-        className="flex min-h-12 w-full items-center gap-3 px-4 text-left text-sm text-neutral-primary transition-colors hover:bg-white/20 active:bg-neutral-1000-a05 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
+        className="flex min-h-12 w-full items-center gap-3 px-4 text-left text-sm text-neutral-primary transition-colors hover:bg-bg-floating/20 active:bg-neutral-1000-a05 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
         onClick={() => void handleCopy()}
       >
         <span aria-hidden="true" className="relative size-5 shrink-0">
@@ -209,15 +284,17 @@ export const CareerMessageActions = ({
         <button
           type="button"
           aria-label={
-            deleteArmed
-              ? t(
-                  "career.chat.message.delete_confirm",
-                  "메시지 삭제를 확정하려면 다시 누르세요."
-                )
-              : t("career.chat.message.delete", "메시지 삭제")
+            dismissedUntilPointerLeaves
+              ? "pointer-events-none opacity-0"
+              : deleteArmed
+                ? t(
+                    "career.chat.message.delete_confirm",
+                    "메시지 삭제를 확정하려면 다시 누르세요."
+                  )
+                : t("career.chat.message.delete", "메시지 삭제")
           }
           disabled={deleting}
-          className="flex min-h-12 w-full items-center gap-3 border-t border-neutral-1000-a05 px-4 text-left text-sm text-critical transition-colors disabled:opacity-50 hover:bg-white/20 active:bg-neutral-1000-a05 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
+          className="flex min-h-12 w-full items-center gap-3 border-t border-neutral-1000-a05 px-4 text-left text-sm text-critical transition-colors disabled:opacity-50 hover:bg-bg-floating/20 active:bg-neutral-1000-a05 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
           onClick={() => void handleDelete()}
         >
           <Trash2 className="size-5" />
@@ -252,10 +329,10 @@ export const CareerMessageActions = ({
         ariaLabel={t("career.chat.message.copy", "메시지 복사")}
         showCloseButton={false}
         backdropClassName={cn(
-          "chat-message-focus-backdrop bg-black/[0.06] backdrop-blur-none",
+          "chat-message-focus-backdrop bg-surface-inverse/[0.06] backdrop-blur-none",
           focusClosing && "chat-message-focus-backdrop-closing"
         )}
-        panelClassName="chat-message-focus-panel pointer-events-none! w-fit max-w-full border-0 bg-transparent shadow-none overflow-visible"
+        panelClassName="chat-message-focus-panel pointer-events-none! w-fit max-w-full border-0 bg-transparent bg-none shadow-none backdrop-blur-none overflow-visible"
         bodyClassName="overflow-visible"
       >
         <div
@@ -276,13 +353,110 @@ export const CareerMessageActions = ({
           {menu}
         </div>
       </TalentCareerModal>
-      <div
-        ref={actionsRef}
-        hidden
-        data-career-message-actions-open={contextPoint ? "true" : undefined}
-      />
+      {friendly ? (
+        <div
+          ref={actionsRef}
+          hidden
+          data-career-message-actions-open={contextPoint ? "true" : undefined}
+        />
+      ) : (
+        <div
+          ref={actionsRef}
+          data-career-message-actions="true"
+          onFocus={() => setDismissedUntilPointerLeaves(false)}
+          className={cn(
+            "hidden md:flex min-h-7 w-fit shrink-0 items-center transition-opacity duration-150 motion-reduce:transition-none",
+            isUser ? "self-end" : "self-start",
+            dismissedUntilPointerLeaves
+              ? "pointer-events-none opacity-0"
+              : deleteArmed
+                ? "pointer-events-auto opacity-100"
+                : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+          )}
+        >
+          <time
+            className={cn(
+              "whitespace-nowrap text-xs tabular-nums text-neutral-soft",
+              isUser ? "order-first mr-2" : "order-last ml-2"
+            )}
+            dateTime={message.createdAt || undefined}
+          >
+            {formatCareerMessageTime(message.createdAt, locale)}
+          </time>
+          <MuteButton
+            aria-label={t("career.chat.message.copy", "메시지 복사")}
+            size="sm"
+            title={t("career.profile.documents.copy_content", "복사")}
+            variant="transparent"
+            onClick={() => void handleCopy()}
+          >
+            {/* Slide Blur Swap (슬라이드 블러 스왑): /about 공고 제목과 같은 아이콘 교체 효과.
+            오른쪽 퇴장 + 왼쪽 등장, 500ms / 6px / blur 3px.
+            공통 사용 기준: src/styles/Design.md의 Slide Blur Swap. */}
+            <span
+              aria-hidden="true"
+              className="relative inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center"
+            >
+              <Copy
+                className={cn(
+                  "absolute h-3.5 w-3.5 transition-[translate,opacity,filter] duration-500 ease-in-out motion-reduce:transition-none",
+                  copied
+                    ? "translate-x-1.5 opacity-0 blur-[3px]"
+                    : "translate-x-0 opacity-100 blur-[0px]"
+                )}
+              />
+              <Check
+                className={cn(
+                  "absolute h-3.5 w-3.5 transition-[translate,opacity,filter] duration-500 ease-in-out motion-reduce:transition-none",
+                  copied
+                    ? "translate-x-0 opacity-100 blur-[0px]"
+                    : "-translate-x-1.5 opacity-0 blur-[3px]"
+                )}
+              />
+            </span>
+          </MuteButton>
+          <span role="status" className="sr-only">
+            {copied
+              ? t("career.chat.message.copy_success", "메시지를 복사했습니다.")
+              : ""}
+          </span>
+          {onDeleteMessage && (
+            <MuteButton
+              aria-label={
+                deleteArmed
+                  ? t(
+                      "career.chat.message.delete_confirm",
+                      "메시지 삭제를 확정하려면 다시 누르세요."
+                    )
+                  : t("career.chat.message.delete", "메시지 삭제")
+              }
+              disabled={deleting}
+              size="sm"
+              title={
+                deleteArmed
+                  ? t(
+                      "career.common.internal_connection_onboarding_modal.0z48n2w",
+                      "확인"
+                    )
+                  : t("career.profile.context.delete", "삭제")
+              }
+              variant={deleteArmed ? "critical" : "transparent"}
+              onClick={() => void handleDelete()}
+            >
+              {deleteArmed ? (
+                t(
+                  "career.common.internal_connection_onboarding_modal.0z48n2w",
+                  "확인"
+                )
+              ) : (
+                <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+              )}
+            </MuteButton>
+          )}
+        </div>
+      )}
       <Popover
-        open={Boolean(contextPoint)}
+        open={friendly && Boolean(contextPoint)}
         onOpenChange={(open) => {
           if (!open) {
             setContextPoint(null);

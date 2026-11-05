@@ -147,7 +147,7 @@ export function OrgRoleDetailsContent({
           {roleDetails.map(({ label, value }) => (
             <div className="min-w-0" key={label}>
               <dt>
-                <Text as="span" className="font-normal text-[13px] text-black">
+                <Text as="span" className="font-normal text-[13px] text-neutral-primary">
                   {label}
                 </Text>
               </dt>
@@ -155,7 +155,7 @@ export function OrgRoleDetailsContent({
                 <Text
                   as="span"
                   className={cn(
-                    value ? undefined : "text-black/30",
+                    value ? undefined : "text-neutral-primary/30",
                     "text-[13px]"
                   )}
                 >
