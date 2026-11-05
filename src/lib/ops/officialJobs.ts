@@ -42,7 +42,11 @@ export type OpsOfficialJobRecord = {
   isOnLinkedin: boolean;
   isPublished: boolean;
   location: string;
+  /** Linked to a Role whose Brief changed since this posting's text was last edited or reviewed. */
+  needsReview: boolean;
   publishedAt: string | null;
+  /** Facts the linked Role provides: the posting shows the Role's value and cannot override it. */
+  roleFacts: OpsOfficialJobRoleFacts;
   roleId: string | null;
   roleDescriptionMarkdown: string;
   roleTitle: string;
@@ -52,6 +56,25 @@ export type OpsOfficialJobRecord = {
   sourceCompanyName: string | null;
   updatedAt: string;
   vertical: string;
+};
+
+export type OpsOfficialJobRoleFacts = {
+  compensation: boolean;
+  employmentType: boolean;
+  location: boolean;
+  seniority: boolean;
+};
+
+type OpsOfficialJobState = {
+  needsReview: boolean;
+  roleFacts: OpsOfficialJobRoleFacts;
+};
+
+const NO_ROLE_FACTS: OpsOfficialJobRoleFacts = {
+  compensation: false,
+  employmentType: false,
+  location: false,
+  seniority: false,
 };
 
 const INTERNAL_COPY_COMPANY_NAME = "Harper";
@@ -120,7 +143,10 @@ export type OpsOfficialJobSaveResponse = {
 
 export type { AshbyOfficialJobsSyncSummary };
 
-function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
+function mapOpsOfficialJob(
+  row: OfficialJobRow,
+  state?: OpsOfficialJobState
+): OpsOfficialJobRecord {
   const isInternalCopy = isOfficialJobsInternalCopyIdentity(row);
 
   return {
@@ -138,7 +164,9 @@ function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
     isOnLinkedin: Boolean(row.is_on_linkedin),
     isPublished: row.is_published,
     location: row.location,
+    needsReview: state?.needsReview ?? false,
     publishedAt: row.published_at,
+    roleFacts: state?.roleFacts ?? NO_ROLE_FACTS,
     roleId: row.role_id ?? null,
     roleDescriptionMarkdown: row.role_description_markdown,
     roleTitle: row.role_title,
@@ -149,6 +177,35 @@ function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
     updatedAt: row.updated_at,
     vertical: row.vertical,
   };
+}
+
+/**
+ * Which facts each posting takes from its Role, and whether its Role's Brief
+ * changed since the posting text was last edited or reviewed (database
+ * official_jobs_ops_state_v1).
+ */
+async function fetchOpsOfficialJobStates(jobIds?: string[]) {
+  const { data, error } = await (supabaseServer as any).rpc(
+    "official_jobs_ops_state_v1",
+    { p_job_ids: jobIds ?? null }
+  );
+  if (error) {
+    throw new Error(error.message ?? "Failed to load official job review state");
+  }
+  return new Map<string, OpsOfficialJobState>(
+    ((data ?? []) as Array<Record<string, unknown>>).map((row) => [
+      String(row.job_id),
+      {
+        needsReview: Boolean(row.needs_review),
+        roleFacts: {
+          compensation: Boolean(row.role_compensation),
+          employmentType: Boolean(row.role_employment_type),
+          location: Boolean(row.role_location),
+          seniority: Boolean(row.role_seniority),
+        },
+      },
+    ])
+  );
 }
 
 export function isOpsOfficialJobInternalCopy(
@@ -332,9 +389,10 @@ export async function fetchOpsOfficialJobs(): Promise<OpsOfficialJobsResponse> {
   if (error) {
     throw new Error(error.message ?? "Failed to load official jobs");
   }
+  const states = await fetchOpsOfficialJobStates();
 
   return {
-    jobs: (data ?? []).map(mapOpsOfficialJob),
+    jobs: (data ?? []).map((row) => mapOpsOfficialJob(row, states.get(row.id))),
   };
 }
 
@@ -693,7 +751,29 @@ export async function saveOpsOfficialJob(
     }
   }
 
+  const states = await fetchOpsOfficialJobStates([data.id]);
   return {
-    job: mapOpsOfficialJob(data),
+    job: mapOpsOfficialJob(data, states.get(data.id)),
   };
+}
+
+/**
+ * Ops looked at a posting after its Role's Brief changed and the text still
+ * fits: records a reviewed version so the posting is no longer flagged.
+ */
+export async function markOpsOfficialJobReviewed(
+  jobId: string
+): Promise<OpsOfficialJobSaveResponse> {
+  const id = normalizeRequiredString(jobId, "id");
+  const { error } = await (supabaseServer as any).rpc(
+    "mark_official_job_reviewed_v1",
+    { p_job_id: id }
+  );
+  if (error) {
+    throw new Error(error.message ?? "Failed to mark official job reviewed");
+  }
+  const job = await fetchExistingJob(id);
+  if (!job) throw new Error("Official job not found");
+  const states = await fetchOpsOfficialJobStates([id]);
+  return { job: mapOpsOfficialJob(job, states.get(id)) };
 }
