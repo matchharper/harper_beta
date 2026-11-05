@@ -70,6 +70,9 @@ test("memory changes are versions, readable per role now or at a version", async
       insert into company_internal_roles(role_id, request, criteria, team_id) values
         ('${role}', 'brief', '[]', '${team}'), ('${role2}', 'brief', '[]', null);
     `);
+    // An entry saved before versions existed.
+    await db.exec(`insert into company_memory_entries(company_workspace_id, scope, content, updated_at)
+      values ('${other}', 'company', 'saved before versions', '2026-01-01T00:00:00Z');`);
     for (const name of [
       "20261105020000_company_decision_events.sql",
       "20261105080000_company_role_brief_revisions.sql",
@@ -77,12 +80,17 @@ test("memory changes are versions, readable per role now or at a version", async
       "20261105130000_company_memory_revisions.sql",
     ]) await db.exec(await readFile(new URL(`../../../supabase/migrations/${name}`, import.meta.url), "utf8"));
 
+    const can = async (q: string) => (await db.query<any>(`select ${q} as ok`)).rows[0].ok;
     const version = async () => Number((await db.query<any>(
       "select company_memory_version_v1($1) v", [workspace])).rows[0].v);
     const memory = async (r: string, v: number | null = null) => (await db.query<any>(
       "select scope, content, memory_version from company_memory_for_role_v1($1, $2)", [r, v])).rows
       .map(x => [x.scope, x.content]);
     assert.equal(await version(), 0);
+    // It starts with its current state, at its last save time.
+    const early = (await db.query<any>("select content, changed_at from company_memory_for_workspace_v1($1)", [other])).rows;
+    assert.deepEqual(early.map((x: any) => x.content), ["saved before versions"]);
+    assert.equal(new Date(early[0].changed_at).toISOString(), "2026-01-01T00:00:00.000Z");
 
     // Company, team and role memory; another company's memory never counts.
     await db.exec(`insert into company_memory_entries(company_workspace_id, scope, content, source) values
@@ -93,6 +101,11 @@ test("memory changes are versions, readable per role now or at a version", async
     const v1 = await version();
     assert.deepEqual(await memory(role), [["company", "remote first"], ["team", "team ships weekly"], ["role", "needs Go"]]);
     assert.deepEqual(await memory(role2), [["company", "remote first"]]);
+    // The whole company's memory, with when each entry was saved.
+    const all = (await db.query<any>("select scope, content, changed_at from company_memory_for_workspace_v1($1)", [workspace])).rows;
+    assert.deepEqual(all.map((x: any) => x.scope), ["company", "team", "role"]);
+    assert.ok(all.every((x: any) => x.changed_at));
+    assert.equal(await can("has_function_privilege('service_role', 'company_memory_for_workspace_v1(uuid,bigint)', 'EXECUTE')"), true);
 
     // A decision and an evaluation record the version they were made with.
     await db.query(`select record_company_decision_v1($1, $2, 'member_candidate', $3, 'pass', 'web', $4, 'k1')`,
@@ -126,7 +139,6 @@ test("memory changes are versions, readable per role now or at a version", async
     assert.equal(state.settings.revision, 1);
     assert.equal((await db.query<any>("select company_role_state_as_of_v1($1, '2000-01-01') s", [role])).rows[0].s.memory.version, 0);
 
-    const can = async (q: string) => (await db.query<any>(`select ${q} as ok`)).rows[0].ok;
     assert.equal(await can("has_table_privilege('service_role', 'company_memory_revisions', 'SELECT')"), true);
     assert.equal(await can("has_table_privilege('service_role', 'company_memory_revisions', 'INSERT')"), false);
     assert.equal(await can("has_table_privilege('authenticated', 'company_memory_revisions', 'SELECT')"), false);
