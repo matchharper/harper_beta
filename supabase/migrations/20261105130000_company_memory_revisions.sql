@@ -9,8 +9,10 @@
 -- - Decisions and evaluations record the memory version they were made with
 --   (filled when the writer leaves it empty), next to the existing
 --   fingerprint, so the memory of that moment can be read back.
--- - company_memory_for_role_v1(role, version) is the one read path: company,
---   team and role entries that apply to the role, now or at a version.
+-- - company_memory_for_role_v1(role, version) and
+--   company_memory_for_workspace_v1(company, version) are the read paths: the
+--   entries that apply to a role (company, team, role) or all of a company's,
+--   now or at a version, with when each was saved.
 -- - Entries gain kind, source, source_message_id and evidence so a memory can
 --   say where it came from. Existing writers leave them empty; the kinds are
 --   set when writers move (F1b/G).
@@ -18,7 +20,9 @@
 --   are not copied here: their readers still read them, and a copy would show
 --   the same text twice. They move together with the readers (F1b).
 --
--- Production had no entries when this was written, so history starts complete.
+-- Entries saved before this migration start with their current state as their
+-- first version, at their last save time (production had none when this was
+-- written).
 
 alter table public.company_memory_entries
   add column if not exists kind text,
@@ -88,6 +92,16 @@ create trigger company_memory_entries_revision_update
     is distinct from (new.scope, new.team_id, new.role_id, new.kind, new.label, new.content, new.revision, new.deleted_at))
   execute function public.capture_company_memory_revision_v1();
 
+-- Entries saved before this migration: their current state is their first version.
+insert into public.company_memory_revisions (
+  company_workspace_id, entry_id, scope, team_id, role_id, kind, label, content,
+  entry_revision, source, source_message_id, evidence, deleted_at, created_at
+)
+select entry.company_workspace_id, entry.id, entry.scope, entry.team_id, entry.role_id, entry.kind, entry.label,
+  entry.content, entry.revision, entry.source, entry.source_message_id, entry.evidence, entry.deleted_at, entry.updated_at
+from public.company_memory_entries entry
+order by entry.updated_at, entry.id;
+
 -- The company's current memory version (0 before any memory).
 create or replace function public.company_memory_version_v1(p_company_workspace_id uuid)
 returns bigint
@@ -101,12 +115,13 @@ as $$
   where revision.company_workspace_id = p_company_workspace_id;
 $$;
 
--- The memory that applies to a role: company entries, its team's and its
--- own, now (null version) or at a version.
-create or replace function public.company_memory_for_role_v1(p_role_id uuid, p_version bigint default null)
+-- A company's memory now (null version) or at a version: each entry's last
+-- version up to it, unless deleted. changed_at is when that version was saved.
+create or replace function public.company_memory_for_workspace_v1(p_company_workspace_id uuid, p_version bigint default null)
 returns table (
   entry_id bigint, scope text, team_id uuid, role_id uuid, kind text, label text, content text,
-  entry_revision bigint, source text, source_message_id bigint, evidence jsonb, memory_version bigint
+  entry_revision bigint, source text, source_message_id bigint, evidence jsonb, changed_at timestamptz,
+  memory_version bigint
 )
 language sql
 stable
@@ -114,32 +129,51 @@ security definer
 set search_path = ''
 as $$
   with target as (
-    select role.role_id, role.company_workspace_id, internal_role.team_id,
-      coalesce(p_version, public.company_memory_version_v1(role.company_workspace_id)) as version
-    from public.company_roles role
-    left join public.company_internal_roles internal_role on internal_role.role_id = role.role_id
-    where role.role_id = p_role_id
+    select coalesce(p_version, public.company_memory_version_v1(p_company_workspace_id)) as version
   ), latest as (
     select distinct on (revision.entry_id) revision.*
     from public.company_memory_revisions revision, target
-    where revision.company_workspace_id = target.company_workspace_id and revision.id <= target.version
+    where revision.company_workspace_id = p_company_workspace_id and revision.id <= target.version
     order by revision.entry_id, revision.id desc
   )
   select latest.entry_id, latest.scope, latest.team_id, latest.role_id, latest.kind, latest.label,
     latest.content, latest.entry_revision, latest.source, latest.source_message_id, latest.evidence,
-    target.version
+    latest.created_at, target.version
   from latest, target
   where latest.deleted_at is null
-    and (latest.scope = 'company'
-      or (latest.scope = 'team' and latest.team_id is not distinct from target.team_id and target.team_id is not null)
-      or (latest.scope = 'role' and latest.role_id = target.role_id))
   order by latest.entry_id;
+$$;
+
+-- The memory that applies to a role: company entries, its team's and its
+-- own, now (null version) or at a version.
+create or replace function public.company_memory_for_role_v1(p_role_id uuid, p_version bigint default null)
+returns table (
+  entry_id bigint, scope text, team_id uuid, role_id uuid, kind text, label text, content text,
+  entry_revision bigint, source text, source_message_id bigint, evidence jsonb, changed_at timestamptz,
+  memory_version bigint
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select memory.*
+  from public.company_roles role
+  left join public.company_internal_roles internal_role on internal_role.role_id = role.role_id
+  cross join lateral public.company_memory_for_workspace_v1(role.company_workspace_id, p_version) memory
+  where role.role_id = p_role_id
+    and (memory.scope = 'company'
+      or (memory.scope = 'team' and internal_role.team_id is not null and memory.team_id = internal_role.team_id)
+      or (memory.scope = 'role' and memory.role_id = role.role_id))
+  order by memory.entry_id;
 $$;
 
 revoke all on function public.company_memory_version_v1(uuid) from public, anon, authenticated;
 revoke all on function public.company_memory_for_role_v1(uuid, bigint) from public, anon, authenticated;
+revoke all on function public.company_memory_for_workspace_v1(uuid, bigint) from public, anon, authenticated;
 grant execute on function public.company_memory_version_v1(uuid) to service_role;
 grant execute on function public.company_memory_for_role_v1(uuid, bigint) to service_role;
+grant execute on function public.company_memory_for_workspace_v1(uuid, bigint) to service_role;
 
 -- Decisions and evaluations record the memory version they were made with.
 alter table public.company_decision_events add column if not exists memory_version bigint;
