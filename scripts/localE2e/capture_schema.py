@@ -29,6 +29,6 @@ env = {"PATH": os.environ["PATH"], "PGHOST": url.hostname, "PGPORT": str(url.por
        "PGDATABASE": url.path.lstrip("/"), "PGSSLMODE": "require",
        "PGOPTIONS": "-c default_transaction_read_only=on"}
 temporary = target.with_suffix(".tmp")
-subprocess.run(["pg_dump", "--schema-only", "--schema=public", "--no-owner", "--format=custom", "--file", str(temporary)], env=env, check=True, timeout=180)
+subprocess.run(["pg_dump", "--schema-only", "--schema=public", "--schema=private", "--no-owner", "--format=custom", "--file", str(temporary)], env=env, check=True, timeout=180)
 temporary.replace(target)
 print("Captured schema only; no production data or writes.")
