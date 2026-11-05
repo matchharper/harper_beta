@@ -575,7 +575,7 @@
   .career-workspace {
     --career-content-inset-top: calc(var(--career-topbar-height) + 20px);
   }
-  .career-right-column,
+  .career-right-scroll,
   .career-chat-column:not(:has(.career-chat-timeline)),
   .career-workspace-body[data-call="true"] .career-chat-column {
     padding-top: var(--career-content-inset-top);
@@ -584,7 +584,11 @@
     padding-top: calc(var(--career-content-inset-top) + 16px);
     scroll-padding-top: calc(var(--career-content-inset-top) + 16px);
   }
-  .career-chat-column:has(.career-chat-timeline:not([hidden]))::after {
+  .career-right-scroll {
+    scroll-padding-top: var(--career-content-inset-top);
+  }
+  .career-chat-column:has(.career-chat-timeline:not([hidden]))::after,
+  .career-right-column::after {
     content: "";
     position: absolute;
     inset: 0 0 auto;

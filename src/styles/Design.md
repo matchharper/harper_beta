@@ -884,3 +884,4 @@ streaming 구간은 대기하고, 완성된 버블에 짧은 fade/slide 진입�
 - 업로드 label은 내부 native file input을 sr-only로 두어 키보드 접근을 유지한다. `CareerProfileSourceCard`와 업로드 카드의 focus-within ring은 바깥 표면에 표시한다.
 - 팔로업·기회 패널은 `--career-panel-width: 420px` 하나를 공유한다(768–1023px는 360px). 원본의 Apple/system font와 ink/secondary/soft 세 색을 유지한다. 새 기회는 지원 방식이나 추천 날짜 제목 없이 최신 추천 순서로 나열한다.
 - 모바일 상단 탐색은 흰색→투명 gradient overlay다. 홈·채팅·기회 스크롤 영역은 화면 위에서 시작하고 첫 내용에만 top padding을 둔다. 제목·서브 탭·본문이 상단 뒤로 지나가며 safe area와 키보드 focus scroll-padding을 보존한다.
+- 데스크톱의 채팅과 오른쪽 패널도 스크롤 영역이 화면 위에서 시작한다. 첫 내용의 top padding과 focus scroll-padding을 유지하고, 두 패널 상단에 같은 gradient·blur overlay를 적용한다. overlay는 포인터 입력을 가로채지 않는다.
