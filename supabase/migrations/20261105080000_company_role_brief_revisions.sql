@@ -146,9 +146,16 @@ $$;
 revoke all on function public.capture_company_role_brief_revision_trigger_v1()
   from public, anon, authenticated, service_role;
 
+-- Writes that set a column to the value it already has (for example a whole-row
+-- save) skip the function.
 create trigger company_internal_roles_brief_revision
-  after insert or update of request, criteria on public.company_internal_roles
+  after insert on public.company_internal_roles
   for each row execute function public.capture_company_role_brief_revision_trigger_v1();
+create trigger company_internal_roles_brief_revision_update
+  after update of request, criteria on public.company_internal_roles
+  for each row
+  when ((old.request, old.criteria) is distinct from (new.request, new.criteria))
+  execute function public.capture_company_role_brief_revision_trigger_v1();
 
 -- Same columns as company_role_search_brief_snapshot_v1 reads. External roles
 -- (about 270k rows) are skipped before the function runs.
@@ -157,12 +164,24 @@ create trigger company_roles_brief_revision
     seniority_level, salary_range, salary_min, salary_max, salary_currency, salary_period
   on public.company_roles
   for each row
-  when (new.source_type = 'internal')
+  when (new.source_type = 'internal' and (
+    old.name, old.description, old.location_text, old.country_code, old.work_mode, old.type,
+    old.seniority_level, old.salary_range, old.salary_min, old.salary_max, old.salary_currency, old.salary_period
+  ) is distinct from (
+    new.name, new.description, new.location_text, new.country_code, new.work_mode, new.type,
+    new.seniority_level, new.salary_range, new.salary_min, new.salary_max, new.salary_currency, new.salary_period
+  ))
   execute function public.capture_company_role_brief_revision_trigger_v1();
 
+-- Role start saves the whole session on every step; only a changed Brief counts.
 create trigger company_role_start_sessions_brief_revision
-  after insert or update of brief on public.company_role_start_sessions
+  after insert on public.company_role_start_sessions
   for each row execute function public.capture_company_role_brief_revision_trigger_v1();
+create trigger company_role_start_sessions_brief_revision_update
+  after update of brief on public.company_role_start_sessions
+  for each row
+  when (old.brief is distinct from new.brief)
+  execute function public.capture_company_role_brief_revision_trigger_v1();
 
 -- Version 1 for every Harper-managed role, from what is saved now. Earlier
 -- history (company_role_hiring_brief_history) has no role facts, so it is kept
