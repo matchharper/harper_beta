@@ -75,6 +75,8 @@ alter table public.company_decision_events enable row level security;
 -- so every row gets its decision-time Brief version and Memory fingerprint and
 -- no row is updated or deleted. Supabase's default privileges give new tables
 -- to service_role with all rights, so revoke from it before granting.
+-- Like the other company tables: RLS on, no policies (service_role bypasses it).
+alter table public.company_decision_events enable row level security;
 revoke all on public.company_decision_events
   from public, anon, authenticated, service_role;
 grant select on public.company_decision_events to service_role;
