@@ -37,3 +37,27 @@ export async function readCareerActionItem({
   if (error) throw error;
   return data ? readCareerActionItemRow(data) : null;
 }
+
+/** The user closes a follow-up on Career home: the same delete Harper's tool runs. */
+export async function closeCareerActionItem({
+  admin,
+  userId,
+  conversationId,
+  id,
+  revision,
+}: Scope & { conversationId: string; id: string; revision: number }) {
+  const { data, error } = await (admin.rpc as any)(
+    "manage_career_action_item",
+    {
+      p_user_id: userId,
+      p_conversation_id: conversationId,
+      p_operation: "delete",
+      p_id: id,
+      p_expected_revision: revision,
+      p_item: null,
+      p_creation_key: null,
+    }
+  );
+  if (error) throw error;
+  return data as { status: "deleted" | "not_found" | "conflict"; id: string };
+}

@@ -1368,14 +1368,27 @@
 .career-content-actions .career-content-open {
   margin-top: 0;
 }
-.career-content-dismiss {
+.career-card-close {
   margin-right: -6px;
   padding: 4px 6px;
   border-radius: var(--career-radius-item);
   font-size: var(--career-label-size);
   color: var(--career-ink-soft);
 }
-.career-content-dismiss:focus-visible,
+/* Follow-up cards are one button, so Close sits beside it on the action row. */
+.career-followup-item {
+  position: relative;
+}
+.career-followup-close {
+  position: absolute;
+  right: var(--career-space-card);
+  /* Centers the smaller label on the action row's line. */
+  bottom: calc(var(--career-space-card) - 2px);
+}
+.career-followup-item:has(.career-followup-close) .career-followup-action {
+  padding-right: 56px;
+}
+.career-card-close:focus-visible,
 .career-content-open:focus-visible {
   outline: 2px solid var(--color-action, #0a84ff);
   outline-offset: 2px;

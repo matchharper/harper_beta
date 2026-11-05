@@ -120,7 +120,7 @@ export function CareerContentSuggestionCard({
         </a>
         <button
           type="button"
-          className="career-content-dismiss"
+          className="career-card-close"
           aria-label={`${item.title}: ${t("career.content.dismiss", "닫기")}`}
           onClick={() => onDismiss(item)}
         >
