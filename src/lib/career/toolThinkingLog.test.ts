@@ -33,3 +33,30 @@ test("shows localized thinking logs for company-request responses", () => {
 test("does not invent a thinking log for an unknown tool", () => {
   assert.equal(getCareerToolStartThinkingLog("unknown_tool", "ko"), "");
 });
+
+test("names the site a link opens and the words a web search uses", () => {
+  assert.equal(
+    getCareerToolStartThinkingLog("open_url", "ko", {
+      url: "https://www.wanted.co.kr/wd/391399",
+    }),
+    "wanted.co.kr 읽는 중"
+  );
+  assert.equal(
+    getCareerToolStartThinkingLog("open_url", "en", {
+      url: "https://www.wanted.co.kr/wd/391399",
+    }),
+    "Reading wanted.co.kr"
+  );
+  assert.equal(
+    getCareerToolStartThinkingLog("web_search", "ko", {
+      query: "  크몽   데이터 엔지니어 채용 ",
+    }),
+    '"크몽 데이터 엔지니어 채용" 검색 중'
+  );
+  // Before the call's input is known, the fixed label still fills the wait.
+  assert.equal(
+    getCareerToolStartThinkingLog("open_url", "en"),
+    "Checking the shared link."
+  );
+  assert.equal(getCareerToolStartThinkingLog("web_search", "ko"), "");
+});

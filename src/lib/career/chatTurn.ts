@@ -1126,6 +1126,13 @@ export async function runCareerChatTurn(
           return;
         }
 
+        // Harper's own status for this call is recorded in executeTool; the
+        // fixed label only fills the wait while the call is still being written.
+        if (
+          typeof input?._uiStatusMessage === "string" &&
+          input._uiStatusMessage.trim()
+        )
+          return;
         const status = getCareerToolStartThinkingLog(
           name,
           responseLocale,
@@ -1144,8 +1151,12 @@ export async function runCareerChatTurn(
                 .trim()
                 .slice(0, 160)
             : "";
-        if (status) {
-          recordThinkingLog(status);
+        // Without Harper's own status, name what this call opens or searches.
+        const shown =
+          status ||
+          getCareerToolStartThinkingLog(name, responseLocale, toolInput);
+        if (shown) {
+          recordThinkingLog(shown);
         }
 
         if (args.adapter) {

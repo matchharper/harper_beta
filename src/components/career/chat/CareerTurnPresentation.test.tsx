@@ -98,12 +98,12 @@ test("Harper's words stay visible while steps fold into one live line, and stay 
     const bubble = owner.querySelector("[data-chat-message-bubble]")!;
     const paragraph = bubble.querySelector("p")!;
     assert.ok(paragraph);
-    assert.match(owner.textContent!, /이력서를 확인할게요\.Working20s/);
+    assert.match(owner.textContent!, /이력서를 확인할게요\.다음 할 일을 정하는 중20s/);
     assert.equal(paragraph.closest("[hidden]"), null, "Harper's own words stay visible while working");
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 1100));
     });
-    assert.match(owner.textContent!, /Working21s/);
+    assert.match(owner.textContent!, /다음 할 일을 정하는 중21s/);
     const next = {
       ...first,
       workEvents: [...first.workEvents!,
@@ -179,7 +179,7 @@ test("Harper's words stay visible while steps fold into one live line, and stay 
     assert.doesNotMatch(owner.textContent!, /Worked/);
     assert.equal(owner.querySelector("[aria-expanded]"), null);
     await render([{ ...completed, workPending: true, workEvents: [], thinkingLogs: [] }]);
-    assert.match(owner.textContent!, /Thinking\d+s/);
+    assert.match(owner.textContent!, /생각하는 중\d+s/);
     assert.equal(owner.querySelector("[aria-expanded]"), null);
   } finally {
     await act(async () => root.unmount());
