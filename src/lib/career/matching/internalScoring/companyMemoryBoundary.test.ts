@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { loadRoleContext } from "./inputs";
+import { carriesCompanyMemory, loadRoleContext, type FrozenInput } from "./inputs";
 import type { Query } from "./database";
 
 test("Career-side scoring never reads company Memory", async () => {
@@ -31,4 +31,15 @@ test("Career-side scoring never reads company Memory", async () => {
     )
   );
   assert.equal("legacy_role_memory" in context.role, false);
+});
+
+test("inputs frozen with company Memory are read again, not scored", () => {
+  const input = (memory: unknown[]) =>
+    ({ context: { companyMemory: memory }, source: { companyMemory: memory } }) as unknown as FrozenInput;
+  assert.equal(carriesCompanyMemory(input([])), false);
+  assert.equal(carriesCompanyMemory(input([{ content: "연봉 상한" }])), true);
+  assert.equal(
+    carriesCompanyMemory({ context: { companyMemory: [] }, source: { companyMemory: [{ content: "x" }] } } as unknown as FrozenInput),
+    true
+  );
 });

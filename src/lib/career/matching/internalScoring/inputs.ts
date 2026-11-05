@@ -60,6 +60,14 @@ export type FrozenInput = {
   context: Awaited<ReturnType<typeof loadRoleContext>>;
   source: Row;
 };
+/** An input frozen before company Memory left Career-side scoring still carries
+ * it. Scoring it would send that text to the LLM and then fail assertInput (the
+ * current input has none) on every resume, so its Role is read again instead. */
+export function carriesCompanyMemory(input: FrozenInput) {
+  return [input.context.companyMemory, input.source.companyMemory].some(
+    (value) => Array.isArray(value) && value.length > 0
+  );
+}
 /** career_requested._profile + frozen full Brief + existing Behavior snapshot.
  * Deliberate difference: the user chose stored Behavior, without ensure/refresh. */
 export async function loadInputs(

@@ -2,7 +2,7 @@ import type { Database } from "./database";
 import { internalScoringDatabase } from "./database";
 import type { Stage } from "./decisions";
 import { scoreWithReceipt } from "./telemetry";
-import { loadInputs, type FrozenInput } from "./inputs";
+import { carriesCompanyMemory, loadInputs, type FrozenInput } from "./inputs";
 import {
   claim,
   assertOwner,
@@ -159,10 +159,17 @@ export async function executeInternalEvaluation(
         sources = sources.filter((s) =>
           payload.roleIds.includes(s.context.roleId)
         );
+      const memoryRoleIds = (sources ?? []).filter(carriesCompanyMemory).map((s) => s.context.roleId);
+      if (memoryRoleIds.length)
+        sources = sources!.filter((s) => !memoryRoleIds.includes(s.context.roleId));
       // A failed Role read must not discard other frozen inputs. On resume, only
-      // retry those reads; successful stages keep their original evidence/cache.
-      const retryRoleIds = (coverage.inputFailures ?? []).map((failure: Row) => failure.roleId)
-        .filter((id: string) => payload.roleIds.includes(id));
+      // retry those reads (and Roles frozen with company Memory); successful
+      // stages keep their original evidence/cache.
+      const retryRoleIds = [...new Set([
+        ...(coverage.inputFailures ?? []).map((failure: Row) => failure.roleId)
+          .filter((id: string) => payload.roleIds.includes(id)),
+        ...memoryRoleIds,
+      ])];
       if (!sources || retryRoleIds.length) {
         const loaded =
           payload.preparationRunId && !payload.roleIds.length
