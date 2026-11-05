@@ -49,9 +49,17 @@ with admin, admin.cursor() as cur:
     for name in settings:
         cur.execute(sql.SQL("grant set on parameter {} to postgres").format(sql.SQL(".").join(map(sql.Identifier,name.split(".")))))
     if settings: print("Allowed function settings:",", ".join(settings))
+# HARPER_LOCAL_RESTORE_CONTINUE=1 restores every object it can and lists the
+# ones it could not, instead of stopping at the first one.
+lenient=os.environ.get("HARPER_LOCAL_RESTORE_CONTINUE")=="1"
 with (PRIVATE/"restore.log").open("w") as log:
-    result=subprocess.run(["pg_restore","--host","127.0.0.1","--port","55432","--username","postgres","--dbname","postgres","--no-owner","--single-transaction","--use-list",str(target),str(dump)],env={**os.environ,"PGPASSWORD":"postgres"},stdout=log,stderr=log)
-if result.returncode: raise SystemExit("Schema restore failed; inspect private/restore.log. No fixture or worker was started.")
+    result=subprocess.run(["pg_restore","--host","127.0.0.1","--port","55432","--username","postgres","--dbname","postgres","--no-owner",*([] if lenient else ["--single-transaction"]),"--use-list",str(target),str(dump)],env={**os.environ,"PGPASSWORD":"postgres","LC_MESSAGES":"C"},stdout=log,stderr=log)
+if result.returncode:
+    lines=(PRIVATE/"restore.log").read_text().splitlines()
+    failures=[(line.split("ERROR:",1)[-1].strip(),next((later.strip() for later in lines[index+1:index+4] if later.strip().startswith("Command was:")),"")) for index,line in enumerate(lines) if "error:" in line.lower()]
+    shown="\n".join(f" - {message} | {command[:160]}" for message,command in failures[:15]) or "\n".join(lines[-15:])
+    if not lenient: raise SystemExit(f"Schema restore failed; nothing was restored. No fixture or worker was started.\n{shown}")
+    print(f"Restored with {len(failures)} objects skipped (private/restore.log):\n{shown}")
 with psycopg.connect(DSN) as conn,conn.cursor() as cur:
     cur.execute("notify pgrst, 'reload schema'")
 print("Local public schema, RPCs, triggers, ACLs and RLS restored; zero production rows copied.")
