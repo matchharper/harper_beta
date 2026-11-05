@@ -87,6 +87,11 @@ const EXA_JOB_POSTING_SUMMARY_SCHEMA = {
       description:
         "Factual summary in the posting language, exactly 3 to 6 complete sentences, covering role mission, responsibilities, important qualifications or stack, and explicit working conditions. Do not judge candidate fit or infer missing facts. Empty if content is insufficient.",
     },
+    applicationsClosed: {
+      type: "boolean",
+      description:
+        "True only when the page states that this opening has closed or no longer accepts applications, such as '마감된 포지션입니다' or 'This job is no longer available'. False for a future deadline, for a note that it may close early once filled (such as '채용 완료 시 조기 마감될 수 있습니다'), and when unsure.",
+    },
   },
   required: [
     "isJobPosting",
@@ -98,6 +103,7 @@ const EXA_JOB_POSTING_SUMMARY_SCHEMA = {
     "workArrangement",
     "jobDescription",
     "roleSummary",
+    "applicationsClosed",
   ],
 } as const;
 
@@ -158,6 +164,8 @@ export type CareerJobPostingDraft = CareerJobUrlIdentity & {
   salaryRange: string | null;
   title: string;
   workMode: "hybrid" | "onsite" | "remote" | null;
+  /** Why the read says the posting is gone or closed; absent when it looks open. */
+  closedReason?: string;
 };
 
 export type CareerJobPostingManualFields = {
@@ -799,6 +807,7 @@ async function fetchUnstructuredPosting(
         url: retrievalUrl,
         requestId: response.requestId,
         status: status?.status,
+        httpStatus: exaHttpStatus(status),
       };
       if (!result?.summary?.trim()) {
         failures.push({
@@ -845,6 +854,12 @@ async function fetchUnstructuredPosting(
                 workMode === "onsite"
                   ? workMode
                   : null,
+              ...(extracted.applicationsClosed === true
+                ? {
+                    closedReason:
+                      "The page says this opening no longer accepts applications.",
+                  }
+                : {}),
             },
             args.manual
           );
@@ -896,6 +911,7 @@ async function fetchUnstructuredPosting(
           url: retrievalUrl,
           requestId: response.requestId,
           status: status?.status,
+          httpStatus: exaHttpStatus(status),
           reason: record(status)?.error
             ? jobPostingReadErrorReason(record(status)?.error)
             : "Exa returned no page text.",
@@ -930,6 +946,11 @@ async function fetchUnstructuredPosting(
     failures,
     pageTitle
   );
+}
+
+function exaHttpStatus(status: unknown) {
+  const code = Number(record(record(status)?.error)?.httpStatusCode);
+  return Number.isInteger(code) && code > 0 ? code : undefined;
 }
 
 function manualOnlyDraft(
@@ -975,10 +996,16 @@ export async function fetchCareerJobPosting(
       draft = await fetchJumpitPosting(identity, fetcher);
     }
   } catch (error) {
+    const httpStatus = Number(
+      /^job_fetch_failed:(\d{3})$/.exec(
+        error instanceof Error ? error.message : ""
+      )?.[1]
+    );
     failures.push({
       stage: `${identity.provider} direct retrieval`,
       url: identity.canonicalUrl,
       reason: jobPostingReadErrorReason(error),
+      ...(httpStatus ? { httpStatus } : {}),
     });
   }
 
@@ -992,5 +1019,15 @@ export async function fetchCareerJobPosting(
         "The structured posting did not provide both the job title and hiring company.",
     });
   }
-  return fetchUnstructuredPosting(identity, args, failures);
+  const fallback = await fetchUnstructuredPosting(identity, args, failures);
+  // 404 or 410 from any read means the posting is gone.
+  const gone = failures.find(
+    (failure) => failure.httpStatus === 404 || failure.httpStatus === 410
+  );
+  return gone && !fallback.closedReason
+    ? {
+        ...fallback,
+        closedReason: `${gone.stage} returned HTTP ${gone.httpStatus} for ${gone.url}.`,
+      }
+    : fallback;
 }

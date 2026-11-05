@@ -3,7 +3,10 @@ import "server-only";
 import type { Json } from "@/types/database.types";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { getExaClient, type ExaContentsClient } from "@/lib/tools/exaClient";
-import type { JobPostingReadFailure } from "./jobPostingReadResult";
+import {
+  JobPostingClosedError,
+  type JobPostingReadFailure,
+} from "./jobPostingReadResult";
 import {
   fetchCareerJobPosting,
   parseCareerJobUrl,
@@ -459,6 +462,10 @@ export async function importCareerJobLink(
       manual: args.manual,
       url: args.url,
     });
+    // Harper's own find (no card yet) is not worth suggesting once it is gone
+    // or closed. A posting the user asks to save is still saved.
+    if (args.savedStage === null && draft.closedReason)
+      throw new JobPostingClosedError(identity.canonicalUrl, draft.closedReason);
     const resolution = await resolveWorkspace({ admin: args.admin, draft });
     if ("workspace" in resolution) {
       workspace = resolution.workspace;

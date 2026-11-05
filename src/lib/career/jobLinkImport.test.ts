@@ -314,6 +314,91 @@ test("uses Exa structured summary without retrieving or storing raw page text", 
   ).summary;
   assert.match(summaryOptions?.query ?? "", /Never infer/);
   assert.equal(summaryOptions?.schema?.type, "object");
+  assert.ok(
+    (summaryOptions?.schema?.required as string[]).includes("applicationsClosed")
+  );
+  assert.equal(result.closedReason, undefined);
+});
+
+const closedSummary = (applicationsClosed: boolean) =>
+  JSON.stringify({
+    applicationsClosed,
+    employmentTypes: [],
+    hiringCompany: "Example Labs",
+    isJobPosting: true,
+    jobDescription: "Build reliable systems.",
+    jobLocation: "Seoul",
+    roleSummary: "Example Labs is hiring a Data Engineer.",
+    roleTitle: "Data Engineer",
+    salaryRange: "",
+    workArrangement: "",
+  });
+
+test("a page that says applications are closed marks the posting closed", async () => {
+  const result = await fetchCareerJobPosting({
+    exa: {
+      getContents: async () => ({
+        requestId: "closed-1",
+        results: [{ summary: closedSummary(true) }],
+      }),
+    } as never,
+    url: "https://careers.example.com/data-engineer",
+  });
+  assert.equal(result.title, "Data Engineer");
+  assert.match(result.closedReason ?? "", /no longer accepts applications/);
+});
+
+test("a 404 from the job board marks the posting closed even when another read succeeds", async () => {
+  const result = await fetchCareerJobPosting({
+    exa: {
+      getContents: async () => ({
+        requestId: "cached-1",
+        results: [{ summary: closedSummary(false) }],
+      }),
+    } as never,
+    fetcher: async () => new Response("{}", { status: 404 }),
+    url: "https://job-boards.greenhouse.io/acme/jobs/12345",
+  });
+  assert.equal(result.extractedBy, "exa_summary");
+  assert.match(
+    result.closedReason ?? "",
+    /greenhouse direct retrieval returned HTTP 404/
+  );
+});
+
+test("a 410 page read marks a posting closed even when Harper supplies its title and company", async () => {
+  const result = await fetchCareerJobPosting({
+    exa: {
+      getContents: async () => ({
+        requestId: "gone-1",
+        statuses: [
+          { status: "error", error: { tag: "CRAWL_NOT_FOUND", httpStatusCode: 410 } },
+        ],
+        results: [],
+      }),
+    } as never,
+    manual: { companyName: "Example Labs", title: "Data Engineer" },
+    url: "https://careers.example.com/data-engineer",
+  });
+  assert.equal(result.extractedBy, "manual");
+  assert.match(result.closedReason ?? "", /Exa page text returned HTTP 410/);
+});
+
+test("other read failures do not mark a posting closed", async () => {
+  const result = await fetchCareerJobPosting({
+    exa: {
+      getContents: async () => ({
+        requestId: "denied-1",
+        statuses: [
+          { status: "error", error: { tag: "CRAWL_FORBIDDEN", httpStatusCode: 403 } },
+        ],
+        results: [],
+      }),
+    } as never,
+    manual: { companyName: "Example Labs", title: "Data Engineer" },
+    url: "https://careers.example.com/data-engineer",
+  });
+  assert.equal(result.closedReason, undefined);
 });
 
 test("does not treat a generic public page as a job posting", async () => {

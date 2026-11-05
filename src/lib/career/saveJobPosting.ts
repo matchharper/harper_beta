@@ -2,6 +2,7 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { parseCareerJobUrl } from "./jobLinkImport";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import {
+  JobPostingClosedError,
   JobPostingDetailsRequiredError,
   formatJobPostingReadFailures,
 } from "./jobPostingReadResult";
@@ -81,7 +82,10 @@ export async function saveJobPosting(args: {
       deadline: args.deadline ?? null,
     });
   } catch (error) {
-    if (error instanceof JobPostingDetailsRequiredError)
+    if (
+      error instanceof JobPostingDetailsRequiredError ||
+      error instanceof JobPostingClosedError
+    )
       return error.toToolResult();
     throw error;
   }
