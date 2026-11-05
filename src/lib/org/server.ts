@@ -5819,8 +5819,6 @@ export async function cancelOrgCompanyTalentRequest(args: {
 }
 
 export async function createOrgTalentFeedItem(args: {
-  /** Where the note was written; the web feed when omitted. */
-  decisionChannel?: "web" | "chat" | "slack";
   recommendationId?: string | null;
   roleId: string;
   talentId: string;
@@ -5852,7 +5850,6 @@ export async function createOrgTalentFeedItem(args: {
     company_user_id: args.user.id,
     kind: "org_note",
     metadata: {
-      decisionChannel: args.decisionChannel ?? "web",
       org: true,
       workspaceId,
     } as Json,

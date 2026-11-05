@@ -3,7 +3,6 @@
 -- C1 recorded Pass and intro requests. This records, in the same transaction
 -- as the change that is already saved today:
 --   stage changes and stops        talent_progress org_stage_change
---   candidate notes                talent_progress org_note
 --   first profile view             talent_progress org_candidate_profile_first_view
 --   save / unsave                  talent_progress org_candidate_saved
 --   first-three ratings            company_role_start_sessions.evaluations
@@ -19,51 +18,12 @@
 -- recorded as unknown so a missed writer shows up instead of vanishing.
 -- Ops review moves (no company user) are not company decisions either.
 --
--- Notes stay editable by their author. Every text the note had is kept, so a
--- point-in-time read shows the note as it was then: an edit marks the earlier
--- row superseded and records the new text; a deleted note is marked deleted.
--- Current reads (and Harper) use only rows with neither mark. When the Talent
--- account is deleted, the reasons and notes about that person are erased
--- (redacted) from every decision; the rows stay.
-
-create or replace function public.mark_company_note_decisions_v1(
-  p_role_id uuid, p_talent_id uuid, p_progress_id uuid, p_mark text
-) returns void
-language sql
-security definer
-set search_path = ''
-as $$
-  update public.company_decision_events
-  set detail = detail || jsonb_build_object(
-        p_mark, true, p_mark || 'At', now()
-      )
-  where role_id = p_role_id
-    and subject_kind = 'member_candidate'
-    and subject_id = p_talent_id
-    and action = 'note'
-    and detail->>'progressId' = p_progress_id::text
-    and not coalesce((detail->>p_mark)::boolean, false);
-$$;
-
-revoke all on function public.mark_company_note_decisions_v1(uuid, uuid, uuid, text)
-  from public, anon, authenticated, service_role;
-
-create or replace function public.mark_deleted_company_note_v1()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if old.role_id is not null and old.talent_id is not null then
-    perform public.mark_company_note_decisions_v1(old.role_id, old.talent_id, old.id, 'deleted');
-  end if;
-  return old;
-end;
-$$;
-
-revoke all on function public.mark_deleted_company_note_v1()
-  from public, anon, authenticated, service_role;
+-- Candidate notes (org_note) are not decisions: they are editable notes and
+-- get their own company-side table with history (D20, next PR).
+--
+-- When the Talent account is deleted, the reasons about that person (Pass,
+-- stop and acceptance reasons) are erased (redacted) from every decision; the
+-- rows stay.
 
 create index if not exists company_decision_events_member_subject_idx
   on public.company_decision_events (subject_id) where subject_kind = 'member_candidate';
@@ -130,22 +90,6 @@ begin
       nullif(btrim(new.metadata->>'stopNote'), ''),
       nullif(btrim(new.metadata->>'acceptReason'), '')
     );
-  elsif new.kind = 'org_note' then
-    -- The web Pass reason is also shown as a note; it is already the Pass decision's reason.
-    if v_actor is null or new.metadata->>'decision' = 'pass' then
-      return new;
-    end if;
-    if tg_op = 'UPDATE' then
-      if old.text is not distinct from new.text then
-        return new;
-      end if;
-      perform public.mark_company_note_decisions_v1(new.role_id, new.talent_id, new.id, 'superseded');
-      v_key := v_key || ':edit:' || extract(epoch from clock_timestamp())::text;
-    end if;
-    v_action := 'note';
-    v_reason := new.text;
-    v_detail := jsonb_build_object('progressId', new.id, 'edited', tg_op = 'UPDATE');
-    v_channel := coalesce(v_channel, 'web');
   elsif new.kind = 'org_candidate_profile_first_view' then
     if tg_op = 'UPDATE' or v_actor is null then
       return new;
@@ -187,16 +131,11 @@ revoke all on function public.record_company_progress_decision_v1()
   from public, anon, authenticated, service_role;
 
 create trigger talent_progress_company_decision
-  after insert or update of metadata, text on public.talent_progress
+  after insert or update of metadata on public.talent_progress
   for each row
-  when (new.kind in ('org_stage_change', 'org_note', 'org_candidate_profile_first_view', 'org_candidate_saved'))
+  when (new.kind in ('org_stage_change', 'org_candidate_profile_first_view', 'org_candidate_saved'))
   execute function public.record_company_progress_decision_v1();
 
-create trigger talent_progress_company_note_deleted
-  after delete on public.talent_progress
-  for each row
-  when (old.kind = 'org_note')
-  execute function public.mark_deleted_company_note_v1();
 
 -- First-three ratings in role start: one decision per rating saved (a change
 -- of rating or reasons is a new one).

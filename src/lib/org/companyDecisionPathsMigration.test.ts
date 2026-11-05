@@ -115,12 +115,8 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
     await progress("ops", { stage: "hold", source: "ops_matching_review" });
     // A writer that forgot the channel still shows up.
     await progress("org_stage_change", { stage: "interview" });
-    // Notes: the web Pass reason copy is already on the Pass decision.
-    const note = "60000000-0000-4000-8000-000000000001";
-    const deleted = "60000000-0000-4000-8000-000000000002";
-    await progress("org_note", { org: true, decisionChannel: "chat" }, note);
-    await progress("org_note", { org: true, decision: "pass" });
-    await progress("org_note", { org: true }, deleted);
+    // Notes are not decisions (they get their own table).
+    await progress("org_note", { org: true });
     await progress("org_candidate_profile_first_view", { source: "slack" });
     // Save, save again (no change), unsave.
     const saveId = "50000000-0000-4000-8000-000000000001";
@@ -169,8 +165,6 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
       ["member_candidate", "stop", "slack", "다른 후보로 결정"],
       ["member_candidate", "stage_change", "email", "좋은 경험"],
       ["member_candidate", "stage_change", "unknown", null],
-      ["member_candidate", "note", "chat", "text"],
-      ["member_candidate", "note", "web", "text"],
       ["member_candidate", "view", "slack", null],
       ["member_candidate", "save", "web", null],
       ["member_candidate", "unsave", "web", null],
@@ -186,37 +180,20 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
     assert.ok(rows.every(r => r.actor_user_id === actor));
     assert.equal(rows[0].detail.stage, "interview");
     assert.equal(rows[0].detail.previousStage, "connected");
-    assert.equal(rows[9].subject_id, talent);
-    assert.equal(rows[9].detail.rating, "bad");
-    assert.equal(rows[10].subject_id, other);
-    assert.equal(rows[11].detail.rating, "uncertain");
-    assert.equal(rows[14].detail.kind, "widen");
-    assert.equal(rows[16].subject_id, person);
+    assert.equal(rows[7].subject_id, talent);
+    assert.equal(rows[7].detail.rating, "bad");
+    assert.equal(rows[8].subject_id, other);
+    assert.equal(rows[9].detail.rating, "uncertain");
+    assert.equal(rows[12].detail.kind, "widen");
+    assert.equal(rows[14].subject_id, person);
 
-    // Every text a note had is kept and marked; only the account deletion erases it.
-    await db.exec(`update talent_progress set text = 'edited text' where id = '${note}';
-      update talent_progress set text = 'edited text' where id = '${note}';
-      delete from talent_progress where id = '${deleted}';`);
-    const notes = async () => (await db.query<any>(`select reason_text, detail from company_decision_events
-      where action = 'note' order by id`)).rows.map(n =>
-        [n.reason_text, Boolean(n.detail.superseded), Boolean(n.detail.deleted), Boolean(n.detail.redacted), n.detail.edited]);
-    assert.deepEqual(await notes(), [
-      ["text", true, false, false, false],
-      ["text", false, true, false, false],
-      ["edited text", false, false, false, true],
-    ]);
-    // The Talent account goes (its notes go with it): every reason and note
-    // about the person is erased, including a note deleted earlier.
-    await db.exec(`delete from talent_users where user_id = '${talent}';
-      delete from talent_progress where talent_id = '${talent}' and kind = 'org_note';`);
-    assert.deepEqual(await notes(), [
-      [null, true, true, true, false],
-      [null, false, true, true, false],
-      [null, false, true, true, true],
-    ]);
+    // The Talent account goes: every reason about the person is erased; the rows stay.
+    await db.exec(`delete from talent_users where user_id = '${talent}';`);
     const left = (await db.query<any>(`select count(*)::int n from company_decision_events
       where subject_id = '${talent}' and reason_text is not null`)).rows[0].n;
     assert.equal(left, 0);
+    assert.equal((await db.query<any>(`select count(*)::int n from company_decision_events
+      where subject_id = '${talent}' and detail ? 'redacted'`)).rows[0].n, 3);
     assert.equal((await db.query<any>(`select count(*)::int n from company_decision_events
       where subject_id = '${other}' and detail ? 'redacted'`)).rows[0].n, 0);
 

@@ -783,7 +783,6 @@ async function executeAddCandidateNote(args: {
   callId: string;
   input: Record<string, unknown>;
   name: OrgAgentToolName;
-  source: "chat" | "slack";
   state: OrgAgentToolExecutionState;
   user: User;
   workspaceId: string;
@@ -792,7 +791,6 @@ async function executeAddCandidateNote(args: {
   const talentId = requiredText(args.input.talentId, "talentId", 100);
   const note = requiredText(args.input.note, "note", 2_000);
   await createOrgTalentFeedItem({
-    decisionChannel: args.source,
     roleId: role.roleId,
     talentId,
     text: note,
@@ -6899,7 +6897,6 @@ export async function executeOrgAgentTool(args: {
       callId: args.callId,
       input,
       name: args.name,
-      source: args.source,
       state: args.state,
       user: args.user,
       workspaceId,
