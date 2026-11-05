@@ -59,6 +59,8 @@ export type CareerTasksSnapshot = CareerPendingActionsSnapshot &
   CareerTaskProgressSnapshot & {
     actionItems?: import("./actionItems").CareerActionItem[];
     contentSuggestions?: import("./contentSuggestions").CareerContentSuggestion[];
+    /** Preview only: upcoming appointments shown on Career home. */
+    appointments?: import("./meetings/types").TalentMeetingSchedule[];
     externalFeedback?: CareerExternalFeedbackOpportunity[];
     gmailConnected?: boolean;
   };

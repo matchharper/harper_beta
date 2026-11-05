@@ -10,17 +10,11 @@ export const CAREER_CONTENT_KINDS = [
   "article",
   "post",
 ] as const;
-/** Kinds the user can mark "신청했어요". */
-export const CAREER_CONTENT_REGISTRABLE_KINDS: readonly CareerContentKind[] = [
-  "event",
-  "signup",
-];
 export type CareerContentKind = (typeof CAREER_CONTENT_KINDS)[number];
 export const CAREER_CONTENT_VISIBLE_STATUSES = [
   "new",
   "seen",
   "opened",
-  "registered",
 ] as const;
 export const CAREER_CONTENT_MAX_VISIBLE = 20;
 
@@ -37,44 +31,25 @@ export const careerContentSuggestionSchema = z.object({
   publishedAt: z.string().nullable(),
   expiresAt: z.string(),
   deadline: z.string().nullable(),
-  status: z.enum([
-    "new",
-    "seen",
-    "opened",
-    "registered",
-    "dismissed",
-    "removed",
-  ]),
+  status: z.enum(["new", "seen", "opened", "dismissed", "removed"]),
   origin: z.enum(["user_request", "harper_offer", "harper_background"]),
   createdAt: z.string(),
 });
 export type CareerContentSuggestion = z.infer<
   typeof careerContentSuggestionSchema
 >;
-export type CareerContentReaction =
-  | "seen"
-  | "opened"
-  | "dismissed"
-  | "registered"
-  | "unregistered";
+export type CareerContentReaction = "seen" | "opened" | "dismissed";
 
 /** The status a reaction leads to, as manage_career_content_suggestion applies it;
  * null when it changes nothing. */
 export function nextCareerContentStatus(
-  item: Pick<CareerContentSuggestion, "kind" | "status">,
+  item: Pick<CareerContentSuggestion, "status">,
   reaction: CareerContentReaction
 ): CareerContentSuggestion["status"] | null {
   const { status } = item;
   if (reaction === "seen") return status === "new" ? "seen" : null;
   if (reaction === "opened")
     return status === "new" || status === "seen" ? "opened" : null;
-  if (reaction === "registered")
-    return CAREER_CONTENT_REGISTRABLE_KINDS.includes(item.kind) &&
-      (status === "new" || status === "seen" || status === "opened")
-      ? "registered"
-      : null;
-  if (reaction === "unregistered")
-    return status === "registered" ? "opened" : null;
   return (CAREER_CONTENT_VISIBLE_STATUSES as readonly string[]).includes(status)
     ? "dismissed"
     : null;

@@ -516,7 +516,6 @@ export const ko = {
     "career.sky.documents": "자료",
     "career.sky.companies": "관심 회사",
     "career.content.dismiss": "닫기",
-    "career.content.registered": "신청했어요",
     "career.followup.close": "닫기",
     "career.content.kind.article": "글",
     "career.content.kind.event": "행사",

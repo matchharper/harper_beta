@@ -73,11 +73,11 @@ export const CAREER_CAPABILITIES = [
     id: "career_content",
     turns: 2,
     summary:
-      "Keep events, sign-ups (coffee chats, mentoring, fellowships, contests, course recruiting), articles and social posts found for the user in the \"볼 만한 것\" list on Career home so they persist beyond chat until they expire. Job postings and hiring posts go to Jobs through save_job_posting mode suggest, not here.",
+      "Keep events, sign-ups (coffee chats, mentoring, fellowships, contests, course recruiting), articles and social posts found for the user in the \"볼 만한 것\" list on Career home so they persist beyond chat until they expire. When the user signs up for one, it moves to their schedule (the schedules capability). Job postings and hiring posts go to Jobs through save_job_posting mode suggest, not here.",
     tools: [
       [
         "manage_content_suggestions",
-        "read, save or remove events, sign-ups, articles and posts shown on Career home, and mark ones the user signed up for",
+        "read, save or remove events, sign-ups, articles and posts shown on Career home",
       ],
     ],
   },

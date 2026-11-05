@@ -17,16 +17,9 @@ const ownListFix = readFileSync(
   ),
   "utf8"
 );
-const registeredStatus = readFileSync(
-  new URL(
-    "../../../supabase/migrations/20261105100000_career_content_registered.sql",
-    import.meta.url
-  ),
-  "utf8"
-);
 const signupKind = readFileSync(
   new URL(
-    "../../../supabase/migrations/20261105110000_career_content_signup_kind.sql",
+    "../../../supabase/migrations/20261105120000_career_content_signup_kind.sql",
     import.meta.url
   ),
   "utf8"
@@ -99,7 +92,6 @@ async function database() {
     insert into talent_conversations values ('${conversation}', '${talent}');
   `);
   await db.exec(migration);
-  await db.exec(registeredStatus);
   await db.exec(signupKind);
   return db;
 }
@@ -352,42 +344,10 @@ test("content suggestions keep one entry per link and move forward only", async 
   }
 });
 
-test("an event the user signed up for stays shown and can be taken back", async () => {
+test("a sign-up ends at the deadline it states, and signing up is not a status", async () => {
   const db = await database();
   try {
-    const event = await content(db, "add", {
-      item: {
-        kind: "event",
-        url: "https://lu.ma/pytorch-day",
-        title: "PyTorch Day",
-        reason: "이유",
-        startsAt: new Date(Date.now() + 7 * 86400_000).toISOString(),
-      },
-      origin: "user_request",
-    });
-    const article = await content(db, "add", {
-      item: { kind: "article", url: "https://example.com/read", title: "글", reason: "이유" },
-      origin: "user_request",
-    });
-    const react = (id: string, reaction: string) =>
-      content(db, "react", { id, item: { reaction } });
-
-    assert.equal((await react(event.id, "registered")).status, "registered");
-    assert.equal((await react(event.id, "opened")).status, "registered", "opening the link again keeps it");
-    assert.equal((await react(event.id, "seen")).status, "registered");
-    const shown = await db.query<{ n: number }>(
-      "select count(*)::int as n from career_content_suggestions where status in ('new','seen','opened','registered') and expires_at > now()"
-    );
-    assert.equal(shown.rows[0].n, 2, "a registered event is still on the list");
-    assert.equal((await react(event.id, "unregistered")).status, "opened");
-    assert.equal((await react(event.id, "registered")).status, "registered");
-    assert.equal((await react(event.id, "dismissed")).status, "dismissed");
-    assert.equal((await react(event.id, "registered")).status, "dismissed", "closed is final");
-
-    await assert.rejects(react(article.id, "registered"), /Only events and sign-ups can be registered/);
-
-    // A coffee chat or program is a sign-up: it can be marked too, and it ends
-    // at the deadline it states.
+    // A coffee chat or program is a sign-up: it ends at the deadline it states.
     const deadline = new Date(Date.now() + 9 * 86400_000).toISOString();
     const chat = await content(db, "add", {
       item: { kind: "signup", url: "https://example.com/coffee-chat", title: "PM 커피챗", reason: "이유", deadline },
@@ -396,13 +356,20 @@ test("an event the user signed up for stays shown and can be taken back", async 
     assert.equal(chat.status, "saved");
     assert.equal(new Date(chat.item.deadline).toISOString(), deadline);
     assert.equal(new Date(chat.item.expires_at).toISOString(), deadline);
-    assert.equal((await react(chat.id, "registered")).status, "registered");
     await assert.rejects(
       content(db, "add", { item: { kind: "webinar", url: "https://example.com/w", title: "t", reason: "r" }, origin: "user_request" }),
       /Invalid content suggestion/
     );
-    await assert.rejects(react(article.id, "joined"), /Unknown reaction/);
-    assert.equal((await react(article.id, "unregistered")).status, "new", "nothing to take back");
+    // A sign-up moves to the user's schedule; this list only keeps or drops it.
+    await assert.rejects(
+      content(db, "react", { id: chat.id, item: { reaction: "registered" } }),
+      /Unknown reaction/
+    );
+    await assert.rejects(
+      db.query("update career_content_suggestions set status = 'registered' where id = $1", [chat.id]),
+      /career_content_suggestions_status_check/
+    );
+    assert.equal((await content(db, "remove", { id: chat.id })).status, "removed");
   } finally {
     await db.close();
   }

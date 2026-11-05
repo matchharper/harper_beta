@@ -87,6 +87,7 @@ export default function UpcomingAppointments({
   onOpenRole,
   position,
   fallbackMeeting,
+  previewSchedules,
 }: {
   roleId?: string;
   enabled?: boolean;
@@ -94,6 +95,8 @@ export default function UpcomingAppointments({
   onOpenRole?: (id: string) => void;
   position?: { title: string; companyName: string };
   fallbackMeeting?: CareerOpportunityUpcomingMeeting | null;
+  /** Design preview: show these instead of reading the account. */
+  previewSchedules?: TalentMeetingSchedule[];
 }) {
   const { fetchWithAuth } = useCareerApi();
   const userId = useAuthStore((state) => state.session?.user.id);
@@ -101,7 +104,7 @@ export default function UpcomingAppointments({
   const { locale } = useMessages();
   const query = useInfiniteQuery({
     queryKey: ["career-meeting-schedules", userId, roleId],
-    enabled: enabled && Boolean(userId),
+    enabled: enabled && !previewSchedules && Boolean(userId),
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<Page> => {
       const params = new URLSearchParams({ offset: String(pageParam) });
@@ -116,7 +119,10 @@ export default function UpcomingAppointments({
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
-  const schedules = query.data?.pages.flatMap((page) => page.schedules) ?? [];
+  const schedules =
+    previewSchedules ??
+    query.data?.pages.flatMap((page) => page.schedules) ??
+    [];
   const pendingMeeting = query.isPending && fallbackMeeting;
   if (!enabled || (!showEmpty && !position && !schedules.length && !query.isError))
     return null;

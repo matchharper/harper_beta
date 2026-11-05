@@ -35,15 +35,10 @@ const inputSchema = z.discriminatedUnion("operation", [
     items: z.array(itemSchema).min(1).max(10),
   }),
   z.object({
-    operation: z.enum(["remove", "mark_registered", "unmark_registered"]),
+    operation: z.literal("remove"),
     ids: z.array(z.string().uuid()).min(1).max(20),
   }),
 ]);
-const ID_OPERATIONS = {
-  remove: { operation: "remove", reaction: null },
-  mark_registered: { operation: "react", reaction: "registered" },
-  unmark_registered: { operation: "react", reaction: "unregistered" },
-} as const;
 
 /** A link that identifies a single job posting belongs in Jobs, not here. */
 export function careerContentJobPostingUrl(url: string) {
@@ -85,19 +80,13 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
     name: "manage_content_suggestions",
     channels: ["chat"],
     description:
-      "Read, save or remove events, sign-ups, articles and social posts shown in the user's \"볼 만한 것\" list on Career home. kind: event is a meetup, conference or webinar at a set time; signup is something the user joins by applying or reaching out that is neither a job nor a timed event (fellowship, contest, course or bootcamp recruiting, coffee chat, mentoring, office hours), with its deadline when stated; article is something to read; post is a social post worth a look. Items persist across visits until they expire: an event after it ends (endsAt, else one day after startsAt), anything else after 30 days, or earlier at a deadline the item itself states. The list keeps one entry per link per user, so a link the user dismissed is never shown again. Job postings and hiring posts are not accepted; save those to Jobs with save_job_posting. list returns current items. add saves up to 10 items; each needs kind, the real url, a short title and a one-sentence reason in the user's language; events also need startsAt (ISO 8601, with time zone) and past events are rejected. origin is user_request when the user asked for such items and harper_offer when Harper offered them and the user agreed. remove withdraws items by id. mark_registered records that the user said they signed up for a saved event or sign-up (status registered; the card shows 신청했어요); unmark_registered takes that back. The user can also press 신청했어요 on the card. Harper cannot see event sites, so registered is the user's own word: use mark_registered only when the user says so, never because they opened the link. For a registered event or sign-up that is coming up, a preparation follow-up can help. Saving does not register the user for anything or contact anyone.",
+      "Read, save or remove events, sign-ups, articles and social posts shown in the user's \"볼 만한 것\" list on Career home. kind: event is a meetup, conference or webinar at a set time; signup is something the user joins by applying or reaching out that is neither a job nor a timed event (fellowship, contest, course or bootcamp recruiting, coffee chat, mentoring, office hours), with its deadline when stated; article is something to read; post is a social post worth a look. Items persist across visits until they expire: an event after it ends (endsAt, else one day after startsAt), anything else after 30 days, or earlier at a deadline the item itself states. The list keeps one entry per link per user, so a link the user dismissed is never shown again. Job postings and hiring posts are not accepted; save those to Jobs with save_job_posting. list returns current items. add saves up to 10 items; each needs kind, the real url, a short title and a one-sentence reason in the user's language; events also need startsAt (ISO 8601, with time zone) and past events are rejected. origin is user_request when the user asked for such items and harper_offer when Harper offered them and the user agreed. remove withdraws items by id. When the user says they signed up for a saved event, or for a sign-up that has a set date (a coffee chat or session), record it as their appointment with upsert_talent_schedules (source_key content:<item id>; content holds the link and place), reserve useful preparation or a follow-up with upsert_schedule target_refs.meetingScheduleIds, then remove the item here because it now lives in their schedule, and delete any follow-up card that asked about it. An application without a set date (fellowship, contest) needs only a reservation to check back when results are due. Harper cannot see event sites, so record a sign-up only on the user's word, never because they opened the link. Saving does not register the user for anything or contact anyone.",
     parameters: {
       type: "object",
       properties: {
         operation: {
           type: "string",
-          enum: [
-            "list",
-            "add",
-            "remove",
-            "mark_registered",
-            "unmark_registered",
-          ],
+          enum: ["list", "add", "remove"],
         },
         origin: {
           type: "string",
@@ -156,8 +145,7 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
         },
         ids: {
           type: "array",
-          description:
-            "For remove, mark_registered and unmark_registered. Exact item ids from list.",
+          description: "For remove. Exact item ids from list.",
           items: { type: "string" },
         },
       },
@@ -182,28 +170,15 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
             : "No current items.",
         };
       }
-      if (input.operation !== "add") {
-        const { operation, reaction } = ID_OPERATIONS[input.operation];
+      if (input.operation === "remove") {
         const results = [];
         for (const id of input.ids) {
           context.abortSignal?.throwIfAborted();
-          try {
-            const result = await manageCareerContentSuggestion(scope, {
-              operation,
-              id,
-              item: reaction ? { reaction } : null,
-            });
-            results.push({ id, status: result.status });
-          } catch (error) {
-            // Only events and sign-ups can be registered; report it and keep going.
-            if (
-              !/can be registered/.test(
-                String((error as any)?.message ?? error)
-              )
-            )
-              throw error;
-            results.push({ id, status: "not_registrable" });
-          }
+          const result = await manageCareerContentSuggestion(scope, {
+            operation: "remove",
+            id,
+          });
+          results.push({ id, status: result.status });
         }
         return {
           results,

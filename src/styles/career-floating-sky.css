@@ -1375,19 +1375,9 @@
   font-size: var(--career-label-size);
   color: var(--career-ink-soft);
 }
-.career-content-side {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.career-content-register {
-  margin-right: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.career-content-register[aria-pressed="true"] {
-  color: var(--career-ink);
+/* Upcoming appointments sit between follow-ups and "볼 만한 것" on Career home. */
+.career-appointments > section {
+  margin-top: 24px;
 }
 /* Follow-up cards are one button, so Close sits beside it on the action row. */
 .career-followup-item {

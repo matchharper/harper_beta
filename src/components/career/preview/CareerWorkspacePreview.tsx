@@ -1185,6 +1185,25 @@ const CareerWorkspacePreview = ({
               createdAt: new Date(PREVIEW_NOW - 7_200_000).toISOString(),
             },
           ],
+      appointments: hideTaskDecisions
+        ? []
+        : [
+            {
+              id: "00000000-0000-4000-8000-000000000301",
+              talent_id: "00000000-0000-4000-8000-000000000001",
+              role_id: null,
+              scheduling_source: "external",
+              title: "PyTorch 서울 밋업",
+              content: "[행사 페이지](https://lu.ma/preview-pytorch-seoul) · 서울 강남",
+              timezone: "Asia/Seoul",
+              confirmed_start_at: new Date(PREVIEW_NOW + 2 * 86_400_000).toISOString(),
+              confirmed_end_at: new Date(PREVIEW_NOW + 2 * 86_400_000 + 7_200_000).toISOString(),
+              status: "confirmed",
+              version: 1,
+              source_key: "content:00000000-0000-4000-8000-000000000204",
+              source_refs: {},
+            },
+          ],
       actions: previewPendingActions,
       meetingSchedules: [],
       connections: historyOpportunities.flatMap((item) => {
