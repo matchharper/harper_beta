@@ -520,6 +520,8 @@ export const ko = {
     "career.followup.close": "닫기",
     "career.content.kind.article": "글",
     "career.content.kind.event": "행사",
+    "career.content.kind.signup": "신청",
+    "career.content.closes": "{date} 마감",
     "career.content.kind.post": "게시물",
     "career.content.new": "새로 찾음",
     "career.content.open": "열기",

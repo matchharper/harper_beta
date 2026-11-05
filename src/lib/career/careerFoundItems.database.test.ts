@@ -24,6 +24,13 @@ const registeredStatus = readFileSync(
   ),
   "utf8"
 );
+const signupKind = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20261105110000_career_content_signup_kind.sql",
+    import.meta.url
+  ),
+  "utf8"
+);
 // The guard as it runs in production before ownListFix (not in this repo's migrations).
 const productionIsolationGuard = `
   create function enforce_user_submitted_role_recommendation_isolation_v1() returns trigger
@@ -93,6 +100,7 @@ async function database() {
   `);
   await db.exec(migration);
   await db.exec(registeredStatus);
+  await db.exec(signupKind);
   return db;
 }
 
@@ -376,7 +384,23 @@ test("an event the user signed up for stays shown and can be taken back", async 
     assert.equal((await react(event.id, "dismissed")).status, "dismissed");
     assert.equal((await react(event.id, "registered")).status, "dismissed", "closed is final");
 
-    await assert.rejects(react(article.id, "registered"), /Only events can be registered/);
+    await assert.rejects(react(article.id, "registered"), /Only events and sign-ups can be registered/);
+
+    // A coffee chat or program is a sign-up: it can be marked too, and it ends
+    // at the deadline it states.
+    const deadline = new Date(Date.now() + 9 * 86400_000).toISOString();
+    const chat = await content(db, "add", {
+      item: { kind: "signup", url: "https://example.com/coffee-chat", title: "PM 커피챗", reason: "이유", deadline },
+      origin: "harper_offer",
+    });
+    assert.equal(chat.status, "saved");
+    assert.equal(new Date(chat.item.deadline).toISOString(), deadline);
+    assert.equal(new Date(chat.item.expires_at).toISOString(), deadline);
+    assert.equal((await react(chat.id, "registered")).status, "registered");
+    await assert.rejects(
+      content(db, "add", { item: { kind: "webinar", url: "https://example.com/w", title: "t", reason: "r" }, origin: "user_request" }),
+      /Invalid content suggestion/
+    );
     await assert.rejects(react(article.id, "joined"), /Unknown reaction/);
     assert.equal((await react(article.id, "unregistered")).status, "new", "nothing to take back");
   } finally {

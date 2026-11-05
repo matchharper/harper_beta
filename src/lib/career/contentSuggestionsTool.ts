@@ -85,7 +85,7 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
     name: "manage_content_suggestions",
     channels: ["chat"],
     description:
-      "Read, save or remove events, articles and social posts shown in the user's \"볼 만한 것\" list on Career home. Items persist across visits until they expire: an event after it ends (endsAt, else one day after startsAt), anything else after 30 days, or earlier at a deadline the item itself states. The list keeps one entry per link per user, so a link the user dismissed is never shown again. Job postings and hiring posts are not accepted; save those to Jobs with save_job_posting. list returns current items. add saves up to 10 items; each needs kind, the real url, a short title and a one-sentence reason in the user's language; events also need startsAt (ISO 8601, with time zone) and past events are rejected. origin is user_request when the user asked for such items and harper_offer when Harper offered them and the user agreed. remove withdraws items by id. mark_registered records that the user said they signed up for a saved event (status registered; the card shows 신청했어요); unmark_registered takes that back. The user can also press 신청했어요 on the card. Harper cannot see event sites, so registered is the user's own word: use mark_registered only when the user says so, never because they opened the link. For a registered event that is coming up, a preparation follow-up can help. Saving does not register the user for anything or contact anyone.",
+      "Read, save or remove events, sign-ups, articles and social posts shown in the user's \"볼 만한 것\" list on Career home. kind: event is a meetup, conference or webinar at a set time; signup is something the user joins by applying or reaching out that is neither a job nor a timed event (fellowship, contest, course or bootcamp recruiting, coffee chat, mentoring, office hours), with its deadline when stated; article is something to read; post is a social post worth a look. Items persist across visits until they expire: an event after it ends (endsAt, else one day after startsAt), anything else after 30 days, or earlier at a deadline the item itself states. The list keeps one entry per link per user, so a link the user dismissed is never shown again. Job postings and hiring posts are not accepted; save those to Jobs with save_job_posting. list returns current items. add saves up to 10 items; each needs kind, the real url, a short title and a one-sentence reason in the user's language; events also need startsAt (ISO 8601, with time zone) and past events are rejected. origin is user_request when the user asked for such items and harper_offer when Harper offered them and the user agreed. remove withdraws items by id. mark_registered records that the user said they signed up for a saved event or sign-up (status registered; the card shows 신청했어요); unmark_registered takes that back. The user can also press 신청했어요 on the card. Harper cannot see event sites, so registered is the user's own word: use mark_registered only when the user says so, never because they opened the link. For a registered event or sign-up that is coming up, a preparation follow-up can help. Saving does not register the user for anything or contact anyone.",
     parameters: {
       type: "object",
       properties: {
@@ -110,7 +110,12 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
           items: {
             type: "object",
             properties: {
-              kind: { type: "string", enum: [...CAREER_CONTENT_KINDS] },
+              kind: {
+                type: "string",
+                enum: [...CAREER_CONTENT_KINDS],
+                description:
+                  "event: at a set time. signup: joined by applying or reaching out (fellowship, contest, course recruiting, coffee chat, mentoring, office hours). article: to read. post: a social post.",
+              },
               url: { type: "string" },
               title: { type: "string" },
               reason: {
@@ -190,14 +195,14 @@ export const CAREER_CONTENT_SUGGESTION_TOOLS: Record<
             });
             results.push({ id, status: result.status });
           } catch (error) {
-            // Only events can be registered; report it and keep going.
+            // Only events and sign-ups can be registered; report it and keep going.
             if (
-              !/Only events can be registered/.test(
+              !/can be registered/.test(
                 String((error as any)?.message ?? error)
               )
             )
               throw error;
-            results.push({ id, status: "not_an_event" });
+            results.push({ id, status: "not_registrable" });
           }
         }
         return {

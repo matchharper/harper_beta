@@ -501,6 +501,8 @@ export const en = {
     "career.followup.close": "Close",
     "career.content.kind.article": "Article",
     "career.content.kind.event": "Event",
+    "career.content.kind.signup": "Sign-up",
+    "career.content.closes": "Closes {date}",
     "career.content.kind.post": "Post",
     "career.content.new": "New",
     "career.content.open": "Open",

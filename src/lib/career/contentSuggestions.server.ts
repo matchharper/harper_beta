@@ -9,7 +9,7 @@ import {
 
 type Scope = { admin: TalentAdminClient; userId: string };
 const COLUMNS =
-  "id,kind,url,title,source,reason,starts_at,ends_at,location,published_at,expires_at,status,origin,created_at";
+  "id,kind,url,title,source,reason,starts_at,ends_at,location,published_at,expires_at,deadline,status,origin,created_at";
 
 /** Items still shown on Career home: not dismissed/removed and not expired. */
 export async function listCareerContentSuggestions({ admin, userId }: Scope) {

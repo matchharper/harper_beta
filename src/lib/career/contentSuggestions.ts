@@ -1,9 +1,20 @@
 import { z } from "zod";
 
 // Things Harper found for the user that are not job postings: an event to
-// attend, an article to read, or a social post worth a look. Job postings
-// go to Jobs through save_job_posting instead.
-export const CAREER_CONTENT_KINDS = ["event", "article", "post"] as const;
+// attend, something to sign up for (fellowship, contest, course recruiting,
+// coffee chat, mentoring), an article to read, or a social post worth a look.
+// Job postings go to Jobs through save_job_posting instead.
+export const CAREER_CONTENT_KINDS = [
+  "event",
+  "signup",
+  "article",
+  "post",
+] as const;
+/** Kinds the user can mark "신청했어요". */
+export const CAREER_CONTENT_REGISTRABLE_KINDS: readonly CareerContentKind[] = [
+  "event",
+  "signup",
+];
 export type CareerContentKind = (typeof CAREER_CONTENT_KINDS)[number];
 export const CAREER_CONTENT_VISIBLE_STATUSES = [
   "new",
@@ -25,6 +36,7 @@ export const careerContentSuggestionSchema = z.object({
   location: z.string().nullable(),
   publishedAt: z.string().nullable(),
   expiresAt: z.string(),
+  deadline: z.string().nullable(),
   status: z.enum([
     "new",
     "seen",
@@ -57,7 +69,7 @@ export function nextCareerContentStatus(
   if (reaction === "opened")
     return status === "new" || status === "seen" ? "opened" : null;
   if (reaction === "registered")
-    return item.kind === "event" &&
+    return CAREER_CONTENT_REGISTRABLE_KINDS.includes(item.kind) &&
       (status === "new" || status === "seen" || status === "opened")
       ? "registered"
       : null;
@@ -83,6 +95,7 @@ export function readCareerContentSuggestionRow(
     location: row.location ?? null,
     publishedAt: row.published_at ?? null,
     expiresAt: row.expires_at,
+    deadline: row.deadline ?? null,
     status: row.status,
     origin: row.origin,
     createdAt: row.created_at,
@@ -126,6 +139,7 @@ export function formatCareerContentSuggestion(item: CareerContentSuggestion) {
       ? `When: ${item.startsAt}${item.endsAt ? ` to ${item.endsAt}` : ""}`
       : "",
     item.location ? `Where: ${item.location}` : "",
+    item.deadline ? `Deadline: ${item.deadline}` : "",
     `Why it fits: ${item.reason}`,
     `Shown until: ${item.expiresAt}`,
   ]

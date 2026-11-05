@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   CalendarDays,
   Check,
+  ClipboardPen,
   FileText,
   MessageSquareText,
 } from "lucide-react";
@@ -12,13 +13,15 @@ import { Typography } from "@/components/ui/typography";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerContentSuggestions } from "@/hooks/career/useCareerContentSuggestions";
-import type {
-  CareerContentKind,
-  CareerContentSuggestion,
+import {
+  CAREER_CONTENT_REGISTRABLE_KINDS,
+  type CareerContentKind,
+  type CareerContentSuggestion,
 } from "@/lib/career/contentSuggestions";
 
 const KIND_ICON: Record<CareerContentKind, typeof CalendarDays> = {
   event: CalendarDays,
+  signup: ClipboardPen,
   article: FileText,
   post: MessageSquareText,
 };
@@ -31,17 +34,27 @@ function useKindLabel() {
   return (kind: CareerContentKind) =>
     kind === "event"
       ? t("career.content.kind.event", "행사")
-      : kind === "article"
-        ? t("career.content.kind.article", "글")
-        : t("career.content.kind.post", "게시물");
+      : kind === "signup"
+        ? t("career.content.kind.signup", "신청")
+        : kind === "article"
+          ? t("career.content.kind.article", "글")
+          : t("career.content.kind.post", "게시물");
 }
 
 function formatWhen(
   item: CareerContentSuggestion,
-  locale: string
+  locale: string,
+  closes: (date: string) => string
 ): string | null {
   const tag = locale === "ko" ? "ko-KR" : "en-US";
-  if (item.kind === "event" && item.startsAt) {
+  if (item.kind === "signup" && item.deadline) {
+    return closes(
+      new Intl.DateTimeFormat(tag, { month: "long", day: "numeric" }).format(
+        new Date(item.deadline)
+      )
+    );
+  }
+  if ((item.kind === "event" || item.kind === "signup") && item.startsAt) {
     return new Intl.DateTimeFormat(tag, {
       month: "long",
       day: "numeric",
@@ -80,8 +93,12 @@ export function CareerContentSuggestionCard({
   const registered = item.status === "registered";
   const meta = [
     kindLabel(item.kind),
-    formatWhen(item, locale),
-    item.kind === "event" ? item.location : item.source,
+    formatWhen(item, locale, (date) =>
+      t("career.content.closes", "{date} 마감", { values: { date } })
+    ),
+    item.kind === "post" || item.kind === "article"
+      ? item.source
+      : (item.location ?? item.source),
   ].filter((value): value is string => Boolean(value));
   return (
     <article
@@ -124,7 +141,8 @@ export function CareerContentSuggestionCard({
           />
         </a>
         <div className="career-content-side">
-          {item.kind === "event" && onRegister ? (
+          {CAREER_CONTENT_REGISTRABLE_KINDS.includes(item.kind) &&
+          onRegister ? (
             <button
               type="button"
               className="career-card-close career-content-register"
