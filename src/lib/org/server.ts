@@ -5846,18 +5846,16 @@ export async function createOrgTalentFeedItem(args: {
   );
   if (!candidate) throw new OrgHttpError(404, "Candidate not found");
 
-  const { error } = await (admin.from("talent_progress" as any) as any).insert({
+  // The note's home is company-side; a trigger keeps the org_note copy that
+  // the feed and Harper read until they read notes directly.
+  const { error } = await (admin.from("company_candidate_notes" as any) as any).insert({
+    author_email: getUserEmail(args.user),
     company_user_id: args.user.id,
-    kind: "org_note",
-    metadata: {
-      org: true,
-      workspaceId,
-    } as Json,
+    company_workspace_id: workspaceId,
     recommendation_id: candidate.source === "recommendation" ? candidate.recommendationId : null,
     role_id: roleId,
     talent_id: talentId,
     text,
-    user_id: getUserEmail(args.user),
   });
 
   if (error) throw error;
@@ -5927,6 +5925,16 @@ export async function updateOrgTalentFeedItem(args: {
     workspaceId: args.workspaceId,
   });
 
+  // A note is edited at its company-side home (the copy follows). The Pass
+  // reason copy has no note row and is edited where it is.
+  const { data: note, error: noteError } = await (admin.from("company_candidate_notes" as any) as any)
+    .update({ text })
+    .eq("id", row.id)
+    .is("deleted_at", null)
+    .select("id");
+  if (noteError) throw noteError;
+  if (Array.isArray(note) && note.length > 0) return { ok: true };
+
   const { error } = await (admin.from("talent_progress" as any) as any)
     .update({ text })
     .eq("id", row.id);
@@ -5947,6 +5955,15 @@ export async function deleteOrgTalentFeedItem(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
+
+  // A deleted note keeps its history (D20); the copy is removed by trigger.
+  const { data: note, error: noteError } = await (admin.from("company_candidate_notes" as any) as any)
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", row.id)
+    .is("deleted_at", null)
+    .select("id");
+  if (noteError) throw noteError;
+  if (Array.isArray(note) && note.length > 0) return { ok: true };
 
   const { error } = await (admin.from("talent_progress" as any) as any)
     .delete()
