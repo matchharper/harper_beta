@@ -63,7 +63,7 @@ test("Home panels: 결정할 것, 볼 만한 것, Harper's work and 역할 현�
         blocked: "막힌 것", done: "한 일", in_progress: "Harper가 하는 중", my_turn: "결정할 것",
         notice: "알림", scheduled: "예정", suggestion: "Harper가 할 수 있는 일",
       }),
-      orgTodoItemText: (item: OrgTodoItem) => `text:${item.kind}`,
+      orgTodoItemTitle: (item: OrgTodoItem) => `text:${item.kind}`,
       useOrgTodoActions: ({ roleId }: { roleId: string }) => ({
         action: (item: OrgTodoItem) => <button data-action={`${roleId}:${item.kind}`} type="button" />,
         answer: () => {},

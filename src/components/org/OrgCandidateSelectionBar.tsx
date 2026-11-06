@@ -99,7 +99,7 @@ export function OrgCandidateSelectionBar({
               }}
               size="sm"
             >
-              Save
+              {ct(c, COMPANY_TERMS.action.save)}
             </MuteButton>
             <MuteButton
               className="whitespace-nowrap"

@@ -7,7 +7,7 @@ import { OrgHomeRoleCards } from "@/components/org/OrgHomeInbox";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import {
   orgTodoHeadings,
-  orgTodoItemText,
+  orgTodoItemTitle,
   useOrgTodoActions,
 } from "@/components/org/OrgTodoChip";
 import { OrgTodoCard, OrgTodoDate } from "@/components/org/role-screen/OrgTodoCards";
@@ -120,7 +120,7 @@ function OrgHomeTodoCard({
         )
       }
       meta={meta}
-      title={orgTodoItemText(item, c, locale)}
+      title={orgTodoItemTitle(item, c, locale)}
       variant={variant}
     />
   );

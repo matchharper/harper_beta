@@ -32,7 +32,7 @@ import {
   orgHomeActivityTitle,
   type OrgHomeActivityKind,
 } from "@/lib/org/homeActivity";
-import { formatScheduledSearchTime } from "@/lib/org/introSearchSchedule";
+import { formatScheduledDateTime } from "@/lib/org/introSearchSchedule";
 import { buildOrgHref } from "@/lib/org/routes";
 import {
   orgTodoBadge,
@@ -51,6 +51,11 @@ type Copy = (
 /** A To-do line's text, the same on every surface. */
 export function orgTodoItemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
   return itemText(item, c, locale);
+}
+
+/** The line's text plus its date when the time is the point (scheduled work, interviews). */
+export function orgTodoItemTitle(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
+  return itemTitle(item, c, locale);
 }
 
 function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
@@ -294,7 +299,7 @@ function itemTitle(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
     item.nextAt &&
     item.scheduleStatus !== "paused" &&
     (item.column === "scheduled" || item.kind === "meeting_soon")
-      ? formatScheduledSearchTime(item.nextAt, locale)
+      ? formatScheduledDateTime(item.nextAt, locale)
       : "";
   return when ? `${text} · ${when}` : text;
 }
@@ -736,7 +741,7 @@ export function OrgTodoList({
         renderAction={action}
         shortcuts={shortcuts}
         suggestionCount={suggestions}
-        title={(item) => itemText(item, c, locale)}
+        title={(item) => itemTitle(item, c, locale)}
       />
     );
   }

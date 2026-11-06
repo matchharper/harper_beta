@@ -64,6 +64,23 @@ export function nextScheduledSearchAt(args: {
 const KO_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const EN_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+const EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A dated time in KST for To-do rows: 「11월 9일(월) 오전 9:00」 / 「Mon, Nov 9, 9:00 AM」. */
+export function formatScheduledDateTime(
+  value: string | null | undefined,
+  locale: "ko" | "en"
+) {
+  const time = Date.parse(String(value ?? ""));
+  if (!Number.isFinite(time)) return "";
+  const kst = new Date(time + KST_MS);
+  const hour = kst.getUTCHours();
+  const clock = `${hour % 12 || 12}:${String(kst.getUTCMinutes()).padStart(2, "0")}`;
+  return locale === "en"
+    ? `${EN_WEEKDAYS[kst.getUTCDay()]}, ${EN_MONTHS[kst.getUTCMonth()]} ${kst.getUTCDate()}, ${clock} ${hour < 12 ? "AM" : "PM"}`
+    : `${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일(${KO_WEEKDAYS[kst.getUTCDay()]}) ${hour < 12 ? "오전" : "오후"} ${clock}`;
+}
+
 /** A scheduled time in KST: 「수 오전 9:00」 / 「Wed 9:00 AM」. */
 export function formatScheduledSearchTime(
   value: string | null | undefined,
