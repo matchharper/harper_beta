@@ -19,7 +19,6 @@ import CareerCheckpointDevControls from "./CareerCheckpointDevControls";
 import { CAREER_CHECKPOINT_USER_ID } from "@/lib/career/devCheckpointContract";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
-import { DevColorPaletteControls } from "@/components/common/DevColorPaletteControls";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -36,6 +35,7 @@ import {
   CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
+  GPT_61_TERRA_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
 } from "@/lib/llm/modelConfig";
@@ -108,6 +108,11 @@ const devTextChatModelOptions: Array<{
     eventKey: "gpt_6_1_sol_high",
     label: "GPT-6.1 Sol · high",
     value: GPT_61_SOL_MODEL,
+  },
+  {
+    eventKey: "gpt_6_1_terra_high",
+    label: "GPT-6.1 Terra · high",
+    value: GPT_61_TERRA_MODEL,
   },
 ];
 
@@ -258,6 +263,9 @@ export default function CareerHomeDevControls({
     React.useState(false);
   const [wonderfulResetStatus, setWonderfulResetStatus] = React.useState("");
   const wonderfulResetSubmitting = React.useRef(false);
+  const [harperResetPending, setHarperResetPending] = React.useState(false);
+  const [harperResetStatus, setHarperResetStatus] = React.useState("");
+  const harperResetSubmitting = React.useRef(false);
   const [searchPreviewOpen, setSearchPreviewOpen] = React.useState(false);
   const [externalFitsOpen, setExternalFitsOpen] = React.useState(false);
   const [backgroundRun, setBackgroundRun] = React.useState<{
@@ -368,6 +376,51 @@ export default function CareerHomeDevControls({
     } finally {
       wonderfulResetSubmitting.current = false;
       setWonderfulResetPending(false);
+    }
+  };
+  const handleResetHarperRole = async () => {
+    if (!user || harperResetSubmitting.current) return;
+    harperResetSubmitting.current = true;
+    setHarperResetPending(true);
+    setHarperResetStatus("");
+    try {
+      logCareerEvent("click_home_dev_reset_harper_role");
+      const response = await fetchWithAuth(
+        "/api/talent/dev-reset-harper-role",
+        {
+          method: "POST",
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "역할 초기화에 실패했습니다.");
+      }
+      await Promise.all(
+        [
+          "career-history-opportunities",
+          "career-opportunity-mentions",
+          "career-reengagement-pending-actions",
+          "career-pending-actions",
+          "career-task-progress",
+          "career-history-summary",
+          "career-message-history",
+          "career-session",
+          "career-open-forms",
+          "career-action-items",
+          "career-browser",
+          "career-browser-dock",
+        ].map((key) => queryClient.invalidateQueries({ queryKey: [key] }))
+      );
+      setHarperResetStatus(
+        "Harper Founding Engineer를 새 기회에 다시 추가했습니다."
+      );
+    } catch (error) {
+      setHarperResetStatus(
+        error instanceof Error ? error.message : "역할 초기화에 실패했습니다."
+      );
+    } finally {
+      harperResetSubmitting.current = false;
+      setHarperResetPending(false);
     }
   };
   const reengagementPendingActions = useCareerReengagementPendingActions({
@@ -654,9 +707,6 @@ export default function CareerHomeDevControls({
           </Text>
         ) : null}
       </div>
-      <div className="mt-4">
-        <DevColorPaletteControls />
-      </div>
       <fieldset className="mt-4 min-w-0 space-y-2">
         <legend className="text-[13px] font-medium text-neutral-primary">
           Career 버전
@@ -667,33 +717,59 @@ export default function CareerHomeDevControls({
             variant={
               conversationVersion === "professional" ? "dark" : "default"
             }
-            onClick={() => { setConversationVersion("professional"); setPromptVariant(null); }}
+            onClick={() => {
+              setConversationVersion("professional");
+              setPromptVariant(null);
+            }}
           >
             1. 포멀 · 전문적 (현재)
           </MuteButton>
           <MuteButton
             aria-pressed={conversationVersion === "friendly"}
             variant={conversationVersion === "friendly" ? "dark" : "default"}
-            onClick={() => { setConversationVersion("friendly"); setPromptVariant(null); }}
+            onClick={() => {
+              setConversationVersion("friendly");
+              setPromptVariant(null);
+            }}
           >
             2. 친근 · 컴팩트
           </MuteButton>
         </div>
       </fieldset>
       <div className="mt-3 space-y-2">
-        <MuteButton
-          onClick={() => void handleResetWonderfulRole()}
-          disabled={!user || wonderfulResetPending}
-        >
-          {wonderfulResetPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
-          {wonderfulResetPending
-            ? "초기화 중..."
-            : "Wonderful Korea FDE 초기화 · 다시 추천"}
-        </MuteButton>
+        <div className="flex flex-wrap items-center gap-2">
+          <MuteButton
+            onClick={() => void handleResetWonderfulRole()}
+            disabled={!user || wonderfulResetPending}
+          >
+            {wonderfulResetPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            {wonderfulResetPending
+              ? "초기화 중..."
+              : "Wonderful Korea FDE 초기화 · 다시 추천"}
+          </MuteButton>
+          <MuteButton
+            onClick={() => void handleResetHarperRole()}
+            disabled={!user || harperResetPending}
+          >
+            {harperResetPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            {harperResetPending
+              ? "초기화 중..."
+              : "Harper Founding Engineer 초기화 · 새 기회"}
+          </MuteButton>
+        </div>
+        {harperResetStatus ? (
+          <Text as="div" type="caption" role="status">
+            {harperResetStatus}
+          </Text>
+        ) : null}
         {wonderfulResetStatus ? (
           <Text as="div" type="caption" role="status">
             {wonderfulResetStatus}
@@ -871,7 +947,10 @@ export default function CareerHomeDevControls({
               key={variant}
               title={CAREER_PROMPT_FILES[variant]}
               aria-pressed={promptVariant === variant}
-              onClick={() => { setConversationVersion("professional"); setPromptVariant(variant); }}
+              onClick={() => {
+                setConversationVersion("professional");
+                setPromptVariant(variant);
+              }}
               variant={promptVariant === variant ? "dark" : "default"}
             >
               {`버전 ${index + 1} · ${["현재", "수정안", "직접 편집"][index]}`}
@@ -1109,38 +1188,56 @@ export default function CareerHomeDevControls({
           </MuteButton>
         }
       >
-        <div data-career-i18n-skip="true" aria-busy={reengagementPendingActions.isFetching}>
+        <div
+          data-career-i18n-skip="true"
+          aria-busy={reengagementPendingActions.isFetching}
+        >
           {reengagementPendingActions.isError ? (
             <p role="alert" className="mb-3 text-sm text-critical">
               {reengagementPendingActions.error.message}
             </p>
           ) : null}
           {reengagementPendingActions.isPending ? (
-            <p role="status" className="text-sm text-neutral-muted">불러오는 중…</p>
+            <p role="status" className="text-sm text-neutral-muted">
+              불러오는 중…
+            </p>
           ) : reengagementPendingActions.data ? (
             <>
               <p className="mb-3 text-sm text-neutral-muted">
-                조회 {currentPendingActions.length}개 · prompt 후보 {promptPendingActionCandidateKeys.size}개
+                조회 {currentPendingActions.length}개 · prompt 후보{" "}
+                {promptPendingActionCandidateKeys.size}개
               </p>
               {currentPendingActions.length === 0 ? (
-                <p className="text-sm text-neutral-muted">현재 조회된 pending action이 없습니다.</p>
+                <p className="text-sm text-neutral-muted">
+                  현재 조회된 pending action이 없습니다.
+                </p>
               ) : (
                 <ol className="divide-y divide-neutral-1000-a10">
                   {currentPendingActions.map((action) => (
-                    <li key={action.actionKey} className="space-y-2 py-4 first:pt-0 last:pb-0">
+                    <li
+                      key={action.actionKey}
+                      className="space-y-2 py-4 first:pt-0 last:pb-0"
+                    >
                       <div className="flex flex-wrap items-center gap-2 text-sm">
                         <span className="font-medium text-neutral-primary">
                           {getReengagementPendingActionLabel(action)}
                         </span>
                         <span className="text-xs text-neutral-muted">
-                          {action.actionKey} · {promptPendingActionCandidateKeys.has(action.actionKey) ? "prompt 후보" : "prompt 제외"}
+                          {action.actionKey} ·{" "}
+                          {promptPendingActionCandidateKeys.has(
+                            action.actionKey
+                          )
+                            ? "prompt 후보"
+                            : "prompt 제외"}
                         </span>
                       </div>
                       <p className="whitespace-pre-wrap break-words text-sm text-neutral-primary">
                         {getReengagementPendingActionDescription(action)}
                       </p>
                       <details>
-                        <summary className="cursor-pointer text-xs text-neutral-muted">상세 데이터</summary>
+                        <summary className="cursor-pointer text-xs text-neutral-muted">
+                          상세 데이터
+                        </summary>
                         <pre className="mt-2 whitespace-pre-wrap break-all rounded-lg bg-bg-weak p-3 text-xs leading-5 text-neutral-primary">
                           {JSON.stringify(action, null, 2)}
                         </pre>

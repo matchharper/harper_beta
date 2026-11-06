@@ -36,11 +36,11 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
     );
     CREATE TABLE talent_external_evaluations (
       id uuid PRIMARY KEY, talent_id uuid, run_id uuid, role_id uuid, assessment jsonb,
-      evaluated_at timestamptz DEFAULT '2026-11-02', input_fingerprint text
+      evaluated_at timestamptz DEFAULT '2026-11-02', input_fingerprint text, input_snapshot jsonb DEFAULT '{}'
     );
     CREATE VIEW talent_external_evaluation_index AS SELECT *,
       (assessment#>>'{fit,mutualFit}')::float8 AS mutual_fit_score FROM talent_external_evaluations;
-    CREATE TABLE company_roles(role_id uuid PRIMARY KEY,name text,company_workspace_id uuid,
+    CREATE TABLE company_roles(role_id uuid PRIMARY KEY,name text,company_workspace_id uuid,summary jsonb,
       source_type text DEFAULT 'external',is_expired boolean DEFAULT false,expires_at timestamptz,status text DEFAULT 'active');
     CREATE TABLE company_workspace(company_workspace_id uuid PRIMARY KEY,company_name text);
     CREATE TABLE talent_opportunity_recommendation(talent_id uuid,role_id uuid);
@@ -51,6 +51,7 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
     INSERT INTO talent_matchings VALUES('${id(7)}','${id(1)}','Synthetic matching','{}');
     INSERT INTO company_roles(role_id,name,company_workspace_id)
       SELECT md5(i::text)::uuid,'Role '||i,'${id(50)}'::uuid FROM generate_series(1,1101) g(i);
+    UPDATE company_roles SET summary='{"ko":{"content":"한국어 업무 요약"},"en":{"content":"English role summary"}}';
     INSERT INTO talent_external_evaluations(id,talent_id,run_id,role_id,assessment,input_fingerprint)
       SELECT ('00000000-0000-4000-8000-'||lpad((10000+i)::text,12,'0'))::uuid,
         '${id(1)}'::uuid,'${id(101)}'::uuid,md5(i::text)::uuid,
@@ -176,17 +177,19 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
     );
   };
 
-  await t.test("30/50/10/10 ranking reaches the model and remains stable across pages", async () => {
+  await t.test("45/35/10/10 ranking reaches the model and remains stable across pages", async () => {
     await setReferences(5);
     await db.exec(`
       UPDATE talent_external_evaluations e SET assessment=jsonb_build_object('fit',jsonb_build_object(
         'mutualFit',v.m,'candidateInterest',v.c,'companyInterest',v.e,'roleFit',v.r))
       FROM (VALUES (1,90,20,70,70),(2,60,90,70,70),(3,50,90,100,100),
-        (4,100,80,50,50),(5,100,NULL,100,100)) v(i,m,c,e,r)
+        (4,100,60,40,40),(5,100,NULL,100,100)) v(i,m,c,e,r)
       WHERE e.id=('00000000-0000-4000-8000-'||lpad((10000+v.i)::text,12,'0'))::uuid;
+      UPDATE talent_external_evaluations SET input_snapshot='{"candidate":{"estimatedBaseSalary":"Model-estimated base salary: KRW 80,000,000–120,000,000 per year; not employer-disclosed; bonus and equity excluded."}}'
+      WHERE id='${id(10003)}';
     `);
     try {
-      // Scores are 51, 77, 80, 80, null. Equal totals use the evaluation ID,
+      // Scores are 61.5, 72.5, 74, 74, null. Equal totals use the evaluation ID,
       // not mutualFit; an absent metric is not silently treated as zero.
       const first = await readExternalEvaluationResults({ ...args, limit: 3 });
       assert.deepEqual(first.evaluations.map(e => e.id), [id(10003), id(10004), id(10002)]);
@@ -201,8 +204,45 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
       assert.ok("evaluations" in result);
       assert.deepEqual(result.evaluations.map(e => e.id), [id(10003), id(10004), id(10002), id(10001), id(10005)]);
       const text = formatCareerMatchingResult(result);
+      assert.match(text, /Job summary: English role summary/);
+      assert.match(formatCareerMatchingResult(result, "ko"), /Job summary: 한국어 업무 요약/);
+      assert.doesNotMatch(formatCareerMatchingResult(result, "ko"), /English role summary/);
+      assert.ok(text.includes("mutualFit 45%, candidateInterest 35%, companyInterest 10%, roleFit 10%"));
+      assert.ok(text.includes("Model-estimated base salary: KRW 80,000,000–120,000,000 per year; not employer-disclosed; bonus and equity excluded."));
       const positions = [10003, 10004, 10002, 10001, 10005].map(n => text.indexOf(id(n)));
       assert.ok(positions.every((position, i) => position >= 0 && (i === 0 || position > positions[i - 1])));
+    } finally {
+      await db.exec(`
+        UPDATE talent_external_evaluations SET input_snapshot='{}', assessment=jsonb_build_object('fit',jsonb_build_object(
+          'mutualFit',input_fingerprint::integer%9,'candidateInterest',input_fingerprint::integer%9,
+          'companyInterest',input_fingerprint::integer%9,'roleFit',input_fingerprint::integer%9))
+        WHERE talent_id='${id(1)}' AND input_fingerprint::integer BETWEEN 1 AND 5;
+      `);
+    }
+  });
+  await t.test("four-metric scores and historical six-metric scores paginate together without inventing removed fields", async () => {
+    await setReferences(5);
+    await db.exec(`
+      UPDATE talent_external_evaluations e SET assessment=jsonb_build_object('fit',jsonb_build_object(
+        'mutualFit',v.m,'candidateInterest',v.c,'companyInterest',v.e,'constraintPass',90))
+      FROM (VALUES (1,90,20,70),(2,60,90,70),(3,50,90,100),(4,100,60,40),(5,100,NULL,100)) v(i,m,c,e)
+      WHERE e.id=('00000000-0000-4000-8000-'||lpad((10000+v.i)::text,12,'0'))::uuid;
+      UPDATE talent_external_evaluations SET assessment=jsonb_set(assessment,'{fit}',
+        (assessment->'fit') || '{"roleFit":100,"evidence":"partial"}'::jsonb) WHERE id='${id(10003)}';
+    `);
+    try {
+      const first = await readExternalEvaluationResults({ ...args, limit: 3 });
+      assert.deepEqual(first.evaluations.map(e => e.id), [id(10004), id(10003), id(10002)]);
+      const next = await readExternalEvaluationResults({ ...args, limit: 3, cursor: first.evaluationCursor! });
+      assert.deepEqual(next.evaluations.map(e => e.id), [id(10001), id(10005)]);
+      assert.equal(next.remainingEvaluationCount, 0);
+      for (const evaluation of [...first.evaluations, ...next.evaluations]) {
+        assert.equal("roleFit" in evaluation.assessment.fit, evaluation.id === id(10003));
+        assert.equal("evidence" in evaluation.assessment.fit, evaluation.id === id(10003));
+      }
+      const text = formatCareerMatchingResult({ ...first, runId: args.runId });
+      assert.ok(text.includes("mutualFit 55%, candidateInterest 35%, companyInterest 10%"));
+      assert.ok(!text.includes("NaN"));
     } finally {
       await db.exec(`
         UPDATE talent_external_evaluations SET assessment=jsonb_build_object('fit',jsonb_build_object(

@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v8",
+  "createdAt": "2026-11-05",
+  "provenance": "Same synthetic v7 candidate facts; production form-response projection, original user answer retained with generated form snapshot. Gold additionally records the intended first-turn preparation boundary. v7 failures retained; fixes harness missing visible-action and context-store adapters. Frozen before v8 generation.",
+  "hashes": {
+    "cases-v8.json": "d3b3bc009f6eee458a01477caf3afeb1f7915353aef701564cb5ae79b00236c1",
+    "gold-v8.json": "ed1377f217721be4014add44980faf03034dfa1a8188bce72e1ecbdea4bd2ded"
+  }
+}

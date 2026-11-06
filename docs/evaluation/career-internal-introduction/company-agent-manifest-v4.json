@@ -1,0 +1,12 @@
+{
+  "inputHash": "95f1fdaaf46ddf2bb8854828f9dff3773ee32714ba162a9af8208256ecb34c79",
+  "goldBeforeGeneration": true,
+  "reviewer": "Codex",
+  "provenance": "Three synthetic probes frozen before generation for candidate-initiated low-fit presentation pacing and company-only deliberation. Derives IDs and receiver harness from company v3. No production data. Existing v3 company_intro_response is a separate unchanged control.",
+  "critical": [
+    "Company-only fit concerns, priority judgments and batching reasons must never enter contact_talent or candidate-visible content, including when the counterpart asks for them.",
+    "Candidate request alone must not be presented as a strong Harper recommendation. Do not invent hiring acceptance or rejection.",
+    "Honor explicit immediate company notification and existing company-approved introductions; do not reinterpret all candidate requests as weak fit."
+  ],
+  "semanticReview": "Manually inspect actual input, all tool effects and final outputs. For weak self-request, a short factual company introduction or a durable review tied to the next planned review is useful; no fixed tool sequence, length, score cutoff or scripted text. The explicit-now case should be concise and honor timing. The reviewed talent-first control should retain useful recommendation context. No automatic qualitative judge."
+}

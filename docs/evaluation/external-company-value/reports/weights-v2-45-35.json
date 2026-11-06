@@ -1,0 +1,190 @@
+{
+  "datasetVersion": "v2",
+  "users": 50,
+  "cases": 265,
+  "pairs": 438,
+  "weights": {
+    "30/50/10/10": [
+      0.3,
+      0.5,
+      0.1,
+      0.1
+    ],
+    "45/35/10/10": [
+      0.45,
+      0.35,
+      0.1,
+      0.1
+    ]
+  },
+  "metrics": [
+    {
+      "arm": "baseline",
+      "macro": {
+        "30/50/10/10": 0.6040810115810116,
+        "45/35/10/10": 0.5980578181078182
+      },
+      "pooledPairs": {
+        "30/50/10/10": 0.6552511415525114,
+        "45/35/10/10": 0.656392694063927
+      },
+      "weightChange": {
+        "delta": -0.006023193473193475,
+        "lower95": -0.031002991452991457,
+        "upper95": 0.009232905982905978,
+        "improvedUsers": 5,
+        "worseUsers": 4,
+        "tiedUsers": 41
+      },
+      "pairChanges": {
+        "better": 7,
+        "worse": 6,
+        "same": 425
+      }
+    },
+    {
+      "arm": "salary",
+      "macro": {
+        "30/50/10/10": 0.654377909127909,
+        "45/35/10/10": 0.6591973082473084
+      },
+      "pooledPairs": {
+        "30/50/10/10": 0.6700913242009132,
+        "45/35/10/10": 0.6689497716894978
+      },
+      "weightChange": {
+        "delta": 0.0048193991193991184,
+        "lower95": -0.002399326599326597,
+        "upper95": 0.013131054131054127,
+        "improvedUsers": 5,
+        "worseUsers": 3,
+        "tiedUsers": 42
+      },
+      "pairChanges": {
+        "better": 6,
+        "worse": 6,
+        "same": 426
+      }
+    },
+    {
+      "arm": "prompt",
+      "macro": {
+        "30/50/10/10": 0.6275548303548303,
+        "45/35/10/10": 0.6252935897435897
+      },
+      "pooledPairs": {
+        "30/50/10/10": 0.6643835616438356,
+        "45/35/10/10": 0.6506849315068494
+      },
+      "weightChange": {
+        "delta": -0.0022612406112406157,
+        "lower95": -0.043583592333592346,
+        "upper95": 0.05062579642579643,
+        "improvedUsers": 3,
+        "worseUsers": 6,
+        "tiedUsers": 41
+      },
+      "pairChanges": {
+        "better": 3,
+        "worse": 9,
+        "same": 426
+      }
+    },
+    {
+      "arm": "previousCombined",
+      "macro": {
+        "30/50/10/10": 0.6694738058238058,
+        "45/35/10/10": 0.6446282217782218
+      },
+      "pooledPairs": {
+        "30/50/10/10": 0.6757990867579908,
+        "45/35/10/10": 0.6689497716894978
+      },
+      "weightChange": {
+        "delta": -0.024845584045584044,
+        "lower95": -0.07620598290598292,
+        "upper95": 0.010085470085470085,
+        "improvedUsers": 6,
+        "worseUsers": 5,
+        "tiedUsers": 39
+      },
+      "pairChanges": {
+        "better": 7,
+        "worse": 10,
+        "same": 421
+      }
+    },
+    {
+      "arm": "combined",
+      "macro": {
+        "30/50/10/10": 0.6401539164539165,
+        "45/35/10/10": 0.6371783901283901
+      },
+      "pooledPairs": {
+        "30/50/10/10": 0.6621004566210046,
+        "45/35/10/10": 0.6529680365296804
+      },
+      "weightChange": {
+        "delta": -0.0029755263255263256,
+        "lower95": -0.03226464646464646,
+        "upper95": 0.02667207792207792,
+        "improvedUsers": 3,
+        "worseUsers": 7,
+        "tiedUsers": 40
+      },
+      "pairChanges": {
+        "better": 4,
+        "worse": 8,
+        "same": 426
+      }
+    }
+  ],
+  "versusBaselineAt4535": {
+    "salary": {
+      "delta": 0.06113949013949014,
+      "lower95": -0.020163540163540158,
+      "upper95": 0.1436784511784512,
+      "improvedUsers": 11,
+      "worseUsers": 5,
+      "tiedUsers": 34
+    },
+    "prompt": {
+      "delta": 0.02723577163577164,
+      "lower95": -0.03616936026936026,
+      "upper95": 0.09959381359381358,
+      "improvedUsers": 10,
+      "worseUsers": 8,
+      "tiedUsers": 32
+    },
+    "previousCombined": {
+      "delta": 0.04657040367040367,
+      "lower95": -0.042573478373478364,
+      "upper95": 0.13775246235246238,
+      "improvedUsers": 14,
+      "worseUsers": 8,
+      "tiedUsers": 28
+    },
+    "combined": {
+      "delta": 0.03912057202057203,
+      "lower95": -0.054477311577311574,
+      "upper95": 0.1372939726939727,
+      "improvedUsers": 13,
+      "worseUsers": 11,
+      "tiedUsers": 26
+    }
+  },
+  "bootstrap": {
+    "unit": "user",
+    "replicates": 2000,
+    "seed": 20261106
+  },
+  "sourceHashes": {
+    "pairedResults": "54507b00c0deb16f4aec24be0d6ac8141cc0aa5bf1b0940f8cf2a6a8bd2c29b6",
+    "gold": "cd21243c294984c281a3430050c1fd076976a391da6b9512e04dcfb53f382711",
+    "fixture": "2a2a6154e784e3afb32341520f1798bd1b54391b211219c07b33c3425033de0e",
+    "runner": "a8217bcd172b0e1a1c7ff5f4cda6ae9af11775c89ea9c4ee4902406891780529"
+  },
+  "additionalModelCalls": 0,
+  "additionalCostUsd": 0,
+  "scope": "Offline weight comparison; no runtime settings or frozen inputs changed"
+}

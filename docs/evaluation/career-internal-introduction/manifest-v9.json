@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v9",
+  "createdAt": "2026-11-05",
+  "provenance": "Candidate facts and original messages unchanged from v8. Corrected an overbroad structural gold: assign_to_role selecting the unchanged existing profile is valid preparation, not a profile rewrite. Compare actual saved and shared snapshots instead of banning all assignment writes. v8 result and failure retained. Frozen before v9 generation.",
+  "hashes": {
+    "cases-v9.json": "d7c9fb1766249ecaa7c173f4925bc70c5ea109fa4a9f4e3a120307821af80288",
+    "gold-v9.json": "93277c69ededffadcb1176bc56e41339c9ef50381c5085770c1c8b4ba97187bd"
+  }
+}

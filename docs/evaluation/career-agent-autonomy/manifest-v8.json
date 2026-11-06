@@ -1,0 +1,8 @@
+{
+  "version": "v8",
+  "provenance": "Two synthetic summary-sufficiency and missing-degree probes, frozen before generation. No production candidate or company facts. Real Career prompts/schemas/formatter and Role reader with isolated storage; no external effects.",
+  "hashes": {
+    "cases-v8.json": "0cd93574d2f1ddc98f3f19d7ab64b484d855cbec0b57a68f700f34e728bfa1f9",
+    "gold-v8.json": "c144f96ca448adf9e429e76834fd92856b7379d402dddeff038e9e5a5fbbe0a3"
+  }
+}

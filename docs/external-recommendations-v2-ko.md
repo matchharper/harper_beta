@@ -1,5 +1,27 @@
 # External 추천 V2 — 구현 및 적용 안내
 
+## 2026-11-06 요약 입력·4항목 평가 (로컬·미배포)
+
+Scoring은 요청 언어의 `summary[lang].content`가 비어 있지 않은 문자열이면 사용하고, 없으면 원문 description 전체를 사용한다. 이 선택에는 summary version/sourceHash 검증을 적용하지 않는다. 원본 공고와 표시용 요약 저장 계약은 유지한다. 요청 내부 공고 참조는 `r0`…이며 응답은 원래 UUID로 복원한다.
+
+새 평가는 `candidateInterest`, `companyInterest`, `mutualFit`, `constraintPass` 네 항목이다. 직무 수행 역량을 `mutualFit`에 통합하고 별도 `roleFit`·`evidence` 출력은 제거했다. 정렬 비중은 기존 두 fit 비중을 합친 55/35/10이고 자동 추천의 constraint penalty는 유지한다. 새 Career 결과 SQL·모델용 설명·rerank 입력도 이에 맞췄다. 과거 6항목 결과는 필드를 만들어 채우거나 덮어쓰지 않고 기존 45/35/10/10 정렬로 계속 조회한다.
+
+평가 버전은 `external-fit-questions-v9-summary-four-metrics`다. v8 등 이전 계약의 평가는 새 평가 캐시로 재사용하지 않으며 기존 기록은 보존한다. role source hash는 실제 scoring 언어와 요약 선택을 반영한다. DB 구조 변경은 없다. 아래 버전별 기록은 당시 계약이며, [실행 계약·결과](evaluation/external-scoring-cost/README.md)에 오류 확인 범위와 한계를 기록한다.
+
+## 2026-11-05 추천 정렬 가중치 통일 (로컬·미배포)
+
+사용자 요청에 따라 새 Career 평가 결과 정렬과 기존 자동 추천 V2 엔진의 가중합을 모두 `mutualFit / candidateInterest / companyInterest / roleFit = 45/35/10/10`으로 변경했다. `contract.ts`의 `FIT_RANKING_WEIGHTS`를 Career SQL 정렬·모델용 정렬 설명·자동 추천 `rankScore`가 함께 사용한다. Opportunity Worker는 `/api/internal/external-recommendations`의 동일 엔진을 호출하므로 별도 Python 가중치 변경은 없다. 자동 추천의 기존 constraint penalty와 최종 LLM 선택은 유지한다. 과거 실험의 입력·점수·집계는 수정하지 않았으며, 아래 30/50 및 65/15 설명은 이 변경 이전 기록이다. 배포·운영 재평가·추가 유료 LLM 호출은 하지 않았다.
+
+## 2026-11-05 회사 이동 가치·예상 연봉 실험 (로컬·미배포)
+
+`external-fit-questions-v8-salary-uncertainty`는 후보자의 현재 경력과 대안 대비 회사의 명성·보상·동료 환경·다음 경력 가치를 평가한다. 공개 연봉과 분리한 예상 기본급을 Decisions 및 새 Career 결과의 모델용 텍스트에 제공하며, 공개 급여 필드에는 추정치를 넣지 않는다. `opportunity_search` handbook도 같은 선택 목적을 반영했다. 이전 rubric의 legacy cache는 새 평가로 재사용하지 않으며, 기존 기록을 일괄 재평가하거나 덮어쓰지 않는다. 새 Career 정렬은 30/50/10/10을 유지한다. v8에서는 예상 연봉이 대략적이며 실제 보상과 크게 다를 수 있고, 숫자 범위가 회사의 확인된 급여 하한·상한이 아님을 명시했다.
+
+후속 50명·265공고의 과거 표본을 5개 방식으로 비교했다. 사용자별 순위 일치도는 기존 v6 60.41%, 이전 v7 변경안 66.95%, v8 변경안 64.02%이며 차이는 통계적으로 불확실하다. 후속 감사에서는 사후 프로필·설정을 통한 간접 정보 누출을 배제하지 못했으므로 누출 검증을 통과한 성능으로 해석하지 않는다. 추가 비용 $0.38746, 누적 $0.48749. [50명 실험 결과와 입력 감사 정정](evaluation/external-company-value/reports/2026-11-05-v2-50-users.md)을 참고한다.
+
+후속 코드 적용 요청에 대해 v8의 회사·커리어 가치 평가와 불확실성을 명시한 예상 연봉 입력, 새 Career 정렬 30/50/10/10을 유지했다. 실험 최고점에 맞춘 선택이 아니라, 후보자 관점의 판단 근거와 추정치의 의미를 전달하는 구현 선택이다. 기존 코드에 이미 반영된 상태를 확인했으며 추가 유료 평가·운영 재평가·배포는 하지 않았다. 여기서 정렬 가중치는 새 Career 평가 결과 reader에 적용되며, legacy V2 engine의 기존 65/15/10/10과 constraint penalty를 변경했다는 뜻은 아니다.
+
+70건 피드백으로 4개 방식·280개 평가를 비교한 비용은 약 $0.10이다. 질문만 변경한 정렬 AUC는 기존 재실행과 유사했고, 예상 연봉을 추가한 결과는 낮아졌다. 작은 선택 표본이며 회사 수준으로 거절한 사례가 부족하므로 품질 개선으로 확정하지 않는다. 구현은 미배포 실험 상태다. [실험 계약](evaluation/external-company-value/README.md)과 [결과·한계](evaluation/external-company-value/reports/2026-11-05.md)를 참고한다. 아래 과거 기록의 ‘추정 급여는 retrieval에서만 사용’ 및 cache 정책은 각 당시 버전에 해당한다.
+
 ## 2026-11-05 전체 사용자 V2 전환 (코드 미배포)
 
 웹 `recommend_job_postings`, 기존 Opportunity Worker의 정기·온보딩·채팅 요청,

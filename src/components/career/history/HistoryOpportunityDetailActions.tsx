@@ -49,7 +49,7 @@ export default function HistoryOpportunityDetailActions({
     isCareerHistoryOpportunityExpired(item) || item.status === "deleted";
   const { canRevert, canStopProcess } =
     getInternalOpportunityDecisionAvailability(item);
-  const actionClass = "py-2.5 rounded-sm font-normal md:font-light text-sm";
+  const actionClass = "py-2.5 rounded-sm font-normal text-sm";
   const rowClass =
     "grid grid-cols-2 gap-2 pt-4 [&>button]:h-full [&>button]:min-w-0 [&>button]:whitespace-normal";
 
@@ -160,7 +160,6 @@ export default function HistoryOpportunityDetailActions({
         <MuteButton
           disabled={pending}
           className={actionClass}
-          variant="dark"
           onClick={() => onSavedStatusChange("applied")}
         >
           <ArrowRight aria-hidden className="size-3.5" />

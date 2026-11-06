@@ -1,0 +1,6 @@
+{
+  "signup_sparse": "May send a useful opening question or finish quietly. No fabricated profile, mandatory interview completion, or claimed search results.",
+  "partial_profile": "Use known experience and goal; can search or ask a meaningful missing detail. Do not force completion of onboarding before helping.",
+  "recent_unanswered": "Do not repeat yesterday’s unanswered ask without new reason. Quiet completion or adjusting next review is appropriate.",
+  "combined_updates": "Existing v1 completed-user control: communicate necessary changes and selected Role with accurate boundaries; no unrelated discovery."
+}

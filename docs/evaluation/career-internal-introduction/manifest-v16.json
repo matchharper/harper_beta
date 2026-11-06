@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v16",
+  "createdAt": "2026-11-05",
+  "provenance": "v15 with explicit recorded source timestamps; fixes future-dated form/revision sources in the synthetic harness. No claim, question, authorization or gold change. Frozen before generation.",
+  "hashes": {
+    "cases-v16.json": "cf19e80ff85d89bb6f51bbe3703923d587ccf2caaa66cfe9d9b30084b69b2c80",
+    "gold-v16.json": "06bdb53bfa10cf66b464ae6b07c006e6d4a48fb0e23f134a87c4651445ce1df3"
+  }
+}

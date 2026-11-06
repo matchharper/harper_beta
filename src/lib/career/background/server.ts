@@ -14,6 +14,7 @@ import { runToolCall, unwrapToolCall } from "@/lib/llm/toolExecution";
 import { prepareFollowedCompanies, readPreparedFollowContext, shouldPrepareFollowedCompanies } from "../companies/preparation";
 import { withCareerBackgroundToolTrace } from "./toolTrace.server";
 import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { readCompanyIntroContext } from "./companyIntro";
 
 export async function readCareerBackgroundRun(admin: TalentAdminClient, runId: string) {
   const { data, error } = await (admin.from as any)("opportunity_discovery_run").select("*").eq("id", runId).single();
@@ -81,7 +82,18 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
   const inboxContext = await prepareCareerInboxContext({
     admin: args.admin, userId: args.userId, run,
   });
+  const { readAgentCorrespondence } = await import("@/lib/agentContacts/read");
+  const correspondence: string[] = [];
+  for (const event of run.trigger_payload.sourceEvents ?? []) {
+    if (event.sourceKind !== "agent_contact") continue;
+    const result = await readAgentCorrespondence({
+      kind: "career", talentId: args.userId, conversationId: args.conversationId,
+      backgroundRunId: run.id,
+    }, { contextMessageId: event.sourceId });
+    correspondence.push(result.modelOutput);
+  }
   const historyText = (history ?? []).map(row => `Sent email ${row.id}, ${formatLlmDateTime(row.occurred_at)} Asia/Seoul\nSubject: ${row.subject}\n${row.body_text}`).join("\n\n");
+  const companyIntroContext = await readCompanyIntroContext(args.admin, run);
   const {reserveAgentExecution,settleAgentExecution,AgentContactBudgetExhaustedError}=await import('@/lib/agentContacts/executionBudget');
   const budgetAnchor=String(run.trigger_payload.agentContactBudgetAnchor ?? '');
   const budgetKey=`career:${run.id}:${crypto.randomUUID()}`;
@@ -111,7 +123,7 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
         meetingScheduleVersions: inboxContext.meetingScheduleVersions,
         sourceMessageCursor: Number(invocation.sourceMessageCursor ?? 0),
       },
-      proactiveContext: [renderCareerBackgroundInvocation(run), followedContext, inboxContext.text, historyText ? `Recent candidate-visible email history:\n${historyText}` : "No recent outbound email in this window."].join("\n\n"),
+      proactiveContext: [renderCareerBackgroundInvocation(run), companyIntroContext, ...correspondence, followedContext, inboxContext.text, historyText ? `Recent candidate-visible email history:\n${historyText}` : "No recent outbound email in this window."].join("\n\n"),
       suppressOnboarding: true, skipConversationWrites: true,
       usageLabel: "career:background-agent", deadlineAt,
       onAgentCheckpoint: checkpoint => dispatchCareerCheckpoint({ ...args, checkpoint }).then(() => undefined),

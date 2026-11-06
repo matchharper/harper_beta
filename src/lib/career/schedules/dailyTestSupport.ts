@@ -1,8 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { setup, owner, role } from "./testSupport";
 export const rec = "77777777-7777-4777-8777-777777777777";
-export async function setupDaily(beforeMigration?: (db: Awaited<ReturnType<typeof setup>>) => Promise<void>) {
-  const db = await setup();
+export async function setupDaily(
+  beforeMigration?: (db: Awaited<ReturnType<typeof setup>>) => Promise<void>,
+  database?: Parameters<typeof setup>[0],
+) {
+  const db = await setup(database);
   await db.exec(`
     alter table company_workspace add column company_name text,add column published_name text;
     update company_roles set source_type='internal';

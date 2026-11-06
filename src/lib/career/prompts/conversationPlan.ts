@@ -177,7 +177,7 @@ export function buildCareerConversationPromptPlan(args: {
     ? "Background Career work"
     : getCareerChannelType(args.channel);
   const channelContextRules = args.backgroundInvocation
-    ? "This is scheduled or event-triggered Career work. The user is not in a live conversation. Intermediate text and the final assistant response are private; only deliver_career_email delivers an email. Use real URLs for saved artifacts rather than chat-only card markers."
+    ? "This is scheduled or event-triggered Career work. The user is not in a live conversation. Use real URLs for saved artifacts rather than chat-only card markers."
     : buildCareerChannelContextRules(args.channel, true);
 
   const outputLanguage = getCareerPromptLanguageName(
@@ -475,7 +475,7 @@ ${args.gmailCapability === "not_connected"
   }
 
   const optionalFollowUpOpportunitiesSection =
-    isMainChat
+    isMainChat || args.backgroundInvocation
       ? ""
       : buildOptionalFollowUpOpportunitiesSection({
 
@@ -528,7 +528,7 @@ ${args.gmailCapability === "not_connected"
 
   const dynamicStateLines = [
     // 항상 포함: 현재 채널, 현재 시각, 활성 runtime instruction.
-    `## Runtime context\n현재 후보자와 ${channelType}을 통해 소통하고 있습니다.\n현재 시각: ${formatCareerPromptKoreanDateTime(
+    `## Runtime context\n${args.backgroundInvocation ? "후보자가 참여하지 않는 백그라운드 실행입니다." : `현재 후보자와 ${channelType}을 통해 소통하고 있습니다.`}\n현재 시각: ${formatCareerPromptKoreanDateTime(
       (args.requestTime ?? new Date()).toISOString(),
       {
         preferredLocale: args.currentPreferences?.preferredLocale,

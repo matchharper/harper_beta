@@ -36,7 +36,7 @@ test("the next provider call gets all four pending inputs in one message; restar
         assert.equal(userInputs.length, requests === 1 ? 1 : 2, "four pending rows become one user message");
         const text = JSON.stringify(inputs);
         for (let id = 1; id <= (requests === 1 ? 1 : 5); id++) assert.equal(text.split(`Request-${id}:`).length - 1, 1);
-        if (requests === 1) source.push(row(2), row(3), row(4), row(5)); // While the first model request is in flight.
+        // Inputs arrive while the tool is in flight; its completed result must survive restart.
         if (requests === 2) {
           assert.deepEqual(saved?.inputMessageIds, [1, 2, 3, 4, 5], "receipt and transcript persisted before dispatch");
           assert.ok(text.includes("Document read exactly once"));
@@ -64,7 +64,7 @@ test("the next provider call gets all four pending inputs in one message; restar
         const step = runtime.resolveStep(false);
         const args = { primaryModel: model, toolRuntime: runtime, tools: step.tools, systemBlocks: step.systemBlocks,
           messages: [], usageLabel: "test:career-conversation-inbox", onTextDelta: () => {},
-          executeTool: async () => { executions++; return { ok: true, modelOutput: "Document read exactly once" }; } };
+          executeTool: async () => { executions++; source.push(row(2), row(3), row(4), row(5)); return { ok: true, modelOutput: "Document read exactly once" }; } };
         return streaming ? runCareerChatAssistantStream(args) : runCareerChatAssistant(args);
       };
       await assert.rejects(invoke(make()), CareerReplyContinuation);
@@ -86,6 +86,17 @@ test("inbox preserves user-authored timestamps and hidden messages remain execut
   const text = formatCareerInboxMessages([message]);
   assert.ok(text.includes(message.content));
   assert.ok(text.includes("User message 42:"));
+});
+
+test("batched card inputs retain their exact target, revision and owned attachment references", () => {
+  const message = { ...row(43), payload: { careerInputAction: {
+    documentIds:["owned-document"], conversationStarterId:"resume", companyRequestId:"company-request",
+    coachingActivityAction:{action:"continue",activityMessageId:71,expectedRevision:4,channel:"chat"},
+  } } };
+  const text=formatCareerInboxMessages([message]);
+  for (const reference of ["owned-document","resume","company-request","activityMessageId 71","expectedRevision 4","channel chat"])
+    assert.ok(text.includes(reference));
+  assert.ok(text.includes(message.content));
 });
 
 test("initial provider fallback retains the delivered input and drains newly pending inputs once", async () => {
@@ -156,5 +167,53 @@ test("an inbox is checked even when the current execution offers no tools", asyn
     for (const [i, key] of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"].entries()) {
       if (keys[i] === undefined) delete process.env[key]; else process.env[key] = keys[i];
     }
+  }
+});
+
+test("new input stops unstarted calls in a batch with valid tool results on every provider path", async () => {
+  const originalFetch = globalThis.fetch;
+  const keys = [process.env.OPENAI_API_KEY, process.env.ANTHROPIC_API_KEY];
+  process.env.OPENAI_API_KEY = "test-key"; process.env.ANTHROPIC_API_KEY = "test-key";
+  try {
+    const { runCareerChatAssistant, runCareerChatAssistantStream } = await import("../llm");
+    for (const native of [false,true]) for (const streaming of [false,true]) for (const duringModel of [false,true]) {
+      const source = [row(1)]; let calls=0, executions=0;
+      const model = native ? "claude-sonnet-4-6" : "gpt-6.1-sol";
+      const runtime = new CareerCapabilityRuntime({mode:"full",allowLoaders:false,promptArgs,
+        eligibleTools:[{type:"function",function:{name:"read_document",description:"Read",parameters:{type:"object",properties:{}}}}],
+        inputInbox:createCareerInputInbox({deliveredIds:[],save:async()=>{},read:async()=>({messages:source,deliveredIds:[],inputIds:source.map(m=>m.id),completed:false})})});
+      globalThis.fetch = async (_url,init) => {
+        calls++; const body=JSON.parse(String(init?.body));
+        if(calls===1 && duringModel)source.push(row(2));
+        if(calls===2){
+          const input=body.messages??body.input;
+          const text=JSON.stringify(input);
+          assert.equal(text.split("Request-2:").length-1,1);
+          assert.equal(text.split("Not executed: new conversation input arrived.").length-1,duringModel?3:2);
+          if(native){
+            const blocks=input.flatMap((m:any)=>Array.isArray(m.content)?m.content:[]);
+            assert.deepEqual(blocks.filter((b:any)=>b.type==="tool_use").map((b:any)=>b.id),["call-0","call-1","call-2"]);
+            assert.deepEqual(blocks.filter((b:any)=>b.type==="tool_result").map((b:any)=>b.tool_use_id),["call-0","call-1","call-2"]);
+          }else assert.deepEqual(input.filter((m:any)=>m.type==="function_call_output").map((m:any)=>m.call_id),["call-0","call-1","call-2"]);
+        }
+        assert.ok(calls<=2);
+        const done=calls===2;
+        if(native){
+          const content=done?[{type:"text",text:"Updated instruction handled."}]:Array.from({length:3},(_,i)=>({type:"tool_use",id:`call-${i}`,name:"read_document",input:{}}));
+          const response={id:`m${calls}`,model,content,stop_reason:done?"end_turn":"tool_use",usage:{input_tokens:1,output_tokens:1}};
+          return streaming?sse([{type:"message_start",message:response},...content.flatMap((block,index)=>[{type:"content_block_start",index,content_block:block},{type:"content_block_stop",index}]),{type:"message_delta",delta:{stop_reason:response.stop_reason},usage:{output_tokens:1}},{type:"message_stop"}]):Response.json(response);
+        }
+        const response={id:`r${calls}`,model,status:"completed",output:done?[{type:"message",role:"assistant",content:[{type:"output_text",text:"Updated instruction handled."}]}]:Array.from({length:3},(_,i)=>({type:"function_call",call_id:`call-${i}`,name:"read_document",arguments:"{}"})),usage:{input_tokens:1,output_tokens:1}};
+        return streaming?sse([{type:"response.completed",response}]):Response.json(response);
+      };
+      const step=runtime.resolveStep(false);
+      const args={primaryModel:model,toolRuntime:runtime,tools:step.tools,systemBlocks:step.systemBlocks,messages:[],usageLabel:"test:career-mid-batch",onTextDelta:()=>{},
+        executeTool:async()=>{executions++;source.push(row(2));return {ok:true,modelOutput:"Read completed"};}};
+      assert.equal(await(streaming?runCareerChatAssistantStream(args):runCareerChatAssistant(args)),"Updated instruction handled.");
+      assert.equal(executions,duringModel?0:1);
+    }
+  } finally {
+    globalThis.fetch=originalFetch;
+    for(const [i,key] of ["OPENAI_API_KEY","ANTHROPIC_API_KEY"].entries())if(keys[i]===undefined)delete process.env[key];else process.env[key]=keys[i];
   }
 });

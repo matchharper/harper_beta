@@ -1,3 +1,4 @@
+import { hasDeliveredCareerContact } from "@/lib/career/background/contactHistory";
 import { createCareerAssistantMessageWriter } from "@/lib/career/assistantMessageWriter";
 import { CareerTurnCancelled, watchCareerTurnCancellation } from "@/lib/career/turnCancellation.server";
 import { createCareerFormPresenter } from "@/lib/career/forms/server";
@@ -664,7 +665,7 @@ export async function POST(req: NextRequest) {
           userId: user.id,
           isMobile,
           locale: responseLocale,
-          messagePayload: initialCareerCapabilityPayload(getCareerCapabilityMode()),
+          messagePayload: { ...initialCareerCapabilityPayload(getCareerCapabilityMode()), ...(talentSetting?.is_onboarding_done && requestChannel === "chat" ? { careerDurable: true } : {}) },
         });
       } catch (error) {
         const status = Number((error as { status?: number })?.status) || 500;
@@ -973,21 +974,24 @@ export async function POST(req: NextRequest) {
         size: document.size_bytes ?? undefined,
       }))
     );
+    const continuingCareer = requestChannel === "chat" && !talentSetting?.is_onboarding_done &&
+      await hasDeliveredCareerContact({ admin, userId: user.id, conversationId });
     const capabilityMode = getCareerCapabilityMode();
     // The runtime reads current server-owned activity facts on every completion,
     // including activity start and confirmed return to ordinary chat.
     const trackCapabilities = isCareerCapabilityTurn({
       channel: requestChannel,
-      isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
+      isOnboardingDone: Boolean(talentSetting?.is_onboarding_done) || continuingCareer,
     });
     executionSignal.throwIfAborted();
     // A saved form response already owns a durable wakeup, including requests
     // from a tab opened before this release. Never start a second inline reply.
-    if (trackCapabilities && (body.durable === true || savedFormResponse) && !savedInternalCallAnswers && !coachingActivityAction && !conversationStarterId) {
-      const { data, error } = savedFormResponse ? { data: savedFormResponse, error: null } : await (admin.rpc as any)("admit_career_request", {
+    if (trackCapabilities) {
+      const { data, error } = savedFormResponse || savedInternalCallAnswers ? { data: savedFormResponse ?? savedInternalCallAnswers!.message, error: null } : await (admin.rpc as any)("admit_career_request", {
         p_user_id: user.id, p_conversation_id: conversationId, p_content: normalizedContent,
         p_message_type: userMessageType, p_is_mobile: isMobile,
         p_payload: { ...initialCareerCapabilityPayload(capabilityMode), careerTextChatModel: textChatModel.model,
+          careerInputAction: { coachingActivityAction, conversationStarterId, companyRequestId: selectedCompanyTalentRequest?.id, documentIds: uploadedDocuments.map(document => document.id) },
           ...(selectedActionItem ? { careerActionItem: selectedActionItem } : {}),
           careerConversationVersion: conversationVersion, clientRequestId: body.clientRequestId ?? crypto.randomUUID(),
           ...(promptExperiment ? { careerPromptExperiment: promptExperiment } : {}),
@@ -1789,32 +1793,14 @@ export async function POST(req: NextRequest) {
                     recordRecommendationStatus({ state: "running" });
                     return;
                   }
-
-                  const status = getCareerToolStartThinkingLog(
-                    tool.name,
-                    responseLocale
-                  );
-                  if (status) {
-                    recordThinkingLog(status);
-                  }
                 },
                 openAIResponsesReasoningEffort:
                   textChatModel.openAIResponsesReasoningEffort,
                 primaryModel: textChatModel.model,
                 executeTool: async ({ name, input }) => {
                   const { status, toolInput } = splitToolUiStatus(input);
-                  if (name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING) {
-                    const languageStatus = getCareerToolStartThinkingLog(
-                      name,
-                      responseLocale,
-                      toolInput
-                    );
-                    if (languageStatus) recordThinkingLog(languageStatus);
-                  }
-                  if (status) {
-                    recordThinkingLog(status);
-                  }
-
+                  const shown = status || getCareerToolStartThinkingLog(name, responseLocale, toolInput);
+                  if (shown) recordThinkingLog(shown);
 
                   return executeDefaultTalentTool({ name, input: toolInput });
                 },
@@ -2220,20 +2206,10 @@ export async function POST(req: NextRequest) {
         openAIResponsesReasoningEffort:
           textChatModel.openAIResponsesReasoningEffort,
         primaryModel: textChatModel.model,
-        onToolStart: ({ name, input }) => {
-          const status = getCareerToolStartThinkingLog(
-            name,
-            responseLocale,
-            input
-          );
-          if (status) recordThinkingLog(status);
-        },
         executeTool: async ({ name, input }) => {
           const { status, toolInput } = splitToolUiStatus(input);
-          if (status) {
-            recordThinkingLog(status);
-          }
-
+          const shown = status || getCareerToolStartThinkingLog(name, responseLocale, toolInput);
+          if (shown) recordThinkingLog(shown);
 
           return executeDefaultTalentTool({ name, input: toolInput });
         },

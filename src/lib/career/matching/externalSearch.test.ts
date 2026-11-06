@@ -11,6 +11,8 @@ class SearchFixture {
   rows: any[];
   autoScope: string[] | undefined;
   retrievalCalls = 0;
+  retrievalWorkspaceIds?: string[];
+  salaryCalls: string[][] = [];
   calls: { input: string; ids: string[] }[] = [];
   data: Record<string, any[]>;
   evaluate?: (ids: string[], signal?: AbortSignal) => void | Promise<void>;
@@ -301,6 +303,14 @@ test("external search real executor with local I/O and synthetic Decisions recei
           callDecisions: (...args: any[]) =>
             fixture.decisions(args[0], args[1], args[2], args[3]),
         };
+      if (name === "@/lib/externalRecommendationsV2/salaryEstimation.server")
+        return {
+          fillExternalRoleSalaries: async (_admin: unknown, ids: string[], signal?: AbortSignal) => {
+            signal?.throwIfAborted();
+            fixture.salaryCalls.push([...ids]);
+            return { requested: ids.length, estimated: 0, saved: 0, failed: ids.length, calls: ids.length ? 1 : 0 };
+          },
+        };
       if (name === "@/lib/externalRecommendationsV2/retrieval")
         return {
           ROLE_SELECT: "*",
@@ -349,7 +359,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
                 await resultDb.query(
                   `WITH
                 fixture_runs AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'runs') AS r(id uuid,talent_id uuid,variant text,matching_id uuid,evaluation_ids uuid[])),
-                fixture_evaluations AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'evaluations') AS e(id uuid,talent_id uuid,role_id uuid,assessment jsonb,evaluated_at timestamptz,input_fingerprint text)),
+                fixture_evaluations AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'evaluations') AS e(id uuid,talent_id uuid,role_id uuid,assessment jsonb,evaluated_at timestamptz,input_fingerprint text,input_snapshot jsonb)),
                 fixture_evaluation_index AS (SELECT e.*,(assessment#>>'{fit,mutualFit}')::float8 AS mutual_fit_score FROM fixture_evaluations e),
                 fixture_roles AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'roles') AS r(role_id uuid,name text,company_workspace_id uuid,is_expired boolean,expires_at timestamptz,status text)),
                 fixture_companies AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'companies') AS c(company_workspace_id uuid,company_name text)),
@@ -377,14 +387,20 @@ test("external search real executor with local I/O and synthetic Decisions recei
                 )
               );
             }
-            const roleArray = sql.match(/ANY\(ARRAY\[([^\]]*)\]/)?.[1];
+            const roleArray = sql.match(/cr\.role_id=ANY\(ARRAY\[([^\]]*)\]/)?.[1];
+            const workspaceArray = sql.match(/cr\.company_workspace_id = ANY\(ARRAY\[([^\]]*)\]/)?.[1];
             return copy(
               fixture.rows.filter(
-                (row) => !roleArray || roleArray.includes(row.role_id)
+                (row) => (!roleArray || roleArray.includes(row.role_id)) &&
+                  (!workspaceArray || workspaceArray.includes(row.company_workspace_id))
               )
             );
           },
-          retrieveRoles: async () => { fixture.retrievalCalls++; return { rows: copy(fixture.rows) }; },
+          retrieveRoles: async (args: any) => {
+            fixture.retrievalCalls++;
+            fixture.retrievalWorkspaceIds = args.companyWorkspaceIds;
+            return { rows: copy(fixture.rows.filter(row => !args.companyWorkspaceIds || args.companyWorkspaceIds.includes(row.company_workspace_id))) };
+          },
         };
       if (name === "@/lib/talentOnboarding/jobPostingRecommendations")
         return {
@@ -426,6 +442,72 @@ test("external search real executor with local I/O and synthetic Decisions recei
     );
   const runSearch = () =>
     processCareerMatchingSearch({ runId: fixture.run.id });
+  await t.test("company workspace scope persists and intersects both exact IDs and retrieval plans", async () => {
+    for (const planned of [false, true]) {
+      fixture = new SearchFixture(2);
+      fixture.rows[1].company_workspace_id = id(3);
+      fixture.data.external_recommendation_runs = [];
+      const result: any = await searchTool({
+        companyWorkspaceIds: [id(2), id(2)],
+        ...(planned ? { roleIds: undefined, plan: { roleTitles: ["Engineer"] } } : {}),
+      });
+      assert.deepEqual(fixture.run.request.companyWorkspaceIds, [id(2)]);
+      assert.equal(result.evaluations.length, 1);
+      assert.deepEqual(fixture.calls.flatMap(call => call.ids), [fixture.rows[0].role_id]);
+      if (planned) assert.deepEqual(fixture.retrievalWorkspaceIds, [id(2)]);
+    }
+    fixture = new SearchFixture(2);
+    fixture.data.external_recommendation_runs = [];
+    await assert.rejects(searchTool({ companyWorkspaceIds: [] }));
+    await assert.rejects(searchTool({ companyWorkspaceIds: ["not-a-uuid"] }));
+    assert.equal(fixture.data.external_recommendation_runs.length, 0);
+  });
+
+  await t.test("summary selection and four-metric receipts survive storage, reading and exact-cache reuse", async () => {
+    fixture = new SearchFixture(3);
+    fixture.rows[0].summary = { en: { content: "Selected English summary", version: "old", sourceHash: "old" } };
+    fixture.rows[1].summary = { ko: { content: "Other-language summary" } };
+    const expectedFit = { candidateInterest: 75, companyInterest: 70, mutualFit: 80, constraintPass: 90 };
+    const decisions = fixture.decisions.bind(fixture);
+    fixture.decisions = async (...args) => {
+      const receipt = await decisions(...args);
+      return { ...receipt, evaluations: receipt.evaluations.map(row => ({ ...row, fit: expectedFit })) };
+    };
+    await runSearch();
+    assert.equal(fixture.run.status, "completed");
+    assert.equal(fixture.data.talent_external_evaluations.length, 3);
+    const input = fixture.calls[0].input;
+    assert.ok(input.includes("Selected English summary"));
+    assert.ok(!input.includes("Complete duties 0"));
+    assert.ok(input.includes("Complete duties 1") && input.includes("Complete duties 2"));
+    assert.ok(!input.includes("Other-language summary"));
+    for (const row of fixture.data.talent_external_evaluations) {
+      assert.deepEqual(row.assessment.fit, expectedFit);
+      assert.match(row.input_snapshot.evaluator, /^external-fit-questions-v9-summary-four-metrics:/);
+    }
+    const stored = copy(fixture.data.talent_external_evaluations);
+    fixture.run.status = "queued";
+    await runSearch();
+    assert.equal(fixture.run.metrics.reused, 3);
+    assert.equal(fixture.calls.length, 1);
+    assert.deepEqual(fixture.data.talent_external_evaluations, stored);
+    const page: any = await searchTool({ action: "read", runId: fixture.run.id });
+    assert.equal(page.evaluations.length, 3);
+    assert.ok(page.evaluations.every((row: any) => Object.keys(row.assessment.fit).length === 4));
+  });
+  await t.test("fills only missing candidate pay, records failures, and still evaluates published-only cards", async () => {
+    fixture = new SearchFixture(4);
+    Object.assign(fixture.rows[1], { salary_min: 100000, salary_max: 150000, salary_currency: "USD", salary_period: "year" });
+    Object.assign(fixture.rows[2], { salary_min: 65432109, salary_max: 87654321, salary_currency: "KRW", salary_period: "year", salary_is_predicted: true });
+    fixture.rows[3].salary_range = "Negotiable";
+    await runSearch();
+    assert.deepEqual(fixture.salaryCalls, [[fixture.rows[0].role_id]]);
+    assert.equal(fixture.run.status, "completed");
+    assert.equal(fixture.run.metrics.salaryFill.failed, 1);
+    assert.equal(fixture.run.metrics.salaryFill.saved, 0);
+    assert.equal(fixture.data.talent_external_evaluations.length, 4);
+    assert.ok(fixture.calls.every(call => !/65432109|87654321/.test(call.input)));
+  });
   await t.test(
     "cold and warm searches use batched DB calls, including the existing 500-row RPC boundary",
     async () => {

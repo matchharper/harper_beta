@@ -788,3 +788,26 @@ test("company evaluation readers expose a private profile evaluation only for th
     await db.close();
   }
 });
+
+
+test("profile revision reader returns its owned original form response without treating the edit source as verification", async () => {
+  const db = await database();
+  try {
+    await db.exec(`create table talent_messages(id bigint primary key,user_id uuid,role text,content text,message_type text,payload jsonb,created_at timestamptz default now());`);
+    const form={formId:7,revision:1,kind:"suggestion",title:"Experience",items:[{id:"scope",type:"textarea",label:"What did you personally own?",content:""}]};
+    const payload={formId:7,revision:1,formSnapshot:form,requestId:"test-answer",values:{scope:"I led the campaign; independent evidence is unavailable."}};
+    await db.query("insert into talent_messages(id,user_id,role,content,message_type,payload) values(80,$1,'user','','career_form_response',$2),(81,$3,'user','PRIVATE OTHER USER','chat','{}')",[owner,payload,other]);
+    const current=await profile(db);
+    const context={...toolContext(db,"provenance-write"),userMessageId:80};
+    const edited:any=await CAREER_PROFILE_TOOLS.update_talent_profile.execute!({action:"update",profileId:current.profileId,expectedRevision:current.revision,talentUser:{bio:"Candidate reports campaign leadership."}},context);
+    const result:any=await CAREER_PROFILE_TOOLS.read_profile.execute!({profileId:edited.profileId,revision:edited.revision},context);
+    assert.equal(result.revisionSource.source.userMessageId,80);
+    assert.match(result.sourceMessage.content,/What did you personally own/);
+    assert.match(result.sourceMessage.content,/independent evidence is unavailable/);
+    assert.match(formatProfileToolResult("read_profile",result),/not independent verification/);
+    await db.query("update talent_profile_revisions set source=jsonb_set(source,'{userMessageId}','81') where profile_id=$1 and revision=$2",[edited.profileId,edited.revision]);
+    const isolated:any=await CAREER_PROFILE_TOOLS.read_profile.execute!({profileId:edited.profileId,revision:edited.revision},context);
+    assert.equal(isolated.sourceMessage,undefined);
+    assert.doesNotMatch(formatProfileToolResult("read_profile",isolated),/PRIVATE OTHER USER/);
+  } finally { await db.close(); }
+});

@@ -1,0 +1,15 @@
+{
+  "observedAt": "2026-11-06T06:00:07.223Z",
+  "manifest": "format-smoke-v1.manifest.json",
+  "httpStatus": 200,
+  "roles": 10,
+  "answers": 60,
+  "parseErrors": 0,
+  "originalIdsRestored": true,
+  "inputTokens": 24931,
+  "baselineInputTokens": 26812,
+  "inputReduction": 0.07015515440847386,
+  "costUsd": 0.0028875999999999997,
+  "elapsedMs": 1765.8584999999998,
+  "qualityEvaluated": false
+}

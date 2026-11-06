@@ -1,4 +1,5 @@
 import { readCareerCheckInContext } from './schedules/server';
+import { readInternalProposalContext } from './internalSelections';
 import { buildInternalOpportunityRealtimeInstruction } from "./prompts/cases/lifecyclePrompts";
 import { buildMockInterviewCandidateContext } from "./mockInterviewCandidateContext";
 import { fetchMockInterviewContext } from "./mockInterview";
@@ -311,6 +312,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     recentRecommendedOpportunitiesText,
     runtimeInstruction: [
       checkInContext,
+      await readInternalProposalContext({ admin, userId: args.userId }).catch(() => "Selected Harper-connected proposals could not be read; availability is unknown."),
       formatTalentConversationReferencesForLlm(visibleMessages, {
         preferredLocale: currentPreferences.preferredLocale,
         timeZone: args.timeZone,

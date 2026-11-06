@@ -1,23 +1,38 @@
 import type { ResumeContent } from "./schema";
-import { resumeAssets } from "./assets";
+import { createHash } from "node:crypto";
+import { externalResumeAssets } from "./externalAssets";
+import type { PdfRenderContext } from "./pdfCache";
 import { resumePreviewHtml } from "./preview";
 import { resumePlainText } from "./template";
 import { PdfRenderError } from "./pdfError";
 export { resumeHtml, resumePlainText } from "./template";
 
 export async function renderResumePdf(
-  content: ResumeContent
+  content: ResumeContent,
+  context?: PdfRenderContext
 ): Promise<{ pdf: Buffer; pageCount: number; text: string }> {
-  const assets = await resumeAssets().catch(cause => {
-    throw new PdfRenderError("PDF fonts or pagination assets could not be loaded.", { stage: "local_assets", pdfReceived: false, cause });
-  });
   return renderPaginatedPdf({
-    html: resumePreviewHtml(content, assets),
+    html: resumePreviewHtml(content, externalResumeAssets()),
     text: resumePlainText(content),
+    context,
   });
 }
 
+const PDF_OPTIONS = { format: "A4", preferCSSPageSize: true, printBackground: true };
 export async function renderPaginatedPdf(input: {
+  html: string;
+  text: string;
+  context?: PdfRenderContext;
+}): Promise<{ pdf: Buffer; pageCount: number; text: string }> {
+  if (!input.context?.cache) return renderUncachedPdf(input);
+  // Includes the full template, pagination bootstrap, asset URLs and print
+  // options. A change to any rendering input cannot reuse an older artifact.
+  const inputHash = createHash("sha256").update(JSON.stringify({ html: input.html, options: PDF_OPTIONS })).digest("hex");
+  const artifact = await input.context.cache.getOrCreate(input.context.document, inputHash, () => renderUncachedPdf(input));
+  return { ...artifact, text: input.text };
+}
+
+async function renderUncachedPdf(input: {
   html: string;
   text: string;
 }): Promise<{ pdf: Buffer; pageCount: number; text: string }> {
@@ -43,7 +58,7 @@ export async function renderPaginatedPdf(input: {
         },
         signal: controller.signal,
         body: JSON.stringify({
-          // Use exactly the same bundled HTML, fonts and pagination as the preview.
+          // Same template, font bytes and pagination as the inline preview.
           html: input.html,
           waitForFunction: {
             fn: `() => {
@@ -52,11 +67,7 @@ export async function renderPaginatedPdf(input: {
             }`,
             timeout: 25_000,
           },
-          options: {
-            format: "A4",
-            preferCSSPageSize: true,
-            printBackground: true,
-          },
+          options: PDF_OPTIONS,
         }),
       });
     } catch (cause) {

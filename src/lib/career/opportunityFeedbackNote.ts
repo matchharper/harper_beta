@@ -167,7 +167,7 @@ export function formatTalentMessageContentForLlmPrompt(
   const content = options?.preserveUserText ? projectedContent : sanitizeCareerPromptDateValues(projectedContent, options);
   let formattedContent: string;
   if (messageType === "agent_introduction_action") {
-    formattedContent = `[Verified candidate button action]\n${content}\nOpportunity: ${payload?.recommendationId}; Role: ${payload?.roleId}.\nCandidate note: ${payload?.feedbackReason ?? "none"}\nThe candidate requested introduction using the displayed material selection. Acceptance and delivery have not yet been executed by this button. Use contact_company with this exact recommendation and acceptIntroduction=true; the executor binds the reviewed selection to this action.`;
+    formattedContent = `[Verified candidate button action]\n${content}\nOpportunity: ${payload?.recommendationId}; Role: ${payload?.roleId}.\nCandidate note: ${payload?.feedbackReason ?? "none"}\nThe candidate requested introduction using the displayed material selection. Acceptance and delivery have not yet been executed by this button. The sharing executor binds the reviewed selection to this action; a different selection requires its own authorization.`;
   } else if (messageType === "career_form_response") {
     const response =
       message.formResponse ?? parseCareerFormResponse(message.payload);

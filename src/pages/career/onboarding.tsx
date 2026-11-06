@@ -1,3 +1,4 @@
+import { ResumeTextRecovery } from "@/components/career/ResumeTextRecovery";
 import {
   OnboardingFrame,
   OnboardingFooter,
@@ -88,7 +89,7 @@ import {
 type CareerT = ReturnType<typeof useCareerT>;
 
 const headerClassName =
-  "flex h-full flex-col justify-start pt-2 text-left pb-1";
+  "flex h-full flex-col font-normal justify-start pt-2 text-left pb-1";
 
 const titleClassName =
   "text-[20px] md:text-[24px] font-normal leading-[1.5] text-neutral-primary";
@@ -311,6 +312,7 @@ const careerOnboardingSessionKey = (
 type OnboardingSessionPayload = {
   conversation?: {
     id?: string | number | null;
+    resumeLinks?: string[];
     profileIngestionError?: string | null;
     profileIngestionStatus?: string | null;
     profileIngestionUpdatedAt?: string | null;
@@ -350,7 +352,7 @@ type OnboardingProfileIngestionStatusPayload = {
 };
 
 const ONBOARDING_PROFILE_INGESTION_POLL_MS = 1_500;
-const ONBOARDING_PROFILE_INGESTION_TIMEOUT_MS = 4 * 60_000;
+const ONBOARDING_PROFILE_INGESTION_TIMEOUT_MS = 820_000;
 
 const getDefaultDoneUserMessage = (t: CareerT) =>
   t(
@@ -1118,6 +1120,8 @@ const CareerNetworkOnboardingContent = () => {
   const [scholar, setScholar] = useState("");
   const [website, setWebsite] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeRecovery, setResumeRecovery] = useState(false);
+  const [pastedResumeText, setPastedResumeText] = useState("");
   const [showRequiredProfileSignalError, setShowRequiredProfileSignalError] =
     useState(false);
   const [selectedEngagements, setSelectedEngagements] = useState<
@@ -1221,6 +1225,8 @@ const CareerNetworkOnboardingContent = () => {
     [emailOnboardingToken, inviteToken, mail, requestLocale, userId]
   );
   const lastSavedBasicInfoRef = useRef("");
+  const settingsSavedRef = useRef(false);
+  const recoveryLinksRef = useRef<string[] | null>(null);
 
   const waitForProfileIngestion = useCallback(
     async (targetConversationId: string) => {
@@ -1381,6 +1387,14 @@ const CareerNetworkOnboardingContent = () => {
         const profileIngestionStatus =
           payload?.conversation?.profileIngestionStatus?.trim();
         setConversationId(loadedConversationId);
+        const savedLinks = payload.conversation?.resumeLinks ?? [];
+        if (
+          profileIngestionStatus === "failed" ||
+          profileIngestionStatus === "processing"
+        ) {
+          settingsSavedRef.current = true;
+          recoveryLinksRef.current = savedLinks;
+        }
 
         if (loadedConversationId && profileIngestionStatus === "processing") {
           setSubmitState("loading");
@@ -1405,6 +1419,7 @@ const CareerNetworkOnboardingContent = () => {
                 variant: "error",
                 duration: 5000,
               });
+              setResumeRecovery(true);
               setSubmitState("form");
             });
           return;
@@ -1419,6 +1434,7 @@ const CareerNetworkOnboardingContent = () => {
             variant: "error",
             duration: 5000,
           });
+          setResumeRecovery(true);
           setSubmitState("form");
           return;
         }
@@ -1585,7 +1601,7 @@ const CareerNetworkOnboardingContent = () => {
     : "";
   const hasLinkedinProfileSignal = isLinkedinProfileLink(linkedinLink);
   const hasRequiredProfileSignal =
-    Boolean(resumeFile) || hasLinkedinProfileSignal;
+    Boolean(resumeFile || pastedResumeText.trim()) || hasLinkedinProfileSignal;
 
   const validateStep = useCallback(
     (currentStep: number) => {
@@ -1761,6 +1777,7 @@ const CareerNetworkOnboardingContent = () => {
     logCareerEvent("click_onboarding_submit");
     setSubmitState("loading");
     let resumeUploadFailureMessage: string | null = null;
+    let sourceFailed = false;
 
     try {
       let resumeFileName: string | undefined;
@@ -1768,67 +1785,82 @@ const CareerNetworkOnboardingContent = () => {
       let resumeText: string | undefined;
       let resumeDocumentId: string | undefined;
 
-      if (resumeFile) {
+      const sourceFile =
+        resumeRecovery && pastedResumeText.trim()
+          ? new File([pastedResumeText], "resume.txt", { type: "text/plain" })
+          : resumeFile;
+      if (sourceFile) {
         let uploadResult: Awaited<ReturnType<typeof uploadResumeFile>>;
         try {
-          uploadResult = await uploadResumeFile(resumeFile);
+          uploadResult = await uploadResumeFile(sourceFile);
         } catch (error) {
+          sourceFailed = true;
           resumeUploadFailureMessage = getResumeUploadFailureMessage(error);
           throw error;
         }
         resumeFileName = uploadResult.resumeFileName;
         resumeStoragePath = uploadResult.resumeStoragePath;
         resumeDocumentId = uploadResult.resumeDocumentId;
-        if (uploadResult.resumeText) resumeText = uploadResult.resumeText;
+        if (!uploadResult.resumeText.trim()) {
+          sourceFailed = true;
+          throw new Error("Resume text unavailable");
+        }
+        resumeText = uploadResult.resumeText;
       }
 
-      const preferencesRes = await fetchWithAuth("/api/talent/preferences", {
-        method: "POST",
-        body: JSON.stringify({
-          engagementTypes: selectedEngagements,
-        }),
-      });
-      const preferencesPayload = await preferencesRes.json().catch(() => ({}));
-      if (!preferencesRes.ok) {
-        throw new Error(
-          getErrorMessage(
-            preferencesPayload,
-            t(
-              "career.onboarding.onboarding.1kdng2n",
-              "선호 정보를 저장하지 못했습니다."
-            )
-          )
-        );
-      }
-      if (preferencesPayload?.opportunityDiscoveryQueued) {
-        showToast({
-          message: t(
-            "career.onboarding.onboarding.0hobsv6",
-            "기회 검색을 시작했습니다."
-          ),
-          variant: "white",
+      if (!settingsSavedRef.current) {
+        const preferencesRes = await fetchWithAuth("/api/talent/preferences", {
+          method: "POST",
+          body: JSON.stringify({
+            engagementTypes: selectedEngagements,
+          }),
         });
-      }
-
-      const settingsRes = await fetchWithAuth("/api/talent/settings", {
-        method: "POST",
-        body: JSON.stringify({
-          preferredLocale: locale,
-          profileVisibility,
-          profileVisibilitySource: "onboarding",
-        }),
-      });
-      const settingsPayload = await settingsRes.json().catch(() => ({}));
-      if (!settingsRes.ok) {
-        throw new Error(
-          getErrorMessage(
-            settingsPayload,
-            t(
-              "career.onboarding.onboarding.01ywpeo",
-              "프로필 공개 설정을 저장하지 못했습니다."
+        const preferencesPayload = await preferencesRes
+          .json()
+          .catch(() => ({}));
+        if (!preferencesRes.ok) {
+          throw new Error(
+            getErrorMessage(
+              preferencesPayload,
+              t(
+                "career.onboarding.onboarding.1kdng2n",
+                "선호 정보를 저장하지 못했습니다."
+              )
             )
-          )
-        );
+          );
+        }
+        if (preferencesPayload?.opportunityDiscoveryQueued) {
+          showToast({
+            message: t(
+              "career.onboarding.onboarding.0hobsv6",
+              "기회 검색을 시작했습니다."
+            ),
+            variant: "white",
+          });
+        }
+
+        const settingsRes = await fetchWithAuth("/api/talent/settings", {
+          method: "POST",
+          body: JSON.stringify({
+            preferredLocale: locale,
+            profileVisibility,
+            profileVisibilitySource: "onboarding",
+          }),
+        });
+        const settingsPayload = await settingsRes.json().catch(() => ({}));
+        if (!settingsRes.ok) {
+          throw new Error(
+            getErrorMessage(
+              settingsPayload,
+              t(
+                "career.onboarding.onboarding.01ywpeo",
+                "프로필 공개 설정을 저장하지 못했습니다."
+              )
+            )
+          );
+        }
+
+        settingsSavedRef.current = true;
       }
 
       const startRes = await fetchWithAuth("/api/talent/onboarding/start", {
@@ -1836,7 +1868,10 @@ const CareerNetworkOnboardingContent = () => {
         body: JSON.stringify({
           conversationId,
           applyProfileSources: true,
-          links,
+          links:
+            resumeRecovery && recoveryLinksRef.current
+              ? recoveryLinksRef.current
+              : links,
           locale,
           name: name.trim(),
           officialJobSlug: officialJobSlug || undefined,
@@ -1851,6 +1886,8 @@ const CareerNetworkOnboardingContent = () => {
         .json()
         .catch(() => ({}))) as OnboardingStartPayload;
       if (!startRes.ok) {
+        if ((payload as { code?: string }).code === "resume_text_required")
+          sourceFailed = true;
         throw new Error(
           getErrorMessage(
             payload,
@@ -1862,38 +1899,58 @@ const CareerNetworkOnboardingContent = () => {
         );
       }
 
+      if (payload.profileIngestion?.status === "failed") {
+        sourceFailed = true;
+        throw new Error("Profile extraction failed");
+      }
       if (
         payload.profileIngestion?.queued === true ||
         payload.profileIngestion?.status === "processing"
       ) {
-        await waitForProfileIngestion(conversationId);
+        try {
+          await waitForProfileIngestion(conversationId);
+        } catch (error) {
+          sourceFailed = true;
+          throw error;
+        }
       }
 
+      setResumeRecovery(false);
       completeOnboardingSubmission(payload);
     } catch (error) {
-      try {
-        const recoveredSession = await fetchOnboardingSession();
-        if (
-          recoveredSession.conversation?.profileIngestionStatus ===
-            "processing" &&
-          conversationId
-        ) {
-          await waitForProfileIngestion(conversationId);
-          completeOnboardingSubmission({});
-          return;
+      if (!sourceFailed) {
+        try {
+          const recoveredSession = await fetchOnboardingSession();
+          const recoveredStatus =
+            recoveredSession.conversation?.profileIngestionStatus;
+          if (recoveredStatus === "processing" && conversationId) {
+            try {
+              await waitForProfileIngestion(conversationId);
+              completeOnboardingSubmission({});
+              return;
+            } catch {
+              sourceFailed = true;
+            }
+          } else if (recoveredStatus === "failed") {
+            sourceFailed = true;
+          } else if (isTalentOnboardingSubmissionCommitted(recoveredSession)) {
+            completeOnboardingSubmission({});
+            return;
+          }
+        } catch (recoveryError) {
+          console.warn(
+            "[CareerOnboarding] failed to verify submission after request error",
+            recoveryError
+          );
         }
-        if (isTalentOnboardingSubmissionCommitted(recoveredSession)) {
-          completeOnboardingSubmission({});
-          return;
-        }
-      } catch (recoveryError) {
-        console.warn(
-          "[CareerOnboarding] failed to verify submission after request error",
-          recoveryError
-        );
       }
 
-      console.error("[CareerOnboarding] submission failed", error);
+      if (sourceFailed) {
+        setResumeRecovery(true);
+        console.warn("[CareerOnboarding] profile source needs recovery", error);
+      } else {
+        console.error("[CareerOnboarding] submission failed", error);
+      }
       showToast({
         message:
           resumeUploadFailureMessage ??
@@ -1917,6 +1974,8 @@ const CareerNetworkOnboardingContent = () => {
     name,
     profileVisibility,
     resumeFile,
+    resumeRecovery,
+    pastedResumeText,
     selectedEngagements,
     submitState,
     logCareerEvent,
@@ -2121,7 +2180,21 @@ const CareerNetworkOnboardingContent = () => {
           />
         )}
 
-        {effectiveSubmitState === "form" && (
+        {effectiveSubmitState === "form" && resumeRecovery && (
+          <OnboardingFrame
+            title={null}
+            footer={null}
+            progressStep={step}
+            showProgress={false}
+          >
+            <ResumeTextRecovery
+              value={pastedResumeText}
+              onChange={setPastedResumeText}
+              onSubmit={() => void submitOnboarding()}
+            />
+          </OnboardingFrame>
+        )}
+        {effectiveSubmitState === "form" && !resumeRecovery && (
           <OnboardingFrame
             progressStep={step}
             expandContent={currentStepKind === "profile"}

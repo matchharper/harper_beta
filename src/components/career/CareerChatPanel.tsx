@@ -26,7 +26,7 @@ import type {
 const DEFAULT_COMPOSER_OVERLAY_HEIGHT_PX = 168;
 // Extra empty space after the last timeline item, on top of the composer height.
 // Increase this when the final chat should sit farther above the composer.
-const TIMELINE_BOTTOM_VISIBLE_GAP_PX = 28;
+const TIMELINE_BOTTOM_VISIBLE_GAP_PX = 48;
 
 const CareerCallLoadingScreen = () => {
   const t = useCareerT();
@@ -297,7 +297,7 @@ const CareerChatPanelContent = ({
   const callSessionActive = callStartPending || inputMode === "call";
 
   return (
-    <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-chat">
+    <section className="career-chat-surface relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-chat">
       {inputMode !== "call" && (
         <div
           className={cn(

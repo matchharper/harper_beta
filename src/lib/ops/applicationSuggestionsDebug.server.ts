@@ -86,7 +86,7 @@ export async function previewApplicationSuggestionsDebug(
   if (!candidateRow) throw new InternalApiError(404, "사용자를 찾지 못했습니다.");
   const [document, lookup] = await Promise.all([
     dependencies.fetchTalentDocument({ admin, userId: input.talentId, documentId: input.documentId }),
-    dependencies.runGetRoleContext({ admin, userId: input.talentId, roleIds: [input.roleId], includeJd: true, activityOffset: 0, externalFactsOnly: true }),
+    dependencies.runGetRoleContext({ admin, userId: input.talentId, roleIds: [input.roleId], jd: "full", activityOffset: 0, externalFactsOnly: true }),
   ]);
   if (!document || document.kind !== "resume")
     throw new InternalApiError(404, "선택한 사용자의 이력서를 찾지 못했습니다.");

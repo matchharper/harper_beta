@@ -537,6 +537,54 @@ try {
       [first.message.id]
     );
     assert.equal(published.length, 1);
+    // General presentation revision: reuse the card, preserve decisions/materials,
+    // and reject a stale writer rather than silently discarding its text.
+    const currentPresentation = "The candidate requested an introduction and has relevant platform experience.";
+    const revisedPresentation = "Relevant platform experience; the additional scope is candidate-reported and remains unverified.";
+    const revise = (expectedPresentation?: string) => executeCompanyCorrespondence({
+      source: toolSource, name: "publish_role_recommendations",
+      input: { roleId: role, introductionRootId: first.message.id, presentation: revisedPresentation, expectedPresentation },
+      sourceMessageId: Number(job.anchor_message_id), conversationId: job.conversation_id,
+    }, db);
+    await assert.rejects(revise(), /changed or was not read/);
+    const [beforePresentation] = await query("SELECT text,metadata FROM public.talent_progress WHERE id=$1", [published[0].id]);
+    const beforeTags = await query("SELECT tag FROM public.talent_opportunity_tag WHERE talent_id=$1 AND opportunity_id=$2 ORDER BY tag", [talent,role]);
+    assert.equal((await revise(currentPresentation)).status, "updated");
+    assert.equal((await revise(currentPresentation)).status, "unchanged");
+    const [afterPresentation] = await query("SELECT text,metadata FROM public.talent_progress WHERE id=$1", [published[0].id]);
+    assert.equal(afterPresentation.text,revisedPresentation);
+    assert.equal(afterPresentation.metadata.sharedMaterialId,beforePresentation.metadata.sharedMaterialId);
+    assert.deepEqual(await query("SELECT tag FROM public.talent_opportunity_tag WHERE talent_id=$1 AND opportunity_id=$2 ORDER BY tag", [talent,role]), beforeTags);
+    await assert.rejects(executeCompanyCorrespondence({source:toolSource,name:"publish_role_recommendations",input:{roleId:role,introductionRootId:first.message.id,presentation:"Stale replacement",expectedPresentation:currentPresentation},sourceMessageId:Number(job.anchor_message_id),conversationId:job.conversation_id},db),/changed or was not read/);
+    // More than one page: include the incoming message and original root even
+    // when both fall outside the recent window. All reads retain the pair scope.
+    const {readAgentCorrespondence: readConversation} = await import("../../src/lib/agentContacts/read");
+    await db.transaction(async q => {
+      await q(`INSERT INTO public.agent_contact_messages(root_id,reply_to_id,company_workspace_id,role_id,talent_id,recommendation_id,direction,body,source,operation_key,created_at)
+        SELECT $1::uuid,$1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,'to_company','History '||n,'{}','context-window-'||n,now()+n*interval '1 second'
+        FROM generate_series(1,35) n`,[first.message.id,workspace,role,talent,rec]);
+    });
+    const recent = await readConversation(companySource,{contextMessageId:first.message.id},db);
+    assert.equal(recent.messages.length,31);
+    assert.ok(recent.messages.some(m=>m.id===first.message.id));
+    assert.ok(recent.messages.some(m=>m.body==='History 35'));
+    assert.ok(!recent.messages.some(m=>m.body==='History 1'));
+    assert.equal(recent.nextOffset,30);
+    const [oldParent] = await query("SELECT id FROM public.agent_contact_messages WHERE operation_key='context-window-1'");
+    const [oldReply] = await query("UPDATE public.agent_contact_messages SET reply_to_id=$1 WHERE operation_key='context-window-2' RETURNING id",[oldParent.id]);
+    const replyContext = await readConversation(companySource,{contextMessageId:oldReply.id},db);
+    for (const id of [oldReply.id,oldParent.id,first.message.id]) assert.ok(replyContext.messages.some(m=>m.id===id));
+
+    assert.ok(recent.presentations.some(p=>p.text===revisedPresentation));
+    const older=await executeCompanyCorrespondence({source:toolSource,name:"read_agent_messages",input:{roleId:role,talentId:talent,workspaceId:workspace,newestFirst:true,offset:30},sourceMessageId:Number(job.anchor_message_id),conversationId:job.conversation_id},db) as any;
+    assert.ok(older.messages.some((m:any)=>m.body==='History 1'));
+    const ownContext=await readConversation(source,{contextMessageId:first.message.id},db);
+    assert.equal(ownContext.presentations.length,0);
+    assert.ok(!ownContext.modelOutput.includes(revisedPresentation));
+    assert.equal((await readAgentContacts({source,rootId:first.message.id,talentId:randomUUID()},db)).messages.length,0);
+    assert.equal((await readAgentContacts({source,rootId:first.message.id,workspaceId:randomUUID()},db)).messages.length,0);
+    await query("DELETE FROM public.agent_contact_messages WHERE operation_key LIKE 'context-window-%'");
+    console.log("PASS: recent pair context retains anchors, paginates old messages and keeps company notes private; presentation updates detect stale writes without changing materials or decisions");
     const beforeInbox = await query(
       "SELECT id FROM public.company_messages WHERE metadata->>'webActionJobId'=$1 AND role='assistant'",
       [job.id]
@@ -820,7 +868,7 @@ try {
     assert.equal(companyHistory.deliveries.length, mails.length);
     assert.ok(companyHistory.modelOutput.includes("delivery_unknown"));
     assert.ok(companyHistory.modelOutput.includes(mailArgs.body));
-    assert.ok(companyHistory.modelOutput.includes("The candidate asked Harper to connect them with the company"));
+    assert.ok(companyHistory.modelOutput.includes("The candidate authorized Harper to request a connection"));
     const careerHistory = await readAgentCorrespondence(
       source,
       { introductionRootId: first.message.id },

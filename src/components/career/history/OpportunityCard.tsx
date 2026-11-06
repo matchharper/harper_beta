@@ -198,7 +198,8 @@ export default function OpportunityCard({
         "career-opportunity-card group relative rounded-opportunity border-(length:--opportunity-border-width) border-opportunity-border text-opportunity-foreground transition-colors",
         expanded
           ? "bg-opportunity-expanded bg-opportunity-image shadow-(--shadow-opportunity) backdrop-blur-opportunity"
-          : "bg-opportunity"
+          : "bg-opportunity",
+        !expanded && (onToggle || onOpenDetail) && "cursor-pointer"
       )}
       data-opportunity-id={item.id}
       data-expanded={expanded}

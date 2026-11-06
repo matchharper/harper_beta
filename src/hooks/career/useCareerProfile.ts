@@ -499,6 +499,9 @@ export const useCareerProfile = ({
           }
         }
 
+        if (selectedResumeFile && !nextResumeText?.trim()) {
+          throw new Error(tCareer(H.profileAutoIngestionFailed));
+        }
         const response = await fetchWithAuth("/api/talent/profile/update", {
           method: "POST",
           body: JSON.stringify({
@@ -564,6 +567,7 @@ export const useCareerProfile = ({
               reason: getTranslatedProfileIngestionFailureMessage(ingestion),
             })
           );
+          return false;
         } else if (getProfileIngestionWarningMessage(ingestion)) {
           showProfileSaveToast(
             getProfileIngestionWarningMessage(ingestion) ??

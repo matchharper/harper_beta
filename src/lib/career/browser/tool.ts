@@ -28,6 +28,13 @@ import {
 } from "../externalOperations/store";
 import { careerTurnIsStopped } from "../turnCancellation.server";
 
+// Allows a human to finish login/input before the provider releases the page.
+export const CAREER_BROWSER_KEEP_ALIVE_SECONDS = 600;
+
+export function browserHasHumanControl(session: ExternalOperation) {
+  return session.status === "human" || (session.status === "closing" && session.result.requested_action === "handoff");
+}
+
 export const USE_BROWSER_TOOL = {
   name: "use_browser",
   description:
@@ -52,7 +59,7 @@ export const USE_BROWSER_TOOL = {
           "Existing execution_id returned by use_browser. Use with action=read to inspect that run.",
       },
       mode: { type: "string", enum: ["prepare", "execute"], description: "prepare may navigate/fill within user authority but must not submit. execute performs an authorized external effect from exact prepared materials." },
-      effect_key: { type: "string", description: "Stable external effect identity within this work, required for execute. Reuse across source messages, revisions and web/email route changes." },
+      effect_key: { type: "string", description: "Stable purpose + target effect identity in this conversation or delegated work, required for execute. Reuse across source messages, revisions and web/email route changes." },
       url: { type: "string" },
       task: { type: "string" },
       role_refs: { type: "array", items: { type: "string" } },
@@ -137,7 +144,7 @@ async function presentBrowserSession(
       role: "assistant",
       message_type: "browser_session",
       content: "",
-      payload: { session_id: session.id, requestId },
+      payload: { session_id: session.id, requestId, ...(context.replyId ? { artifactReplyId: context.replyId } : {}) },
     })
     .select("*")
     .single();
@@ -152,8 +159,12 @@ export function formatBrowserToolResult(operations: ExternalOperation[]) {
       [
         `${op.kind}; ${op.kind === "browser_run" ? "execution_id" : "session_id"}: ${op.id}; status: ${op.status}; revision: ${op.revision}; updated: ${formatLlmDateTime(op.updated_at)}`,
         op.parent_id ? `session_id: ${op.parent_id}` : "",
+        op.kind === "browser_session" && browserHasHumanControl(op)
+          ? "Browser control belongs to the user. Automatic browser work waits until the user selects Done in the viewer." : "",
+        op.result.requested_action === "resume"
+          ? "The user selected Done and returned browser control to Harper. This confirms the end of manual control, not login, navigation or submission success. Inspect the current page before continuing the original authorized work." : "",
         op.kind === "browser_session" && op.result.browser_availability === "stopped"
-          ? "The provider confirmed that the live browser stopped. Its old tabs and page state are no longer available. This session_id can still be continued with run: a new browser keeps the conversation and workspace files."
+          ? "The provider confirmed that the live browser stopped. Its old tabs and page state are no longer available. After control is returned, this session_id can still be continued with run: a new browser keeps the conversation and workspace files."
           : "",
         op.kind === "browser_session" && op.result.browser_availability === "unknown"
           ? "Current live-browser availability could not be confirmed. The recorded session control state does not establish that its page is still available."
@@ -204,7 +215,9 @@ export function formatBrowserToolResult(operations: ExternalOperation[]) {
         op.result.needsUser === true
           ? operations.some((session) => session.id === op.parent_id && session.result.browser_availability === "stopped")
             ? "This run ended needing input or action; its original live browser has since stopped."
-            : "The run reports a human interaction requirement. Resolve ordinary inputs and final confirmation through Harper tools and forms; hand over the live browser only for an action Harper cannot perform, such as login. Continue with this session_id."
+            : operations.some((session) => session.id === op.parent_id && session.result.requested_action === "resume")
+              ? "This run previously required human interaction. The user has since returned control; check the current page for the outcome."
+            : "The run reports a human interaction requirement. Resolve ordinary inputs and final confirmation through Harper tools and forms; hand over the live browser only for an action Harper cannot perform, such as login. After the user selects Done, continue with this session_id."
           : "",
       ]
         .filter(Boolean)
@@ -239,6 +252,14 @@ export async function observeBrowserSession(
   context: Pick<ExternalToolContext, "admin" | "userId">,
   session: ExternalOperation,
 ) {
+  if (session.status === "closing") {
+    const executionId = reference(session, "current_execution_id");
+    const execution = executionId ? await readOperation(context, executionId) : null;
+    if (execution) {
+      await refreshBrowserExecution(context, execution);
+      session = (await readOperation(context, session.id)) ?? session;
+    }
+  }
   const providerSession = reference(session, "session_id");
   if (session.status === "closed" || !providerSession)
     return { session, liveUrl: null, browserAvailability: "unknown" as const };
@@ -249,9 +270,8 @@ export async function observeBrowserSession(
     observation = { availability: "unknown" as const, liveUrl: null };
   }
   if (observation.availability === "stopped" && ["idle", "human"].includes(session.status)
-    && (session.status === "human" || session.result.browser_availability !== "stopped")) {
+    && session.result.browser_availability !== "stopped") {
     session = await updateOperation(context, session, {
-      status: "idle",
       result: { ...session.result, browser_availability: "stopped" },
     });
   }
@@ -436,6 +456,14 @@ export async function executeUseBrowser(
   }
   if (input.action === "release") {
     let session = await ownedSession(context, input.session_id);
+    if (browserHasHumanControl(session)) return { session, modelOutput: formatBrowserToolResult([session]), careerContinuation: { kind: "browser_control" as const, id: session.id } };
+    const returned = z.object({ invocation_id: z.string().uuid() }).safeParse(session.provider_refs.control_return);
+    if (returned.success && context.replyId !== `invocation:${returned.data.invocation_id}`) {
+      const continuation = await readOperation(context, returned.data.invocation_id);
+      if (continuation && continuation.status !== "completed") return {
+        session, modelOutput: "The user returned browser control. Its owning continuation is pending; the live page has been retained.",
+      };
+    }
     const id = reference(session, "current_execution_id");
     const current = id ? await readOperation(context, id) : null;
     if (current && !browserUseTerminal(current.status)) throw new Error("Observe or cancel the active browser run before releasing its browser.");
@@ -445,7 +473,7 @@ export async function executeUseBrowser(
   }
   if (input.action === "handoff" || input.action === "close") {
     let session = await ownedSession(context, input.session_id);
-    if (session.status === "closed")
+    if (session.status === "closed" || (input.action === "handoff" && session.status === "human"))
       return { session, modelOutput: formatBrowserToolResult([session]) };
     // A persisted lock prevents a new run from starting while cancellation/cleanup is in progress.
     session = await updateOperation(context, session, {
@@ -514,6 +542,10 @@ export async function executeUseBrowser(
     return { session, modelOutput: formatBrowserToolResult([session]) };
   }
   if (!input.task?.trim()) throw new Error("run requires a task");
+  if (input.session_id) {
+    const current = await ownedSession(context, input.session_id);
+    if (browserHasHumanControl(current)) return { session: current, modelOutput: formatBrowserToolResult([current]), careerContinuation: { kind: "browser_control" as const, id: current.id } };
+  }
   const effect = input.mode === "execute" ? await reserveWorkEffect(context, input.effect_key, { task: input.task, url: input.url, documents: input.documents, authorization_refs: input.authorization_refs }) : undefined;
   const existingEffect = await readBoundEffect(context, effect);
   if (existingEffect) return { operation: existingEffect, modelOutput: `This effect was already dispatched as ${existingEffect.kind} ${existingEffect.id}; status ${existingEffect.status}. Read its receipt; do not submit through another route.` };
@@ -546,7 +578,7 @@ export async function executeUseBrowser(
       });
     }
   }
-  if (!["idle", "human", "running"].includes(session.status))
+  if (!["idle", "running"].includes(session.status))
     throw new Error(
       "Browser session is not ready; inspect the existing operation first"
     );
@@ -558,6 +590,7 @@ export async function executeUseBrowser(
     idempotencyKey: context.requestId,
     request: {
       task: input.task,
+      reply_id: context.replyId ?? null,
       url: input.url ?? null,
       role_refs: input.role_refs ?? [],
       authorization,
@@ -592,6 +625,13 @@ export async function executeUseBrowser(
       }))
     );
     await assertExternalToolActive(context);
+    let beforeDispatch = await ownedSession(context, session.id);
+    if (execution.status === "capacity_wait" && beforeDispatch.status === "idle" && beforeDispatch.provider_refs.current_execution_id === active.id) {
+      beforeDispatch = await updateOperation(context, beforeDispatch, { status: "running" });
+    }
+    if (beforeDispatch.status !== "running" || beforeDispatch.provider_refs.current_execution_id !== active.id) {
+      return { session: beforeDispatch, operation: (await readOperation(context, active.id)) ?? active, modelOutput: formatBrowserToolResult([beforeDispatch]) };
+    }
     await bindWorkEffect(context, effect, active);
     active = await updateOperation(context, active, {
       status: "dispatching",
@@ -615,7 +655,7 @@ export async function executeUseBrowser(
       runOutputSchema,
       workspaceId,
       reference(session, "session_id"),
-      { keepAlive: 120 }
+      { keepAlive: CAREER_BROWSER_KEEP_ALIVE_SECONDS }
     );
     active = await updateOperation(context, active, {
       status: "running",

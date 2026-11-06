@@ -45,6 +45,7 @@ import {
 import { endSimulationSession } from "./session";
 import { fetchTalentDocument } from "@/lib/talentOnboarding/documentStore";
 import { TALENT_RESUME_BUCKET } from "@/lib/talentOnboarding/models";
+import { createPdfArtifactCache } from "@/lib/resumes/pdfCache";
 import { applyToRoleSchema } from "./applicationBrowser";
 import { runCareerChatAssistant } from "@/lib/career/llm";
 import { createAgentUsageLogger } from "./agentsUsageLogging";
@@ -55,6 +56,7 @@ type BrowserStoreArgs = SessionStoreArgs & { browserRunId?: string };
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 async function transferDocument(store: SessionStoreArgs, documentId: string) {
   const artifact = await applicationAttachment({
+    cache: createPdfArtifactCache(store.admin),
     read: () => fetchTalentDocument({...store, documentId}),
     download: async path => {
       const {data, error} = await store.admin.storage.from(TALENT_RESUME_BUCKET).download(path);

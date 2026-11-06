@@ -1,4 +1,5 @@
 import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
+import { SALARY_TARGET_FX_CONTEXT } from "@/lib/externalRecommendationsV2/salary";
 import type { TalentChatTool } from "@/lib/talentOnboarding/llm";
 import { RESUME_HANDBOOK_V1 } from "./resume";
 import { APPLICATION_HANDBOOK } from "./application";
@@ -9,8 +10,8 @@ export const CAREER_HANDBOOK_LOADER = "load_handbook";
 export const CAREER_HANDBOOK_REPLIES = 3;
 export const CAREER_HANDBOOKS = [
   { id: "resume", version: "2026-11-03-v3", description: "Read and improve a resume for the user's purpose; write useful proposals and questions and save the requested document.", body: RESUME_HANDBOOK_V1 },
-  { id: "application", version: "2026-11-05-v5", description: "Prepare reviewable application materials, find a valid application route, and carry out the authorized application.", body: APPLICATION_HANDBOOK },
-  { id: "opportunity_search", version: "2026-11-05-v13", description: "Find external career opportunities, manage matching criteria and existing recommendations, and help with internal Roles the candidate explicitly chose.", body: OPPORTUNITY_SEARCH_HANDBOOK },
+  { id: "application", version: "2026-11-05-v5", description: "Pursue a company or role the candidate wants to join: research useful contact routes and people, prepare applications or direct outreach for a send decision, and carry out authorized external actions.", body: APPLICATION_HANDBOOK },
+  { id: "opportunity_search", version: "2026-11-06-v16", description: "Find external career opportunities, manage matching criteria and existing recommendations, and help with internal Roles the candidate explicitly chose.", body: `${OPPORTUNITY_SEARCH_HANDBOOK}\n\n${SALARY_TARGET_FX_CONTEXT}` },
   { id: "proactive_career", version: "2026-11-02-v2", description: "Continue delegated work from a schedule or source event, choose useful contact or silence, and save the next check.", body: PROACTIVE_CAREER_HANDBOOK },
 ] as const;
 export type CareerHandbookId = (typeof CAREER_HANDBOOKS)[number]["id"];

@@ -602,6 +602,9 @@ export async function readAgentContacts(
     rootId?: string;
     roleId?: string;
     messageId?: string;
+    talentId?: string;
+    workspaceId?: string;
+    newestFirst?: boolean;
     offset?: number;
     limit?: number;
   },
@@ -618,9 +621,11 @@ export async function readAgentContacts(
     WHERE ($1::uuid IS NULL OR m.root_id=$1::uuid) AND ($2::uuid IS NULL OR m.role_id=$2::uuid)
       AND ($3::uuid IS NULL OR m.talent_id=$3::uuid) AND ($4::uuid IS NULL OR m.company_workspace_id=$4::uuid)
       AND ($7::uuid IS NULL OR m.id=$7::uuid)
+      AND ($8::uuid IS NULL OR m.talent_id=$8::uuid)
+      AND ($9::uuid IS NULL OR m.company_workspace_id=$9::uuid)
       AND ($4::uuid IS NULL OR NOT EXISTS(SELECT 1 FROM unnest(coalesce(settings.blocked_companies,'{}')) b
         WHERE lower(btrim(b)) IN (lower(btrim(workspace.company_name)),lower(btrim(coalesce(workspace.published_name,''))),lower(workspace.company_workspace_id::text))))
-    ORDER BY m.created_at,m.id OFFSET $5 LIMIT $6`,
+    ORDER BY m.created_at ${args.newestFirst ? "DESC" : "ASC"},m.id ${args.newestFirst ? "DESC" : "ASC"} OFFSET $5 LIMIT $6`,
     [
       args.rootId ?? null,
       args.roleId ??
@@ -630,6 +635,8 @@ export async function readAgentContacts(
       args.offset ?? 0,
       (args.limit ?? 30) + 1,
       args.messageId ?? null,
+      args.talentId ?? null,
+      args.workspaceId ?? null,
     ]
   )) as AgentContactMessage[];
   for (const row of rows) {

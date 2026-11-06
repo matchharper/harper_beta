@@ -1,0 +1,21 @@
+{
+  "preparedAt": "2026-11-06T06:09:52.966Z",
+  "sampleHash": "1c1b65af18bb7e872cdeb5df16c2b1c8c44ea9c482be21c3158109407b55460f",
+  "requestHash": "96fd47260d8613dc309c6d8b7fcb744650777d7d462b8ddd5f97d886e59e7af4",
+  "sourceHashes": {
+    "src/lib/externalRecommendationsV2/scoringInput.ts": "40743fec3625b765eab809ea3f1d6264ca0ee0c4c0306d80cf24c70c654e556b",
+    "src/lib/externalRecommendationsV2/workerInputText.ts": "07f74299f4d5100e0eda8c8b3b01f6abf413e6252986ab3a1940d4ed2de176cf",
+    "src/lib/externalRecommendationsV2/decisions.ts": "2e15a9a26fd60aa50cbf72ed7adcc55be4acae80a38b00b937dbae8f1cd28fa1",
+    "src/lib/externalRecommendationsV2/contract.ts": "eee9470165d3e10951ac96abb8e083e0a06e10c5469e29570cc93a60f879e795",
+    "src/lib/externalRecommendationsV2/fitQuestions.v4.json": "cc75c6c5e30dc3c1471def7daecb4478242731e8ed2d30553b54306eb8a2e291",
+    "scripts/probeExternalScoringCost.ts": "bdad8ce4abd10fc77a25d99d83c97fce42882509bea651f0af622b42b9cc9f04"
+  },
+  "model": "gpt-6-luna",
+  "roles": 10,
+  "questions": 40,
+  "calls": 1,
+  "retries": 0,
+  "qualityGold": null,
+  "evaluator": "external-fit-questions-v9-summary-four-metrics:openai:gpt-6-luna",
+  "scope": "Summary fallback and four metrics; structural smoke only"
+}

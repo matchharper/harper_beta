@@ -354,10 +354,24 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
           }
           completedAt={message.workCompletedAt ?? message.createdAt}
           logs={textLogs}
-          events={message.workEvents}
+          events={message.workBackgroundLogs?.length ? [
+            ...(message.workEvents?.length ? message.workEvents : (message.thinkingLogs ?? []).map((text, index) => ({ id: `tool:${index}`, kind: "tool" as const, text }))),
+            ...message.workBackgroundLogs.map((text, index) => ({ id: `delegate:${index}`, kind: "tool" as const, text })),
+          ] : message.workEvents}
           startedAt={message.workStartedAt ?? turnStartedAt}
         />
       )}
+      {message.workArtifacts?.map(artifact => (
+        artifact.browserSession ? (
+          <BrowserSessionAnchor key={artifact.id} sessionId={artifact.browserSession.sessionId} />
+        ) : (
+          <CareerMessageBubble
+            key={artifact.id}
+            message={artifact}
+            isUser={false}
+          />
+        )
+      ))}
       {!isUser &&
         !recommendationSearchRun &&
         latestStatus &&
@@ -639,7 +653,9 @@ export const TimelineMessageList = memo(function TimelineMessageList({
             : undefined
         }
         thinkingLogs={
-          message.thinkingLogs?.length
+          message.workBackgroundLogs?.length
+            ? [...(message.thinkingLogs ?? []), ...message.workBackgroundLogs]
+            : message.thinkingLogs?.length
             ? message.thinkingLogs
             : message.role === "user"
               ? EMPTY_THINKING_LOGS
@@ -1310,7 +1326,7 @@ const CareerTimelineSection = ({
     >
       <div className={cn("mx-auto flex w-full max-w-[var(--career-chat-content-max-width)] flex-col gap-2 px-5 py-1")}>
         {showLoadOlderButton && hasOlderMessages && (
-          <div className="sticky top-[var(--career-content-inset-top,0px)] z-10 flex justify-center pb-2">
+          <div className="career-load-older">
             <ChatLoadOlderButton
               label={t(
                 "career.chat.career_timeline_section.0t1ynxd",

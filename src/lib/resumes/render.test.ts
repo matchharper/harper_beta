@@ -21,7 +21,9 @@ test("provider failures cannot expose credentials or return a non-PDF attachment
   const request = t.mock.method(globalThis, "fetch", async (_url: unknown, options?: RequestInit) => {
     const body = JSON.parse(String(options?.body));
     assert.ok(body.html.includes("김하늘"));
-    assert.ok(body.html.includes("data:font/woff2;base64,"));
+    assert.ok(body.html.includes("/resume-assets/"));
+    assert.ok(!body.html.includes("data:font/woff2;base64,"));
+    assert.ok(body.html.includes('integrity="sha384-'));
     assert.ok(body.html.includes("PagedModule"));
     assert.equal(body.options.preferCSSPageSize, true);
     assert.ok(body.waitForFunction.fn.includes("__resumeReady"));

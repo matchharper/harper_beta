@@ -1,0 +1,236 @@
+{
+  "version": "v8",
+  "requestTime": "2026-11-06T17:00:00+09:00",
+  "cases": [
+    {
+      "id": "summary_sufficient",
+      "message": "현재 후보 목록에서 나에게 지원할 만한 회사 두 곳 골라줘.",
+      "profile": {
+        "name": "이서윤",
+        "headline": "Data Scientist",
+        "location": "서울",
+        "bio": "학사, 경력 4년. 산업 센서 시계열과 수요 예측 모델을 개발하고 운영했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000202",
+            "role": "Data Scientist",
+            "company_name": "Meterworks",
+            "start_date": "2022-07",
+            "end_date": null,
+            "description": "산업 센서 시계열, 에너지 수요 예측 모델의 개발과 운영."
+          }
+        ]
+      },
+      "brief": "산업 시계열 ML 정규직. 국내 원격 또는 주 2회 이하 서울 출근. 기본연봉 8천만 원 이상. 박사 필수 역할은 제외.",
+      "memory": "학사 학위.",
+      "documents": [],
+      "role": null,
+      "matching": {
+        "id": "70000000-0000-4000-8000-000000000510",
+        "title": "산업 ML 후보",
+        "revision": 1
+      },
+      "pages": [],
+      "gmail": false,
+      "externalEvaluations": [
+        {
+          "id": "70000000-0000-4000-8000-000000000900",
+          "role_id": "70000000-0000-4000-8000-000000000700",
+          "evaluated_at": "2026-11-06T00:00:00Z",
+          "role": {
+            "name": "Forecasting Engineer",
+            "summary": {
+              "ko": {
+                "content": "국내 제조 공장에 에너지 예측 서비스를 제공하는 40명 규모 회사. 시계열 예측 모델의 개발·배포·모니터링을 맡으며, Python과 모델 운영 경력 3년 이상이 필요하다. 학사 지원 가능. 서울 주 1회 출근, 기본연봉 9천만~1억 1천만 원."
+              }
+            },
+            "company_workspace": {
+              "company_name": "VoltGrid"
+            }
+          },
+          "assessment": {
+            "fit": {
+              "mutualFit": 85,
+              "candidateInterest": 85,
+              "companyInterest": 85,
+              "constraintPass": 90
+            }
+          }
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000901",
+          "role_id": "70000000-0000-4000-8000-000000000701",
+          "evaluated_at": "2026-11-06T00:00:00Z",
+          "role": {
+            "name": "Applied ML Engineer",
+            "summary": {
+              "ko": {
+                "content": "산업 설비 유지보수 소프트웨어 회사. 센서 이상 탐지와 고장 예측 모델을 제품에 적용한다. ML 운영 경력 3년 이상, 학사 지원 가능. 국내 원격, 기본연봉 8천5백만~1억 원."
+              }
+            },
+            "company_workspace": {
+              "company_name": "FlowMetric"
+            }
+          },
+          "assessment": {
+            "fit": {
+              "mutualFit": 85,
+              "candidateInterest": 85,
+              "companyInterest": 85,
+              "constraintPass": 90
+            }
+          }
+        }
+      ],
+      "roleFacts": [
+        {
+          "role_id": "70000000-0000-4000-8000-000000000700",
+          "name": "Forecasting Engineer",
+          "source_type": "external",
+          "summary": {
+            "ko": {
+              "content": "국내 제조 공장에 에너지 예측 서비스를 제공하는 40명 규모 회사. 시계열 예측 모델의 개발·배포·모니터링을 맡으며, Python과 모델 운영 경력 3년 이상이 필요하다. 학사 지원 가능. 서울 주 1회 출근, 기본연봉 9천만~1억 1천만 원."
+            }
+          },
+          "description": "국내 제조 공장에 에너지 예측 서비스를 제공하는 40명 규모 회사. 시계열 예측 모델의 개발·배포·모니터링을 맡으며, Python과 모델 운영 경력 3년 이상이 필요하다. 학사 지원 가능. 서울 주 1회 출근, 기본연봉 9천만~1억 1천만 원.",
+          "company_workspace": {
+            "company_name": "VoltGrid",
+            "company_db": null
+          },
+          "external_jd_url": "https://voltgrid.example.test/jobs/ml"
+        },
+        {
+          "role_id": "70000000-0000-4000-8000-000000000701",
+          "name": "Applied ML Engineer",
+          "source_type": "external",
+          "summary": {
+            "ko": {
+              "content": "산업 설비 유지보수 소프트웨어 회사. 센서 이상 탐지와 고장 예측 모델을 제품에 적용한다. ML 운영 경력 3년 이상, 학사 지원 가능. 국내 원격, 기본연봉 8천5백만~1억 원."
+            }
+          },
+          "description": "산업 설비 유지보수 소프트웨어 회사. 센서 이상 탐지와 고장 예측 모델을 제품에 적용한다. ML 운영 경력 3년 이상, 학사 지원 가능. 국내 원격, 기본연봉 8천5백만~1억 원.",
+          "company_workspace": {
+            "company_name": "FlowMetric",
+            "company_db": null
+          },
+          "external_jd_url": "https://flowmetric.example.test/jobs/ml"
+        }
+      ]
+    },
+    {
+      "id": "summary_material_gap",
+      "message": "현재 후보 목록에서 지원할 만한 곳 골라줘. 박사 필수인 곳은 빼줘.",
+      "profile": {
+        "name": "이서윤",
+        "headline": "Data Scientist",
+        "location": "서울",
+        "bio": "학사, 경력 4년. 산업 센서 시계열과 수요 예측 모델을 개발하고 운영했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000202",
+            "role": "Data Scientist",
+            "company_name": "Meterworks",
+            "start_date": "2022-07",
+            "end_date": null,
+            "description": "산업 센서 시계열, 에너지 수요 예측 모델의 개발과 운영."
+          }
+        ]
+      },
+      "brief": "산업 시계열 ML 정규직. 국내 원격 또는 주 2회 이하 서울 출근. 기본연봉 8천만 원 이상. 박사 필수 역할은 제외.",
+      "memory": "학사 학위.",
+      "documents": [],
+      "role": null,
+      "matching": {
+        "id": "70000000-0000-4000-8000-000000000510",
+        "title": "산업 ML 후보",
+        "revision": 1
+      },
+      "pages": [],
+      "gmail": false,
+      "externalEvaluations": [
+        {
+          "id": "70000000-0000-4000-8000-000000000901",
+          "role_id": "70000000-0000-4000-8000-000000000701",
+          "evaluated_at": "2026-11-06T00:00:00Z",
+          "role": {
+            "name": "Applied ML Engineer",
+            "summary": {
+              "ko": {
+                "content": "산업 설비 유지보수 소프트웨어 회사. 센서 이상 탐지와 고장 예측 모델을 제품에 적용한다. ML 운영 경력 3년 이상, 학사 지원 가능. 국내 원격, 기본연봉 8천5백만~1억 원."
+              }
+            },
+            "company_workspace": {
+              "company_name": "FlowMetric"
+            }
+          },
+          "assessment": {
+            "fit": {
+              "mutualFit": 85,
+              "candidateInterest": 85,
+              "companyInterest": 85,
+              "constraintPass": 90
+            }
+          }
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000000902",
+          "role_id": "70000000-0000-4000-8000-000000000702",
+          "evaluated_at": "2026-11-06T00:00:00Z",
+          "role": {
+            "name": "Research Scientist",
+            "summary": {
+              "ko": {
+                "content": "산업 시계열 파운데이션 모델 연구 회사. 새 모델 설계와 논문 발표 중심의 연구 역할. 서울 주 2회 출근, 기본연봉 9천만~1억 원. 학위 자격은 이 요약에 기재되어 있지 않다."
+              }
+            },
+            "company_workspace": {
+              "company_name": "LabForge"
+            }
+          },
+          "assessment": {
+            "fit": {
+              "mutualFit": 85,
+              "candidateInterest": 85,
+              "companyInterest": 85,
+              "constraintPass": 90
+            }
+          }
+        }
+      ],
+      "roleFacts": [
+        {
+          "role_id": "70000000-0000-4000-8000-000000000701",
+          "name": "Applied ML Engineer",
+          "source_type": "external",
+          "summary": {
+            "ko": {
+              "content": "산업 설비 유지보수 소프트웨어 회사. 센서 이상 탐지와 고장 예측 모델을 제품에 적용한다. ML 운영 경력 3년 이상, 학사 지원 가능. 국내 원격, 기본연봉 8천5백만~1억 원."
+            }
+          },
+          "description": "산업 설비 유지보수 소프트웨어 회사. 센서 이상 탐지와 고장 예측 모델을 제품에 적용한다. ML 운영 경력 3년 이상, 학사 지원 가능. 국내 원격, 기본연봉 8천5백만~1억 원.",
+          "company_workspace": {
+            "company_name": "FlowMetric",
+            "company_db": null
+          },
+          "external_jd_url": "https://flowmetric.example.test/jobs/ml"
+        },
+        {
+          "role_id": "70000000-0000-4000-8000-000000000702",
+          "name": "Research Scientist",
+          "source_type": "external",
+          "summary": {
+            "ko": {
+              "content": "산업 시계열 파운데이션 모델 연구 회사. 새 모델 설계와 논문 발표 중심의 연구 역할. 서울 주 2회 출근, 기본연봉 9천만~1억 원. 학위 자격은 이 요약에 기재되어 있지 않다."
+            }
+          },
+          "description": "산업 시계열 파운데이션 모델 연구 회사. 새 모델 설계와 논문 발표 중심의 연구 역할. 서울 주 2회 출근, 기본연봉 9천만~1억 원. 학위 자격은 이 요약에 기재되어 있지 않다. 지원자격: 관련 분야 박사 학위 필수. 동등 경력 대체 불가.",
+          "company_workspace": {
+            "company_name": "LabForge",
+            "company_db": null
+          },
+          "external_jd_url": "https://labforge.example.test/jobs/ml"
+        }
+      ]
+    }
+  ]
+}

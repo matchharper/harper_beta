@@ -67,6 +67,7 @@ function fixture(
   const admin: any = {
     async rpc(name: string, args: any) {
       calls.push(name);
+      if (name === "claim_career_invocations") return { data: [], error: null };
       if (name === "claim_career_agent_email") {
         if (options.busy) return { data: null, error: null };
         if (!options.sent) { receipt.status = "sending"; receipt.payload.claimId = args.p_claim_id; }
@@ -115,6 +116,7 @@ function fixture(
           opportunity_discovery_run: run,
           talent_setting: options.setting ?? {},
           talent_users: { email: "test@example.invalid", deleted_at: null, ...options.talent },
+          talent_external_operations: [],
           talent_agent_runtime: null,
           talent_agent_schedules: null,
           talent_opportunity_delivery: receipt,
@@ -137,6 +139,7 @@ function fixture(
       const query: any = {
         select: () => query,
         order: () => query,
+        limit: () => query,
         neq: () => query,
         in: () => query,
         eq: (key: string, value: unknown) => {

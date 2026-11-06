@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCareerTurnProjection } from "./careerTurnProjection";
 import type { CareerMessage } from "@/components/career/types";
+import { toTalentMessageResponse } from "@/lib/talentOnboarding/models";
+import { toUiMessage } from "./careerHelpers";
+import { latestChoiceMessageIndex, choiceRepliesByMessageId } from "@/lib/career/latestChoiceMessage";
 
 const source: CareerMessage = { id: 1, role: "user", content: "확인해줘", createdAt: "2026-11-05T00:00:00Z", messageType: "chat" };
 const activity: CareerMessage = { id: 2, role: "assistant", content: "", createdAt: "2026-11-05T00:00:01Z", messageType: "career_turn_activity", workReplyId: "invocation:a", workPending: true, workEvents: [{ id: "message:0", kind: "message", text: "확인할게요." }] };
@@ -50,4 +53,55 @@ test("reloading during a long run reads its activity even when it is outside the
   const result = createCareerTurnProjection()([later], {...running, latestMessageId:40, turns:[activity]});
   assert.equal(result[0].workReplyId, "invocation:a");
   assert.deepEqual(result[0].workEvents, activity.workEvents);
+});
+
+const browser: CareerMessage = { id: 3, role: "assistant", content: "", messageType: "browser_session", createdAt: "2026-11-05T00:00:02Z", artifactReplyId: "invocation:a", browserSession: { sessionId: "browser-a" } };
+const form: CareerMessage = { id: 4, role: "assistant", content: "", messageType: "career_form_presentation", createdAt: "2026-11-05T00:00:03Z", artifactReplyId: "invocation:a", careerForm: { formId: 40, revision: 1, kind: "suggestion", title: "필수 정보 확인", items: [], relatedRefs: [{ type: "browser_session", id: "browser-a" }] } };
+const final: CareerMessage = { ...activity, id: 5, messageType: "chat", content: '답변[[CAREER_CHOICE_BUTTONS]]["진행"][[/CAREER_CHOICE_BUTTONS]]', workPending: false, createdAt: "2026-11-05T00:00:04Z" };
+
+test("artifacts stay inside their producing turn in call order through streaming, final arrival and reload", () => {
+  const project = createCareerTurnProjection();
+  let rows = project([source, activity, browser, form], running);
+  assert.deepEqual(rows.map(m => m.id), [1, 2]);
+  assert.deepEqual(rows[1].workArtifacts?.map(m => m.id), [3, 4]);
+  rows = project([source, activity, browser, form, final]);
+  assert.deepEqual(rows.map(m => m.id), [1, 5]);
+  assert.deepEqual(rows[1].workArtifacts?.map(m => m.id), [3, 4]);
+  assert.equal(rows[1].workArtifacts?.[1].careerForm?.formId, 40);
+  assert.equal(latestChoiceMessageIndex(rows), 1);
+  assert.equal(choiceRepliesByMessageId([...rows, { ...source, id: 6, content: "진행" }]).get("5"), "진행");
+  const reloaded = createCareerTurnProjection()([source, activity, browser, form, final]);
+  assert.deepEqual(reloaded.map(m => m.id), rows.map(m => m.id));
+  assert.deepEqual(reloaded[1].workArtifacts, rows[1].workArtifacts);
+  assert.equal(project([source, activity, browser, final])[1].workArtifacts?.length, 1);
+});
+
+test("interleaved independent executions never acquire each other's artifacts", () => {
+  const other = { ...activity, id: 6, workReplyId: "invocation:b" };
+  const otherBrowser = { ...browser, id: 7, artifactReplyId: "invocation:b", browserSession: { sessionId: "browser-b" } };
+  const rows = createCareerTurnProjection()([source, activity, other, otherBrowser, form, browser, final]);
+  assert.deepEqual(rows.find(m => m.workReplyId === "invocation:a")?.workArtifacts?.map(m => m.id), [3, 4]);
+  assert.deepEqual(rows.find(m => m.workReplyId === "invocation:b")?.workArtifacts?.map(m => m.id), [7]);
+  assert.deepEqual(createCareerTurnProjection()([source, browser]).map(m => m.id), [1, 3]);
+});
+
+test("existing presentation request IDs recover ownership and explicitly related legacy browser cards", () => {
+  const presentation = toUiMessage(toTalentMessageResponse({ id: 4, user_id: "owner", conversation_id: "conversation", role: "assistant", content: "", message_type: "career_form_presentation", created_at: form.createdAt, payload: { kind: "suggestion", formId: 40, revision: 1, items: [], relatedRefs: [{ type: "browser_session", id: "browser-a" }], requestId: "presentation:invocation:a:40:1" } }));
+  assert.equal(presentation.artifactReplyId, "invocation:a");
+  const rows = createCareerTurnProjection()([source, activity, { ...browser, artifactReplyId: undefined }, presentation, final]);
+  assert.deepEqual(rows[1].workArtifacts?.map(m => m.id), [3, 4]);
+});
+
+test("delegate tool logs attach to the originating reply without creating another assistant turn", () => {
+  const project=createCareerTurnProjection();
+  const final={...activity,content:"자료를 확인하고 있어요.",messageType:"chat",workPending:false};
+  const snapshot={latestMessageId:2,activeInvocationIds:["a","child"],activities:[{id:"child",ownerReplyId:"invocation:a",logs:["문서 확인 중"]}],turns:[final]};
+  const rows=project([source,final],snapshot);
+  assert.equal(rows.filter(m=>m.role==="assistant").length,1);
+  assert.equal(rows[1].content,final.content);
+  assert.deepEqual(rows[1].workBackgroundLogs,["문서 확인 중"]);
+  assert.equal(rows[1].workPending,true);
+  const done=project([source,final],{...snapshot,activeInvocationIds:[],activities:[]});
+  assert.equal(done[1].workPending,false);
+  assert.deepEqual(done[1].workBackgroundLogs,[]);
 });

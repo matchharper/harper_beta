@@ -27,18 +27,14 @@ const fit = {
   candidateInterest: 65,
   companyInterest: 60,
   mutualFit: 60,
-  roleFit: 80,
   constraintPass: 90,
-  evidence: "partial" as const,
 };
 function response(provider: "openai" | "jev") {
   const pairs = ids.flatMap((_, i) =>
     Object.entries(fit).map(([metric, value]) => {
       const q = {
         name: `r${i}_${metric}`,
-        ...(metric === "evidence"
-          ? { type: "choice", choice: value }
-          : metric === "mutualFit" || metric === "roleFit"
+        ...(metric === "mutualFit"
             ? { type: "score", score: Number(value) / 25 }
             : provider === "openai"
               ? { type: "predicate", probability: Number(value) / 100 }
@@ -54,12 +50,13 @@ function response(provider: "openai" | "jev") {
         : Object.fromEntries(pairs),
   };
 }
-test("both provider contracts cover all 10 role pairs and preserve 6 independent axes", () => {
+test("both provider contracts cover all 10 role pairs and preserve 4 independent axes", () => {
   for (const provider of ["openai", "jev"] as const) {
     const request = buildDecisionRequest(provider, "Synthetic evidence", ids);
-    assert.equal(Object.keys(request.questions).length, 60);
+    assert.equal(Object.keys(request.questions).length, 40);
     const parsed = parseDecisionBatch(provider, response(provider), ids);
     assert.equal(parsed.evaluations.length, 10);
+    assert.deepEqual(parsed.evaluations.map(row => row.roleId), ids);
     assert.deepEqual(parsed.errors, []);
     for (const row of parsed.evaluations) assert.deepEqual(row.fit, fit);
   }
@@ -69,7 +66,7 @@ test("one refused, malformed or duplicate answer invalidates only its pair; raw 
   const raw = response("openai");
   const answers = raw.answers as any[];
   answers[0] = { name: "r0_candidateInterest", type: "refusal" };
-  answers.push({ ...answers[6] });
+  answers.push({ ...answers[4] });
   const parsed = parseDecisionBatch("openai", raw, ids);
   assert.equal(parsed.evaluations.length, 8);
   assert.deepEqual(parsed.errors, ids.slice(0, 2));
@@ -83,13 +80,18 @@ test("historical cohorts remain stable for A/B reports and input order cannot in
   assert.equal(fingerprint({ b: 2, a: 1 }), fingerprint({ a: 1, b: 2 }));
   assert.notEqual(evaluatorKey("openai"), evaluatorKey("jev"));
 });
+test("historical six-metric results retain their weights and fields without filling removed metrics in new fits", () => {
+  const legacy = { ...fit, roleFit: 80, evidence: "partial" as const };
+  assert.equal(rankScore(legacy), 0.45 * fit.mutualFit + 0.35 * fit.candidateInterest + 0.1 * fit.companyInterest + 0.1 * legacy.roleFit);
+  assert.deepEqual(fitForLlm(legacy), legacy);
+  assert.deepEqual(Object.keys(fitForLlm(fit)).sort(), ["candidateInterest", "companyInterest", "constraintPass", "mutualFit"]);
+});
 test("fit ranking has no opportunity quality input; Decisions threshold is separate", () => {
   assert.equal(
     rankScore(fit),
-    0.65 * fit.mutualFit +
-      0.15 * fit.candidateInterest +
-      0.1 * fit.companyInterest +
-      0.1 * fit.roleFit
+    0.55 * fit.mutualFit +
+      0.35 * fit.candidateInterest +
+      0.1 * fit.companyInterest
   );
   assert.equal(cachedFitEligible(fit), true);
   assert.equal(cachedFitEligible({ ...fit, mutualFit: 32.5 }), true);
@@ -208,7 +210,6 @@ test("constraint conflict receives a quadratic penalty before shortlist selectio
     mutualFit: 100,
     candidateInterest: 100,
     companyInterest: 100,
-    roleFit: 100,
   };
   assert.equal(rankScore({ ...strong, constraintPass: 51 }), 100);
   assert.equal(rankScore({ ...strong, constraintPass: 50 }), 20);
@@ -226,16 +227,14 @@ test("LLM metrics truncate to one decimal, retaining 0–100 scale and stored pr
     candidateInterest: 34.999,
     companyInterest: 67.777,
     mutualFit: 28.000000000000004,
-    roleFit: 64.25,
   };
   assert.deepEqual(fitForLlm(original), {
     ...fit,
     candidateInterest: 34.9,
     companyInterest: 67.7,
     mutualFit: 28,
-    roleFit: 64.2,
   });
-  assert.equal(original.roleFit, 64.25);
+  assert.equal(original.companyInterest, 67.777);
 });
 test("native out-of-range answers cannot masquerade as valid percent scores", () => {
   for (const provider of ["openai", "jev"] as const) {

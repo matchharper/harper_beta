@@ -50,6 +50,18 @@ function asNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+// Missing monetary/usage fields must not become a successful zero-cost result.
+function requiredNumber(value: unknown, field: string) {
+  if (
+    (typeof value !== "number" && typeof value !== "string") ||
+    (typeof value === "string" && !value.trim()) ||
+    !Number.isFinite(Number(value))
+  ) {
+    throw new Error(`${field} 값을 조회하지 못했습니다.`);
+  }
+  return Number(value);
+}
+
 function toDateOnly(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -111,7 +123,8 @@ function getRemoteErrorMessage(payload: unknown) {
 async function fetchJson(
   url: string,
   init: RequestInit,
-  providerLabel: string
+  providerLabel: string,
+  format: "json" | "jsonl" = "json"
 ) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -122,17 +135,28 @@ async function fetchJson(
       cache: "no-store",
       signal: controller.signal,
     });
-    const payload = (await response.json().catch(() => ({}))) as unknown;
     if (!response.ok) {
-      const detail = getRemoteErrorMessage(payload);
+      const payload = await response.json().catch(() => ({}));
+      // Browserless authenticates in the URL: never echo remote errors containing it.
+      const detail =
+        providerLabel === "Browserless" ? "" : getRemoteErrorMessage(payload);
       throw new Error(
         `${providerLabel} API ${response.status}${detail ? `: ${detail}` : ""}`
       );
     }
-    return payload;
+    if (format === "jsonl") {
+      return (await response.text())
+        .split(/\r?\n/)
+        .filter((line) => line.trim())
+        .map((line) => JSON.parse(line) as unknown);
+    }
+    return (await response.json()) as unknown;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error(`${providerLabel} API 응답 시간이 초과되었습니다.`);
+    }
+    if (providerLabel === "Browserless") {
+      throw new Error("Browserless 사용량 조회에 실패했습니다.");
     }
     throw error;
   } finally {
@@ -185,7 +209,7 @@ function notConfiguredCost(
     message: `${envNames.join(", ")} 설정이 필요합니다.`,
     points: [],
     status: "not_configured",
-    total: 0,
+    total: null,
   };
 }
 
@@ -201,7 +225,7 @@ function failedCost(
     message: error instanceof Error ? error.message : "조회에 실패했습니다.",
     points: [],
     status: "error",
-    total: 0,
+    total: null,
   };
 }
 
@@ -528,6 +552,229 @@ async function fetchExaCosts(range: DateRange) {
   }
 }
 
+async function fetchBrowserUseCosts(range: DateRange) {
+  const label = "Browser Use";
+  const key = process.env.BROWSER_USE_API_KEY?.trim();
+  if (!key)
+    return notConfiguredCost("browser-use", label, ["BROWSER_USE_API_KEY"]);
+
+  try {
+    const amounts = new Map<string, number>();
+    const models = new Map<string, Map<string, number>>();
+    const cursors = new Set<string>();
+    const runIds = new Set<string>();
+    const deadline = Date.now() + REQUEST_TIMEOUT_MS;
+    let cursor = "";
+    do {
+      const query = new URLSearchParams({ limit: "100" });
+      if (cursor) query.set("cursor", cursor);
+      const payload = asRecord(
+        await fetchJson(
+          `https://api.browser-use.com/api/v4/runs?${query}`,
+          { headers: { "X-Browser-Use-API-Key": key } },
+          label
+        )
+      );
+      if (!Array.isArray(payload.runs))
+        throw new Error("Browser Use 실행 내역을 조회하지 못했습니다.");
+      for (const rawRun of payload.runs) {
+        const run = asRecord(rawRun);
+        const date = parseDateOnly(asString(run.createdAt).slice(0, 10));
+        const id = asString(run.id);
+        if (!date || !id)
+          throw new Error("Browser Use 실행 일자·ID를 조회하지 못했습니다.");
+        if (date < range.from || date >= range.endExclusive || runIds.has(id))
+          continue;
+        runIds.add(id);
+        const amount = requiredNumber(run.totalCostUsd, "Browser Use 비용");
+        amounts.set(date, (amounts.get(date) ?? 0) + amount);
+        addBreakdownAmount(
+          models,
+          asString(run.model) || "미분류",
+          date,
+          amount
+        );
+      }
+      if (!payload.hasMore) break;
+      // Keep pagination within the internal route's 60-second execution budget.
+      if (Date.now() >= deadline) {
+        throw new Error("Browser Use 전체 내역 조회 시간이 초과되었습니다.");
+      }
+      cursor = asString(payload.nextCursor);
+      if (!cursor || cursors.has(cursor))
+        throw new Error("Browser Use 다음 페이지를 조회하지 못했습니다.");
+      cursors.add(cursor);
+    } while (cursor);
+
+    return {
+      ...successfulCost("browser-use", label, pointsFromMap(amounts)),
+      breakdown: breakdownFromMap(models),
+      totalLabel: "V4 모델·검색 비용",
+      message: "실행 시작일 기준 · 브라우저·프록시 비용과 크레딧·프로모션 제외",
+      dashboardUrl: "https://cloud.browser-use.com/settings?tab=billing",
+    };
+  } catch (error) {
+    return failedCost("browser-use", label, error);
+  }
+}
+
+async function fetchBrowserUseCredit(): Promise<OpsCreditProviderResult> {
+  const label = "Browser Use";
+  const key = process.env.BROWSER_USE_API_KEY?.trim();
+  if (!key)
+    return notConfiguredCredit("browser-use", label, ["BROWSER_USE_API_KEY"]);
+  try {
+    const payload = asRecord(
+      await fetchJson(
+        "https://api.browser-use.com/api/v2/billing/account",
+        { headers: { "X-Browser-Use-API-Key": key } },
+        label
+      )
+    );
+    return {
+      id: "browser-use",
+      label,
+      amounts: [
+        {
+          amount: requiredNumber(
+            payload.totalCreditsBalanceUsd,
+            "Browser Use 크레딧"
+          ),
+          currency: "USD",
+        },
+      ],
+      items: [],
+      message: null,
+      status: "ok",
+    };
+  } catch (error) {
+    return failedCredit("browser-use", label, error);
+  }
+}
+
+async function fetchBrowserlessUsage(): Promise<OpsCostProviderResult> {
+  const label = "Browserless";
+  const token = process.env.BROWSERLESS_API_TOKEN?.trim();
+  if (!token)
+    return notConfiguredCost("browserless", label, ["BROWSERLESS_API_TOKEN"]);
+  try {
+    const query = new URLSearchParams({ token });
+    const payload = asRecord(
+      await fetchJson(
+        `https://api.browserless.io/v1/account/usage?${query}`,
+        {},
+        label
+      )
+    );
+    const units = asRecord(payload.units);
+    const period = asRecord(payload.billingPeriod);
+    const from = parseDateOnly(asString(period.start).slice(0, 10));
+    const through = parseDateOnly(asString(period.end).slice(0, 10));
+    if (!from || !through)
+      throw new Error("Browserless 결제 주기를 조회하지 못했습니다.");
+    return {
+      currency: "USD",
+      id: "browserless",
+      label,
+      status: "ok",
+      points: [],
+      total: null,
+      message: "금액 미제공 · 현재 결제 주기 사용량",
+      dashboardUrl: "https://www.browserless.io/account",
+      usage: {
+        from,
+        through,
+        plan: asString(asRecord(payload.plan).name),
+        used: requiredNumber(units.used, "Browserless 사용 유닛"),
+        included: requiredNumber(units.included, "Browserless 포함 유닛"),
+        remaining: requiredNumber(units.remaining, "Browserless 잔여 유닛"),
+      },
+    };
+  } catch (error) {
+    return failedCost("browserless", label, error);
+  }
+}
+
+async function fetchVercelCosts(range: DateRange) {
+  const label = "Vercel";
+  const token =
+    process.env.VERCEL_API_TOKEN?.trim() || process.env.VERCEL_TOKEN?.trim();
+  const teamId =
+    process.env.VERCEL_TEAM_ID?.trim() || process.env.VERCEL_ORG_ID?.trim();
+  if (!token || !teamId) {
+    return notConfiguredCost("vercel", label, [
+      ...(!token ? ["VERCEL_API_TOKEN 또는 VERCEL_TOKEN"] : []),
+      ...(!teamId ? ["VERCEL_TEAM_ID 또는 VERCEL_ORG_ID"] : []),
+    ]);
+  }
+  try {
+    const query = new URLSearchParams({
+      from: `${range.from}T00:00:00.000Z`,
+      // Vercel rounds query dates to its billing-day boundary (observed at
+      // 08:00 UTC). Include the following bucket, then filter by the returned
+      // ChargePeriodStart UTC date so the range's final day is not lost.
+      to: `${addUtcDays(range.endExclusive, 1)}T00:00:00.000Z`,
+      teamId,
+    });
+    const charges = asArray(
+      await fetchJson(
+        `https://api.vercel.com/v1/billing/charges?${query}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Accept-Encoding": "gzip",
+          },
+        },
+        label,
+        "jsonl"
+      )
+    );
+    const amounts = new Map<string, number>();
+    const services = new Map<string, Map<string, number>>();
+    for (const rawCharge of charges) {
+      const charge = asRecord(rawCharge);
+      const date = parseDateOnly(
+        asString(charge.ChargePeriodStart).slice(0, 10)
+      );
+      if (!date || charge.BillingCurrency !== "USD") {
+        throw new Error("Vercel 청구 일자·통화를 확인하지 못했습니다.");
+      }
+      if (date < range.from || date >= range.endExclusive) continue;
+      const amount = requiredNumber(charge.BilledCost, "Vercel 청구 비용");
+      const service =
+        [charge.ServiceName, charge.ChargeCategory]
+          .map(asString)
+          .filter(Boolean)
+          .join(" · ") || "미분류";
+      amounts.set(date, (amounts.get(date) ?? 0) + amount);
+      addBreakdownAmount(services, service, date, amount);
+    }
+    return {
+      ...successfulCost("vercel", label, pointsFromMap(amounts)),
+      breakdown: breakdownFromMap(services),
+      totalLabel: "팀 전체 청구 비용",
+      message: "제공사 청구일·BilledCost 기준 · 크레딧·조정 포함",
+      dashboardUrl: "https://vercel.com/dashboard",
+    };
+  } catch (error) {
+    return failedCost("vercel", label, error);
+  }
+}
+
+function supabaseCost(): OpsCostProviderResult {
+  // The public Management API exposes project add-ons, but no billing ledger.
+  return {
+    currency: "USD",
+    id: "supabase",
+    label: "Supabase",
+    status: "unavailable",
+    total: null,
+    points: [],
+    message: "공개 API에서 청구 금액 미제공",
+    dashboardUrl: "https://supabase.com/dashboard/org/_/billing",
+  };
+}
+
 function getAwsConfig() {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID?.trim();
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY?.trim();
@@ -676,9 +923,7 @@ function groupAwsCreditAmounts(credits: CreditData[]) {
       amount: 0,
       currentPeriodUsedAmount: 0,
     };
-    const settledRemaining = asNumber(
-      credit.remainingAmount?.currencyAmount
-    );
+    const settledRemaining = asNumber(credit.remainingAmount?.currencyAmount);
     const estimatedRemaining = asNumber(amount?.currencyAmount);
     groupedAmount.amount += estimatedRemaining;
     groupedAmount.currentPeriodUsedAmount += Math.max(
@@ -770,6 +1015,10 @@ export async function fetchOpsCosts(
     openrouter,
     exa,
     ec2,
+    browserUse,
+    browserless,
+    vercel,
+    browserUseCredit,
     openrouterCredit,
     awsCredit,
   ] = await Promise.all([
@@ -778,13 +1027,27 @@ export async function fetchOpsCosts(
     fetchOpenRouterCosts(range),
     fetchExaCosts(range),
     fetchEc2Costs(range),
+    fetchBrowserUseCosts(range),
+    fetchBrowserlessUsage(),
+    fetchVercelCosts(range),
+    fetchBrowserUseCredit(),
     fetchOpenRouterCredit(),
     fetchAwsCredit(),
   ]);
 
   return {
-    costs: [claude, openai, openrouter, exa, ec2],
-    credits: [openrouterCredit, awsCredit],
+    costs: [
+      claude,
+      openai,
+      openrouter,
+      exa,
+      browserUse,
+      browserless,
+      ec2,
+      vercel,
+      supabaseCost(),
+    ],
+    credits: [openrouterCredit, awsCredit, browserUseCredit],
     from: range.from,
     generatedAt: new Date().toISOString(),
     through: range.through,

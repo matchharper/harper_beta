@@ -1,3 +1,4 @@
+import { parseProfileSourceJson } from "./profileSourceJson";
 import { randomUUID } from "node:crypto";
 import { readProfileSnapshot, writeProfileSnapshot, type ProfileSnapshot } from "@/lib/career/profiles/store";
 import { logger } from "@/utils/logger";
@@ -215,10 +216,8 @@ type ExtractedTalentProfileDraft = {
   };
 };
 
-const RESUME_ENRICHMENT_LLM_TIMEOUT_MS = 180_000;
-const PROFILE_UPDATE_MERGE_LLM_TIMEOUT_MS = 90_000;
-const LLM_EXPERIENCE_OUTPUT_LIMIT = 10;
-const LLM_EXTRA_GROUP_OUTPUT_LIMIT = 5;
+const RESUME_ENRICHMENT_LLM_TIMEOUT_MS = 360_000;
+const PROFILE_UPDATE_MERGE_LLM_TIMEOUT_MS = 240_000;
 
 function toArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -986,24 +985,6 @@ function buildLinkedinTalentExtras(
   );
 }
 
-function stripJsonFence(raw: string): string {
-  return raw
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-}
-
-function parseLlmJson(raw: string): LlmEnrichmentDraft | null {
-  try {
-    const parsed = JSON.parse(stripJsonFence(raw)) as LlmEnrichmentDraft;
-    if (!parsed || typeof parsed !== "object") return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 function normalizeLlmEnrichment(raw: LlmEnrichmentDraft): {
   talentUserPatch: Partial<TalentUserDraft>;
   experiences: TalentExperienceDraft[];
@@ -1050,9 +1031,9 @@ function normalizeLlmEnrichment(raw: LlmEnrichmentDraft): {
 
   return {
     talentUserPatch: userPatch,
-    experiences: experiences.slice(0, LLM_EXPERIENCE_OUTPUT_LIMIT),
+    experiences,
     educations,
-    talentExtras: talentExtras.slice(0, LLM_EXTRA_GROUP_OUTPUT_LIMIT),
+    talentExtras,
     blockedCompanies: normalizeTalentBlockedCompanies(raw.blockedCompanies),
     notes: null,
   };
@@ -1142,7 +1123,7 @@ function normalizeLlmProfileMerge(raw: LlmProfileMergeDraft): {
         .map((item) => toMergedExperienceDraft(item))
         .filter((item): item is MergedTalentExperienceDraft => item !== null),
       experienceKey
-    ).slice(0, LLM_EXPERIENCE_OUTPUT_LIMIT),
+    ),
     educations: dedupeMergedRows(
       toArray(raw.educations ?? raw.talentEducations)
         .map((item) => toMergedEducationDraft(item))
@@ -1154,7 +1135,7 @@ function normalizeLlmProfileMerge(raw: LlmProfileMergeDraft): {
         .map((item) => toMergedExtraDraft(item))
         .filter((item): item is MergedTalentExtraDraft => item !== null),
       extraKey
-    ).slice(0, LLM_EXTRA_GROUP_OUTPUT_LIMIT),
+    ),
     notes: base.notes,
   };
 }
@@ -1216,9 +1197,9 @@ async function runResumeEnrichmentLlm(args: {
       bio: userDraft.bio,
       location: userDraft.location,
     },
-    experiences: experiences.slice(0, 30).map(compactExperienceForPrompt),
-    educations: educations.slice(0, 20).map(compactEducationForPrompt),
-    extras: talentExtras.slice(0, 40),
+    experiences: experiences.map(compactExperienceForPrompt),
+    educations: educations.map(compactEducationForPrompt),
+    extras: talentExtras,
     scholarLinks,
   };
 
@@ -1238,18 +1219,19 @@ async function runResumeEnrichmentLlm(args: {
         }),
       },
     ],
+    abortSignal: AbortSignal.timeout(RESUME_ENRICHMENT_LLM_TIMEOUT_MS),
     usageLabel: "career/profile_ingestion:resume_enrichment",
   });
 
   logger.log("[TalentIngest] LLM enrichment done");
 
-  const parsed = parseLlmJson(llmRaw);
+  const parsed = parseProfileSourceJson(llmRaw);
   if (!parsed) {
     logger.log(
       "[TalentIngest] LLM response parse failed",
       llmRaw.slice(0, 1000)
     );
-    return { normalized: null, raw: llmRaw };
+    throw new Error("Profile extraction returned invalid JSON");
   }
 
   return {
@@ -1258,7 +1240,7 @@ async function runResumeEnrichmentLlm(args: {
   };
 }
 
-async function extractTalentProfileDraftFromSources(
+export async function extractTalentProfileDraftFromSources(
   args: IngestArgs
 ): Promise<ExtractedTalentProfileDraft> {
   const { admin, userId } = args;
@@ -1274,7 +1256,10 @@ async function extractTalentProfileDraftFromSources(
   const registeredLinkedinUrl = pickLinkedinUrl(links);
   const linkedinUrl = args.skipLinkedinFetch ? null : registeredLinkedinUrl;
   const scholarLinks = pickScholarLinks(links);
-  const resumeText = cleanMultilineText(args.resumeText, 24000);
+  const resumeText = sanitizeMultilineDbText(
+    args.resumeText,
+    args.resumeText?.length ?? 0
+  );
   if (!linkedinUrl && !resumeText) {
     throw new Error("LinkedIn profile link or resume text is required");
   }
@@ -1530,7 +1515,10 @@ export async function ingestTalentProfileFromLinkedin(
   if (resumeStoragePath) {
     userPayload.resume_storage_path = resumeStoragePath;
   }
-  const resumeText = sanitizeMultilineDbText(args.resumeText, 24000);
+  const resumeText = sanitizeMultilineDbText(
+    args.resumeText,
+    args.resumeText?.length ?? 0
+  );
   if (resumeText) {
     userPayload.resume_text = resumeText;
   }
@@ -1868,16 +1856,17 @@ async function runProfileUpdateMergeLlm(args: {
         }),
       },
     ],
+    abortSignal: AbortSignal.timeout(PROFILE_UPDATE_MERGE_LLM_TIMEOUT_MS),
     usageLabel: "career/profile_ingestion:profile_update_merge",
   });
 
   logger.log("[TalentIngest] profile update merge LLM done");
-  const parsed = parseLlmJson(llmRaw) as LlmProfileMergeDraft | null;
+  const parsed = parseProfileSourceJson(llmRaw) as LlmProfileMergeDraft | null;
   if (!parsed) {
     logger.log("[TalentIngest] profile update merge parse failed", {
       preview: llmRaw.slice(0, 1000),
     });
-    return buildFallbackMergedProfile(args);
+    throw new Error("Profile merge returned invalid JSON");
   }
 
   const normalized = normalizeLlmProfileMerge(parsed);
@@ -1966,7 +1955,10 @@ function profileUserUpdatePayload(args: {
   if (resumeStoragePath) {
     payload.resume_storage_path = resumeStoragePath;
   }
-  const resumeText = sanitizeMultilineDbText(args.resumeText, 24000);
+  const resumeText = sanitizeMultilineDbText(
+    args.resumeText,
+    args.resumeText?.length ?? 0
+  );
   if (resumeText) {
     payload.resume_text = resumeText;
   }
@@ -2027,23 +2019,11 @@ export async function mergeTalentProfileFromLatestSources(
   const { admin, userId, existingProfile } = args;
   const currentVersion = await readProfileSnapshot({ admin: admin as any, userId });
   const extracted = await extractTalentProfileDraftFromSources(args);
-  let mergedRaw: ReturnType<typeof buildFallbackMergedProfile>;
-  try {
-    mergedRaw = await withTimeout(
-      runProfileUpdateMergeLlm({ existingProfile, extracted }),
-      PROFILE_UPDATE_MERGE_LLM_TIMEOUT_MS,
-      "Profile update merge LLM timed out"
-    );
-  } catch (mergeError) {
-    logger.log("[TalentIngest] profile update merge fallback", {
-      userId,
-      error:
-        mergeError instanceof Error
-          ? mergeError.message
-          : "Failed to merge latest profile sources",
-    });
-    mergedRaw = buildFallbackMergedProfile({ existingProfile, extracted });
-  }
+  const mergedRaw = await withTimeout(
+    runProfileUpdateMergeLlm({ existingProfile, extracted }),
+    PROFILE_UPDATE_MERGE_LLM_TIMEOUT_MS,
+    "Profile update merge LLM timed out"
+  );
   let experiences = validMergedExperienceRows({
     existingProfile,
     rows: mergedRaw.experiences,

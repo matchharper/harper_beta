@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v12",
+  "createdAt": "2026-11-05",
+  "provenance": "Controlled one-variable derivative of v10: consistent employment start. Preserves v10 failures, isolates the requested known-source/no-boss-contact behavior. Gold frozen before generation.",
+  "hashes": {
+    "cases-v12.json": "4ed621c22ef54bfb697ae70035a4cb4b506d7567d8761f3d9e441345e90d2fa7",
+    "gold-v12.json": "e8f9dd5040b11fdb19615cf90dec08069deaa1fef21e835cda730702f0ed049b"
+  }
+}

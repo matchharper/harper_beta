@@ -149,3 +149,27 @@ test("Decisions unavailability leaves the main assistant's ordinary loaders usab
     assert.ok(runtime.resolveStep(false).offeredNames.has("read_document"));
   } finally { if (previous === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = previous; }
 });
+
+test("delegation is discoverable but only manually loaded, including full mode and selector preloads", () => {
+  const eligibleTools = [...tools, { type: "function" as const, function: { name: "manage_work", description: "Delegate", parameters: {} } }];
+  assert.ok(!buildCareerDecisionCatalog(new Set(eligibleTools.map(t => t.function.name))).some(c => c.id === "delegation"));
+  for (const mode of ["full", "progressive"] as const) {
+    const runtime = make({ mode, eligibleTools, preloads: ["delegation"] });
+    const step = runtime.resolveStep(false);
+    assert.ok(!step.offeredNames.has("manage_work"));
+    assert.ok(step.offeredNames.has(CAREER_CAPABILITY_LOADER));
+    assert.ok(JSON.stringify(step.systemBlocks).includes("delegation"));
+    assert.equal(runtime.load({ capabilityIds: ["delegation"] }, step).ok, true);
+    assert.ok(runtime.resolveStep(false).offeredNames.has("manage_work"));
+  }
+});
+
+test("a pending external receipt is observed durably without suspending the conversation", async () => {
+  const observed: unknown[] = [];
+  const runtime = make({ observePendingWork: async dependency => { observed.push(dependency); } });
+  const step = runtime.resolveStep(false);
+  await runtime.recordResult("use_browser", { careerContinuation: { kind: "browser_run", id: "run-a" } }, step);
+  await runtime.recordResult("use_browser", { careerContinuation: { kind: "browser_control", id: "session-b" } }, step);
+  await runtime.beforeCompletion(step, { transport: "chat", messages: [] });
+  assert.deepEqual(observed, [{ kind: "browser_run", id: "run-a" }, { kind: "browser_control", id: "session-b" }]);
+});

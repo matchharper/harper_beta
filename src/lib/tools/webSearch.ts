@@ -19,6 +19,7 @@ export type WebSearchResult = {
 export type WebSearchResponse = {
   query: string;
   results: WebSearchResult[];
+  structuredText?: string;
 };
 
 const DEFAULT_RESULT_COUNT = 10;
@@ -46,6 +47,7 @@ export async function runWebSearch(args: {
   searchPurpose?: "mock_interview";
   maxResults?: number;
   query: string;
+  structuredText?: string;
 }): Promise<WebSearchResponse> {
   const query = String(args.query ?? "").trim();
   const maxResults = clampCount(args.maxResults, DEFAULT_RESULT_COUNT);
@@ -57,6 +59,9 @@ export async function runWebSearch(args: {
   const response = await (args.exa ?? getExaClient()).search(query, {
     numResults: maxResults,
     type: "auto",
+    ...(args.structuredText
+      ? { outputSchema: { type: "text" as const, description: args.structuredText } }
+      : {}),
     contents: {
       text: { maxCharacters: SEARCH_TEXT_MAX_CHARACTERS },
       highlights:
@@ -127,5 +132,17 @@ export async function runWebSearch(args: {
   return {
     query,
     results: resultsWithText.map(({ text: _text, ...result }) => result),
+    ...(args.structuredText && typeof response.output?.content === "string"
+      ? {
+          structuredText: [
+            response.output.content,
+            ...(response.output.grounding ?? []).map((entry) =>
+              `${entry.field} (confidence: ${entry.confidence}): ${entry.citations
+                .map((citation) => `${citation.title} — ${citation.url}`)
+                .join("; ")}`
+            ),
+          ].join("\n\n"),
+        }
+      : {}),
   };
 }

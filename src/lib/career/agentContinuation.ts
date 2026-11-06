@@ -19,12 +19,21 @@ export async function careerCheckpointIsReady(admin: TalentAdminClient, userId: 
       if (data && data.status !== "completed") return false;
       continue;
     }
+    if (work.kind === "browser_control") {
+      const { readOperation } = await import("./externalOperations/store");
+      const { browserHasHumanControl } = await import("./browser/tool");
+      const session = await readOperation({ admin, userId }, work.id);
+      if (session && browserHasHumanControl(session)) return false;
+      continue;
+    }
     if (work.kind === "browser_run") {
       const { readOperation } = await import("./externalOperations/store");
-      const { refreshBrowserExecution } = await import("./browser/tool");
+      const { refreshBrowserExecution, browserHasHumanControl } = await import("./browser/tool");
       const current = await readOperation({ admin, userId }, work.id);
       if (current) {
         const observed = await refreshBrowserExecution({ admin, userId }, current);
+        const session = observed.parent_id ? await readOperation({ admin, userId }, observed.parent_id) : null;
+        if (session && browserHasHumanControl(session)) return false;
         if (["reserved", "preparing", "dispatching", "running", "cancelling"].includes(observed.status)) return false;
       }
       continue;
@@ -82,6 +91,10 @@ export async function dispatchCareerCheckpoint(args: {
 export async function resumeCareerAgentAfterWork(args: {
   admin: TalentAdminClient; userId: string; conversationId: string; replyId: string;
 }) {
+  const { publishCareerInvocations } = await import("./work/invocations");
+  const { reconcileCareerDependencies } = await import("./work/events");
+  await reconcileCareerDependencies(args);
+  await publishCareerInvocations(args);
   const { data, error } = await (args.admin.from as any)("talent_agent_runtime").select("state")
     .eq("conversation_id", args.conversationId).eq("user_id", args.userId).maybeSingle();
   if (error) throw error;

@@ -40,14 +40,14 @@ export function CareerOpportunitySummary() {
       className="career-summary career-glass"
       data-career-opportunity-summary
     >
-      <Typography as="h2" variant="description" className="mb-4">
+      <Typography as="h2" variant="description" className="mb-8">
         {t("career.tasks.opportunity_summary.title", "지원 현황")}
       </Typography>
       <dl className="grid grid-cols-3 gap-4" aria-busy={historyLoading}>
         {stats.map(({ key, label, count }) => (
           <ClickablePanel
             key={key}
-            className="flex min-w-0 flex-col rounded-control transition-colors hover:bg-interaction-hover"
+            className="flex min-w-0 rounded-md flex-col cursor-pointer transition-colors hover:bg-interaction-hover"
             disabled={!navigation}
             onActivate={() =>
               navigation?.navigate("history", {

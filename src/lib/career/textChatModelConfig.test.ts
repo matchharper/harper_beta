@@ -4,6 +4,7 @@ import {
   CLAUDE_HAIKU_MODEL,
   GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
+  GPT_61_TERRA_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
 } from "@/lib/llm/modelConfig";
@@ -24,10 +25,10 @@ test("allows only the Career dev-control text chat models", () => {
   assert.equal(isCareerTextChatModelId("grok-4.3"), false);
 });
 
-test("uses GPT-6.1 Sol high by default and maps model-specific reasoning effort", () => {
-  assert.equal(DEFAULT_CAREER_TEXT_CHAT_MODEL, GPT_61_SOL_MODEL);
+test("uses GPT-6.1 Terra high by default and maps model-specific reasoning effort", () => {
+  assert.equal(DEFAULT_CAREER_TEXT_CHAT_MODEL, GPT_61_TERRA_MODEL);
   assert.deepEqual(resolveCareerTextChatModel("unsupported"), {
-    model: GPT_61_SOL_MODEL,
+    model: GPT_61_TERRA_MODEL,
     openAIResponsesReasoningEffort: "high",
   });
   assert.deepEqual(resolveCareerTextChatModel(OPENROUTER_GLM_53_FLASH_MODEL), {
@@ -51,7 +52,7 @@ test("uses GPT-6.1 Sol high by default and maps model-specific reasoning effort"
 test("ignores a per-request model override without dev-control access", () => {
   for (const model of [CLAUDE_HAIKU_MODEL, OPENROUTER_GLM_53_FLASH_MODEL]) {
     assert.deepEqual(resolveCareerTextChatModelForRequest(model, false), {
-      model: GPT_61_SOL_MODEL,
+      model: GPT_61_TERRA_MODEL,
       openAIResponsesReasoningEffort: "high",
     });
     assert.equal(resolveCareerTextChatModelForRequest(model, true).model, model);

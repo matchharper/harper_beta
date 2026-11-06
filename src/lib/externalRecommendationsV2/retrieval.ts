@@ -148,6 +148,7 @@ export async function retrieveRoles(args: {
   plan: V2SearchPlan;
   userId: string;
   blockedCompanies: string[];
+  companyWorkspaceIds?: string[];
   limit?: number;
   excludeRoleIds?: string[];
   includePreviouslyRecommended?: boolean;

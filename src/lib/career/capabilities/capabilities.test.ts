@@ -176,7 +176,7 @@ test("offered tools remain callable beyond the old domain and loader counts", ()
     assert.equal(runtime.claimCall("write_talent_context", step), null);
   }
 });
-test("full preserves existing prompt blocks and excludes loader", () => {
+test("full preserves prompt blocks and keeps the optional delegation loader", () => {
   const resolved = resolveCareerCapabilities({
     mode: "full",
     loaded: new Set(),
@@ -195,7 +195,8 @@ test("full preserves existing prompt blocks and excludes loader", () => {
     full.promptBlocks.filter((b) => b.key !== "capability_catalog"),
     old.promptBlocks
   );
-  assert.ok(!resolved.offeredNames.has(LOADER));
+  assert.ok(resolved.offeredNames.has(LOADER));
+  assert.ok(!resolved.offeredNames.has("manage_work"));
 });
 test("N counts completed source turns and stops at incomplete/full/invalid/time boundaries", () => {
   const now = "2026-10-09T12:00:00Z";
