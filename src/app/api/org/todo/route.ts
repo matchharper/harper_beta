@@ -28,6 +28,14 @@ const decision = z.object({
   suggestionId: z.string().uuid(),
   decision: z.enum(["approve", "dismiss", "mute"]),
 });
+const cancelSchedule = z.object({
+  workspaceId: z.string().uuid(),
+  roleId: z.string().uuid(),
+  cancelSchedule: z.object({
+    scheduleId: z.string().uuid(),
+    expectedRevision: z.number().int().min(1),
+  }),
+});
 const read = z.object({
   workspaceId: z.string().uuid(),
   roleId: z.string().uuid(),
@@ -59,6 +67,25 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const body = await req.json().catch(() => null);
     const admin = getSupabaseAdmin();
+    // Cancelling Harper's scheduled work: a company decision.
+    const cancelBody = cancelSchedule.safeParse(body);
+    if (cancelBody.success) {
+      await assertOrgRoleAccess({
+        admin,
+        user,
+        workspaceId: cancelBody.data.workspaceId,
+        roleId: cancelBody.data.roleId,
+      });
+      const { cancelHarperScheduleFromTodo } = await import("@/lib/org/harperSchedules.server");
+      return NextResponse.json(
+        await cancelHarperScheduleFromTodo({
+          user,
+          workspaceId: cancelBody.data.workspaceId,
+          roleId: cancelBody.data.roleId,
+          ...cancelBody.data.cancelSchedule,
+        })
+      );
+    }
     // "읽음" on an update: it leaves this person's To-do.
     const readBody = read.safeParse(body);
     if (readBody.success) {

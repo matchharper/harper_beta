@@ -696,6 +696,31 @@ export async function loadOrgRoleTodo(args: {
   const internalRows = roleRow?.company_internal_roles;
   const internal = Array.isArray(internalRows) ? internalRows[0] : internalRows;
   const roleStatus = String(roleRow?.status ?? "").toLowerCase();
+  // Harper's own scheduled work on this Role (not tied to an introduction):
+  // the team sees what Harper will do and can cancel it.
+  const { data: schedules, error: schedulesError } = await untypedTable(admin, "company_agent_schedules")
+    .select("id,revision,title,next_run_at,created_by,status,target_refs")
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .in("status", ["active", "paused"])
+    .is("target_refs->>introductionRootId", null)
+    .order("next_run_at", { ascending: true })
+    .limit(20);
+  if (schedulesError) throw schedulesError;
+  for (const row of (schedules ?? []) as Array<Record<string, any>>) {
+    if (row.target_refs?.introductionRootId) continue;
+    items.push({
+      id: `schedule:${row.id}`,
+      column: "in_progress",
+      kind: "harper_scheduled",
+      at: null,
+      nextAt: row.next_run_at ?? null,
+      detail: row.title ?? null,
+      source: row.created_by === "agent" ? "harper" : null,
+      scheduleId: String(row.id),
+      scheduleRevision: Number(row.revision),
+    });
+  }
   if (
     internal?.is_company_first_search &&
     (roleStatus === "active" ||

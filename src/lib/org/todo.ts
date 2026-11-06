@@ -40,6 +40,7 @@ export type OrgTodoKind =
   | "meeting_waiting"
   | "search_running"
   | "scheduled_search"
+  | "harper_scheduled"
   | "role_start_working"
   // notice
   | "intro_accepted"
@@ -80,6 +81,9 @@ export type OrgTodoItem = {
   source?: OrgTodoSource | null;
   /** A Harper suggestion the team can approve, dismiss or mute. */
   suggestionId?: string;
+  /** Harper's scheduled work the team can cancel (with its current revision). */
+  scheduleId?: string;
+  scheduleRevision?: number;
 };
 
 export type OrgTodoResponse = {
