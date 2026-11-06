@@ -1,5 +1,6 @@
 import { OrgAgentToolInputError } from "./toolAvailability";
 import type { OrgAgentAdminClient } from "./data";
+import { linkOperationToRun } from "./runRecords.server";
 export type CompanyMatchingSearchQueueStatus =
   | "already_queued"
   | "already_running"
@@ -125,5 +126,7 @@ export async function enqueueOrgAgenticMatchingSearch(args: {
   }
   const result = record(data);
   if (!['queued','already_queued','already_running','already_completed','not_queued'].includes(String(result.status))) throw new Error('Unexpected search receipt');
+  // A new search belongs to the run that asked for it; a reused one keeps its own.
+  if (result.status === 'queued') await linkOperationToRun({ admin: args.admin, kind: 'member_search', workId: result.runId });
   return { ...result, status: String(result.status), reason: typeof result.reason === "string" ? result.reason : null, options, effect: 'evaluation_only' };
 }

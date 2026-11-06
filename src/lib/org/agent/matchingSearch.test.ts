@@ -150,3 +150,31 @@ test("candidate sets have stable execution inputs and reuse keeps the original r
   assert.equal(result.runId,"existing");assert.equal(result.sourceMessageId,42);
   assert.equal(result.status,"already_running");
 });
+
+test("a search Harper queues inside a run is linked to that run; a reused one keeps its own", async () => {
+  const { withLlmUsageContext } = await import("@/lib/llm/usageContext");
+  const run = "20000000-0000-4000-8000-000000000001";
+  const calls: any[] = [];
+  let receipt: Record<string, unknown> = { status: "queued", runId: "search-1", briefVersion: "v" };
+  const admin = { rpc: async (name: string, params: any) => {
+    calls.push({ name, params });
+    return name === "link_company_agent_operation_run_v1" ? { data: true, error: null } : { data: receipt, error: null };
+  } } as any;
+  const search = (requestId: string) => enqueueOrgAgenticMatchingSearch({ admin, roleId: "role", userId: "actor",
+    workspaceId: "workspace", requestId, sourceMessageId: 7, input: {} });
+  await withLlmUsageContext({ requestId: run, companyRunId: run }, async () => {
+    const queued = await search("call-1");
+    // The run id reaches the database only through the link, never the search options or the tool result.
+    assert.equal(JSON.stringify(queued).includes(run), false);
+    receipt = { status: "already_queued", runId: "search-0" };
+    await search("call-2");
+  });
+  assert.deepEqual(calls.map((call) => call.name), ["enqueue_company_agentic_search_v1",
+    "link_company_agent_operation_run_v1", "enqueue_company_agentic_search_v1"]);
+  assert.deepEqual(calls[1].params, { p_kind: "member_search", p_work_id: "search-1", p_run_id: run });
+  assert.equal(JSON.stringify(calls[0].params.p_options).includes(run), false);
+  // A chat turn is not a run: nothing is linked.
+  receipt = { status: "queued", runId: "search-2" };
+  await search("call-3");
+  assert.equal(calls.filter((call) => call.name === "link_company_agent_operation_run_v1").length, 1);
+});

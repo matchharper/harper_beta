@@ -10,6 +10,7 @@ import { buildOrgAgentPromptContext } from "./context";
 import { runRoleSearchResearchDelivery } from "./roleSearchResearch.server";
 import { saveCompanyMessageBatchThinkingLogs } from "./companyMessaging";
 import { upsertOrgAgentThinkingLog } from "./thinkingLogs";
+import { linkOperationToRun } from "./runRecords.server";
 import type { OrgAgentThinkingLog } from "./types";
 import type { OrgAgentConversationRow } from "./store";
 
@@ -94,6 +95,9 @@ export async function continueRoleSearchKickoff(args: { jobId: string; workspace
   if (error) throw error;
   if (!result || !["queued", "already_queued", "already_running", "not_queued"].includes(result.status))
     throw new Error("Unexpected research search admission result");
+  // A search this kickoff queued is part of its run; one it joined keeps its own.
+  if (result.status === "queued")
+    await linkOperationToRun({ admin, kind: "member_search", workId: result.runId, runId: args.jobId });
   if (result.status === "not_queued") {
     const { enqueueCompanyUpdate } = await import("./companyUpdate.server");
     // Ordinary company-side LLM explains the verified result; no fixed success/failure prose.

@@ -7,6 +7,8 @@ export type ReminderWorkspace = {
   membership: string;
   setupUrl: string;
   roles: Array<{
+    /** Present in snapshots since company_candidate_email_without_slack. */
+    id?: string;
     name: string; active: boolean; testOnly: boolean; canDeliverToSlack: boolean;
     setupNeeded: string;
     pendingConnectionCount: number;
@@ -19,6 +21,23 @@ export type ReminderRecipient = {
   verifiedEmail: boolean; suppressed: boolean;
   workspaces: ReminderWorkspace[];
 };
+
+/** The two decision numbers per Role, from the inbox rule (readOrgDecisionCounts). */
+export type CurrentCandidateCounts = ReadonlyMap<string, { pending_connection: number; company_intro: number }>;
+
+/**
+ * The snapshot was taken when the job was queued; the mail states the numbers
+ * as they are when it is written, the same ones the web shows. Already
+ * presented stays within the new ready count. Roles without an ID keep theirs.
+ */
+export function withCurrentCandidateCounts<T extends ReminderRecipient>(recipient: T, counts: CurrentCandidateCounts): T {
+  return { ...recipient, workspaces: recipient.workspaces.map(w => ({ ...w, roles: w.roles.map(r => {
+    const current = r.id ? counts.get(r.id) : undefined;
+    if (!current) return r;
+    return { ...r, pendingConnectionCount: current.pending_connection, readyCandidateCount: current.company_intro,
+      previouslyPresentedReadyCount: Math.min(r.previouslyPresentedReadyCount, current.company_intro) };
+  }) })) };
+}
 
 /** The caller supplies authoritative snapshots, including receipts across ALL workspaces.
  * Run on Mon/Wed/Fri, KST. First contact, then >=48h, then >=72h; cap three per person.

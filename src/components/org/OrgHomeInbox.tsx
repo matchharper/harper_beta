@@ -14,7 +14,8 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 import { OrgErrorState } from "./workspace/OrgErrorState";
 import { isOrgQueryBlockingError } from "@/lib/org/queryError";
-import { compareOrgCandidates } from "@/lib/org/candidateBoardSort";
+import { buildOrgHomeInboxGroups } from "@/lib/org/inboxPagination";
+import { OrgReviewingLine } from "./OrgReviewingLine";
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
 import { OrgHomeFeed } from "./OrgHomeFeed";
@@ -120,39 +121,7 @@ export function OrgHomeInbox() {
     },
   });
   const groups = useMemo(
-    () =>
-      roles.flatMap((role) => {
-        const items = (board?.items ?? []).filter(
-          (item) => item.roleId === role.roleId
-        );
-        return ["pending_connection", "company_intro"].flatMap((stage) => {
-          const all = items.filter((item) => item.stage === stage);
-          const remaining = all
-            .filter((item) => !item.savedAt)
-            .sort((a, b) =>
-              compareOrgCandidates(
-                a,
-                b,
-                stage === "company_intro" ? "recommended" : "latest"
-              )
-            );
-          return remaining.length
-            ? [
-                {
-                  id: `${role.roleId}:${stage}`,
-                  role,
-                  stage,
-                  total: all.length,
-                  remaining: remaining.length,
-                  items:
-                    stage === "company_intro"
-                      ? remaining.slice(0, 10)
-                      : remaining,
-                },
-              ]
-            : [];
-        });
-      }),
+    () => buildOrgHomeInboxGroups(roles, board?.items ?? []),
     [board?.items, roles]
   );
   const requestedGroup = groups.find(
@@ -405,7 +374,9 @@ export function OrgHomeInbox() {
                 const roleGroups = groups.filter(
                   (group) => group.role.roleId === role.roleId
                 );
-                if (!roleGroups.length) return null;
+                const reviewing =
+                  board?.reviewingCountByRoleId?.[role.roleId] ?? 0;
+                if (!roleGroups.length && !reviewing) return null;
                 return (
                   <section key={role.roleId} className="mb-8">
                     <Link
@@ -420,6 +391,7 @@ export function OrgHomeInbox() {
                       <span className="truncate">{role.name}</span>
                       <ChevronRight className="ml-1.5 size-4" />
                     </Link>
+                    <OrgReviewingLine className="mb-2 px-2" count={reviewing} />
                     {roleGroups.map((group) => (
                       <OrgHomeListItem
                         key={group.id}
@@ -432,25 +404,15 @@ export function OrgHomeInbox() {
                         className="min-h-11 lg:min-h-0"
                       >
                         <span>
-                          {group.stage === "pending_connection"
-                            ? c(
-                                "연결을 기다리는 후보 검토",
-                                group.remaining === 1
-                                  ? "Review an interested candidate"
-                                  : "Review interested candidates"
-                              )
-                            : group.remaining >= 10
-                              ? c(
-                                  "Top 10 후보 검토",
-                                  "Review your top 10 candidates"
-                                )
-                              : c(
-                                  "후보 {n}명 검토",
-                                  group.remaining === 1
-                                    ? "Review 1 candidate"
-                                    : "Review {n} candidates",
-                                  { n: group.remaining }
-                                )}
+                          {c("{p0} {n}명", "{p0} ({n})", {
+                            p0: ct(
+                              c,
+                              group.stage === "pending_connection"
+                                ? COMPANY_TERMS.stage.pending_connection
+                                : COMPANY_TERMS.stage.company_intro
+                            ),
+                            n: group.remaining,
+                          })}
                         </span>
                         <span className="ml-auto flex shrink-0 items-center gap-2">
                           {group.stage === "pending_connection" && (

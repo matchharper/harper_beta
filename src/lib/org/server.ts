@@ -529,6 +529,8 @@ export type OrgBoardResponse = {
     tags: boolean;
   };
   items: OrgBoardItem[];
+  /** Harper가 확인 중 per Role, when asked for (`countReviewing`). Numbers only. */
+  reviewingCountByRoleId?: Record<string, number>;
   roleId: string | null;
   stages: OrgStage[];
   totalCount: number;
@@ -3245,8 +3247,15 @@ export async function fetchOrgBoard(args: {
    * Do not use for company-facing Organization routes.
    */
   allowInternalOpsAccess?: boolean;
+  /**
+   * Also count, per Role, the people Harper is reviewing (internal accepted).
+   * Only the numbers leave this function, never those people or their IDs.
+   */
+  countReviewing?: boolean;
   includeInternalStages?: boolean;
   includeProfileLabels?: boolean;
+  /** Count-only reads: skip fit details, meetings, closure notices and profile labels. */
+  lean?: boolean;
   query?: string | null;
   recommendedDate?: string | null;
   recommendedFromDate?: string | null;
@@ -3309,6 +3318,7 @@ export async function fetchOrgBoard(args: {
       },
       talentFirstCapacityBlockedRoleIds: await readTalentFirstCapacityBlockedRoleIds(admin, roleIds),
       items: [],
+      ...(args.countReviewing ? { reviewingCountByRoleId: {} } : {}),
       roleId: selectedRoleId,
       stages: buildBoardStages({
         customStages,
@@ -3452,7 +3462,7 @@ export async function fetchOrgBoard(args: {
   ] = await Promise.all([
     fetchTalentRows(admin, talentIds),
     fetchTagsForBoard({ admin, roleIds, talentIds }),
-    args.includeProfileLabels === false
+    args.includeProfileLabels === false || args.lean
       ? {
           recentCompanies: new Map<string, OrgBoardProfileLabel[]>(),
           recentSchools: new Map<string, OrgBoardProfileLabel[]>(),
@@ -3464,10 +3474,11 @@ export async function fetchOrgBoard(args: {
           recommendationIds: recommendationRows.map((row) => row.id),
         })
       : fetchOrgConnectedRecommendationIds({ admin, roleIds }),
-    fetchFitDetailsForBoard({ admin, recommendationRows: [...recommendationRows,...companyIntroRows] }),
+    // Lean reads pass no rows, so these return empty without a query.
+    fetchFitDetailsForBoard({ admin, recommendationRows: args.lean ? [] : [...recommendationRows,...companyIntroRows] }),
     fetchLatestProcessClosureNoticeAtByRecommendation({
       admin,
-      recommendationIds: recommendationRows.flatMap((row) =>
+      recommendationIds: args.lean ? [] : recommendationRows.flatMap((row) =>
         normalizeText(row.saved_stage).toLowerCase() === "closed"
           ? [row.id]
           : []
@@ -3475,7 +3486,7 @@ export async function fetchOrgBoard(args: {
     }),
     fetchUpcomingMeetingsByRecommendation({
       admin,
-      recommendationIds: recommendationRows.map((row) => row.id),
+      recommendationIds: args.lean ? [] : recommendationRows.map((row) => row.id),
       workspaceId,
     }),
     readTalentFirstCapacityBlockedRoleIds(admin, roleIds),
@@ -3487,6 +3498,8 @@ export async function fetchOrgBoard(args: {
     ])
   );
   const searchQuery = normalizeText(args.query).toLowerCase();
+  // Harper가 확인 중, per Role. Counted here and returned as numbers only.
+  const reviewingCountByRoleId: Record<string, number> = {};
 
   const recommendationItems = recommendationRows.flatMap(
     (row): OrgBoardItem[] => {
@@ -3500,7 +3513,7 @@ export async function fetchOrgBoard(args: {
 
 
       const stageRows = tagsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [];
-      const stageInfo = getVisibleOrgStage({
+      const stageArgs = {
         connectedByOrgAction: connectedRecommendationIds.has(row.id),
         customStageByTagKey,
         feedback: row.feedback,
@@ -3511,7 +3524,19 @@ export async function fetchOrgBoard(args: {
           ).toLowerCase() === "internal",
         savedStage: row.saved_stage,
         tags: stageRows,
-      });
+      };
+      const stageInfo = getVisibleOrgStage(stageArgs);
+      if (
+        args.countReviewing &&
+        (stageInfo
+          ? stageInfo.stage === "accepted"
+          : !includeInternalAccepted &&
+            getVisibleOrgStage({ ...stageArgs, includeInternalAccepted: true })
+              ?.stage === "accepted")
+      ) {
+        reviewingCountByRoleId[row.role_id] =
+          (reviewingCountByRoleId[row.role_id] ?? 0) + 1;
+      }
       if (!stageInfo) return [];
       const currentStageRow = stageInfo.stageTag
         ? stageRows.find(
@@ -3648,6 +3673,7 @@ export async function fetchOrgBoard(args: {
     },
     talentFirstCapacityBlockedRoleIds,
     items,
+    ...(args.countReviewing ? { reviewingCountByRoleId } : {}),
     roleId: selectedRoleId,
     stages,
     totalCount: items.length,

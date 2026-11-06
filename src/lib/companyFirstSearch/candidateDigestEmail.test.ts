@@ -72,23 +72,24 @@ test("subjects use the fixed templates for each candidate mix and multiple roles
       acceptedCount,
       companyFirstCount,
     });
-  assert.equal(subject(1, 0), "ML Engineer: 연결을 기다리는 후보 1명");
-  assert.equal(subject(0, 2), "ML Engineer: 연결을 요청할 후보 2명");
+  // The subject counts only the people this mail brings: 「새로 온 … N명」.
+  assert.equal(subject(1, 0), "ML Engineer: 새로 온 연결을 기다리는 후보 1명");
+  assert.equal(subject(0, 2), "ML Engineer: 새로 온 연결을 요청할 후보 2명");
   assert.equal(
     subject(1, 2),
-    "ML Engineer: 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
+    "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
   );
   assert.equal(
     subject(1, 2, ["ML Engineer", "Data Engineer", "PM"]),
-    "ML Engineer 외 2개 역할: 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
+    "ML Engineer 외 2개 역할: 새로 온 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
   );
   assert.equal(
     subject(1, 2, ["ML Engineer"], "en"),
-    "ML Engineer: Waiting to connect (1) · Ready to reach out (2)"
+    "ML Engineer: 1 new in Waiting to connect · 2 new in Ready to reach out"
   );
   assert.equal(
     subject(0, 1, ["ML Engineer", "PM"], "en"),
-    "ML Engineer and 1 more role: Ready to reach out (1)"
+    "ML Engineer and 1 more role: 1 new in Ready to reach out"
   );
 });
 
@@ -96,7 +97,7 @@ test("mail greets the recipient, puts Ready to connect first and keeps the Worke
   const email = build();
   assert.equal(
     email.subject,
-    "ML Engineer: 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
+    "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
   );
   assert.match(email.text, /^김지수님, Harper가 찾은 후보예요\./);
   const acceptedAt = email.text.indexOf(
@@ -147,6 +148,21 @@ test("text part keeps the local two-action layout and profile links in the candi
   assert.doesNotMatch(email.html, /버튼은 7일 동안/);
 });
 
+test("each list says how many are on it now, under its heading", () => {
+  const email = build({ totals: { accepted_connection: 4, company_first: 12 } });
+  const waitingAt = email.text.indexOf("✅ 연결을 기다리는 후보");
+  const waitingTotal = email.text.indexOf("지금 모두 4명");
+  const requestAt = email.text.indexOf("연결을 요청할 후보\n");
+  const requestTotal = email.text.indexOf("지금 모두 12명");
+  assert.ok(waitingAt < waitingTotal && waitingTotal < email.text.indexOf("이서연"));
+  assert.ok(requestAt < requestTotal && requestTotal < email.text.indexOf("김민준"));
+  assert.match(email.replyContext, /지금 모두 12명/);
+  // The subject still counts only the new ones; no line when unknown.
+  assert.equal(email.subject, "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명");
+  assert.doesNotMatch(build().text, /지금 모두/);
+  assert.match(build({ locale: "en", totals: { company_first: 3 } }).text, /3 in total now/);
+});
+
 test("reply context keeps the prose but never the one-time button links", () => {
   const email = build();
   assert.match(email.replyContext, /김민준/);
@@ -155,7 +171,7 @@ test("reply context keeps the prose but never the one-time button links", () => 
 
 test("a mail with one kind only has one heading and the matching buttons", () => {
   const email = build({ sections: [companyFirst] });
-  assert.equal(email.subject, "ML Engineer: 연결을 요청할 후보 2명");
+  assert.equal(email.subject, "ML Engineer: 새로 온 연결을 요청할 후보 2명");
   assert.doesNotMatch(email.text, /연결을 기다리는 후보|연결하기/);
   assert.equal(
     (email.html.match(/href="https:\/\/matchharper.com\/email-action\//g) ?? [])
@@ -168,7 +184,7 @@ test("English workspaces get the same structure with English copy", () => {
   const email = build({ locale: "en", recipientName: "Jisoo" });
   assert.equal(
     email.subject,
-    "ML Engineer: Waiting to connect (1) · Ready to reach out (2)"
+    "ML Engineer: 1 new in Waiting to connect · 2 new in Ready to reach out"
   );
   assert.match(email.text, /^Jisoo, here are the candidates Harper found\./);
   assert.ok(

@@ -1,7 +1,7 @@
 import {
   getRoleStageLabel,
   buildRoleStages,
-  buildCounts,
+  buildRoleOverviewCounts,
 } from "@/lib/org/roleBoardSummary";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import {
@@ -237,7 +237,7 @@ export function OrgRolesOverview({
     RoleStatusFilterValue[]
   >([]);
   const [roleTitleQuery, setRoleTitleQuery] = useState("");
-  const counts = buildCounts(board?.items ?? []);
+  const counts = buildRoleOverviewCounts(board?.items ?? []);
   const totalByRole = new Map<string, number>();
   for (const item of board?.items ?? []) {
     totalByRole.set(item.roleId, (totalByRole.get(item.roleId) ?? 0) + 1);
