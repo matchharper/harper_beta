@@ -113,7 +113,9 @@ as $$
   from source;
 $$;
 
--- A search gets its operation in the transaction that creates it.
+-- A search gets its operation in the transaction that creates it, once the
+-- row is really inserted: an insert skipped by ON CONFLICT DO NOTHING (the
+-- scheduler and role activation retry the same slot) opens nothing.
 create or replace function public.open_company_agent_operation_v1()
 returns trigger
 language plpgsql
@@ -124,10 +126,8 @@ declare
   v_kind text := case tg_table_name when 'company_first_search_runs' then 'member_search' else 'external_search' end;
   v_root text;
   v_run uuid;
+  v_operation uuid;
 begin
-  if new.operation_id is not null or new.company_workspace_id is null then
-    return new;
-  end if;
   if tg_table_name = 'company_first_search_runs' then
     v_root := new.request_options ->> 'rootJobId';
     if v_root ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
@@ -143,8 +143,18 @@ begin
     public.company_agent_work_usage_v1(v_kind, to_jsonb(new)),
     coalesce(new.created_at, now()), now()
   )
-  returning id into new.operation_id;
-  return new;
+  on conflict (kind, work_id) do nothing
+  returning id into v_operation;
+  if v_operation is null then
+    select operation.id into v_operation from public.company_agent_operations operation
+    where operation.kind = v_kind and operation.work_id = new.id;
+  end if;
+  if tg_table_name = 'company_first_search_runs' then
+    update public.company_first_search_runs set operation_id = v_operation where id = new.id;
+  else
+    update public.external_sourcing_runs set operation_id = v_operation where id = new.id;
+  end if;
+  return null;
 end;
 $$;
 
@@ -169,13 +179,18 @@ $$;
 revoke all on function public.open_company_agent_operation_v1() from public, anon, authenticated, service_role;
 revoke all on function public.follow_company_agent_operation_v1() from public, anon, authenticated, service_role;
 
--- Named to run after the existing insert guards, so a skipped insert opens nothing.
+-- After the row is inserted, so inserts skipped by a guard or by ON CONFLICT
+-- open nothing.
 create trigger open_company_agent_operation
-  before insert on public.company_first_search_runs
-  for each row execute function public.open_company_agent_operation_v1();
+  after insert on public.company_first_search_runs
+  for each row
+  when (new.operation_id is null and new.company_workspace_id is not null)
+  execute function public.open_company_agent_operation_v1();
 create trigger open_company_agent_operation
-  before insert on public.external_sourcing_runs
-  for each row execute function public.open_company_agent_operation_v1();
+  after insert on public.external_sourcing_runs
+  for each row
+  when (new.operation_id is null and new.company_workspace_id is not null)
+  execute function public.open_company_agent_operation_v1();
 create trigger follow_company_agent_operation
   after update on public.company_first_search_runs
   for each row

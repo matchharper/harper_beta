@@ -14,7 +14,10 @@ const SETUP = `
     action_name text, status text, created_at timestamptz default now());
   create table company_first_search_runs(id uuid primary key default gen_random_uuid(), company_workspace_id uuid,
     role_id uuid, status text, request_options jsonb default '{}', model_manifest jsonb, result jsonb,
-    heartbeat_at timestamptz, started_at timestamptz, finished_at timestamptz, created_at timestamptz default now());
+    scheduled_slot timestamptz, heartbeat_at timestamptz, started_at timestamptz, finished_at timestamptz,
+    created_at timestamptz default now());
+  -- The scheduler and role activation insert one run per slot and skip repeats.
+  create unique index company_first_search_runs_slot on company_first_search_runs(role_id, scheduled_slot);
   create table external_sourcing_runs(id uuid primary key default gen_random_uuid(), company_workspace_id uuid,
     role_id uuid, status text, cost jsonb, heartbeat_at timestamptz, started_at timestamptz, finished_at timestamptz,
     created_at timestamptz default now());
@@ -72,11 +75,19 @@ test("searches get operations linked to their run; status and usage follow the w
     const loose = (await db.query<any>(`insert into company_first_search_runs(company_workspace_id, status, request_options)
       values ($1, 'queued', '{"rootJobId":"not-a-uuid"}') returning id`, [workspace])).rows[0].id;
     assert.equal((await operation("company_first_search_runs", loose)).run_id, null);
-    // A skipped insert opens nothing; a row without a company opens nothing.
+    // A skipped insert opens nothing (a guard, or a repeated slot skipped by
+    // ON CONFLICT DO NOTHING); a row without a company opens nothing.
     await db.exec(`insert into company_first_search_runs(company_workspace_id, status, request_options)
       values ('${workspace}', 'queued', '{"skip":"true"}');
-      insert into company_first_search_runs(status) values ('queued');`);
-    assert.equal((await db.query<any>("select count(*)::int n from company_agent_operations")).rows[0].n, 3);
+      insert into company_first_search_runs(status) values ('queued');
+      insert into company_first_search_runs(company_workspace_id, role_id, status, scheduled_slot)
+        values ('${workspace}', '${role}', 'queued', '2026-11-06T00:00:00Z');
+      insert into company_first_search_runs(company_workspace_id, role_id, status, scheduled_slot)
+        values ('${workspace}', '${role}', 'queued', '2026-11-06T00:00:00Z') on conflict do nothing;`);
+    assert.equal((await db.query<any>("select count(*)::int n from company_agent_operations")).rows[0].n, 4);
+    assert.equal((await db.query<any>(`select count(*)::int n from company_agent_operations operation
+      where not exists (select 1 from company_first_search_runs run where run.id = operation.work_id)
+        and not exists (select 1 from external_sourcing_runs run where run.id = operation.work_id)`)).rows[0].n, 0);
 
     // A heartbeat does not touch the operation; finishing sets status and usage.
     const before = (await operation("company_first_search_runs", created)).updated_at;
@@ -104,7 +115,7 @@ test("searches get operations linked to their run; status and usage follow the w
     await db.query(`update company_agent_web_action_jobs set usage = '{"costUsd":0.05,"costComplete":true,"inputTokens":300,"outputTokens":40}'`);
     const totals = (await db.query<any>("select * from company_agent_usage_v1($1, '2000-01-01', '2100-01-01')", [workspace])).rows;
     const byKind = Object.fromEntries(totals.map((row: any) => [row.kind, row]));
-    assert.equal(Number(byKind.member_search.runs), 3);
+    assert.equal(Number(byKind.member_search.runs), 4);
     assert.equal(Number(byKind.member_search.cost_usd), 0.35);
     assert.equal(Number(byKind.member_search.runs_with_complete_cost), 1);
     assert.equal(Number(byKind.external_search.cost_usd), 0.8);
