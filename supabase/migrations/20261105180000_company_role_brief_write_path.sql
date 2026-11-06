@@ -15,38 +15,9 @@
 -- Chat, Slack, website and Ops edits keep going through
 -- apply_company_data_with_hiring_history_v1, which already does the same.
 -- Other roles' Brief text is the original and is not otherwise restricted.
-
-create or replace function public.guard_company_role_brief_copy_v1()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  if tg_op = 'UPDATE'
-     and (old.request, old.criteria) is not distinct from (new.request, new.criteria) then
-    return new;
-  end if;
-  if coalesce(current_setting('harper.company_role_brief_write', true), '') <> 'role_start' and exists (
-    select 1
-    from public.company_roles role
-    join public.company_role_start_sessions session on session.role_id = role.role_id
-    where role.role_id = new.role_id
-      and role.status <> 'draft'
-      and session.brief_source = 'onboarding'
-      and session.phase <> 'superseded'
-  ) then
-    raise exception using errcode = 'P0001', message = 'company_role_brief_via_role_start';
-  end if;
-  return new;
-end;
-$$;
-
-revoke all on function public.guard_company_role_brief_copy_v1()
-  from public, anon, authenticated, service_role;
-
-create trigger company_internal_roles_brief_copy_guard
-  before insert or update of request, criteria on public.company_internal_roles
-  for each row execute function public.guard_company_role_brief_copy_v1();
+--
+-- The guard that refuses other writes is 20261105180100, applied after the web
+-- deploy: until then the running web still writes role start copies directly.
 
 -- Writes a role's Brief text and/or criteria (null leaves that part as it is).
 -- p_role_start: the write comes from the role's role start Brief.

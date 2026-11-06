@@ -135,6 +135,7 @@ test("a role-start role's Brief copy changes only from role start; the write fun
       "20261105020000_company_decision_events.sql",
       "20261105080000_company_role_brief_revisions.sql",
       "20261105180000_company_role_brief_write_path.sql",
+      "20261105180100_company_role_brief_copy_guard.sql",
     ]) await db.exec(await readFile(new URL(`../../../supabase/migrations/${name}`, import.meta.url), "utf8"));
 
     const request = async (role: string) =>
@@ -151,6 +152,10 @@ test("a role-start role's Brief copy changes only from role start; the write fun
     // A direct write to a registered role-start role's copy is refused; other columns are not.
     await assert.rejects(db.exec(`update company_internal_roles set request = 'x' where role_id = '${started}'`),
       /company_role_brief_via_role_start/);
+    // An insert that only meets the existing row passes; an upsert that would change the copy does not.
+    await db.exec(`insert into company_internal_roles(role_id) values ('${started}') on conflict (role_id) do nothing`);
+    await assert.rejects(db.exec(`insert into company_internal_roles(role_id, request) values ('${started}', 'y')
+      on conflict (role_id) do update set request = excluded.request`), /company_role_brief_via_role_start/);
     await db.exec(`update company_internal_roles set team_id = '${actor}' where role_id = '${started}'`);
 
     // The write function saves with who and where; an unchanged save is no version.
