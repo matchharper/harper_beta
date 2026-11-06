@@ -878,6 +878,17 @@ async function loadRoleTodoItems(args: {
       });
     }
   }
+  // Harper's criteria suggestion from pass reasons (S2 G), with its other
+  // suggestions. A read failure leaves it out rather than the whole To-do.
+  const { readRoleCriteriaProposalItems } = await import("./criteriaProposals.server");
+  const criteriaProposals = await readRoleCriteriaProposalItems({
+    admin, workspaceId, roleId, locale: args.locale, now,
+  }).catch((error) => {
+    console.error("[org/todo:criteria-proposals]", error);
+    return [];
+  });
+  items.push(...criteriaProposals);
+  openSuggestions += criteriaProposals.length;
 
   // 알림, 한 일 (최근)
   // Still waiting for the candidate: the intro and each request under way.

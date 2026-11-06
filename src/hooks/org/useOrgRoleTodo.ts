@@ -72,6 +72,35 @@ export function useDecideOrgTodoSuggestion(args: {
   });
 }
 
+/**
+ * The team's answer to Harper's suggested criteria change. Accepting saves a
+ * new Brief version, so the Role's criteria are read again.
+ */
+export function useAnswerOrgCriteriaProposal(args: {
+  roleId: string;
+  workspaceId: string;
+}) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { action: "accept" | "dismiss"; proposalId: string }) =>
+      fetchWithInternalAuth<{ status: string }>("/api/org/todo", {
+        body: JSON.stringify({ ...args, proposal: input }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    onSettled: (_result, _error, input) => {
+      void client.invalidateQueries({
+        queryKey: queryKeys.org.roleTodo(args.workspaceId, args.roleId),
+      });
+      if (input.action !== "accept") return;
+      void client.invalidateQueries({ queryKey: queryKeys.org.bootstrapAll });
+      void client.invalidateQueries({
+        queryKey: queryKeys.org.roleStart(args.workspaceId, args.roleId),
+      });
+    },
+  });
+}
+
 /** Cancel Harper's scheduled work from the To-do (recorded as a company decision). */
 export function useCancelOrgHarperSchedule(args: {
   roleId: string;

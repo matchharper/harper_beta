@@ -154,6 +154,12 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
       if(error) throw error;
       return;
     }
+    // Pass reasons sharpen the criteria (S2 G): counting only, no model run.
+    if (job.action_name === "consolidate_decisions") {
+      const { runQueuedCriteriaConsolidation } = await import("@/lib/org/criteriaProposals.server");
+      await runQueuedCriteriaConsolidation({ admin, job, usage: usage() });
+      return;
+    }
     const [{ data: conversation, error: conversationError }, authResult] =
       await Promise.all([
         (admin.from("company_conversations" as any) as any)

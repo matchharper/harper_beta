@@ -22,6 +22,7 @@ import {
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import {
+  useAnswerOrgCriteriaProposal,
   useDecideOrgTodoSuggestion,
   useMarkOrgTodoRead,
   useOrgRoleTodo,
@@ -86,6 +87,8 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
           : c("역할 시작 질문에 답하기", "Answer the role questions");
     case "memory_proposal":
       return c("하퍼가 바꿀 내용 확인", "Confirm Harper's change");
+    case "criteria_proposal":
+      return item.detail || c("하퍼가 제안한 기준 변경", "Harper's suggested criteria change");
     case "interview_missing":
       return c(
         "{name}님 면접 일정이 아직 없어요",
@@ -445,6 +448,7 @@ export function OrgTodoList({
   // Why cancelling each schedule did not work, by schedule.
   const [cancelIssues, setCancelIssues] = useState<Record<string, CancelIssue>>({});
   const markRead = useMarkOrgTodoRead({ roleId, workspaceId });
+  const answerProposal = useAnswerOrgCriteriaProposal({ roleId, workspaceId });
   const items = todo.data?.items ?? [];
   const suggestions = todo.data?.suggestions ?? 0;
   const headings: Record<OrgTodoColumn, string> = {
@@ -535,6 +539,34 @@ export function OrgTodoList({
         >
           {c("취소", "Cancel")}
         </MuteButton>
+      );
+    }
+    if (item.kind === "criteria_proposal") {
+      // Applying saves the change to the Brief; dismissing records it.
+      const proposalId = item.id.slice("criteria:".length);
+      const answerWith = (action: "accept" | "dismiss") => () =>
+        answerProposal.mutate({ action, proposalId });
+      return (
+        <>
+          <MuteButton
+            disabled={answerProposal.isPending}
+            onClick={answerWith("dismiss")}
+            size="sm"
+            type="button"
+            variant="dark"
+          >
+            {c("괜찮아요", "Not now")}
+          </MuteButton>
+          <MuteButton
+            disabled={answerProposal.isPending}
+            onClick={answerWith("accept")}
+            size="sm"
+            type="button"
+            variant="dark"
+          >
+            {c("반영하기", "Apply")}
+          </MuteButton>
+        </>
       );
     }
     if (item.kind === "memory_proposal") {

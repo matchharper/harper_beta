@@ -115,9 +115,6 @@ import {
   fetchOrgTalentDetail,
   moveOrgCandidateToRole,
   OrgHttpError,
-  passOrgCompanyIntro,
-  requestOrgCompanyIntro,
-  setOrgCandidateStage,
   updateOrgRoleCriteria,
   updateOrgRoleReviewStage,
   updateOrgRoleReviewStageMeetingDefaults,
@@ -125,7 +122,12 @@ import {
   updateOrgRoleRequestOnly,
   type OrgStageId,
 } from "@/lib/org/server";
-import { setOrgCandidateStageWithIntroBooking } from "@/lib/org/introBooking.server";
+import {
+  companyIntroOutcome,
+  decideOrgCandidate,
+  stageOutcome,
+} from "@/lib/org/candidateDecision.server";
+import { normalizeReasonTags } from "@/lib/org/reasonTags";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import {
   getCareerPromptLanguageName,
@@ -2848,6 +2850,7 @@ async function immediatelyPresentedCandidateDecision(args: {
         : null,
     processStageId: text(confirmation.processStageId) || null,
     reason: confirmationReason,
+    reasonTags: chatReasonTags(confirmation.reasonTags),
   };
 }
 
@@ -4801,27 +4804,33 @@ async function executeMoveCandidateStage(args: {
   }
 
   if (currentStage !== targetStage || closedState.closed) {
-    const stageResult = await setOrgCandidateStage({
-      decisionChannel: args.source,
-      expectedPreviousStage: expectedCurrentStage,
-      recommendationId: position.recommendationId,
-      candidateConsentRelayId,
-      reengagementActionId: `company-message:${args.currentUserMessageId}`,
-      reengagementResolution:
-        closedState.closed &&
-        targetRequiresReengagement &&
-        reengagementResolution === "company_confirmed"
-          ? "company_confirmed"
-          : null,
-      roleId: role.roleId,
-      scheduleInterview,
-      skipAutomaticContact: !scheduleInterview,
-      stage: targetStage,
-      notifyCandidateOnClosure: args.input.notifyCandidateOnClosure as boolean | undefined,
-      talentId,
-      user: args.user,
+    const stageResult = stageOutcome(await decideOrgCandidate({
+      actor: args.user,
+      channel: args.source,
+      sourceMessageId: args.currentUserMessageId,
       workspaceId: args.workspaceId,
-    });
+      item: {
+        target: { recommendationId: position.recommendationId, roleId: role.roleId, talentId },
+        to: targetStage,
+        from: expectedCurrentStage,
+        notifyCandidateOnClosure: args.input.notifyCandidateOnClosure as boolean | undefined,
+        ...(targetStage === "process_stopped" || targetStage === "archived"
+          ? { reason: { tags: chatReasonTags(args.input.reasonTags) } }
+          : {}),
+        connection: {
+          candidateConsentRelayId,
+          reengagementActionId: `company-message:${args.currentUserMessageId}`,
+          reengagementResolution:
+            closedState.closed &&
+            targetRequiresReengagement &&
+            reengagementResolution === "company_confirmed"
+              ? "company_confirmed"
+              : null,
+          scheduleInterview,
+          skipAutomaticContact: !scheduleInterview,
+        },
+      },
+    })).payload;
     if (!("stage" in stageResult)) {
       args.state.fallbackReply =
         "후보자의 다시 진행할 의사를 먼저 확인해야 해서 아직 단계나 미팅 요청을 변경하지 않았어요.";
@@ -5080,10 +5089,23 @@ async function readCandidateDecisionTarget(args: {
   };
 }
 
+/** Chat reasonTags input; the decision server checks them against the Role. */
+function chatReasonTags(value: unknown, fallback?: string[]) {
+  try {
+    const tags = normalizeReasonTags(value);
+    return tags.length ? tags : (fallback ?? []);
+  } catch (error) {
+    throw new OrgAgentToolInputError(
+      error instanceof Error ? error.message : "reasonTags is invalid"
+    );
+  }
+}
+
 function stageCompanyIntroDecisionContext(args: {
   actorId: string;
   companyAppeal: string | null;
   reason?: string | null;
+  reasonTags?: string[];
   decision: OrgAgentCompanyIntroDecision;
   introCandidateId: string;
   introRecipientEmails: string[];
@@ -5097,6 +5119,7 @@ function stageCompanyIntroDecisionContext(args: {
     actorId: args.actorId,
     companyAppeal: args.companyAppeal,
     reason: args.reason ?? null,
+    ...(args.reasonTags?.length ? { reasonTags: args.reasonTags } : {}),
     decision: args.decision,
     introCandidateId: args.introCandidateId,
     introRecipientEmails: args.introRecipientEmails,
@@ -5179,6 +5202,7 @@ async function immediatelyPresentedCompanyIntroDecision(args: {
   return {
     companyAppeal: text(confirmation.companyAppeal) || null,
     reason: text(confirmation.reason) || null,
+    reasonTags: chatReasonTags(confirmation.reasonTags),
     decision: companyIntroDecision(confirmation.decision),
     introCandidateId: text(confirmation.introCandidateId),
     introRecipientEmails: normalizedDecisionEmails(
@@ -5417,6 +5441,7 @@ async function executeCompanyIntroDecision(args: {
       companyAppeal,
       decision,
       reason: decision === "pass" && reasonInput.present ? reasonInput.value : null,
+      reasonTags: decision === "pass" ? chatReasonTags(args.input.reasonTags) : [],
       introCandidateId: companyIntro.id,
       introRecipientEmails,
       nextStageId,
@@ -5471,14 +5496,20 @@ async function executeCompanyIntroDecision(args: {
   if (decision === "pass") {
     const reason =
       (reasonInput.present ? reasonInput.value : null) || confirmed.reason || null;
-    const result = await passOrgCompanyIntro({
+    const result = companyIntroOutcome(await decideOrgCandidate({
+      actor: args.user,
       channel,
-      introCandidateId: companyIntro.id,
-      reason: reason ?? undefined,
       sourceMessageId: args.currentUserMessageId,
-      user: args.user,
       workspaceId: args.workspaceId,
-    });
+      item: {
+        target: { introCandidateId: companyIntro.id },
+        to: "passed",
+        reason: {
+          text: reason ?? undefined,
+          tags: chatReasonTags(args.input.reasonTags, confirmed.reasonTags),
+        },
+      },
+    })).payload;
     const changeSummary = `${candidateName}님에게는 이번 역할을 제안하지 않기로 반영했어요. 후보자에게는 연락하지 않았어요.`;
     args.state.updateSummaries.push(changeSummary);
     args.state.fallbackReply = changeSummary;
@@ -5517,16 +5548,21 @@ async function executeCompanyIntroDecision(args: {
       "The confirmed first process stage no longer exists. Read the Role pipeline before trying again."
     );
   }
-  const result = await requestOrgCompanyIntro({
+  const result = companyIntroOutcome(await decideOrgCandidate({
+    actor: args.user,
     channel,
-    companyAppeal: confirmed.companyAppeal,
-    introCandidateId: companyIntro.id,
-    introRecipientEmails: confirmed.introRecipientEmails,
-    nextStageId: nextStageDbId || null,
     sourceMessageId: args.currentUserMessageId,
-    user: args.user,
     workspaceId: args.workspaceId,
-  });
+    item: {
+      target: { introCandidateId: companyIntro.id },
+      to: "intro_requested",
+      appeal: confirmed.companyAppeal,
+      connection: {
+        introRecipientEmails: confirmed.introRecipientEmails,
+        nextStageId: nextStageDbId || null,
+      },
+    },
+  })).payload;
   if (result.status === "already_in_pipeline") {
     recordResult(args.state, {
       callId: args.callId,
@@ -5611,6 +5647,7 @@ function stageCandidateDecisionContext(args: {
   meetingDraft: OrgAgentMeetingScheduleConfirmation | null;
   processStageId: string | null;
   reason: string | null;
+  reasonTags?: string[];
   recommendationId: string;
   roleId: string;
   slackThreadId: string | null;
@@ -5626,6 +5663,7 @@ function stageCandidateDecisionContext(args: {
     meetingDraft: args.meetingDraft,
     processStageId: args.processStageId,
     reason: args.reason,
+    ...(args.reasonTags?.length ? { reasonTags: args.reasonTags } : {}),
     recommendationId: args.recommendationId,
     roleId: args.roleId,
     slackThreadId: args.slackThreadId,
@@ -6096,6 +6134,7 @@ async function executeCandidateConnectionDecision(args: {
         ? `custom:${requestedProcessStage.id}`
         : null,
       reason: proposedReason,
+      reasonTags: decision === "decline" ? chatReasonTags(args.input.reasonTags) : [],
       recommendationId: position.recommendationId,
       roleId: current.roleId,
       slackThreadId: args.slackThreadId,
@@ -6226,18 +6265,22 @@ async function executeCandidateConnectionDecision(args: {
     };
   }
   if (decision === "decline") {
-    const result = await setOrgCandidateStage({
-      decisionChannel: args.source,
-      expectedPreviousStage: position.stage,
-      recommendationId: position.recommendationId,
-      roleId: current.roleId,
-      stage: "process_stopped",
-      notifyCandidateOnClosure: confirmed.notifyCandidateOnClosure,
-      stopNote: finalReason,
-      talentId,
-      user: args.user,
+    const result = stageOutcome(await decideOrgCandidate({
+      actor: args.user,
+      channel: args.source,
+      sourceMessageId: args.currentUserMessageId,
       workspaceId: args.workspaceId,
-    });
+      item: {
+        target: { recommendationId: position.recommendationId, roleId: current.roleId, talentId },
+        to: "process_stopped",
+        from: position.stage,
+        notifyCandidateOnClosure: confirmed.notifyCandidateOnClosure,
+        reason: {
+          text: finalReason,
+          tags: chatReasonTags(args.input.reasonTags, confirmed.reasonTags),
+        },
+      },
+    })).payload;
     const changeSummary = confirmed.notifyCandidateOnClosure === false
       ? `${candidateName}님과의 연결을 종료했어요. 종료 상태는 후보자에게 표시되며 Harper의 별도 종료 안내는 보내지 않아요.`
       : position.stage === "pending_connection"
@@ -6338,26 +6381,29 @@ async function executeCandidateConnectionDecision(args: {
         talentId,
         workspaceId: args.workspaceId,
       });
-      const result = await setOrgCandidateStage({
-        decisionChannel: args.source,
-        acceptReason: finalReason,
-        expectedPreviousStage: position.stage,
-        recommendationId: position.recommendationId,
-        candidateConsentRelayId,
-        reengagementActionId: `company-message:${args.currentUserMessageId}`,
-        reengagementResolution:
-          closedState.closed && reengagementResolution === "company_confirmed"
-            ? "company_confirmed"
-            : null,
-        roleId: current.roleId,
-        scheduleInterview: true,
-        stage: currentDraft.config.processStageId
-          ? (`custom:${currentDraft.config.processStageId}` as OrgStageId)
-          : "connected",
-        talentId,
-        user: args.user,
+      const result = stageOutcome(await decideOrgCandidate({
+        actor: args.user,
+        channel: args.source,
+        sourceMessageId: args.currentUserMessageId,
         workspaceId: args.workspaceId,
-      });
+        item: {
+          target: { recommendationId: position.recommendationId, roleId: current.roleId, talentId },
+          to: currentDraft.config.processStageId
+            ? (`custom:${currentDraft.config.processStageId}` as OrgStageId)
+            : "connected",
+          from: position.stage,
+          reason: { text: finalReason },
+          connection: {
+            candidateConsentRelayId,
+            reengagementActionId: `company-message:${args.currentUserMessageId}`,
+            reengagementResolution:
+              closedState.closed && reengagementResolution === "company_confirmed"
+                ? "company_confirmed"
+                : null,
+            scheduleInterview: true,
+          },
+        },
+      })).payload;
       if (!("stage" in result)) {
         args.state.fallbackReply =
           "후보자의 다시 진행할 의사를 먼저 확인해야 해서 아직 단계나 미팅 요청을 변경하지 않았어요.";
@@ -6459,34 +6505,35 @@ async function executeCandidateConnectionDecision(args: {
   );
   // The same intro email as the web and Slack: it carries the interview
   // booking link when this person's Calendar and open times are set.
-  const decided = await setOrgCandidateStageWithIntroBooking({
+  const decided = stageOutcome(await decideOrgCandidate({
+    actor: args.user,
     baseUrl: getConfiguredPublicSiteUrl(),
-    booking: "if_ready",
-    stage: {
-      decisionChannel: args.source,
-      acceptReason: finalReason,
-      contactDirectly: connectionMethod === "direct_contact",
-      expectedPreviousStage: position.stage,
-      introEmails,
-      recommendationId: position.recommendationId,
-      candidateConsentRelayId,
-      reengagementActionId: `company-message:${args.currentUserMessageId}`,
-      reengagementResolution:
-        closedState.closed && reengagementResolution === "company_confirmed"
-          ? "company_confirmed"
-          : null,
-      roleId: current.roleId,
-      stage:
+    channel: args.source,
+    sourceMessageId: args.currentUserMessageId,
+    workspaceId: args.workspaceId,
+    item: {
+      target: { recommendationId: position.recommendationId, roleId: current.roleId, talentId },
+      to:
         position.stage === "pending_connection" && confirmedProcessStageId
           ? (`custom:${confirmedProcessStageId}` as OrgStageId)
           : "connected",
-      talentId,
-      user: args.user,
-      workspaceId: args.workspaceId,
+      from: position.stage,
+      reason: { text: finalReason },
+      connection: {
+        candidateConsentRelayId,
+        contactDirectly: connectionMethod === "direct_contact",
+        introBooking: "if_ready",
+        introEmails,
+        reengagementActionId: `company-message:${args.currentUserMessageId}`,
+        reengagementResolution:
+          closedState.closed && reengagementResolution === "company_confirmed"
+            ? "company_confirmed"
+            : null,
+      },
     },
-  });
+  }));
   const result = decided.payload;
-  const bookingNote = decided.bookingLinkIncluded
+  const bookingNote = decided.booking?.linkIncluded
     ? " 메일 끝에 면접 예약 링크를 넣어서 후보자가 바로 인터뷰 시간을 고를 수 있어요."
     : "";
   if (!("stage" in result)) {
@@ -6532,7 +6579,7 @@ async function executeCandidateConnectionDecision(args: {
     decision,
     nextProcess:
       connectionMethod === "intro_email"
-        ? decided.bookingLinkIncluded
+        ? decided.booking?.linkIncluded
           ? "후보자가 소개 이메일의 면접 예약 링크로 인터뷰 시간을 고르거나, 같은 메일에서 회사 담당자와 일정을 조율해요."
           : "후보자와 선택한 회사 담당자가 같은 소개 이메일에서 인사하고 다음 일정을 직접 조율해요."
         : "Harper가 소개 이메일을 보내지 않았으므로 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주세요.",

@@ -18,6 +18,20 @@ import {
 import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 import { COMPANY_SIDE_LLM_DATA_KEYS } from "@/lib/org/agent/companyDataCatalog";
 import { AUTHORIZED_MESSAGE_CONTENT_CONTRACT } from "@/lib/companyTalentRequests/relayContract";
+import { CRITERIA_PROPOSALS_ENABLED } from "@/lib/org/criteriaProposals";
+// Tags stay on the company's private decision record. Only while criteria
+// suggestions are on does anything read them back.
+const REASON_TAGS_EFFECT = CRITERIA_PROPOSALS_ENABLED
+  ? " When recent passes on this Role keep naming the same criterion, Harper suggests making it stricter in the Role's To-do; nothing changes until the company accepts."
+  : "";
+const REASON_TAGS_INPUT = (when: string) =>
+  ({
+    description: `${when} Optional labels for the reason the user actually gave, never inferred: this Role's criterion ids from read_role, or experience_skills, role_fit, working_conditions, timing. Omit when no reason was given.${REASON_TAGS_EFFECT}`,
+    items: { maxLength: 200, minLength: 1, type: "string" },
+    maxItems: 20,
+    type: "array",
+  }) as const;
+
 function nullableText(description: string, maxLength: number) {
   return {
     description,
@@ -1172,6 +1186,7 @@ Meeting scheduling is available from any company-visible active stage: pending_c
             minLength: 1,
             type: "string",
           },
+          reasonTags: REASON_TAGS_INPUT("For archived or process_stopped only."),
           roleId: {
             description: "Exact internal Role ID.",
             type: "string",
@@ -1468,6 +1483,7 @@ Call this once per exact candidate Role change and review the result before anot
             minLength: 1,
             type: "string",
           },
+          reasonTags: REASON_TAGS_INPUT("For pass only."),
           roleId: {
             description: "Exact Role ID for this company-first proposal.",
             type: "string",
@@ -1596,6 +1612,7 @@ Call this once per exact candidate Role change and review the result before anot
             "Optional reason genuinely provided by the user. Preserve its meaning accurately and never invent one.",
             2_000
           ),
+          reasonTags: REASON_TAGS_INPUT("For decline only."),
           roleId: {
             description: "Exact role ID for the candidate decision.",
             type: "string",

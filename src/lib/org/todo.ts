@@ -42,6 +42,8 @@ export type OrgTodoKind =
   | "suggestion"
   | "suggestion_running"
   | "suggestion_done"
+  /** Harper's suggested criteria change from pass reasons (S2 G). */
+  | "criteria_proposal"
   // in_progress
   | "intro_waiting"
   | "request_sending"

@@ -5,11 +5,15 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import {
   OrgHttpError,
-  setOrgCandidateStage,
   type OrgStageId,
 } from "@/lib/org/server";
 import type { InternalConnectionConfirmationEmailMode } from "@/lib/ops/connectionConfirmationEmail";
 import { enqueueOrgAgentWebActionTurn } from "@/lib/org/agent/webActionTurn";
+import {
+  decideOrgCandidate,
+  stageOutcome,
+  type OrgDecisionItem,
+} from "@/lib/org/candidateDecision.server";
 
 import {
   createMeetingScheduleDraft,
@@ -20,7 +24,6 @@ import {
   prepareMeetingInvitationPreview,
   queueMeetingInvitation,
 } from "@/lib/meetings/invitationServer";
-import { setOrgCandidateStageWithIntroBooking } from "@/lib/org/introBooking.server";
 import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 
 export const maxDuration = 120;
@@ -127,39 +130,58 @@ async function handleStagePost(req: NextRequest) {
         "연결을 기다리는 후보를 선택해 인터뷰를 요청해 주세요."
       );
     }
-    const stageInput = {
-      acceptReason: body.acceptReason ?? null,
-      contactDirectly: body.contactDirectly === true,
-      decisionChannel: "web" as const,
-      emailMode: emailMode as InternalConnectionConfirmationEmailMode,
-      expectedPreviousStage: body.sourceStage,
-      introEmailDraft: body.introEmailDraft ?? null,
-      introEmails: body.introEmails ?? null,
-      recommendationId: body.recommendationId ?? "",
-      reengagementActionId:
-        typeof body.reengagementActionId === "string"
-          ? body.reengagementActionId
-          : null,
-      reengagementResolution: reengagementResolution
-        ? (reengagementResolution as "ask_candidate" | "company_confirmed")
-        : null,
-      roleId: body.roleId ?? "",
-      scheduleInterview: schedulesInterview,
-      stage,
-      notifyCandidateOnClosure: body.notifyCandidateOnClosure,
-      stopNote: body.stopNote ?? null,
-      talentId: body.talentId ?? "",
-      user,
-      workspaceId: body.workspaceId ?? "",
-    };
+    // Only stage moves here; Pass, intro requests and saves have their own
+    // routes (the dispatcher would otherwise read these as those decisions).
+    if (["passed", "saved", "unsaved"].includes(stage)) {
+      throw new OrgHttpError(400, "Invalid stage");
+    }
+    // The decision goes through the one dispatcher, with the same input the
+    // route passed to setOrgCandidateStage before.
+    const decide = (connection: OrgDecisionItem["connection"]) =>
+      decideOrgCandidate({
+        actor: user,
+        baseUrl: getPublicSiteUrlFromRequest(req),
+        channel: "web",
+        workspaceId: body.workspaceId ?? "",
+        item: {
+          target: {
+            recommendationId: body.recommendationId ?? "",
+            roleId: body.roleId ?? "",
+            talentId: body.talentId ?? "",
+          },
+          to: stage,
+          from: body.sourceStage,
+          reason: {
+            text:
+              stage === "process_stopped"
+                ? (body.stopNote ?? null)
+                : (body.acceptReason ?? null),
+          },
+          notifyCandidateOnClosure: body.notifyCandidateOnClosure,
+          connection: {
+            contactDirectly: body.contactDirectly === true,
+            emailMode: emailMode as InternalConnectionConfirmationEmailMode,
+            introEmailDraft: body.introEmailDraft ?? null,
+            introEmails: body.introEmails ?? null,
+            reengagementActionId:
+              typeof body.reengagementActionId === "string"
+                ? body.reengagementActionId
+                : null,
+            reengagementResolution: reengagementResolution
+              ? (reengagementResolution as "ask_candidate" | "company_confirmed")
+              : null,
+            scheduleInterview: schedulesInterview,
+            ...connection,
+          },
+        },
+      }).then(stageOutcome);
     let meeting: { scheduleId: string } | null = null;
-    let payload: Awaited<ReturnType<typeof setOrgCandidateStage>>;
+    let payload: Awaited<ReturnType<typeof decide>>["payload"];
     if (bookingInIntro) {
       // One intro email carrying the time-picking link; the same path as
       // Slack, email buttons and Harper chat.
-      const result = await setOrgCandidateStageWithIntroBooking({
-        baseUrl: getPublicSiteUrlFromRequest(req),
-        booking: "required",
+      const result = await decide({
+        introBooking: "required",
         meeting: {
           attendeeEmails: body.attendeeEmails,
           durationMinutes: body.durationMinutes,
@@ -167,9 +189,8 @@ async function handleStagePost(req: NextRequest) {
           meetingPurpose: body.meetingPurpose,
           title: body.title,
         },
-        stage: stageInput,
       });
-      meeting = result.meeting;
+      meeting = result.booking?.meeting ?? null;
       payload = result.payload;
     } else {
       // Validate setup and prepare the invitation before accepting the
@@ -221,7 +242,7 @@ async function handleStagePost(req: NextRequest) {
         );
       }
 
-      payload = await traceStageStep("POST:166", async () => (setOrgCandidateStage(stageInput)));
+      payload = (await traceStageStep("POST:166", async () => decide({}))).payload;
       meeting = interview;
       if (interview && invitation && meetingDetail && "stage" in payload) {
         try {
