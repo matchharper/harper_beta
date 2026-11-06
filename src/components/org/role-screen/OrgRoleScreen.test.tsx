@@ -94,7 +94,8 @@ test("the role screen: 채팅 | 후보 pill, right column per link, 역할 정�
   }
   const render = () => renderToStaticMarkup(<OrgRoleScreen role={role} />);
   const pill = (html: string) =>
-    [...html.matchAll(/role="tab" aria-selected="(true|false)"[^>]*>(?:<div[^>]*>)?<span[^>]*>([^<]+)</g)]
+    // The selected tab starts with the moving dark pill (empty, aria-hidden), as on the candidate side.
+    [...html.matchAll(/role="tab" aria-selected="(true|false)"[^>]*>(?:<span[^>]*data-tab-selection[^>]*><\/span>)?(?:<div[^>]*>)?<span[^>]*>([^<]+)</g)]
       .filter((match) => match[1] === "true")
       .map((match) => match[2]);
   const rightLabel = (html: string) => html.match(/aria-label="([^"]+)" class="career-right-column"/)?.[1];

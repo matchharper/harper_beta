@@ -213,6 +213,7 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
           <span className="org-role-status-label">{sourceT(status.label)}</span>
         </div>
         <TabBoxes<Pill>
+          animateSelection
           activeValue={pill}
           aria-label={ct(c, COMPANY_TERMS.role)}
           className="career-top-tabs career-glass"

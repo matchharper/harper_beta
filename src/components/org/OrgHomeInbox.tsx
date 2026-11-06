@@ -7,8 +7,11 @@ import { MuteButton } from "@/components/ui/button";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
 import { Tabs } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
+import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
+import { sortOrgRolesForRecentList } from "@/lib/org/recentRoles";
+import { OrgRoleStatusDot } from "./OrgRoleStatusDot";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
@@ -88,6 +91,45 @@ export function OrgInboxRemaining({
       </svg>
       {remaining}
     </span>
+  );
+}
+
+/** Desktop Home with nothing to review: each role, one click from its screen. */
+function OrgHomeIdle({
+  roles,
+  workspaceId,
+}: {
+  roles: ReturnType<typeof useOrgWorkspace>["roles"];
+  workspaceId: string;
+}) {
+  const { c } = useOrgLocale();
+  const sourceT = useOrgSourceT();
+  return (
+    <div className="org-home-idle">
+      <p className="org-home-idle-lead">
+        {c(
+          "지금 결정할 후보는 없어요. 역할을 열면 Harper와 이야기하고 후보를 볼 수 있어요.",
+          "Nothing to decide right now. Open a role to talk with Harper and see its candidates."
+        )}
+      </p>
+      <ul className="org-home-idle-roles">
+        {sortOrgRolesForRecentList(roles).map((role) => (
+          <li key={role.roleId}>
+            <Link
+              className="career-followup-card career-glass org-home-role-card"
+              href={buildOrgHref({ page: "role", roleId: role.roleId, orgId: workspaceId })}
+            >
+              <OrgRoleStatusDot decorative status={role.status} />
+              <span className="org-home-role-name">{role.name}</span>
+              <span className="org-home-role-status">
+                {sourceT(getOrgRoleStatusPresentation(role.status).label)}
+              </span>
+              <ChevronRight aria-hidden className="size-4 shrink-0" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -514,6 +556,8 @@ export function OrgHomeInbox() {
                 navigationTitle={!isDesktop ? mobileNavigationTitle : undefined}
                 onReviewClose={!isDesktop ? returnToList : undefined}
               />
+            ) : isDesktop && !boardQuery.isLoading && !groups.length && roles.length ? (
+              <OrgHomeIdle roles={roles} workspaceId={workspaceId} />
             ) : (
               <>
                 {!isDesktop && listBackHeader(mobileNavigationTitle)}

@@ -273,12 +273,14 @@ export function OrgRoleCandidatesPanel({
     { value: "closed", label: ct(c, COMPANY_TERMS.stage.process_stopped) },
   ];
   const inbox = tab === "pending_connection" || tab === "company_intro" || tab === "saved";
+  // Labeled, so it reads as "show the chat again" / "use the whole width".
   const wideToggle = wideAvailable ? (
     <MuteButton
       aria-label={
         wide ? c("분할 화면으로 보기", "Split view") : c("전체 화면으로 보기", "Full screen")
       }
       aria-pressed={wide}
+      className="org-wide-toggle"
       onClick={() => onWideChange(!wide)}
       title={wide ? c("분할 화면으로 보기", "Split view") : c("전체 화면으로 보기", "Full screen")}
       variant="transparent"
@@ -288,6 +290,7 @@ export function OrgRoleCandidatesPanel({
       ) : (
         <ChevronsLeftRight aria-hidden className="size-4" strokeWidth={1.7} />
       )}
+      <span>{wide ? c("채팅과 같이 보기", "Show with chat") : c("전체 화면", "Full screen")}</span>
     </MuteButton>
   ) : null;
 
@@ -295,7 +298,7 @@ export function OrgRoleCandidatesPanel({
     // Today's wide views, unchanged: they keep their own tabs, selection and sorting.
     return (
       <div className="org-role-wide-views">
-        <div className="flex justify-end">{wideToggle}</div>
+        <div className="org-role-wide-header">{wideToggle}</div>
         <div
           className={
             inbox || tab === "external"
