@@ -13,6 +13,7 @@ let savedSession: unknown = null;
 let questionRefresh: Promise<void> | null = null;
 let answerCompleted: (() => void) | null = null;
 let nextSession: unknown = null;
+let postReply: ((body: Record<string, unknown>) => unknown) | null = null;
 const writes: Array<Record<string, unknown>> = [];
 const chats: Array<Record<string, unknown>> = [];
 const toasts: Array<{ variant: string }> = [];
@@ -40,13 +41,15 @@ before(async () => {
     };
     if (name === "@/store/useToastStore") return { useToastStore: () => (value: { variant: string }) => toasts.push(value) };
     if (name === "@/lib/internalApiClient") return { fetchWithInternalAuth: async (_url: string, init?: RequestInit) => {
-      if (!init && questionRefresh) await questionRefresh;
-      if (!init) return { session: savedSession, issues: [], role: {
+      // Reads pass only an abort signal; writes carry a body.
+      if (!init?.body && questionRefresh) await questionRefresh;
+      if (!init?.body) return { session: savedSession, issues: [], role: {
         status: "draft", name: "예시 역할", description: "합성 역할 설명", hasDescription: true,
         locationText: "서울", workMode: "onsite", employmentTypes: ["full_time"], salaryRange: null,
       } };
       const body = JSON.parse(String(init.body));
       writes.push(body);
+      if (postReply) return postReply(body);
       if (body.action === "answer" && answerCompleted) {
         savedSession = nextSession;
         answerCompleted();
@@ -211,6 +214,61 @@ test("answer controls stay disabled between save completion and the next questio
     await act(async () => root.unmount());
     client.clear();
     savedSession = nextSession = questionRefresh = answerCompleted = null;
+    Object.assign(globalThis, { ...previous, IS_REACT_ACT_ENVIRONMENT: false });
+    dom.window.close();
+  }
+});
+
+test("바로 후보 받기 keeps the first-three loading from the press; a conflict opens 찾는 사람", async () => {
+  const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
+  const previous = { window: globalThis.window, document: globalThis.document };
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
+  dom.window.sessionStorage.setItem(`role-start-setup:${roleId}`, "1");
+  const base = {
+    stalled: false, refining: false, progress: [], firstCandidates: [], evaluations: {},
+    brief: { summary: "합성 인재상", criteria: [], hardConditions: [] },
+  };
+  const asking = {
+    ...base, phase: "questions", revision: 1,
+    questions: { history: [] },
+    pendingQuestion: { id: "q1", question: "첫 질문", why: null, chips: [{ id: "choice", label: "중요" }], status: "pending" },
+  };
+  const review = { ...base, phase: "review", revision: 2, questions: { history: [] }, pendingQuestion: null };
+  const conflict = { level: "conflict", text: "최소 연차(5년)가 최대 연차(3년)보다 커요." };
+  let confirmReply: (value: unknown) => void = () => {};
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const text = () => dom.window.document.body.textContent!;
+  const press = async () => {
+    const button = [...dom.window.document.querySelectorAll("button")].find(item => item.textContent === "바로 후보 받기");
+    assert.ok(button, "Missing button: 바로 후보 받기");
+    await act(async () => { button.click(); await new Promise(resolve => setTimeout(resolve, 20)); });
+  };
+  const beforeWrites = writes.length;
+  postReply = (body) => body.action === "finish_questions"
+    ? { session: review }
+    : body.action === "confirm" ? new Promise(resolve => { confirmReply = resolve; }) : { session: review };
+  try {
+    savedSession = asking;
+    await act(async () => root.render(<QueryClientProvider client={client}><RoleStartOnboarding role={{ ...emptyRole, roleId }} workspaceId={workspaceId} /></QueryClientProvider>));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+    assert.match(text(), /답할수록 더 잘 맞는 후보를 찾아요/);
+    await press();
+    // Finished and confirming: the loading shows, never the 찾는 사람 screen.
+    assert.deepEqual(writes.slice(beforeWrites).map(write => write.action), ["finish_questions", "confirm"]);
+    assert.match(text(), /찾는 사람에 맞는 첫 3명을 찾고 있어요/);
+    assert.doesNotMatch(text(), /채용 기준을 작성해봤어요/);
+    // It cannot be confirmed: the 찾는 사람 screen says what to fix.
+    await act(async () => { confirmReply({ session: review, issues: [conflict], started: false }); await new Promise(resolve => setTimeout(resolve, 20)); });
+    assert.match(text(), /후보를 찾기 전에 이것만 고쳐 주세요/);
+    assert.match(text(), /최소 연차\(5년\)가 최대 연차\(3년\)보다 커요/);
+    assert.doesNotMatch(text(), /첫 3명을 찾고 있어요/);
+  } finally {
+    confirmReply({ session: review, issues: [] });
+    await act(async () => root.unmount());
+    client.clear();
+    savedSession = null;
+    postReply = null;
     Object.assign(globalThis, { ...previous, IS_REACT_ACT_ENVIRONMENT: false });
     dom.window.close();
   }
