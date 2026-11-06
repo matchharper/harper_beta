@@ -4,6 +4,7 @@ import {
   type RoleStartMutationResult,
 } from "@/hooks/org/useRoleStart";
 import { queryKeys } from "@/lib/queryKeys";
+import { orgAgentReplyAnswersTeamMessage } from "@/lib/org/agent/messagePresentation";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { Info, LoaderCircle } from "lucide-react";
@@ -605,7 +606,8 @@ export function OrgAgentChatSurface({
                 index
               );
               const turnStartedAt =
-                message.role === "assistant"
+                message.role === "assistant" &&
+                orgAgentReplyAnswersTeamMessage(message.metadata)
                   ? getChatTurnStartedAt(history.messages, index)
                   : undefined;
               const authorMember = message.authorUserId
