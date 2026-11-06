@@ -8,6 +8,7 @@ import { useIsDesktop } from "@/hooks/useMediaQuery";
 import { Tabs } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
@@ -40,7 +41,7 @@ export function ReviewEmptyState({ loading = false }: { loading?: boolean }) {
       ) : (
         <>
           <Inbox className="size-6 text-neutral-soft" />
-          {c("검토할 후보자가 없습니다.", "No candidates to review.")}
+          {c("지금 검토할 후보가 없어요. 새 후보를 찾으면 알려드릴게요.", "Nothing to review right now. We'll let you know when new candidates show up.")}
         </>
       )}
     </div>
@@ -265,15 +266,15 @@ export function OrgHomeInbox() {
   const homeNavigation = (
     <>
       <header className="mb-3 lg:mb-5 flex items-center justify-between lg:mt-7">
-        <h1 className="text-xl font-medium">Home</h1>
+        <h1 className="text-xl font-medium">{ct(c, COMPANY_TERMS.nav.home)}</h1>
       </header>
       <Tabs
         activeValue={feed ? "feed" : "inbox"}
-        aria-label={c("Home 보기", "Home view")}
+        aria-label={c("홈 보기", "Home view")}
         className="mb-3 lg:mb-5 w-fit"
         items={[
           { value: "inbox", label: c("인박스", "Inbox") },
-          { value: "feed", label: c("피드", "Feed") },
+          { value: "feed", label: ct(c, COMPANY_TERMS.tab.activity) },
         ]}
         onValueChange={(tab) => {
           listScrollTop.current = 0;
@@ -368,7 +369,7 @@ export function OrgHomeInbox() {
           >
             {feed ? (
               <nav
-                aria-label={c("피드 Role 필터", "Feed role filter")}
+                aria-label={c("소식 역할 필터", "Activity role filter")}
                 className="space-y-1"
               >
                 <OrgHomeListItem
@@ -433,7 +434,7 @@ export function OrgHomeInbox() {
                         <span>
                           {group.stage === "pending_connection"
                             ? c(
-                                "관심 있는 후보 검토",
+                                "연결을 기다리는 후보 검토",
                                 group.remaining === 1
                                   ? "Review an interested candidate"
                                   : "Review interested candidates"

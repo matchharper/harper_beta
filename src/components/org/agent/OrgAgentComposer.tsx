@@ -181,6 +181,7 @@ function ModelSelector({
 }
 
 export function OrgAgentComposer({
+  placeholder,
   allowAttachments,
   autoFocus,
   compactWidth,
@@ -196,6 +197,8 @@ export function OrgAgentComposer({
   suggestions,
   workspaceId,
 }: {
+  /** The chat says what it is for; the role chat by default. */
+  placeholder?: string;
   allowAttachments?: boolean;
   autoFocus?: boolean;
   compactWidth?: boolean;
@@ -604,10 +607,10 @@ export function OrgAgentComposer({
           aria-autocomplete="list"
           aria-controls={mentionSearch ? mentionListId : undefined}
           aria-expanded={Boolean(mentionSearch)}
-          placeholder={c(
-            "Ask anything, @ for choosing talent",
-            "Ask Harper anything. Use @ to mention a candidate."
-          )}
+          placeholder={
+            placeholder ??
+            c("Harper에게 말하기 · @로 후보 부르기", "Ask Harper · @ to pick a candidate")
+          }
           mobileLeadingAction={
             allowAttachments ? (
               <ChatComposerActionMenu

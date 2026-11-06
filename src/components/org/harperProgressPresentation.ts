@@ -10,7 +10,7 @@ export function getHarperProgressText(
 ): string | null {
   if (kind === "company_intro_followup_policy")
     return c(
-      "회사의 Intro 요청에 대해서 응답하지 않을 때 Harper가 적절한 시점에 팔로업을 보냅니다.",
+      "회사의 연결 요청에 대해서 응답하지 않을 때 Harper가 적절한 시점에 팔로업을 보냅니다.",
       "If the candidate does not respond to your Intro request, Harper follows up at an appropriate time."
     );
   if (kind === "company_followup") return companyFollowupText(followup, c);

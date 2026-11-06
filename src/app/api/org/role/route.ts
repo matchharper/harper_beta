@@ -77,7 +77,7 @@ export async function PATCH(req: NextRequest) {
       body.roleId &&
       (await isRegisteredRoleStartRole(body.roleId, body.workspaceId ?? ""))
     ) {
-      throw new OrgHttpError(409, "이 역할의 기준은 매칭 기준 탭의 Brief에서 고쳐 주세요.");
+      throw new OrgHttpError(409, "이 역할의 기준은 확인할 기준 탭의 ‘찾는 사람’에서 고쳐 주세요.");
     }
     const payload = await updateOrgRole({
       criteria: body.criteria,

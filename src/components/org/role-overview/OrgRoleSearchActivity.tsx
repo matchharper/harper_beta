@@ -16,8 +16,8 @@ export function RoleSearchActivityLabel({ activity }: { activity: RoleMatchingAc
     ? c("첫 후보자 검색 대기 중", "First candidate search queued")
     : c("첫 후보자 검색 중", "Finding the first candidates");
   else if (activity.trigger === "scheduled") label = activity.phase === "queued"
-    ? c("정기 검색 대기 중", "Scheduled search queued")
-    : c("정기 후보자 검색 중", "Scheduled candidate search in progress");
+    ? c("정기 탐색 대기 중", "Scheduled search queued")
+    : c("정기 탐색 중", "Scheduled search in progress");
   else label = activity.phase === "queued" ? c("후보자 검색 대기 중", "Candidate search queued")
     : c("후보자 검색 중", "Searching for candidates");
   return <Loading className="text-neutral-muted motion-reduce:[&>span:first-child]:animate-none" label={label} size="sm" />;

@@ -30,6 +30,7 @@ import {
 import { useOrgBillingPreview } from "@/store/useOrgBillingPreviewStore";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, companyTerm, ct } from "@/lib/org/terms";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { billingRequest, useOrgBilling } from "@/hooks/org/useOrgBilling";
 import {
@@ -58,10 +59,10 @@ export function OrgBillingPage({
   if (section === "billing" && permissions.role !== "owner") {
     return (
       <div className="max-w-[1100px] space-y-7 pb-12">
-        <OrgPageHeader title="Billing" description={workspace.companyName} />
+        <OrgPageHeader title={companyTerm(COMPANY_TERMS.nav.billing, locale)} description={workspace.companyName} />
         <p className="text-[13px] text-neutral-muted">
           {locale === "ko"
-            ? "결제 정보는 Owner만 확인할 수 있어요."
+            ? "결제 정보는 소유자만 확인할 수 있어요."
             : "Only the Owner can view billing details."}
         </p>
         <MuteButton asChild>
@@ -298,7 +299,7 @@ function WorkspaceBillingContent({
           addToast({
             message: result.transferredRoleName
               ? c(
-                  `슬롯이 추가됐어요. ${result.transferredRoleName} Role에 새 슬롯을 연결했어요.`,
+                  `슬롯이 추가됐어요. ${result.transferredRoleName} 역할에 새 슬롯을 연결했어요.`,
                   `Your purchased slots are ready. ${result.transferredRoleName} is assigned to a new paid slot.`
                 )
               : c(
@@ -375,7 +376,7 @@ function WorkspaceBillingContent({
             "Automatic renewal restored. Your subscription will renew on the next billing date."
           ),
           assign: c(
-            "슬롯의 담당 Role을 변경했어요.",
+            "슬롯에 배정된 역할을 바꿨어요.",
             "Slot assignment updated."
           ),
         }[action];
@@ -433,7 +434,7 @@ function WorkspaceBillingContent({
   return (
     <div className="max-w-[1100px] space-y-7 pb-12">
       <OrgPageHeader
-        title={section === "slots" ? "Slots" : "Billing"}
+        title={ct(c, section === "slots" ? COMPANY_TERMS.nav.slots : COMPANY_TERMS.nav.billing)}
         actions={
           canManage &&
           catalog?.testMode && (
@@ -528,7 +529,7 @@ function WorkspaceBillingContent({
                 )}
                 {!canViewBilling &&
                   c(
-                    " Owner에게 결제 수단 확인을 요청해 주세요.",
+                    " 소유자에게 결제 수단 확인을 요청해 주세요.",
                     " Ask your Owner to review the payment method."
                   )}
               </p>
@@ -616,7 +617,7 @@ function WorkspaceBillingContent({
             setPreviewCheckout(null);
             setNotice(
               c(
-                "미리보기 결제를 완료했어요. 추가된 슬롯을 Slots에서 확인할 수 있어요. 실제 청구는 없어요.",
+                "미리보기 결제를 완료했어요. 추가된 슬롯을 회사 설정 › 슬롯에서 확인할 수 있어요. 실제 청구는 없어요.",
                 "Preview payment completed. View the added slots in Slots. No payment was taken."
               )
             );
@@ -679,7 +680,7 @@ function WorkspaceBillingContent({
           <>
             {billing.preview ? c("UI 미리보기 · ", "UI preview · ") : ""}
             {cancelSlot?.label} ·{" "}
-            {cancelSlot?.roleName ?? c("담당 Role 없음", "No role assigned")}
+            {cancelSlot?.roleName ?? c("배정된 역할 없음", "No role assigned")}
           </>
         }
         bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
@@ -715,14 +716,14 @@ function WorkspaceBillingContent({
           </p>
           <p>
             {c(
-              "슬롯이 종료되면 해당 슬롯의 Intro는 사용할 수 없어요. 남은 유효 슬롯이 있으면 배정하고, 없어도 이미 활성화된 Role을 자동 중지하지 않아요. 새로 시작하거나 재개하는 Role에는 활성 용량 제한을 적용해요. 기존 후보자·Intro·진행 이력과 별도 계약은 유지돼요.",
+              "슬롯이 종료되면 해당 슬롯의 연결은 사용할 수 없어요. 남은 유효 슬롯이 있으면 배정하고, 없어도 이미 활성화된 역할을 자동 중지하지 않아요. 새로 시작하거나 재개하는 역할에는 활성 용량 제한을 적용해요. 기존 후보자·연결·진행 이력과 별도 계약은 유지돼요.",
               "When a slot expires, its Intros become unavailable. Harper assigns another valid slot when available, but keeps existing active roles running even without one. Capacity limits apply when starting or reactivating a role. Existing candidates, Intros, hiring history, and separate agreements are preserved."
             )}
           </p>
           {cancelSlot?.roleId && (
             <p className="text-neutral-muted">
               {c(
-                "취소 후에도 담당 Role을 변경할 수 있어요. 종료 시점의 배정에 따라 영향이 달라져요.",
+                "취소 후에도 배정된 역할을 바꿀 수 있어요. 종료 시점의 배정에 따라 영향이 달라져요.",
                 "You can reassign the slot after canceling. The change will affect whichever role is assigned when the slot expires."
               )}
             </p>
@@ -742,7 +743,7 @@ function WorkspaceBillingContent({
         description={
           <>
             {c(
-              "기존 배정이 아래와 같이 바뀌어요. Intro 잔액과 갱신일은 각 슬롯에 그대로 유지돼요.",
+              "기존 배정이 아래와 같이 바뀌어요. 연결 잔액과 갱신일은 각 슬롯에 그대로 유지돼요.",
               "The existing assignments will change as shown below. Each slot keeps its Intro balance and renewal date."
             )}
           </>
@@ -812,7 +813,7 @@ function WorkspaceBillingContent({
           {!previousSlot && assignSlot?.roleName && (
             <p className="pt-1 text-[12px] text-neutral-muted">
               {c(
-                `${assignSlot.roleName} Role의 기존 슬롯 배정은 해제돼요.`,
+                `${assignSlot.roleName} 역할의 기존 슬롯 배정은 해제돼요.`,
                 `${assignSlot.roleName} will no longer be assigned to this slot.`
               )}
             </p>
@@ -820,7 +821,7 @@ function WorkspaceBillingContent({
           {billing.preview && (
             <p className="pt-1 text-[12px] text-neutral-muted">
               {c(
-                "UI 미리보기에만 반영돼요. Role의 실제 채용 상태는 바뀌지 않아요.",
+                "UI 미리보기에만 반영돼요. 역할의 실제 채용 상태는 바뀌지 않아요.",
                 "Only the UI preview changes. The Role’s actual hiring status stays the same."
               )}
             </p>

@@ -70,7 +70,7 @@ export function relaxations(brief: RoleStartBrief): Relaxation[] {
       .map((criterion) => ({
         id: criterion.id ?? criterion.name,
         label: criterion.name,
-        widen: "필수 조건에서 평가 기준(중요)으로 옮기기",
+        widen: "필수 조건에서 확인할 기준(중요)으로 옮기기",
         apply: (current: RoleStartBrief) => ({
           ...current,
           criteria: current.criteria.map((item) =>

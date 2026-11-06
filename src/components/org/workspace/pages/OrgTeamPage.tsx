@@ -18,6 +18,7 @@ import {
   useOrgSourceT,
   type OrgCopy,
 } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useOrgDocumentEditorCopy } from "@/i18n/org/useOrgDocumentEditorCopy";
 import {
   ArrowUpRight,
@@ -623,13 +624,13 @@ function InviteMemberDialog({
         </fieldset>
         {teams.length > 0 ? (
           <label className="grid gap-2 text-[13px] font-medium text-neutral-primary">
-            <span>{c("Role 접근 범위", "Role access")}</span>
+            <span>{ct(c, COMPANY_TERMS.access.roleAccess)}</span>
             <Select
               value={role === "owner" ? "organization" : teamId}
               items={[
                 {
                   value: "organization",
-                  label: c("전체 Role", "All Roles"),
+                  label: c("모든 역할", "All Roles"),
                 },
                 ...teams.map((team) => ({
                   value: team.teamId,
@@ -646,7 +647,7 @@ function InviteMemberDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="organization">
-                  {c("전체 Role", "All Roles")}
+                  {c("모든 역할", "All Roles")}
                 </SelectItem>
                 {teams.map((team) => (
                   <SelectItem key={team.teamId} value={team.teamId}>
@@ -1106,7 +1107,7 @@ export function OrgTeamPage({
         }
         title={
           showMembers ? (
-            c("Members", "Members")
+            ct(c, COMPANY_TERMS.nav.members)
           ) : (
             <span className="flex min-w-0 items-center gap-2">
               <CompanyBrandMark
@@ -1137,7 +1138,7 @@ export function OrgTeamPage({
         >
           <OrgSectionHeader
             className="max-w-2xl"
-            title={c("Company", "Company")}
+            title={ct(c, COMPANY_TERMS.nav.company)}
             actions={
               <>
                 {canEditCompany && !companyInfoEditing ? (
@@ -1367,7 +1368,7 @@ export function OrgTeamPage({
           {!hideEmptyDescription || currentCompanyDraft.pitch.trim() ? (
             <section>
               <OrgSectionHeader
-                title={c("Company Description", "Company description")}
+                title={c("회사 소개", "About")}
               />
               {inlineDescription && readOnlyCompany ? (
                 <RichText
@@ -1379,14 +1380,14 @@ export function OrgTeamPage({
                 <DocumentEditor
                   {...documentEditorCopy}
                   aria-label={c(
-                    "Company Description 수정",
-                    "Edit company description"
+                    "회사 소개 수정",
+                    "Edit about"
                   )}
                   className="mt-2 max-w-4xl"
                   disabled={updateWorkspace.isPending}
                   documentTitle={c(
-                    "Company Description",
-                    "Company description"
+                    "회사 소개",
+                    "About"
                   )}
                   errorMessage={
                     companyEditingField === "pitch" ? companySaveError : ""
@@ -1429,7 +1430,7 @@ export function OrgTeamPage({
               value: "members",
               label: (
                 <span className="flex items-center gap-2">
-                  {c("Members", "Members")}
+                  {ct(c, COMPANY_TERMS.nav.members)}
                   <span className="text-[12px] tabular-nums text-neutral-soft">
                     {members.length}
                   </span>
@@ -1458,8 +1459,8 @@ export function OrgTeamPage({
         <OrgSection>
           <p className="mb-6 text-sm text-neutral-700">
             {c(
-              "함께 후보자를 검토할 팀원을 초대하고 역할에 맞는 권한을 부여하세요.",
-              "Invite teammates to review candidates and set workspace permissions."
+              "함께 후보를 검토할 팀원을 초대하고 권한을 정하세요.",
+              "Invite teammates and set permissions."
             )}
             {/* {invitations.length > 0 ? <span className="ml-2">{c("수락 대기 {count}명", "{count} pending invites", { count: invitations.length })}</span> : null} */}
           </p>
@@ -1539,7 +1540,7 @@ export function OrgTeamPage({
                       </div>
                       <div className="min-w-0">
                         <dt className="text-[11px] text-neutral-soft">
-                          {c("가입 날짜", "Date joined")}
+                          {c("가입일", "Joined")}
                         </dt>
                         <dd className="mt-1 truncate text-[13px] text-neutral-primary">
                           {formatDate(member.joinedAt, locale)}
@@ -1594,7 +1595,7 @@ export function OrgTeamPage({
                       {showTeamAccess ? (
                         <div className="col-span-2 flex items-center justify-between gap-3">
                           <dt className="text-[12px] text-neutral-muted">
-                            {c("접근 범위", "Access")}
+                            {c("볼 수 있는 역할", "Access")}
                           </dt>
                           <dd>
                             <OrgMemberTeamSelect member={member} />
@@ -1620,7 +1621,7 @@ export function OrgTeamPage({
                               {invitation.email}
                             </h4>
                             <Badge radius="full" size="sm" variant="faded">
-                              {c("수락 대기", "Pending acceptance")}
+                              {c("초대 수락 전", "Invited")}
                             </Badge>
                           </div>
                           <p className="mt-1 text-[12px] text-neutral-muted">
@@ -1679,11 +1680,11 @@ export function OrgTeamPage({
                       </OrgTableHead>
                       {showTeamAccess ? (
                         <OrgTableHead className="w-32">
-                          {c("접근 범위", "Access")}
+                          {c("볼 수 있는 역할", "Access")}
                         </OrgTableHead>
                       ) : null}
                       <OrgTableHead className="w-40">
-                        {c("가입 날짜", "Date joined")}
+                        {c("가입일", "Joined")}
                       </OrgTableHead>
                       {permissions.canManageMembers ? (
                         <OrgTableHead className="w-12">
@@ -1829,7 +1830,7 @@ export function OrgTeamPage({
                                 {invitation.email}
                               </p>
                               <p className="mt-1 text-[12px] text-neutral-soft">
-                                {c("수락 대기", "Pending acceptance")}
+                                {c("초대 수락 전", "Invited")}
                               </p>
                             </div>
                           </div>
@@ -1847,7 +1848,7 @@ export function OrgTeamPage({
                                   (team) => team.teamId === invitation.teamId
                                 )?.name ||
                                 c("팀 배정 필요", "Team assignment needed")
-                              : c("전체 Role", "All Roles")}
+                              : c("모든 역할", "All Roles")}
                           </OrgTableCell>
                         ) : null}
                         <OrgTableCell className="text-[12px] font-light text-neutral-muted">

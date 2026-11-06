@@ -1,4 +1,5 @@
 import type { OrgLocale } from "@/i18n/org/locale";
+import { COMPANY_TERMS, companyTerm } from "@/lib/org/terms";
 import {
   parseBackgroundResultParts,
   type BackgroundResultPart,
@@ -101,13 +102,13 @@ export function candidateStatusLabel(
       "후보자 수락 · 연결 준비 중",
       "Candidate accepted · connecting",
     ],
-    pending_connection: ["수락시 바로 연결", "Accept to connect"],
+    pending_connection: [COMPANY_TERMS.stage.pending_connection.ko, COMPANY_TERMS.stage.pending_connection.en],
     connected: ["연결됨", "Connected"],
     already_in_pipeline: [
       "이미 채용 검토 중",
       "Already in the hiring pipeline",
     ],
-    passed: ["Pass", "Passed"],
+    passed: ["넘김", "Passed"],
     closed: ["요청 종료", "Request closed"],
   };
   const pair = labels[candidate.status] ?? [
@@ -206,7 +207,7 @@ export function buildSlackCandidateEntity(args: {
             }
           : {}),
         ...(candidate.acceptedConnection ? {
-          ...(candidate.status === "pending_connection" ? { display_id: locale === "ko" ? "🟠 수락시 바로 연결" : "🟠 Accept to connect" } : {}),
+          ...(candidate.status === "pending_connection" ? { display_id: `🟠 ${companyTerm(COMPANY_TERMS.stage.pending_connection, locale)}` } : {}),
           product_icon: { url: "https://matchharper.com/images/squareface_orange.png", alt_text: "Harper" },
         } : {}),
       },
@@ -223,7 +224,7 @@ export function buildSlackCandidateEntity(args: {
                   ? [
                       {
                         action_id: SLACK_CANDIDATE_INTRO_ACTION,
-                        text: "Send Intro",
+                        text: companyTerm(COMPANY_TERMS.action.request, locale),
                         style: "primary",
                         value: candidate.id,
                       },
@@ -233,7 +234,7 @@ export function buildSlackCandidateEntity(args: {
                   ? [
                       {
                         action_id: SLACK_CANDIDATE_PASS_ACTION,
-                        text: "Pass",
+                        text: companyTerm(COMPANY_TERMS.action.pass, locale),
                         value: candidate.id,
                       },
                     ]
@@ -366,9 +367,9 @@ export function buildSlackCandidateDecisionView(args: {
     type: "modal",
     callback_id: SLACK_CANDIDATE_DECISION_CALLBACK,
     private_metadata: JSON.stringify(args.metadata),
-    title: plain(request ? "Send Intro" : "Pass"),
+    title: plain(companyTerm(request ? COMPANY_TERMS.action.request : COMPANY_TERMS.action.pass, ko ? "ko" : "en")),
     close: plain(ko ? "취소" : "Cancel"),
-    submit: plain(request ? "Send Intro" : "Pass"),
+    submit: plain(companyTerm(request ? COMPANY_TERMS.action.request : COMPANY_TERMS.action.pass, ko ? "ko" : "en")),
     blocks: [
       {
         type: "section",

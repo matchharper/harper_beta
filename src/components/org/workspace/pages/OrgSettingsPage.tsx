@@ -1,6 +1,7 @@
 import { SlackLogo as SlackIcon } from "@/components/common/BrandLogos";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale, type OrgCopy } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import {
   ArrowRight,
@@ -306,7 +307,7 @@ export function OrgSettingsPage() {
           "팀이 중요한 채용 변화를 놓치지 않도록 연동과 알림을 설정하세요.",
           "Manage tools and notifications for your hiring team."
         )}
-        title={c("Integrations", "Integrations")}
+        title={ct(c, COMPANY_TERMS.nav.integrations)}
       />
 
       <div
@@ -319,8 +320,8 @@ export function OrgSettingsPage() {
           selectIntegration={selectIntegration}
           title={c("Slack", "Slack")}
           description={c(
-            "팀과 함께 추천 소식과 채용 결정을 확인하세요.",
-            "Review recommendations and hiring decisions with your team."
+            "새 후보와 결정할 일을 팀 채널에서 받아요.",
+            "Get new candidates and decisions in Slack."
           )}
           icon={
             <Image
@@ -357,8 +358,8 @@ export function OrgSettingsPage() {
       >
         <OrgSectionHeader
           description={c(
-            "후보자 추천과 검토, 역할 기준 변경, 후보자 프로세스 종료를 Slack 채널에서 팀원과 함께 진행하세요.",
-            "Review candidate recommendations, update role criteria, and manage hiring decisions with your team in Slack."
+            "새 후보 검토, 결정, 기준 변경, 진행 종료를 Slack에서 팀원과 함께 해요.",
+            "Review candidates, decide, update criteria, and close out with your team in Slack."
           )}
           title={
             <span className="inline-flex flex-col items-start gap-3">
@@ -593,7 +594,7 @@ export function OrgSettingsPage() {
                             <DropdownMenuItem
                               onSelect={() => setRoleChannel(channel)}
                             >
-                              {c("Role 할당", "Assign roles")}
+                              {c("역할 할당", "Assign roles")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={removeSlackChannel.isPending}
@@ -633,7 +634,7 @@ export function OrgSettingsPage() {
               ) : (
                 <p className="mt-4 text-[12px] font-light text-neutral-soft">
                   {c(
-                    "Slack 연결은 Owner 또는 Admin이 설정할 수 있습니다.",
+                    "Slack 연결은 소유자 또는 관리자가 설정할 수 있습니다.",
                     "Only an Owner or Admin can set up the Slack connection."
                   )}
                 </p>

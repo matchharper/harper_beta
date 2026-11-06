@@ -25,18 +25,18 @@ test("new role Slack guidance explains the actual matching and review flow", () 
   assert.match(message, /\*후보자를 찾고 소개하는 방법\*/);
   assert.match(
     message,
-    /\*정기 후보 검색 꺼짐:\* 역할 설정에서 켜면 매주 월·수·금요일 오전 9시\(한국 시간\)/
+    /\*정기 탐색 꺼짐:\* 역할 설정에서 켜면 매주 월·수·금요일 오전 9시\(한국 시간\)/
   );
-  assert.match(message, /후보자가 수락하고 Harper가 최종 확인하면 ‘연결 수락한 후보’/);
+  assert.match(message, /후보자가 수락하고 Harper가 최종 확인하면 ‘연결을 기다리는 후보’/);
   assert.match(
     message,
-    /‘연결 제안할 후보’는 아직 역할을 수락한 분들이 아니에요/
+    /‘연결을 요청할 후보’는 아직 역할을 수락한 분들이 아니에요/
   );
   assert.match(
     message,
     /지금 먼저 연락을 보낼 수 있는 후보자를 확인하고 싶다면 Harper에게 이 역할의 후보 검색을 요청/
   );
-  assert.match(message, /‘Send Intro’/);
+  assert.match(message, /‘연결 요청’/);
   assert.doesNotMatch(message, /Connect|Reject/);
 });
 
@@ -53,9 +53,9 @@ test("new role Slack guidance reflects the role's enabled search schedule", () =
 
   assert.match(
     message,
-    /\*정기 후보 검색 켜짐:\* 매주 화·목요일 오후 2시\(한국 시간\)에 새 후보자 검색을 시작/
+    /\*정기 탐색 켜짐:\* 매주 화·목요일 오후 2시\(한국 시간\)에 새 후보자 검색을 시작/
   );
-  assert.match(message, /적합한 분이 있으면 ‘연결 제안할 후보’/);
+  assert.match(message, /적합한 분이 있으면 ‘연결을 요청할 후보’/);
 });
 
 test("connection Slack guidance explains the next action and closes warmly", () => {
@@ -163,7 +163,7 @@ test("English workspace notifications use clear connection terms", () => {
     candidate: { name: "Alex", talentId: "talent-1" },
     previousStage: "pending_connection",
   });
-  assert.match(created, /Ready to connect/);
+  assert.match(created, /Waiting to connect/);
   assert.match(created, /Company-first suggestions are on/);
   assert.match(created, /every Mon, Wed, Fri at 09:00 KST/);
   assert.match(accepted, /Introduction email/);

@@ -30,6 +30,7 @@ import {
   useRoleOverviewErrorMessage,
   RoleSectionHeading,
 } from "./RoleOverviewShared";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 
 type MatchingDraft = {
   expectedRequest: string | null;
@@ -240,21 +241,21 @@ function MatchingContent({
             <div>
               <RoleSectionHeading
                 size="large"
-                title={c("Hiring Brief", "Hiring Brief")}
+                title={ct(c, COMPANY_TERMS.brief.whoWeAreLookingFor)}
               />
               <div className="mt-1 text-[14px] font-normal leading-5 text-neutral-primary/60">
                 {c(
-                  "인재를 평가할 때 내부적으로 사용하는 기준입니다.",
-                  "Your internal brief for finding and evaluating candidates."
+                  "Harper가 후보를 찾을 때 쓰는 설명이에요. 후보에게는 보이지 않아요.",
+                  "Harper uses this to search. Candidates don't see it."
                 )}
               </div>
             </div>
           </div>
           <DocumentEditor
             {...documentEditorCopy}
-            aria-label={c("Hiring Brief 수정", "Edit hiring brief")}
+            aria-label={c("찾는 사람 수정", "Edit who we're looking for")}
             disabled={updateRole.isPending}
-            documentTitle="Hiring Brief"
+            documentTitle={ct(c, COMPANY_TERMS.brief.whoWeAreLookingFor)}
             showTitle={false}
             errorMessage={editingField === "request" ? saveError : ""}
             lastChangedAt={role.updatedAt}
@@ -262,8 +263,8 @@ function MatchingContent({
               changeDraft({ request: event.target.value }, "request")
             }
             placeholder={c(
-              "Harper가 후보자를 탐색하고 판단할 때 알아야 할 내부 기준을 알려주세요.",
-              "Provide Harper with internal criteria for sourcing and evaluating candidates."
+              "어떤 사람을 찾는지, 꼭 필요한 것과 있으면 좋은 것을 적어 주세요.",
+              "Who are you looking for? What's a must, what's a plus?"
             )}
             readOnly={!canManage}
             rows={5}
@@ -281,11 +282,11 @@ function MatchingContent({
           <div className="flex items-start justify-between gap-4">
             <RoleSectionHeading
               info={c(
-                "이름은 기준을 나타내고, 상세 내용에는 필요한 수준과 근거, 가산점 또는 우려 요소를 적어요. 서로 다른 비교 요소를 각각 적어주세요.",
-                "Give each criterion a clear name. Add the required level, rationale, strengths, and concerns in the details. Use a separate criterion for each distinct comparison."
+                "항목마다 이름과 설명을 적어 주세요. 후보 카드에 항목별로 잘 맞는지 표시돼요.",
+                "Name each item and describe it. Cards show a match per item."
               )}
               size="large"
-              title={c("Evaluation Criteria", "Evaluation Criteria")}
+              title={ct(c, COMPANY_TERMS.criteria.section)}
             />
             {editingField !== "criteria" ? (
               <MuteButton
@@ -414,7 +415,7 @@ function MatchingContent({
             </div>
           ) : (
             <div className="mt-4 rounded-md bg-bg-basement px-4 py-3 text-[13px] leading-5 text-neutral-muted">
-              Empty
+              {c("아직 없어요", "Nothing yet")}
             </div>
           )}
           {editingField === "criteria" && saveError ? (

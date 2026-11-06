@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
     const roleId = req.nextUrl.searchParams.get("roleId") ?? "";
     const workspaceId = req.nextUrl.searchParams.get("workspaceId") ?? "";
     const role = await readRoleStartAccess({ roleId, user, workspaceId });
-    // The 매칭 기준 tab asks only whether this Role has a role start Brief (reading
+    // The What to check tab asks only whether this Role has a role start Brief (reading
     // the rubric would start a session for a chat-written Role).
     if (req.nextUrl.searchParams.get("include") === "structured") {
       return NextResponse.json({ structured: role.status !== "draft" && (await hasRoleStartBrief(roleId)) });

@@ -80,7 +80,6 @@ import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTypes";
 import {
   canStopOrgCandidateProcess,
-  CANDIDATE_DECISION_LABELS,
 } from "@/lib/org/candidateDecision";
 import { getOrgTalentDetailNavigationState } from "@/lib/org/detailNavigation";
 import {
@@ -96,6 +95,7 @@ import { suggestOrgStopReasons } from "@/lib/org/evaluationSuggestions";
 import { useToastStore } from "@/store/useToastStore";
 import { useOrgCandidateDecisionRunner } from "@/hooks/org/useOrgCandidateDecisionRunner";
 import Face from "../common/Face";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 
 const OrgInternalTalentPanel = dynamic(
   () => import("@/components/org/internal/OrgInternalTalentPanel"),
@@ -255,11 +255,11 @@ function CandidateDecisionActions({
     if (!onMoveToPendingConnection) return null;
     return (
       <section
-        aria-label={c("연결 수락한 후보로 이동", "Move to Ready to connect")}
+        aria-label={c("연결을 기다리는 후보로 이동", "Move to Waiting to connect")}
         className={cn("rounded-md bg-bg-weak px-4 py-4", className)}
       >
         <div className="text-[16px] font-medium text-neutral-primary">
-          {c("연결 수락한 후보로 옮기시겠습니까?", "Move to Ready to connect?")}
+          {c("연결을 기다리는 후보로 옮기시겠습니까?", "Move to Waiting to connect?")}
         </div>
         <p className="mt-1 text-sm font-normal leading-5 text-neutral-muted">
           {c(
@@ -275,7 +275,7 @@ function CandidateDecisionActions({
           type="button"
           variant="primary"
         >
-          {c("연결 수락한 후보로 이동", "Move to Ready to connect")}
+          {c("연결을 기다리는 후보로 이동", "Move to Waiting to connect")}
         </MuteButton>
       </section>
     );
@@ -349,7 +349,7 @@ function CandidateDecisionActions({
           disabled={decisionPending || acceptDisabled || !onAcceptClick}
           className="min-h-10 w-full"
         >
-          {CANDIDATE_DECISION_LABELS.connect}
+          {ct(c, COMPANY_TERMS.action.connect)}
         </MuteButton>
         <MuteButton
           type="button"
@@ -359,7 +359,7 @@ function CandidateDecisionActions({
           disabled={decisionPending || !onRejectClick}
           className="min-h-10 w-full"
         >
-          {CANDIDATE_DECISION_LABELS.reject}
+          {ct(c, COMPANY_TERMS.action.pass)}
         </MuteButton>
       </div>
     </section>
@@ -397,7 +397,7 @@ function CompanyIntroDecisionActions({
           size="md"
           variant="dark"
         >
-          {c("Send Intro", "Send Intro")}
+          {c("연결 요청", "Request intro")}
         </MuteButton>
       </div>
     </section>
@@ -417,7 +417,7 @@ function getOrgFeedTitle(item: OrgTalentDetailResponse["feed"][number]) {
     return "후보자에게 회사 요청을 다시 안내했어요";
   }
   if (item.kind === "internal_process_stopped_notified") {
-    return "프로세스 종료 안내";
+    return "진행 종료 안내";
   }
   if (item.activity) {
     return orgCandidateActivityTitle(
@@ -526,7 +526,7 @@ function FeedPanel({
       deleteProgress: c("Progress 삭제", "Delete activity"),
       edit: c("수정", "Edit"),
       failure: c("처리하지 못했습니다.", "Couldn't complete this action."),
-      feedActions: c("피드 작업", "Activity actions"),
+      feedActions: c("소식 작업", "Activity actions"),
       save: c("저장", "Save"),
       subject: c("제목", "Subject"),
       viewContent: c("내용 보기", "View message"),
@@ -820,7 +820,7 @@ function FeedPanel({
         </div>
       ) : null}
       <div className="text-[14px] font-medium text-neutral-primary">
-        {c("피드", "Feed")}
+        {ct(c, COMPANY_TERMS.tab.activity)}
       </div>
       <ProgressFeed
         actionsVariant="menu"
@@ -879,7 +879,7 @@ function FeedPanel({
         placeholder={c("메모.", "Note")}
         stages={stages}
         submitError={feedError(createFeed.error)}
-        submitLabel={c("메모 추가", "Add note")}
+        submitLabel={c("메모 저장", "Save note")}
       />
       <div className="pt-4">
         <MuteButton
@@ -1202,9 +1202,9 @@ export function TalentDetailSimpleView({
     : undefined;
   const roleMoveButton =
     canManageCandidates && detail ? (
-      <Tooltips text={c("다른 Role로 이동", "Move to another role")}>
+      <Tooltips text={c("다른 역할로 옮기기", "Move to another role")}>
         <MuteButton
-          aria-label={c("다른 Role로 이동", "Move to another role")}
+          aria-label={c("다른 역할로 옮기기", "Move to another role")}
           size="md"
           type="button"
           variant="transparent"
@@ -1516,7 +1516,7 @@ export function TalentDetailSimpleView({
                       type="button"
                       variant="transparent"
                     >
-                      {CANDIDATE_DECISION_LABELS.reject}
+                      {ct(c, COMPANY_TERMS.action.pass)}
                     </MuteButton>
                   )}
                   <MuteButton
@@ -1536,8 +1536,8 @@ export function TalentDetailSimpleView({
                     variant="transparent"
                   >
                     {detail?.recommendation.stage === "company_intro"
-                      ? c("Send Intro", "Send Intro")
-                      : CANDIDATE_DECISION_LABELS.connect}
+                      ? c("연결 요청", "Request intro")
+                      : ct(c, COMPANY_TERMS.action.connect)}
                   </MuteButton>
                 </div>
               ) : null}
@@ -1641,7 +1641,7 @@ export function TalentDetailSimpleView({
                         value: "profile",
                       },
                       {
-                        label: c("피드", "Feed"),
+                        label: ct(c, COMPANY_TERMS.tab.activity),
                         value: "feed",
                       },
                     ]}
@@ -1931,7 +1931,7 @@ export function TalentDetailSimpleView({
           setCompanyIntroRequestOpen(false);
           if (presentation === "inline") finishReview();
           addToast({
-            message: c("Intro를 요청했어요.", "Intro requested."),
+            message: c("연결을 요청했어요.", "Intro requested."),
             variant: "success",
           });
         }}

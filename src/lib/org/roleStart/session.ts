@@ -126,7 +126,7 @@ export type RoleStartReasonChip = {
 };
 
 /**
- * Chips for 매우 잘 맞음 / 잘 맞음: one per criterion the verdict read 잘 맞음 or
+ * Chips for 아주 잘 맞음 / 잘 맞음: one per criterion the verdict read 잘 맞음 or
  * better, named after it (no model call).
  */
 export function likedReasonChips(verdict: RoleStartVerdict | null): RoleStartReasonChip[] {
@@ -510,7 +510,7 @@ export async function saveRoleStartCompensation(roleId: string, salary: string) 
   return { session: rows[0] ? fromRow(rows[0]) : null, salaryRange: rows[0]?.salary_range ?? null };
 }
 
-/** Progress key of a chat edit of a registered Role's Brief (the 매칭 기준 tab locks while it runs). */
+/** Progress key of a chat edit of a registered Role's Brief (the What to check tab locks while it runs). */
 export const CHAT_BRIEF_EDIT = "chat_brief_edit";
 
 /**

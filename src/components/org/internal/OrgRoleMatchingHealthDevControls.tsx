@@ -166,7 +166,7 @@ export function OrgRoleMatchingHealthDevControls({
 
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.7fr)_auto] sm:items-end">
             <label className="grid min-w-0 gap-1.5 text-[12px] text-neutral-muted">
-              {c("대상 Role", "Role")}
+              {c("대상 역할", "Role")}
               <Select
                 items={roleOptions}
                 onValueChange={(value) => value && setSelectedRoleId(value)}
@@ -174,11 +174,11 @@ export function OrgRoleMatchingHealthDevControls({
               >
                 <SelectTrigger
                   aria-label={c(
-                    "Matching health 대상 Role",
+                    "Matching health 대상 역할",
                     "Matching health role"
                   )}
                 >
-                  <SelectValue placeholder={c("Role 선택", "Select role")} />
+                  <SelectValue placeholder={c("역할 선택", "Select role")} />
                 </SelectTrigger>
                 <SelectContent align="start" alignItemWithTrigger={false}>
                   {roleOptions.map((role) => (

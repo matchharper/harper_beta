@@ -1,5 +1,6 @@
 import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -140,7 +141,7 @@ export function BillingUsageHistory({ workspaceId }: HistoryProps) {
   const pageCount = Math.max(1, Math.ceil((usage.data?.total ?? 0) / 20));
   return (
     <OrgSection className="border-b-0 pb-0">
-      <OrgSectionHeader title={c("Intro 사용 내역", "Intro usage history")} />
+      <OrgSectionHeader title={c("연결 사용 내역", "Intro usage history")} />
       <div aria-busy={usage.isFetching}>
         <Table
           className={`min-w-[600px] ${usage.isPlaceholderData ? "opacity-50" : ""}`}
@@ -148,11 +149,11 @@ export function BillingUsageHistory({ workspaceId }: HistoryProps) {
           <TableHeader>
             <TableRow>
               {[
-                c("사용일", "Date"),
-                c("활동", "Activity"),
-                "Role",
-                c("사용 구분", "Source"),
-                c("Intro", "Intros"),
+                c("날짜", "Date"),
+                c("한 일", "Activity"),
+                c("역할", "Role"),
+                c("쓴 연결", "Source"),
+                c("횟수", "Intros"),
               ].map((label) => (
                 <TableHead key={label} scope="col" className="last:text-right">
                   {label}
@@ -166,7 +167,7 @@ export function BillingUsageHistory({ workspaceId }: HistoryProps) {
                 loading={usage.isPending}
                 error={usage.isError}
                 empty={c(
-                  "아직 Intro 사용 내역이 없어요.",
+                  "아직 연결 사용 내역이 없어요.",
                   "No Intro usage yet."
                 )}
                 columns={5}
@@ -185,17 +186,17 @@ export function BillingUsageHistory({ workspaceId }: HistoryProps) {
                   </TableCell>
                   <TableCell className={`whitespace-nowrap`}>
                     {item.action === "intro_request"
-                      ? c("Intro 요청", "Intro request")
-                      : c("연결 수락", "Connection accepted")}
+                      ? ct(c, COMPANY_TERMS.action.request)
+                      : ct(c, COMPANY_TERMS.action.connect)}
                   </TableCell>
                   <TableCell className={`max-w-[250px]`}>
                     <span className="line-clamp-2">{item.roleName ?? "—"}</span>
                   </TableCell>
                   <TableCell className={`whitespace-nowrap text-neutral-muted`}>
-                    {item.slotLabel === "Shared Intros" ||
+                    {item.slotLabel === "Shared Intros" || // legacy-text: stored slot labels
                     item.slotLabel === "Shared credits" ||
                     item.slotLabel === "Free"
-                      ? c("공용 Intro", "Shared Intros")
+                      ? ct(c, COMPANY_TERMS.usage.included)
                       : (item.slotLabel ?? "—")}
                   </TableCell>
                   <TableCell className={`text-right tabular-nums`}>

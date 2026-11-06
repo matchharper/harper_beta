@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
 import { OrgInterviewAvailabilityDialog } from "@/components/org/meetings/OrgInterviewAvailabilityDialog";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { formatOrgMeetingAvailabilitySummary } from "@/i18n/org/meetingSummary";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { useOrgGoogleCalendar } from "@/hooks/org/useOrgGoogleCalendar";
@@ -320,7 +321,7 @@ export function OrgStageMoveDialog({
     issues.push({
       key: "intro",
       text: c(
-        "Intro가 {p0}개 필요한데 이번 달 {p1}개 남았어요.",
+        "연결이 {p0}회 필요한데 이번 달 {p1}회 남았어요.",
         "This needs {p0} Intros but {p1} are left this month.",
         { p0: introsNeeded, p1: Math.max(0, introSlot.remaining) }
       ),
@@ -909,7 +910,7 @@ export function OrgStageMoveDialog({
               type="submit"
               variant="dark"
             >
-              {c("연결 수락", "Accept Intro")}
+              {ct(c, COMPANY_TERMS.action.connect)}
             </MuteButton>
           </div>
         }
@@ -975,7 +976,7 @@ export function OrgStageMoveDialog({
 
           {introsNeeded > 0 ? (
             <p className="text-[12px] tabular-nums text-neutral-muted">
-              {c("Intro {p0}개 사용", "Uses {p0}", {
+              {c("연결 {p0}회 사용", "Uses {p0}", {
                 p0:
                   locale === "en"
                     ? formatIntroCount(introsNeeded, locale)
@@ -984,7 +985,7 @@ export function OrgStageMoveDialog({
               {introSlot ? (
                 <>
                   {" · "}
-                  {c("이번 달 {p0} 남음", "{p0} left this month", {
+                  {c("이번 달 남은 {p0}", "{p0} left this month", {
                     p0: formatIntroCount(introSlot.remaining, locale),
                   })}
                 </>

@@ -18,10 +18,10 @@ import {
 
 test("company-side labels never expose common database enums", () => {
   assert.equal(humanizeOrgRoleStatus("top_priority"), "최우선 진행 중");
-  assert.equal(humanizeOrgRoleStatus("paused"), "중단");
-  assert.equal(humanizeOrgStage("pending_connection"), "연결 수락한 후보");
-  assert.equal(humanizeOrgStage("intro_requested"), "연결 제안한 후보");
-  assert.equal(humanizeOrgStage("final_offer"), "최종 오퍼 단계");
+  assert.equal(humanizeOrgRoleStatus("paused"), "잠시 멈춤");
+  assert.equal(humanizeOrgStage("pending_connection"), "연결을 기다리는 후보");
+  assert.equal(humanizeOrgStage("intro_requested"), "연결 요청함");
+  assert.equal(humanizeOrgStage("final_offer"), "오퍼");
   assert.equal(humanizeOrgWorkMode("remote"), "원격 근무");
   assert.equal(humanizeOrgFeedback("positive"), "긍정 평가");
   assert.equal(humanizeOrgProgressKind("org_stage_change"), "채용 단계 변경");

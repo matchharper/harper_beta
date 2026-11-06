@@ -428,8 +428,8 @@ export function useOrgCandidateActions(args: {
       if (!changed) return;
       addToast({
         message: c(
-          "연결 수락한 후보로 옮겼습니다.",
-          "Moved to Ready to connect."
+          "연결을 기다리는 후보로 옮겼습니다.",
+          "Moved to Waiting to connect."
         ),
         variant: "success",
       });
@@ -439,8 +439,8 @@ export function useOrgCandidateActions(args: {
           error,
           locale,
           c(
-            "연결 수락한 후보로 옮기지 못했습니다.",
-            "Couldn't move to Ready to connect. Try again."
+            "연결을 기다리는 후보로 옮기지 못했습니다.",
+            "Couldn't move to Waiting to connect. Try again."
           )
         ),
         variant: "error",

@@ -16,7 +16,7 @@ function deletionErrorCopy(error: unknown, c: OrgCopy) {
   switch (workspaceDeletionErrorCode(error)) {
     case "workspace_delete_owner_required":
       return c(
-        "Owner만 워크스페이스를 삭제할 수 있어요.",
+        "소유자만 워크스페이스를 삭제할 수 있어요.",
         "Only an owner can delete this workspace."
       );
     case "workspace_delete_not_found":
@@ -123,7 +123,7 @@ export function OrgWorkspaceDangerZone() {
           name: workspace.companyName,
         })}
         description={c(
-          "이 워크스페이스의 Role, 후보자 진행 이력, 대화와 팀원 접근 권한이 영구 삭제돼요. 되돌릴 수 없어요.",
+          "이 워크스페이스의 역할, 후보자 진행 이력, 대화와 팀원 접근 권한이 영구 삭제돼요. 되돌릴 수 없어요.",
           "This permanently deletes the workspace’s roles, candidate activity, conversations, and team access. This cannot be undone."
         )}
         footer={

@@ -198,7 +198,7 @@ export async function loadSlackTalentReviewCandidate(args: {
     .eq("role_id", args.candidate.roleId)
     .maybeSingle();
   if (roleError) throw roleError;
-  if (!role) throw new Error("후보자의 Role을 찾지 못했습니다.");
+  if (!role) throw new Error("후보자의 역할을 찾지 못했습니다.");
 
   const [
     talentResult,

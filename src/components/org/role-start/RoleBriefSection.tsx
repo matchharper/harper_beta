@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { roleMatchingBriefQueryOptions } from "@/hooks/org/roleMatchingBriefQuery";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { criterionLevel } from "@/lib/org/roleCriteria";
 import type { RoleStartBriefView } from "@/lib/org/roleStart/view";
@@ -167,23 +168,23 @@ export function RoleBriefSection({
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-md bg-bg-weak/70" role="status">
           <LoaderCircle aria-hidden="true" className="size-6 animate-spin text-neutral-soft" />
           <span className="text-[13px] text-neutral-muted">
-            {c("채팅에서 요청한 Brief 수정을 반영하는 중이에요.", "Applying the Brief change you asked for in chat.")}
+            {c("채팅에서 요청한 찾는 사람 수정을 반영하는 중이에요.", "Applying the change you asked for in chat.")}
           </span>
         </div>
       ) : null}
       {briefEdit === "error" ? (
         <p className="mb-2 text-[13px] text-red-700">
-          {c("채팅에서 요청한 Brief 수정을 반영하지 못했어요. 다시 요청해 주세요.", "Could not apply the Brief change from chat. Please ask again.")}
+          {c("채팅에서 요청한 찾는 사람 수정을 반영하지 못했어요. 다시 요청해 주세요.", "Could not apply the change you asked for in chat. Please ask again.")}
         </p>
       ) : null}
       <div className="mb-3 flex items-start justify-between gap-4">
         <RoleSectionHeading
           description={c(
             "Harper가 후보를 찾고 추천할 때 쓰는 기준이에요.",
-            "Harper finds and recommends candidates with this Brief."
+            "Harper uses this to find candidates."
           )}
           size="large"
-          title={c("Brief", "Brief")}
+          title={c("찾는 사람", "Who we're looking for")}
         />
         {canManage && !editing ? (
           <MuteButton disabled={save.isPending || locked} onClick={() => setEditing(true)} variant="transparent">
@@ -249,7 +250,7 @@ export function RoleBriefSection({
       ) : (
         <>
           <div className="mt-8 pb-6">
-            <RoleSectionHeading title={c("평가 기준", "Evaluation criteria")} />
+            <RoleSectionHeading title={ct(c, COMPANY_TERMS.criteria.section)} />
             {shown.hardConditions.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {shown.hardConditions.map((condition) => (
@@ -271,7 +272,7 @@ export function RoleBriefSection({
                 ))}
               </div>
             ) : !shown.hardConditions.length ? (
-              <p className="mt-3 text-[13px] leading-5 text-neutral-muted">{c("평가 기준이 없어요.", "No evaluation criteria.")}</p>
+              <p className="mt-3 text-[13px] leading-5 text-neutral-muted">{c("확인할 기준이 아직 없어요.", "No criteria yet.")}</p>
             ) : null}
             {canManage ? (
               <div className="mt-8">
@@ -295,7 +296,7 @@ export function RoleBriefSection({
   );
 }
 
-/** One criterion as the 매칭 기준 tab shows it: name, level and what counts. */
+/** One criterion as the What to check tab shows it: name, level and what counts. */
 function CriterionCard({
   criterion,
   label,

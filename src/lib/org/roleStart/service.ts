@@ -1932,7 +1932,7 @@ export async function saveRoleStartBriefEdit(
           },
         })
       : null;
-  if (!saved) throw new OrgHttpError(409, "그사이 Brief가 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
+  if (!saved) throw new OrgHttpError(409, "그사이 찾는 사람이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
   scheduleBriefPreparation(args.roleId, brief, request ? "review_request" : "review_edit");
   prepareWhenBriefReady(args.roleId, saved);
   return { session: saved, applied: summary, issues: checkBriefConsistency(brief, role) };
@@ -1975,7 +1975,7 @@ export async function applyCalibrationToRoleStart(args: Access & { hiringBrief: 
 /**
  * A chat edit of a registered Role's Brief text or criteria list. With a role
  * start Brief neither is written on its own: a new list goes in as the
- * 매칭 기준 tab's would, changed text as words (only the lines that changed),
+ * What to check tab's would, changed text as words (only the lines that changed),
  * and both are then written again from the one Brief. Grade signals are not
  * the chat's to set; they are rewritten for criteria whose text changed.
  * False when the Role is not a registered one with a role start Brief (the
@@ -1998,13 +1998,13 @@ export async function applyChatEditToRoleStart(
     const sql = roleStartSql();
     const [row] = await sql<Array<{ criteria: unknown }>>`select criteria from public.company_internal_roles where role_id = ${args.roleId}`;
     const key = (value: unknown) => JSON.stringify(normalizeOrgRoleCriteria(value).map((item) => [item.name, item.criteria, item.requirement ?? null, item.importance ?? null]));
-    if (key(row?.criteria) !== key(args.expectedCriteria)) throw new OrgHttpError(409, "그사이 평가 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
+    if (key(row?.criteria) !== key(args.expectedCriteria)) throw new OrgHttpError(409, "그사이 확인할 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
   }
   const { updateRoleRubric } = await import("./rubricUpdate");
   let brief = (await loadRoleStartSession(args.roleId, { forView: true }))?.brief ?? null;
   // Only the last update's re-judging runs: it also judges rows the earlier one left pending.
   let last: (() => Promise<void>) | null = null;
-  // The 매칭 기준 tab shows the Brief locked while this edit runs.
+  // The What to check tab shows the Brief locked while this edit runs.
   await upsertRoleStartProgress(args.roleId, { key: CHAT_BRIEF_EDIT, text: "", status: "running" });
   let failed = true;
   try {
@@ -2028,7 +2028,7 @@ export async function applyChatEditToRoleStart(
       const added = [...after].filter((line) => !before.has(line));
       if (removed.length || added.length) {
         const request = [
-          "채팅에서 Brief 글을 아래처럼 고쳤어요. 같은 뜻이 되도록 Brief를 고쳐 주세요.",
+          "채팅에서 찾는 사람 글을 아래처럼 고쳤어요. 같은 뜻이 되도록 찾는 사람을 고쳐 주세요.",
           removed.length ? `뺀 줄:\n${removed.map((line) => `- ${line}`).join("\n")}` : "",
           added.length ? `넣은 줄:\n${added.map((line) => `+ ${line}`).join("\n")}` : "",
         ].filter(Boolean).join("\n");
@@ -2063,7 +2063,7 @@ function lines(text: string | null | undefined) {
 async function saveReferenceChange(args: Access & { apply: (brief: RoleStartBrief) => RoleStartBrief; summary: string }) {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const session = await loadRoleStartSession(args.roleId);
-    if (!session || isRoleStartEnded(session.phase)) throw new OrgHttpError(409, "이 역할의 Brief를 찾을 수 없어요.");
+    if (!session || isRoleStartEnded(session.phase)) throw new OrgHttpError(409, "이 역할의 찾는 사람을 찾을 수 없어요.");
     const brief = args.apply(session.brief);
     // Before confirming, and for a change to the reference list alone (nothing the
     // criteria or the Role's text show), the session is written directly.
@@ -2094,7 +2094,7 @@ async function saveReferenceChange(args: Access & { apply: (brief: RoleStartBrie
       throw error;
     }
   }
-  throw new OrgHttpError(409, "그사이 Brief가 바뀌었어요. 다시 말씀해 주세요.");
+  throw new OrgHttpError(409, "그사이 찾는 사람이 바뀌었어요. 다시 말씀해 주세요.");
 }
 
 /**
@@ -2151,7 +2151,7 @@ export async function answerRoleStartReference(args: Access & { referenceId?: st
     await sleep(1_000);
   }
   const session = await loadRoleStartSession(args.roleId, { forView: true });
-  if (session?.phase === "drafting") throw new OrgHttpError(409, "Brief를 아직 쓰고 있어요. 잠시 뒤 다시 말씀해 주세요.");
+  if (session?.phase === "drafting") throw new OrgHttpError(409, "찾는 사람을 아직 쓰고 있어요. 잠시 뒤 다시 말씀해 주세요.");
   // `again`: a box row about a person already answered adds to that answer.
   const open = (session?.brief.references ?? []).filter((reference) => args.again || !reference.answered);
   // A given id must match exactly; only with no id does the single open person stand in.
@@ -2203,7 +2203,7 @@ export async function answerRoleStartReference(args: Access & { referenceId?: st
     // The points they liked are already applied: the edit changes only what the question asked.
     const request = [
       mapped.conflict ? `${reference.label} 질문: ${mapped.conflict.question}` : null,
-      "마음에 든 점은 이미 평가 기준에 들어가 있어요. 이 질문이 묻는 것만 바꿔 주세요.",
+      "마음에 든 점은 이미 확인할 기준에 들어가 있어요. 이 질문이 묻는 것만 바꿔 주세요.",
       `${reference.label} 질문에 대한 답: ${mapped.changeForConflict}`,
     ]
       .filter(Boolean)
@@ -2258,7 +2258,7 @@ export async function submitRoleStartReferences(args: Access & { rows: RoleStart
   if (!rows.length) throw new OrgHttpError(400, "링크나 프로필을 넣어 주세요.");
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const session = await loadRoleStartSession(args.roleId, { forView: true });
-    if (!session || isRoleStartEnded(session.phase)) throw new OrgHttpError(409, "Brief를 쓰기 시작한 뒤에 넣을 수 있어요.");
+    if (!session || isRoleStartEnded(session.phase)) throw new OrgHttpError(409, "찾는 사람을 쓰기 시작한 뒤에 넣을 수 있어요.");
     const waiting = session.questions.pendingReferences ?? [];
     const known = session.brief.references ?? [];
     // A row repeating a recorded person's link (or an earlier row, waiting ones included) adds to that person, not a new one.
@@ -2279,7 +2279,7 @@ export async function submitRoleStartReferences(args: Access & { rows: RoleStart
     });
     if (saved) return { queued: true };
   }
-  throw new OrgHttpError(409, "그사이 Brief가 바뀌었어요. 다시 넣어 주세요.");
+  throw new OrgHttpError(409, "그사이 찾는 사람이 바뀌었어요. 다시 넣어 주세요.");
 }
 
 /** Reads the box's rows into reference people, then applies each row's 마음에 든 점 to its person. */
@@ -2645,7 +2645,7 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
   }
   // Words still being applied after the wait would be dropped by confirming now.
   if (wordsPending(session)) {
-    throw new OrgHttpError(409, "마지막 답을 아직 Brief에 반영하고 있어요. 잠시 뒤 다시 눌러 주세요.");
+    throw new OrgHttpError(409, "마지막 답을 아직 찾는 사람에 반영하고 있어요. 잠시 뒤 다시 눌러 주세요.");
   }
   const issues = checkBriefConsistency(session.brief, role);
   if (issues.some((issue) => issue.level === "conflict")) {
@@ -2656,7 +2656,7 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
       roleId: args.roleId,
       brief: session.brief,
       changeSource: "confirmed",
-      changeSummary: "Brief 확정",
+      changeSummary: "찾는 사람 확정",
       userId: args.user.id,
       writeRole: true,
     });
@@ -2696,7 +2696,7 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
 export async function reopenRoleStartReview(args: Access) {
   const [, session] = await Promise.all([readRoleStartAccess(args), loadRoleStartSession(args.roleId, { forView: true })]);
   if (!session || !["evaluating", "review"].includes(session.phase)) {
-    throw new OrgHttpError(409, "등록한 뒤에는 Brief로 돌아갈 수 없어요.");
+    throw new OrgHttpError(409, "등록한 뒤에는 찾는 사람으로 돌아갈 수 없어요.");
   }
   if (session.phase === "review") return session;
   // The first three and their ratings stay: confirming the same Brief again
@@ -3932,7 +3932,7 @@ export async function widenRoleStartCondition(args: Access & { conditionId: stri
   const session = await loadRoleStartSession(args.roleId, { forView: true });
   if (!session || session.phase !== "evaluating") throw new OrgHttpError(409, "지금은 조건을 바꿀 수 없어요.");
   if (Object.keys(session.evaluations).length) {
-    throw new OrgHttpError(409, "평가를 시작한 뒤에는 'Brief로 돌아가 고치기'에서 바꿔 주세요.");
+    throw new OrgHttpError(409, "평가를 시작한 뒤에는 '찾는 사람으로 돌아가 고치기'에서 바꿔 주세요.");
   }
   const relaxation = relaxations(session.brief).find((item) => item.id === args.conditionId);
   if (!relaxation) throw new OrgHttpError(400, "넓힐 수 없는 조건이에요.");

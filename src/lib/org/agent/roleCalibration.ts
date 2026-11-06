@@ -220,7 +220,7 @@ export async function generateRoleHiringBriefCalibration(args: {
     args.onProgress?.({
       label:
         openedUrls.size > 0 || readTalentIds.size > 0 || attachments.length > 0
-          ? "확인한 자료를 바탕으로 Hiring Brief를 정리하는 중"
+          ? "확인한 자료를 바탕으로 찾는 사람을 정리하는 중"
           : "인재 기준과 참고 자료를 확인하는 중",
       stage: "analyzing",
     });

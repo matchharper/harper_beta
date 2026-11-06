@@ -135,6 +135,10 @@ export function OrgAgentChatSurface({
         ? "role"
         : "general";
   const initialRoleCreation = purpose === "role-creation" && !roleId;
+  const composerPlaceholder =
+    purpose === "role-creation"
+      ? c("어떤 역할인지 알려주세요. JD 링크나 파일도 돼요.", "Tell me about the role. A JD link or file works too.")
+      : undefined;
   // Example roles under the JD field: each fills the field with a short start to edit.
   const roleStartSuggestions = [
     c("백엔드 엔지니어", "Backend Engineer"),
@@ -503,10 +507,9 @@ export function OrgAgentChatSurface({
             purpose !== "role-creation" ? (
             <div className="flex min-h-[260px] items-center justify-center px-8">
               <p className="max-w-[320px] text-center leading-5 text-neutral-muted text-base text-normal">
-                {c(
-                  "어떤 채용 업무를 도와드릴까요?",
-                  "How can I help with hiring?"
-                )}
+                {purpose === "role"
+                  ? c("이 역할에서 무엇을 도와드릴까요?", "What can I help with on this role?")
+                  : c("어떤 채용 업무를 도와드릴까요?", "How can I help with hiring?")}
               </p>
             </div>
           ) : (
@@ -705,6 +708,7 @@ export function OrgAgentChatSurface({
               workspaceId={workspaceId}
             >
               <OrgAgentComposer
+                placeholder={composerPlaceholder}
                 key={initialMessage}
                 initialMessage={
                   initialRoleCreation ? initialMessage : undefined
@@ -738,6 +742,7 @@ export function OrgAgentChatSurface({
             </OrgTodoArea>
           ) : (
             <OrgAgentComposer
+              placeholder={composerPlaceholder}
               key={initialMessage}
               initialMessage={initialRoleCreation ? initialMessage : undefined}
               allowAttachments

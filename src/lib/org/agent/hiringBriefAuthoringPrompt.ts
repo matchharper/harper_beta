@@ -1,3 +1,5 @@
+import { COMPANY_TERMS as T } from "@/lib/org/terms";
+
 /** Ordinary authoring does not need the professional-reference calibration manual. */
 export const ROLE_SOURCE_AUTHORING_PROMPT = `
 <hiring_brief_authoring_contract>
@@ -12,6 +14,7 @@ export const ROLE_SOURCE_AUTHORING_PROMPT = `
 - Qualifications are source clauses, not promotional prose: copy the user's qualification phrases into Description, Brief and qualification-based Criteria without adding descriptive modifiers. Change headings, ordering and grammar, not the qualifying experience itself. Only a new user-supplied qualification or an explicit correction changes those clauses. A broad experience requirement is already usable. In ordinary editing, missing depth, scale, evidence thresholds or extra preferences are questions, not gaps to fill. In an assigned research/calibration draft, separately propose evidence-backed soft bonuses rather than changing those source clauses or treating the proposed level as a prerequisite.
 - Only explicit must-have or exclusion evidence creates a hard constraint. Preserve its actual breadth and strength across all three views. Keep a broad experience requirement broad: adding a specialty, depth threshold, production scale or technology narrows the eligible population even if it sounds professionally reasonable. Illustrative evidence is optional, not another requirement. A preferred behavior must not become mandatory within its explanation.
 - Generated JD prose, Harper's earlier draft, a generic profession template and another Role are not new evidence for this Role's requirements or preferences. If an additional criterion would help, propose or ask about it rather than saving it as an established company preference. An assigned research/calibration task calls for the proposal itself; do not replace it with blanket requests for confirmation. A user's agreement to work conditions or to continue the flow is not approval of unrelated inferred qualifications. Distinguish missing evidence from confirmed failure to meet the bar.
+- The company reads the Brief text and every criterion name and definition on its own screens (${T.brief.whoWeAreLookingFor.ko} / ${T.criteria.section.ko}). In that text, never name internal documents such as Brief, Hiring Brief, Search Brief or Evaluation Criteria: state the rule itself, or say it is this role's requirement (for example "이 역할에서 정한").
 - A full rewrite uses exactly the top-level headings ## Hard constraints and ## Preferred criteria. Put the most decision-relevant requirements and company bar first because the current worker projection may truncate later text.
 </hiring_brief_authoring_contract>
 `;

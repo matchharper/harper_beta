@@ -1,5 +1,6 @@
 import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import Link from "next/link";
 import { Check, ChevronDown, Info, Plus } from "lucide-react";
 import { Ticket } from "@/components/ui/ticket";
@@ -112,7 +113,7 @@ export function BillingSlots({
           <p className="ml-auto whitespace-nowrap tabular-nums">
             <span className="sr-only">
               {c(
-                `${formatIntroCount(remaining)} 남음`,
+                `남은 ${formatIntroCount(remaining)}`,
                 `${formatIntroCount(remaining)} left`
               )}
             </span>
@@ -127,13 +128,13 @@ export function BillingSlots({
           <div
             className="mt-1.5"
             role="meter"
-            aria-label={`${slot?.label} · ${c("남은 Intro", "Remaining Intros")}`}
+            aria-label={`${slot?.label} · ${c("남은 연결", "Intros left")}`}
             aria-valuemin={0}
             aria-valuemax={allowance}
             aria-valuenow={remaining}
             aria-valuetext={c(
-              `${allowance}개 중 ${remaining}개 남음`,
-              `${remaining} of ${allowance} Intros left`
+              `${allowance}회 중 ${remaining}회 남음`,
+              `${remaining} of ${allowance} intros left`
             )}
           >
             <ProgressBar
@@ -157,18 +158,18 @@ export function BillingSlots({
           <OrgSectionHeader
             title={
               <span className="inline-flex items-center gap-2">
-                {c("공용 Intro", "Shared Intros")}
+                {ct(c, COMPANY_TERMS.usage.included)}
                 <Ticket />
               </span>
             }
             description={c(
-              "매월 제공되는 기본 Intro입니다. 모든 역할에 공통적으로 사용됩니다.",
-              "Renewed monthly and shared across all roles."
+              "매월 드리는 연결이에요. 모든 역할에서 같이 써요.",
+              "Renewed monthly, shared across roles."
             )}
           />
           <Card className="rounded-2xl bg-bg-default py-3.5 px-5 shadow-none">
             <p className="text-[14px] font-normal">
-              {c("월간 한도", "Monthly allowance")}
+              {c("이번 달", "This month")}
             </p>
             <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[12px] text-neutral-600">
               {free.renewsAt ? (
@@ -189,8 +190,8 @@ export function BillingSlots({
               <p className="ml-auto whitespace-nowrap tabular-nums">
                 <span className="sr-only">
                   {c(
-                    `공용 Intro ${free.remaining}개 남음`,
-                    `${free.remaining} shared ${free.remaining === 1 ? "Intro" : "Intros"} left`
+                    `남은 기본 연결 ${free.remaining}회`,
+                    `${free.remaining} included ${free.remaining === 1 ? "intro" : "intros"} left`
                   )}
                 </span>
                 <span
@@ -206,13 +207,13 @@ export function BillingSlots({
             <div
               className="mt-1.5"
               role="meter"
-              aria-label={c("남은 공용 Intro", "Shared Intros remaining")}
+              aria-label={c("남은 기본 연결", "Included intros left")}
               aria-valuemin={0}
               aria-valuemax={free.allowance}
               aria-valuenow={free.remaining}
               aria-valuetext={c(
-                `${free.allowance}개 중 ${free.remaining}개 남음`,
-                `${free.remaining} of ${free.allowance} Intros left`
+                `${free.allowance}회 중 ${free.remaining}회 남음`,
+                `${free.remaining} of ${free.allowance} intros left`
               )}
             >
               <ProgressBar
@@ -226,16 +227,16 @@ export function BillingSlots({
         </div>
       )}
       <OrgSectionHeader
-        title="Slots"
+        title={ct(c, COMPANY_TERMS.nav.slots)}
         description={
           summary.model === "scale"
             ? c(
-                "Enterprise에서는 Role과 Intro에 제한이 없어요.",
-                "Enterprise includes unlimited roles and Intros."
+                "Enterprise에서는 역할과 연결에 제한이 없어요.",
+                "Enterprise includes unlimited roles and intros."
               )
             : c(
-                `슬롯 ${slots.filter((slot) => slot.active).length}개 · 채용 중인 Role ${summary.activeRoles}개`,
-                `${slots.filter((slot) => slot.active).length} slots · ${summary.activeRoles} active Roles`
+                `슬롯 ${slots.filter((slot) => slot.active).length}개 · 진행 중인 역할 ${summary.activeRoles}개`,
+                `${slots.filter((slot) => slot.active).length} slots · ${summary.activeRoles} active roles`
               )
         }
         actions={
@@ -312,7 +313,7 @@ export function BillingSlots({
       {(!canManage || contactOnly) && (
         <p className="mt-3 max-w-[230px] text-[12px] font-normal leading-5 text-neutral-muted">
           {!canManage
-            ? c("Owner가 추가할 수 있어요", "An Owner can add slots")
+            ? c("소유자가 추가할 수 있어요", "An Owner can add slots")
             : contactOnly
               ? c(
                   "추가 이용은 Harper 팀에 문의해 주세요",
@@ -332,14 +333,14 @@ export function BillingSlots({
       )}
       <div className="mt-12">
         <h3 className="mb-3 text-[13px] font-medium flex flex-row items-center gap-1">
-          <span>Roles</span>
+          <span>{ct(c, COMPANY_TERMS.nav.roles)}</span>
           <span className="font-normal text-neutral-muted">
             {visibleRoles.length}
           </span>
           <Tooltips
             text={c(
-              "슬롯 Intro를 사용할 Role을 배정하세요. 슬롯이 없는 Role도 공용 Intro로 요청과 연결 수락을 진행할 수 있어요.",
-              "Assign a role to use the slot’s Intros. Roles without a slot can use shared Intros for requests and connection acceptance."
+              "슬롯 연결을 사용할 역할을 배정하세요. 슬롯이 없는 역할도 기본 연결로 요청과 연결 수락을 진행할 수 있어요.",
+              "Assign a role to use the slot’s intros. Roles without a slot use included intros to request intros and connect."
             )}
           >
             <Info
@@ -350,15 +351,15 @@ export function BillingSlots({
         </h3>
         <ul
           className="space-y-1.5"
-          aria-label={c("Role별 슬롯 배정", "Slot assignments")}
+          aria-label={c("역할별 슬롯 배정", "Slot assignments")}
         >
           {visibleRoles.map((role) => {
             const assigned = slotByRole.get(role.roleId);
             const isAssigned = Boolean(assigned);
             const unassignedLabel =
               free && isOrgRoleCountedAsActive(role.status)
-                ? c("공용 Intro", "Shared Intros")
-                : c("미배정", "Unassigned");
+                ? ct(c, COMPANY_TERMS.usage.included)
+                : c("슬롯 없음", "No slot");
             return (
               <li
                 key={role.roleId}
@@ -442,7 +443,7 @@ export function BillingSlots({
         </ul>
         {!visibleRoles.length && (
           <p className="rounded-lg bg-bg-weak px-3 py-3 text-[12px] text-neutral-muted">
-            {c("종료되지 않은 Role이 없어요", "No open roles")}
+            {c("종료되지 않은 역할이 없어요", "No open roles")}
           </p>
         )}
       </div>

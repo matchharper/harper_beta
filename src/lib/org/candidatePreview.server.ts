@@ -63,7 +63,7 @@ export async function readOrgCandidateDetail(args: CandidateReference): Promise<
   }
 
   const role = args.roleId ? roles.find(role => role.role_id === args.roleId) : roles[0];
-  if (!role) throw new OrgHttpError(403, "프로필을 확인할 수 있는 Role을 선택해 주세요.");
+  if (!role) throw new OrgHttpError(403, "프로필을 확인할 수 있는 역할을 선택해 주세요.");
 
   // Read sharing eligibility before requesting profile fields. Old shared pairs
   // above retain their existing visibility contract after preference changes.

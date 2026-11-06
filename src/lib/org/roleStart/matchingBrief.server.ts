@@ -49,7 +49,7 @@ export async function readRoleMatchingBrief(args: {
     company_role_start_sessions: BriefRecord | BriefRecord[] | null;
   } | null;
   if (!row || !canAccessOrgRole(access, getCompanyInternalRoleRecord(row.company_internal_roles)?.team_id)) {
-    throw new OrgHttpError(404, "Role을 찾을 수 없습니다.");
+    throw new OrgHttpError(404, "역할을 찾을 수 없습니다.");
   }
   const session = Array.isArray(row.company_role_start_sessions)
     ? row.company_role_start_sessions[0]

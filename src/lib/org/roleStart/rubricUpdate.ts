@@ -32,9 +32,9 @@ import { visibleBriefHash, withLatestBackground } from "./view";
 
 /**
  * One path for changing a Role's rubric after the start flow, used by the
- * board's filter panel and the 매칭 기준 tab:
+ * board's filter panel and the What to check tab:
  *  1) a new Brief version (reason, date) and the Role's criteria;
- *  2) candidates now shown in the inbox (연결 수락한 후보, 연결 제안할 후보) keep
+ *  2) candidates now shown in the inbox (연결을 기다리는 후보, 연결을 요청할 후보) keep
  *     grades for unchanged criteria; changed or added criteria are judged
  *     again (one call per candidate, in parallel) and show "다시 보는 중";
  *     removed criteria disappear from cards (the history stays in versions);
@@ -104,7 +104,7 @@ export async function updateRoleRubric(
   args: Access & {
     brief?: unknown;
     request?: string | null;
-    /** From the 매칭 기준 tab: criteria already saved on the Role. */
+    /** From the What to check tab: criteria already saved on the Role. */
     savedCriteria?: OrgRoleCriterion[];
     /** A change made in code on the latest Brief (reference people), with its summary. */
     change?: { apply: (brief: RoleStartBrief) => RoleStartBrief; summary: string };
@@ -141,7 +141,7 @@ export async function updateRoleRubric(
         return { ...(match.criteria === criterion.criteria ? match : rest), ...criterion, id: match.id };
       }),
     });
-    summary = "매칭 기준 탭에서 수정";
+    summary = "확인할 기준 탭에서 수정";
   } else if (String(args.request ?? "").trim()) {
     const request = String(args.request).trim().slice(0, 4_000);
     const { data, usage: used } = await callRoleStartJson<{

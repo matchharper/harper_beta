@@ -4,6 +4,7 @@ import {
   companyCriterionFitnessLabel,
   type OrgCompanyCriterionFitness,
 } from "@/lib/org/companyCriteriaEvaluations";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 
 /** Candidate mail for one role-matching run: fixed subject and section headings,
  * the Worker's email-surface prose unchanged, and per-recipient action buttons. */
@@ -42,23 +43,23 @@ export const CANDIDATE_DIGEST_ACTION_LABELS: Record<
   CandidateDigestAction,
   [string, string]
 > = {
-  request_intro: ["Send Intro", "Send Intro"],
-  pass: ["Pass", "Pass"],
-  accept_connection: ["Accept Intro", "Accept Intro"],
-  reject_connection: ["Reject", "Reject"],
+  request_intro: [COMPANY_TERMS.action.request.ko, COMPANY_TERMS.action.request.en],
+  pass: [COMPANY_TERMS.action.pass.ko, COMPANY_TERMS.action.pass.en],
+  accept_connection: [COMPANY_TERMS.action.connect.ko, COMPANY_TERMS.action.connect.en],
+  reject_connection: [COMPANY_TERMS.action.pass.ko, COMPANY_TERMS.action.pass.en],
 };
 
 const pick = (locale: OrgLocale, pair: readonly [string, string]) =>
   pair[locale === "ko" ? 0 : 1];
 
 const COPY = {
-  acceptedName: ["연결 수락한 후보", "Ready to connect"],
-  companyFirstName: ["연결 제안할 후보", "Suggested candidates"],
+  acceptedName: [COMPANY_TERMS.stage.pending_connection.ko, COMPANY_TERMS.stage.pending_connection.en],
+  companyFirstName: [COMPANY_TERMS.stage.company_intro.ko, COMPANY_TERMS.stage.company_intro.en],
   acceptedHeading: [
-    "✅ 연결 수락한 후보 · 후보가 이미 만나보겠다고 했어요",
-    "✅ Ready to connect · These candidates already agreed to talk",
+    "✅ 연결을 기다리는 후보 · 후보가 이미 만나보겠다고 했어요",
+    "✅ Waiting to connect · These candidates already agreed to talk",
   ],
-  companyFirstHeading: ["연결 제안할 후보", "Suggested candidates"],
+  companyFirstHeading: [COMPANY_TERMS.stage.company_intro.ko, COMPANY_TERMS.stage.company_intro.en],
 } as const;
 
 function countPhrase(

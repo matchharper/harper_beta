@@ -486,7 +486,7 @@ export async function applyWebsiteCompanyDataChanges(args: {
 
   const eventContent =
     resolved.eventContent ??
-    `${getCompanyEventActorLabel({ name: args.actorLabel })} · ${args.criteriaChanges?.length ? "역할 매칭 기준 수정" : "회사 데이터 연결 변경"}`;
+    `${getCompanyEventActorLabel({ name: args.actorLabel })} · ${args.criteriaChanges?.length ? "역할 확인할 기준 수정" : "회사 데이터 연결 변경"}`;
 
   const { data, error } = hasTargetCompanyDbId
     ? await (args.admin.rpc as any)("reassociate_company_workspace_db_v1", {

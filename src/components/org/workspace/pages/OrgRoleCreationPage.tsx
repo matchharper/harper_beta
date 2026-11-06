@@ -101,7 +101,7 @@ const ORG_ROLE_SPLIT_HANDLE_WIDTH_PX = 8;
 const DETAIL_TABS = [
   {
     icon: <Scale className="size-3.5" strokeWidth={1.65} />,
-    label: "매칭 기준",
+    label: "확인할 기준",
     value: "matching",
   },
   {
@@ -288,7 +288,7 @@ function RoleStartRegisteredNotice({
       <div className="min-w-0 flex-1">
         <p>
           {c(
-            "역할을 켰어요. 새 후보는 정기 추천에서 찾아 인박스에 넣어 드릴게요.",
+            "역할을 켰어요. 새 후보는 정기 탐색에서 찾아 인박스에 넣어 드릴게요.",
             "The role is on. Regular recommendations will look for new people and add them to the inbox."
           )}
         </p>
@@ -677,7 +677,7 @@ function OrgRoleCreationDetails({
             ) : null}
           </div>
           <div
-            aria-label={c("매칭 기준 탭 내용", "Matching criteria tab content")}
+            aria-label={c("확인할 기준 탭 내용", "Matching criteria tab content")}
             aria-labelledby="role-creation-matching-tab"
             hidden={companyInfoOpen || activeTab !== "matching"}
             id="role-creation-matching-panel"

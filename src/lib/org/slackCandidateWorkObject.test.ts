@@ -285,7 +285,7 @@ test("Work Object actions appear only in details for ready candidates and permit
     passOnly.entity_payload.actions?.primary_actions.map(
       (action) => action.text
     ),
-    ["Pass"]
+    ["이번엔 넘길게요"]
   );
   assert.equal(
     typeof entity.entity_payload.actions?.primary_actions[0].text,
@@ -448,7 +448,7 @@ test('accepted connection cards show the orange identity and current-action badg
     assert.equal(attributes.product_name, 'Harper');
     assert.equal(attributes.display_type, 'Senior Engineer');
     assert.equal(attributes.product_icon?.url, 'https://matchharper.com/images/squareface_orange.png');
-    assert.equal(attributes.display_id, locale === 'ko' ? '🟠 수락시 바로 연결' : '🟠 Accept to connect');
+    assert.equal(attributes.display_id, locale === 'ko' ? '🟠 연결을 기다리는 후보' : '🟠 Waiting to connect');
   }
   const connected = buildSlackCandidateEntity({ candidate: { ...candidate, status: 'connected' }, locale: 'ko' });
   assert.equal(connected.entity_payload.attributes.display_id, undefined);

@@ -20,13 +20,13 @@ function failure(error: unknown) {
   const code = (error as { message?: string })?.message;
   if ((error as { code?: string })?.code === "23505") return NextResponse.json({ error: "같은 이름의 팀이 이미 있어요. 다른 이름을 입력해 주세요." }, { status: 409 });
   const messages: Record<string, string> = {
-    org_team_owner_required: "Owner만 팀과 접근 범위를 관리할 수 있습니다.",
+    org_team_owner_required: "소유자만 팀과 볼 수 있는 역할을 관리할 수 있습니다.",
     org_team_not_found: "팀을 찾을 수 없습니다.",
     org_team_invalid_member: "선택한 팀원을 확인해 주세요.",
-    org_team_invalid_role: "선택한 Role을 확인해 주세요.",
-    org_team_has_roles: "배정된 Role을 다른 팀 또는 미배정으로 옮긴 뒤 팀을 삭제해 주세요.",
-    org_team_owner_all_access: "Owner는 Organization 전체에 접근합니다.",
-    org_team_invalid_scope: "접근 범위를 확인해 주세요.",
+    org_team_invalid_role: "선택한 역할을 확인해 주세요.",
+    org_team_has_roles: "배정된 역할을 다른 팀 또는 미배정으로 옮긴 뒤 팀을 삭제해 주세요.",
+    org_team_owner_all_access: "소유자는 Organization 전체에 접근합니다.",
+    org_team_invalid_scope: "볼 수 있는 역할을 확인해 주세요.",
   };
   if (code && messages[code]) return NextResponse.json({ error: messages[code] }, { status: code === "org_team_owner_required" ? 403 : 409 });
   console.error("[org/teams]", error);
@@ -41,7 +41,7 @@ async function mutate(req: NextRequest, action: "create" | "update" | "delete") 
     const admin = getSupabaseAdmin();
     await assertOrgWorkspacePermission({ admin, user, workspaceId, permission: "manage_members" });
     if (action === "update" && body.userId !== undefined) {
-      if (body.accessScope !== "organization" && body.accessScope !== "team") throw new OrgHttpError(400, "접근 범위를 확인해 주세요.");
+      if (body.accessScope !== "organization" && body.accessScope !== "team") throw new OrgHttpError(400, "볼 수 있는 역할을 확인해 주세요.");
       const { error } = await (admin.rpc as any)("set_company_member_teams_v2", {
         p_workspace: workspaceId, p_actor: user.id, p_user: identifier(body.userId),
         p_scope: body.accessScope, p_teams: identifiers(body.teamIds),

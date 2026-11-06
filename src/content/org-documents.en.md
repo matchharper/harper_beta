@@ -10,18 +10,18 @@ Harper is your recruiting partner. Explain your team's situation and who you nee
 
 ### Two introduction paths <!-- id: harper-introduction-two-introduction-paths -->
 
-| | Suggested candidates | Ready to connect |
+| | Ready to reach out | Waiting to connect |
 | --- | --- | --- |
 | Candidate intent | Has not accepted this Role. An earlier Harper recommendation or decline may exist | Has heard about the company and Role and agreed to talk |
 | Your decision | Request an **Intro** or **Pass** | **Connect** or **Reject** for this Role |
 | After acceptance | Candidate acceptance triggers the email introduction to your selected team members without another company approval | Your company accepts the connection and chooses how to connect |
 | Access | Shared Free Intros can fund Intro requests | Requires a slot assigned to the Role or access under an existing agreement |
 
-These are more than lists of people matching search filters. Still, appearing in **Suggested candidates** does not establish interest or an application.
+These are more than lists of people matching search filters. Still, appearing in **Ready to reach out** does not establish interest or an application.
 
-### What Ready to connect means <!-- id: harper-introduction-what-ready-to-connect-means -->
+### What Waiting to connect means <!-- id: harper-introduction-what-ready-to-connect-means -->
 
-Harper introduces the Role to the candidate and checks important missing information when the profile alone is insufficient. Once willingness to talk is confirmed and the introduction has been prepared and delivered, the candidate appears in **Ready to connect**. Acceptance alone does not prove that the introduction has already reached your company.
+Harper introduces the Role to the candidate and checks important missing information when the profile alone is insufficient. Once willingness to talk is confirmed and the introduction has been prepared and delivered, the candidate appears in **Waiting to connect**. Acceptance alone does not prove that the introduction has already reached your company.
 
 ```callout
 Your team's turn to review
@@ -55,7 +55,7 @@ New companies can discuss access with the Harper team through the company page's
 
 ### After registration <!-- id: getting-started-after-registration -->
 
-You do not need to keep the page open. Review Suggested candidates to choose whom to approach, and decide on Ready to connect candidates where the Role has access. Candidates shared with your company are also available in Slack and [Inbox](#org-inbox).
+You do not need to keep the page open. Review Ready to reach out to choose whom to approach, and decide on Waiting to connect candidates where the Role has access. Candidates shared with your company are also available in Slack and [Inbox](#org-inbox).
 
 Registering a Role does not mean candidates have already been found or contacted. A search can return few or no suitable candidates.
 
@@ -72,9 +72,9 @@ Manage company-wide information on the [company page](#org-company), and Role-sp
 
 **Pitch** explains what your company builds and the concrete achievements, culture, and benefits that make it worth joining. Actual products, working practices, and benefit conditions are more useful than general praise.
 
-**Context for Harper** holds lasting company or Role background. Put Role-specific requirements in Hiring Brief and individual candidate situations in the candidate's records. One person's situation is not a company-wide hiring rule.
+**Context for Harper** holds lasting company or Role background. Put role-specific requirements in **Who we're looking for** and individual candidate situations in the candidate's records. One person's situation is not a company-wide hiring rule.
 
-Ask Harper to read saved company information or context. Review proposed changes before updates to Hiring Brief or memory are applied.
+Ask Harper to read saved company information or context. Review proposed changes before updates to Who we're looking for or memory are applied.
 
 ### Team member permissions <!-- id: company-and-team-team-member-permissions -->
 
@@ -98,7 +98,7 @@ Ask Harper in Slack to draft Roles, review candidates, run a search, handle corr
 
 ### Connecting Slack <!-- id: slack-connecting-slack -->
 
-1. Connect your company Slack in [Organization → Integrations](#org-slack). Ask a Slack administrator if installation requires approval.
+1. Connect your company Slack in [Company settings → Integrations](#org-slack). Ask a Slack administrator if installation requires approval.
 2. Choose a notification channel containing the team members involved in hiring.
 3. Review the channel and contact person for each Role in Settings.
 
@@ -152,9 +152,9 @@ Example
 
 Explain undecided conditions as open questions. Distinguishing **required** from **preferred** helps Harper represent your criteria accurately.
 
-### Description and Hiring Brief <!-- id: create-a-role-description-and-hiring-brief -->
+### Role description and Who we're looking for <!-- id: create-a-role-description-and-hiring-brief -->
 
-**Description** explains the work, team, and employment conditions to candidates. **Hiring Brief** holds the internal criteria for deciding whom to interview. These are the initial documents for a new Role; **Evaluation Criteria** can be added when a separate review framework is needed.
+**Role description** explains the work, team, and employment conditions to candidates. **Who we're looking for** holds the internal criteria for deciding whom to interview. These are the initial documents for a new role; **What to check** can be added when a separate review framework is needed.
 
 Updating one document does not automatically rewrite every other document. Review the affected scope when public facts or internal criteria change.
 
@@ -171,7 +171,7 @@ Check the public description, required and preferred criteria, primary contact, 
 ```example
 Role conversation examples
 
-Fintech experience is now preferred, not required. Show the Hiring Brief update.
+Fintech experience is now preferred, not required. Show the update to Who we're looking for.
 I like the scope of this example profile's product launch work. Prioritize that level of responsibility.
 ```
 
@@ -194,7 +194,7 @@ This controls recurring searches for company-reviewed suggestions. Turning it of
 
 ### Run Search <!-- id: candidate-search-run-search -->
 
-Use **Run Search** in the Role conversation or ask Harper to find new candidates from the saved current Hiring Brief. It searches for people your company might approach without waiting for the recurring schedule.
+Use **Run Search** in the Role conversation or ask Harper to find new candidates from the saved Who we're looking for. It searches for people your company might approach without waiting for the recurring schedule.
 
 A search alone does not send a company proposal. Outreach begins after your team reviews a candidate and confirms an **Intro request**. If nobody is suitable, the result can be empty.
 
@@ -202,16 +202,16 @@ A search alone does not send a company proposal. Outreach begins after your team
 
 Ask Harper when recent searches ran and how many people were reviewed. Older records can also be requested. Selection totals are not delivery, readership, or acceptance counts; missing counts are not zero.
 
-When the Role reaches its review limit, some new candidate-first outreach is limited. Deciding on existing Ready to connect candidates can free capacity. This does not mean all Suggested candidates searches stop.
+When the Role reaches its review limit, some new candidate-first outreach is limited. Deciding on existing Waiting to connect candidates can free capacity. This does not mean all Ready to reach out searches stop.
 
 ## Reviewing candidates <!-- id: review-recommendations -->
 
-Suggested candidates asks whether to approach someone; Ready to connect asks whether to connect. Read the current state and confirmed candidate intent together.
+Ready to reach out asks whether to approach someone; Waiting to connect asks whether to connect. Read the current state and confirmed candidate intent together.
 
 ### What to review <!-- id: review-recommendations-what-to-review -->
 
-- **TL;DR:** Verified experience, individual contribution, and responsibility
-- **Harper Note:** Shareable context about desired work, responsibility, working conditions, or joining timing
+- **Summary:** Verified experience, individual contribution, and responsibility
+- **Harper's note:** Shareable context about desired work, responsibility, working conditions, or joining timing
 - **Overall and criterion-level fit:** Evidence relevant to the saved Role criteria and remaining questions
 - **Materials and records:** Resumes, correspondence, and activity currently shared with your company
 
@@ -219,9 +219,9 @@ Assessments aid your review; they do not guarantee an application, acceptance, o
 
 ### Sharing scope and additional questions <!-- id: review-recommendations-sharing-scope-and-additional-questions -->
 
-Suggested candidates and unaccepted Intro requested proposals show limited profiles. Even when additional contact is available, private resumes and contact details are not automatically disclosed. Private compensation figures and conversations with other companies are not shared.
+Ready to reach out and unaccepted Intro requested proposals show limited profiles. Even when additional contact is available, private resumes and contact details are not automatically disclosed. Private compensation figures and conversations with other companies are not shared.
 
-Ask [Harper to check important missing information](#ask-harper). Ready to connect candidates are waiting for your decision. Assign reviewers and a final decision-maker within your team.
+Ask [Harper to check important missing information](#ask-harper). Waiting to connect candidates are waiting for your decision. Assign reviewers and a final decision-maker within your team.
 
 ```action
 Review candidates
@@ -238,13 +238,13 @@ An Intro request needs **reasons you want to meet** and **company recipients for
 
 Pass removes the suggestion without contacting or notifying the candidate.
 
-### Connect in Ready to connect <!-- id: accept-or-decline-connect-in-ready-to-connect -->
+### Connect in Waiting to connect <!-- id: accept-or-decline-connect-in-ready-to-connect -->
 
 The default **Email intro** addresses the candidate and CCs your selected team members. If a recipient is missing, an Owner must [invite them](#org-members) first. Recipients should reply all to greet the candidate and explain the next step.
 
 **Direct contact** sends no introduction email; your team must make the first contact and arrange the next conversation. Accepting a connection does not confirm an interview time.
 
-### Reject in Ready to connect <!-- id: accept-or-decline-reject-in-ready-to-connect -->
+### Reject in Waiting to connect <!-- id: accept-or-decline-reject-in-ready-to-connect -->
 
 Reject ends the process for this Role rather than putting it on hold. No introduction email is sent; the ending becomes visible to the candidate and Harper communicates it. Information already shown or delivered cannot be recalled.
 
@@ -258,7 +258,7 @@ Connection note and Reject reason are optional and are not sent verbatim to the 
 
 ## Candidate communication <!-- id: ask-harper -->
 
-Ask Harper in `/org` or Slack to handle questions, material requests, or information sharing before a Ready to connect decision or during an active process after connection. Additional contact is also available in Intro requested after proposal delivery while a reply is pending.
+Ask Harper in `/org` or Slack to handle questions, material requests, or information sharing before a Waiting to connect decision or during an active process after connection. Additional contact is also available in Intro requested after proposal delivery while a reply is pending.
 
 ### What to request <!-- id: ask-harper-what-to-request -->
 
@@ -327,11 +327,11 @@ Free and assigned roles share the same recommendation and connection features; a
 | Slot | 1 active Role per slot, plus 1 Free Role | 50 monthly Intros for the assigned Role; the shared 3 remain separate |
 | Enterprise or existing agreement | Agreed terms | Check your company's contract |
 
-Free roles also receive candidate-first recommendations and have access to Ready to connect. Shared Intros can fund both Intro requests and connection acceptance. Free and standard slot subscriptions have no hiring success fee.
+Free roles also receive candidate-first recommendations and have access to Waiting to connect. Included intros can fund both Intro requests and connection acceptance. Free and standard slot subscriptions have no hiring success fee.
 
 ### Spending and renewal <!-- id: slots-and-credits-spending-and-renewal -->
 
-On standard plans, **confirming an Intro request** and **Connect in Ready to connect** each spend one Intro. The Role's own slot Intros are used first, then shared Intros. Another Role's slot Intros cannot fund it.
+On standard plans, **confirming an Intro request** and **Connect in Waiting to connect** each spend one Intro. The Role's own slot Intros are used first, then included intros. Another Role's slot Intros cannot fund it.
 
 Intros renew monthly and do not roll over. Annual billing still uses monthly Intro renewal. Exhausted Intros do not prevent creating or activating Roles.
 

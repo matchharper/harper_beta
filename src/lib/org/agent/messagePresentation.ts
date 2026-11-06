@@ -25,5 +25,5 @@ export function formatOrgChatMessageTime(createdAt: string, now = new Date()) {
   );
   if (dayDifference <= 0) return formatTime(created);
   if (dayDifference === 1) return `어제 ${formatTime(created)}`;
-  return `${dayDifference}일전`;
+  return `${dayDifference}일 전`;
 }

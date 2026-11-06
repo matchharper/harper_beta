@@ -843,7 +843,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       await slackApi(token, "chat.postEphemeral", { channel: channelId, user: slackUserId,
         text: slackAccess.member.locale === "en"
           ? "I could not verify this channel's Role access, so I have not shared Role information here. Please continue in your Harper company workspace."
-          : "이 채널의 팀원 접근 범위를 확인할 수 없어 Role 정보를 공유하지 않았어요. Harper 회사 페이지에서 이어가 주세요." })
+          : "이 채널 팀원이 볼 수 있는 역할을 확인할 수 없어 역할 정보를 공유하지 않았어요. Harper 회사 페이지에서 이어가 주세요." })
         .catch(error => console.warn("[org-agent/slack-turn:team-denied-message]", error));
       await markSlackReplyJobIgnored({ admin, jobId: job.id, lastError: "slack_team_audience_denied" });
       return NextResponse.json({ ok: true, outcome: "ignored", accessDenied: true });

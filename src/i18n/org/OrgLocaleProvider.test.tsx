@@ -97,7 +97,7 @@ test("persisted Org language updates copy and billing descendants together; pric
     assert.equal(read("copy"), "선택된 언어");
     assert.equal(read("interpolation"), "팀{count}: 0명 · ");
     assert.equal(read("days"), "1일 뒤");
-    assert.equal(read("count"), "2 Intro");
+    assert.equal(read("count"), "연결 2회");
     assert.ok(dom.window.document.querySelector('[aria-label="결제 주기"]'));
     const koreanDate = read("date");
     const koreanMoney = read("money");
@@ -115,7 +115,7 @@ test("persisted Org language updates copy and billing descendants together; pric
     assert.equal(read("copy"), "Selected language");
     assert.equal(read("interpolation"), "0 candidates for 팀{count} · ");
     assert.equal(read("days"), "in 1 day");
-    assert.equal(read("count"), "2 Intros");
+    assert.equal(read("count"), "2 intros");
     assert.notEqual(read("date"), koreanDate);
     assert.notEqual(read("money"), koreanMoney);
     assert.ok(

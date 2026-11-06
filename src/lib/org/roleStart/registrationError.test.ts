@@ -93,7 +93,7 @@ test("background activation preserves the capacity error through the session and
         assert.ok(!JSON.stringify(response).includes(error.message), "raw diagnostics stay off screen");
       } else {
         assert.equal(failure.billingCode, "role_capacity_exceeded");
-        assert.match(billingErrorCopy(failure.billingCode!, "ko"), /1개.*일시 중지.*유료 슬롯/);
+        assert.match(billingErrorCopy(failure.billingCode!, "ko"), /1개.*잠시 멈추.*유료 슬롯/);
         assert.match(billingErrorCopy(failure.billingCode!, "en"), /one Free Role.*pausing.*paid slot/);
       }
     }

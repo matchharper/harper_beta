@@ -650,7 +650,7 @@ export async function executeRoleCreationTool(args: {
         result: {
           roleName: state.role.name,
           status: "needs_more_information",
-          userReply: "Brief를 아직 쓰고 있어요. 1분쯤 뒤에 다시 말씀해 주시면 참고 인물을 반영할게요.",
+          userReply: "찾는 사람을 아직 쓰고 있어요. 1분쯤 뒤에 다시 말씀해 주시면 참고 인물을 반영할게요.",
         },
         updateSummary: "",
       };
