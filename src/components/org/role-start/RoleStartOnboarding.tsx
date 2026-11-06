@@ -187,17 +187,58 @@ export function RoleStartOnboarding({
   // A Brief that cannot be confirmed (a conflict, or an answer still being
   // applied) opens the Brief screen instead.
   const [candidatesNowRoleId, setCandidatesNowRoleId] = useState<string | null>(null);
+  // Pressed on the salary question while Harper is still drafting the Brief:
+  // the loading stays until the draft is ready, then the same path runs.
+  const [candidatesNowAfterDraft, setCandidatesNowAfterDraft] = useState(false);
   const candidatesNow =
     candidatesNowRoleId === roleId &&
-    (session?.phase === "questions" || session?.phase === "review");
-  const getCandidatesNow = async () => {
-    setCandidatesNowRoleId(roleId);
+    (session?.phase === "questions" ||
+      session?.phase === "review" ||
+      (candidatesNowAfterDraft &&
+        session?.phase === "drafting" &&
+        !session.stalled));
+  const finishAndConfirm = async () => {
     try {
       if (await run({ action: "finish_questions" })) await run({ action: "confirm" });
     } finally {
       setCandidatesNowRoleId(null);
     }
   };
+  const getCandidatesNow = async () => {
+    setCandidatesNowRoleId(roleId);
+    await finishAndConfirm();
+  };
+  /** From the salary question: keep what was typed (or skip it), then get candidates once the draft is ready. */
+  const getCandidatesNowFromCompensation = async (salary: string) => {
+    setCandidatesNowRoleId(roleId);
+    const saved = await run(
+      salary ? { action: "compensation", text: salary } : { action: "compensation", skip: true }
+    );
+    if (!saved) {
+      setCandidatesNowRoleId(null);
+      return;
+    }
+    if (saved.session?.phase === "drafting") {
+      setCandidatesNowAfterDraft(true);
+      return;
+    }
+    await finishAndConfirm();
+  };
+  const sessionPhase = session?.phase ?? null;
+  const sessionStalled = Boolean(session?.stalled);
+  useEffect(() => {
+    if (!candidatesNowAfterDraft || candidatesNowRoleId !== roleId) return;
+    if (sessionPhase === "drafting" && !sessionStalled) return;
+    setCandidatesNowAfterDraft(false);
+    if (sessionStalled || (sessionPhase !== "questions" && sessionPhase !== "review")) {
+      // The draft stopped or failed: its usual screen (다시 시도) shows instead.
+      setCandidatesNowRoleId(null);
+      return;
+    }
+    void finishAndConfirm();
+    // finishAndConfirm only reads the latest mutation; it runs once per press.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidatesNowAfterDraft, candidatesNowRoleId, roleId, sessionPhase, sessionStalled]);
   const phaseStep = roleStartStepOf(session?.phase ?? null);
   const step: RoleStartStepId = candidatesNow
     ? "align"
@@ -320,6 +361,7 @@ export function RoleStartOnboarding({
               busy={busy}
               chips={query.data.compensation.chips}
               onAnswer={(body) => run({ action: "compensation", ...body })}
+              onCandidatesNow={(salary) => void getCandidatesNowFromCompensation(salary)}
             />
           ) : session.phase === "review" && !reviewingQuestions ? (
             <BriefStep
@@ -1095,6 +1137,8 @@ function CompensationQuestion(props: {
   busy: boolean;
   chips: Array<{ ko: string; en: string }>;
   onAnswer: (body: { text?: string; skip?: boolean }) => void;
+  /** "바로 후보 받기" from the first question: what was typed is kept as the answer. */
+  onCandidatesNow: (salary: string) => void;
 }) {
   const { c, locale } = useOrgLocale();
   const [text, setText] = useState("");
@@ -1113,6 +1157,7 @@ function CompensationQuestion(props: {
       onTextChange={setText}
       onSubmit={() => props.onAnswer({ text: text.trim() })}
       onSkip={() => props.onAnswer({ skip: true })}
+      onCandidatesNow={() => props.onCandidatesNow(text.trim())}
       choices={props.chips.map((chip) => ({
         id: chip.ko,
         label: locale === "ko" ? chip.ko.replace(/^연봉 /, "") : chip.en,
