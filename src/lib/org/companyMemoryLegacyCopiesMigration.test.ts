@@ -87,8 +87,8 @@ test("old memory texts are copied into company memory, read-only, fingerprint un
       db.exec(await readFile(new URL(`../../../supabase/migrations/${name}`, import.meta.url), "utf8"));
     await load("20261105020000_company_decision_events.sql");
     await load("20261105080000_company_role_brief_revisions.sql");
-    await load("20261105090000_company_role_setting_revisions.sql");
-    await load("20261105130000_company_memory_revisions.sql");
+    await load("20261105090100_company_role_setting_revisions.sql");
+    await load("20261105130100_company_memory_revisions.sql");
     const fingerprint = async () => (await db.query<any>("select scheduled_company_memory_fingerprint_v1($1) f", [role])).rows[0].f;
     const before = await fingerprint();
     await load("20261105170000_company_memory_legacy_copies.sql");
