@@ -214,6 +214,19 @@
   padding-inline: 3px;
 }
 
+/* ◎ ○ △ beside a candidate's name: one row, wraps under the name when narrow. */
+.org-candidate-card .career-opportunity-company {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.org-candidate-marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+}
+
 /* Home with nothing to review: the roles as cards instead of a second empty message. */
 .org-home-idle {
   display: grid;

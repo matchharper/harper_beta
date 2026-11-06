@@ -36,7 +36,11 @@ import {
   formatOrgUpcomingMeetingTime,
   OrgCandidateStageMenu,
 } from "../OrgCandidateCard";
-import { OrgCriteriaEvaluation } from "../OrgCriteriaEvaluation";
+import { OrgCriteriaEvaluation, OrgCriterionFitIcon } from "../OrgCriteriaEvaluation";
+import {
+  companyCriterionFitnessLabel,
+  type OrgCompanyCriteriaEvaluation,
+} from "@/lib/org/companyCriteriaEvaluations";
 import { OrgPassPopover } from "../OrgPassPopover";
 import type { OrgRoleTalentBoardCard } from "../OrgRoleTalentBoard";
 import {
@@ -44,6 +48,32 @@ import {
   OrgCriteriaLegend,
   orgCandidateSummary,
 } from "../OrgTalentProfile";
+
+/**
+ * One mark per criterion (◎ ○ △ ✕) beside the name, in the order of 확인할 기준,
+ * so candidates compare at a glance. The same row, size and place whether the
+ * card is open or closed; the name and fit show on hover.
+ */
+function CandidateCriteriaMarks({
+  evaluations,
+}: {
+  evaluations: OrgCompanyCriteriaEvaluation[] | null | undefined;
+}) {
+  const { locale } = useOrgLocale();
+  if (!evaluations?.length) return null;
+  return (
+    <span aria-hidden="true" className="org-candidate-marks">
+      {evaluations.map((evaluation, index) => (
+        <span
+          key={`${evaluation.name}:${index}`}
+          title={`${evaluation.name} · ${companyCriterionFitnessLabel(evaluation.fitness, locale)}`}
+        >
+          <OrgCriterionFitIcon className="size-3.5" fitness={evaluation.fitness} />
+        </span>
+      ))}
+    </span>
+  );
+}
 
 type OrgRoleCandidateCardProps = ComponentProps<typeof OrgRoleTalentBoardCard>;
 
@@ -184,6 +214,9 @@ export function OrgRoleCandidateCard({
     introStatus || null,
   ].filter(Boolean);
   const canSave = canManageCandidates && isOrgInboxStage(item.stage);
+  const criteriaSummary = (item.criteriaEvaluations ?? [])
+    .map((evaluation) => `${evaluation.name} ${companyCriterionFitnessLabel(evaluation.fitness, locale)}`)
+    .join(", ");
 
   return (
     <article
@@ -199,7 +232,7 @@ export function OrgRoleCandidateCard({
       <ClickablePanel
         aria-controls={contentId}
         aria-expanded={expanded}
-        aria-label={title ? `${name} · ${title}` : name}
+        aria-label={[name, title, criteriaSummary].filter(Boolean).join(" · ")}
         className="career-opportunity-header min-w-0 cursor-pointer"
         onActivate={toggle}
       >
@@ -213,6 +246,7 @@ export function OrgRoleCandidateCard({
                 {name.slice(0, 1).toUpperCase()}
               </span>
               <span className="min-w-0 wrap-break-word">{name}</span>
+              <CandidateCriteriaMarks evaluations={item.criteriaEvaluations} />
             </div>
             <time
               className="career-opportunity-type"

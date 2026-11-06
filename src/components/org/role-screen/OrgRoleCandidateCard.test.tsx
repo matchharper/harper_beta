@@ -99,10 +99,14 @@ test("a candidate card opens in place in the profile's order, then decisions wit
         />
       </OrgCandidateListContext.Provider>
     );
+  // Each part after the one before it (criterion names also sit in the header's marks).
   const order = (html: string, parts: string[]) => {
-    const at = parts.map((part) => html.indexOf(part));
-    at.forEach((index, i) => assert.ok(index >= 0, `missing ${parts[i]}`));
-    assert.deepEqual([...at].sort((a, b) => a - b), at, `order: ${parts.join(" → ")}`);
+    let from = 0;
+    for (const part of parts) {
+      const index = html.indexOf(part, from);
+      assert.ok(index >= 0, `missing ${part} after position ${from}: ${parts.join(" → ")}`);
+      from = index + part.length;
+    }
   };
 
   // Closed: the header line only.
@@ -110,6 +114,9 @@ test("a candidate card opens in place in the profile's order, then decisions wit
   assert.ok(closed.includes("이서준") && closed.includes("Senior ML Engineer at Nova AI") && closed.includes("서울"));
   assert.ok(closed.includes('data-expanded="false"') && closed.includes('aria-expanded="false"'));
   assert.ok(!closed.includes("한 줄 요약") && !closed.includes("연결하기"));
+  // ◎ ○ △ beside the name, one per criterion, in both states.
+  const marks = (html: string) => html.match(/class="org-candidate-marks"[\s\S]*?<\/span><\/span>/)?.[0] ?? "";
+  assert.ok(marks(closed), "criteria marks beside the name");
 
   // Open: 한 줄 요약 → Harper 메모 → 확인할 기준 → 넘기기 · 연결하기 → caption → 저장, 전체 프로필, Harper에게 묻기.
   const open = render(item(), true);
@@ -129,6 +136,7 @@ test("a candidate card opens in place in the profile's order, then decisions wit
     "Harper에게 묻기",
   ]);
   assert.ok(open.includes('data-expanded="true"'));
+  assert.equal(marks(open).length > 0, true, "the same marks when open");
 
   // A proposal (연결을 요청할 후보): 연결 요청 with its caption; text from the list when the detail is missing.
   detail = undefined;
