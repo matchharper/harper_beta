@@ -16,11 +16,15 @@ import {
 // A run woken by one of Harper's own schedules: its tools, its text, and where
 // it may message the company. Slack is a fake here; nothing is sent.
 
-test("messaging the company from a scheduled run is off unless the flag turns it on", () => {
-  assert.equal(scheduleRunMessages({}), "off");
-  assert.equal(scheduleRunMessages({ ORG_AGENT_SCHEDULE_MESSAGES: "on" }), "off");
-  assert.equal(scheduleRunMessages({ ORG_AGENT_SCHEDULE_MESSAGES: " Chat " }), "chat");
+test("a scheduled run may message the company where the work was asked unless the flag turns it off", () => {
+  assert.equal(scheduleRunMessages({}), "origin");
+  assert.equal(scheduleRunMessages({ ORG_AGENT_SCHEDULE_MESSAGES: " " }), "origin");
+  assert.equal(scheduleRunMessages({ ORG_AGENT_SCHEDULE_MESSAGES: "on" }), "origin");
   assert.equal(scheduleRunMessages({ ORG_AGENT_SCHEDULE_MESSAGES: "origin" }), "origin");
+  assert.equal(scheduleRunMessages({ ORG_AGENT_SCHEDULE_MESSAGES: " Chat " }), "chat");
+  assert.equal(scheduleRunMessages({ ORG_AGENT_SCHEDULE_MESSAGES: "off" }), "off");
+  // A typo turns it off rather than on.
+  assert.equal(scheduleRunMessages({ ORG_AGENT_SCHEDULE_MESSAGES: "of" }), "off");
 });
 
 test("each tier is offered exactly the tools a scheduled run can complete", () => {
@@ -193,7 +197,7 @@ test("the reply destination is the Slack thread the work was asked in, while it 
 });
 
 test("with messaging off a scheduled run cannot message the company", async (t) => {
-  const f = await fixture(t);
+  const f = await fixture(t, "off");
   const run = await f.wake(await f.schedule((await f.said((await f.thread()).id)).id));
   await assert.rejects(f.contact(run, {}), (error) => error instanceof OrgAgentToolInputError);
   assert.equal((await f.messagesOf(run.jobId)).length, 0);

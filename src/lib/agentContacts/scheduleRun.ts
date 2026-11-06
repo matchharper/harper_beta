@@ -7,13 +7,15 @@ import type { Query } from "@/lib/career/matching/internalScoring/database";
 
 /**
  * Whether such a run may message the company, and where. ORG_AGENT_SCHEDULE_MESSAGES:
- * off (default; the run cannot message the company), chat (the Role's web
- * chat), origin (the Slack thread the work was asked in, else the Role's web chat).
+ * origin (default; the Slack thread the work was asked in, else the Role's web
+ * chat), chat (the Role's web chat), off (the run cannot message the company).
+ * An unknown value turns it off.
  */
 export type ScheduleRunMessages = "off" | "chat" | "origin";
 export function scheduleRunMessages(env: Record<string, string | undefined> = process.env): ScheduleRunMessages {
   const value = (env.ORG_AGENT_SCHEDULE_MESSAGES ?? "").trim().toLowerCase();
-  return value === "chat" || value === "origin" ? value : "off";
+  if (value === "" || value === "on" || value === "origin") return "origin";
+  return value === "chat" ? "chat" : "off";
 }
 
 /**
