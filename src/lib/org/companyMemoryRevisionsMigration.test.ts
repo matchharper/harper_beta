@@ -76,8 +76,8 @@ test("memory changes are versions, readable per role now or at a version", async
     for (const name of [
       "20261105020000_company_decision_events.sql",
       "20261105080000_company_role_brief_revisions.sql",
-      "20261105090000_company_role_setting_revisions.sql",
-      "20261105130000_company_memory_revisions.sql",
+      "20261105090100_company_role_setting_revisions.sql",
+      "20261105130100_company_memory_revisions.sql",
     ]) await db.exec(await readFile(new URL(`../../../supabase/migrations/${name}`, import.meta.url), "utf8"));
 
     const can = async (q: string) => (await db.query<any>(`select ${q} as ok`)).rows[0].ok;

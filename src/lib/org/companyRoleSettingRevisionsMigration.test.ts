@@ -65,7 +65,7 @@ test("every settings change leaves one version per transaction, readable at any 
     for (const name of [
       "20261105020000_company_decision_events.sql",
       "20261105080000_company_role_brief_revisions.sql",
-      "20261105090000_company_role_setting_revisions.sql",
+      "20261105090100_company_role_setting_revisions.sql",
     ]) await db.exec(await readFile(new URL(`../../../supabase/migrations/${name}`, import.meta.url), "utf8"));
 
     const revisions = async (id: string) => (await db.query<any>(
