@@ -214,6 +214,14 @@ export const COMPANY_TERMS = {
     byTeam: term("팀이 요청한 일", "Requested by your team"),
   },
 
+  /** Home's right column: the candidate side's panels, for every role. */
+  home: {
+    /** Harper's suggestions and the updates, like the candidate side's 볼 만한 것. */
+    worthALook: copy("볼 만한 것", "Worth a look"),
+    /** Each role's numbers, like the candidate side's 지원 현황. */
+    roleOverview: copy("역할 현황", "Roles at a glance"),
+  },
+
   /** Pass and stop reasons that fit any Role (stored in reason_tags). */
   reasonTag: {
     experience_skills: term("경력·역량", "Experience and skills"),

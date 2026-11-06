@@ -32,20 +32,54 @@ function useNow() {
   return now;
 }
 
-function TodoCard({
+/** "11월 6일 금요일 · 오후 9:06", the candidate side's line above 지금 팔로업. */
+export function OrgTodoDate() {
+  const { locale } = useOrgLocale();
+  const now = useNow();
+  const tag = locale === "ko" ? "ko-KR" : "en-US";
+  return (
+    <div className="career-followups-date" suppressHydrationWarning>
+      {now
+        ? `${new Intl.DateTimeFormat(tag, { month: "long", day: "numeric", weekday: "long" }).format(now)} · ${new Intl.DateTimeFormat(tag, { hour: "numeric", minute: "2-digit" }).format(now)}`
+        : "\u00a0"}
+    </div>
+  );
+}
+
+/**
+ * One To-do line as a card. "content": the candidate side's 볼 만한 것 card,
+ * with its small meta line (e.g. role · when · source on Home).
+ */
+export function OrgTodoCard({
   action,
   emphasis,
   footer,
+  meta,
   title,
+  variant = "followup",
 }: {
   action?: ReactNode;
   emphasis: boolean;
   footer?: ReactNode;
+  /** A line above the title, e.g. the Role on Home. */
+  meta?: ReactNode;
   title: ReactNode;
+  variant?: "followup" | "content";
 }) {
   return (
     <li className="career-followup-item">
-      <article className="career-followup-card career-glass org-todo-card">
+      <article
+        className={
+          variant === "content"
+            ? "career-followup-card career-glass career-content-card org-todo-card"
+            : "career-followup-card career-glass org-todo-card"
+        }
+      >
+        {meta ? (
+          <span className={variant === "content" ? "career-content-meta" : "org-todo-card-meta"}>
+            {meta}
+          </span>
+        ) : null}
         <span className={emphasis ? "career-followup-title" : "career-content-title"}>
           {title}
         </span>
@@ -103,7 +137,7 @@ export function OrgTodoCards({
   });
   const [first, ...rest] = sections;
   const card = (item: OrgTodoItem, emphasis: boolean) => (
-    <TodoCard
+    <OrgTodoCard
       action={renderAction(item)}
       emphasis={emphasis}
       footer={
@@ -123,7 +157,7 @@ export function OrgTodoCards({
     />
   );
   const shortcutCard = (shortcut: OrgTodoShortcut) => (
-    <TodoCard
+    <OrgTodoCard
       action={
         <MuteButton
           aria-busy={shortcut.busy || undefined}

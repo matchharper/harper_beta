@@ -48,6 +48,11 @@ type Copy = (
   values?: Record<string, string | number>
 ) => string;
 
+/** A To-do line's text, the same on every surface. */
+export function orgTodoItemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
+  return itemText(item, c, locale);
+}
+
 function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
   const name = item.talent?.name || c("후보자", "Candidate");
   const n = item.count ?? 0;
@@ -420,43 +425,9 @@ function TodoRow({
   );
 }
 
-/**
- * The To-do sections for one Role: one line per thing with the button that
- * does it. A second line only for a suggestion's control and for Harper's
- * scheduled work (who set it up, a failed cancel).
- */
-export function OrgTodoList({
-  columns,
-  onApprove,
-  onNavigate,
-  range,
-  roleId,
-  shortcuts = [],
-  variant = "rows",
-  workspaceId,
-}: {
-  columns: OrgTodoColumn[];
-  /** Sends the approved plan to the Role chat as the team's message. */
-  onApprove: (message: string) => void;
-  onNavigate?: () => void;
-  range: "all" | "recent";
-  roleId: string;
-  shortcuts?: OrgTodoShortcut[];
-  /** "cards": the role screen's right column, in the candidate side's card style. */
-  variant?: "rows" | "cards";
-  workspaceId: string;
-}) {
-  const { c, locale } = useOrgLocale();
-  const todo = useOrgRoleTodo({ range, roleId, workspaceId });
-  const decide = useDecideOrgTodoSuggestion({ roleId, workspaceId });
-  const cancelSchedule = useCancelOrgHarperSchedule({ roleId, workspaceId });
-  // Why cancelling each schedule did not work, by schedule.
-  const [cancelIssues, setCancelIssues] = useState<Record<string, CancelIssue>>({});
-  const markRead = useMarkOrgTodoRead({ roleId, workspaceId });
-  const answerProposal = useAnswerOrgCriteriaProposal({ roleId, workspaceId });
-  const items = todo.data?.items ?? [];
-  const suggestions = todo.data?.suggestions ?? 0;
-  const headings: Record<OrgTodoColumn, string> = {
+/** Section names, the same on every To-do surface. */
+export function orgTodoHeadings(c: Copy): Record<OrgTodoColumn, string> {
+  return {
     blocked: ct(c, COMPANY_TERMS.todo.blocked),
     done: c("한 일", "Done"),
     in_progress: ct(c, COMPANY_TERMS.todo.inProgress),
@@ -465,6 +436,34 @@ export function OrgTodoList({
     scheduled: ct(c, COMPANY_TERMS.todo.scheduled),
     suggestion: ct(c, COMPANY_TERMS.todo.harperCan),
   };
+}
+
+/**
+ * The button a To-do line needs and its second line, for one Role. A Role's
+ * list calls it once; Home calls it per line, for that line's Role.
+ */
+export function useOrgTodoActions({
+  onApprove,
+  onChanged,
+  onNavigate,
+  roleId,
+  workspaceId,
+}: {
+  /** Sends the approved plan to the Role chat as the team's message. */
+  onApprove: (message: string) => void;
+  /** After an answer, a cancel or 읽음 settles: another list to refresh. */
+  onChanged?: () => void;
+  onNavigate?: () => void;
+  roleId: string;
+  workspaceId: string;
+}) {
+  const { c } = useOrgLocale();
+  const decide = useDecideOrgTodoSuggestion({ roleId, workspaceId });
+  const cancelSchedule = useCancelOrgHarperSchedule({ roleId, workspaceId });
+  // Why cancelling each schedule did not work, by schedule.
+  const [cancelIssues, setCancelIssues] = useState<Record<string, CancelIssue>>({});
+  const markRead = useMarkOrgTodoRead({ roleId, workspaceId });
+  const answerProposal = useAnswerOrgCriteriaProposal({ roleId, workspaceId });
   const answer = (
     item: OrgTodoItem,
     decision: "approve" | "dismiss" | "mute"
@@ -473,6 +472,7 @@ export function OrgTodoList({
     decide.mutate(
       { decision, suggestionId: item.suggestionId },
       {
+        onSettled: onChanged,
         onSuccess: (result) => {
           if (decision !== "approve") return;
           onNavigate?.();
@@ -528,6 +528,7 @@ export function OrgTodoList({
                 scheduleId,
               },
               {
+                onSettled: onChanged,
                 onError: (error) =>
                   setCancelIssues((current) => ({
                     ...current,
@@ -550,7 +551,7 @@ export function OrgTodoList({
       // Applying saves the change to the Brief; dismissing records it.
       const proposalId = item.id.slice("criteria:".length);
       const answerWith = (action: "accept" | "dismiss") => () =>
-        answerProposal.mutate({ action, proposalId });
+        answerProposal.mutate({ action, proposalId }, { onSettled: onChanged });
       return (
         <>
           <MuteButton
@@ -590,7 +591,7 @@ export function OrgTodoList({
     if (!href) {
       return item.column === "notice" ? (
         <MuteButton
-          onClick={() => markRead.mutate(item.id)}
+          onClick={() => markRead.mutate(item.id, { onSettled: onChanged })}
           size="sm"
           type="button"
           variant="dark"
@@ -622,7 +623,7 @@ export function OrgTodoList({
       <>
         {view}
         <MuteButton
-          onClick={() => markRead.mutate(item.id)}
+          onClick={() => markRead.mutate(item.id, { onSettled: onChanged })}
           size="sm"
           type="button"
           variant="dark"
@@ -662,7 +663,46 @@ export function OrgTodoList({
       </>
     );
   };
+  return { action, answer, decide, detail };
+}
 
+/**
+ * The To-do sections for one Role: one line per thing with the button that
+ * does it. A second line only for a suggestion's control and for Harper's
+ * scheduled work (who set it up, a failed cancel).
+ */
+export function OrgTodoList({
+  columns,
+  onApprove,
+  onNavigate,
+  range,
+  roleId,
+  shortcuts = [],
+  variant = "rows",
+  workspaceId,
+}: {
+  columns: OrgTodoColumn[];
+  /** Sends the approved plan to the Role chat as the team's message. */
+  onApprove: (message: string) => void;
+  onNavigate?: () => void;
+  range: "all" | "recent";
+  roleId: string;
+  shortcuts?: OrgTodoShortcut[];
+  /** "cards": the role screen's right column, in the candidate side's card style. */
+  variant?: "rows" | "cards";
+  workspaceId: string;
+}) {
+  const { c, locale } = useOrgLocale();
+  const todo = useOrgRoleTodo({ range, roleId, workspaceId });
+  const { action, answer, decide, detail } = useOrgTodoActions({
+    onApprove,
+    onNavigate,
+    roleId,
+    workspaceId,
+  });
+  const items = todo.data?.items ?? [];
+  const suggestions = todo.data?.suggestions ?? 0;
+  const headings = orgTodoHeadings(c);
   if (todo.isLoading) {
     return (
       <p className="px-4 py-4 text-[13px] text-neutral-muted">

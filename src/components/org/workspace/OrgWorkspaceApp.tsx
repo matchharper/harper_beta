@@ -206,25 +206,20 @@ export function OrgWorkspaceApp({
           <div
             className={cn(
               page === "role" || page === "home" ? "md:pt-0" : "pt-12 md:pt-0",
-              isRoleCreationStarted
-                ? "md:pl-[72px]"
-                : layoutPage === "home"
-                  ? "md:pl-[244px]"
-                  : "md:pl-[256px]"
+              isRoleCreationStarted ? "md:pl-[72px]" : "md:pl-[256px]"
             )}
           >
             <PageContainer
               key={workspace.workspaceId}
               className={cn(
-                layoutPage === "role" || emptyRoleHome
+                // Home and a role share the candidate side's full-height frame.
+                layoutPage === "role" || layoutPage === "home" || emptyRoleHome
                   ? "h-svh min-h-[520px] md:h-screen md:min-h-0"
                   : layoutPage === "new-role"
                     ? "h-[calc(100svh-3rem)] min-h-[472px] md:h-screen md:min-h-0"
-                    : layoutPage === "home"
-                      ? "px-1 py-0 md:px-1 lg:py-3 lg:pl-4 lg:pr-8"
-                      : "py-6 sm:py-9 lg:py-10"
+                    : "py-6 sm:py-9 lg:py-10"
               )}
-              padding={isRoleWorkspacePage ? "none" : "default"}
+              padding={isRoleWorkspacePage || layoutPage === "home" ? "none" : "default"}
               size={
                 isRoleWorkspacePage || page === "home"
                   ? "full"
