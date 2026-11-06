@@ -21,8 +21,8 @@ import {
   saveRoleStartPool,
   loadRoleStartSession,
   mergeRoleStartTimings,
-  saveRoleStartBrief,
   saveRoleStartSession,
+  saveRoleStartSessionBrief,
   wellFormedJson,
   hasRoleStartBrief,
 } from "./session";
@@ -46,6 +46,9 @@ import { visibleBriefHash, withLatestBackground } from "./view";
 
 type Access = { roleId: string; user: User; workspaceId: string };
 
+/** Where a role start Brief copied from the Role's own criteria list comes from. */
+const CRITERIA_SYNC_SOURCE = "criteria_sync";
+
 function definitionKey(criterion: OrgRoleCriterion) {
   return JSON.stringify([criterion.name, criterion.criteria, criterion.signals ?? {}]);
 }
@@ -60,7 +63,12 @@ async function storedBrief(args: Access) {
       criteria: normalizeOrgRoleCriteria((state.role as Record<string, unknown>).criteria),
       hardConditions: [],
     });
-    session = await saveRoleStartSession({ roleId: args.roleId, patch: { phase: "done", brief: fromRole } });
+    session = await saveRoleStartSession({
+      roleId: args.roleId,
+      patch: { phase: "done", brief: fromRole },
+      // A copy of the Role's own list, made when its criteria are first opened.
+      change: { source: CRITERIA_SYNC_SOURCE },
+    });
   } else if (state.role.status !== "draft" && !(await hasRoleStartBrief(args.roleId))) {
     // A chat-written Role: its own list is the source (chat edits write the list
     // alone), so the stored copy follows it before anything is saved from it.
@@ -79,6 +87,7 @@ async function storedBrief(args: Access) {
           roleId: args.roleId,
           expectedRevision: session.revision,
           patch: { brief: normalizeRoleStartBrief({ ...session.brief, criteria }) },
+          change: { source: CRITERIA_SYNC_SOURCE },
         })) ?? session;
     }
   }
@@ -189,27 +198,28 @@ export async function updateRoleRubric(
   next = withLatestBackground(next, latest.brief, before);
   // A reference change keeps its own list, applied to the reference people as they are now.
   if (args.change) next = { ...next, references: args.change.apply(latest.brief).references };
-  const savedSession = await saveRoleStartSession({
+  // The saved Brief text and the 평가 기준 목록 always come from the same Brief.
+  // A chat-written Role keeps its own text (there is no role start Brief to render it from).
+  const writeRole = (await hasRoleStartBrief(args.roleId)) ? true : "criteria";
+  // The session and the Role's copy in one transaction: one Brief version, with who and where.
+  const saved = await saveRoleStartSessionBrief({
     roleId: args.roleId,
     expectedRevision: latest.revision,
     // Counted like the other Brief edits, so words still being applied do not overwrite it.
     patch: { brief: next, questions: { ...latest.questions, speculative: null, briefEdits: (latest.questions.briefEdits ?? 0) + 1 } },
+    save: {
+      changeSource: args.source,
+      historySource: args.historySource,
+      requestReview: args.requestReview,
+      changeSummary: summary,
+      userId: args.user.id,
+      writeRole,
+    },
   });
-  if (!savedSession) throw new OrgHttpError(409, "그사이 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
+  if (!saved) throw new OrgHttpError(409, "그사이 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
+  const { version } = saved;
   // The scored pool is kept for reuse on its own (the session revision is not bumped twice).
   if (pool) await saveRoleStartPool(args.roleId, pool, pool.builtAt);
-  const version = await saveRoleStartBrief({
-    roleId: args.roleId,
-    brief: next,
-    changeSource: args.source,
-    historySource: args.historySource,
-    requestReview: args.requestReview,
-    changeSummary: summary,
-    userId: args.user.id,
-    // The saved Brief text and the 평가 기준 목록 always come from the same Brief.
-    // A chat-written Role keeps its own text (there is no role start Brief to render it from).
-    writeRole: (await hasRoleStartBrief(args.roleId)) ? true : "criteria",
-  });
 
   const beforeKeys = new Map(before.criteria.map((criterion) => [criterion.name, definitionKey(criterion)]));
   const toJudge = next.criteria.filter((criterion) => beforeKeys.get(criterion.name) !== definitionKey(criterion));

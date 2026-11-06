@@ -42,6 +42,7 @@ export async function PATCH(req: NextRequest) {
       : undefined;
     const payload = await updateOpsMatchingAllRole({
       eventActorLabel: getCompanyEventActorLabelFromUser(user),
+      eventActorUserId: user.id,
       roleId: String(body.roleId ?? ""),
       status,
     });

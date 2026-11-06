@@ -1432,11 +1432,10 @@ async function applyResolvedCompanyDataChanges(args: {
   changes: ResolvedCompanyDataChange[]; eventContent: string;
   source: "chat" | "slack"; workspaceId: string;
 }) {
-  const includesBrief=args.changes.some(change=>change.key==='role_request');
-  return (args.admin.rpc as any)(includesBrief ? 'apply_company_data_with_hiring_history_v1'
-    : args.changes.some(change=>change.key==='salaryRange') ? 'apply_company_data_changes_with_role_salary_v1' : 'apply_company_data_changes_v1', {
+  // Role facts and salary too: this writer records who and where on Brief versions (it routes salaryRange itself).
+  return (args.admin.rpc as any)('apply_company_data_with_hiring_history_v1', {
     p_changes:args.changes,p_event_content:args.eventContent,p_source:args.source,p_workspace_id:args.workspaceId,
-    ...(includesBrief ? {p_criteria_changes:[],p_actor_user_id:args.actorId,p_actor_label:args.actorLabel} : {}),
+    p_criteria_changes:[],p_actor_user_id:args.actorId,p_actor_label:args.actorLabel,
   });
 }
 
