@@ -1,5 +1,6 @@
 import { OpenAI } from "openai";
 import { tracedLlmFetch } from "./providerTrace";
+import { addLlmCallToRunUsage } from "./runUsage";
 import { logger } from "@/utils/logger";
 import {
   buildOpenAIResponsesRequest,
@@ -803,6 +804,8 @@ export async function createChatCompletionWithFallback(args: {
     //     JSON.stringify(requestBody, null, 2)
     //   );
     // }
+    // A response that fails validation was still a billed call.
+    await addLlmCallToRunUsage(model, response);
     args.validateResponse?.(response, model);
     return response;
   };
@@ -934,6 +937,8 @@ export async function createChatCompletionStreamWithFallback(args: {
         signal: args.signal,
       });
     }
+    // A response that fails validation was still a billed call.
+    await addLlmCallToRunUsage(model, response);
     args.validateResponse?.(response, model);
     return response;
   };

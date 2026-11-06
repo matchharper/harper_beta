@@ -14,6 +14,8 @@ import { runCompanyProactiveReview } from "./proactiveReview.server";
 import { deliverCompanyMessageBatch } from "./companyMessageDelivery.server";
 
 import { runRoleSearchKickoff, continueRoleSearchKickoff } from "./roleSearchKickoff.server";
+import { withLlmUsageContext } from "@/lib/llm/usageContext";
+import { companyRunUsageJson, createCompanyRunUsage, mergeRunUsage } from "@/lib/llm/runUsage";
 
 const MAX_ATTEMPTS = 5;
 
@@ -40,6 +42,7 @@ async function markRetry(args: {
   attemptCount: number;
   error: unknown;
   jobId: string;
+  usage?: Record<string, unknown>;
 }) {
   const admin = getSupabaseAdmin();
   const message =
@@ -61,6 +64,7 @@ async function markRetry(args: {
       next_attempt_at: new Date(Date.now() + delay * 1_000).toISOString(),
       status: exhausted ? "failed" : "retry",
       ...(busy ? { attempt_count: Math.max(0,args.attemptCount-1) } : {}),
+      ...(args.usage ? { usage: args.usage } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", args.jobId)
@@ -119,11 +123,16 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
     );
   }
 
+  // Every model call this run makes adds to its usage (company_agent_web_action_jobs.usage).
+  const runUsage = createCompanyRunUsage();
+  const runStartedAt = Date.now();
+  const usageContext = { requestId: message.jobId, companyRunUsage: runUsage };
+  const usage = () => mergeRunUsage(job.usage, companyRunUsageJson(runUsage, Date.now() - runStartedAt));
   try {
     if (["agent_contact_received","agent_schedule_due"].includes(job.action_name)) {
       const {runCompanyAgentEvent}=await import("@/lib/agentContacts/companyReceiver.server");
-      const result=await runCompanyAgentEvent(job);
-      const {error}=await (admin.from as any)("company_agent_web_action_jobs").update({status:result.outcome,
+      const result=await withLlmUsageContext(usageContext, () => runCompanyAgentEvent(job));
+      const {error}=await (admin.from as any)("company_agent_web_action_jobs").update({status:result.outcome,usage:usage(),
         progress_message_id:result.progressMessageId,terminal_message_id:result.terminalMessageId,completed_at:new Date().toISOString(),locked_at:null,locked_by:null,last_error:null})
         .eq("id",job.id).eq("status","processing").eq("locked_by",job.locked_by);
       if(error) throw error;
@@ -187,9 +196,10 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
     };
     const isProactive = job.action_name === "proactive_recruiting_review";
     const isResearch = job.action_name === "role_search_kickoff";
-    const result = job.action_name === "scheduled_matching_review" ? await runCompanyScheduledMatching(turnArgs)
-      : isResearch ? await runRoleSearchKickoff(turnArgs)
-      : isProactive ? await runCompanyProactiveReview(turnArgs) : await runOrgAgentWebActionTurn(turnArgs);
+    const result = await withLlmUsageContext(usageContext, () =>
+      job.action_name === "scheduled_matching_review" ? runCompanyScheduledMatching(turnArgs)
+      : isResearch ? runRoleSearchKickoff(turnArgs)
+      : isProactive ? runCompanyProactiveReview(turnArgs) : runOrgAgentWebActionTurn(turnArgs));
     {
       await assertEventAccess();
       const assertProactiveDeliveryCurrent = async () => {
@@ -223,9 +233,9 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
         candidateIds: job.action_context?.facts?.candidateIds,
       });
     }
-    if (isResearch) await continueRoleSearchKickoff({
+    if (isResearch) await withLlmUsageContext(usageContext, () => continueRoleSearchKickoff({
       jobId: message.jobId, workspaceId: job.company_workspace_id, roleId: relatedRoleId!,
-    });
+    }));
     const now = new Date().toISOString();
     const { error: completeError } = await (
       admin.from("company_agent_web_action_jobs" as any) as any
@@ -239,6 +249,7 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
         status: result.outcome,
         terminal_message_id: result.terminalMessageId,
         updated_at: now,
+        usage: usage(),
       })
       .eq("id", message.jobId)
       .eq("status", "processing");
@@ -256,6 +267,7 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
           locked_by: null,
           status: "superseded",
           updated_at: now,
+          usage: usage(),
         })
         .eq("id", message.jobId)
         .eq("status", "processing").eq("locked_by", job.locked_by);
@@ -267,6 +279,7 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
       attemptCount: Number(job.attempt_count ?? 1),
       error,
       jobId: message.jobId,
+      usage: usage(),
     });
   }
 }
