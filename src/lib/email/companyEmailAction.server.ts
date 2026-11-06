@@ -192,6 +192,7 @@ async function execute(args: {
     stage: {
       acceptReason: null,
       contactDirectly: false,
+      decisionChannel: "email",
       expectedPreviousStage: "pending_connection",
       introEmails: link.action === "accept_connection" ? [args.email] : null,
       notifyCandidateOnClosure:

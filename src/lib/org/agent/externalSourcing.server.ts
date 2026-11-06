@@ -160,10 +160,13 @@ export async function listExternalCandidateStatuses(args: {
   return { total: count ?? people.length, people };
 }
 
+/** Where the company made an external-candidate decision. */
+type ExternalDecisionChannel = "web" | "chat" | "slack";
+
 /** Record the company's confirmed connection request for one shown person. Contacts nobody. */
 export async function recordExternalIntroRequest(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidateRef: string;
-  companyAppeal: string; introRecipientEmails: string[];
+  companyAppeal: string; introRecipientEmails: string[]; channel: ExternalDecisionChannel;
 }): Promise<{ status: "requested" | "already_requested"; intro: ExternalIntroRow | null }> {
   const { data, error } = await args.admin.from("external_intro_requests").insert({
     external_candidate_id: args.candidateRef, company_workspace_id: args.workspaceId, role_id: args.roleId,
@@ -176,9 +179,12 @@ export async function recordExternalIntroRequest(args: {
   }
   if (error) throw error;
   // The company acted on this person: their profile text and evidence are kept past the 30-day purge.
-  const { error: decisionError } = await args.admin.from("external_candidates")
-    .update({ company_decision: "intro_requested", updated_at: new Date().toISOString() })
-    .eq("id", args.candidateRef).eq("company_workspace_id", args.workspaceId);
+  // The decision record is written in the same transaction.
+  const { error: decisionError } = await args.admin.rpc("set_external_candidate_company_decision_v1" as never, {
+    p_external_candidate_id: args.candidateRef, p_company_workspace_id: args.workspaceId,
+    p_decision: "intro_requested", p_actor_user_id: args.userId, p_reason_text: args.companyAppeal,
+    p_channel: args.channel,
+  } as never);
   if (decisionError) throw decisionError;
   return { status: "requested", intro: data };
 }
@@ -189,7 +195,7 @@ export async function recordExternalIntroRequest(args: {
  */
 export async function requestExternalIntro(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidate: ShownExternalCandidate;
-  companyAppeal: string; introRecipientEmails: string[];
+  companyAppeal: string; introRecipientEmails: string[]; channel: ExternalDecisionChannel;
 }) {
   // A finished lookup found no address: the person cannot be invited, so nothing is recorded.
   if (args.candidate.contact?.status === "not_found") {
@@ -197,7 +203,7 @@ export async function requestExternalIntro(args: {
   }
   const recorded = await recordExternalIntroRequest({ admin: args.admin, workspaceId: args.workspaceId, roleId: args.roleId,
     userId: args.userId, candidateRef: args.candidate.id, companyAppeal: args.companyAppeal,
-    introRecipientEmails: args.introRecipientEmails });
+    introRecipientEmails: args.introRecipientEmails, channel: args.channel });
   let emailLookup: string | undefined;
   const contact = args.candidate.contact;
   if (recorded.status === "requested" && externalInviteSendingEnabled() && (!contact || contact.status === "failed")) {
@@ -219,13 +225,13 @@ export async function passExternalCandidate(args: {
   // Pass works in every state, also after a connection request. After it Harper sends nothing more to this
   // person and stops telling the company about them (replies are still recorded).
   const now = new Date().toISOString();
-  const { data, error } = await args.admin.from("external_candidates").update({
-    company_decision: "passed", company_decision_reason: args.reason.trim().slice(0, 500) || null,
-    company_decided_at: now, company_decided_by: args.userId, updated_at: now,
-  }).eq("id", person.id).eq("company_workspace_id", args.workspaceId)
-    .or("company_decision.is.null,company_decision.eq.intro_requested").select("id").maybeSingle();
+  // Saved with its decision record in one transaction; only while undecided or requested.
+  const { data: passed, error } = await args.admin.rpc("set_external_candidate_company_decision_v1" as never, {
+    p_external_candidate_id: person.id, p_company_workspace_id: args.workspaceId, p_decision: "passed",
+    p_actor_user_id: args.userId, p_reason_text: args.reason, p_channel: "web",
+  } as never);
   if (error) throw error;
-  if (!data) return { status: "unchanged" };
+  if (passed !== true) return { status: "unchanged" };
   // An invitation that has not gone out is cancelled here; the dispatcher also re-checks before sending.
   if (person.intro?.status !== "requested") return { status: "passed" };
   const { data: cancelled, error: cancelError } = await args.admin.from("external_intro_requests")

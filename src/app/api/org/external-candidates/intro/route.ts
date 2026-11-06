@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     // The inbox offers Send Intro only once an address is found (Harper's tool may still queue a lookup).
     if (candidate.contact?.status !== "found") throw new OrgHttpError(409, "No email address was found for this person.");
     const result = await requestExternalIntro({ admin, workspaceId, roleId, userId: user.id, candidate, companyAppeal,
-      introRecipientEmails: [...new Set(introRecipientEmails)] });
+      introRecipientEmails: [...new Set(introRecipientEmails)], channel: "web" });
     if (result.status === "no_email") throw new OrgHttpError(409, "No email address was found for this person.");
     return NextResponse.json({ ok: true, status: result.status });
   } catch (error) {
