@@ -1,3 +1,4 @@
+import { createDelegatedTurnAdapter } from "./output";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { enqueueCareerAgentReply, type CareerAgentReplyJob } from "../agentReplyQueue";
 import { CareerAgentReplyUnavailable } from "../agentReplyError";
@@ -44,20 +45,15 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
   const workId = invocation.parent_id as string | undefined;
   const inboxId = !workId && Array.isArray(invocation.request.input_message_ids) ? invocationId : undefined;
   const replyId = `invocation:${invocation.id}`;
-  const complete = async (cancelled = false) => {
-    if (inboxId) {
-      const { data, error } = await (scope.admin.rpc as any)("finish_career_inbox", {
-        p_user_id: scope.userId, p_conversation_id: scope.conversationId, p_invocation_id: inboxId, p_cancelled: cancelled,
-      });
-      if (error) throw error;
-      // The current queue delivery belongs to this inbox. Its successor needs
-      // its own wakeup if the immediate continuation yields or this worker dies.
-      if (data) await publishCareerInvocations(scope);
-      return (data ?? undefined) as string | undefined;
-    }
-    const { error } = await db("talent_external_operations").update({ status: "completed", result: {}, updated_at: new Date().toISOString() })
-      .eq("id", invocationId).eq("user_id", scope.userId);
+  const browserReturns = invocation.request.browser_control_returns ?? [];
+  const complete = async (cancelled = false, observed = browserReturns) => {
+    const { data, error } = await (scope.admin.rpc as any)("finish_career_invocation", {
+      p_user_id: scope.userId, p_conversation_id: scope.conversationId, p_invocation_id: invocationId,
+      p_cancelled: cancelled, p_observed_browser_returns: observed,
+    });
     if (error) throw error;
+    if (data) await publishCareerInvocations(scope);
+    return (data ?? undefined) as string | undefined;
   };
   if (Array.isArray(invocation.request.cancel_reply_ids)) {
     for (const id of invocation.request.cancel_reply_ids) {
@@ -95,21 +91,31 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
   const saved = await db(workId ? "talent_agent_work_runtime" : "talent_agent_runtime").select("state")
     .eq(workId ? "work_id" : "conversation_id", workId ?? scope.conversationId).eq("user_id", scope.userId).maybeSingle();
   if (saved.error) throw saved.error;
-  if (saved.data?.state?.completedReplyIds?.[replyId] !== undefined) return await complete();
+  if (saved.data?.state?.completedReplyIds?.[replyId] !== undefined) return await complete(false, null);
   const checkpoint = saved.data?.state?.checkpoints?.[replyId] as CareerReplyCheckpoint | undefined;
   const resumeDependenciesPending = Boolean(checkpoint && !await careerCheckpointIsReady(scope.admin, scope.userId, checkpoint));
-  if (resumeDependenciesPending && (!inboxId || !(await readCareerInbox(scope, inboxId)).messages.length)) return false;
+  if (resumeDependenciesPending) {
+    const input = inboxId ? await readCareerInbox(scope, inboxId) : undefined;
+    if (!input || (!input.messages.length && !input.events?.length)) return false;
+  }
+  const { readBrowserControlReturns } = await import("../browser/control");
+  const browserReturnContext = await readBrowserControlReturns(scope, browserReturns);
   const { runCareerChatTurn } = await import("../chatTurn");
-  const activity = createCareerInvocationActivity(scope, invocationId);
+  const inputSnapshot = inboxId ? await readCareerInbox(scope, inboxId) : undefined;
+  const activity = createCareerInvocationActivity(scope, invocationId, browserReturns);
+  let executionClaim: string | undefined;
   try {
     await runCareerChatTurn({ ...scope, existingSourceMessage: source, userMessage: null, agentReplyId: replyId,
       workId, workRevision: work?.revision,
+      ...(workId ? { adapter: createDelegatedTurnAdapter(scope, invocationId, source, () => activity.flush(), () => executionClaim) } : {}),
       inboxId, resumeDependenciesPending,
+      pendingInputMessageId: inputSnapshot?.historyBeforeMessageId,
+      applicationEvent: browserReturnContext || undefined,
       ...(workId ? { assistantMessagePayload: { careerWorkId: workId } } : {}),
       deadlineAt,
       // The invocation itself is the outbox; checkpoint-first crash is recoverable.
       onAgentCheckpoint: checkpoint => activity.checkpoint(checkpoint),
-      onAgentTurnStarted: claimId => activity.start(claimId),
+      onAgentTurnStarted: claimId => { executionClaim = claimId; return activity.start(claimId); },
       onThinkingLog: (_status, logs) => activity.record(logs),
     });
     await activity.flush();
@@ -117,13 +123,17 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
   } catch (error) {
     await activity.flush();
     if (error instanceof CareerReplyContinuation) {
-      return inboxId && (await readCareerInbox(scope, inboxId)).messages.length ? inboxId : false;
+      if (!inboxId) return false;
+      const input = await readCareerInbox(scope, inboxId);
+      return input.messages.length || input.events?.length ? inboxId : false;
     }
     if (error instanceof CareerTurnCancelled) return await complete(true);
-    if (error instanceof CareerAgentReplyUnavailable) return error.completed ? await complete() : false;
+    if (error instanceof CareerAgentReplyUnavailable) return error.completed ? await complete(false, null) : false;
     if (!(error instanceof CareerAgentReplyUnavailable)) {
-      await db("talent_external_operations").update({ result: { last_error: error instanceof Error ? error.message : "Execution interrupted", failed_at: new Date().toISOString() } })
-        .eq("id", invocationId).eq("user_id", scope.userId);
+      await (scope.admin.rpc as any)("record_career_invocation_progress", {
+        p_user_id: scope.userId, p_conversation_id: scope.conversationId, p_invocation_id: invocationId,
+        p_claim_id: executionClaim, p_patch: { last_error: error instanceof Error ? error.message : "Execution interrupted", failed_at: new Date().toISOString() },
+      });
     }
     throw error;
   }

@@ -10,7 +10,250 @@ const PROVIDER_ENV_NAMES = [
   "EXA_SERVICE_API_KEY",
   "AWS_ACCESS_KEY_ID",
   "AWS_SECRET_ACCESS_KEY",
+  "BROWSER_USE_API_KEY",
+  "BROWSERLESS_API_TOKEN",
+  "VERCEL_API_TOKEN",
+  "VERCEL_TOKEN",
+  "VERCEL_TEAM_ID",
+  "VERCEL_ORG_ID",
 ] as const;
+
+async function withProviders(
+  env: Record<string, string>,
+  fetcher: typeof fetch,
+  check: () => Promise<void>
+) {
+  const originalFetch = globalThis.fetch;
+  const originalEnv = Object.fromEntries(
+    PROVIDER_ENV_NAMES.map((name) => [name, process.env[name]])
+  );
+  for (const name of PROVIDER_ENV_NAMES) delete process.env[name];
+  Object.assign(process.env, env);
+  globalThis.fetch = fetcher;
+  try {
+    await check();
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const name of PROVIDER_ENV_NAMES) {
+      if (originalEnv[name] === undefined) delete process.env[name];
+      else process.env[name] = originalEnv[name];
+    }
+  }
+}
+
+test("Browser Use paginates V4 run costs, filters dates, and reads credit independently", async () => {
+  const run = (id: string, date: string, cost: string) => ({
+    id,
+    createdAt: `${date}T12:00:00Z`,
+    totalCostUsd: cost,
+    model: "model-a",
+  });
+  const requests: URL[] = [];
+  await withProviders(
+    { BROWSER_USE_API_KEY: "bu-key" },
+    async (input, init) => {
+      const url = new URL(String(input));
+      requests.push(url);
+      assert.equal(
+        new Headers(init?.headers).get("X-Browser-Use-API-Key"),
+        "bu-key"
+      );
+      if (url.pathname === "/api/v2/billing/account")
+        return Response.json({ totalCreditsBalanceUsd: "32.75" });
+      assert.equal(url.pathname, "/api/v4/runs");
+      return Response.json(
+        url.searchParams.has("cursor")
+          ? {
+              runs: [
+                run("second", "2025-01-02", "1.5"),
+                run("old", "2025-01-01", "99"),
+              ],
+              hasMore: false,
+            }
+          : {
+              runs: [
+                run("outside", "2025-01-04", "99"),
+                run("first", "2025-01-03", "0.25"),
+                run("second", "2025-01-02", "1.5"),
+              ],
+              hasMore: true,
+              nextCursor: "next",
+            }
+      );
+    },
+    async () => {
+      const result = await fetchOpsCosts(
+        parseOpsCostDateRange({ from: "2025-01-02", through: "2025-01-03" })
+      );
+      const cost = result.costs.find((item) => item.id === "browser-use")!;
+      assert.equal(cost.total, 1.75);
+      assert.equal(cost.status, "ok");
+      assert.deepEqual(cost.points, [
+        { date: "2025-01-02", amount: 1.5 },
+        { date: "2025-01-03", amount: 0.25 },
+      ]);
+      assert.equal(cost.breakdown?.[0].total, cost.total);
+      assert.match(cost.message!, /브라우저·프록시 비용/);
+      assert.equal(
+        requests.filter((url) => url.searchParams.get("cursor") === "next")
+          .length,
+        1
+      );
+      assert.deepEqual(
+        result.credits.find((item) => item.id === "browser-use")?.amounts,
+        [{ amount: 32.75, currency: "USD" }]
+      );
+    }
+  );
+});
+
+test("Browserless keeps billing-cycle units separate from selected-period USD costs", async () => {
+  await withProviders(
+    { BROWSERLESS_API_TOKEN: "bl-secret" },
+    async (input) => {
+      const url = new URL(String(input));
+      assert.equal(
+        url.origin + url.pathname,
+        "https://api.browserless.io/v1/account/usage"
+      );
+      assert.equal(url.searchParams.get("token"), "bl-secret");
+      return Response.json({
+        plan: { name: "free" },
+        units: { included: 1000, used: 518, remaining: 480 },
+        billingPeriod: {
+          start: "2025-01-01T00:00:00Z",
+          end: "2025-02-01T00:00:00Z",
+        },
+      });
+    },
+    async () => {
+      const result = await fetchOpsCosts(
+        parseOpsCostDateRange({ from: "2025-01-02", through: "2025-01-03" })
+      );
+      const cost = result.costs.find((item) => item.id === "browserless")!;
+      assert.equal(cost.status, "ok");
+      assert.equal(cost.total, null);
+      assert.deepEqual(cost.points, []);
+      assert.deepEqual(cost.usage, {
+        from: "2025-01-01",
+        through: "2025-02-01",
+        plan: "free",
+        included: 1000,
+        used: 518,
+        remaining: 480,
+      });
+      const supabase = result.costs.find((item) => item.id === "supabase")!;
+      assert.equal(supabase.status, "unavailable");
+      assert.equal(supabase.total, null);
+    }
+  );
+});
+
+test("Vercel JSONL reconciles billed service charges including credits, not effective cost", async () => {
+  await withProviders(
+    { VERCEL_TOKEN: "vercel-secret", VERCEL_ORG_ID: "team-test" },
+    async (input, init) => {
+      const url = new URL(String(input));
+      assert.equal(
+        url.origin + url.pathname,
+        "https://api.vercel.com/v1/billing/charges"
+      );
+      assert.equal(url.searchParams.get("teamId"), "team-test");
+      assert.equal(url.searchParams.get("from"), "2025-01-02T00:00:00.000Z");
+      assert.equal(url.searchParams.get("to"), "2025-01-05T00:00:00.000Z");
+      assert.equal(
+        new Headers(init?.headers).get("Authorization"),
+        "Bearer vercel-secret"
+      );
+      const charge = (
+        date: string,
+        cost: number | string,
+        category: string
+      ) => ({
+        ChargePeriodStart: `${date}T08:00:00Z`,
+        BillingCurrency: "USD",
+        BilledCost: cost,
+        EffectiveCost: 99,
+        ServiceName: "Functions",
+        ChargeCategory: category,
+      });
+      return new Response(
+        [
+          charge("2025-01-02", "3.5", "Usage"),
+          charge("2025-01-02", -1, "Credit"),
+          charge("2025-01-03", 1.25, "Usage"),
+          charge("2025-01-04", 99, "Usage"),
+        ]
+          .map((item) => JSON.stringify(item))
+          .join("\r\n") + "\n",
+        { headers: { "Content-Type": "application/jsonl" } }
+      );
+    },
+    async () => {
+      const result = await fetchOpsCosts(
+        parseOpsCostDateRange({ from: "2025-01-02", through: "2025-01-03" })
+      );
+      const cost = result.costs.find((item) => item.id === "vercel")!;
+      assert.equal(cost.status, "ok");
+      assert.equal(cost.total, 3.75);
+      assert.deepEqual(cost.points, [
+        { date: "2025-01-02", amount: 2.5 },
+        { date: "2025-01-03", amount: 1.25 },
+      ]);
+      assert.deepEqual(
+        cost.breakdown?.map(({ label, total }) => ({ label, total })),
+        [
+          { label: "Functions · Usage", total: 4.75 },
+          { label: "Functions · Credit", total: -1 },
+        ]
+      );
+    }
+  );
+});
+
+test("provider errors never become zero cost or leak Browserless credentials", async () => {
+  await withProviders(
+    {
+      BROWSERLESS_API_TOKEN: "secret-must-not-leak",
+      BROWSER_USE_API_KEY: "bu-key",
+      VERCEL_API_TOKEN: "vc-key",
+      VERCEL_TEAM_ID: "team",
+    },
+    async (input) => {
+      const url = new URL(String(input));
+      if (url.hostname === "api.browserless.io")
+        return Response.json({ message: String(input) }, { status: 401 });
+      if (url.pathname === "/api/v2/billing/account")
+        return Response.json({ totalCreditsBalanceUsd: 5 });
+      if (url.pathname === "/api/v4/runs")
+        return Response.json({
+          runs: [],
+          hasMore: true,
+          nextCursor: "same-cursor",
+        });
+      return new Response('{"BilledCost": invalid}\n');
+    },
+    async () => {
+      const result = await fetchOpsCosts(
+        parseOpsCostDateRange({ from: "2025-01-02", through: "2025-01-03" })
+      );
+      for (const id of ["browserless", "browser-use", "vercel"]) {
+        const cost = result.costs.find((item) => item.id === id)!;
+        assert.equal(cost.status, "error");
+        assert.equal(cost.total, null);
+        assert.deepEqual(cost.points, []);
+      }
+      assert.equal(
+        result.credits.find((item) => item.id === "browser-use")?.status,
+        "ok"
+      );
+      assert.equal(
+        JSON.stringify(result).includes("secret-must-not-leak"),
+        false
+      );
+    }
+  );
+});
 
 test("OpenAI billing items reconcile with daily totals across pages", async () => {
   const originalFetch = globalThis.fetch;

@@ -19,8 +19,8 @@ test("serializes checklist coverage into the canonical client progress shape", (
   );
 
   assert.equal(progress.coveredCount, 3);
-  assert.equal(progress.totalCount, 5);
-  assert.equal(progress.percent, 60);
+  assert.equal(progress.totalCount, 6);
+  assert.equal(progress.percent, 50);
   assert.equal(progress.completed, false);
 });
 
@@ -36,8 +36,8 @@ test("excludes final confirmation from both sides of displayed progress", () => 
   );
 
   assert.equal(afterFinalConfirmation.coveredCount, 1);
-  assert.equal(afterFinalConfirmation.totalCount, 5);
-  assert.equal(afterFinalConfirmation.percent, 20);
+  assert.equal(afterFinalConfirmation.totalCount, 6);
+  assert.equal(afterFinalConfirmation.percent, 17);
   assert.equal(afterFinalConfirmation.finalConfirmationCovered, true);
   assert.equal(afterFinalConfirmation.percent, beforeFinalConfirmation.percent);
 });
@@ -52,7 +52,6 @@ test("completes with core context even when optional details are missing", () =>
   );
 
   const withoutOptionalDetails = { ...completeCoverage };
-  delete withoutOptionalDetails.team_style_fit;
   delete withoutOptionalDetails.deal_breakers;
   delete withoutOptionalDetails.additional_question_one;
   delete withoutOptionalDetails.cross_border_work_authorization;
@@ -222,7 +221,7 @@ test("returns insight-backed coverage without recreating a completed call", asyn
 
 
 test("optional answers and legacy confirmation cannot replace any required topic", () => {
-  for (const missing of ["search_intensity", "location", "next_scope", "compensation", "language"]) {
+  for (const missing of ["search_intensity", "location", "next_scope", "compensation", "language", "team_style_fit"]) {
     const coverage = Object.fromEntries(ONBOARDING_QUESTION_CHECKLIST.map((item) => [item.key, "covered" as const]));
     coverage.final_priority_confirmation = "covered";
     delete coverage[missing];

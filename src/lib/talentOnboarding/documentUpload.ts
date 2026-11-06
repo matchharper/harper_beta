@@ -1,3 +1,5 @@
+import { sanitizeMultilineDbText } from "@/lib/textSanitization";
+
 export type TalentDocumentUploadKind = "document" | "resume";
 
 export { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "./documentUploadLimits";
@@ -233,14 +235,6 @@ export function validateTalentDocumentFileContent(args: {
   }
 }
 
-function sliceTextWithoutBreakingSurrogate(value: string, maxChars: number) {
-  const sliced = value.slice(0, maxChars);
-  const lastCodeUnit = sliced.charCodeAt(sliced.length - 1);
-  return lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff
-    ? sliced.slice(0, -1)
-    : sliced;
-}
-
 export async function extractTalentDocumentTextContent(args: {
   bytes: Uint8Array;
   fileName: string;
@@ -249,7 +243,7 @@ export async function extractTalentDocumentTextContent(args: {
 }) {
   if (!isTalentDocumentTextExtractable(args.fileName)) return null;
 
-  const maxChars = Math.max(1, args.maxChars ?? 120_000);
+  const maxChars = args.maxChars;
   const lower = args.fileName.toLowerCase();
   const buffer = Buffer.from(args.bytes);
   let text = "";
@@ -261,18 +255,24 @@ export async function extractTalentDocumentTextContent(args: {
     const parsed = await mammoth.extractRawText({ buffer });
     text = String(parsed.value ?? "");
   } else {
-    // @ts-ignore: pdf-parse-fork does not ship module declarations.
-    const pdfModule = await import("pdf-parse-fork");
-    const parsed = await pdfModule.default(buffer, {
-      max: Math.max(1, args.maxPdfPages ?? 40),
+    const { PDFParse } = await import("pdf-parse");
+    const { getTalentPdfAssetOptions } = await import("./pdfAssets");
+    const parser = new PDFParse({
+      data: new Uint8Array(args.bytes),
+      ...getTalentPdfAssetOptions(),
     });
-    text = String(parsed.text ?? "");
+    try {
+      const parsed = await parser.getText(
+        args.maxPdfPages ? { first: args.maxPdfPages } : {}
+      );
+      // Page separators are not document content (e.g. a scanned PDF).
+      text = parsed.pages.map((page) => page.text).join("\n\n");
+    } finally {
+      await parser.destroy();
+    }
   }
 
-  const normalized = text.trim();
-  return normalized
-    ? sliceTextWithoutBreakingSurrogate(normalized, maxChars)
-    : null;
+  return sanitizeMultilineDbText(text, maxChars ?? text.length);
 }
 
 export async function extractTalentDocumentTextContentBestEffort(args: {
@@ -298,8 +298,7 @@ export async function extractResumeTextContent(args: {
   return (
     (await extractTalentDocumentTextContent({
       ...args,
-      maxChars: args.maxChars ?? 24_000,
-      maxPdfPages: 8,
+      maxChars: args.maxChars,
     })) ?? ""
   );
 }

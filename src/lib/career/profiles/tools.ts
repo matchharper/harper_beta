@@ -300,12 +300,18 @@ export function formatProfileToolResult(name: string, value: unknown): string {
   }
   if (Array.isArray(result.sections))
     lines.push(`Included sections: ${result.sections.join(", ")}. Other sections were not read; read_profile can retrieve them.`);
+  if (result.revisionSource) lines.push(
+    `Revision saved ${formatLlmDateTime(result.revisionSource.created_at)}; source references: ${JSON.stringify(result.revisionSource.source ?? {})}. These identify the editing context, not independent verification of every profile claim.`
+  );
+  if (result.sourceMessage) lines.push(
+    `Original ${result.sourceMessage.role} message ${result.sourceMessage.id}; ${formatLlmDateTime(result.sourceMessage.createdAt)}:\n${result.sourceMessage.content}`
+  );
   if (Array.isArray(result.history)) {
     lines.push(
       "History (timezone: Asia/Seoul):",
       ...result.history.map(
         (row: any) =>
-          `- Revision ${row.revision}; ${formatLlmDateTime(row.created_at)}`
+          `- Revision ${row.revision}; ${formatLlmDateTime(row.created_at)}; source references: ${JSON.stringify(row.source ?? {})}`
       ),
       `Next history cursor: ${result.nextHistoryCursor ?? "none"}`
     );
@@ -438,7 +444,14 @@ export const CAREER_PROFILE_TOOLS: Record<string, TalentToolDefinition> = {
               },
               operation: { type: "string", enum: ["add", "update", "delete"] },
               rowId: { type: "string" },
-              fields: { type: "object" },
+              fields: {
+                type: "object",
+                description: Object.entries(rowFields).map(([type, fields]) => `${type}: ${fields.join(", ")}`).join(". "),
+                properties: Object.fromEntries([...new Set(Object.values(rowFields).flat())].map(key => [key,
+                  key === "months" ? { type: ["integer", "null"] } : { type: ["string", "null"] },
+                ])),
+                additionalProperties: false,
+              },
             },
             required: ["type", "operation"],
           },

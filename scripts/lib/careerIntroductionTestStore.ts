@@ -55,6 +55,8 @@ export async function database(options: {workRuntime?:boolean} = {}) {
       create table email_reply_jobs(id uuid,assistant_message_id bigint,metadata jsonb,talent_id uuid,conversation_id uuid);
       create table translation_entries(namespace text,key text,locale text,value text,status text,updated_by text,updated_at timestamptz,unique(namespace,key,locale));`);
     for(const file of ['20261029163255_career_general_agent_runtime.sql','20261103125930_career_concurrent_work.sql']) await db.exec(await readFile(`supabase/migrations/${file}`,'utf8'));
+    await db.exec("create schema if not exists auth; create function auth.uid() returns uuid language sql as $$ select null::uuid $$;");
+    await db.exec(await readFile("supabase/migrations/20261104134635_career_action_items.sql", "utf8"));
     await db.query("insert into talent_conversations(id,user_id) values('00000000-0000-4000-8000-000000000099',$1)",[owner]);
   }
   return db;

@@ -10,7 +10,14 @@ export function safeSlice(value: string, maxLength: number): string {
 }
 
 export function stripPostgresUnsafeChars(value: string): string {
-  return value.replace(POSTGRES_UNSAFE_CONTROL_CHARS_RE, "");
+  // JSON/Postgres reject NUL and unpaired UTF-16 surrogates. Preserve valid
+  // pairs, including emoji, while removing only unrepresentable code units.
+  return value
+    .replace(POSTGRES_UNSAFE_CONTROL_CHARS_RE, "")
+    .replace(
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+      ""
+    );
 }
 
 export function sanitizeSingleLineDbText(

@@ -122,6 +122,7 @@ export type TalentMessageRow = {
 };
 
 export type TalentMessageResponse = {
+  artifactReplyId?: string;
   careerForm?: CareerForm;
   formResponse?: CareerFormResponse;
   browserSession?: { sessionId: string };
@@ -182,6 +183,11 @@ export function toTalentMessageResponse(
     ? extractCareerOpportunityMentions(visibleContent)
     : [];
   return {
+    artifactReplyId: typeof payload.artifactReplyId === "string"
+      ? payload.artifactReplyId
+      : item.message_type === "career_form_presentation" && typeof payload.requestId === "string" && payload.requestId.startsWith("presentation:")
+        ? payload.requestId.split(":").slice(1, -2).join(":") || undefined
+        : undefined,
     ...(["career_form", "career_form_presentation"].includes(item.message_type ?? "") ? { careerForm: parseCareerForm(item.payload) } : {}),
     ...(item.message_type === "career_form_response" ? { formResponse: parseCareerFormResponse(item.payload) } : {}),
     ...(item.message_type === "browser_session" && item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && typeof item.payload.session_id === "string" ? { browserSession: { sessionId: item.payload.session_id } } : {}),

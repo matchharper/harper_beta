@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v14",
+  "createdAt": "2026-11-05",
+  "provenance": "v13 plus truthful prior completion message, grounded in prepared/pinned fixture SQL. Candidate and company already had authorized and completed the initial submission; this receiver test must not hide that history. Frozen before generation.",
+  "hashes": {
+    "cases-v14.json": "a8b980abe382f4853eb9a5138251b3e67084c34b85f10c658e0b208906c5c845",
+    "gold-v14.json": "0f34e54637f0200b69904284c3b2a8a271b8734ae16d3d238c51ffabe6007a68"
+  }
+}

@@ -212,7 +212,7 @@ function CareerWorkspaceRoot({
             }
           >
             <DocumentEditorPanelProvider onOpenDocument={scrollToTop}>
-              <div ref={scrollRef} className="career-right-scroll">
+              <div ref={scrollRef} className="career-right-scroll no-scrollbar">
                 {!isConversation && (
                   <header className="career-panel-heading">
                     <h1>

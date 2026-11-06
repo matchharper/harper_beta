@@ -26,6 +26,8 @@ export const COMPANY_CAPABILITIES = [
 ] as const satisfies readonly { id: string; summary: string; policyIds: readonly CompanyPolicyId[]; toolIds: readonly OrgAgentToolName[] }[];
 
 export type CompanyCapabilityId = (typeof COMPANY_CAPABILITIES)[number]["id"];
+// These capabilities have executors for the Role-scoped company service principal.
+export const COMPANY_AGENT_SERVICE_CAPABILITIES = ["agent_correspondence", "web_research"] as const satisfies readonly CompanyCapabilityId[];
 // Communication and reviewable copy are core Harper work, not rare extensions.
 // Keeping their schema + policy together prevents text-only drafts that cannot
 // later be revised or approved. Heavy authoring/research/process tools stay lazy.

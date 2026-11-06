@@ -1,3 +1,4 @@
+import { ResumeTextRecovery } from "@/components/career/ResumeTextRecovery";
 import { useEffect, useMemo, useState } from "react";
 import { Plug } from "lucide-react";
 import { FieldLabel } from "@/components/ui/panel";
@@ -38,6 +39,8 @@ const CareerResumeLinksSettingsSection = ({
   onOpenDocument?: (document: CareerTalentDocument) => void;
 }) => {
   const t = useCareerT();
+  const [resumeRecovery, setResumeRecovery] = useState(false);
+  const [pastedText, setPastedText] = useState("");
   const logCareerEvent = useCareerLogEvent();
   const {
     talentDocuments,
@@ -164,7 +167,10 @@ const CareerResumeLinksSettingsSection = ({
     setSourceApplyConfirmMode(null);
     setIsProcessingSourceUpdate(true);
     try {
-      await onRefreshTalentProfileSources({ links: savedProfileLinks });
+      const saved = await onRefreshTalentProfileSources({
+        links: savedProfileLinks,
+      });
+      if (!saved) setResumeRecovery(true);
     } finally {
       setIsProcessingSourceUpdate(false);
     }
@@ -221,18 +227,55 @@ const CareerResumeLinksSettingsSection = ({
           onRenameDocument={openDocumentRename}
           onDeleteDocument={setDocumentPendingDeleteId}
           onUploadComplete={handleResumeUploadComplete}
+          onResumeReadFailure={() => setResumeRecovery(true)}
         />
       </div>
 
       <section className="mt-9">
         <FieldLabel
           icon={<Plug className="h-4 w-4" />}
-          label={t("career.profile.sources.connected_services", "연결된 서비스")}
+          label={t(
+            "career.profile.sources.connected_services",
+            "연결된 서비스"
+          )}
         />
         <div className="mt-3 flex flex-wrap gap-3">
           <CareerGmailSettingsRow />
         </div>
       </section>
+
+      <TalentCareerModal
+        open={resumeRecovery}
+        onClose={() => {
+          if (!profileSavePending) setResumeRecovery(false);
+        }}
+        title={t("career.resume_recovery.dialog", "프로필 가져오기")}
+        panelClassName="max-w-[560px]"
+        bodyClassName="px-5 py-5"
+        closeOnBackdrop={!profileSavePending}
+      >
+        <ResumeTextRecovery
+          value={pastedText}
+          onChange={setPastedText}
+          pending={profileSavePending}
+          onSubmit={() =>
+            void (async () => {
+              const saved = await onSaveTalentProfile({
+                applyProfileSources: true,
+                links: savedProfileLinks,
+                persistError: false,
+                resumeFile: new File([pastedText], "resume.txt", {
+                  type: "text/plain",
+                }),
+              });
+              if (saved) {
+                setResumeRecovery(false);
+                setPastedText("");
+              }
+            })()
+          }
+        />
+      </TalentCareerModal>
 
       <ProfileSourceApplyConfirmModal
         mode={sourceApplyConfirmMode}

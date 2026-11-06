@@ -124,7 +124,7 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     insightKey: "team_style_fit",
     label: "선호하는 회사의 조건",
     promptHint:
-      "Preferred company type or conditions, such as startup vs. big tech, investment stage, company-team size, team working style, etc.",
+      "다음으로 선호하는 회사·팀을 파악한다. 프로필과 대화를 바탕으로 사용자가 다음 기회로 선호할 법한 실제 회사명을 구체적으로 언급하며 질문하면 좋다. 해당 회사들에 관심이 있을 것 같다는 추측을 제시하고, 사용자가 확인하거나 정정할 수 있게 한다. 회사명은 사용자 맥락에 맞춰 고르고, 근거가 부족하면 열린 질문으로 선호를 파악한다. 추측 자체를 확인된 선호나 이 주제에 대한 답변으로 취급하지 않는다.",
     priority: 8,
     kind: "question",
   },
@@ -160,6 +160,7 @@ export const ONBOARDING_REQUIRED_QUESTION_KEYS = [
   "next_scope",
   "compensation",
   "language",
+  "team_style_fit",
 ] as const;
 
 export const ONBOARDING_QUESTION_MIN_COVERED_COUNT =

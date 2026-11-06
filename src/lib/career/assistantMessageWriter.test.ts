@@ -179,3 +179,16 @@ test("a failed display write recovers without replaying work, and late callbacks
   assert.equal(toTalentMessageResponse(db.rows[0]).workPending, false);
   assert.equal(db.rows.length, 2);
 });
+
+test("public delegate tool events persist with the conversation result without another assistant writer", async () => {
+  const {admin,rows}=database();
+  const writer=await createCareerAssistantMessageWriter({admin,userId:"user",conversationId:"conversation",replyId:"invocation:result",startedAt:new Date().toISOString()});
+  const event={id:"delegate:private-execution:0",kind:"tool" as const,text:"프로필 확인 중"};
+  const final=await writer.finish("검토 결과를 확인했어요.",[],undefined,[event,event]);
+  assert.ok(final);
+  assert.deepEqual(toTalentMessageResponse(final).workEvents,[event]);
+  assert.equal(rows.filter(row=>row.message_type==="chat").length,1);
+  const reloaded=await createCareerAssistantMessageWriter({admin,userId:"user",conversationId:"conversation",replyId:"invocation:result",startedAt:new Date().toISOString()});
+  assert.equal((await reloaded.finish("검토 결과를 확인했어요.",[],undefined,[event]))?.id,final.id);
+  assert.equal(rows.filter(row=>row.message_type==="chat").length,1);
+});

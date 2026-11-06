@@ -34,7 +34,7 @@ import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 import { normalizeProfileDate } from "@/lib/talentOnboarding/profileDate";
 
 export const runtime = "nodejs";
-export const maxDuration = 240;
+export const maxDuration = 800;
 
 type StructuredProfileBody = {
   talentUser?: {
@@ -282,7 +282,10 @@ export async function POST(req: NextRequest) {
       body.resumeStoragePath,
       2000
     );
-    const resumeText = sanitizeMultilineText(body.resumeText, 20000);
+    const resumeText = sanitizeMultilineText(
+      body.resumeText,
+      typeof body.resumeText === "string" ? body.resumeText.length : 0
+    );
     const resumeDocumentId = sanitizeSingleLineText(body.resumeDocumentId, 100);
     const applyProfileSources = body.applyProfileSources !== false;
     const forceProfileIngestion = body.forceProfileIngestion === true;

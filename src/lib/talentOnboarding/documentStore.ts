@@ -1,3 +1,4 @@
+import { sanitizeMultilineDbText } from "@/lib/textSanitization";
 import { GENERATED_RESUME_ORIGIN } from "@/lib/resumes/schema";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
@@ -116,7 +117,12 @@ export async function updateTalentDocumentExtractedText(args: {
 }) {
   const { data, error } = await args.admin
     .from("talent_documents")
-    .update({ extracted_text: args.extractedText })
+    .update({
+      extracted_text: sanitizeMultilineDbText(
+        args.extractedText,
+        args.extractedText.length
+      ),
+    })
     .eq("id", args.documentId)
     .eq("talent_id", args.userId)
     .eq("is_deleted", false)

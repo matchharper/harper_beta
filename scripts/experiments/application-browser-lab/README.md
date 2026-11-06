@@ -25,3 +25,25 @@ node invoke.mjs https://harper-apply-browser-lab-20261022.vercel.app legacy
 Next file tracing must include Playwright's runtime data, including `browsers.json`. This is needed even though Chromium is remote. Stagehand 3.7.3 is pinned for its built-in hybrid agent; v4 has a different agent integration surface.
 
 Do not deploy this or any Harper component again without authorization for that deployment. The 2026-10-22 request authorized this isolated experiment only.
+
+## Simple application form (deployed 2026-11-05)
+
+`/simple` is a single-page Harper Founding Engineer, AI Agent test application:
+name, email, and one resume upload, followed by an inline receipt. It requires no
+run token or predetermined applicant/file. The receiver reads the file bytes and
+returns their size and SHA-256; it does not persist the applicant or attachment,
+or send anything to an employer. The 4 MiB file limit leaves multipart overhead
+below Vercel's [4.5 MB request limit](https://vercel.com/docs/functions/limitations#request-body-size).
+
+Check with `node --test simpleFixture.test.mjs`. Preview with
+`node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3036`.
+Published at https://harper-apply-browser-lab-20261022.vercel.app/simple in
+production deployment `dpl_CtBbTp3yQTYVgu68e91ss43gLTEV`. Source manifest SHA-256:
+`2d89915d7ff79674ae054c29d7858b6b1aa38c4622204bc98f526f1fe94c7a69`.
+The public page returned 200 and a synthetic PDF submission returned 201 with
+its exact byte count and SHA-256 verified. This was an HTTP submission check;
+browser file upload was not verified because the Chrome extension lacked file
+URL access. The fixture role `c351ca7c-b561-4c68-ab04-6b2d3212efa9` links to
+this page. This release only changes the isolated lab; the Harper product was
+not deployed. The Notion deployment-documentation check found no corresponding
+team-facing product behavior change, so no Notion pages were modified.

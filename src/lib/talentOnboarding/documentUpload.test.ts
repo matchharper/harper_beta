@@ -12,6 +12,38 @@ import {
   validateResumeFileContent,
 } from "./documentUpload";
 
+function koreanCidPdfWithoutToUnicode() {
+  const stream = "BT /F1 20 Tf 40 150 Td <ACBDB8250020D559B825> Tj ET";
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Resources << /Font << /F1 4 0 R >> >> /Contents 7 0 R >>",
+    "<< /Type /Font /Subtype /Type0 /BaseFont /HYSMyeongJo-Medium /Encoding /UniKS-UCS2-H /DescendantFonts [5 0 R] >>",
+    "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /HYSMyeongJo-Medium /CIDSystemInfo << /Registry (Adobe) /Ordering (Korea1) /Supplement 1 >> /FontDescriptor 6 0 R /DW 1000 >>",
+    "<< /Type /FontDescriptor /FontName /HYSMyeongJo-Medium /Flags 6 /FontBBox [-100 -200 1100 1000] /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  }
+  const xref = pdf.length;
+  pdf += `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
+  pdf += offsets.slice(1).map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
+  pdf += `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return new TextEncoder().encode(pdf);
+}
+
+test("extracts Korean CID fonts that require Adobe CMaps", async () => {
+  const text = await extractTalentDocumentTextContent({
+    bytes: koreanCidPdfWithoutToUnicode(),
+    fileName: "korean-resume.pdf",
+  });
+  assert.equal(text, "경력 학력");
+});
+
 const GENERAL_DOCUMENT_CASES = {
   "case-study.pdf": "application/pdf",
   "notes.md": "text/markdown",
@@ -178,4 +210,14 @@ test("resume text extraction failure does not reject a valid upload", async () =
 
   assert.equal(extracted, null);
   assert.equal(errors.length, 1);
+});
+test("preserves the full pasted resume and removes DB-unsafe characters", async () => {
+  const text = "이력서\n" + "경력과 프로젝트\n".repeat(3000) + "학력: 마지막 학교";
+  assert.equal(
+    await extractTalentDocumentTextContent({
+      bytes: Buffer.from(text + "\u0000"),
+      fileName: "resume.txt",
+    }),
+    text
+  );
 });

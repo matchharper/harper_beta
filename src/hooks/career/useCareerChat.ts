@@ -687,9 +687,9 @@ export const useCareerChat = ({
       if (cancellationSavePendingRef.current) { args.onError?.(); return; }
       // Independent admission never owns the global stream or abort controller.
       // Each receipt is merged by identity, so out-of-order acknowledgements survive.
-      if ((isOnboardingDone || stage === "completed") && args.channel !== "voice" && !args.conversationStarterId && !args.coachingActivityAction && !args.internalCallAnswerSubmission && !args.simulationAction && !args.applicationPreparationContinuation && !args.applicationInputSubmission && !args.pendingAction) {
+      if ((isOnboardingDone || stage === "completed") && args.channel !== "voice") {
         if (!user || !conversationId || sessionPending || options?.profilePending) { args.onError?.(); return; }
-        if (!args.text.trim() && !args.files?.length && !args.formResponseMessageId) return;
+        if (!args.text.trim() && !args.files?.length && !args.formResponseMessageId && !args.internalCallAnswerSubmission) return;
         const fileIds = (args.files ?? []).map(file => {
           let id = admissionFileIds.current.get(file);
           if (!id) { id = crypto.randomUUID(); admissionFileIds.current.set(file, id); }
@@ -698,7 +698,7 @@ export const useCareerChat = ({
         // Exact failed transport envelopes retain identity on an explicit retry.
         // This does not deduplicate new successful messages by their wording.
         const draftKey = JSON.stringify([user.id, conversationId, args.text, args.link, args.messageType,
-          args.opportunityMentions, args.viewedRoleId, args.actionItem, args.formResponseMessageId, fileIds]);
+          args.opportunityMentions, args.viewedRoleId, args.actionItem, args.formResponseMessageId, args.conversationStarterId, args.coachingActivityAction, args.internalCallAnswerSubmission, args.pendingAction, fileIds]);
         const admission = failedAdmissions.current.get(draftKey) ?? { requestId: crypto.randomUUID(), body: undefined };
         const clientRequestId = admission.requestId;
         const pendingAdmission = { conversationId, stopped: false };
@@ -718,7 +718,8 @@ export const useCareerChat = ({
           const body = admission.body ?? JSON.stringify({ durable: true, conversationId, clientRequestId, message: args.text,
             link: args.link, messageType: args.messageType, opportunityMentions: args.opportunityMentions,
             viewedRoleId: args.viewedRoleId, uploadedDocumentIds, formResponseMessageId: args.formResponseMessageId,
-            actionItem: args.actionItem,
+            actionItem: args.actionItem, conversationStarterId: args.conversationStarterId,
+            coachingActivityAction: args.coachingActivityAction, internalCallAnswerSubmission: args.internalCallAnswerSubmission, pendingAction: args.pendingAction,
             locale, textChatModel, conversationVersion, promptVariant, timeZone: getCareerBrowserTimeZone() });
           admission.body = body;
           const response = await fetchWithAuth("/api/talent/chat", { method: "POST", body });

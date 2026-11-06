@@ -4,7 +4,6 @@ import { type Fit } from "./contract";
 import { runScoringBatches, scoringStopCounts } from "./scoringBatches";
 const fit = (mutualFit: number, constraintPass = 99): Fit => ({
   mutualFit, constraintPass, candidateInterest: 80, companyInterest: 80,
-  roleFit: 80, evidence: "sufficient",
 });
 const cached = (high: number, medium: number) => new Map(
   Array.from({ length: high + medium }, (_, i) => [String(i), fit(i < high ? 60 : 50)])

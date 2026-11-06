@@ -276,6 +276,9 @@ function formatWebSearchResult(result: Record<string, any>) {
     "status=ok",
     `query=${formatPromptCell(result.query, 500)}`,
     `result_count=${Number(result.resultCount ?? items.length)}`,
+    ...("structured_text" in result
+      ? [formatPromptSection("structured_text", result.structured_text ?? "No synthesized answer returned.")]
+      : []),
     formatPromptSection(
       "search_results",
       formatPromptTable(

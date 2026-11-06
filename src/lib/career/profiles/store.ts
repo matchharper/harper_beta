@@ -168,7 +168,7 @@ export async function readProfile(
     };
   }
   let query = (args.admin.from("talent_profile_revisions" as any) as any)
-    .select("revision,created_at")
+    .select("revision,created_at,source")
     .eq("profile_id", profile.profileId)
     .order("revision", { ascending: false })
     .limit(21);
@@ -177,6 +177,21 @@ export async function readProfile(
   const { data, error } = await query;
   if (error) throw error;
   const history = data ?? [];
+  const { data: revisionSource, error: sourceError } = await (args.admin.from("talent_profile_revisions" as any) as any)
+    .select("source,created_at").eq("profile_id", profile.profileId).eq("revision", profile.revision).single();
+  if (sourceError) throw sourceError;
+  let sourceMessage;
+  if (revisionSource?.source?.userMessageId) {
+    const { data: message, error: messageError } = await args.admin.from("talent_messages")
+      .select("id,role,content,message_type,payload,created_at")
+      .eq("user_id", args.userId).eq("id", revisionSource.source.userMessageId).maybeSingle();
+    if (messageError) throw messageError;
+    if (message) {
+      const { formatTalentMessageContentForLlmPrompt } = await import("../opportunityFeedbackNote");
+      sourceMessage = { id: message.id, role: message.role, createdAt: message.created_at,
+        content: formatTalentMessageContentForLlmPrompt(message) };
+    }
+  }
   const comparison =
     args.compareRevision === undefined
       ? undefined
@@ -187,6 +202,8 @@ export async function readProfile(
         });
   return {
     ...profile,
+    revisionSource,
+    sourceMessage,
     sections: args.sections,
     comparison,
     history: history.slice(0, 20),

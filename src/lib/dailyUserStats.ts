@@ -32,6 +32,7 @@ import {
 import { normalizeEmail } from "@/lib/adminMetrics/utils";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { fetchAllStatsRows as fetchAllRows } from "@/lib/statsQuery";
+import { profileExtraEntries } from "@/lib/talentOnboarding/profileStore";
 import type { Database } from "@/types/database.types";
 
 const BATCH_SIZE = 1000;
@@ -325,6 +326,8 @@ export type DailyUserStatsReport = {
   startDate: string;
   startIso: string;
   submittedCount: number;
+  submittedResumeUserCount: number;
+  submittedResumeWithoutProfileUserCount: number;
   toolFailureRate: number | null;
   tools: DailyUserStatsToolRow[];
   userMessageCount: number;
@@ -1258,6 +1261,61 @@ function chunkArray<T>(values: T[], chunkSize: number) {
   return chunks;
 }
 
+async function fetchSubmittedResumeProfileStats(userIds: string[]) {
+  let uploadedUserCount = 0;
+  let withoutProfileUserCount = 0;
+  // Read the current default-profile projection, which profile writes update
+  // atomically. A profile shell or extracted resume text alone is not a parsed
+  // profile. Historical reports intentionally show the current repair status.
+  for (const userIdChunk of chunkArray(userIds, 100)) {
+    const rows = await fetchAllRows<{
+      user_id: string;
+      resume_storage_path: string | null;
+      talent_experiences: { count: number }[];
+      talent_educations: { count: number }[];
+      talent_extras: { content: unknown } | null;
+      talent_documents: {
+        storage_path: string | null;
+        origin_type: string | null;
+      }[];
+    }>((from, to) =>
+      supabaseServer
+        .from("talent_users")
+        .select(
+          "user_id,resume_storage_path,talent_experiences(count),talent_educations(count),talent_extras(content),talent_documents(storage_path,origin_type)"
+        )
+        .in("user_id", userIdChunk)
+        .eq("talent_documents.kind", "resume")
+        .eq("talent_documents.is_deleted", false)
+        .order("user_id", { ascending: true })
+        .range(from, to)
+    );
+    for (const row of rows) {
+      const documents = row.talent_documents;
+      const hasUploadedResume = documents.some(
+        (document) =>
+          document.storage_path?.trim() &&
+          document.origin_type !== "harper_generated_resume"
+      );
+      const hasLegacyResume =
+        Boolean(row.resume_storage_path?.trim()) &&
+        !documents.some(
+          (document) =>
+            document.storage_path === row.resume_storage_path &&
+            document.origin_type === "harper_generated_resume"
+        );
+      if (!hasUploadedResume && !hasLegacyResume) continue;
+      uploadedUserCount += 1;
+      const hasProfile =
+        row.talent_experiences.some((entry) => entry.count > 0) ||
+        row.talent_educations.some((entry) => entry.count > 0) ||
+        profileExtraEntries(row.talent_extras?.content).rows.length > 0;
+      if (!hasProfile) withoutProfileUserCount += 1;
+    }
+  }
+  return { uploadedUserCount, withoutProfileUserCount };
+}
+
 export function buildOnboardingDeliveryGapStats(args: {
   eligibleUserIds: Iterable<string>;
   recommendationEmailUserIds: ReadonlySet<string>;
@@ -1946,6 +2004,10 @@ async function buildUserStatsReport(args: {
     }
   }
 
+  const submittedResumeProfileStats = await fetchSubmittedResumeProfileStats(
+    Array.from(submittedUserIds)
+  );
+
   // Completion counts must use immutable activity events. talent_setting.updated_at
   // also changes on login/settings writes, so it cannot represent completion time.
   const onboardingCompletedUserIds = new Set<string>();
@@ -2427,6 +2489,9 @@ async function buildUserStatsReport(args: {
     startDate,
     startIso,
     submittedCount: submittedUserIds.size,
+    submittedResumeUserCount: submittedResumeProfileStats.uploadedUserCount,
+    submittedResumeWithoutProfileUserCount:
+      submittedResumeProfileStats.withoutProfileUserCount,
     toolFailureRate: countRate(failedToolCallCount, toolAttemptCount),
     tools: toolRows.slice(0, 10),
     userMessageCount: chatMessages.length + callTranscriptMessages.length,
@@ -2774,6 +2839,11 @@ export function formatDailyUserStatsSlackMessages(
           )
         : undefined
     )}`,
+    `기간 내 제출자 중 이력서 업로드 후 프로필 항목 없음: ${formatCount(
+      report.submittedResumeWithoutProfileUserCount
+    )}명 / 이력서 업로드 ${formatCount(
+      report.submittedResumeUserCount
+    )}명 (조회 시점 경력·학력·기타 이력 모두 없음)`,
     `신규 가입자 중 온보딩 완료: ${formatCount(
       report.newSignupOnboardingCompletedCount
     )}명${formatCountChangeSuffix(

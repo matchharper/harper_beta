@@ -7,6 +7,8 @@ import { CareerFormView, type CareerFormSubmission } from "./CareerFormCard";
 import { toUiMessage } from "@/hooks/career/careerHelpers";
 import { toTalentMessageResponse } from "@/lib/talentOnboarding/models";
 import type { CareerForm } from "@/lib/career/forms/schema";
+import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime";
+import { PreparationDocumentPicker } from "./PreparationDocumentPicker";
 
 test("stored form renders its fields and edited itemwise answers do not skip siblings", async () => {
   const dom = new JSDOM("<div id='root'></div>", { pretendToBeVisual: true });
@@ -105,5 +107,40 @@ test("stored form renders its fields and edited itemwise answers do not skip sib
     for (const [key, descriptor] of previous)
       if (descriptor) Object.defineProperty(globalThis, key, descriptor);
       else Reflect.deleteProperty(globalThis, key);
+  }
+});
+
+test("a document reference opens for review before any PDF snapshot exists", async (t) => {
+  const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost/career", pretendToBeVisual: true });
+  const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement,
+    Element: dom.window.Element, DocumentFragment: dom.window.DocumentFragment, Node: dom.window.Node,
+    getComputedStyle: dom.window.getComputedStyle.bind(dom.window), CustomEvent: dom.window.CustomEvent, IS_REACT_ACT_ENVIRONMENT: true };
+  const previous = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+  t.mock.method(globalThis, "fetch", async () => { throw new Error("Opening a document reference must not render a PDF"); });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const destinations: string[] = [];
+  try {
+    for (const readOnly of [false, true]) {
+      await act(async () => root.render(
+        <RouterContext.Provider value={{ query: {}, pathname: "/career", asPath: "/career", isReady: true,
+          push: async (url: string) => { destinations.push(url); return true; } } as any}>
+          <PreparationDocumentPicker readOnly={readOnly} disabled={false} selectedId="saved-resume"
+            snapshotName="Application resume" onPick={() => { throw new Error("Review does not change the selection"); }} />
+        </RouterContext.Provider>
+      ));
+      const open = [...dom.window.document.querySelectorAll("button")].find(button => button.textContent === "Application resume");
+      assert.ok(open);
+      await act(async () => open.click());
+    }
+    assert.equal(destinations.length, 2);
+    assert.ok(destinations.every(url => url.includes("saved-resume")));
+  } finally {
+    await act(async () => root.unmount());
+    dom.window.close();
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
   }
 });

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { upsertDocument } from "@/lib/documents/authoring";
 import { listTalentDocumentsForTool, readTalentDocumentForTool } from "@/lib/talentOnboarding/documentTool";
 import { withCompactTalentToolModelResult } from "@/lib/talentOnboarding/toolModelResult";
-import { withTalentToolAssistantInstruction } from "@/lib/talentOnboarding/tools";
+import { runGetRoleContext, withTalentToolAssistantInstruction } from "@/lib/talentOnboarding/tools";
 import { careerFormDraftSchema } from "@/lib/career/forms/schema";
 import { formatCareerFormForModel } from "@/lib/career/forms/format";
 import { applyProfileEdits, formatProfileToolResult } from "@/lib/career/profiles/tools";
@@ -28,6 +28,8 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
     talent_educations: [], talent_extras: [], talent_contexts: [],
     talent_messages: [{ id: 1, user_id: userId, content: scenario.message }],
     logs: [],
+    company_roles: clone(scenario.roleFacts ?? []),
+    talent_opportunity_recommendation: [],
   };
   const admin: any = {
     from(table: string) {
@@ -70,11 +72,13 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
   const profiles = [profile], forms: any[] = clone(scenario.forms ?? []), contextWrites: any[] = [], externalAttempts: any[] = [], mutations: any[] = [];
   const works: any[] = clone(scenario.works ?? []);
   const matchings: any[] = scenario.matching ? [{ ...scenario.matching, criteria: { scope: scenario.brief } }] : [];
+  const publishedInternal: any[] = [];
   const calls: any[] = [];
   let roleStored = Boolean(scenario.role) && scenario.roleStored !== false;
   const profileText = () => formatProfileToolResult("read_profile", profile);
   const contextText = () => `Search Brief:\n${scenario.brief}\nMemory:\n${scenario.memory}`;
   const referencesText = () => [
+    ...(scenario.pendingInternal ? [`Already selected unpublished Harper-connected proposals: ${scenario.pendingInternal.length}.\n${formatPromptText(scenario.pendingInternal.map((r: any) => ({roleId:r.id,company:r.company,title:r.title,selectedAt:r.selectedAt})))}\nUse read_recommended_opportunities and get_role_context for details; reading does not select more roles.`] : []),
     "Saved document index:", ...rows.talent_documents.filter(d => !d.is_deleted).map(d => `Document ${d.id}; ${d.file_name}; revision ${d.revision}; ${d.origin_type}.`),
     ...(scenario.roles ? [`Saved opportunities:\n${formatPromptText(scenario.roles)}`] : []),
     ...(scenario.works || scenario.roles ? ["Authenticated current user message ID: 1.", ...works.map(formatWork), ...forms.map(formatCareerFormForModel)] : []),
@@ -87,7 +91,11 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
     const { _uiStatusMessage, ...args } = input;
     let raw: any;
     try {
-      if (name === "manage_work") {
+      if (name === "manage_action_items" && args.operation === "list") raw={modelOutput:"No pending action items."};
+      else if (name === "manage_action_items" && args.operation === "create") {
+        mutations.push({name,args});raw={ok:true,id:fixtureId(950+mutations.length),modelOutput:"Action item saved in the isolated fixture."};
+      }
+      else if (name === "manage_work") {
         let found = works.find(w => w.id === args.work_id);
         if (args.action === "start") {
           found = works.find(w => w.idempotency_key === args.identity);
@@ -114,9 +122,12 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
           .slice(0, args.maxResults ?? 10).map(({ page }: any, index: number) => ({ rank: index + 1, title: page.title, url: page.url, highlights: [page.summary] }));
         raw = { query: args.query, resultCount: results.length, results };
       } else if (name === "open_url") {
-        const page = scenario.pages.find((page: any) => page.url.replace(/\/$/, "") === String(args.url).replace(/\/$/, ""));
-        raw = page ? { url: page.url, title: page.title, markdown: page.body, truncated: false }
-          : { ok: false, error: "No captured source for this URL. Its contents remain unavailable." };
+        const readPage = (url: string) => {
+          const page = scenario.pages.find((page: any) => page.url.replace(/\/$/, "") === url.replace(/\/$/, ""));
+          return page ? { ok: true, url: page.url, title: page.title, markdown: page.body, truncated: false }
+            : { ok: false, url, error: "No captured source for this URL. Its contents remain unavailable." };
+        };
+        raw = Array.isArray(args.url) ? { pages: args.url.map(readPage) } : readPage(String(args.url));
       } else if (name === "upsert_document") {
         raw = await upsertDocument({ admin, userId, userMessageId: 1, requestId: "autonomy-fixture-turn", input: args });
         mutations.push({ name, result: clone(raw) });
@@ -155,15 +166,31 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
       else if (name === "write_talent_context") {
         contextWrites.push(clone(args)); raw = { ok: true, modelOutput: `Context changes recorded in the isolated fixture:\n${formatPromptText(args)}` };
       } else if (name === "list_matchings" || name === "read_matching") {
-        raw = { matchings, ...(args.matchingId ? { matching: matchings.find(m => m.id === args.matchingId) } : {}), listRevision: "list-1", defaultListRevision: "list-1", memberships: [], runs: [], evaluations: [], evaluationCount: 0, remainingEvaluationCount: 0 };
-        raw.modelOutput = formatCareerMatchingResult(raw);
+        raw = { matchings, ...(args.matchingId ? { matching: matchings.find(m => m.id === args.matchingId) } : {}), listRevision: "list-1", defaultListRevision: "list-1", memberships: [], runs: [], evaluations: clone(scenario.externalEvaluations ?? []), evaluationCount: scenario.externalEvaluations?.length ?? 0, remainingEvaluationCount: 0, expiredRoleCount: 0 };
+        raw.modelOutput = formatCareerMatchingResult(raw, "ko");
       } else if (name === "upsert_matching") {
         assert.equal(args.action, "create"); const matching = { ...args, id: fixtureId(510 + matchings.length), revision: 1 };
         matchings.push(matching); raw = { matching, listRevision: "list-1", modelOutput: formatCareerMatchingResult({ matching, listRevision: "list-1" }) };
       } else if (name === "search_opportunities") {
         raw = { runId: fixtureId(601), source: args.source, status: "completed", roleIds: [], evaluations: [], evaluationCount: 0, remainingEvaluationCount: 0, expiredRoleCount: 0, failures: [] };
         raw.modelOutput = formatCareerMatchingResult(raw);
-      } else if (name === "get_role_context") raw = { modelOutput: scenario.roles ? formatPromptText(scenario.roles.find((role: any) => role.id === (args.role_id ?? args.roleId)) ?? scenario.roles) : roleStored ? formatPromptText(scenario.role) : "No selected role or current role record." };
+      } else if (name === "upsert_opportunities" && scenario.externalEvaluations) {
+        for (const item of args.items ?? []) assert.ok(scenario.externalEvaluations.some((e: any) => e.id === item.evaluationId && e.role_id === item.roleId));
+        mutations.push({ name, args }); raw = { action: args.action, listRevision: "list-1", recommendationIds: (args.items ?? []).map((_: any, i: number) => fixtureId(850 + i)) };
+        raw.modelOutput = formatCareerMatchingResult(raw, "ko");
+      } else if (name === "get_role_context" && scenario.roleFacts) {
+        raw = await runGetRoleContext({ admin, userId, roleIds: args.roleIds, jd: args.jd, responseLocale: "ko", activityOffset: args.activityOffset ?? 0 });
+      } else if (name === "upsert_opportunities" && scenario.pendingInternal) {
+        assert.equal(args.action,"add"); assert.equal(args.expectedRevision,"list-1");
+        for (const item of args.items ?? []) {
+          assert.ok(scenario.pendingInternal.some((r: any) => r.id === item.roleId), "Not a selected proposal");
+          if (!publishedInternal.some(r => r.roleId===item.roleId)) publishedInternal.push(item);
+        }
+        mutations.push({name,args}); raw={recommendationIds:publishedInternal.map((_r,i)=>fixtureId(850+i)),listRevision:"list-1"};
+        raw.modelOutput=formatCareerMatchingResult(raw);
+      } else if (name === "get_role_context" && scenario.pendingInternal) raw={modelOutput:formatPromptText(scenario.pendingInternal.filter((r:any)=>(args.roleIds ?? []).includes(r.id)))};
+      else if (name === "read_recommended_opportunities" && scenario.pendingInternal) raw={modelOutput:formatPromptText({opportunities:publishedInternal,selectedUnpublishedInternalProposals:{proposals:scenario.pendingInternal.filter((r:any)=>!publishedInternal.some(p=>p.roleId===r.id)).map((r:any)=>({roleId:r.id,company:r.company,title:r.title,selectedAt:r.selectedAt})),nextOffset:null}})};
+      else if (name === "get_role_context") raw = { modelOutput: scenario.roles ? formatPromptText(scenario.roles.find((role: any) => role.id === (args.role_id ?? args.roleId)) ?? scenario.roles) : roleStored ? formatPromptText(scenario.role) : "No selected role or current role record." };
       else if (name === "read_recommended_opportunities" || name === "get_internal_roles") raw = { modelOutput: scenario.roles ? formatPromptText(scenario.roles) : "No recorded recommendations or internal roles in this account snapshot. No next page." };
       else if (name === "search_companies") raw = { modelOutput: "No matching canonical company record. No next page." };
       else if (["read_company_connections", "read_talent_activity_events", "list_schedules", "read_talent_schedules"].includes(name)) raw = { modelOutput: "No saved records. No next page." };
@@ -186,5 +213,5 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string) 
     } catch (error) { call.error = error instanceof Error ? error.message : String(error); throw error; }
   };
   return { execute, profileText, contextText, referencesText, calls,
-    state: () => clone({ documents: rows.talent_documents, profiles, forms, works, matchings, contextWrites, externalAttempts, mutations }) };
+    state: () => clone({ documents: rows.talent_documents, profiles, forms, works, matchings, publishedInternal, contextWrites, externalAttempts, mutations }) };
 }

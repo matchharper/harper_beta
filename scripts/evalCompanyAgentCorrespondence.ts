@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { formatIntroductionContext } from "../src/lib/agentContacts/introductionContext";
 import { companyAgentEventPrompt } from "../src/lib/agentContacts/contracts";
+import { companyAgentServiceTools, formatCompanyAgentServiceScope, withCompanyAgentScope } from "../src/lib/agentContacts/companyScope";
 
 config({ path: ".env.local", quiet: true });
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://evaluation.invalid";
@@ -12,7 +13,7 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "synthetic";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "synthetic";
 const task = "docs/evaluation/career-internal-introduction";
 const dataset = process.argv[2] ?? "v1";
-if (!["v1", "v2", "v3"].includes(dataset)) throw Error("Unknown registered company fixture version");
+if (!["v1", "v2", "v3", "v4"].includes(dataset)) throw Error("Unknown registered company fixture version");
 const fixture = JSON.parse(
   readFileSync(`${task}/company-agent-${dataset}.json`, "utf8")
 );
@@ -68,13 +69,21 @@ async function main() {
   const sourcePaths = [
     "scripts/evalCompanyAgentCorrespondence.ts",
     "src/lib/org/agent/chat.ts",
+    "src/lib/org/agent/prompts.ts",
+    "src/lib/org/agent/serviceKnowledgePrompt.ts",
     "src/lib/org/agent/tools.ts",
     "src/lib/org/agent/capabilities/policies.ts",
     "src/lib/org/agent/capabilities/registry.ts",
+    "src/lib/org/agent/capabilities/resolver.ts",
     "src/lib/org/agent/promptFormat.ts",
     "src/lib/agentContacts/contracts.ts",
     "src/lib/agentContacts/introductionContext.ts",
+    "src/lib/agentContacts/introductionContext.server.ts",
+    "src/lib/agentContacts/read.ts",
     "src/lib/agentContacts/companyReceiver.server.ts",
+    "src/lib/agentContacts/companyScope.ts",
+    "src/lib/agentContacts/companyToolDefinitions.ts",
+    "src/lib/agentContacts/guidance.ts",
   ];
   save("manifest", {
     dataset: `company-agent-${dataset}`,
@@ -98,8 +107,8 @@ async function main() {
     const calls: any[] = [],
       completions: any[] = [];
     const context = {
-      accessText: `Service event restricted to Role ${fixture.roleId}. No company-user mutation authority.`,
-      companyText: fixture.companyContext,
+      accessText: formatCompanyAgentServiceScope({ roleId: fixture.roleId }),
+      companyText: scenario.companyContext ?? fixture.companyContext,
       workspace: {
         workspaceId: fixture.workspaceId,
         companyName: "노바클라우드",
@@ -107,9 +116,9 @@ async function main() {
         companyDescription: "합성 평가 회사",
       },
       roles: [
-        { roleId: fixture.roleId, name: "플랫폼 엔지니어", status: "paused" },
+        { roleId: fixture.roleId, name: "플랫폼 엔지니어", status: scenario.roleStatus ?? "paused" },
       ],
-      rolesText: `Role ${fixture.roleId}: 플랫폼 엔지니어. 공개 JD: Kubernetes, Terraform, SLO와 온콜 운영. 회사 내부 검토: ${fixture.privateCompanyContext}`,
+      rolesText: scenario.roleContext ?? `Role ${fixture.roleId}: 플랫폼 엔지니어. 공개 JD: Kubernetes, Terraform, SLO와 온콜 운영. 회사 내부 검토: ${fixture.privateCompanyContext}`,
       completeRoleRequestIds: [],
       recentRecommendationsText: scenario.existingPresentation
         ? (scenario.existingNotification === false ? "The candidate profile is already published to the Role inbox. The team has not been notified of the new candidate response." : "This exact introduction is already published to the Role inbox and was notified to the team.")
@@ -118,20 +127,19 @@ async function main() {
       conversationMessages: [],
       conversationText: "-",
       summariesText: "-",
-      contextNotesText:
-        "Only company chat is approved for this Role. Email and Slack are disabled.",
+      contextNotesText: scenario.audienceContext ?? "Only company chat is approved for this Role. Email and Slack are disabled.",
       defaultLongTextObservations: [],
       inProgressRoleCreationsText: "-",
       pendingUpdateText: "-",
       recentToolContextText: "-",
     } as any;
-    const relationship = scenario.origin ? formatIntroductionContext({ rootId: fixture.rootId, talentId: fixture.talentId, roleId: fixture.roleId, recommendationId: fixture.recommendationId, candidateName: "김서윤", origin: scenario.origin }) + "\n" : "";
-    const event = relationship + `Incoming message ${fixture.messageId}; introduction ${fixture.rootId}; Role ${fixture.roleId}.\nCandidate 김서윤; shared material profile: Platform Engineer, Kubernetes 운영 6년, Terraform, SLO와 온콜 runbook 직접 작성. Candidate approved this profile for this introduction.\n${scenario.incoming}`;
+    const relationship = scenario.origin ? formatIntroductionContext({ rootId: fixture.rootId, talentId: fixture.talentId, roleId: fixture.roleId, recommendationId: fixture.recommendationId, candidateName: "김서윤", origin: scenario.origin, ...(scenario.candidateInitiatedOpportunity ? { candidateInitiatedOpportunity: true } : {}) }) + "\n" : "";
+    const event = relationship + `Incoming message ${fixture.messageId}; introduction ${fixture.rootId}; Role ${fixture.roleId}.\nCandidate 김서윤; shared material profile: ${scenario.sharedProfile ?? "Platform Engineer, Kubernetes 운영 6년, Terraform, SLO와 온콜 runbook 직접 작성."} Candidate approved this profile for this introduction.\n${scenario.incoming}`;
     let failure: string | undefined;
     try {
       const result = await runOrgAgentToolLoop(
         {
-          admin: {} as any,
+          admin: withCompanyAgentScope({}, { kind: "company_event", workspaceId: fixture.workspaceId, roleId: fixture.roleId, jobId: fixture.jobId, leaseOwner: "evaluation", assertCurrent: async () => {} }) as any,
           user: { id: fixture.jobId } as any,
           actorId: fixture.jobId,
           actorLabel: "Harper company agent",
@@ -147,18 +155,9 @@ async function main() {
           allowSilentCompletion: true,
           throwOnToolExecutionError: true,
           harperInitiated: true,
-          capabilityMode: "full",
+          capabilityMode: "progressive",
           initialCapabilities: ["agent_correspondence"],
-          allowedToolNames: new Set([
-            "read_role",
-            "read_conversation_history",
-            "get_more_data",
-            "read_agent_messages",
-            "contact_talent",
-            "contact_user",
-            "publish_role_recommendations",
-            "manage_agent_schedule",
-          ]),
+          allowedToolNames: companyAgentServiceTools(),
           source: "chat",
           readAudience: "company_safe",
           scopeKey: "synthetic-agent-event",
@@ -168,7 +167,7 @@ async function main() {
           userMessage: companyAgentEventPrompt(event),
         },
         {
-          requestTime: new Date("2026-11-03T06:00:00Z"),
+          requestTime: new Date(fixture.requestTime ?? "2026-11-03T06:00:00Z"),
           complete: async (args) => {
             const entry: any = { input: args };
             completions.push(entry);
@@ -189,9 +188,14 @@ async function main() {
             else if (args.name === "read_role")
               modelOutput =
                 context.rolesText +
-                "\nCompany chat is approved; no Slack/email audience.";
+                "\n" + context.contextNotesText;
             else if (args.name === "read_conversation_history")
               modelOutput = scenario.history;
+            else if (args.name === "read_talent") {
+              assert.equal(input.talentId, fixture.talentId);
+              assert.equal(input.roleId, fixture.roleId);
+              modelOutput = `Shared candidate profile: ${scenario.sharedProfile ?? "Platform Engineer, Kubernetes 운영 6년, Terraform, SLO와 온콜 runbook 직접 작성."}\n${scenario.history}`;
+            }
             else if (args.name === "get_more_data")
               modelOutput = context.recentRecommendationsText;
             else if (args.name === "publish_role_recommendations") {
@@ -200,17 +204,19 @@ async function main() {
               modelOutput =
                 "Candidate presentation saved in the Role inbox; no human notification or company connection decision.";
             } else if (args.name === "contact_user") {
-              assert.equal(input.channel, "chat");
+              assert.ok((scenario.companyChannels ?? ["chat"]).includes(input.channel));
               assert.ok(input.body);
               modelOutput =
-                "Message saved in the company Role chat. Readership unknown.";
+                `Message delivered to the approved company ${input.channel} audience in the isolated fixture. Readership unknown.`;
             } else if (args.name === "contact_talent") {
               assert.equal(input.action, "send_to_agent");
               assert.equal(input.introductionRootId, fixture.rootId);
               modelOutput =
                 "Accepted by candidate agent inbox. No direct human delivery.";
             } else if (args.name === "manage_agent_schedule")
-              modelOutput = "Future work saved. No delivery occurred.";
+              modelOutput = input.action === "list" || input.action === "read"
+                ? scenario.scheduleContext ?? "No saved company-agent schedules."
+                : "Future work saved in the isolated fixture. No delivery occurred.";
             else throw new Error(`Unsupported effect ${args.name}`);
             args.state.toolResults.push({
               callId: args.callId,

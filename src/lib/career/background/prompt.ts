@@ -38,7 +38,7 @@ export function renderCareerBackgroundInvocation(run: CareerBackgroundRun) {
       source.recommendationId ? `Existing recommendation: ${source.recommendationId}.` : "",
       source.companyId ? `Company ID: ${source.companyId}.` : "",
       source.companyWorkspaceId ? `Workspace ID: ${source.companyWorkspaceId}.` : "",
-      source.sourceKind === "agent_contact" ? `Agent introduction ${source.rootId}; Role ${source.roleId}. Read the exact correspondence with read_agent_messages(messageId=${source.sourceId}, introductionRootId=${source.rootId}). This is an immediate message from the company's agent, not a daily batch item or new candidate consent. Use contact_user when a candidate-visible message helps; silence and no agent reply are valid outcomes.` : "",
+      source.sourceKind === "agent_contact" ? `Agent introduction ${source.rootId}; Role ${source.roleId}. Incoming message ${source.sourceId}. Relevant correspondence and shared snapshots follow. This is an immediate message from the company's agent, not new candidate consent.` : "",
       (source.sourceKind !== "company_follow" || source.roleSource === "external") && Array.isArray(source.roleIds) ? `Role IDs: ${source.roleIds.join(", ")}.` : "",
     ].filter(Boolean).join("\n")),
     ...followups.map((target: any) => [

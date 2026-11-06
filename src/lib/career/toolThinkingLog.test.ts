@@ -60,3 +60,9 @@ test("names the site a link opens and the words a web search uses", () => {
   );
   assert.equal(getCareerToolStartThinkingLog("web_search", "ko"), "");
 });
+
+test("a batched link read has one fallback status covering its sites", () => {
+  assert.equal(getCareerToolStartThinkingLog("open_url", "en", {
+    url: ["https://www.example.com/a", "https://example.com/b", "https://other.test/c"],
+  }), "Reading example.com, other.test");
+});

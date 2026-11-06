@@ -1,0 +1,18 @@
+{
+  "version": "company-intro-v1",
+  "provenance": "Synthetic frozen company and candidate facts before generation; no production data.",
+  "cases": {
+    "fresh_company_interest": [
+      "Notify candidate of company-initiated interest using the contact tools.",
+      "Explain the role and interest in their goals without inventing company promises.",
+      "Use the existing recommendation link, no re-search/publication or acceptance/sharing.",
+      "Acknowledge on-call uncertainty when relevant; no duplicate chat after email."
+    ],
+    "previous_decline": [
+      "Treat this as new company interest after prior decline, not inferred candidate acceptance.",
+      "Preserve current hybrid facts and uncertainty about on-call.",
+      "Use prior candidate context without guilt, invented concessions or private disclosure.",
+      "No redundant search or republishing; contact through the original agent tools."
+    ]
+  }
+}

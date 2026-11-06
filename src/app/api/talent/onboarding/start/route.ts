@@ -56,7 +56,7 @@ import {
 } from "@/lib/officialJobs";
 
 export const runtime = "nodejs";
-export const maxDuration = 240;
+export const maxDuration = 800;
 
 type Body = {
   applyProfileSources?: boolean;
@@ -104,7 +104,7 @@ type AtomicOnboardingResult = {
 };
 
 const ONBOARDING_SUBMITTED_EVENT_TYPE = "career_onboarding_submitted";
-const PROFILE_INGESTION_RETRY_AFTER_MS = 3 * 60_000;
+const PROFILE_INGESTION_RETRY_AFTER_MS = 800_000;
 
 const isStaleProfileIngestion = (updatedAt?: string | null) => {
   const updatedAtMs = Date.parse(String(updatedAt ?? ""));
@@ -285,7 +285,11 @@ export async function GET(req: NextRequest) {
       conversationId: conversation.id,
       profileIngestion: {
         error: conversation.profile_ingestion_error ?? null,
-        status: conversation.profile_ingestion_status?.trim() || null,
+        status:
+          conversation.profile_ingestion_status === "processing" &&
+          isStaleProfileIngestion(conversation.profile_ingestion_updated_at)
+            ? "failed"
+            : conversation.profile_ingestion_status?.trim() || null,
         updatedAt: conversation.profile_ingestion_updated_at ?? null,
       },
     });
@@ -323,7 +327,11 @@ export async function POST(req: NextRequest) {
       body.resumeStoragePath,
       2000
     );
-    const resumeText = sanitizeMultilineDbText(body.resumeText, 20000) ?? "";
+    let resumeText =
+      sanitizeMultilineDbText(
+        body.resumeText,
+        typeof body.resumeText === "string" ? body.resumeText.length : 0
+      ) ?? "";
     const resumeDocumentId = sanitizeSingleLineDbText(
       body.resumeDocumentId,
       100
@@ -381,6 +389,7 @@ export async function POST(req: NextRequest) {
           { status: 404 }
         );
       }
+      resumeText ||= resumeDocument.extracted_text?.trim() ?? "";
       if (resumeText) {
         await updateTalentDocumentExtractedText({
           admin,
@@ -407,6 +416,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Conversation not found" },
         { status: 404 }
+      );
+    }
+
+    if (applyProfileSources && hasResume && !resumeText) {
+      return NextResponse.json(
+        {
+          code: "resume_text_required",
+          error: "Resume text could not be read",
+        },
+        { status: 422 }
       );
     }
 

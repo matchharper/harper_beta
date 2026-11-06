@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { badgeVariants } from "@/components/ui/badge";
 import { BareButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,8 @@ export type TabBoxesProps<T extends string> = Omit<
   React.HTMLAttributes<HTMLDivElement>,
   "onChange"
 > & {
+  /** Slide the selected background between single-select neutral tabs. */
+  animateSelection?: boolean;
   getItemClassName?: (item: TabBoxItem<T>, selected: boolean) => string;
   itemClassName?: string;
   items: readonly TabBoxItem<T>[];
@@ -63,6 +66,7 @@ const tabBoxCountClassNames: Record<TabBoxesSize, string> = {
 };
 
 export function TabBoxes<T extends string>({
+  animateSelection = false,
   activeValue,
   activeValues,
   "aria-label": ariaLabel,
@@ -79,6 +83,9 @@ export function TabBoxes<T extends string>({
 }: TabBoxesProps<T>) {
   const isNeutral = variant === "neutral";
   const isMultiple = selectionMode === "multiple";
+  const selectionId = React.useId();
+  const reducedMotion = useReducedMotion();
+  const animated = animateSelection && isNeutral && !isMultiple;
 
   return (
     <div className={cn("w-full overflow-x-auto", className)} {...props}>
@@ -124,9 +131,11 @@ export function TabBoxes<T extends string>({
                   ? [
                       badgeVariants({ size }),
                       "rounded-pill font-normal h-8 px-3",
-                      selected
+                      selected && !animated
                         ? "bg-surface-inverse text-on-inverse"
-                        : "bg-tab-neutral text-tab-selected",
+                        : selected
+                          ? "bg-transparent text-on-inverse"
+                          : "bg-tab-neutral text-tab-selected",
                     ]
                   : [
                       "flex items-center justify-between rounded-tab border-2 text-left",
@@ -136,9 +145,23 @@ export function TabBoxes<T extends string>({
                         : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-primary hover:text-primary",
                     ],
                 itemClassName,
-                getItemClassName?.(item, selected)
+                getItemClassName?.(item, selected),
+                animated && "relative isolate"
               )}
             >
+              {animated && selected && (
+                <motion.span
+                  aria-hidden="true"
+                  data-tab-selection
+                  layoutId={reducedMotion ? undefined : selectionId}
+                  className="pointer-events-none absolute inset-0 -z-10 bg-surface-inverse"
+                  style={{ borderRadius: 9999 }}
+                  transition={{
+                    duration: reducedMotion ? 0 : 0.28,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                />
+              )}
               <div
                 className={
                   isNeutral ? "contents" : "flex min-w-0 flex-col gap-1"

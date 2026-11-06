@@ -7,6 +7,8 @@ export type AgentIntroductionContext = {
   roleId: string;
   recommendationId: string;
   candidateName: string | null;
+  /** Company-only projection of the existing opportunity creation receipt. */
+  candidateInitiatedOpportunity?: true;
   origin: {
     kind: "company_intro" | "candidate_request";
     requestedAt: string;
@@ -20,11 +22,14 @@ export function formatIntroductionContext(context: AgentIntroductionContext) {
   return [
     "Recorded connection history:",
     `Candidate: ${context.candidateName ?? "name not recorded"}; talent ${context.talentId}; Role ${context.roleId}; introduction ${context.rootId}`,
+    context.candidateInitiatedOpportunity
+      ? "Opportunity creation: saved after the candidate chose this Role. This creation receipt is not a talent-first recommendation."
+      : "",
     origin
       ? `Connection origin: ${origin.kind === "candidate_request" ? "후보자의 연결 요청 (candidate-requested connection)" : "회사에서 먼저 요청한 연결 (company-requested Intro)"}; requested ${formatLlmDateTime(origin.requestedAt)}${origin.companyIntroId ? `; company Intro ${origin.companyIntroId}` : ""}.`
       : "Connection origin: not recorded.",
     origin?.kind === "candidate_request"
-      ? "The candidate asked Harper to connect them with the company after reviewing an internal Role discovered or recommended through Harper."
+      ? "The candidate authorized Harper to request a connection for this internal Role. This origin record does not establish which explanation or preparation they received."
       : origin?.kind === "company_intro"
         ? "The company first requested an Intro for this candidate and Role; the candidate subsequently authorized this introduction."
         : "",

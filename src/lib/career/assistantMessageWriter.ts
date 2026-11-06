@@ -93,8 +93,9 @@ export async function createCareerAssistantMessageWriter(args: {
       segment = "";
       return display();
     },
-    async finish(text: string, nextLogs: string[], payload?: Record<string, unknown>) {
+    async finish(text: string, nextLogs: string[], payload?: Record<string, unknown>, completedEvents: CareerTurnEvent[] = []) {
       appendLogs(nextLogs);
+      for (const event of completedEvents) if (!events.some(existing => existing.id === event.id)) events.push(event);
       await writes;
       if ((await args.check?.()) === false) return null;
       // The final row contains the display snapshot too, so paginated history

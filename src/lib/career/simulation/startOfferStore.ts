@@ -158,7 +158,7 @@ export async function prepareApplicationStartPayload(args: {
     admin: args.admin,
     userId: args.userId,
     roleIds: [args.request.roleId],
-    includeJd: false,
+    jd: "skip",
     activityOffset: 0,
   });
   const item = lookup.roles[0];

@@ -1,0 +1,17 @@
+{
+  "version": "ee6b58f73d560787f5cdb22c79169a4cf1a7fad90664f3c74bc613da675fe027",
+  "styles": [
+    {
+      "file": "400.css",
+      "integrity": "sha384-0Lx58G1k3Zwdo9zEBgegZCq14UfnZN73HZqQ0La0wDFct5lh405Nn0JSc0dYxqfu"
+    },
+    {
+      "file": "700.css",
+      "integrity": "sha384-owDyuh1S7gUWU0z+ycmh2S43ZVrec2J3YEv4s92C0SsTQQGXHQVOPfLnLNM4TA1w"
+    }
+  ],
+  "script": {
+    "file": "paged.min.js",
+    "integrity": "sha384-SwZmajT9Dz2Y0WjQKp5vcmM0ubuG+svDcvAxhp7Pz/7qIbtBr00fqHx3Uug3yYZe"
+  }
+}

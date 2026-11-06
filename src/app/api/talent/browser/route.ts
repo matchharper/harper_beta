@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 import {
@@ -7,6 +7,7 @@ import {
 } from "@/lib/career/externalOperations/store";
 import { executeUseBrowser, observeBrowserSession } from "@/lib/career/browser/tool";
 import { z } from "zod";
+import { returnBrowserControl } from "@/lib/career/browser/control";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 const headers = { "Cache-Control": "private, no-store" };
@@ -33,6 +34,13 @@ export async function GET(request: NextRequest) {
       let liveUrl: string | null = null;
       const observed = await observeBrowserSession(context, session);
       session = observed.session;
+      if (session.conversation_id) after(async () => {
+        const { reconcileCareerDependencies } = await import("@/lib/career/work/events");
+        const { publishCareerInvocations } = await import("@/lib/career/work/invocations");
+        const scope = { ...context, conversationId: session!.conversation_id! };
+        await reconcileCareerDependencies(scope);
+        await publishCareerInvocations(scope);
+      });
       if (request.nextUrl.searchParams.get("viewer") === "true") liveUrl = observed.liveUrl;
       // Never expose workspace credentials, authorization message content, or provider refs to the UI.
       return NextResponse.json(
@@ -65,12 +73,18 @@ export async function GET(request: NextRequest) {
     const candidates = activeOnly ? stored.filter((session) =>
       session.status !== "closed"
       && !(session.status === "idle" && !session.provider_refs.session_id)
-      && !(session.result.browser_availability === "stopped" && ["idle", "human"].includes(session.status))
+      && !(session.result.browser_availability === "stopped" && session.status === "idle")
     ) : stored;
     const sessions = await Promise.all(candidates.map((session) => observeBrowserSession(context, session)));
+    after(async () => {
+      const { reconcileCareerDependencies } = await import("@/lib/career/work/events");
+      const { publishCareerInvocations } = await import("@/lib/career/work/invocations");
+      await reconcileCareerDependencies({ ...context, conversationId });
+      await publishCareerInvocations({ ...context, conversationId });
+    });
     return NextResponse.json(
       {
-        sessions: sessions.filter(({ session, browserAvailability }) => !activeOnly || (session.status !== "closed" && !(browserAvailability === "stopped" && ["idle", "human"].includes(session.status)))).map(({ session, browserAvailability, liveUrl }) => ({
+        sessions: sessions.filter(({ session, browserAvailability }) => !activeOnly || (session.status !== "closed" && !(browserAvailability === "stopped" && session.status === "idle"))).map(({ session, browserAvailability, liveUrl }) => ({
           id: session.id,
           status: session.status,
           revision: session.revision,
@@ -97,7 +111,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = z
       .object({
-        action: z.enum(["handoff", "close"]),
+        action: z.enum(["handoff", "resume", "close"]),
+        revision: z.number().int().positive().optional(),
         sessionId: z.string().uuid(),
       })
       .parse(await request.json());
@@ -111,6 +126,11 @@ export async function POST(request: NextRequest) {
         { error: "Browser session unavailable" },
         { status: 404, headers }
       );
+    if (body.action === "resume") {
+      if (body.revision === undefined) return NextResponse.json({ error: "Browser revision required" }, { status: 400, headers });
+      const returned = await returnBrowserControl({ admin, userId: user.id, conversationId: session.conversation_id }, session.id, body.revision);
+      return NextResponse.json({ status: returned.status }, { headers });
+    }
     const result = await executeUseBrowser(
       { action: body.action, session_id: body.sessionId },
       {

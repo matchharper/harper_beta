@@ -3,6 +3,43 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-06 Request Intro → 원본 Career agent (운영 DB 준비 완료·앱 미배포)
+
+사용자의 타입 오류 수정·DB 적용 요청으로 운영 Harper DB에 다음 두 migration을 순서대로 적용했다. 기존 로컬 `request_company_intro_v2` 호출이 필요로 하는 의사결정 기록이 운영에는 없어 선행 migration도 포함했다. 같은 migration을 다시 적용하지 않는다.
+
+| 운영 version | 이름 | 로컬 정본 |
+| --- | --- | --- |
+| `20261106090932` | `company_decision_events` | `supabase/migrations/20261105020000_company_decision_events.sql` |
+| `20261106090937` | `career_company_intro_agent` | `supabase/migrations/20261106084304_career_company_intro_agent.sql` |
+
+정본 SHA-256은 순서대로 `456a669a62f7e1af678a82dec322f4d1445d4f2ba47a5ff17d4d2f7dd18b6dd4`, `be7dd805c897cc99c20dcbb9025161ffc35baa092df1cca8ac1964c6fa7e3fd9`다. 선행 migration은 기존 `talent_progress` 회사 결정 62건을 idempotent key로 의사결정 ledger에 복사했으며 원본은 보존했다. 웹 배포 후 기존 버전이 그동안 기록한 결정을 추가 반영하는 backfill은 해당 migration 계약에 따라 별도로 필요하다.
+
+DB 적용만으로 아직 배포되지 않은 새 context 없이 Career 실행이 시작되지 않도록 새 `request_company_intro_for_career_v1` RPC로 전환을 명시했다. 기존 과금·의사결정 기록 함수를 호출한 동일 transaction 안에서 추천/목록 저장과 새 immediate run의 Career 계약을 확정한다. 이미 요청된 건은 재전환하지 않는다. `src/lib/org/server.ts`의 새 호출과 회사·JD·관심 이유 context 코드는 로컬 변경이며, 기존 운영 호출은 기존 Worker 전달 경로를 유지한다. 운영의 기존 `request_company_intro_v1`, `request_company_intro_without_billing_v1`, `pass_company_intro_v1` 정의 해시가 적용 전후 동일하고, Career Intro run 수가 0으로 유지된 것을 확인했다.
+
+실제 채팅·이메일 receipt를 기존 전달 ledger와 `candidate_sent_at`, 3/9/18일 후속 연락 일정에 연결했다. 새 함수의 service_role 실행 허용·anon/authenticated 차단, 두 trigger 활성화, 없는 원본 요청의 current 판정 false를 운영 DB에서 확인했다. Security advisor의 신규 항목은 서버 전용 `company_decision_events`의 [RLS enabled/no policy INFO](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy) 하나다. 공개 역할 권한을 회수하고 service_role SELECT 및 제한된 기록 함수만 허용하는 의도된 계약이다. 새 WARN/ERROR는 없다.
+
+nullable Role ID를 연봉 채우기 함수에 넘기던 타입 오류를 수정했고 전체 TypeScript 검사를 통과했다. Intro formatter/loader·DB 검증 6개, 관련 기존 전달·DB·recovery 검증 29개가 통과했다. 앞선 원본 모델 실제 입력/출력 검증은 `docs/evaluation/career-daily-processing/results-2026-11-06-company-intro.md`에 있다. 이번 단계는 앱 배포·재시작·실제 후보자 연락을 수행하지 않았으며 새 경로의 운영 실행 완료를 의미하지 않는다. 제품 운영 동작은 아직 바뀌지 않아 Notion 정책 문서는 변경하지 않았다.
+
+## 2026-11-06 회사 검색 점수·검색 인덱스 (운영 DB 적용·웹/Worker 미배포)
+
+사용자의 운영 DB 반영 요청으로 `company_workspace.estimated_search_score` nullable double precision 컬럼과 회사명·LinkedIn URL의 trigram GIN 인덱스 2개를 적용했다. 운영 migration은 `20261106062601` (`company_workspace_estimated_search_score`), `20261106062615` (`company_workspace_search_indexes`)이며 로컬 정본은 각각 `20261106061504_company_workspace_estimated_search_score.sql`, `20261106051550_company_workspace_search_indexes.sql`이다. 운영 컬럼 조회·migration 이력·두 인덱스 valid 상태를 확인했다. 같은 migration을 다시 적용하지 않는다.
+
+기존 회사 정보만으로 `gpt-6-luna` Decisions를 실제 10회 호출하고 결과 10개를 운영 workspace에 저장·재조회했다. 삼성전자·네이버·쿠팡 20, 카카오 19.95, 크래프톤 19.9, 토스 17.8, 당근 16.25, 토스페이먼츠 15.2, 토스랩 9.85, 집토스 8.05. 검색용 인지도·규모 추정이며 회사의 질이나 후보자 적합도 점수가 아니다. 입력 3,539 tokens, 표준 단가 환산 $0.0003539. 기존 test_score 10개는 모두 유지됐다. company_data 내용·캐시 시각은 수정하지 않았다. 원본 입력·응답은 Worker의 ignored `private/company-search-familiar-*.json`에 보존했다.
+
+후속 사용자 요청으로 초기 일괄 채우기 스크립트를 실행해 28,564개 점수를 추가 저장했다. 최종 운영 조회는 총 28,574개·점수 있음 28,574개·누락 0개·범위 밖 점수 0개다. 일시적 HTTP 503 오류 5건은 누락분 재실행으로 모두 성공했다. 전체 기존 test_score 해시와 최초 10개 추정 점수가 실행 전후 동일함을 확인했다.
+
+최초 회사별 개별 저장의 DB 왕복 지연 때문에 해당 로컬 실행을 중단하고, 스크립트를 최대 100개씩 계산·묶음 저장하도록 수정한 뒤 `--workers 20`으로 이어서 실행했다. 기록된 성공 결과의 입력은 10,306,338 tokens, 표준 단가 환산 $1.0306338이다. 최초 실행 중단 시 이미 계산됐지만 로그에 남지 않은 호출은 합산되지 않아 정확한 청구 총액은 아니다. DB commit 직후 로그 전 중단된 1개 행도 최종 DB 조회에 포함해 확인했다. 실행·재시도 로그와 전후 검증은 Worker의 ignored `private/company-search-backfill-20261106/`에 보존했다. company_data 내용·캐시 시각은 수정하지 않았다.
+
+웹·Worker 코드 배포·재시작은 하지 않았다. 운영 DB와 초기 점수 채우기 완료이며, 새 정렬·자동 갱신 코드가 운영 실행 중임을 뜻하지 않는다.
+
+## 2026-11-05 회사 평균 연봉 캐시 (운영 DB 적용·웹/Worker 미배포)
+
+사용자의 회사 평균 연봉 저장 요청으로 운영 migration `20261105061413` (`company_data_estimated_average_salary`)을 적용했다. 로컬 정본은 `supabase/migrations/20261105061148_company_data_estimated_average_salary.sql`이다. `company_data.estimated_average_salary` nullable text 컬럼만 추가했으며 기존 데이터 backfill이나 공고 연봉 변경은 하지 않았다. 운영 컬럼 타입·nullable 여부·migration 이력과 조회 성공을 확인했다. 같은 migration을 다시 적용하지 않는다.
+
+로컬 Worker는 기존 3개월 캐시 갱신 때 투자 정보와 별도로 평균 연봉을 Exa에서 조회한다. 금액·통화·기준 연도·대상 국가/법인·보상 범위와 provider 출처 URL을 텍스트에 보존하고, 원본 결과·grounding은 기존 `source_payload.averageSalary`에 저장한다. 두 검색의 실패는 독립적으로 기존 값을 보존한다. 웹의 공용 연봉 추정과 Ops는 이 값을 `해당 회사 예상 평균 연봉`으로 Decisions 입력에 제공한다. Worker의 공고 연봉 추정도 이 공용 웹 API를 사용한다. 새 값이 없는 기존 회사는 다음 정상 캐시 갱신까지 기존 정보로 추정하며, 이미 저장된 공고 연봉은 일괄 재추정하지 않는다.
+
+Worker 8개·웹 7개 검증이 통과했다. 공개 회사 1곳의 실제 Exa 결과와 이를 넣은 합성 직무의 `gpt-6-luna` Decisions 요청/응답을 확인했다. 이는 입력 연결·응답 계약 확인이며 연봉 정확도 비교 평가가 아니다. 회사 정보 갱신 및 연봉 추정 코드는 웹·Worker 배포 전이므로 운영 자동 실행 완료를 뜻하지 않는다. 이번 작업에서 웹·Worker 배포·재시작·사용자 연락은 하지 않았다.
+
 ## 2026-11-05 전체 로컬 코드 운영 배포 (웹·Worker 완료)
 
 사용자의 명시적 커밋·beta/Worker 배포 요청으로 웹의 전체 로컬 소스·테스트·문서 549개 파일을 `a153215ed6437709f6fab61617e42894de7e2aac`, Worker 소스·테스트를 `2f87741c426a99f5b6871a9ab43a33961dbc8838`로 커밋하고 각 origin/main에 fast-forward push했다. 기존의 추적된 Worker Python bytecode 변경은 생성 캐시이므로 소스 커밋에서 제외하고 로컬에 보존했다. DB migration·번역 데이터는 재적용하지 않았다.

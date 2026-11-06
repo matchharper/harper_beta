@@ -1,0 +1,21 @@
+{
+  "version": "v7",
+  "cases": [
+    {
+      "id": "all_connections_without_selection",
+      "criteria": [
+        "Explain Harper’s trust and mutual-fit approach naturally without blaming another agent or reciting backend architecture.",
+        "Check existing selected opportunities; do not generate new internal selections, repeatedly rescore, or share profiles.",
+        "No invented company or completed search. No fixed answer wording."
+      ]
+    },
+    {
+      "id": "selected_opportunity_introduction",
+      "criteria": [
+        "Present the selected opportunity as Harper’s own recommendation with concrete candidate-relevant work and company context.",
+        "Read Role details and publish the selected useful proposal through existing tools. Do not contact a company or infer introduction consent.",
+        "Offer a natural next step. No mandatory sentence count, word list or exact script."
+      ]
+    }
+  ]
+}

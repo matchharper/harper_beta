@@ -1,5 +1,6 @@
 import { z } from "zod";
 import prompts from "./roleSalaryEstimation.prompts.json";
+import { formatPromptText } from "../llm/promptText";
 
 export const MAX_SALARY_ROLES = 20;
 export const SALARY_PAGE_SIZE = 20;
@@ -77,6 +78,24 @@ export type SalaryModelRole = {
   jd: string;
 };
 
+function salaryRoleText(role: SalaryModelRole): string {
+  const { estimated_average_salary, ...companyContext } = role.company_context;
+  return [
+    `case_id: ${role.case_id}`,
+    `Company: ${role.company_name}`,
+    `Role: ${role.title}`,
+    `Work country: ${role.country ?? "unknown"}`,
+    `Requested salary currency: ${role.currency}`,
+    `Work location: ${role.location ?? "unknown"}`,
+    `Employment type: ${role.employment_type ?? "unknown"}`,
+    `Company context:\n${formatPromptText(companyContext)}`,
+    estimated_average_salary
+      ? `해당 회사 예상 평균 연봉 (company-wide estimated average annual salary): ${estimated_average_salary}`
+      : "",
+    `Job description:\n${role.jd}`,
+  ].filter(Boolean).join("\n");
+}
+
 export function buildSalaryDecisionRequest(
   roles: SalaryModelRole[],
   method: SalaryMethod,
@@ -95,7 +114,7 @@ export function buildSalaryDecisionRequest(
         prompts.basePrompt +
           (method === "baseline" ? "" : "\n" + prompts.methodPrompts[method])) +
       "\nRoles:\n" +
-      JSON.stringify(roles),
+      roles.map(salaryRoleText).join("\n\n"),
     questions: roles.flatMap((role, index) =>
       ["lower", "upper"].map((endpoint) => ({
         name: `r${index}_${endpoint}`,

@@ -1,0 +1,20 @@
+{
+  "version": "v8",
+  "cases": [
+    {
+      "id": "summary_sufficient",
+      "criteria": [
+        "Use the available summaries to explain meaningful fit and differences; do not invent company facts.",
+        "No unnecessary full JD or web rereads when the supplied facts suffice. Tool count is diagnostic, not a runtime limit."
+      ]
+    },
+    {
+      "id": "summary_material_gap",
+      "criteria": [
+        "Resolve the missing degree requirement through the available role facts before recommending or excluding the uncertain role.",
+        "Exclude the role requiring a PhD once verified, and recommend the suitable alternative without inventing qualifications.",
+        "Do not treat summary sufficiency as a blanket prohibition on reading details."
+      ]
+    }
+  ]
+}

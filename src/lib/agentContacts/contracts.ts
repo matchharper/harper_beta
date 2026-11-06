@@ -149,3 +149,14 @@ export function agentContactReceipt(row: AgentContactMessage, reused = false) {
       .join("\n"),
   };
 }
+
+export function companyPresentationReceipt(status: "saved" | "updated" | "unchanged", presentationId: string | number) {
+  return {
+    status,
+    modelOutput: [
+      `Candidate presentation ${presentationId} ${status === "unchanged" ? "already contains this text" : status}. The presentation is visible to the team in the Role inbox; readership is unknown.`,
+      status === "saved" ? "Connection awaits the company's decision." : "Shared materials and hiring progress are unchanged.",
+      "No separate chat or email alert was sent.",
+    ].join(" "),
+  };
+}

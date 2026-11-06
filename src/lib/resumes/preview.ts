@@ -2,19 +2,29 @@ import type { ResumeContent } from "./schema";
 import { resumeHtml } from "./template";
 
 export type ResumeAssets = { fontCss: string; script: string };
+type ExternalResumeAssets = { baseUrl: string; styles: { url: string; integrity: string }[]; scriptUrl: string; scriptIntegrity: string };
+const attribute = (value: string) => value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
 // This exact document runs in a sandboxed browser iframe and server Chromium.
 // Only trusted, bundled code is executable; all resume fields are HTML-escaped.
 export function resumePreviewHtml(
   content: ResumeContent,
-  assets: ResumeAssets
+  assets: ResumeAssets | ExternalResumeAssets
 ) {
   return paginatedPreviewHtml(resumeHtml(content, ""), assets);
 }
 
-export function paginatedPreviewHtml(html: string, assets: ResumeAssets) {
+export function paginatedPreviewHtml(html: string, assets: ResumeAssets | ExternalResumeAssets) {
+  const external = "baseUrl" in assets;
+  const fontStyles = external
+    ? assets.styles.map(style => `<link rel="stylesheet" href="${attribute(style.url)}" integrity="${attribute(style.integrity)}" crossorigin="anonymous">`).join("")
+    : `<style>${assets.fontCss}</style>`;
+  const library = external
+    ? `<script src="${attribute(assets.scriptUrl)}" integrity="${attribute(assets.scriptIntegrity)}" crossorigin="anonymous"></script>`
+    : `<script>${assets.script.replace(/<\/script/gi, "<\\/script")}</script>`;
+  const source = external ? ` ${attribute(assets.baseUrl)}` : "";
   const scripts = `
-<script>${assets.script.replace(/<\/script/gi, "<\\/script")}</script>
+${library}
 <script>
 (async () => {
   const started = performance.now();
@@ -54,10 +64,10 @@ export function paginatedPreviewHtml(html: string, assets: ResumeAssets) {
 })();
 </script>`;
   return html
-    .replace("</head>", () => `<style>${assets.fontCss}</style></head>`)
+    .replace("</head>", () => `${fontStyles}</head>`)
     .replace(
       '<meta charset="utf-8">',
-      `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' blob:; font-src data:; connect-src blob:; img-src data:; base-uri 'none'; form-action 'none'">`
+      `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'${source}; style-src 'unsafe-inline' blob:${source}; font-src data:${source}; connect-src blob:${source}; img-src data:; base-uri 'none'; form-action 'none'">`
     )
     .replace("</body>", () => `${scripts}</body>`);
 }

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildCareerConversationPromptPlan } from "./conversationPlan";
 import { buildCareerMainPrompt } from "./mainPrompts";
+import { AGENT_COLLABORATION_GUIDE } from "@/lib/agentContacts/guidance";
+import { CAREER_OPTIONAL_FOLLOWUP_PROMPTS } from "./conversationSections";
 
 const base = {
   channel: "chat" as const,
@@ -64,6 +66,16 @@ test("onboarding, voice and background calls retain their separate contracts", (
     assert.ok(plan.promptBlocks.some(block => block.key === "chat_core"));
     assert.equal(plan.promptBlocks.some(block => block.key === "career_chat_display"), false);
   }
+});
+
+test("background correspondence receives collaboration context without live-conversation nudges", () => {
+  const plan = buildCareerConversationPromptPlan({ ...base, backgroundInvocation: true, toolNames: ["contact_company", "suggest_form"] });
+  const text = plan.promptBlocks.map(block => block.text).join("\n");
+  assert.ok(text.includes(AGENT_COLLABORATION_GUIDE));
+  assert.ok(!text.includes(CAREER_OPTIONAL_FOLLOWUP_PROMPTS.follow_up_header));
+  assert.ok(!text.includes(CAREER_OPTIONAL_FOLLOWUP_PROMPTS.follow_up_question));
+  assert.ok(plan.enabledToolNames.includes("suggest_form"));
+  assert.ok(plan.enabledToolNames.includes("contact_company"));
 });
 
 test("the main web prompt loads the live workspace display contract", () => {

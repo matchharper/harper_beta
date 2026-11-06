@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import type { TalentToolDefinition, TalentToolExecutionContext } from "@/lib/talentOnboarding/tools";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { suggestFormTool, executeSuggestForm } from "./forms/server";
-import { USE_BROWSER_TOOL, executeUseBrowser } from "./browser/tool";
+import { USE_BROWSER_TOOL, executeUseBrowser, browserHasHumanControl } from "./browser/tool";
 import { WRITE_EMAIL_TOOL, executeWriteEmail } from "./emailWriting/tool";
 import { CAREER_PROFILE_TOOLS, formatProfileToolResult } from "./profiles/tools";
 import { CAREER_INTERNAL_APPLICATION_TOOLS, formatInternalApplicationToolResult } from "./internalApplications/tools";
@@ -18,11 +18,11 @@ import { CAREER_COMPANY_TOOLS } from "./companies/tools";
 import { CAREER_SCHEDULE_TOOLS } from "./schedules/tools";
 import { CAREER_DELIVERY_TOOLS } from "./background/delivery";
 
-function projectedTools(tools: Record<string, TalentToolDefinition>, format: (name: string, result: unknown) => string) {
+function projectedTools(tools: Record<string, TalentToolDefinition>, format: (name: string, result: unknown, context?: TalentToolExecutionContext) => string) {
   return Object.fromEntries(Object.entries(tools).map(([name, tool]) => [name, { ...tool,
     execute: async (input: Record<string, unknown>, context?: TalentToolExecutionContext) => {
       const result = await tool.execute!(input, context);
-      return { ...(result as Record<string, unknown>), modelOutput: format(name, result) };
+      return { ...(result as Record<string, unknown>), modelOutput: format(name, result, context) };
     },
   }]));
 }
@@ -31,7 +31,7 @@ export const CAREER_AGENTIC_TOOLS: Record<string, TalentToolDefinition> = {
   ...CAREER_CONTACT_TOOLS,
   ...projectedTools(CAREER_PROFILE_TOOLS, formatProfileToolResult),
   ...projectedTools(CAREER_INTERNAL_APPLICATION_TOOLS, formatInternalApplicationToolResult),
-  ...projectedTools(CAREER_MATCHING_TOOLS, (_name, value) => formatCareerMatchingResult(value)),
+  ...projectedTools(CAREER_MATCHING_TOOLS, (_name, value, context) => formatCareerMatchingResult(value, context?.responseLocale)),
   ...TALENT_MEETING_TOOLS,
   ...CAREER_COMPANY_TOOLS, ...CAREER_SCHEDULE_TOOLS, ...CAREER_DELIVERY_TOOLS,
 };
@@ -47,6 +47,7 @@ function executionContext(context: TalentToolExecutionContext | undefined, name:
     conversationId: context.conversationId,
     userMessageId: Number(context.userMessageId) > 0 ? Number(context.userMessageId) : undefined,
     requestId: `${context.resumeRequestId ?? context.userMessageId ?? context.toolCallId}:${name}:${commandHash}`,
+    replyId: context.resumeRequestId,
     signal: context.abortSignal,
     workId: context.workId,
     claimId: context.agentClaimId,
@@ -81,6 +82,8 @@ export const CAREER_GENERAL_TOOLS: Record<string, TalentToolDefinition> = {
       const operation = "operation" in result ? result.operation : undefined;
       const pending = operation && ["running", "cancelling"].includes(operation.status) ? operation
         : "operations" in result ? result.operations?.find(op => op.kind === "browser_run" && ["running", "cancelling"].includes(op.status)) : undefined;
+      const session = "session" in result ? result.session : undefined;
+      if (session && browserHasHumanControl(session)) return { ...result, careerContinuation: { kind: "browser_control", id: session.id } };
       return { ...result, ...(pending ? { careerContinuation: { kind: "browser_run", id: pending.id } } : {}) };
     },
   },

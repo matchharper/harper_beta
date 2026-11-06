@@ -183,16 +183,30 @@ const CareerWorkspaceNav = ({
     <>
       <header className="career-topbar">
         <div className="career-topbar-home">
-          <Tooltips text={t("career.sky.home", "홈")}>
+          {isMobile ? (
             <MuteButton
-              aria-label={t("career.sky.home", "홈")}
-              onClick={() => onChangeTab("home")}
+              aria-label={t("career.common.career.1338q8i", "설정")}
+              className="relative"
+              onClick={onOpenSettings}
             >
-              <Home className="size-[18px]" strokeWidth={1.6} />
+              <Settings aria-hidden className="size-[18px]" strokeWidth={1.6} />
+              {showReferral && hasUnseenReferral ? (
+                <CareerReferralAttentionDot className="absolute right-1 top-1" />
+              ) : null}
             </MuteButton>
-          </Tooltips>
+          ) : (
+            <Tooltips text={t("career.sky.home", "홈")}>
+              <MuteButton
+                aria-label={t("career.sky.home", "홈")}
+                onClick={() => onChangeTab("home")}
+              >
+                <Home className="size-[18px]" strokeWidth={1.6} />
+              </MuteButton>
+            </Tooltips>
+          )}
         </div>
         <TabBoxes<TopTab>
+          animateSelection
           aria-label="Career"
           className="career-top-tabs career-glass"
           variant="neutral"
@@ -221,19 +235,21 @@ const CareerWorkspaceNav = ({
           }}
         />
         <div className="career-topbar-actions">
-          <MuteButton
-            className="relative"
-            aria-label={t("career.common.career.1338q8i", "설정")}
-            onClick={onOpenSettings}
-          >
-            <Settings aria-hidden className="size-4" strokeWidth={1.6} />
-            <span className="career-settings-label">
-              {t("career.common.career.1338q8i", "설정")}
-            </span>
-            {showReferral && hasUnseenReferral ? (
-              <CareerReferralAttentionDot className="absolute right-1 top-1" />
-            ) : null}
-          </MuteButton>
+          {!isMobile && (
+            <MuteButton
+              className="relative"
+              aria-label={t("career.common.career.1338q8i", "설정")}
+              onClick={onOpenSettings}
+            >
+              <Settings aria-hidden className="size-4" strokeWidth={1.6} />
+              <span className="career-settings-label">
+                {t("career.common.career.1338q8i", "설정")}
+              </span>
+              {showReferral && hasUnseenReferral ? (
+                <CareerReferralAttentionDot className="absolute right-1 top-1" />
+              ) : null}
+            </MuteButton>
+          )}
           <CareerProfileMenu
             profileImageUrl={profileImageUrl}
             profileName={profileName}

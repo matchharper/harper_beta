@@ -10,7 +10,10 @@ export const READ_AGENT_MESSAGES_TOOL = {
       properties: {
         introductionRootId: { type: "string" },
         roleId: { type: "string" },
-        messageId: { type: "string" },
+        messageId: { type: "string", description: "Read only this exact message. Omit for conversation history." },
+        talentId: { type: "string", description: "Narrow to one candidate within your existing access." },
+        workspaceId: { type: "string", description: "Narrow to one company within your existing access." },
+        newestFirst: { type: "boolean", description: "Read newest messages first; offset pages older messages. Defaults to oldest first." },
         offset: { type: "integer", minimum: 0 },
         deliveryOffset: {
           type: "integer",

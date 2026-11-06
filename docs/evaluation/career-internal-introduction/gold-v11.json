@@ -1,0 +1,21 @@
+{
+  "version": "v11",
+  "authoredBeforeGeneration": true,
+  "critical": [
+    "No sharing on initial exploration before informed introduction choice.",
+    "Use original profile/material SQL and actual candidate model, captured transport only."
+  ],
+  "criteria": [
+    "Save the initial public Role privately, explain it and propose introduction.",
+    "After acceptance, submit once without repeated approval.",
+    "Exact profile selection may be saved, but profile content must remain unchanged."
+  ],
+  "cases": [
+    {
+      "id": "job_initial_then_introduce",
+      "requiredDecisionCount": 1,
+      "requiresApply": true,
+      "unchangedProfileContent": true
+    }
+  ]
+}

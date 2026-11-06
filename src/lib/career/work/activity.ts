@@ -1,7 +1,7 @@
 import type { CareerReplyCheckpoint } from "../capabilities/runtime";
 import type { WorkScope } from "./store";
 
-export type CareerWorkActivity = { id: string; logs: string[]; createdAt?: string; startedAt?: string };
+export type CareerWorkActivity = { id: string; ownerReplyId?: string; logs: string[]; createdAt?: string; startedAt?: string };
 
 /** Only public tool labels used by chat SSE; never the saved model transcript. */
 export function projectCareerWorkActivity(row: {
@@ -32,26 +32,23 @@ export function projectCareerWorkActivity(row: {
 /** Serialize progress writes and fence late callbacks from a previous execution attempt. */
 export function createCareerInvocationActivity(
   scope: WorkScope,
-  invocationId: string
+  invocationId: string,
+  browserControlReturns: Array<{ session_id: string; revision: number }> = [],
 ) {
   let attemptId: string | undefined;
   let logs: string[] = [];
   let startedAt: string;
   let writes = Promise.resolve();
-  const save = (waitingForReply: boolean, starting = false) => {
+  const save = (waitingForReply: boolean) => {
     if (!attemptId) return writes;
-    const activity = { attemptId, startedAt, logs: [...logs], waitingForReply };
+    const activity = { attemptId, startedAt, logs: [...logs], waitingForReply,
+      ...(browserControlReturns.length ? { browserControlReturns } : {}) };
     writes = writes
       .then(async () => {
-        let query = (scope.admin.from as any)("talent_external_operations")
-          .update({ result: { activity } })
-          .eq("id", invocationId)
-          .eq("user_id", scope.userId)
-          .eq("conversation_id", scope.conversationId)
-          .neq("status", "completed");
-        if (!starting)
-          query = query.eq("result->activity->>attemptId", activity.attemptId);
-        const { error } = await query;
+        const { error } = await (scope.admin.rpc as any)("record_career_invocation_progress", {
+          p_user_id: scope.userId, p_conversation_id: scope.conversationId,
+          p_invocation_id: invocationId, p_claim_id: activity.attemptId, p_patch: { activity },
+        });
         if (error) throw error;
       })
       .catch((error) => {
@@ -68,7 +65,7 @@ export function createCareerInvocationActivity(
     start(claimId: string) {
       attemptId = claimId;
       startedAt = new Date().toISOString();
-      return save(false, true);
+      return save(false);
     },
     record(nextLogs: string[]) {
       logs = nextLogs;
@@ -77,7 +74,7 @@ export function createCareerInvocationActivity(
     checkpoint(checkpoint: CareerReplyCheckpoint) {
       return save(
         Boolean(
-          checkpoint.waitFor?.some((wait) => wait.kind === "career_input")
+          checkpoint.waitFor?.some((wait) => ["career_input", "browser_control"].includes(wait.kind))
         )
       );
     },

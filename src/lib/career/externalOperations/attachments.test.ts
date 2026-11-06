@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { prepareAttachments, readPinnedAttachment } from "./attachments";
 
-test("review bytes survive source edits; deletion, ownership and hash mismatch stop reuse", async () => {
+function fixture() {
   const userId = "00000000-0000-4000-8000-000000000001";
   const documentId = "00000000-0000-4000-8000-000000000002";
   const snapshotId = "00000000-0000-4000-8000-000000000003";
@@ -33,6 +33,11 @@ test("review bytes survive source edits; deletion, ownership and hash mismatch s
     }) },
   };
   const context = { admin, userId, conversationId, requestId: "review" };
+  return { context, doc, rows, files, userId, documentId, snapshotId, conversationId };
+}
+
+test("review bytes survive source edits; deletion, ownership and hash mismatch stop reuse", async () => {
+  const { context, doc, files, userId, documentId, snapshotId, conversationId } = fixture();
   const [reviewed] = await prepareAttachments(context, [{ document_id: documentId, revision: 1 }]);
   assert.equal(reviewed.snapshotId, snapshotId);
   doc.revision = 2; files.set("original", Buffer.from("new unreviewed bytes"));
@@ -44,4 +49,49 @@ test("review bytes survive source edits; deletion, ownership and hash mismatch s
   await assert.rejects(readPinnedAttachment(context, snapshotId), /source was removed/);
   doc.is_deleted = false; files.set(`${userId}/agent-attachments/${snapshotId}`, Buffer.from("corrupt"));
   await assert.rejects(readPinnedAttachment(context, snapshotId), /integrity mismatch/);
+});
+
+for (const contentType of [null, "", "application/octet-stream", "binary/octet-stream"]) {
+  test(`uploaded PDF with ${contentType ?? "missing"} MIME is transferred and pinned as PDF`, async () => {
+    const { context, doc, files, rows, documentId } = fixture();
+    doc.content_type = contentType;
+    files.set("original", Buffer.from("%PDF-1.7\noriginal file"));
+    let uploadedMime: string | undefined;
+    const storage = context.admin.storage.from();
+    context.admin.storage.from = () => ({ ...storage, upload: async (path: string, bytes: Buffer, options: any) => {
+      uploadedMime = options.contentType;
+      assert.equal(options.contentType, "application/pdf", "storage rejects generic binary MIME");
+      return storage.upload(path, bytes);
+    } });
+    const [file] = await prepareAttachments(context, [{ document_id: documentId }]);
+    assert.equal(uploadedMime, "application/pdf");
+    assert.equal(file.mimeType, "application/pdf");
+    assert.equal(rows[0].request.mimeType, "application/pdf");
+    const pinned = await readPinnedAttachment(context, file.snapshotId!);
+    assert.equal(pinned.mimeType, "application/pdf");
+    assert.deepEqual(pinned.bytes, files.get("original"));
+  });
+}
+
+test("a failed binary-MIME snapshot can resume with corrected saved metadata", async () => {
+  const { context, doc, rows, files, documentId } = fixture();
+  doc.content_type = null;
+  files.set("original", Buffer.from("%PDF-1.7\noriginal file"));
+  const storage = context.admin.storage.from();
+  context.admin.storage.from = () => ({ ...storage, upload: async () => ({ error: new Error("Storage unavailable") }) });
+  await assert.rejects(prepareAttachments(context, [{ document_id: documentId }]), /Storage unavailable/);
+  rows[0].request.mimeType = "application/octet-stream";
+  context.admin.storage.from = () => storage;
+  const [file] = await prepareAttachments(context, [{ document_id: documentId }]);
+  assert.equal(rows.length, 1, "reuse the same snapshot and bytes");
+  assert.equal((await readPinnedAttachment(context, file.snapshotId!)).mimeType, "application/pdf");
+});
+
+test("a PDF filename alone does not relabel other bytes or override a specific MIME", async () => {
+  for (const contentType of [null, "text/plain"]) {
+    const { context, doc, documentId } = fixture();
+    doc.content_type = contentType;
+    const [file] = await prepareAttachments(context, [{ document_id: documentId }]);
+    assert.equal(file.mimeType, contentType ?? "application/octet-stream");
+  }
 });

@@ -54,6 +54,7 @@ const normalizeThinkingLogs = (value: unknown) =>
     : [];
 
 export const toUiMessage = (message: {
+  artifactReplyId?: string;
   careerForm?: CareerMessage["careerForm"];
   formResponse?: CareerMessage["formResponse"];
   browserSession?: CareerMessage["browserSession"];
@@ -89,6 +90,7 @@ export const toUiMessage = (message: {
   turnPending?: boolean;
   clientRequestId?: string;
 }): CareerMessage => ({
+  artifactReplyId: message.artifactReplyId,
   workEvents: message.workEvents,
   workReplyId: message.workReplyId,
   workStartedAt: message.workStartedAt,

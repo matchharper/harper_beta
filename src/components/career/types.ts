@@ -494,6 +494,8 @@ export type CareerHistoryItem = {
 };
 
 export type CareerMessage = {
+  artifactReplyId?: string;
+  workArtifacts?: CareerMessage[];
   careerForm?: import("@/lib/career/forms/schema").CareerForm;
   formResponse?: import("@/lib/career/forms/schema").CareerFormResponse;
   browserSession?: { sessionId: string };
@@ -525,6 +527,7 @@ export type CareerMessage = {
   workCompletedAt?: string;
   workPending?: boolean;
   thinkingLogs?: string[];
+  workBackgroundLogs?: string[];
   turnStopped?: boolean;
   turnPending?: boolean;
   clientRequestId?: string;
@@ -533,6 +536,7 @@ export type CareerMessage = {
 };
 
 export type CareerMessagePayload = {
+  artifactReplyId?: string;
   careerForm?: import("@/lib/career/forms/schema").CareerForm;
   formResponse?: import("@/lib/career/forms/schema").CareerFormResponse;
   browserSession?: { sessionId: string };
@@ -564,6 +568,7 @@ export type CareerMessagePayload = {
   workCompletedAt?: string;
   workPending?: boolean;
   thinkingLogs?: string[];
+  workBackgroundLogs?: string[];
   turnStopped?: boolean;
   turnPending?: boolean;
   clientRequestId?: string;

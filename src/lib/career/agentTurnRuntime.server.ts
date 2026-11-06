@@ -1,4 +1,5 @@
-import { workContext } from "./work/store";
+import { observeCareerDependency, readCareerEventContext } from "./work/events";
+import { readWorkContext } from "./work/store";
 import { formatCareerActionItemResponse } from "./actionItems";
 import { CareerAgentReplyUnavailable } from "./agentReplyError";
 export { CareerAgentReplyUnavailable } from "./agentReplyError";
@@ -14,6 +15,10 @@ import { readCareerScheduleFollowIndex } from "./schedules/server";
 import { careerTurnIsStopped, cancelCareerTurnWork, watchCareerTurnCancellation } from "./turnCancellation.server";
 import { CAREER_TURN_STOP_FACT, isCareerTurnStopped } from "./turnCancellation";
 import { createCareerInputInbox, formatCareerInboxMessages, readCareerInbox } from "./work/inbox";
+import { readTalentDocumentMetadataPage } from "@/lib/talentOnboarding/documentTool";
+import type { ExternalOperation } from "./externalOperations/store";
+import { readSelectedOpportunityContext } from "./selectedOpportunityContext.server";
+import { readInternalProposalContext } from "./internalSelections";
 
 export type PrepareCareerAgentTurnArgs = Omit<
   Parameters<typeof createCareerCapabilityTurn>[0],
@@ -64,14 +69,14 @@ export async function readCareerContinuationUserContext(args: Pick<PrepareCareer
   ].join("\n\n");
 }
 
-/** A compact index; full form contents and browser evidence remain read-tool data. */
+/** Existing resource references and their last recorded state, without document bodies. */
 export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAgentTurnArgs, "admin" | "userId" | "conversationId" | "workId">) {
   let browserQuery = (args.admin.from as any)("talent_external_operations")
     .select("id,kind,status,parent_id,request,result,current_execution_id:provider_refs->>current_execution_id")
     .eq("user_id", args.userId).eq("conversation_id", args.conversationId)
     .eq("kind", "browser_session").neq("status", "closed");
   if (args.workId) browserQuery = browserQuery.eq("request->>work_id", args.workId);
-  const [operations, forms, matching, schedules, profiles, appointments] = await Promise.allSettled([
+  const [operations, forms, matching, schedules, profiles, appointments, documents, internalProposals] = await Promise.allSettled([
     browserQuery.order("updated_at", { ascending: false }).limit(21),
     (args.admin.rpc as any)("read_open_career_forms", { p_user_id: args.userId, p_conversation_id: args.conversationId }),
     readCareerMatchingIndex(args),
@@ -79,12 +84,22 @@ export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAge
     (args.admin.from as any)("talent_profiles").select("id,title,current_revision,is_default")
       .eq("talent_id", args.userId).eq("is_archived", false).order("is_default", { ascending: false }).limit(6),
     readUpcomingTalentScheduleContext(args),
+    readTalentDocumentMetadataPage({ ...args, input: {} }),
+    readInternalProposalContext(args),
   ]);
   const lines: string[] = [];
+  lines.push(internalProposals.status === "fulfilled" ? internalProposals.value
+    : "Selected Harper-connected proposals could not be read; availability is unknown. read_recommended_opportunities can read them.");
   lines.push(appointments.status === "fulfilled"
     ? appointments.value
     : "Upcoming appointments could not be read; their absence is unknown.");
   for (const index of [matching, schedules]) if (index.status === "fulfilled" && index.value) lines.push(String(index.value));
+  if (documents.status === "fulfilled") {
+    lines.push("Saved document index (newest first; read_document retrieves content, list_documents retrieves more metadata):",
+      ...documents.value.rows.map(row => `- document_id ${row.id}; ${row.file_name}; ${row.kind}${row.revision != null ? `; revision ${row.revision}` : ""}${row.is_primary ? "; primary" : ""}`));
+    if (!documents.value.rows.length) lines.push("No saved resumes or documents.");
+    if (documents.value.hasMore) lines.push(`More documents; list_documents offset ${documents.value.nextOffset}.`);
+  } else lines.push("Saved document index could not be read; document availability is unknown.");
   if (profiles.status === "fulfilled" && !profiles.value.error && profiles.value.data?.length) {
     lines.push("Profile index (read_profile retrieves exact content/history):", ...profiles.value.data.slice(0, 5).map((row: any) =>
       `- profile ${row.id}, revision ${row.current_revision}; ${row.title}; ${row.is_default ? "default" : "private version"}`));
@@ -113,6 +128,7 @@ export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAge
         lines.push(`  execution_id ${execution.id}; status ${execution.status}; revision ${execution.revision}; observed ${formatLlmDateTime(execution.updated_at)}`);
         if (execution.request?.url) lines.push(`  Requested page: ${execution.request.url}`);
         if (execution.result?.url) lines.push(`  Observed page: ${execution.result.url}`);
+        if (typeof execution.result?.summary === "string") lines.push(`  Last recorded browser agent report: ${execution.result.summary}`);
         if (Array.isArray(execution.request?.role_refs) && execution.request.role_refs.length)
           lines.push(`  Role references: ${execution.request.role_refs.join(", ")}`);
         if (typeof execution.result?.needsUser === "boolean") lines.push(`  Browser reports further input/action needed: ${execution.result.needsUser ? "yes" : "no"}`);
@@ -137,6 +153,25 @@ export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAge
     if (rows.length > 20) lines.push("More unresolved forms exist; use suggest_form list/read when needed.");
   }
   return lines.join("\n");
+}
+
+/** Deliver the finished receipt for the exact run this transcript was waiting on.
+ * Append an observation; never rewrite the original running tool result.
+ */
+async function appendBrowserContinuationResults(args: Pick<PrepareCareerAgentTurnArgs, "admin" | "userId" | "conversationId" | "workId">, resume: CareerReplyCheckpoint) {
+  const ids = [...new Set((resume.waitFor ?? []).filter(work => work.kind === "browser_run").map(work => work.id))];
+  if (!ids.length) return resume;
+  let query = (args.admin.from as any)("talent_external_operations").select("*")
+    .eq("user_id", args.userId).eq("conversation_id", args.conversationId).eq("kind", "browser_run").in("id", ids);
+  if (args.workId) query = query.eq("request->>work_id", args.workId);
+  const { data, error } = await query;
+  if (error) throw error;
+  const completed = ((data ?? []) as ExternalOperation[]).filter(run =>
+    !["reserved", "preparing", "dispatching", "capacity_wait", "running", "cancelling"].includes(run.status));
+  if (!completed.length) return resume;
+  const { formatBrowserToolResult } = await import("./browser/tool");
+  const text = `Browser execution update for this resumed work:\n${formatBrowserToolResult(completed)}`;
+  return { ...resume, messages: [...resume.messages, { role: "user", content: resume.transport === "anthropic" ? [{ type: "text", text }] : text }] };
 }
 
 /** One claim covers a logical delivered reply, including any request continuations. */
@@ -216,22 +251,26 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
     for (const book of normalizeCareerHandbookLeases(saved?.handbooks)) {
       if (saved?.record.loadedHandbooks?.includes(book.id)) resumedBooks.set(book.id, book);
     }
-    const resume = saved ? { ...saved, handbooks: [...resumedBooks.values()] } : undefined;
-    const [resourceIndex, laterUserMessages, delegatedContext, inboxSnapshot] = await Promise.all([
-      // Context is rebuilt from the source of truth on every resume.
-      readCareerAgentResourceContext(args),
+    let resume = saved ? { ...saved, handbooks: [...resumedBooks.values()] } : undefined;
+    // The claimed checkpoint owns readiness. Refresh its browser observation
+    // before building the resource index so it cannot report an older status.
+    const dependencyState = args.inboxId && resume
+      ? careerCheckpointIsReady(args.admin, args.userId, resume).then(ready => !ready)
+      : Promise.resolve(args.resumeDependenciesPending);
+    const [resourceIndex, laterUserMessages, delegatedContext, inboxSnapshot, resumeDependenciesPending] = await Promise.all([
+      dependencyState.then(() => readCareerAgentResourceContext(args)),
       !args.inboxId && (resume || args.agentReplyId)
         ? readCareerContinuationUserContext(args) : Promise.resolve(""),
-      workContext(args, args.workId),
+      readWorkContext(args, args.workId),
       args.inboxId ? readCareerInbox(args, args.inboxId) : Promise.resolve(undefined),
+      dependencyState,
     ]);
-    // The checkpoint may have advanced between the worker's preflight and its
-    // claim. Only the claimed transcript can establish whether it may resume.
-    const resumeDependenciesPending = args.inboxId && resume
-      ? !await careerCheckpointIsReady(args.admin, args.userId, resume)
-      : args.resumeDependenciesPending;
-    if (resumeDependenciesPending && inboxSnapshot && !inboxSnapshot.messages.length)
+    if (resumeDependenciesPending && inboxSnapshot && !inboxSnapshot.messages.length && !inboxSnapshot.events?.length)
       throw new CareerReplyContinuation(resume!);
+    if (resume) resume = await appendBrowserContinuationResults(args, resume);
+    const knownWorkRevisions = new Map(delegatedContext.works.map(work => [work.id, work.revision]));
+    const selectedOpportunityContext = !args.inboxId && args.sourceMessage
+      ? await readSelectedOpportunityContext({ ...args, messages: [args.sourceMessage], knownWorkRevisions }) : "";
     const saveCheckpoint = async (checkpoint: CareerReplyCheckpoint) => {
       await cancellation.check();
       if (args.inboxId) {
@@ -247,16 +286,22 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
     };
     const inputInbox = args.inboxId && inboxSnapshot ? createCareerInputInbox({
       read: () => readCareerInbox(args, args.inboxId!), save: saveCheckpoint,
+      readContext: messages => readSelectedOpportunityContext({ ...args, messages, knownWorkRevisions }),
       deliveredIds: inboxSnapshot.deliveredIds,
+      deliveredEventIds: inboxSnapshot.deliveredEventIds,
+      readEvents: events => readCareerEventContext(args, events),
       timeZone: args.promptArgs.timeZone, preferredLocale: args.promptArgs.currentPreferences?.preferredLocale,
     }) : undefined;
-    const resources = [delegatedContext, resourceIndex, laterUserMessages].filter(Boolean).join("\n\n");
+    const resources = [delegatedContext.text, resourceIndex, laterUserMessages, selectedOpportunityContext].filter(Boolean).join("\n\n");
     const appendResources = (instruction?: string | null) => [instruction, resources].filter(Boolean).join("\n\n");
     const turn = await createCareerCapabilityTurn({
       ...args,
       replyId,
       agentState: args.backgroundRunId ? { ...claim.state, handbooks: [] } : claim.state,
       inputInbox,
+      observePendingWork: args.inboxId && args.sourceMessage ? dependency => observeCareerDependency({
+        ...args, sourceMessageId: args.sourceMessage!.id, replyId,
+      }, dependency) : undefined,
       resume,
       resumeDependenciesPending,
       continuation: args.continuation ?? resume?.continuation ?? {

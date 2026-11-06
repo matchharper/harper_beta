@@ -52,6 +52,8 @@ export function formatRoleContextForModel(roles: readonly Record<string, unknown
         role?.externalJdUrl ? `Job posting: ${role.externalJdUrl}` : null,
         role?.postedAt ? `Posted: ${formatLlmDateTime(role.postedAt)}` : null,
         role?.expiresAt ? `Expires: ${formatLlmDateTime(role.expiresAt)}` : null,
+        role?.summary ? `Job summary: ${role.summary}` : null,
+        role?.summaryUnavailable ? "Summary unavailable in the conversation language; full description follows." : null,
         role?.description ? `Job description: ${role.description}` : null,
         company?.shortDescription ? `Company summary: ${company.shortDescription}` : null,
         company?.description ? `Company detail: ${company.description}` : null,

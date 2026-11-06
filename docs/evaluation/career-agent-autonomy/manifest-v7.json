@@ -1,0 +1,8 @@
+{
+  "version": "v7",
+  "provenance": "Two synthetic probes of existing-selection reuse and Harper recommendation ownership, frozen before model execution. Tool effects are captured in memory; actual SQL boundaries tested separately. No production data.",
+  "hashes": {
+    "cases-v7.json": "7867dc552ea57fceeb958fc75ddfe1839254b7f26989bea01d51c6c9154ca86f",
+    "gold-v7.json": "4705fa2586d115d33e0ed5cc562891d95195d5c34362bb2fee430eacf71a51be"
+  }
+}
