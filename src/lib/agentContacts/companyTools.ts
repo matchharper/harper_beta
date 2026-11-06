@@ -60,15 +60,15 @@ export async function executeCompanyCorrespondence(
   if (args.name === "read_agent_messages")
     return readAgentCorrespondence(source, input, database);
   if (args.name === "manage_agent_schedule") {
+    // A refused schedule change goes back to the model to correct; it does
+    // not fail the run (event and schedule runs throw other tool errors).
+    const { OrgAgentToolInputError } = await import("@/lib/org/agent/toolAvailability");
     if (input.action === "create" && !String(input.operationId ?? "").trim())
-      throw new Error(
+      throw new OrgAgentToolInputError(
         "A stable operationId is required for creating a schedule; reuse it only for the same request."
       );
-    return manageCompanySchedule(source, input, operationKey, database).catch(async (error) => {
-      // A refused schedule change goes back to the model to correct; it does
-      // not fail the run (event and schedule runs throw other tool errors).
+    return manageCompanySchedule(source, input, operationKey, database).catch((error) => {
       if (!(error instanceof CompanyScheduleInputError)) throw error;
-      const { OrgAgentToolInputError } = await import("@/lib/org/agent/toolAvailability");
       throw new OrgAgentToolInputError(error.message);
     });
   }

@@ -47,13 +47,13 @@ const scheduleTierTools = (tier: number) =>
 
 /** Executes the original company-side LLM with a lease-bound, single-Role service principal. */
 export async function runCompanyAgentEvent(job: any) {
-  const { reserveAgentExecution, settleAgentExecution } =
+  const { reserveAgentExecution, settleAgentExecution, remainingRunSeconds } =
     await import("./executionBudget");
   const anchor = job.action_context.agentContactBudgetAnchor;
   const key = `company:${job.id}:${job.attempt_count}:${job.locked_by}`;
   const seconds = anchor
     ? await reserveAgentExecution(anchor, key, 25 * 60)
-    : 25 * 60;
+    : remainingRunSeconds(job.usage);
   try {
     return await executeCompanyAgentEvent(job, seconds);
   } finally {
