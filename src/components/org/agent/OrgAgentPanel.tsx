@@ -63,6 +63,7 @@ import type { OrgAgentMention } from "@/lib/org/agent/types";
 import {
   hasOrgAgentToolWork,
   localizeOrgAgentThinkingLogs,
+  orgAgentLiveStatusLabel,
 } from "@/lib/org/agent/thinkingLogs";
 import { useToastStore } from "@/store/useToastStore";
 import { cn } from "@/lib/utils";
@@ -683,10 +684,12 @@ export function OrgAgentChatSurface({
           <ChatThinkingLogPanel
             active={chat.isStreaming}
             hasToolWork={hasOrgAgentToolWork(chat.thinkingLogs)}
+            liveLine
             logs={localizeOrgAgentThinkingLogs(
               chat.thinkingLogs,
               responseLocale
             )}
+            statusLabel={orgAgentLiveStatusLabel(c, chat.isStreaming, chat.thinkingLogs.length)}
           />
           {chat.assistantStatus === "pending" ? (
             <OrgAgentPendingBubble />
