@@ -820,14 +820,14 @@ export const ORG_AGENT_TOOLS = [
           },
           decisionIds: {
             description:
-              "The listed pass decisions whose stated reasons support this change: at least two different candidates, at least one passed since the last review.",
+              "The listed pass decisions whose stated reasons support this change, including at least one passed since the last review. A suggestion backed by one candidate is refused.",
             items: { type: "integer" },
-            minItems: 2,
+            minItems: 1,
             type: "array",
           },
           reason: {
             description:
-              "One short sentence shown on the To-do card, in the workspace language: what these passes had in common, in the company's terms. No candidate names; the card adds the counts, and a long sentence is shortened to fit the card.",
+              "One short sentence shown on the To-do card, in the workspace language: what these passes had in common, in the company's terms. No candidate names and no number or share such as many or most; the card adds the counts. A long sentence is shortened to fit the card.",
             minLength: 1,
             type: "string",
           },
