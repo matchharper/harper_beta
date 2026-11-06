@@ -1,18 +1,15 @@
 import { Columns3, Rows3, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { OrgCandidateViewMenu } from "@/components/org/OrgCandidateToolbar";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
 import { OrgRoleInbox } from "@/components/org/OrgRoleInbox";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
+import { OrgSearchHistory } from "@/components/org/OrgSearchHistory";
 import { useRoleStartQuery } from "@/components/org/role-start/RoleStartOnboarding";
 import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
 import { MuteButton } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
+import { OrgJobsProvider, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 
 /** The full-width candidate views: the inbox grid, list, card and board, and the pipeline board. */
@@ -22,24 +19,43 @@ function OrgRolePipelineWorkspace({
   display,
   mobile = false,
   onDisplayChange,
+  toolbarTarget = null,
 }: {
   display: RolePipelineDisplay;
   mobile?: boolean;
   onDisplayChange: (display: RolePipelineDisplay) => void;
+  toolbarTarget?: HTMLElement | null;
 }) {
+  const { activeRole, workspaceId } = useOrgJobsNavigation();
   const resolvedDisplay = mobile ? "board" : display;
 
-  const displayControl = mobile ? null : (
+  const displayMenu = mobile ? null : (
     <RolePipelineDisplayMenu
       display={resolvedDisplay}
       onDisplayChange={onDisplayChange}
     />
   );
+  // In the role screen's 전체 화면 the view and the search history sit in the
+  // tabs' row, like on the other tabs; elsewhere the view stays in the list.
+  const displayControl = toolbarTarget ? null : displayMenu;
 
-  return resolvedDisplay === "pipeline" ? (
-    <OrgPipeline displayControl={displayControl} />
-  ) : (
-    <OrgRoleTalentBoard displayControl={displayControl} />
+  return (
+    <>
+      {toolbarTarget
+        ? createPortal(
+            <>
+              {displayMenu}
+              <OrgSearchHistory workspaceId={workspaceId} roleId={activeRole?.roleId} />
+            </>,
+            toolbarTarget
+          )
+        : null}
+      {resolvedDisplay === "pipeline" ? (
+        <OrgPipeline displayControl={displayControl} />
+      ) : (
+        <OrgRoleTalentBoard displayControl={displayControl} />
+      )}
+    </>
   );
 }
 
@@ -51,34 +67,15 @@ function RolePipelineDisplayMenu({
   onDisplayChange: (display: RolePipelineDisplay) => void;
 }) {
   const { c } = useOrgLocale();
-  const DisplayIcon = display === "pipeline" ? Columns3 : Rows3;
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <MuteButton size="sm" variant="transparent">
-          <DisplayIcon className="size-4" />
-        </MuteButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40" sideOffset={2}>
-        <DropdownMenuItem
-          onSelect={() => onDisplayChange("pipeline")}
-          selected={display === "pipeline"}
-          variant="sm"
-        >
-          <Columns3 />
-          {c("파이프라인", "Pipeline")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => onDisplayChange("board")}
-          selected={display === "board"}
-          variant="sm"
-        >
-          <Rows3 />
-          {c("보드", "Board")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <OrgCandidateViewMenu<RolePipelineDisplay>
+      onChange={onDisplayChange}
+      options={[
+        { value: "pipeline", label: c("파이프라인", "Pipeline"), icon: Columns3 },
+        { value: "board", label: c("보드", "Board"), icon: Rows3 },
+      ]}
+      value={display}
+    />
   );
 }
 
@@ -86,22 +83,29 @@ export function OrgRoleCandidatesTab({
   display,
   mobile = false,
   onDisplayChange,
+  stageTabs = true,
   tab,
+  toolbarTarget = null,
 }: {
   display: RolePipelineDisplay;
   mobile?: boolean;
   onDisplayChange: (display: RolePipelineDisplay) => void;
+  /** False where the screen already shows the candidate tabs (the inbox's own sub-tabs go). */
+  stageTabs?: boolean;
   tab: "inbox" | "pipeline";
+  /** The screen's place for sort, view and search history, when it has one. */
+  toolbarTarget?: HTMLElement | null;
 }) {
   return (
     <OrgJobsProvider routePage="role" inbox={tab === "inbox"}>
       {tab === "inbox" ? (
-        <OrgRoleInbox />
+        <OrgRoleInbox stageTabs={stageTabs} toolbarTarget={toolbarTarget} />
       ) : (
         <OrgRolePipelineWorkspace
           display={display}
           mobile={mobile}
           onDisplayChange={onDisplayChange}
+          toolbarTarget={toolbarTarget}
         />
       )}
       {tab !== "inbox" && <TalentDetailSimpleView />}

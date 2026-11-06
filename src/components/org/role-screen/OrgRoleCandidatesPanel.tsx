@@ -1,11 +1,14 @@
 import { ChevronsLeftRight, ChevronsRightLeft, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { OrgCandidateSortMenu } from "@/components/org/OrgCandidateToolbar";
 import { ReviewEmptyState } from "@/components/org/OrgHomeInbox";
 import { OrgCriteriaReviewPanel } from "@/components/org/OrgCriteriaRecheck";
 import { OrgExternalCandidates } from "@/components/org/OrgExternalCandidates";
 import { OrgReviewingLine } from "@/components/org/OrgReviewingLine";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
+import { OrgSearchHistory } from "@/components/org/OrgSearchHistory";
 import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import { Badge } from "@/components/ui/badge";
@@ -208,10 +211,68 @@ function PipelineList({ closed, onAskHarper }: ListProps & { closed: boolean }) 
   );
 }
 
+/** 진행 종료 in 전체 화면: the closed candidates as a grid, newest or best first. */
+function ClosedGrid({ toolbarTarget }: { toolbarTarget: HTMLElement | null }) {
+  const router = useRouter();
+  const { board, boardQuery } = useOrgJobsBoard();
+  const { activeRole, workspaceId } = useOrgJobsNavigation();
+  const deferredStages = useOrgDeferredActionStore((state) => state.deferredStages);
+  const sort: OrgCandidateSort =
+    router.query.sort === "recommended" ? "recommended" : "latest";
+  const items = useMemo(
+    () =>
+      (board?.items ?? [])
+        .filter(
+          (item) =>
+            !item.savedAt &&
+            !deferredStages.has(item.recommendationId) &&
+            item.stage === "process_stopped"
+        )
+        .sort((left, right) => compareOrgCandidates(left, right, sort)),
+    [board?.items, deferredStages, sort]
+  );
+  const setSort = (next: OrgCandidateSort) =>
+    void router.push(
+      { pathname: router.pathname, query: { ...router.query, sort: next } },
+      undefined,
+      { scroll: false, shallow: true }
+    );
+  const toolbar = toolbarTarget
+    ? createPortal(
+        <>
+          <OrgCandidateSortMenu onChange={setSort} value={sort} />
+          <OrgSearchHistory workspaceId={workspaceId} roleId={activeRole?.roleId} />
+        </>,
+        toolbarTarget
+      )
+    : null;
+  if (isOrgQueryBlockingError(boardQuery.error, boardQuery.data)) {
+    return (
+      <OrgErrorState
+        message={boardQuery.error?.message ?? ""}
+        onRetry={() => void boardQuery.refetch()}
+      />
+    );
+  }
+  return (
+    <>
+      {toolbar}
+      {boardQuery.isLoading ? (
+        <ReviewEmptyState loading />
+      ) : items.length ? (
+        <OrgRoleTalentBoard inboxItems={items} section="pipeline" />
+      ) : (
+        <ReviewEmptyState />
+      )}
+    </>
+  );
+}
+
 /**
  * 후보: the role's lists as sub-tabs under the pill, each a column of cards
- * that open in place. 전체 화면 swaps in today's wide views (grid, list,
- * board, pipeline board) with selection and sorting.
+ * that open in place. 전체 화면 keeps the same tabs and swaps in the wide
+ * views (grid, list, card, board, pipeline board) with selection and sorting;
+ * their sort, view and search history sit at the end of the tabs' row.
  */
 export function OrgRoleCandidatesPanel({
   counts,
@@ -242,6 +303,7 @@ export function OrgRoleCandidatesPanel({
 }) {
   const { c } = useOrgLocale();
   const { workspace } = useOrgWorkspace();
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
   const count = (value: number | null | undefined) =>
     typeof value === "number" ? String(value) : undefined;
   const items: TabBoxItem<OrgRoleCandidateTab>[] = [
@@ -295,11 +357,28 @@ export function OrgRoleCandidatesPanel({
     </MuteButton>
   ) : null;
 
+  const tabBoxes = (
+    <TabBoxes<OrgRoleCandidateTab>
+      activeValue={tab}
+      aria-label={ct(c, COMPANY_TERMS.candidate)}
+      className="min-w-0 flex-1"
+      items={items}
+      listClassName="min-w-0 flex-wrap"
+      onValueChange={onTabChange}
+      size="lg"
+      variant="neutral"
+    />
+  );
+
   if (wide) {
-    // Today's wide views, unchanged: they keep their own tabs, selection and sorting.
+    // The split view's tabs, so every list can be opened without leaving 전체 화면.
     return (
-      <div className="org-role-wide-views">
+      <div className="org-role-wide-views" data-org-candidates={tab}>
         <div className="org-role-wide-header">{wideToggle}</div>
+        <div className="org-role-wide-tabs">
+          {tabBoxes}
+          <div className="org-role-wide-toolbar" ref={setToolbarTarget} />
+        </div>
         <div
           className={
             inbox || tab === "external"
@@ -313,14 +392,22 @@ export function OrgRoleCandidatesPanel({
               <OrgRoleCandidatesTab
                 display="board"
                 onDisplayChange={onPipelineDisplayChange}
+                stageTabs={false}
                 tab="inbox"
+                toolbarTarget={toolbarTarget}
               />
             </>
+          ) : tab === "closed" ? (
+            <OrgJobsProvider routePage="role">
+              <ClosedGrid toolbarTarget={toolbarTarget} />
+              <TalentDetailSimpleView />
+            </OrgJobsProvider>
           ) : (
             <OrgRoleCandidatesTab
               display={pipelineDisplay}
               onDisplayChange={onPipelineDisplayChange}
               tab="pipeline"
+              toolbarTarget={toolbarTarget}
             />
           )}
         </div>
@@ -332,16 +419,7 @@ export function OrgRoleCandidatesPanel({
     <div className="org-candidates" data-org-candidates={tab}>
       <RoleStartRegisteredNotice roleId={role.roleId} workspaceId={workspace.workspaceId} />
       <div className="career-opportunity-tabs org-candidate-tabs flex min-w-0 items-start">
-        <TabBoxes<OrgRoleCandidateTab>
-          activeValue={tab}
-          aria-label={ct(c, COMPANY_TERMS.candidate)}
-          className="min-w-0 flex-1"
-          items={items}
-          listClassName="min-w-0 flex-wrap"
-          onValueChange={onTabChange}
-          size="lg"
-          variant="neutral"
-        />
+        {tabBoxes}
         {wideToggle}
       </div>
       {inbox ? <OrgReviewingLine className="org-candidate-caption" count={counts?.reviewing} /> : null}

@@ -65,6 +65,39 @@
   font-size: var(--career-label-size);
   color: var(--career-ink-secondary);
 }
+/* 전체 화면: the split view's tabs, then sort · 보기 방식 · 탐색 기록 at the
+   end of the same row (they move under the tabs when the row is too narrow). */
+.org-role-wide-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 12px;
+  padding: 0 3px 12px;
+}
+.org-role-wide-toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.org-role-wide-toolbar:empty {
+  display: none;
+}
+/* A toolbar menu names its current choice, like the 전체 화면 toggle. */
+.org-toolbar-button {
+  flex: none;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: var(--career-label-size, 12.5px);
+  color: var(--career-ink-secondary, currentColor);
+}
+.org-toolbar-chevron {
+  width: 14px;
+  height: 14px;
+  margin-left: -2px;
+  opacity: 0.6;
+}
 
 /* The sidebar takes 256px, so the two columns get the compact panel sooner. */
 @media (min-width: 1024px) and (max-width: 1279px) {

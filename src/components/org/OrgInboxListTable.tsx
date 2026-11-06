@@ -694,3 +694,6 @@ export function OrgInboxListTable({
     </div>
   );
 }
+
+/** The list's cells, for the other candidate lists drawn in the same style. */
+export { FitCell as OrgListFitCell, ProfileLabelCell as OrgListProfileLabelCell };

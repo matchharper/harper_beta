@@ -1,12 +1,21 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { ArrowLeft, ArrowUpRight, Inbox } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  BriefcaseBusiness,
+  GraduationCap,
+  Inbox,
+} from "lucide-react";
+import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { LinkedinLogo } from "@/components/common/BrandLogos";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import { Loading } from "@/components/ui/loading";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { isOrgQueryBlockingError } from "@/lib/org/queryError";
+import type { OrgCandidateSort } from "@/lib/org/candidateBoardSort";
+import { sortExternalCandidates } from "@/lib/org/externalCandidateSort";
 import type { ExternalCandidateView, ExternalCandidatesResponse } from "@/lib/org/agent/externalSourcing";
 import {
   isExternalSearchRunning,
@@ -17,6 +26,7 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import type { OrgMember } from "@/lib/org/server";
 import { useToastStore } from "@/store/useToastStore";
 import { CompanyIntroRequestDialog } from "./CompanyIntroDecisionDialogs";
+import { OrgListFitCell, OrgListProfileLabelCell } from "./OrgInboxListTable";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { OrgCandidateReviewContent } from "./OrgCandidateReviewContent";
 import { OrgRoleTalentBoardCard } from "./OrgRoleTalentBoard";
@@ -138,6 +148,139 @@ function openLink(link?: string | null) {
   if (link) window.open(link, "_blank", "noopener,noreferrer");
 }
 
+/** A criterion reads "name: what to check"; the column shows the name, the full text on hover. */
+function criterionHeading(criterion: string) {
+  const name = criterion.split(":")[0]?.trim();
+  return name || criterion;
+}
+
+/** Criteria in the order the shown people's evaluations list them. */
+function externalCriteriaNames(candidates: readonly ExternalCandidateView[]) {
+  const names: string[] = [];
+  for (const person of candidates) {
+    for (const criterion of person.criteria) {
+      if (!names.includes(criterion.name)) names.push(criterion.name);
+    }
+  }
+  return names;
+}
+
+/**
+ * 외부 후보 as a list, drawn like the inbox list: one row per person, a column
+ * per criterion, the latest job and school, the connection state and when
+ * Harper showed them. A row opens the person, where the decisions are.
+ */
+export function OrgExternalCandidateList({
+  candidates,
+  onOpen,
+  roleId,
+}: {
+  candidates: readonly ExternalCandidateView[];
+  onOpen: (person: ExternalCandidateView) => void;
+  roleId: string;
+}) {
+  const { c, locale } = useOrgLocale();
+  const criteria = externalCriteriaNames(candidates);
+  const rowCell = "border-b border-neutral-1000-a05 bg-bg-default align-middle group-hover/row:bg-bg-weak";
+  return (
+    <div
+      className="relative overflow-x-auto pb-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-300 hover:[&::-webkit-scrollbar-thumb]:bg-neutral-400 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-2"
+      data-org-external-list=""
+    >
+      <table className="w-max min-w-full border-separate border-spacing-0 text-left">
+        <thead>
+          <tr className="text-[12px] text-neutral-muted [&>th]:align-bottom">
+            <th className="sticky left-0 z-10 min-w-56 border-b border-r border-neutral-1000-a05 bg-bg-default py-2.5 pl-2 pr-4 font-normal">
+              {c("후보자", "Candidate")}
+            </th>
+            {criteria.map((name) => (
+              <th
+                className="min-w-24 max-w-36 border-b border-neutral-1000-a05 px-2 py-2.5 font-normal leading-4 break-keep"
+                key={name}
+                title={name}
+              >
+                {criterionHeading(name)}
+              </th>
+            ))}
+            <th className="min-w-52 border-b border-neutral-1000-a05 px-3 py-2.5 font-normal">
+              {c("회사", "Company")}
+            </th>
+            <th className="min-w-52 border-b border-neutral-1000-a05 px-3 py-2.5 font-normal">
+              {c("학교", "School")}
+            </th>
+            <th className="min-w-32 border-b border-neutral-1000-a05 px-3 py-2.5 font-normal">
+              {c("상태", "Status")}
+            </th>
+            <th className="w-20 border-b border-neutral-1000-a05 px-3 py-2.5 text-right font-normal">
+              <span className="sr-only">{c("날짜", "Date")}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {candidates.map((person) => {
+            const item = externalBoardItem(person, roleId);
+            const status = externalStatus(person, c);
+            return (
+              <tr className="group/row cursor-pointer" key={person.id} onClick={() => onOpen(person)}>
+                <td className={`${rowCell} sticky left-0 z-10 border-r py-4 pl-2 pr-4`}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg-weak text-sm text-neutral-muted">
+                      {person.name.slice(0, 1) || "·"}
+                    </span>
+                    <div className="min-w-0">
+                      <button
+                        className="block max-w-56 truncate text-left text-[14px] font-medium text-neutral-primary outline-none focus-visible:underline"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpen(person);
+                        }}
+                        type="button"
+                      >
+                        {person.name}
+                      </button>
+                      {person.location ? (
+                        <div className="mt-0.5 max-w-56 truncate text-[12px] text-neutral-muted">
+                          {person.location}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </td>
+                {criteria.map((name) => (
+                  <td
+                    className={`${rowCell} px-2 py-4`}
+                    key={name}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <OrgListFitCell
+                      evaluation={item.criteriaEvaluations.find((evaluation) => evaluation.name === name)}
+                    />
+                  </td>
+                ))}
+                <td className={`${rowCell} max-w-64 px-3 py-4`}>
+                  <OrgListProfileLabelCell icon={BriefcaseBusiness} label={item.talent.recentCompanies[0]} />
+                </td>
+                <td className={`${rowCell} max-w-64 px-3 py-4`}>
+                  <OrgListProfileLabelCell icon={GraduationCap} label={item.talent.recentSchools[0]} />
+                </td>
+                <td
+                  className={`${rowCell} px-3 py-4 text-[13px] text-neutral-muted`}
+                  title={status?.at ? new Date(status.at).toLocaleString(locale) : undefined}
+                >
+                  {status?.label ?? <span className="text-neutral-soft">—</span>}
+                </td>
+                <td className={`${rowCell} px-3 py-4 text-right text-[12px] text-neutral-soft`}>
+                  {formatKstRelativeDate(person.shownAt, { locale })}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /** Company decisions on a shown person; the container wires them to the API, the playground to local state. */
 export type ExternalCandidateActions = {
   canManage: boolean;
@@ -152,8 +295,11 @@ export type ExternalCandidateActions = {
  * The Role's "외부 후보" tab: the shared candidate card, decision buttons and profile body for people outside
  * Harper. The selected person is kept in the URL (externalCandidateId).
  */
-export function OrgExternalCandidatesView({ data, roleId, actions }: {
+export function OrgExternalCandidatesView({ data, roleId, actions, sort, view = "grid" }: {
   data: ExternalCandidatesResponse; roleId: string; actions?: ExternalCandidateActions;
+  /** Left out, the server's order (newest search first) stays. */
+  sort?: OrgCandidateSort;
+  view?: "grid" | "list";
 }) {
   const router = useRouter();
   const { c, locale } = useOrgLocale();
@@ -163,7 +309,7 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
   const [introFor, setIntroFor] = useState<ExternalCandidateView | null>(null);
   const [passOpen, setPassOpen] = useState(false);
   const selectedId = typeof router.query.externalCandidateId === "string" ? router.query.externalCandidateId : null;
-  const candidates = data.candidates;
+  const candidates = sort ? sortExternalCandidates(data.candidates, sort) : data.candidates;
   const selected = selectedId ? candidates.find((person) => person.id === selectedId) ?? null : null;
   const selectedKey = selected?.id ?? null;
   const canManage = Boolean(actions?.canManage);
@@ -288,7 +434,9 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
           {c("마지막 외부 검색을 마치지 못했어요.", "The last search outside Harper didn’t finish.")}
         </p>
       ) : null}
-      {candidates.length ? (
+      {candidates.length && view === "list" ? (
+        <OrgExternalCandidateList candidates={candidates} onOpen={(person) => select(person.id)} roleId={roleId} />
+      ) : candidates.length ? (
         <section className="@container/talent-board min-w-0">
           <div className="relative isolate grid auto-rows-fr grid-cols-1 items-stretch gap-4 @min-[640px]/talent-board:grid-cols-2">
             {candidates.map((person) => (
@@ -323,7 +471,9 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
 }
 
 /** Data container for the Role's "외부 후보" tab. */
-export function OrgExternalCandidates({ workspaceId, roleId }: { workspaceId: string; roleId: string }) {
+export function OrgExternalCandidates({ workspaceId, roleId, sort, view }: {
+  workspaceId: string; roleId: string; sort?: OrgCandidateSort; view?: "grid" | "list";
+}) {
   const query = useOrgExternalCandidates({ workspaceId, roleId });
   const { bootstrap, currentUserEmail, permissions } = useOrgWorkspace();
   const { pass, requestIntro } = useOrgExternalCandidateActions({ workspaceId, roleId });
@@ -335,6 +485,8 @@ export function OrgExternalCandidates({ workspaceId, roleId }: { workspaceId: st
     <OrgExternalCandidatesView
       data={query.data ?? { enabled: false, search: null, candidates: [] }}
       roleId={roleId}
+      sort={sort}
+      view={view}
       actions={{
         canManage: permissions.canManageCandidates,
         members: bootstrap.members,

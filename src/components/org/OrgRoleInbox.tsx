@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/router";
 import { useIsMutating } from "@tanstack/react-query";
 import {
-  ArrowDownWideNarrow,
   LayoutPanelLeft,
   LayoutGrid,
   List,
@@ -12,14 +12,6 @@ import {
 import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs } from "@/components/ui/tabs";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { ORG_STAGE_DESCRIPTIONS } from "@/lib/org/pipelineStage";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
@@ -46,10 +38,30 @@ import { OrgReviewingLine } from "./OrgReviewingLine";
 import { resolveOrgRoleLocation } from "@/lib/org/routes";
 import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
 import { OrgExternalCandidates } from "./OrgExternalCandidates";
+import {
+  OrgCandidateSortMenu,
+  OrgCandidateViewMenu,
+  type OrgCandidateViewOption,
+} from "./OrgCandidateToolbar";
 
 const NO_SELECTION: ReadonlySet<string> = new Set();
 
-export function OrgRoleInbox() {
+type InboxView = "grid" | "list" | "card" | "board";
+
+/**
+ * The wide inbox: its sub-tabs, then sort · 보기 방식 · 탐색 기록 on the same row.
+ * The role screen's 전체 화면 draws the sub-tabs itself (the same ones as the
+ * split view) and gives a place in its row for the toolbar.
+ */
+export function OrgRoleInbox({
+  stageTabs = true,
+  toolbarTarget = null,
+}: {
+  /** False where the screen already shows the candidate tabs. */
+  stageTabs?: boolean;
+  /** Where the sort, view and search history buttons go, when the screen gives one. */
+  toolbarTarget?: HTMLElement | null;
+} = {}) {
   const router = useRouter();
   const { c, locale } = useOrgLocale();
   const sourceT = useOrgSourceT();
@@ -108,10 +120,26 @@ export function OrgRoleInbox() {
   const card = view === "card";
   const sort: OrgCandidateSort =
     router.query.sort === "recommended" ? "recommended" : "latest";
-  const sortLabel =
-    sort === "recommended"
-      ? c("추천순", "Recommended")
-      : c("최신순", "Newest first");
+  // 외부 후보 has no stages to place on a board and no one-by-one review.
+  const externalView = view === "list" ? "list" : "grid";
+  const gridOption: OrgCandidateViewOption<InboxView> = {
+    value: "grid",
+    label: c("그리드", "Grid"),
+    icon: LayoutGrid,
+  };
+  const listOption: OrgCandidateViewOption<InboxView> = {
+    value: "list",
+    label: c("리스트", "List"),
+    icon: List,
+  };
+  const viewOptions: OrgCandidateViewOption<InboxView>[] = external
+    ? [gridOption, listOption]
+    : [
+        gridOption,
+        listOption,
+        { value: "card", label: c("카드", "Card"), icon: LayoutPanelLeft },
+        { value: "board", label: c("포스트잇", "Board"), icon: StickyNote },
+      ];
   const stageCounts = useMemo(() => {
     const serverCounts = inboxQuery?.data?.pages[0]?.counts;
     if (serverCounts) {
@@ -308,6 +336,22 @@ export function OrgRoleInbox() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: reviewing ? 0 : listScrollTop.current });
   }, [reviewing, stage, sort]);
+  const toolbar = (
+    <>
+      {!external && !savedReview && selectedCount >= 2 ? (
+        <Badge radius="full" size="md" variant="outline">
+          {c("다중 선택 켜짐", "Multi-select on")}
+        </Badge>
+      ) : null}
+      <OrgCandidateSortMenu onChange={(next) => change({ sort: next })} value={sort} />
+      <OrgCandidateViewMenu
+        onChange={(next) => change({ inboxView: next }, next === "card")}
+        options={viewOptions}
+        value={external ? externalView : view}
+      />
+      <OrgSearchHistory workspaceId={workspaceId} roleId={activeRole?.roleId} />
+    </>
+  );
   return (
     <section
       ref={scrollRef}
@@ -315,10 +359,16 @@ export function OrgRoleInbox() {
       onScroll={(event) => {
         if (!reviewing) listScrollTop.current = event.currentTarget.scrollTop;
       }}
-      className="@container/inbox h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain"
+      className={
+        stageTabs || !toolbarTarget
+          ? "@container/inbox h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain"
+          : // The screen's tabs row sits above; the first line keeps its room.
+            "@container/inbox h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain pt-3"
+      }
     >
-      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2 pt-3 md:pt-4">
-        <>
+      {stageTabs || !toolbarTarget ? (
+        <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2 pt-3 md:pt-4">
+          {stageTabs ? (
             <Tabs
               activeValue={external ? "external" : savedReview ? "saved" : stage}
               variant="borderless"
@@ -402,98 +452,13 @@ export function OrgRoleInbox() {
                   : change({ inboxStage: value })
               }
             />
-            {!external && !savedReview && selectedCount >= 2 ? (
-              <Badge radius="full" size="md" variant="outline">
-                {c("다중 선택 켜짐", "Multi-select on")}
-              </Badge>
-            ) : null}
-            {/* Sort and view apply to Harper's list, not to 외부 후보. */}
-            {external ? null : <>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <MuteButton
-                  aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-                  title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-                  variant="transparent"
-                >
-                  <ArrowDownWideNarrow className="size-4" strokeWidth={1.4} />
-                </MuteButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuRadioGroup
-                  value={sort}
-                  onValueChange={(sort) => change({ sort })}
-                >
-                  <DropdownMenuRadioItem value="latest">
-                    {c("최신순", "Newest first")}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="recommended">
-                    {c("추천순", "Recommended")}
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <MuteButton
-                  aria-label={c("보기 방식", "View options")}
-                  title={c("보기 방식", "View options")}
-                  size="sm"
-                  variant="transparent"
-                >
-                  {card ? (
-                    <LayoutPanelLeft className="size-4" strokeWidth={1.4} />
-                  ) : view === "grid" ? (
-                    <LayoutGrid className="size-4" strokeWidth={1.4} />
-                  ) : view === "board" ? (
-                    <StickyNote className="size-4" strokeWidth={1.4} />
-                  ) : (
-                    <List className="size-4" strokeWidth={1.4} />
-                  )}
-                </MuteButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40" sideOffset={2}>
-                <DropdownMenuItem
-                  onSelect={() => change({ inboxView: "grid" }, false)}
-                  selected={view === "grid"}
-                  variant="sm"
-                >
-                  <LayoutGrid strokeWidth={1.4} />
-                  {c("그리드", "Grid")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => change({ inboxView: "list" }, false)}
-                  selected={view === "list"}
-                  variant="sm"
-                >
-                  <List strokeWidth={1.4} />
-                  {c("리스트", "List")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => change({ inboxView: "card" }, true)}
-                  selected={view === "card"}
-                  variant="sm"
-                >
-                  <LayoutPanelLeft strokeWidth={1.4} />
-                  {c("카드", "Card")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => change({ inboxView: "board" }, false)}
-                  selected={view === "board"}
-                  variant="sm"
-                >
-                  <StickyNote strokeWidth={1.4} />
-                  {c("포스트잇", "Board")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            </>}
-        </>
-        <OrgSearchHistory
-          workspaceId={workspaceId}
-          roleId={activeRole?.roleId}
-        />
-      </div>
+          ) : (
+            <span className="mr-auto" />
+          )}
+          {toolbarTarget ? null : toolbar}
+        </div>
+      ) : null}
+      {toolbarTarget ? createPortal(toolbar, toolbarTarget) : null}
       {!external ? (
         <OrgReviewingLine className="-mt-2 mb-3" count={inboxQuery?.data?.pages[0]?.counts?.reviewing} />
       ) : null}
@@ -528,7 +493,12 @@ export function OrgRoleInbox() {
           />
         )}
       {external && activeRole ? (
-        <OrgExternalCandidates roleId={activeRole.roleId} workspaceId={workspaceId} />
+        <OrgExternalCandidates
+          roleId={activeRole.roleId}
+          sort={sort}
+          view={externalView}
+          workspaceId={workspaceId}
+        />
       ) : isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ? (
         <OrgErrorState
           message={boardQuery.error!.message}

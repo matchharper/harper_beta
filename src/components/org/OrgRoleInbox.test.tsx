@@ -323,12 +323,14 @@ test("외부 후보 is an inbox sub-tab where external sourcing is on, and older
       OrgCriteriaReviewPanel: empty,
       useOrgCriteriaReviewCounts: () => ({ company_intro: 0, pending_connection: 0 }),
     };
-    if (name.startsWith("./") && name !== "./OrgRoleInbox") return new Proxy({}, { get: (_target, key) => (key === "__esModule" ? true : empty) });
+    // The toolbar menus render for real (with the stubbed button and menu above), so their labels and options show.
+    if (name.startsWith("./") && name !== "./OrgRoleInbox" && name !== "./OrgCandidateToolbar") return new Proxy({}, { get: (_target, key) => (key === "__esModule" ? true : empty) });
     return load.call(this, name, ...args);
   };
   // The first test loaded the inbox with its own stubs; load a fresh copy with these.
   const require = Module.createRequire(import.meta.url);
   delete require.cache[require.resolve("./OrgRoleInbox")];
+  delete require.cache[require.resolve("./OrgCandidateToolbar")];
   let OrgRoleInbox: typeof import("./OrgRoleInbox")["OrgRoleInbox"];
   try {
     ({ OrgRoleInbox } = require("./OrgRoleInbox") as typeof import("./OrgRoleInbox"));
@@ -347,13 +349,18 @@ test("외부 후보 is an inbox sub-tab where external sourcing is on, and older
   assert.equal(active(plain), "pending_connection");
   assert.ok(plain.includes("data-empty-inbox") && !plain.includes("data-external-list"));
   assert.match(plain, /외부 후보.*2/);
+  // Harper's list: the buttons name the current sort and view; every view is offered.
+  assert.ok(plain.includes("최신순") && plain.includes("추천순"));
+  for (const view of ["그리드", "리스트", "카드", "포스트잇"]) assert.ok(plain.includes(view), view);
 
   for (const legacy of [{ tab: "inbox", inboxStage: "external" }, { tab: "external" }, { tab: "inbox", review: "external" }] as Record<string, string>[]) {
     const html = render(legacy);
     assert.equal(active(html), "external", JSON.stringify(legacy));
     assert.ok(html.includes("data-external-list") && !html.includes("data-empty-inbox"));
-    // Sort and view are for Harper's list only.
-    assert.ok(!html.includes("정렬"));
+    // 외부 후보 has the same toolbar: sort, and a grid or a list (no board, no one-by-one card).
+    assert.ok(html.includes("최신순") && html.includes("추천순"));
+    assert.ok(html.includes("그리드") && html.includes("리스트"));
+    assert.ok(!html.includes("포스트잇") && !html.includes("카드"));
   }
 
   // Leaving 외부 후보 from an older link writes the inbox's own address.

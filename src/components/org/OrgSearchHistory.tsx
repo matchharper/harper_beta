@@ -49,12 +49,12 @@ export function OrgSearchHistory({
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <MuteButton
-          aria-label={c("탐색 기록", "Search history")}
-          title={c("탐색 기록", "Search history")}
+          className="org-toolbar-button"
+          size="sm"
           variant="transparent"
-          size="md"
         >
-          <History className="size-4" strokeWidth={1.4} />
+          <History aria-hidden className="size-4" strokeWidth={1.4} />
+          <span>{c("탐색 기록", "Search history")}</span>
         </MuteButton>
       </Popover.Trigger>
       <Popover.Portal>

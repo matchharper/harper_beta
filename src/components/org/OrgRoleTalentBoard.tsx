@@ -6,7 +6,6 @@ import { GraduationCap } from "lucide-react";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { localizeOrgProfilePeriod } from "@/i18n/org/profilePeriod";
 import {
-  ArrowDownWideNarrow,
   ArrowRight,
   Info,
   ListFilter,
@@ -29,13 +28,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { FilterChipGroup } from "@/components/ui/filter-chip-group";
 import { RoleRubricEditor } from "@/components/org/role-start/RoleRubricEditor";
 import type { OrgCompanyCriterionFitness } from "@/lib/org/companyCriteriaEvaluations";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { OrgCandidateSortMenu } from "@/components/org/OrgCandidateToolbar";
 import {
   compareOrgCandidates,
   type OrgCandidateSort,
@@ -700,11 +693,6 @@ export function OrgRoleTalentBoard({
       </span>
     ),
   }));
-  const sortOptions = [
-    { value: "latest", label: c("최신순", "Newest first") },
-    { value: "recommended", label: c("추천순", "Recommended") },
-  ] as const;
-  const sortLabel = sortOptions.find((option) => option.value === sort)!.label;
   const requestedStageId =
     section === "inbox"
       ? typeof router.query.inboxStage === "string"
@@ -1040,37 +1028,7 @@ export function OrgRoleTalentBoard({
               ) : null}
             </MuteButton>
           ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <MuteButton
-                aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-                title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-                className="shrink-0"
-                size="md"
-                variant="transparent"
-              >
-                <ArrowDownWideNarrow aria-hidden="true" className="size-4" />
-              </MuteButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuRadioGroup
-                value={sort}
-                onValueChange={(value) => {
-                  if (value === "latest" || value === "recommended")
-                    setSort(value);
-                }}
-              >
-                {sortOptions.map((option) => (
-                  <DropdownMenuRadioItem
-                    key={option.value}
-                    value={option.value}
-                  >
-                    {option.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <OrgCandidateSortMenu onChange={setSort} value={sort} />
           {displayControl ? (
             <div className="shrink-0">{displayControl}</div>
           ) : null}
