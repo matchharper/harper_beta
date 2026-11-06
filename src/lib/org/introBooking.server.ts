@@ -50,7 +50,7 @@ export function canCarryIntroBookingLink(input: StageInput) {
 }
 
 /**
- * Accept Intro with the interview booking link inside the intro email, the
+ * Connect with the interview booking link inside the intro email, the
  * same way from the web, Slack, email buttons and Harper chat.
  *
  * - `required`: the person chose to include it (web). A Calendar or open
@@ -82,7 +82,7 @@ export async function setOrgCandidateStageWithIntroBooking(args: {
     if (args.booking === "required") {
       throw new OrgHttpError(
         400,
-        "연결 수락한 후보를 선택해 인터뷰를 요청해 주세요."
+        "연결을 기다리는 후보를 선택해 인터뷰를 요청해 주세요."
       );
     }
     return withoutLink();

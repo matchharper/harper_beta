@@ -1,8 +1,10 @@
 import { randomUUID, createHash } from "node:crypto";
 import { getDefaultResendFromEmail, sendResendEmail } from "./send";
 import type { EmailAdmin } from "./runtime/types";
-import { planSlackConnectionReminder, type ReminderRecipient, type ReminderReceipt } from "./slackConnectionReminder";
+import { planSlackConnectionReminder, withCurrentCandidateCounts, type CurrentCandidateCounts,
+  type ReminderRecipient, type ReminderReceipt } from "./slackConnectionReminder";
 import type { composeCompanyUpdateEmail } from "@/lib/org/agent/companyUpdateEmail";
+import { withCompanyTurnUsage, type CompanyTurnUsageRecorder } from "@/lib/org/agent/runRecords.server";
 
 export type ConnectionSnapshot = ReminderRecipient & { email: string; workspaces: Array<ReminderRecipient["workspaces"][number] & { id: string }> };
 export type CompanyEmailJob = { id: string; recipient_id: string; ordinal: number; snapshot: ConnectionSnapshot;
@@ -39,6 +41,10 @@ export type DeliveryDependencies = {
   begin: (job: CompanyEmailJob, owner: string, payload: Parameters<typeof sendResendEmail>[0]) => Promise<CompanyEmailJob | null>;
   send: typeof sendResendEmail;
   finish: (id: string, owner: string, providerId: string) => Promise<void>;
+  /** The Roles' decision numbers now; the queued snapshot's are overwritten with them. */
+  counts?: (workspaceId: string, roleIds: string[]) => Promise<CurrentCandidateCounts>;
+  /** Where writing the email's model usage is saved (company_agent_usage_v1, connection_email). */
+  recordUsage?: CompanyTurnUsageRecorder;
 };
 /** Shared production orchestration; tests replace external boundaries, never recipient data. */
 export async function deliverCompanyConnectionJob(args: {
@@ -48,12 +54,20 @@ export async function deliverCompanyConnectionJob(args: {
 }, deps: DeliveryDependencies) {
   let payload = args.job.delivery;
   if (!payload) {
-    const recipient = selectReminderWorkspace(args.job.snapshot, args.job.ordinal, args.baseUrl);
+    const selected = selectReminderWorkspace(args.job.snapshot, args.job.ordinal, args.baseUrl);
+    const workspace = selected.workspaces[0]!;
+    const recipient = deps.counts
+      ? withCurrentCandidateCounts(selected, await deps.counts(workspace.id,
+        workspace.roles.flatMap(role => role.id ? [role.id] : [])))
+      : selected;
     const plan = planSlackConnectionReminder(recipient, args.history, args.now);
     if (!plan) return "ineligible";
-    const composed = args.job.draft ?? await deps.compose({ purpose: CONNECTION_EMAIL_PURPOSE, facts: plan.facts,
-      workspaceId: recipient.workspaces[0]!.id,
-      locale: recipient.locale, recentConversation: args.priorMessages });
+    const workspaceId = recipient.workspaces[0]!.id;
+    const composed = args.job.draft ?? await withCompanyTurnUsage(
+      { kind: "connection_email", sourceId: args.job.id, workspaceId },
+      () => deps.compose({ purpose: CONNECTION_EMAIL_PURPOSE, facts: plan.facts, workspaceId,
+        locale: recipient.locale, recentConversation: args.priorMessages }),
+      deps.recordUsage);
     await deps.saveDraft(args.job,args.owner,{subject:composed.subject,body:composed.body});
     payload = await deps.prepare(args.job, composed, recipient.workspaces[0]!.id);
   }
@@ -114,6 +128,7 @@ export async function dispatchCompanyConnectionEmails(admin?: EmailAdmin) {
           begin: (j,lease,payload) => rpc(admin,"prepare_company_email_send_v1",{p_id:j.id,p_owner:lease,p_delivery:payload}),
           send: payload => sendResendEmail({ ...payload, signal: AbortSignal.timeout(30_000) }),
           finish: (id,lease,providerId) => rpc(admin,"finish_company_email_send_v1",{p_id:id,p_owner:lease,p_provider_id:providerId}),
+          counts: currentCandidateCounts,
         });
         if (result === "sent") sent++;
       } catch (error) {
@@ -129,6 +144,13 @@ export async function dispatchCompanyConnectionEmails(admin?: EmailAdmin) {
     if ((data ?? []).length<500) break;
   }
   return {sent,deferred};
+}
+/** Read as the workspace owner, like the Slack summary. */
+async function currentCandidateCounts(workspaceId: string, roleIds: string[]): Promise<CurrentCandidateCounts> {
+  const { getSupabaseAdmin } = await import("@/lib/server/candidateAccess");
+  const { readOrgDecisionCounts } = await import("@/lib/org/decisionCounts.server");
+  const reads = await readOrgDecisionCounts({ admin: getSupabaseAdmin(), user: null, workspaceId, roleIds });
+  return new Map([...reads].map(([roleId, read]) => [roleId, read.counts]));
 }
 function publicBaseUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://matchharper.com";

@@ -4,7 +4,7 @@ import { MuteButton } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgCandidateDecisionRunner } from "@/hooks/org/useOrgCandidateDecisionRunner";
-import { CANDIDATE_DECISION_LABELS } from "@/lib/org/candidateDecision";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import type { OrgBoardItem, OrgStage } from "@/lib/org/server";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
@@ -99,10 +99,14 @@ export function OrgCandidateSelectionBar({
               }}
               size="sm"
             >
-              Save
+              {ct(c, COMPANY_TERMS.action.save)}
             </MuteButton>
-            <MuteButton onClick={() => setClosing(selected)} size="sm">
-              {pass ? "Pass" : CANDIDATE_DECISION_LABELS.reject}
+            <MuteButton
+              className="whitespace-nowrap"
+              onClick={() => setClosing(selected)}
+              size="sm"
+            >
+              {ct(c, COMPANY_TERMS.action.pass)}
             </MuteButton>
             {pass ? (
               <MuteButton
@@ -116,7 +120,7 @@ export function OrgCandidateSelectionBar({
                 size="sm"
                 variant="dark"
               >
-                {c("Send Intro", "Send Intro")}
+                {ct(c, COMPANY_TERMS.action.request)}
               </MuteButton>
             ) : (
               <MuteButton
@@ -124,7 +128,7 @@ export function OrgCandidateSelectionBar({
                 size="sm"
                 variant="dark"
               >
-                {CANDIDATE_DECISION_LABELS.connect}
+                {ct(c, COMPANY_TERMS.action.connect)}
               </MuteButton>
             )}
             <MuteButton

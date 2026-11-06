@@ -75,13 +75,13 @@ function introStatus(intro: NonNullable<ExternalCandidateView["intro"]>, c: Copy
   }
 }
 
-/** The connection state, or "no email" for a person Harper cannot contact; null while Send Intro applies. */
+/** The connection state, or "no email" for a person Harper cannot contact; null while Request intro applies. */
 function externalStatus(person: ExternalCandidateView, c: Copy): ExternalStatus | null {
   if (person.intro) return introStatus(person.intro, c);
   return externalCandidateWithoutEmail(person) ? { label: c("이메일을 찾지 못했어요", "No email found"), at: null } : null;
 }
 
-/** The state in Send Intro's place: shaped like the button, not clickable. */
+/** The state in Request intro's place: shaped like the button, not clickable. */
 function ExternalStatusButton({ person, className }: { person: ExternalCandidateView; className: string }) {
   const { c, locale } = useOrgLocale();
   const status = externalStatus(person, c);
@@ -102,7 +102,7 @@ function ExternalStatusButton({ person, className }: { person: ExternalCandidate
 }
 
 /**
- * Send Intro's place: the person's LinkedIn profile when Harper found no email for them (the company can
+ * Request intro's place: the person's LinkedIn profile when Harper found no email for them (the company can
  * reach out there), otherwise the connection state.
  */
 function ExternalSendIntroSlot({ person, className }: { person: ExternalCandidateView; className: string }) {
@@ -196,7 +196,7 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
       members={actions.members}
       note={data.inviteSending
         ? c(
-            "Harper가 이 분께 위 관심 이유와 Role을 담은 초대 메일을 한 통 보내요. 이 분이 메일에서 연결을 확인하면, Harper가 이 분과 요청하신 분, 위에서 고른 이메일을 한 메일로 연결해요. 답장이 오면 알려드릴게요.",
+            "Harper가 이 분께 위 관심 이유와 역할을 담은 초대 메일을 한 통 보내요. 이 분이 메일에서 연결을 확인하면, Harper가 이 분과 요청하신 분, 위에서 고른 이메일을 한 메일로 연결해요. 답장이 오면 알려드릴게요.",
             "Harper emails this person one invitation with the reason above and the Role. If they confirm the connection from that email, Harper introduces them to you and the emails chosen above in one email. You’ll hear when they reply."
           )
         : c(
@@ -247,7 +247,7 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
                   onClick={() => setIntroFor(selected)}
                   variant="dark"
                 >
-                  {c("Send Intro", "Send Intro")}
+                  {c("연결 요청", "Request intro")}
                 </MuteButton>
               ) : (
                 <ExternalSendIntroSlot person={selected} className="px-3 py-1.5 text-[15px]" />
@@ -312,8 +312,8 @@ export function OrgExternalCandidatesView({ data, roleId, actions }: {
         <div role="status" className="flex min-h-48 flex-col items-center justify-center gap-3 p-5 text-center text-sm text-neutral-muted">
           <Inbox className="size-6 text-neutral-soft" />
           {c(
-            "아직 외부 후보가 없어요. Harper에게 외부 후보 검색을 요청할 수 있어요.",
-            "No candidates from outside Harper yet. You can ask Harper to search outside Harper."
+            "아직 외부 후보가 없어요. 채팅에서 찾아 달라고 하면 돼요.",
+            "No external candidates yet. Ask in chat."
           )}
         </div>
       )}

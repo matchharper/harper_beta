@@ -1,5 +1,5 @@
 /**
- * One row of the 참고 인물 box (the role facts step and the 매칭 기준 tab):
+ * One row of the 참고 인물 box (the role facts step and the What to check tab):
  * a link, a profile (a resume or pasted text), or both, and what the team
  * liked. Shared by the screen and the route, so both check rows the same way.
  */

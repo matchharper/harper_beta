@@ -269,3 +269,28 @@ test("the Role's default context lists every shown person with the company's cur
   assert.match(text, /- Min Park \(ref p3;[^\n]*no company decision yet; email found \(work address\)/);
   assert.equal(formatExternalCandidateStatuses({ total: 0, people: [] }), null);
 });
+
+test("an external search asked inside a company Harper run carries that run; one asked in chat does not", async (t) => {
+  serverModules(t, { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" });
+  const { requestExternalSourcing } = await import("./externalSourcing.server");
+  const { withLlmUsageContext } = await import("@/lib/llm/usageContext");
+  const inserted: Array<Record<string, unknown>> = [];
+  const admin = { from: () => {
+    const builder: object = new Proxy({}, { get(_t, key) {
+      if (key === "then") return (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null, count: 0 }).then(resolve);
+      if (key === "single") return () => Promise.resolve({ data: { id: `ext-${inserted.length}` }, error: null });
+      return (...args: unknown[]) => { if (key === "insert") inserted.push(args[0] as Record<string, unknown>); return builder; };
+    } });
+    return builder;
+  } } as never;
+  const ask = () => requestExternalSourcing({ admin, workspaceId: "w1", roleId: "r1", roleName: "Engineer",
+    userId: "u1", trigger: "company_request", reason: "few strong candidates", now: NOW });
+  const run = "20000000-0000-4000-8000-000000000001";
+  const queued = await withLlmUsageContext({ requestId: run, companyRunId: run }, ask);
+  assert.equal(queued.status, "queued");
+  assert.deepEqual(inserted[0]!.input, { reason: "few strong candidates", webActionJobId: run });
+  // What Harper reads back is unchanged.
+  assert.equal(queued.modelOutput.includes(run), false);
+  await ask();
+  assert.deepEqual(inserted[1]!.input, { reason: "few strong candidates" });
+});

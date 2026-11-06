@@ -65,7 +65,7 @@ export function buildCompanyMatchingResultContext(
           ]
       : input.runStatus === "skipped"
         ? [
-            "- 현재 회사 또는 Role 상태 때문에 부탁받은 일을 진행하지 못했다.",
+            "- 현재 회사 또는 역할 상태 때문에 부탁받은 일을 진행하지 못했다.",
             "- 사람을 검토한 뒤 적합한 사람이 없었다는 의미는 아니다.",
           ]
         : [
@@ -75,7 +75,7 @@ export function buildCompanyMatchingResultContext(
     ...(succeeded && input.roles.some((role) => role.automaticSearchEnabled)
       ? [
           ...input.roles.filter((role) => role.automaticSearchEnabled).map((role) =>
-            `- ${role.name}의 정기 후보 검색 설정: ${(role.introSearchDate ?? ["Mon", "Wed", "Fri"]).join(", ")} ${String(role.introSearchTime ?? 9).padStart(2, "0")}:00 Asia/Seoul. 이 시간에 검색을 시작하며 후보자 전달 시점이나 결과를 보장하지 않는다.`
+            `- ${role.name}의 정기 탐색 설정: ${(role.introSearchDate ?? ["Mon", "Wed", "Fri"]).join(", ")} ${String(role.introSearchTime ?? 9).padStart(2, "0")}:00 Asia/Seoul. 이 시간에 검색을 시작하며 후보자 전달 시점이나 결과를 보장하지 않는다.`
           ),
         ]
       : []),
@@ -92,12 +92,12 @@ export function buildCompanyMatchingResultContext(
   if (input.interactiveSearch) {
     const search = input.interactiveSearch;
     if (search.briefVersionAtCompletion && search.briefVersionAtCompletion !== search.briefVersion) {
-      lines.push(`- 실행 중 Brief가 변경되었다. 이번 평가는 시작 당시 Brief ${search.briefVersion} 기준으로 완료·저장되었으며, 완료 시점 Brief는 ${search.briefVersionAtCompletion}이다. 최신 Brief로 다시 평가한 결과는 아니다.`);
+      lines.push(`- 실행 중 찾는 사람이 변경되었다. 이번 평가는 시작 당시 찾는 사람 ${search.briefVersion} 기준으로 완료·저장되었으며, 완료 시점 찾는 사람은 ${search.briefVersionAtCompletion}이다. 최신 찾는 사람으로 다시 평가한 결과는 아니다.`);
     }
     const measured = search.counts && typeof search.counts === "object" ? search.counts as Record<string, unknown> : {};
     const firstStage = measured.stage1Evaluated === 0 ? "1차는 재실행하지 않음" : `이번 1차 통과 ${search.stage1Passed ?? "미측정"}명`;
     const count = (value: unknown) => Array.isArray(value) ? value.length : "미측정";
-    lines.push(`- 대화 검색의 Brief 버전: ${search.briefVersion ?? "미확인"}; 범위 ${search.scope ?? "미기록"}; 시작 단계 ${search.startStage ?? "미기록"}.`,
+    lines.push(`- 대화 검색의 찾는 사람 버전: ${search.briefVersion ?? "미확인"}; 범위 ${search.scope ?? "미기록"}; 시작 단계 ${search.startStage ?? "미기록"}.`,
       `- ${firstStage}, 이번 2차 평가 ${search.stage2Evaluated ?? "미측정"}명. 새 카드 ${count(search.addedTalentIds)}명, 추천 제외 ${count(search.removedTalentIds)}명, 기존 유지 ${count(search.retainedTalentIds)}명. 제외는 회사의 거절이나 후보자의 거절을 뜻하지 않는다.`,
       "- 후보별·같은 기준 전체 누적 근거는 일반 matching_runs 상세 조회로 확인할 수 있다.");
     if (Array.isArray(search.criteriaStats)) {
@@ -112,7 +112,7 @@ export function buildCompanyMatchingResultContext(
   for (const pause of input.candidateOutreachPauses ?? []) {
     const role = input.roles.find(role => role.id === pause.roleId);
     if (!role) continue;
-    lines.push(`- ${role.name}: 이번 확인 당시 연결 수락한 후보 ${pause.pendingCount}명, 후보자에게 먼저 제안하는 경로의 상한 ${pause.maxPendingTalents}명. 상한 이상이므로 이번에는 후보자에게 먼저 역할을 추천하는 경로를 진행하지 않았다. 이 제한은 회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다. 검색·fit 평가 전체를 하지 않았다는 뜻은 아니다. Role-based 검색의 새 후보자 선추천은 연결 수락한 후보가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아니다.`);
+    lines.push(`- ${role.name}: 이번 확인 당시 연결을 기다리는 후보 ${pause.pendingCount}명, 후보자에게 먼저 제안하는 경로의 상한 ${pause.maxPendingTalents}명. 상한 이상이므로 이번에는 후보자에게 먼저 역할을 추천하는 경로를 진행하지 않았다. 이 제한은 회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다. 검색·fit 평가 전체를 하지 않았다는 뜻은 아니다. 역할 기반 검색의 새 후보자 선추천은 연결을 기다리는 후보가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아니다.`);
   }
 
   if (selected > 0) {
@@ -123,11 +123,11 @@ export function buildCompanyMatchingResultContext(
         `  - ${candidate.headline || "공개 headline 없음"}`,
         `  - ${candidate.tldr || candidate.summary || "공개 가능한 경력 요약 없음"}`,
         candidate.harperNote
-          ? `  - Harper Note: ${candidate.harperNote}`
+          ? `  - Harper's note: ${candidate.harperNote}`
           : `  - 이 회사와 잘 맞을 수 있다고 본 이유: ${candidate.reason}`
       );
       if (candidate.candidateRequestedReview) {
-        lines.push("  - 후보자 본인이 이 역할에 관심을 표현했다. 이 사실을 소개할 때 가볍게 함께 알릴 수 있다. 역할 수락이나 회사의 Intro 요청은 아니다.");
+        lines.push("  - 후보자 본인이 이 역할에 관심을 표현했다. 이 사실을 소개할 때 가볍게 함께 알릴 수 있다. 역할 수락이나 회사의 연결 요청은 아니다.");
       }
     }
   }

@@ -1,4 +1,5 @@
 import "server-only";
+import { COMPANY_TERMS, companyTerm } from "@/lib/org/terms";
 import type { User } from "@supabase/supabase-js";
 import type { OrgLocale } from "@/i18n/org/locale";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
@@ -653,14 +654,14 @@ export function slackCandidateProfileFields(
     },
     {
       key: "introduction",
-      label: "TL;DR",
+      label: companyTerm(COMPANY_TERMS.detail.summary, locale),
       value: escapeSlackText((detail.companyPresentation?.tldr ?? detail.companyIntro?.tldr ?? detail.companyIntro?.introduction ?? "").trim()),
       markdown: true,
       long: true,
     },
     {
       key: "reason",
-      label: "Harper Note",
+      label: companyTerm(COMPANY_TERMS.detail.harperNote, locale),
       value: escapeSlackText(detail.companyPresentation?.harperNote ?? detail.companyIntro?.harperNote ?? ""),
       markdown: true,
       long: true,

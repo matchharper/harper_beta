@@ -63,7 +63,7 @@ test("separate Intro requests have separate guides; company requests do not beco
   assert.equal(feed.introGuides.length, 2);
   assert.equal(
     getHarperProgressText("company_intro_followup_policy", null, (ko) => ko),
-    "회사의 Intro 요청에 대해서 응답하지 않을 때 Harper가 적절한 시점에 팔로업을 보냅니다."
+    "회사의 연결 요청에 대해서 응답하지 않을 때 Harper가 적절한 시점에 팔로업을 보냅니다."
   );
   assert.equal(
     getHarperProgressText(

@@ -1,6 +1,7 @@
 import { billingErrorResponse } from "@/lib/org/billing/http";
 import { NextRequest, NextResponse } from "next/server";
 import { isRegisteredRoleStartRole } from "@/lib/org/roleStart/session";
+import { ROLE_START_BRIEF_ONLY_MESSAGE } from "@/lib/org/roleStartBriefCopy";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { OrgHttpError, updateOrgRole } from "@/lib/org/server";
 import { enqueueOrgAgentWebActionTurn } from "@/lib/org/agent/webActionTurn";
@@ -77,7 +78,7 @@ export async function PATCH(req: NextRequest) {
       body.roleId &&
       (await isRegisteredRoleStartRole(body.roleId, body.workspaceId ?? ""))
     ) {
-      throw new OrgHttpError(409, "이 역할의 기준은 매칭 기준 탭의 Brief에서 고쳐 주세요.");
+      throw new OrgHttpError(409, ROLE_START_BRIEF_ONLY_MESSAGE);
     }
     const payload = await updateOrgRole({
       criteria: body.criteria,

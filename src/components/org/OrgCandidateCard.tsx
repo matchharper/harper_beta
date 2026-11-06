@@ -165,10 +165,10 @@ export function OrgCandidateCard({
   profileLabelsError?: boolean;
   profileLabelsLoading?: boolean;
   stages?: OrgStage[];
-  /** A control in the top-right corner, e.g. Unsave in 저장함. */
+  /** A control in the top-right corner, e.g. Unsave in Saved. */
   topRight?: ReactNode;
   viewed?: boolean;
-  /** The colored state strip under the card; 저장함 leaves it out. */
+  /** The colored state strip under the card; Saved leaves it out. */
   withStatus?: boolean;
 }) {
   const { locale, c } = useOrgLocale();
@@ -276,7 +276,7 @@ export function OrgCandidateCard({
           </div>
           <div className="flex flex-wrap mt-1 gap-1.5 text-[13px] font-normal text-neutral-600">
             {/* {item.stage === "pending_connection"
-                  ? c("연결 수락한 후보 등록", "Ready to connect since")
+                  ? c("연결을 기다리는 후보 등록", "Waiting to connect since")
                   : item.source === "company_intro"
                     ? c("회사에 제안", "Offer to company")
                     : c("추천", "Recommend")}{" "} */}
@@ -314,7 +314,7 @@ export function OrgCandidateCard({
       ) : null}
       {!withStatus ? null : item.processClosureNoticeUnresolved ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
-          {c("프로세스 종료 안내됨", "Candidate notified that hiring has ended")}
+          {c("진행 종료 안내됨", "Candidate notified that hiring has ended")}
         </div>
       ) : item.upcomingMeeting ? (
         <div className="-mx-3 mt-3 bg-positive px-3 py-1 text-[12px] font-medium text-neutral-00">
@@ -323,7 +323,7 @@ export function OrgCandidateCard({
         </div>
       ) : item.stage === "pending_connection" ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
-          {c("결정이 필요합니다", "Decision required")}
+          {c("연결할지 정해 주세요", "Decide whether to connect")}
         </div>
       ) : item.companyIntro && item.companyIntro.status !== "ready" ? (
         <div
@@ -361,7 +361,7 @@ export function OrgCandidateCard({
             size="sm"
             variant="dark"
           >
-            {c("Send Intro", "Send Intro")}
+            {c("연결 요청", "Request intro")}
           </MuteButton>
         </div>
       ) : null}

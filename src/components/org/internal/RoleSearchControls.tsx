@@ -37,7 +37,7 @@ const triggerLabel: Record<string, string> = {
   scheduled: "정기 검색",
   talent_first_requested: "수동 Talent-first",
   company_requested: "회사 요청",
-  role_activated: "Role 활성화",
+  role_activated: "역할 활성화",
   manual: "수동 검색",
 };
 function time(value: string | null) {
@@ -80,7 +80,7 @@ export function RoleSearchControls({
           }))}
           onValueChange={(value) => value && setSelectedRoleId(value)}
         >
-          <SelectTrigger aria-label="검색 이력 Role 선택">
+          <SelectTrigger aria-label="검색 이력 역할 선택">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -101,7 +101,7 @@ export function RoleSearchControls({
           showHistory={showHistory}
         />
       ) : (
-        <p className="text-sm text-neutral-muted">조회할 Role이 없습니다.</p>
+        <p className="text-sm text-neutral-muted">조회할 역할이 없습니다.</p>
       )}
     </section>
   );
@@ -205,7 +205,7 @@ function RoleSearchBody({
       {showHistory && (
         <>
           <p className="text-xs text-neutral-muted">
-            한국 시간 기준 · 선정 인원은 발송 완료 인원과 다릅니다. 여러 Role을
+            한국 시간 기준 · 선정 인원은 발송 완료 인원과 다릅니다. 여러 역할을
             포함한 과거 실행은 실행 전체 집계입니다.
           </p>
           <Table>

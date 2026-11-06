@@ -1,18 +1,16 @@
-import { OrgWorkspaceApp } from "@/components/org/workspace/OrgWorkspaceApp";
-import dynamic from "next/dynamic";
-import { OrgPageLoading } from "@/components/org/workspace/OrgPageLoading";
-const OrgBillingPage = dynamic(
-  () =>
-    import("@/components/org/workspace/pages/OrgBillingPage").then(
-      (module) => module.OrgBillingPage
-    ),
-  { loading: () => <OrgPageLoading page="slots" /> }
-);
+import { orgSlotsRedirectQuery } from "@/lib/org/routes";
+import { useRouter } from "next/router";
+import { useEffect } from "react";
 
+/** Slots live inside billing now; old links and Stripe returns land there. */
 export default function OrgSlotsRoute() {
-  return (
-    <OrgWorkspaceApp page="slots">
-      <OrgBillingPage section="slots" />
-    </OrgWorkspaceApp>
-  );
+  const router = useRouter();
+  useEffect(() => {
+    if (!router.isReady) return;
+    void router.replace({
+      pathname: "/org/billing",
+      query: orgSlotsRedirectQuery(router.query),
+    });
+  }, [router, router.isReady, router.query]);
+  return null;
 }

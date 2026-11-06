@@ -228,3 +228,22 @@ test("propagates cancellation instead of converting it to a routing decision", a
     reason
   );
 });
+
+test("inside a Slack turn the routing call adds to the turn's usage at the provider's own cost", async (t) => {
+  const { decideHarperSlackThreadReply } = await router;
+  const { withLlmUsageContext } = await import("@/lib/llm/usageContext");
+  const { createCompanyRunUsage } = await import("@/lib/llm/runUsage");
+  t.mock.method(globalThis, "fetch", async () => Response.json({
+    model: "typesafe/jev-1.13-20260917",
+    answers: { reply: { type: "choice", choice: "respond" } },
+    usage: { input_tokens: 500, output_tokens: 25, cost: 0.00001 },
+  }));
+  const totals = createCompanyRunUsage();
+  await withLlmUsageContext({ requestId: "slack-job", companyRunUsage: totals }, () =>
+    decideHarperSlackThreadReply([{ content: "후보 더 찾아줘", role: "user", slackUserId: "U1" }], { logUsage: false }));
+  assert.equal(totals.calls, 1);
+  assert.equal(totals.costUsd, 0.00001);
+  assert.equal(totals.unpricedCalls, 0);
+  assert.equal(totals.inputTokens, 500);
+  assert.deepEqual(totals.models, ["typesafe/jev-1.13-20260917"]);
+});

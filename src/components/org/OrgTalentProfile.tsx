@@ -26,7 +26,8 @@ import {
 } from "@/lib/org/profileCareerSummary";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
 import { OrgCareerLineage } from "./OrgCareerLineage";
-import { OrgCriteriaEvaluation } from "./OrgCriteriaEvaluation";
+import { OrgCriteriaEvaluation, OrgCriterionFitIcon } from "./OrgCriteriaEvaluation";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 
 type ResourceLinkKind =
   | "github"
@@ -161,7 +162,7 @@ const profileMarkdownComponents: Components = {
   ),
 };
 
-function MarkdownProfile({ value }: { value: string }) {
+export function MarkdownProfile({ value }: { value: string }) {
   if (!value.trim()) {
     return <div className="text-sm text-neutral-800">-</div>;
   }
@@ -234,6 +235,51 @@ function currentRoleLine(
   const company = current?.companyName?.trim();
   if (role && company) return `${role} at ${company}`;
   return role || company || null;
+}
+
+/** ◎ 아주 잘 맞음 · ○ 잘 맞음 · △ 확인 필요, above the criteria. */
+export function OrgCriteriaLegend() {
+  const { c } = useOrgLocale();
+  const marks = [
+    { fitness: "excellent", label: COMPANY_TERMS.criteria.strong },
+    { fitness: "good", label: COMPANY_TERMS.criteria.good },
+    { fitness: "uncertain", label: COMPANY_TERMS.criteria.check },
+  ] as const;
+  return (
+    <p className="mb-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-neutral-muted">
+      {marks.map(({ fitness, label }, index) => (
+        <span className="inline-flex items-center gap-1" key={fitness}>
+          {index > 0 ? <span aria-hidden="true">·</span> : null}
+          <OrgCriterionFitIcon className="size-3.5" fitness={fitness} />
+          {ct(c, label)}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/**
+ * 한 줄 요약, Harper 메모 and 확인할 기준 in the one order every candidate view
+ * uses. Older recommendations only have fitReason for the note.
+ */
+export function orgCandidateSummary(
+  detail: Pick<
+    OrgTalentProfileContentProps["detail"],
+    "companyPresentation" | "criteriaEvaluations" | "recommendation"
+  >
+) {
+  return {
+    criteriaEvaluations:
+      detail.criteriaEvaluations ??
+      detail.companyPresentation?.criteriaEvaluations ??
+      [],
+    harperNote:
+      detail.companyPresentation?.harperNote?.trim() ||
+      (detail.recommendation?.fitReason?.trim()
+        ? convertSlackCandidateIntroToWebMarkdown(detail.recommendation.fitReason)
+        : ""),
+    tldr: detail.companyPresentation?.tldr.trim() ?? "",
+  };
 }
 
 /** Shared professional profile body; a preview carries no invented recommendation. */
@@ -333,12 +379,11 @@ export function OrgTalentProfileContent({
     detail.profile.educations.length ||
     detail.profile.extras.length
   );
-  const criteriaEvaluations =
-    detail.criteriaEvaluations ??
-    detail.companyPresentation?.criteriaEvaluations ??
-    [];
   const careerSummary = getProfileCareerSummary(detail.profile.experiences);
   const currentRole = currentRoleLine(detail.profile.experiences);
+  // One order everywhere: header, 한 줄 요약, Harper 메모, 확인할 기준, the
+  // career, then the caller's notes.
+  const { criteriaEvaluations, harperNote, tldr } = orgCandidateSummary(detail);
 
   const header = (
     <TalentProfileHeader
@@ -361,40 +406,39 @@ export function OrgTalentProfileContent({
     <div className="min-w-0 max-w-full space-y-7 px-4 md:px-2 [overflow-wrap:anywhere]">
       {header}
 
+      {tldr ? (
+        <ProfileSection title={ct(c, COMPANY_TERMS.detail.summary)}>
+          {tldr}
+        </ProfileSection>
+      ) : null}
+
+      {harperNote ? (
+        <ProfileSection title={ct(c, COMPANY_TERMS.detail.harperNote)}>
+          <MarkdownProfile value={harperNote} />
+        </ProfileSection>
+      ) : null}
+
+      {criteriaEvaluations.length > 0 ? (
+        <ProfileSection title={ct(c, COMPANY_TERMS.criteria.section)}>
+          <OrgCriteriaLegend />
+          <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+            {criteriaEvaluations.map((evaluation) => (
+              <OrgCriteriaEvaluation
+                evaluation={evaluation}
+                key={evaluation.name}
+                showContent
+              />
+            ))}
+          </div>
+        </ProfileSection>
+      ) : null}
+
       <OrgCareerLineage
         educations={detail.profile.educations}
         experiences={detail.profile.experiences}
       />
 
-      {detail.companyPresentation ? (
-        <>
-          <ProfileSection title="TL;DR">
-            {detail.companyPresentation.tldr}
-          </ProfileSection>
-          {detail.companyPresentation.harperNote ? (
-            <ProfileSection title="Harper Note">
-              <MarkdownProfile value={detail.companyPresentation.harperNote} />
-            </ProfileSection>
-          ) : null}
-        </>
-      ) : detail.recommendation?.fitReason ? (
-        <ProfileSection
-          title={c(
-            "Harper의 추천 이유",
-            "Why Harper recommends this candidate"
-          )}
-        >
-          <div className="mt-4 mb-10 border-l-2 border-primary px-3">
-            <MarkdownProfile
-              value={convertSlackCandidateIntroToWebMarkdown(
-                detail.recommendation.fitReason
-              )}
-            />
-          </div>
-        </ProfileSection>
-      ) : null}
-
-      <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 gap-y-6 mt-16 mb-12">
+      <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 gap-y-6 mb-12">
         {[
           {
             label: c("위치", "Location"),
@@ -427,19 +471,6 @@ export function OrgTalentProfileContent({
           </div>
         ))}
       </dl>
-      {criteriaEvaluations.length > 0 ? (
-        <ProfileSection title={c("기준", "Criteria")}>
-          <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-            {criteriaEvaluations.map((evaluation) => (
-              <OrgCriteriaEvaluation
-                evaluation={evaluation}
-                key={evaluation.name}
-                showContent
-              />
-            ))}
-          </div>
-        </ProfileSection>
-      ) : null}
 
       <TalentExperienceSection experiences={detail.profile.experiences} />
 

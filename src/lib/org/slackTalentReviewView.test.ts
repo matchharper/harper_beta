@@ -262,7 +262,7 @@ test("candidate review modal contains profile sections and live decisions", () =
   assert.equal(view.title.text, "연결 검토 1/3");
   const rendered = JSON.stringify(view.blocks);
   assert.match(rendered, /김하퍼/);
-  assert.match(rendered, /Harper의 추천 이유/);
+  assert.match(rendered, /한 줄 요약/);
   assert.match(rendered, /등록 자료/);
   assert.match(rendered, /경력/);
   assert.match(rendered, /학력/);
@@ -286,6 +286,10 @@ test("candidate review modal contains profile sections and live decisions", () =
       [HARPER_TALENT_REVIEW_REJECT_ACTION_ID, "reject"],
     ]
   );
+  // The static credit caption follows the buttons, naming 연결하기 (넘기기 has none).
+  const caption = view.blocks[view.blocks.indexOf(decisions!) + 1];
+  assert.equal(caption.type, "context");
+  assert.equal(caption.elements[0].text, "연결하기: 연결 1회 사용");
   assert.deepEqual(decodeSlackTalentReviewViewMetadata(view.private_metadata), {
     candidateIndex: 0,
     sourceMessageId: 42,
@@ -345,7 +349,7 @@ test("accept confirmation mirrors org connection choices and explains the live a
   };
   const rendered = JSON.stringify(view.blocks);
   assert.equal(view.callback_id, HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID);
-  assert.equal(view.submit.text, "Accept Intro");
+  assert.equal(view.submit.text, "연결하기");
   assert.match(rendered, /"dispatch_action":true/);
   assert.match(rendered, /소개 이메일/);
   assert.match(rendered, /직접 연락/);
@@ -391,10 +395,10 @@ test("reject confirmation preserves reason presets and explains the irreversible
     sourceMessageId: 42,
   }) as { blocks: Array<Record<string, any>>; submit: { text: string } };
   const rendered = JSON.stringify(view.blocks);
-  assert.equal(view.submit.text, "연결 거절하기");
+  assert.equal(view.submit.text, "이번엔 넘길게요");
   assert.match(rendered, /경력이 부족함/);
   assert.match(rendered, /위치 조건이 맞지 않음/);
-  assert.match(rendered, /연결 거절 이유/);
+  assert.match(rendered, /넘기는 이유/);
   assert.match(rendered, /종료 결정이 후보자에게 표시/);
   assert.match(rendered, /안내는 회수할 수 없어요/);
   assert.doesNotMatch(rendered, /미리보기/);
@@ -430,7 +434,8 @@ test("viewer candidate review stays read-only", () => {
     rendered,
     new RegExp(HARPER_TALENT_REVIEW_REJECT_ACTION_ID)
   );
-  assert.match(rendered, /Owner 또는 Admin/);
+  assert.match(rendered, /소유자 또는 관리자/);
+  assert.doesNotMatch(rendered, /연결 1회 사용/);
 });
 
 test("accept submission parses connection method, recipients, and reason", () => {

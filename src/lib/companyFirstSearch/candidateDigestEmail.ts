@@ -4,6 +4,7 @@ import {
   companyCriterionFitnessLabel,
   type OrgCompanyCriterionFitness,
 } from "@/lib/org/companyCriteriaEvaluations";
+import { COMPANY_TERMS, type CompanyCopy } from "@/lib/org/terms";
 
 /** Candidate mail for one role-matching run: fixed subject and section headings,
  * the Worker's email-surface prose unchanged, and per-recipient action buttons. */
@@ -42,23 +43,29 @@ export const CANDIDATE_DIGEST_ACTION_LABELS: Record<
   CandidateDigestAction,
   [string, string]
 > = {
-  request_intro: ["Send Intro", "Send Intro"],
-  pass: ["Pass", "Pass"],
-  accept_connection: ["Accept Intro", "Accept Intro"],
-  reject_connection: ["Reject", "Reject"],
+  request_intro: [COMPANY_TERMS.action.request.ko, COMPANY_TERMS.action.request.en],
+  pass: [COMPANY_TERMS.action.pass.ko, COMPANY_TERMS.action.pass.en],
+  accept_connection: [COMPANY_TERMS.action.connect.ko, COMPANY_TERMS.action.connect.en],
+  reject_connection: [COMPANY_TERMS.action.pass.ko, COMPANY_TERMS.action.pass.en],
+};
+
+// The same credit captions as under the web buttons; passing has none.
+const CANDIDATE_DIGEST_ACTION_CAPTIONS: Partial<Record<CandidateDigestAction, CompanyCopy>> = {
+  request_intro: COMPANY_TERMS.caption.requestUsesIntro,
+  accept_connection: COMPANY_TERMS.caption.connectUsesIntro,
 };
 
 const pick = (locale: OrgLocale, pair: readonly [string, string]) =>
   pair[locale === "ko" ? 0 : 1];
 
 const COPY = {
-  acceptedName: ["연결 수락한 후보", "Ready to connect"],
-  companyFirstName: ["연결 제안할 후보", "Suggested candidates"],
+  acceptedName: [COMPANY_TERMS.stage.pending_connection.ko, COMPANY_TERMS.stage.pending_connection.en],
+  companyFirstName: [COMPANY_TERMS.stage.company_intro.ko, COMPANY_TERMS.stage.company_intro.en],
   acceptedHeading: [
-    "✅ 연결 수락한 후보 · 후보가 이미 만나보겠다고 했어요",
-    "✅ Ready to connect · These candidates already agreed to talk",
+    "✅ 연결을 기다리는 후보 · 후보가 이미 만나보겠다고 했어요",
+    "✅ Waiting to connect · These candidates already agreed to talk",
   ],
-  companyFirstHeading: ["연결 제안할 후보", "Suggested candidates"],
+  companyFirstHeading: [COMPANY_TERMS.stage.company_intro.ko, COMPANY_TERMS.stage.company_intro.en],
 } as const;
 
 function countPhrase(
@@ -70,7 +77,12 @@ function countPhrase(
     locale,
     kind === "accepted_connection" ? COPY.acceptedName : COPY.companyFirstName
   );
-  return locale === "ko" ? `${name} ${count}명` : `${name} (${count})`;
+  return locale === "ko" ? `${name} ${count}명` : `${count} new in ${name}`;
+}
+
+/** Under a section heading: how many are on that list now, new ones included. */
+function totalLine(locale: OrgLocale, total: number) {
+  return locale === "ko" ? `지금 모두 ${total}명` : `${total} in total now`;
 }
 
 export function candidateDigestSubject(args: {
@@ -98,7 +110,10 @@ export function candidateDigestSubject(args: {
       : args.locale === "ko"
         ? `${first} 외 ${others}개 역할`
         : `${first} and ${others} more ${others === 1 ? "role" : "roles"}`;
-  return `${prefix}: ${counts}`;
+  // The subject counts only the people this mail brings.
+  return args.locale === "ko"
+    ? `${prefix}: 새로 온 ${counts}`
+    : `${prefix}: ${counts}`;
 }
 
 function escapeMarkdownText(value: string) {
@@ -136,6 +151,8 @@ const CARD_DIVIDER = "───────────────────�
 type ActionRow = {
   primary: { label: string; url: string };
   secondary: { label: string; url: string };
+  /** Under the buttons, naming the button it is about. */
+  caption?: string | null;
   criteria: Array<{
     name: string;
     fitness: OrgCompanyCriterionFitness;
@@ -185,10 +202,14 @@ export function candidateDigestActionRowHtml(row: ActionRow) {
         ? "background:#111827;border:1px solid #111827;color:#ffffff"
         : "background:#ffffff;border:1px solid #d1d5db;color:#111827"
     }">${escapeHtml(item.label)}</a></td>`;
-  return `${criteriaHtml(row.criteria)}<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 16px"><tr>${button(
+  return `${criteriaHtml(row.criteria)}<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 ${row.caption ? 4 : 16}px"><tr>${button(
     row.primary,
     true
-  )}${button(row.secondary, false)}</tr></table>`;
+  )}${button(row.secondary, false)}</tr></table>${
+    row.caption
+      ? `<p style="margin:0 0 16px;font-size:12px;line-height:1.4;color:#6b7280">${escapeHtml(row.caption)}</p>`
+      : ""
+  }`;
 }
 
 export function candidateDigestActionRowText(row: ActionRow) {
@@ -198,6 +219,7 @@ export function candidateDigestActionRowText(row: ActionRow) {
     [row.primary, row.secondary]
       .map((item) => `${item.label}: ${item.url}`)
       .join("\n"),
+    ...(row.caption ? [row.caption] : []),
   ].join("\n");
 }
 
@@ -208,6 +230,11 @@ export function buildCandidateDigestEmail(args: {
   sections: CandidateDigestSection[];
   candidates: CandidateDigestCandidate[];
   workspaceId: string;
+  /**
+   * Everyone on each list now for these Roles (the inbox rule), shown as one
+   * line under its heading. Left out when unknown.
+   */
+  totals?: Partial<Record<CandidateDigestKind, number>>;
 }) {
   const { locale } = args;
   const byId = new Map(
@@ -242,6 +269,11 @@ export function buildCandidateDigestEmail(args: {
     if (section.kind === "company_first") blocks.push(SECTION_SPACER_MARKER);
     blocks.push(heading);
     replyBlocks.push(heading);
+    const total = args.totals?.[section.kind];
+    if (typeof total === "number" && total > 0) {
+      blocks.push(totalLine(locale, total));
+      replyBlocks.push(totalLine(locale, total));
+    }
     for (const part of section.parts) {
       if (part.candidateId) blocks.push(CARD_START_MARKER(rows.length));
       blocks.push(part.text.trim());
@@ -261,10 +293,15 @@ export function buildCandidateDigestEmail(args: {
       // Harper's reply context carries the same ratings as plain lines, without URLs.
       if (criteria.length) replyBlocks.push(criteriaText(criteria).join("\n"));
       blocks.push(ACTION_ROW_MARKER(rows.length));
+      const primaryLabel = pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[primary]);
+      const caption = CANDIDATE_DIGEST_ACTION_CAPTIONS[primary];
       rows.push({
+        caption: caption
+          ? `${primaryLabel}: ${pick(locale, [caption.ko, caption.en])}`
+          : null,
         criteria,
         primary: {
-          label: pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[primary]),
+          label: primaryLabel,
           url: primaryUrl,
         },
         secondary: {

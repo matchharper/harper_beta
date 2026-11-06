@@ -182,7 +182,7 @@ async function execute(args: {
     return result.status;
   }
   if (!intro.recommendation_id) throw new Error("Accepted connection has no recommendation");
-  // Same path as the web and Slack decision: Accept Intro sends the intro
+  // Same path as the web and Slack decision: Connect sends the intro
   // email, with the interview booking link when Calendar and open times are set.
   const stage = link.action === "accept_connection" ? "connected" : "process_stopped";
   await setOrgCandidateStageWithIntroBooking({

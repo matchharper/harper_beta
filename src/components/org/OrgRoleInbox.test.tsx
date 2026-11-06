@@ -4,6 +4,7 @@ import test from "node:test";
 import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 test("card review loads another batch only when next is requested at the page boundary", async (t) => {
@@ -181,6 +182,9 @@ test("card review loads another batch only when next is requested at the page bo
           }),
         };
       if (name === "./OrgSearchHistory") return { OrgSearchHistory: empty };
+      if (name === "./OrgExternalCandidates") return { OrgExternalCandidates: empty };
+      if (name === "@/hooks/org/useOrgExternalCandidates")
+        return { useOrgExternalCandidates: () => ({ data: { enabled: false, candidates: [] } }) };
       if (name === "./OrgRoleTalentBoard") return { OrgRoleTalentBoard: empty };
       if (name === "./OrgHomeInbox") return { ReviewEmptyState: empty };
       if (name === "./billing/OrgPendingConnectionGate")
@@ -265,4 +269,102 @@ test("card review loads another batch only when next is requested at the page bo
     0,
     "a direct profile link is not replaced by the first loaded candidate"
   );
+});
+
+// 외부 후보 is the inbox's last sub-tab, only where external sourcing is on.
+test("외부 후보 is an inbox sub-tab where external sourcing is on, and older links open it", async () => {
+  let query: Record<string, string> = {};
+  let external = { enabled: true, candidates: [{ id: "a" }, { id: "b" }] };
+  const pushes: Array<{ query: Record<string, string> }> = [];
+  let onTab: ((value: string) => void) | undefined;
+  const nodeModule = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown };
+  const load = nodeModule._load;
+  const empty = () => null;
+  const passthrough = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
+  const board = { items: [], stages: [] };
+  nodeModule._load = function (this: unknown, name: string, ...args: unknown[]) {
+    if (name === "next/router") return {
+      useRouter: () => ({ query, pathname: "/org/role", push: (value: { query: Record<string, string> }) => pushes.push(value) }),
+    };
+    if (name === "@tanstack/react-query") return { useIsMutating: () => 0 };
+    if (name === "lucide-react") return new Proxy({}, { get: () => empty });
+    if (name === "@/i18n/org/OrgLocaleProvider") return {
+      useOrgLocale: () => ({ c: (ko: string) => ko, locale: "ko" }),
+      useOrgSourceT: () => (value: unknown) => value,
+    };
+    if (name === "@/hooks/org/useOrgJobs") return {
+      useOrgJobsBoard: () => ({
+        board,
+        boardQuery: { data: board, error: null, isLoading: false },
+        inboxQuery: { data: { pages: [{ counts: { pending_connection: 0, company_intro: 0, saved: 0 } }] } },
+      }),
+      useOrgJobsNavigation: () => ({
+        activeRole: { roleId: "role" }, workspaceId: "workspace",
+        detailTalentId: "", detailRecommendationId: "", selectTalent: empty,
+      }),
+    };
+    if (name === "@/hooks/org/useOrgWorkspace") return { useOrgWorkspace: () => ({ permissions: { canManageCandidates: true } }) };
+    if (name === "@/store/useOrgDeferredActionStore") return {
+      useOrgDeferredActionStore: (select: (state: { deferredStages: Set<string> }) => unknown) => select({ deferredStages: new Set() }),
+    };
+    if (name === "@/hooks/org/useOrgExternalCandidates") return { useOrgExternalCandidates: () => ({ data: external }) };
+    if (name === "./OrgExternalCandidates") return { OrgExternalCandidates: () => <div data-external-list /> };
+    if (name === "@/components/ui/tabs") return {
+      Tabs: ({ activeValue, items, onValueChange }: { activeValue: string; items: Array<{ value: string; label: React.ReactNode }>; onValueChange: (value: string) => void }) => {
+        onTab = onValueChange;
+        return <>{items.map((item) => <button aria-selected={item.value === activeValue} data-tab={item.value} key={item.value}>{item.label}</button>)}</>;
+      },
+    };
+    if (name === "@/components/ui/dropdown-menu" || name === "@/components/ui/button" || name === "@/components/ui/badge") {
+      return new Proxy({}, { get: (_target, key) => (key === "__esModule" ? true : passthrough) });
+    }
+    if (name === "./OrgHomeInbox") return { ReviewEmptyState: () => <div data-empty-inbox /> };
+    if (name === "./OrgCriteriaRecheck") return {
+      OrgCriteriaReviewPanel: empty,
+      useOrgCriteriaReviewCounts: () => ({ company_intro: 0, pending_connection: 0 }),
+    };
+    if (name.startsWith("./") && name !== "./OrgRoleInbox") return new Proxy({}, { get: (_target, key) => (key === "__esModule" ? true : empty) });
+    return load.call(this, name, ...args);
+  };
+  // The first test loaded the inbox with its own stubs; load a fresh copy with these.
+  const require = Module.createRequire(import.meta.url);
+  delete require.cache[require.resolve("./OrgRoleInbox")];
+  let OrgRoleInbox: typeof import("./OrgRoleInbox")["OrgRoleInbox"];
+  try {
+    ({ OrgRoleInbox } = require("./OrgRoleInbox") as typeof import("./OrgRoleInbox"));
+  } finally {
+    nodeModule._load = load;
+  }
+  const render = (next: Record<string, string>) => {
+    query = next;
+    return renderToStaticMarkup(<OrgRoleInbox />);
+  };
+  const tabs = (html: string) => [...html.matchAll(/data-tab="([a-z_]+)"/g)].map((match) => match[1]);
+  const active = (html: string) => html.match(/aria-selected="true" data-tab="([a-z_]+)"/)?.[1];
+
+  const plain = render({ tab: "inbox" });
+  assert.deepEqual(tabs(plain), ["pending_connection", "company_intro", "saved", "external"]);
+  assert.equal(active(plain), "pending_connection");
+  assert.ok(plain.includes("data-empty-inbox") && !plain.includes("data-external-list"));
+  assert.match(plain, /외부 후보.*2/);
+
+  for (const legacy of [{ tab: "inbox", inboxStage: "external" }, { tab: "external" }, { tab: "inbox", review: "external" }] as Record<string, string>[]) {
+    const html = render(legacy);
+    assert.equal(active(html), "external", JSON.stringify(legacy));
+    assert.ok(html.includes("data-external-list") && !html.includes("data-empty-inbox"));
+    // Sort and view are for Harper's list only.
+    assert.ok(!html.includes("정렬"));
+  }
+
+  // Leaving 외부 후보 from an older link writes the inbox's own address.
+  render({ tab: "external", externalCandidateId: "x", orgId: "w", roleId: "role" });
+  onTab!("company_intro");
+  assert.deepEqual(pushes.at(-1)?.query, { tab: "inbox", inboxStage: "company_intro", orgId: "w", roleId: "role" });
+
+  // Without external sourcing there is no sub-tab, and its links show the inbox.
+  external = { enabled: false, candidates: [] };
+  const off = render({ tab: "inbox", inboxStage: "external" });
+  assert.deepEqual(tabs(off), ["pending_connection", "company_intro", "saved"]);
+  assert.equal(active(off), "pending_connection");
+  assert.ok(!off.includes("data-external-list"));
 });

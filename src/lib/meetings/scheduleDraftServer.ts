@@ -561,7 +561,7 @@ export async function prepareMeetingScheduleDraftForStage(args: {
   }
   if (!workspaceResult.data)
     throw new OrgHttpError(404, "Workspace를 찾지 못했어요.");
-  if (!roleResult.data) throw new OrgHttpError(404, "Role을 찾지 못했어요.");
+  if (!roleResult.data) throw new OrgHttpError(404, "역할을 찾지 못했어요.");
   if (!recommendationResult.data) {
     throw new OrgHttpError(404, "후보자 추천 정보를 찾지 못했어요.");
   }

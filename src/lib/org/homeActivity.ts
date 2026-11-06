@@ -66,13 +66,13 @@ export function orgHomeActivityTitle(
     Exclude<OrgHomeActivityKind, OrgCandidateActivityKind>,
     [string, string]
   > = {
-    intro_sent: [`${name}님에게 Intro를 보냈어요`, `Intro sent to ${name}`],
+    intro_sent: [`${name}님에게 연결을 요청했어요`, `Requested an intro for ${name}`],
     pending_connection: [
-      `연결 수락한 후보 도착 · ${name}`,
+      `연결을 기다리는 후보 도착 · ${name}`,
       `New candidate to review · ${name}`,
     ],
     intro_accepted: [
-      `${name}님이 Intro를 수락했어요`,
+      `${name}님이 연결을 수락했어요`,
       `${name} accepted your intro`,
     ],
     meeting_requested: [

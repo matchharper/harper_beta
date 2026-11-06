@@ -1,6 +1,7 @@
 import { SlackLogo as SlackIcon } from "@/components/common/BrandLogos";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale, type OrgCopy } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import {
   ArrowRight,
@@ -12,7 +13,9 @@ import {
   Trash2,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/router";
+import { useQueries } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { OrgInterviewAvailabilityDialog } from "@/components/org/meetings/OrgInterviewAvailabilityDialog";
 import { OrgSlackChannelPicker } from "@/components/org/OrgSlackChannelPicker";
@@ -45,6 +48,8 @@ import {
   useRemoveOrgSlackChannel,
 } from "@/hooks/org/useOrgSlack";
 import { useOrgMeetingAvailability } from "@/hooks/org/useOrgMeetingAvailability";
+import { orgRoleNotificationSettingsQueryOptions } from "@/hooks/org/useOrgRoleNotifications";
+import { buildOrgHref } from "@/lib/org/routes";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { ISO_WEEKDAYS } from "@/lib/meetings/availability";
 import { cn } from "@/lib/utils";
@@ -76,7 +81,7 @@ export function OrgSettingsPage() {
     c("토", "Sat"),
     c("일", "Sun"),
   ];
-  const { permissions, user, workspace } = useOrgWorkspace();
+  const { permissions, roles, user, workspace } = useOrgWorkspace();
   const router = useRouter();
   const isCalendarCallback =
     router.isReady && router.query.googleCalendar === "callback";
@@ -109,6 +114,23 @@ export function OrgSettingsPage() {
   const removeSlackChannel = useRemoveOrgSlackChannel(workspace.workspaceId);
   const status = statusQuery.data;
   const refetchSlackStatus = statusQuery.refetch;
+  // Which roles use each channel, read-only: a role's channels are set in its 설정 tab.
+  const roleChannelSettings = useQueries({
+    queries: roles.map((role) =>
+      orgRoleNotificationSettingsQueryOptions({
+        enabled: activeIntegration === "slack" && Boolean(status?.channels.length),
+        roleId: role.roleId,
+        workspaceId: workspace.workspaceId,
+      })
+    ),
+  });
+  const channelRolesLoading = roleChannelSettings.some((query) => query.isPending);
+  const channelRoles = (channelId: string) =>
+    roles.filter((role, index) =>
+      roleChannelSettings[index]?.data?.channels.some(
+        (channel) => channel.channelId === channelId && channel.enabled
+      )
+    );
   const availabilityQuery = useOrgMeetingAvailability({
     enabled: activeIntegration === "calendar",
     workspaceId: workspace.workspaceId,
@@ -306,7 +328,7 @@ export function OrgSettingsPage() {
           "팀이 중요한 채용 변화를 놓치지 않도록 연동과 알림을 설정하세요.",
           "Manage tools and notifications for your hiring team."
         )}
-        title={c("Integrations", "Integrations")}
+        title={ct(c, COMPANY_TERMS.nav.integrations)}
       />
 
       <div
@@ -319,8 +341,8 @@ export function OrgSettingsPage() {
           selectIntegration={selectIntegration}
           title={c("Slack", "Slack")}
           description={c(
-            "팀과 함께 추천 소식과 채용 결정을 확인하세요.",
-            "Review recommendations and hiring decisions with your team."
+            "새 후보와 결정할 일을 팀 채널에서 받아요.",
+            "Get new candidates and decisions in Slack."
           )}
           icon={
             <Image
@@ -357,8 +379,8 @@ export function OrgSettingsPage() {
       >
         <OrgSectionHeader
           description={c(
-            "후보자 추천과 검토, 역할 기준 변경, 후보자 프로세스 종료를 Slack 채널에서 팀원과 함께 진행하세요.",
-            "Review candidate recommendations, update role criteria, and manage hiring decisions with your team in Slack."
+            "새 후보 검토, 결정, 기준 변경, 진행 종료를 Slack에서 팀원과 함께 해요.",
+            "Review candidates, decide, update criteria, and close out with your team in Slack."
           )}
           title={
             <span className="inline-flex flex-col items-start gap-3">
@@ -496,9 +518,14 @@ export function OrgSettingsPage() {
 
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-[14px] font-medium text-neutral-primary">
-                    {c("연결된 채널", "Connected channels")}
-                  </h3>
+                  <div>
+                    <h3 className="text-[14px] font-medium text-neutral-primary">
+                      {c("연결된 채널", "Connected channels")}
+                    </h3>
+                    <p className="mt-0.5 text-[12px] font-light text-neutral-muted">
+                      {ct(c, COMPANY_TERMS.caption.channelRoles)}
+                    </p>
+                  </div>
                   {permissions.canManageIntegrations ? (
                     <MuteButton
                       size="sm"
@@ -570,6 +597,31 @@ export function OrgSettingsPage() {
                               </span>
                             ) : null}
                           </div>
+                          {channelRolesLoading ? null : (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+                              <span className="text-neutral-muted">
+                                {ct(c, COMPANY_TERMS.nav.roles)}
+                              </span>
+                              {channelRoles(channel.channelId).length ? (
+                                channelRoles(channel.channelId).map((role) => (
+                                  <Link
+                                    className="text-neutral-primary underline-offset-2 hover:underline"
+                                    href={buildOrgHref({
+                                      orgId: workspace.workspaceId,
+                                      page: "role",
+                                      roleId: role.roleId,
+                                      tab: "settings",
+                                    })}
+                                    key={role.roleId}
+                                  >
+                                    {role.name}
+                                  </Link>
+                                ))
+                              ) : (
+                                <span className="text-neutral-soft">—</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       {permissions.canManageIntegrations ? (
@@ -590,11 +642,6 @@ export function OrgSettingsPage() {
                             </MuteButton>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem
-                              onSelect={() => setRoleChannel(channel)}
-                            >
-                              {c("Role 할당", "Assign roles")}
-                            </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={removeSlackChannel.isPending}
                               onSelect={() =>
@@ -633,7 +680,7 @@ export function OrgSettingsPage() {
               ) : (
                 <p className="mt-4 text-[12px] font-light text-neutral-soft">
                   {c(
-                    "Slack 연결은 Owner 또는 Admin이 설정할 수 있습니다.",
+                    "Slack 연결은 소유자 또는 관리자가 설정할 수 있습니다.",
                     "Only an Owner or Admin can set up the Slack connection."
                   )}
                 </p>

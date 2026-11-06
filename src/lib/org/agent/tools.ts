@@ -2,6 +2,7 @@ import { COMPANY_EMAIL_PREFERENCE_TOOL } from "@/lib/email/companyPreferencesCon
 import { READ_AGENT_MESSAGES_TOOL, CONTACT_USER_TOOL, COMPANY_SCHEDULE_TOOL } from "@/lib/agentContacts/toolContracts";
 import { AGENT_CONTACT_DESCRIPTION, AGENT_MESSAGE_DESCRIPTION, AGENT_PRESENTATION_DESCRIPTION, COMPANY_AGENT_CONTACT_TOOL, COMPANY_AGENT_PRESENTATION_TOOL } from "@/lib/agentContacts/companyToolDefinitions";
 import { COMPANY_LANGUAGE_SETTING_TOOL } from "@/lib/org/agent/languageSettingContract";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 /**
  * Tool contracts exposed to the organization-wide Harper agent.
  *
@@ -17,6 +18,20 @@ import {
 import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 import { COMPANY_SIDE_LLM_DATA_KEYS } from "@/lib/org/agent/companyDataCatalog";
 import { AUTHORIZED_MESSAGE_CONTENT_CONTRACT } from "@/lib/companyTalentRequests/relayContract";
+import { CRITERIA_PROPOSALS_ENABLED } from "@/lib/org/criteriaProposals";
+// Tags stay on the company's private decision record. Only while criteria
+// suggestions are on does anything read them back.
+const REASON_TAGS_EFFECT = CRITERIA_PROPOSALS_ENABLED
+  ? " When recent passes on this Role keep naming the same criterion, Harper suggests making it stricter in the Role's To-do; nothing changes until the company accepts."
+  : "";
+const REASON_TAGS_INPUT = (when: string) =>
+  ({
+    description: `${when} Optional labels for the reason the user actually gave, never inferred: this Role's criterion ids from read_role, or experience_skills, role_fit, working_conditions, timing. Omit when no reason was given.${REASON_TAGS_EFFECT}`,
+    items: { maxLength: 200, minLength: 1, type: "string" },
+    maxItems: 20,
+    type: "array",
+  }) as const;
+
 function nullableText(description: string, maxLength: number) {
   return {
     description,
@@ -793,7 +808,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "update_data",
       description:
-        "Apply one atomic batch of explicitly requested company/role information changes, or resolve a stored confirmation. Role lifecycle status is intentionally excluded; use change_role_status for 진행, 중단, or 종료. Hiring Brief (role_request) changes are applied directly when authorized in the conversation. A Role's 필수 조건 (hard constraints) live in its Hiring Brief, never in the JD: add one with a role_request append to the Hard constraints section, and change or remove one by replacing its exact line (not a whole rewrite); 평가 기준 (evaluation criteria) are changed with update_role_criteria; never use role_description for either. Memory changes use a stored proposal and confirmation. Read and write Role compensation only through salaryRange as one free-form text value; keep minimum, maximum, currency, equity, bonus, and basis details together rather than creating split compensation fields. Submit salaryRange separately from confirmation-required memory fields, though it may share an atomic batch with ordinary direct changes. For confirmation, send proposalId and proposalAction; if changes or summary are accidentally repeated with both confirmation fields, the stored proposal takes precedence and the repeated draft fields are ignored. Put changes that should succeed or fail together in one atomic batch; use a later call only when a previous result changes what should happen next.",
+        "Apply one atomic batch of explicitly requested company/role information changes, or resolve a stored confirmation. Role lifecycle status is intentionally excluded; use change_role_status for 진행, 중단, or 종료. Hiring Brief (role_request) changes are applied directly when authorized in the conversation. A Role's 필수 조건 (hard constraints) live in its Hiring Brief, never in the JD: add one with a role_request append to the Hard constraints section, and change or remove one by replacing its exact line (not a whole rewrite); 확인할 기준 (evaluation criteria) are changed with update_role_criteria; never use role_description for either. Memory changes use a stored proposal and confirmation. Read and write Role compensation only through salaryRange as one free-form text value; keep minimum, maximum, currency, equity, bonus, and basis details together rather than creating split compensation fields. Submit salaryRange separately from confirmation-required memory fields, though it may share an atomic batch with ordinary direct changes. For confirmation, send proposalId and proposalAction; if changes or summary are accidentally repeated with both confirmation fields, the stored proposal takes precedence and the repeated draft fields are ignored. Put changes that should succeed or fail together in one atomic batch; use a later call only when a previous result changes what should happen next.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -896,9 +911,9 @@ export const ORG_AGENT_TOOLS = [
 Call this once per exact Role. After its result, continue any other explicit, independent work from the user when it is still safe and relevant.
 When an exact existing Role is still draft and the user explicitly asks to start hiring or register it, call this with status=active instead of start_role_creation. The server reuses the saved draft and checks every role-creation requirement. If information is missing, no activation occurs: use the returned missing fields and available notification choices to ask only for what is needed, then complete the still-authorized activation after the user answers. If the user explicitly selects notification channels, email or an assignee, include those optional exact values in the activation call; they are saved before readiness is checked again. Never invent or silently default these targets.
 Status meanings and effects:
-• active (진행): keep hiring in progress and periodically receive suitable candidate connections from Harper.
-• paused (중단): keep the Role open, but stop receiving additional candidate recommendations. Candidate processes and connections already in progress remain open.
-• ended (종료): mark the Role ended and stop additional recommendations. This change is immediate, but candidate closure is not atomic: after the grace period, Harper's final delivery closes accepted candidate Positions across company-controlled stages except final_offer and records the notice.
+• active (${COMPANY_TERMS.roleStatus.active.ko}): keep hiring in progress and periodically receive suitable candidate connections from Harper.
+• paused (${COMPANY_TERMS.roleStatus.paused.ko}): keep the Role open, but stop receiving additional candidate recommendations. Candidate processes and connections already in progress remain open.
+• ended (${COMPANY_TERMS.roleStatus.ended.ko}): mark the Role ended and stop additional recommendations. This change is immediate, but candidate closure is not atomic: after the grace period, Harper's final delivery closes accepted candidate Positions across company-controlled stages except final_offer and records the notice.
 • deleted (삭제): apply the same internal-Role deletion as the web product by atomically setting status=deleted and is_expired=true. It uses the same deferred candidate-closure rule as ended, including the final_offer exception.
 Use deleted only for an explicit request to delete the exact Role. Do not reinterpret 종료 as deletion. Use the exact roleId from current context or a fresh read. Do not claim a candidate was already notified or closed until current progress shows that the closure notice was committed.`,
       parameters: {
@@ -930,7 +945,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
           },
           status: {
             description:
-              "active=진행 (periodic suitable candidate connections continue); paused=중단 (Role stays open but additional recommendations stop, while existing processes stay open); ended=종료 or deleted=삭제 stops recommendations and adds affected accepted processes to the next candidate daily review at every stage except final_offer. deleted also sets is_expired=true.",
+              `active=${COMPANY_TERMS.roleStatus.active.ko} (periodic suitable candidate connections continue); paused=${COMPANY_TERMS.roleStatus.paused.ko} (Role stays open but additional recommendations stop, while existing processes stay open); ended=${COMPANY_TERMS.roleStatus.ended.ko} or deleted=삭제 stops recommendations and adds affected accepted processes to the next candidate daily review at every stage except final_offer. deleted also sets is_expired=true.`,
             enum: ["active", "paused", "ended", "deleted"],
             type: "string",
           },
@@ -1171,6 +1186,7 @@ Meeting scheduling is available from any company-visible active stage: pending_c
             minLength: 1,
             type: "string",
           },
+          reasonTags: REASON_TAGS_INPUT("For archived or process_stopped only."),
           roleId: {
             description: "Exact internal Role ID.",
             type: "string",
@@ -1467,6 +1483,7 @@ Call this once per exact candidate Role change and review the result before anot
             minLength: 1,
             type: "string",
           },
+          reasonTags: REASON_TAGS_INPUT("For pass only."),
           roleId: {
             description: "Exact Role ID for this company-first proposal.",
             type: "string",
@@ -1595,6 +1612,7 @@ Call this once per exact candidate Role change and review the result before anot
             "Optional reason genuinely provided by the user. Preserve its meaning accurately and never invent one.",
             2_000
           ),
+          reasonTags: REASON_TAGS_INPUT("For decline only."),
           roleId: {
             description: "Exact role ID for the candidate decision.",
             type: "string",

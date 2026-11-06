@@ -9,6 +9,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import type { OrgStage } from "@/lib/org/server";
+import { companyStageTerm } from "@/lib/org/terms";
 
 /**
  * One icon per pipeline column, shared by the decision dialogs and the
@@ -33,15 +34,8 @@ export function orgStageName(
   stages: readonly Pick<OrgStage, "id" | "label">[] = [],
   roleTitle = ""
 ) {
-  const fixed: Record<string, string> = {
-    company_intro: c("연결 제안할 후보", "Suggested candidates"),
-    connected: c("연결됨", "Connected"),
-    final_offer: c("최종 오퍼", "Final offer"),
-    intro_requested: c("연결 제안한 후보", "Intro requested"),
-    pending_connection: c("연결 수락한 후보", "Ready to connect"),
-    process_stopped: c("프로세스 중단", "Process ended"),
-  };
-  if (fixed[stage]) return fixed[stage];
+  const fixed = companyStageTerm(stage);
+  if (fixed) return c(fixed.ko, fixed.en);
   const label = stages.find((item) => item.id === stage)?.label.trim() ?? "";
   const prefix = `${roleTitle.trim()} · `;
   return roleTitle.trim() && label.startsWith(prefix)

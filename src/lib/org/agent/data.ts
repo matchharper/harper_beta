@@ -42,6 +42,9 @@ import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNot
 import { resolveTalentLocation } from "@/lib/talentLocation";
 import { roleStartOwnsRole } from "@/lib/org/roleStart/ownership";
 import { DEFAULT_INTRO_SEARCH_DAYS, DEFAULT_INTRO_SEARCH_HOUR, parseIntroSearchDays, parseIntroSearchHour } from "@/lib/org/introSearchSchedule";
+import { companyProgressText } from "@/lib/org/progressText";
+import { readOrgCandidateSaves } from "@/lib/org/candidateSaved.server";
+import { countsTowardDecision } from "@/lib/org/inboxPagination";
 
 export { serializeOrgAgentMoreData } from "@/lib/org/agent/promptFormat";
 
@@ -64,9 +67,14 @@ export type OrgAgentPipelineRoleCounts = {
   active: number;
   complete: boolean;
   ended: number;
+  /** 연결을 요청할 후보, by the inbox rule (saved left out). */
   intro: number;
   requested: number;
+  /** 연결을 기다리는 후보, by the inbox rule (saved left out). */
   waiting: number;
+  saved: number;
+  /** Harper가 확인 중: a number only. */
+  reviewing: number;
 };
 
 export type OrgAgentMoreDataFieldState = {
@@ -164,7 +172,7 @@ function clip(value: unknown, maxLength: number) {
 }
 
 function compactProgressText(row: Pick<ProgressRow, "kind" | "text">) {
-  return clip(row.text, row.kind === "org_candidate_activity" ? 2_000 : 700);
+  return clip(companyProgressText(row.kind, row.text), row.kind === "org_candidate_activity" ? 2_000 : 700);
 }
 
 function companyProgressDetails(row: Pick<ProgressRow, "kind" | "metadata">) {
@@ -438,6 +446,7 @@ function compactBoardItem(
 async function fetchVisibleOrgAgentBoard(args: {
   admin: OrgAgentAdminClient;
   audience?: OrgAgentReadAudience;
+  countReviewing?: boolean;
   recommendationIds?: string[] | null;
   roleId?: string | null;
   user: User;
@@ -453,6 +462,7 @@ async function fetchVisibleOrgAgentBoard(args: {
       : args.user;
   const board = await fetchOrgBoard({
     admin: args.admin,
+    countReviewing: args.countReviewing,
     includeInternalStages: audience === "caller",
     includeProfileLabels: false,
     recommendationIds: args.recommendationIds,
@@ -507,6 +517,8 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
         intro: 0,
         requested: 0,
         waiting: 0,
+        saved: 0,
+        reviewing: 0,
       },
     ])
   );
@@ -532,6 +544,7 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
     fetchVisibleOrgAgentBoard({
       admin: args.admin,
       audience: args.audience,
+      countReviewing: true,
       roleId: selectedRoleId || null,
       user: args.user,
       workspaceId: args.workspaceId,
@@ -586,13 +599,26 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
         intro: 0,
         requested: 0,
         waiting: 0,
+        saved: 0,
+        reviewing: board.reviewingCountByRoleId?.[roleId] ?? 0,
       },
     ])
   );
-  for (const item of board.items) {
+  // Waiting and to request follow the inbox rule, the same numbers the
+  // company sees on Home, the inbox, the To-do, Slack and email.
+  const savedItems = await readOrgCandidateSaves(
+    args.admin as any,
+    args.workspaceId,
+    board.items
+  );
+  for (const item of savedItems) {
     const counts = countsByRoleId.get(item.roleId);
     const bucket = getOrgAgentPipelineBucket(item.stage);
-    if (!counts || !bucket) continue;
+    if (!counts) continue;
+    if (item.savedAt) counts.saved += 1;
+    if (!bucket) continue;
+    if (bucket === "waiting" && !countsTowardDecision(item, "pending_connection")) continue;
+    if (bucket === "intro" && !countsTowardDecision(item, "company_intro")) continue;
     counts[bucket] += 1;
   }
 
@@ -1420,7 +1446,7 @@ export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: Pro
       harperRecommendation: item.companyIntro!.harperRecommendation ?? null,
     })),
     profile: null, profileIncluded: false,
-    responseGuide: "이 조회는 회사에 공개된 추천·제안 기록만 제공한다. 후보자의 열람 여부와 관심 표현 여부는 제공되지 않아 알 수 없다. 이는 열람하지 않았다거나 관심을 보이지 않았다는 뜻이 아니다. 이력서·연락처·비공개 Career 정보도 포함하지 않는다. Harper 선추천의 앱 카드 생성과 추천 이메일 발송은 회사가 요청한 Intro 발송과 별개다. 확인되는 시각만 근거로 설명하며, 기록이 없다는 이유로 미발송을 확정하지 않는다.",
+    responseGuide: "이 조회는 회사에 공개된 추천·제안 기록만 제공한다. 후보자의 열람 여부와 관심 표현 여부는 제공되지 않아 알 수 없다. 이는 열람하지 않았다거나 관심을 보이지 않았다는 뜻이 아니다. 이력서·연락처·비공개 Career 정보도 포함하지 않는다. Harper 선추천의 앱 카드 생성과 추천 이메일 발송은 회사가 요청한 연결 발송과 별개다. 확인되는 시각만 근거로 설명하며, 기록이 없다는 이유로 미발송을 확정하지 않는다.",
     // These sources were not read by this restricted projection. Null is not
     // an observed empty history, and must not imply no response or contact.
     harperSharedInformation: null, meetingHistory: null, requestHistory: null,
@@ -2136,6 +2162,8 @@ export async function readOrgAgentRole(args: {
     intro: 0,
     requested: 0,
     waiting: 0,
+    saved: 0,
+    reviewing: 0,
   };
   const pipelineResult = {
     ...result,
@@ -2211,11 +2239,11 @@ export async function readOrgAgentRole(args: {
       text: compactProgressText(row) || null,
     })),
     stageCounts: [
-      { count: bucketCounts.intro, stage: "연결 제안할 후보" },
-      { count: bucketCounts.requested, stage: "연결 제안한 후보" },
-      { count: bucketCounts.waiting, stage: "연결 수락한 후보" },
+      { count: bucketCounts.intro, stage: "연결을 요청할 후보" },
+      { count: bucketCounts.requested, stage: "연결 요청함" },
+      { count: bucketCounts.waiting, stage: "연결을 기다리는 후보" },
       { count: bucketCounts.active, stage: "진행 중" },
-      { count: bucketCounts.ended, stage: "프로세스 종료" },
+      { count: bucketCounts.ended, stage: "진행 종료" },
     ],
   };
   fitRolePipelineRows(pipelineResult);
@@ -2608,7 +2636,7 @@ export async function getOrgAgentMoreData(args: {
   const requestedKinds = normalizeMoreDataKinds(args.kinds);
   if (args.user && requestedKinds.includes("workspace_memory")) {
     const access = await readOrgRoleAccess({ admin: args.admin, user: args.user, workspaceId: args.workspaceId });
-    if (access.scope === "team") throw new OrgHttpError(403, "Organization 공용 메모는 전체 접근 권한이 필요합니다. 배정된 Role의 메모를 확인해 주세요.");
+    if (access.scope === "team") throw new OrgHttpError(403, "Organization 공용 메모는 전체 접근 권한이 필요합니다. 배정된 역할의 메모를 확인해 주세요.");
   }
   if (requestedKinds.length === 0) {
     throw new OrgHttpError(400, "At least one data kind is required");

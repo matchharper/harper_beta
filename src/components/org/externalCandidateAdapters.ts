@@ -25,7 +25,7 @@ function criteriaEvaluations(person: ExternalCandidateView) {
   return person.criteria.map((item) => ({ name: item.name, fitness: item.fitness, content: item.content }));
 }
 
-/** Send Intro: an address was found and nothing was requested yet. Pass applies to every shown person. */
+/** Request intro: an address was found and nothing was requested yet. Pass applies to every shown person. */
 export function externalCandidateCanSendIntro(person: ExternalCandidateView) {
   return !person.intro && !person.companyDecision && person.contact === "found";
 }
@@ -37,7 +37,7 @@ export function externalCandidateWithoutEmail(person: ExternalCandidateView) {
 
 export function externalBoardItem(person: ExternalCandidateView, roleId: string): OrgBoardItem {
   const id = `external:${person.id}`;
-  // Every shown person uses the decision card of a suggested member: Pass always, Send Intro only when
+  // Every shown person uses the decision card of a suggested member: Pass always, Request intro only when
   // externalCandidateCanSendIntro (the card hides it otherwise).
   const recentCompanies = person.experiences.flatMap((item): OrgBoardProfileLabel[] => {
     const label = item.company ?? item.role;

@@ -13,8 +13,8 @@ test("a completed historical evaluation is distinguished from evaluation against
         labelCounts: { excellent: 12, good: 30, uncertain: 200, bad: 70 } }],
     },
   });
-  assert.match(result, /시작 당시 Brief original 기준으로 완료·저장/);
-  assert.match(result, /완료 시점 Brief는 enriched/);
+  assert.match(result, /시작 당시 찾는 사람 original 기준으로 완료·저장/);
+  assert.match(result, /완료 시점 찾는 사람은 enriched/);
   assert.match(result, /2차 평가 312명/);
   assert.match(result, /excellent 12명, good 30명/);
   assert.ok(!result.includes("끝까지 마치지 못했다"));
@@ -109,7 +109,7 @@ test("capacity facts stop candidate outreach while preserving company review and
       { roleId: "other-role", pendingCount: 99, maxPendingTalents: 9 },
     ],
   });
-  assert.match(result, /연결 수락한 후보 14명/);
+  assert.match(result, /연결을 기다리는 후보 14명/);
   assert.match(result, /상한 10명/);
   assert.match(result, /회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다/);
   assert.match(result, /회사가 새 검색을 직접 요청한 결과는 아니다/);
@@ -125,7 +125,7 @@ test("explicit review request is known interest without invented acceptance", ()
     runStatus: "succeeded",
   });
   assert.match(result, /후보자 본인이 이 역할의 우선 검토를 요청했다/);
-  assert.match(result, /역할 수락이나 회사의 Intro 요청은 아니다/);
+  assert.match(result, /역할 수락이나 회사의 연결 요청은 아니다/);
 });
 
 

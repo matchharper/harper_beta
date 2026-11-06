@@ -1,3 +1,4 @@
+import { COMPANY_TERMS, companyTerm } from "@/lib/org/terms";
 import type { OrgLocale } from "@/i18n/org/locale";
 import { candidateStatusLabel } from "@/lib/org/slackCandidateWorkObject";
 
@@ -66,7 +67,7 @@ export function companyEmailActionCopy(locale: OrgLocale) {
       c(locale, `지금 상태: ${label}`, `Current status: ${label}`),
     noPermission: c(
       locale,
-      "이 후보는 볼 수 있지만 결정은 할 수 없어요. Owner나 Admin에게 요청해 주세요.",
+      "이 후보는 볼 수 있지만 결정은 할 수 없어요. 소유자나 관리자에게 요청해 주세요.",
       "You can view this candidate but can't make this decision. Ask an Owner or Admin."
     ),
     unknown: c(
@@ -117,7 +118,9 @@ export function companyEmailActionText(
         "e.g. Your product work and ownership in early teams stood out. We'd like to discuss this role with you."
       ),
       // The button the person clicked in the email, as on the web and Slack.
-      confirm: "Send Intro",
+      confirm: companyTerm(COMPANY_TERMS.action.request, locale),
+      // Under the button, as on the web and Slack.
+      creditCaption: companyTerm(COMPANY_TERMS.caption.requestUsesIntro, locale),
       // The request is recorded now; Harper delivers it to the candidate afterwards.
       doneTitle: c(
         locale,
@@ -138,7 +141,7 @@ export function companyEmailActionText(
         `이 역할의 후보 목록에서 빠져요. ${name}님에게는 아무 연락도 가지 않아요.`,
         `${name} will be removed from this role's candidate list. Nothing will be sent to ${name}.`
       ),
-      confirm: "Pass",
+      confirm: companyTerm(COMPANY_TERMS.action.pass, locale),
       doneTitle: c(locale, "후보 목록에서 뺐어요.", "Removed from the candidate list."),
       doneDescription: "",
     };
@@ -150,7 +153,8 @@ export function companyEmailActionText(
         `${name}님과 아래 메일 주소로 소개 메일을 바로 보내요. 면접 예약 링크를 설정해 두었다면 메일 끝에 함께 넣어요. 보낸 메일은 되돌릴 수 없어요.`,
         `Harper will send an intro email to ${name} and the address below right away. If you've set up the booking link, it goes at the end. Sent emails can't be undone.`
       ),
-      confirm: "Accept Intro",
+      confirm: companyTerm(COMPANY_TERMS.action.connect, locale),
+      creditCaption: companyTerm(COMPANY_TERMS.caption.connectUsesIntro, locale),
       doneTitle: c(locale, "소개 메일을 보냈어요.", "Intro email sent."),
       doneDescription: c(
         locale,
@@ -172,8 +176,8 @@ export function companyEmailActionText(
       "Have Harper send a closing note"
     ),
     // Same as the web Reject dialog's button.
-    confirm: c(locale, "연결 거절", "Reject"),
-    doneTitle: c(locale, "연결을 거절했어요.", "Connection declined."),
+    confirm: companyTerm(COMPANY_TERMS.action.pass, locale),
+    doneTitle: c(locale, "넘겼어요.", "Passed."),
     doneDescription: "",
   };
 }

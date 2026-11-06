@@ -257,7 +257,7 @@ function PersonalSettingsContent({
       <OrgSection className="pb-4">
         <OrgSectionHeader
           className="mb-2"
-          title={c("팀 · 담당 Role", "Teams & assigned roles")}
+          title={c("팀 · 내가 맡은 역할", "Teams & assigned roles")}
         />
         <div className="space-y-1">
           <SettingsRow label={c("팀", "Teams")}>
@@ -271,7 +271,7 @@ function PersonalSettingsContent({
               )}
             </span>
           </SettingsRow>
-          <SettingsRow label={c("담당 Role", "Assigned roles")}>
+          <SettingsRow label={c("내가 맡은 역할", "Assigned roles")}>
             {settings.isPending ? (
               <Skeleton className="h-5 w-40" />
             ) : settings.isError ? (
@@ -297,7 +297,7 @@ function PersonalSettingsContent({
               </ul>
             ) : (
               <span className="text-neutral-soft">
-                {c("담당 Role 없음", "No roles assigned")}
+                {c("맡은 역할 없음", "No roles")}
               </span>
             )}
           </SettingsRow>

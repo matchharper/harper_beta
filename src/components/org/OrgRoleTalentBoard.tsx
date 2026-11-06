@@ -63,7 +63,6 @@ import {
 import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import {
-  CANDIDATE_DECISION_LABELS,
   isOrgInternalStage,
   shouldOpenOrgAcceptIntroDialog,
   shouldOpenOrgStopCandidateDialog,
@@ -91,6 +90,8 @@ import {
   OrgStageMoveDialog,
   toOrgStageMoveCandidate,
 } from "@/components/org/OrgStageMoveDialog";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
+import { OrgRoleCandidateCard } from "./role-screen/OrgRoleCandidateCard";
 
 const NO_BOARD_SELECTION: ReadonlySet<string> = new Set();
 
@@ -153,8 +154,8 @@ function OrgRoleRecommendationStatus({
       ? c(TALENT_FIRST_CAPACITY_NOTICE.ko, TALENT_FIRST_CAPACITY_NOTICE.en)
       : active
         ? c(
-            "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 수락한 후보’에 추천해 드려요.",
-            "Harper introduces your company and role to suitable candidates without waiting for a search or Intro request.\n\nWhen someone agrees to talk, Harper prepares their introduction for your team to review in Ready to connect."
+            "직접 검색하거나 연결을 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결을 기다리는 후보’에 추천해 드려요.",
+            "Harper introduces your company and role to suitable candidates without waiting for a search or Intro request.\n\nWhen someone agrees to talk, Harper prepares their introduction for your team to review in Waiting to connect."
           )
         : status === "paused"
           ? c(
@@ -355,7 +356,7 @@ function TalentExperienceList({ item }: { item: OrgBoardItem }) {
           onClick={() => setExpanded(true)}
         >
           <span className="font-medium text-neutral-primary">
-            {c("전체보기({count})", "View all ({count})", {
+            {c("더 보기 ({count})", "Show more ({count})", {
               count: recentCompanies.length - 4,
             })}
           </span>
@@ -398,7 +399,7 @@ export function OrgRoleTalentBoardCard({
   selected = false,
   stages,
 }: {
-  /** Replaces Send Intro (null leaves the place empty), e.g. an external person's connection state. */
+  /** Replaces Request intro (null leaves the place empty), e.g. an external person's connection state. */
   acceptSlot?: ReactNode;
   canManageCandidates?: boolean;
   /** Fills its grid cell so every card in the grid has the same height; the bottom banner and buttons line up. */
@@ -516,7 +517,7 @@ export function OrgRoleTalentBoardCard({
 
         {item.criteriaEvaluations.length > 0 ? (
           <section
-            aria-label={c("평가 기준별 적합도", "Fit by criterion")}
+            aria-label={c("기준별 적합도", "Fit by criterion")}
             className="mt-6 grid grid-cols-1 gap-2 @sm/talent-card:grid-cols-2 @xl/talent-card:grid-cols-3"
           >
             {item.criteriaEvaluations.map((evaluation, index) => (
@@ -559,7 +560,7 @@ export function OrgRoleTalentBoardCard({
 
         {item.processClosureNoticeUnresolved ? (
           <div className="-mx-4 mt-5 bg-critical px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:px-5">
-            {c("프로세스 종료 안내됨", "Hiring ended · candidate notified")}
+            {c("진행 종료 안내됨", "Hiring ended · candidate notified")}
           </div>
         ) : item.upcomingMeeting ? (
           <div className="-mx-4 -mb-4 mt-5 bg-positive px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:-mb-5 sm:px-5">
@@ -586,9 +587,9 @@ export function OrgRoleTalentBoardCard({
                 onClick={onReject}
                 size="md"
                 variant="neutral"
-                className="py-2"
+                className="py-2 whitespace-nowrap"
               >
-                {CANDIDATE_DECISION_LABELS.reject}
+                {ct(c, COMPANY_TERMS.action.pass)}
               </MuteButton>
             )}
             {acceptSlot !== undefined ? acceptSlot : item.source === "company_intro" ? (
@@ -599,7 +600,7 @@ export function OrgRoleTalentBoardCard({
                 size="md"
                 variant="dark"
               >
-                {c("Send Intro", "Send Intro")}
+                {ct(c, COMPANY_TERMS.action.request)}
                 <ArrowRight className="size-4" />
               </MuteButton>
             ) : (
@@ -610,6 +611,13 @@ export function OrgRoleTalentBoardCard({
                 size="md"
               />
             )}
+            {acceptSlot === undefined ? (
+              <p className="col-span-2 text-right text-[11px] leading-4 text-neutral-muted">
+                {item.source === "company_intro"
+                  ? ct(c, COMPANY_TERMS.caption.requestUsesIntro)
+                  : ct(c, COMPANY_TERMS.caption.connectUsesIntro)}
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -618,17 +626,26 @@ export function OrgRoleTalentBoardCard({
 }
 
 export function OrgRoleTalentBoard({
+  card = "board",
   displayControl,
   layout = "grid",
+  renderLayout,
   section = "pipeline",
   inboxItems,
   onSelectionReplace,
   onToggleSelected,
   selectedIds,
 }: {
+  /** "expandable": cards that open in place, for the role screen's 후보 lists. */
+  card?: "board" | "expandable";
   displayControl?: ReactNode;
   /** "board" places the cards on a free-form board instead of the grid. */
   layout?: "board" | "grid";
+  /** Lays the cards out itself (e.g. grouped by stage) with every decision already wired. */
+  renderLayout?: (
+    items: OrgBoardItem[],
+    renderCard: (item: OrgBoardItem) => ReactNode
+  ) => ReactNode;
   section?: "inbox" | "pipeline";
   inboxItems?: OrgBoardItem[];
   /** Board area selection replaces the whole selection at once. */
@@ -674,11 +691,11 @@ export function OrgRoleTalentBoard({
       <span className="inline-flex items-center gap-1.5">
         <OrgCriterionFitIcon className="size-3.5" fitness={grade} />
         {grade === "excellent"
-          ? c("매우 잘 맞음", "Excellent fit")
+          ? c("아주 잘 맞음", "Strong")
           : grade === "good"
-            ? c("잘 맞음", "Good fit")
+            ? c("잘 맞음", "Good")
             : grade === "uncertain"
-              ? c("확인 필요", "More information needed")
+              ? c("확인 필요", "Needs a check")
               : c("맞지 않음", "Not a fit")}
       </span>
     ),
@@ -694,7 +711,7 @@ export function OrgRoleTalentBoard({
         ? router.query.inboxStage
         : ""
       : activeStageId;
-  // In the pipeline, 저장함 is its own tab instead of sitting above every stage.
+  // In the pipeline, Saved is its own tab instead of sitting above every stage.
   const showingSaved = section === "pipeline" && requestedStageId === "saved";
   const [acceptRequest, setAcceptRequest] = useState<{
     item: OrgBoardItem;
@@ -764,7 +781,7 @@ export function OrgRoleTalentBoard({
   const savedCount = (board?.items ?? []).filter(
     (item) => item.savedAt && !deferredStages.has(item.recommendationId)
   ).length;
-  // Criteria changed from the filter panel or the 매칭 기준 tab are reviewed
+  // Criteria changed from the filter panel or the What to check tab are reviewed
   // again in the background; refresh until no card shows "다시 보는 중".
   const reviewingAgain = (board?.items ?? []).some((item) =>
     item.criteriaEvaluations.some((evaluation) => evaluation.pending)
@@ -908,8 +925,9 @@ export function OrgRoleTalentBoard({
     );
   }
 
+  const Card = card === "expandable" ? OrgRoleCandidateCard : OrgRoleTalentBoardCard;
   const renderCard = (item: OrgBoardItem) => (
-    <OrgRoleTalentBoardCard
+    <Card
       canManageCandidates={permissions.canManageCandidates}
       // Inbox grid only; the board canvas places cards freely.
       fillHeight={section === "inbox" && layout === "grid"}
@@ -962,7 +980,7 @@ export function OrgRoleTalentBoard({
                       {
                         label: (
                           <span className="inline-flex items-center gap-2">
-                            {c("저장함", "Saved")}
+                            {c("저장", "Saved")}
                             <span className="ml-0.5 flex items-center justify-center text-xs text-neutral-700">
                               {savedCount}
                             </span>
@@ -1119,7 +1137,9 @@ export function OrgRoleTalentBoard({
         </section>
       ) : null}
 
-      {layout === "board" && activeRole ? (
+      {renderLayout ? (
+        renderLayout(items, renderCard)
+      ) : layout === "board" && activeRole ? (
         <OrgCandidateBoardCanvas
           board={boardId}
           items={items}
@@ -1229,7 +1249,7 @@ export function OrgRoleTalentBoard({
           });
           setCompanyIntroRequest(null);
           addToast({
-            message: c("Intro를 요청했어요.", "Intro requested."),
+            message: c("연결을 요청했어요.", "Intro requested."),
             variant: "success",
           });
         }}

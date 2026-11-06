@@ -7,6 +7,7 @@ import {
   ROLE_SETUP_SYSTEM_PROMPT,
   buildRoleCreationUserPrompt,
 } from "@/lib/org/agent/roleCreationPrompt";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 
 test("registered role chats edit immediately without asking to create again", () => {
   const prompt = buildRoleCreationSystemPrompt({
@@ -64,6 +65,15 @@ test("role creation and its confirmation reply use the selected web response lan
   assert.match(korean, /present it as `대면 근무`/);
   assert.match(korean, /\[Slack 연결하기\]\(\/org\/settings\)/);
   assert.match(outcome, /<response_language locale="en">/);
+  // Harper points the team to the start steps by the names on screen.
+  const steps = Object.values(COMPANY_TERMS.roleStart);
+  const stepLine = (prompt: string, label: string) =>
+    prompt.split("\n").find((line) => line.startsWith(`- ${label}:`)) ?? "";
+  for (const step of steps) {
+    assert.ok(stepLine(korean, "새 역할 단계").includes(step.ko), step.ko);
+    assert.ok(stepLine(english, "New role steps").includes(step.en), step.en);
+  }
+  assert.doesNotMatch(korean, /start screens \(Setup/);
 });
 
 test("Setup context contains public role facts instead of registration and private selection state", () => {

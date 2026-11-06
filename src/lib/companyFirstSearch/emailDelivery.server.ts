@@ -97,6 +97,24 @@ export async function mailCriteriaByCandidate(admin: Admin, intros: Array<{ id: 
       .filter(isGradedCriterion).map(({ name, fitness }) => ({ name, fitness }))]));
 }
 
+/**
+ * 「지금 모두 M명」 per list for the mail's Roles, by the inbox rule, read as
+ * the workspace owner. Optional: the mail goes out without it on failure.
+ */
+async function readDigestTotals(admin: Admin, workspaceId: string, roleIds: string[]) {
+  try {
+    const { readOrgDecisionCounts } = await import("@/lib/org/decisionCounts.server");
+    const reads = [...(await readOrgDecisionCounts({ admin, user: null, workspaceId, roleIds })).values()];
+    return {
+      accepted_connection: reads.reduce((sum, read) => sum + read.counts.pending_connection, 0),
+      company_first: reads.reduce((sum, read) => sum + read.counts.company_intro, 0),
+    } satisfies Record<CandidateDigestKind, number>;
+  } catch (error) {
+    console.warn("[company-first/email] totals unavailable", { workspaceId, error });
+    return undefined;
+  }
+}
+
 export async function loadMailContext(admin: Admin, rows: EmailOutboxRow[], allowedRoleIds: string[]) {
   const workspaceId = rows[0]!.company_workspace_id;
   const requestedCandidateIds = [...new Set(rows.flatMap(row => row.candidate_ids))];
@@ -110,11 +128,12 @@ export async function loadMailContext(admin: Admin, rows: EmailOutboxRow[], allo
     Number(right.delivery_kind === "accepted_connection") - Number(left.delivery_kind === "accepted_connection"));
   const roleIds = [...new Set(ordered.flatMap((row) => row.role_ids))];
   const candidateIds = [...new Set(ordered.flatMap((row) => row.candidate_ids))];
-  const [locale, cards, roleResult] = await Promise.all([
+  const [locale, cards, roleResult, totals] = await Promise.all([
     getOrgWorkspaceLocale(workspaceId, admin),
     loadSlackCandidateCards({ candidateIds, workspaceId }),
     (admin.from("company_roles" as any) as any).select("role_id, name")
       .eq("company_workspace_id", workspaceId).in("role_id", roleIds),
+    readDigestTotals(admin, workspaceId, roleIds),
   ]);
   if (roleResult.error) throw roleResult.error;
   const criteriaById = await mailCriteriaByCandidate(admin, (intros ?? []).filter((intro: {id: string}) => candidateIds.includes(intro.id)));
@@ -130,6 +149,7 @@ export async function loadMailContext(admin: Admin, rows: EmailOutboxRow[], allo
     workspaceId,
     roleNames: roleIds.map((id) => names.get(id) ?? "").filter(Boolean),
     sections,
+    totals,
     cards: cards.map((card) => {
       const url = new URL(card.profileUrl);
       url.searchParams.set("source", "email");
@@ -172,6 +192,7 @@ export function digestDependencies(admin: Admin, loadContext: () => Promise<Awai
         sections: context.sections,
         candidates,
         workspaceId: context.workspaceId,
+        totals: context.totals,
       });
       const route = await createCompanyEmailReplyAlias({
         userId: recipient.user_id, workspaceId: context.workspaceId,

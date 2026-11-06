@@ -59,7 +59,7 @@ function formatRelativeDayLabel(
   if (dayDiff === 0) return locale === "ko" ? "오늘" : "Today";
   if (dayDiff <= maxRelativeDays)
     return locale === "ko"
-      ? `${dayDiff}일전`
+      ? `${dayDiff}일 전`
       : `${dayDiff} ${dayDiff === 1 ? "day" : "days"} ago`;
   return null;
 }

@@ -39,7 +39,7 @@ export function TalentDetailPager({
       role="group"
     >
       <MuteButton
-        aria-label={c("이전 후보자", "Previous candidate")}
+        aria-label={c("이전 후보", "Previous")}
         className="rounded-none border-0 shadow-none max-md:px-1 max-md:py-1.5"
         disabled={disabled || !navigation.previous}
         onClick={() => onNavigate(navigation.previous)}
@@ -58,7 +58,7 @@ export function TalentDetailPager({
         {navigation.position} / {navigation.total}
       </div>
       <MuteButton
-        aria-label={c("다음 후보자", "Next candidate")}
+        aria-label={c("다음 후보", "Next")}
         className="rounded-none border-0 shadow-none max-md:px-1 max-md:py-1.5"
         disabled={
           disabled || nextPagePending || (!navigation.next && !onNextPage)

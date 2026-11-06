@@ -8,6 +8,7 @@ import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft } from "lucide-react";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { type OrgRoleCriterionGrade } from "@/lib/org/roleCriteria";
 import type {
   RoleStartBriefView,
@@ -41,9 +42,9 @@ export function useGradeLabel() {
   const { c } = useOrgLocale();
   return (grade: OrgRoleCriterionGrade) =>
     grade === "excellent"
-      ? c("매우 잘 맞음", "Excellent fit")
+      ? c("아주 잘 맞음", "Strong")
       : grade === "good"
-        ? c("잘 맞음", "Good fit")
+        ? c("잘 맞음", "Good")
         : grade === "uncertain"
           ? c("정보가 부족해요", "Not enough information")
           : c("맞지 않음", "Not a fit");
@@ -110,7 +111,7 @@ export function CandidateRead({
   const groups = verdict?.criteria.length
     ? [
         {
-          label: c("평가 기준", "Evaluation criteria"),
+          label: ct(c, COMPANY_TERMS.criteria.section),
           items: verdict.criteria,
         },
       ]

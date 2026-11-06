@@ -1,9 +1,7 @@
 import { buildAutoIntroCandidateProfileUrl } from "@/lib/ops/autoIntroToCompanyMessage";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
-import {
-  CANDIDATE_DECISION_LABELS,
-  DEFAULT_ORG_STOP_REASONS,
-} from "@/lib/org/candidateDecision";
+import { DEFAULT_ORG_STOP_REASONS } from "@/lib/org/candidateDecision";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 import { splitSlackMrkdwn } from "./slackTextChunks";
 
 export const HARPER_TALENT_REVIEW_ACTION_PREFIX = "harper_talent_review:";
@@ -633,7 +631,7 @@ export function parseSlackTalentReviewDecisionSubmission(args: {
     if (selectedReasons.some((reason) => !allowedReasons.has(reason))) {
       return {
         errors: {
-          review_reject_reasons: "목록에 있는 연결 거절 이유를 선택해 주세요.",
+          review_reject_reasons: "목록에 있는 넘기는 이유를 골라 주세요.",
         },
       };
     }
@@ -794,11 +792,11 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
     private_metadata: metadata,
     submit: textObject(
       connectionMode === "cc_intro"
-        ? CANDIDATE_DECISION_LABELS.connect
+        ? COMPANY_TERMS.action.connect.ko
         : "직접 연락으로 연결하기",
       "plain_text"
     ),
-    title: textObject(CANDIDATE_DECISION_LABELS.connect, "plain_text"),
+    title: textObject(COMPANY_TERMS.action.connect.ko, "plain_text"),
     type: "modal",
   };
 }
@@ -826,7 +824,7 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
           options: reasonOptions,
           type: "checkboxes",
         },
-        label: textObject("연결 거절 이유", "plain_text"),
+        label: textObject("넘기는 이유", "plain_text"),
         optional: true,
         type: "input",
       },
@@ -882,8 +880,8 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
       sourceMessageId: args.sourceMessageId,
       workspaceId: args.candidate.workspaceId,
     }),
-    submit: textObject("연결 거절하기", "plain_text"),
-    title: textObject("연결 거절", "plain_text"),
+    submit: textObject(COMPANY_TERMS.action.pass.ko, "plain_text"),
+    title: textObject(COMPANY_TERMS.action.pass.ko, "plain_text"),
     type: "modal",
   };
 }
@@ -895,7 +893,7 @@ export function buildSlackTalentReviewDecisionProcessingView(
     blocks: [
       {
         text: textObject(
-          `:hourglass_flowing_sand: *${decision === "accept" ? "후보자 연결" : "후보자 연결 거절"}을 처리하고 있어요.*\n이 창을 닫지 말고 잠시 기다려 주세요.`
+          `:hourglass_flowing_sand: *${decision === "accept" ? "연결하기" : "넘기기"}를 처리하고 있어요.*\n이 창을 닫지 말고 잠시 기다려 주세요.`
         ),
         type: "section",
       },
@@ -944,7 +942,7 @@ export function buildSlackTalentReviewDecisionResultView(args: {
     clear_on_close: true,
     close: textObject("닫기", "plain_text"),
     title: textObject(
-      args.decision === "accept" ? "연결 시작" : "연결 거절",
+      args.decision === "accept" ? "연결 시작" : "넘김",
       "plain_text"
     ),
     type: "modal",
@@ -1029,7 +1027,7 @@ export function buildSlackTalentReviewCandidateView(args: {
   blocks.push(
     {
       block_id: "review_reason_heading",
-      elements: [textObject("*Harper의 추천 이유*")],
+      elements: [textObject("*한 줄 요약*")],
       type: "context",
     },
     ...markdownContextBlocks(
@@ -1046,14 +1044,14 @@ export function buildSlackTalentReviewCandidateView(args: {
             {
               action_id: HARPER_TALENT_REVIEW_ACCEPT_ACTION_ID,
               style: "primary",
-              text: textObject(CANDIDATE_DECISION_LABELS.connect, "plain_text"),
+              text: textObject(COMPANY_TERMS.action.connect.ko, "plain_text"),
               type: "button",
               value: "accept",
             },
             {
               action_id: HARPER_TALENT_REVIEW_REJECT_ACTION_ID,
               style: "danger",
-              text: textObject("연결 거절", "plain_text"),
+              text: textObject(COMPANY_TERMS.action.pass.ko, "plain_text"),
               type: "button",
               value: "reject",
             },
@@ -1064,12 +1062,24 @@ export function buildSlackTalentReviewCandidateView(args: {
           block_id: "review_candidate_decisions_read_only",
           elements: [
             textObject(
-              "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. Owner 또는 Admin에게 요청해 주세요."
+              "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. 소유자 또는 관리자에게 요청해 주세요."
             ),
           ],
           type: "context",
         }
   );
+
+  if (args.canManageCandidates) {
+    blocks.push({
+      block_id: "review_candidate_credit_caption",
+      elements: [
+        textObject(
+          `${COMPANY_TERMS.action.connect.ko}: ${COMPANY_TERMS.caption.connectUsesIntro.ko}`
+        ),
+      ],
+      type: "context",
+    });
+  }
 
   blocks.push(
     ...spacedDivider(),
@@ -1121,7 +1131,7 @@ export function buildSlackTalentReviewCandidateView(args: {
   if (args.candidateIndex > 0) {
     navigationElements.push({
       action_id: HARPER_TALENT_REVIEW_PREVIOUS_ACTION_ID,
-      text: textObject("이전 후보자", "plain_text"),
+      text: textObject("이전 후보", "plain_text"),
       type: "button",
       value: "previous",
     });
@@ -1129,7 +1139,7 @@ export function buildSlackTalentReviewCandidateView(args: {
   if (args.candidateIndex < args.candidateCount - 1) {
     navigationElements.push({
       action_id: HARPER_TALENT_REVIEW_NEXT_ACTION_ID,
-      text: textObject("다음 후보자", "plain_text"),
+      text: textObject("다음 후보", "plain_text"),
       type: "button",
       value: "next",
     });

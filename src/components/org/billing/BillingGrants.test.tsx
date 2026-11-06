@@ -174,7 +174,7 @@ test("shared credits coexist with a paid Slot without appearing as an assignable
     );
     assert.ok(
       html.includes(
-        locale === "ko" ? "공용 Intro 7개 남음" : "7 shared Intros left"
+        locale === "ko" ? "남은 기본 연결 7회" : "7 included intros left"
       )
     );
     const document = new JSDOM(html).window.document;

@@ -1,5 +1,6 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { LoaderCircle, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -84,10 +85,10 @@ export function OrgRoleActionsMenu({
     lifecycleAction === "delete"
       ? c("삭제", "Delete")
       : lifecycleAction === "end"
-        ? c("채용 종료", "End hiring")
+        ? ct(c, COMPANY_TERMS.roleStatusAction.close)
         : lifecycleAction === "pause"
-          ? c("일시 중지", "Pause")
-          : c("다시 시작", "Resume");
+          ? ct(c, COMPANY_TERMS.roleStatusAction.pause)
+          : ct(c, COMPANY_TERMS.roleStatusAction.resume);
 
   const confirmLifecycleAction = () => {
     if (!lifecycleAction) return;
@@ -145,8 +146,8 @@ export function OrgRoleActionsMenu({
             {status === "draft" && onStart
               ? c("채용 시작하기", "Start hiring")
               : resumable
-                ? c("다시 시작", "Resume")
-                : c("일시 중지", "Pause")}
+                ? ct(c, COMPANY_TERMS.roleStatusAction.resume)
+                : ct(c, COMPANY_TERMS.roleStatusAction.pause)}
           </DropdownMenuItem>
           {onEnd && status !== "draft" && status !== "ended" ? (
             <DropdownMenuItem
@@ -154,7 +155,7 @@ export function OrgRoleActionsMenu({
               disabled={isDisabled}
               onSelect={() => setLifecycleAction("end")}
             >
-              {c("채용 종료", "End hiring")}
+              {ct(c, COMPANY_TERMS.roleStatusAction.close)}
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem

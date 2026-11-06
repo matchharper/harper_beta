@@ -1,5 +1,6 @@
 import { readTalentFirstCapacityBlockedRoleIds } from "@/lib/org/talentFirstCapacity.server";
 import { readPendingConnections } from "@/lib/org/pendingConnections.server";
+import { readOrgDecisionCounts } from "@/lib/org/decisionCounts.server";
 import { parseCompanyCandidatePresentation } from "@/lib/companyFirstSearch/presentation";
 import { createHash, randomUUID } from "crypto";
 import type { OrgLocale } from "@/i18n/org/locale";
@@ -38,6 +39,7 @@ import {
   type AutoIntroSlackProfile,
 } from "@/lib/ops/autoIntroToCompanyMessage";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import { getTalentEngagementLabels } from "@/lib/talentNetworkOptions";
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
@@ -697,7 +699,51 @@ function meetingAttendeeNames(value: Json) {
   );
 }
 
-async function fetchCurrentRoleSummaries(
+/**
+ * Waiting to connect per Role, by the inbox rule (readOrgDecisionCounts), so
+ * Slack shows the web's number. Read as the workspace owner; a workspace that
+ * cannot be read counts 0 and is logged.
+ */
+async function readRoleSummaryWaitingCounts(
+  admin: AdminClient,
+  roles: RoleSummaryRow[]
+) {
+  const roleIdsByWorkspace = new Map<string, string[]>();
+  for (const role of roles) {
+    roleIdsByWorkspace.set(role.company_workspace_id, [
+      ...(roleIdsByWorkspace.get(role.company_workspace_id) ?? []),
+      role.role_id,
+    ]);
+  }
+  const waitingByRoleId = new Map<string, number>();
+  const workspaces = [...roleIdsByWorkspace];
+  // A few workspaces at a time: each read is a full board read.
+  for (let index = 0; index < workspaces.length; index += 4) {
+    await Promise.all(
+      workspaces.slice(index, index + 4).map(async ([workspaceId, roleIds]) => {
+        try {
+          const counts = await readOrgDecisionCounts({
+            admin,
+            user: null,
+            workspaceId,
+            roleIds,
+          });
+          for (const [roleId, read] of counts)
+            waitingByRoleId.set(roleId, read.counts.pending_connection);
+        } catch (error) {
+          console.warn("[auto-intro/role-summary] counts unavailable", {
+            workspaceId,
+            error: formatError(error),
+          });
+        }
+      })
+    );
+  }
+  return waitingByRoleId;
+}
+
+/** Exported for the number contract test. */
+export async function fetchCurrentRoleSummaries(
   admin: AdminClient,
   filters: AutoIntroRunFilters,
   now: Date
@@ -728,9 +774,13 @@ async function fetchCurrentRoleSummaries(
 
   const roleIds = uniqueTexts(currentRoles.map((role) => role.role_id));
   const capacityBlockedRoleIds = new Set(await readTalentFirstCapacityBlockedRoleIds(admin, roleIds, now));
-  // The same count the web To-do shows for these Roles.
-  const { countByRoleId: pendingCountByRoleId, pairs: pendingPairs } =
-    await readPendingConnections(admin, roleIds);
+  // Reply reminders follow every waiting pair, saved or not.
+  const { pairs: pendingPairs } = await readPendingConnections(admin, roleIds);
+  // The table's number is the web's (inbox rule).
+  const pendingCountByRoleId = await readRoleSummaryWaitingCounts(
+    admin,
+    currentRoles
+  );
 
   const [candidateReplyRows, upcomingMeetingRows] = await Promise.all([
     fetchCandidateReplyReminderRows(admin, roleIds),
@@ -1602,14 +1652,14 @@ function buildWorkspaceMessageBody(args: {
     ...(args.locale === "en"
       ? [
           args.group.candidates.length === 1
-            ? "*A candidate is ready to connect.*"
-            : "*Candidates are ready to connect.*",
+            ? "*A candidate is waiting to connect.*"
+            : "*Candidates are waiting to connect.*",
         ]
       : AUTO_INTRO_WORKSPACE_OPENING),
     ...roleBlocks,
     "----------",
     args.locale === "en"
-      ? "Review each profile and Harper's notes, then decide whether to connect. Choose Email intro or Direct contact when connecting. If you choose Reject, Harper closes the process for that role and notifies the candidate. Feedback helps improve future recommendations."
+      ? `Review each profile and Harper's note, then choose ${COMPANY_TERMS.action.connect.en} or ${COMPANY_TERMS.action.pass.en}. When connecting, choose Email intro or Direct contact. If you pass, Harper closes the process for that role and lets the candidate know. Feedback helps improve future recommendations.`
       : AUTO_INTRO_RESPONSE_GUIDANCE,
     buildAutoIntroWorkspaceActionGuidance({
       locale: args.locale,
@@ -1669,7 +1719,7 @@ function parseCodexAuthoredMessage(
       if ("slackProfile" in row && row.slackProfile) {
         try {
           const slackProfile = validateAutoIntroSlackProfile(row.slackProfile);
-          candidateCopy = renderAutoIntroSlackProfile(slackProfile);
+          candidateCopy = renderAutoIntroSlackProfile(slackProfile, locale);
           fitReason = slackProfile.body;
         } catch (error) {
           throw new Error(`${formatError(error)}: ${key}`);
@@ -1689,7 +1739,7 @@ function parseCodexAuthoredMessage(
         if (!AUTO_INTRO_PRESENTATIONS.has(presentation)) {
           throw new Error(`Unsupported candidate presentation: ${key}`);
         }
-        candidateCopy = renderAutoIntroCandidateCopy(presentation, sentences);
+        candidateCopy = renderAutoIntroCandidateCopy(presentation, sentences, locale);
         fitReason = candidateCopy;
       }
       if (row.companyPresentation) {

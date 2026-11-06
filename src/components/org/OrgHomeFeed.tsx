@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
@@ -149,8 +150,8 @@ export function OrgHomeFeed({
     return () => observer.disconnect();
   }, [hasNextPage, isFetching, isError, fetchNextPage, search, searchText]);
   const filters = [
-    { value: "all", label: c("모든 소식", "All updates") },
-    { value: "intros", label: "Intro" },
+    { value: "all", label: c("전체", "All") },
+    { value: "intros", label: c("연결", "Intros") },
     { value: "messages", label: c("메시지", "Messages") },
     { value: "interviews", label: c("인터뷰", "Interviews") },
   ];
@@ -212,7 +213,7 @@ export function OrgHomeFeed({
         <header className="pb-2 lg:pt-7">
           {!navigationHeader && (
             <h2 className="truncate text-xl font-medium text-neutral-primary">
-              {roleName || c("전체 소식", "All activity")}
+              {roleName || ct(c, COMPANY_TERMS.tab.activity)}
             </h2>
           )}
           <div
@@ -224,14 +225,14 @@ export function OrgHomeFeed({
             <div className="relative min-w-40 flex-1">
               <Search
                 aria-hidden
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-soft"
+                className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-neutral-soft"
               />
               <Input
                 type="search"
-                aria-label={c("피드 검색", "Search activity")}
+                aria-label={c("소식 검색", "Search activity")}
                 placeholder={c(
-                  "후보자·내용 검색",
-                  "Search candidates or updates"
+                  "후보·내용 검색",
+                  "Search candidates or notes"
                 )}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}

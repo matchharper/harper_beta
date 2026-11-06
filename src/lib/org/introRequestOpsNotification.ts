@@ -54,7 +54,7 @@ async function notifyIntroForOps(
     }
     const label = `${workspace.data.company_name} : ${role.data.name}`;
     await args.post(
-      `${event === "accepted" ? "후보자 Intro 수락" : "Intro 요청"} · ${formatSlackLink(buildOrgRoleUrl(args.workspaceId, intro.role_id), label)} → ${escapeSlackText(talent.data.name) || "이름 미등록 후보자"}`,
+      `${event === "accepted" ? "후보자 연결 수락" : "연결 요청"} · ${formatSlackLink(buildOrgRoleUrl(args.workspaceId, intro.role_id), label)} → ${escapeSlackText(talent.data.name) || "이름 미등록 후보자"}`,
       uuidv5(`org-intro-${event}:${args.introCandidateId}`, uuidv5.URL)
     );
   } catch (error) {
