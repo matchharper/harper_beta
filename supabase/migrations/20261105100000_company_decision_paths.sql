@@ -22,8 +22,10 @@
 -- get their own company-side table with history (D20, next PR).
 --
 -- When the Talent account is deleted, the reasons about that person (Pass,
--- stop and acceptance reasons) are erased (redacted) from every decision; the
--- rows stay.
+-- stop and acceptance reasons; a role start rating's note, answer and reasons)
+-- are erased (redacted) from every decision; the rows stay. Account deletion marks talent_users.deleted_at (the row stays), so
+-- the erase runs on that mark as well as on a row delete, and a reason recorded
+-- about an already deleted account is not kept either.
 
 create index if not exists company_decision_events_member_subject_idx
   on public.company_decision_events (subject_id) where subject_kind = 'member_candidate';
@@ -37,10 +39,11 @@ as $$
 begin
   update public.company_decision_events
   set reason_text = null,
-      detail = detail || jsonb_build_object('redacted', true, 'redactedAt', now())
+      detail = (detail - array['note', 'answer', 'reasons'])
+        || jsonb_build_object('redacted', true, 'redactedAt', now())
   where subject_kind = 'member_candidate'
     and subject_id = old.user_id
-    and reason_text is not null;
+    and (reason_text is not null or detail ?| array['note', 'answer', 'reasons']);
   return old;
 end;
 $$;
@@ -52,6 +55,54 @@ create trigger talent_users_redact_company_decisions
   after delete on public.talent_users
   for each row
   execute function public.redact_deleted_talent_decisions_v1();
+
+create trigger talent_users_redact_company_decisions_on_deletion
+  after update of deleted_at on public.talent_users
+  for each row
+  when (old.deleted_at is null and new.deleted_at is not null)
+  execute function public.redact_deleted_talent_decisions_v1();
+
+-- A decision recorded after the account was deleted keeps no reason either.
+create or replace function public.redact_decision_about_deleted_talent_v1()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.subject_kind = 'member_candidate'
+     and (new.reason_text is not null or new.detail ?| array['note', 'answer', 'reasons'])
+     and exists (
+       select 1 from public.talent_users talent
+       where talent.user_id = new.subject_id and talent.deleted_at is not null
+     ) then
+    new.reason_text := null;
+    new.detail := (new.detail - array['note', 'answer', 'reasons'])
+      || jsonb_build_object('redacted', true, 'redactedAt', now());
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.redact_decision_about_deleted_talent_v1()
+  from public, anon, authenticated, service_role;
+
+create trigger company_decision_events_redact_deleted_talent
+  before insert on public.company_decision_events
+  for each row
+  execute function public.redact_decision_about_deleted_talent_v1();
+
+-- Decisions already recorded about accounts deleted before this migration.
+update public.company_decision_events event
+set reason_text = null,
+    detail = (event.detail - array['note', 'answer', 'reasons'])
+      || jsonb_build_object('redacted', true, 'redactedAt', now())
+where event.subject_kind = 'member_candidate'
+  and (event.reason_text is not null or event.detail ?| array['note', 'answer', 'reasons'])
+  and exists (
+    select 1 from public.talent_users talent
+    where talent.user_id = event.subject_id and talent.deleted_at is not null
+  );
 
 create or replace function public.record_company_progress_decision_v1()
 returns trigger
@@ -98,7 +149,8 @@ begin
     v_detail := jsonb_build_object('progressId', new.id);
     v_channel := coalesce(v_channel, nullif(new.metadata->>'source', ''), 'web');
   elsif new.kind = 'org_candidate_saved' then
-    v_actor := coalesce(v_actor, nullif(new.metadata->>'actorUserId', '')::uuid);
+    v_actor := coalesce(v_actor, case when new.metadata->>'actorUserId' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+      then (new.metadata->>'actorUserId')::uuid end);
     if tg_op = 'UPDATE' and (old.metadata->'saved') is not distinct from (new.metadata->'saved') then
       return new;
     end if;
@@ -158,10 +210,10 @@ begin
   for v_talent, v_entry in select key, value from jsonb_each(new.evaluations) loop
     continue when jsonb_typeof(v_entry) <> 'object'
       or v_entry is not distinct from (old.evaluations->v_talent)
-      or v_talent !~ '^[0-9a-fA-F-]{36}$';
+      or v_talent !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
     perform public.record_company_decision_v1(
       v_workspace, new.role_id, 'member_candidate', v_talent::uuid, 'rate', 'role_start',
-      nullif(v_entry->>'by', '')::uuid,
+      case when v_entry->>'by' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then (v_entry->>'by')::uuid end,
       'role_start:' || v_talent || ':rate:' || md5(v_entry::text),
       null, v_entry->>'reasonText', '{}',
       jsonb_strip_nulls(jsonb_build_object(

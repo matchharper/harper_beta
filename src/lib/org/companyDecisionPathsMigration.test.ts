@@ -62,7 +62,7 @@ const SETUP = `
       revision = revision + 1 where id = v_intro.id;
     return jsonb_build_object('status', 'requested', 'introCandidateId', v_intro.id);
   end $$;
-  create table talent_users(user_id uuid primary key);
+  create table talent_users(user_id uuid primary key, deleted_at timestamptz);
   create table company_role_start_sessions(role_id uuid primary key references company_roles, evaluations jsonb not null default '{}',
     revision int not null default 0);
   create table company_todo_suggestions(id uuid primary key, company_workspace_id uuid, role_id uuid, kind text, title text,
@@ -92,7 +92,7 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
       insert into company_roles(role_id, company_workspace_id, name) values ('${role}', '${workspace}', 'Engineer');
       insert into company_internal_roles(role_id, request, criteria) values ('${role}', 'brief', '[]');
       insert into company_role_start_sessions(role_id) values ('${role}');
-      insert into talent_users values ('${talent}'), ('${other}');
+      insert into talent_users(user_id) values ('${talent}'), ('${other}');
       insert into company_todo_suggestions(id, company_workspace_id, role_id, kind, title) values
         ('${suggestion}', '${workspace}', '${role}', 'follow_up', 'Follow up'),
         ('${suggestion2}', '${workspace}', '${role}', 'widen', 'Widen');
@@ -133,7 +133,7 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
     const rate = (talentId: string, entry: object) => db.exec(`update company_role_start_sessions
       set evaluations = evaluations || jsonb_build_object('${talentId}', '${JSON.stringify(entry)}'::jsonb), revision = revision + 1
       where role_id = '${role}';`);
-    await rate(talent, { rating: "bad", reasonText: "경력이 짧음", by: actor, at: "1" });
+    await rate(talent, { rating: "bad", reasonText: "경력이 짧음", note: "면접 메모", answer: "답", by: actor, at: "1" });
     await rate(other, { rating: "good", by: actor, at: "2" });
     await rate(talent, { rating: "uncertain", by: actor, at: "3" });
 
@@ -187,15 +187,26 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
     assert.equal(rows[12].detail.kind, "widen");
     assert.equal(rows[14].subject_id, person);
 
-    // The Talent account goes: every reason about the person is erased; the rows stay.
-    await db.exec(`delete from talent_users where user_id = '${talent}';`);
-    const left = (await db.query<any>(`select count(*)::int n from company_decision_events
-      where subject_id = '${talent}' and reason_text is not null`)).rows[0].n;
-    assert.equal(left, 0);
+    // The Talent account goes (account deletion marks deleted_at; the row
+    // stays): every reason about the person is erased; the rows stay.
+    const reasons = async (id: string) => (await db.query<any>(`select count(*)::int n from company_decision_events
+      where subject_id = '${id}' and reason_text is not null`)).rows[0].n;
+    const redacted = async (id: string) => (await db.query<any>(`select count(*)::int n from company_decision_events
+      where subject_id = '${id}' and detail ? 'redacted'`)).rows[0].n;
+    await db.exec(`update talent_users set deleted_at = now() where user_id = '${talent}';`);
+    assert.equal(await reasons(talent), 0);
     assert.equal((await db.query<any>(`select count(*)::int n from company_decision_events
-      where subject_id = '${talent}' and detail ? 'redacted'`)).rows[0].n, 3);
-    assert.equal((await db.query<any>(`select count(*)::int n from company_decision_events
-      where subject_id = '${other}' and detail ? 'redacted'`)).rows[0].n, 0);
+      where subject_id = '${talent}' and detail ?| array['note', 'answer', 'reasons']`)).rows[0].n, 0);
+    assert.equal(await redacted(talent), 3);
+    assert.equal(await redacted(other), 0);
+    // A reason recorded after the deletion is not kept either.
+    await db.query(`select record_company_decision_v1('${workspace}', '${role}', 'member_candidate', '${talent}',
+      'stop', 'web', '${actor}', 'after-deletion', null, 'late reason')`);
+    assert.equal(await reasons(talent), 0);
+    assert.equal(await redacted(talent), 4);
+    // A deleted row (not only the mark) erases them too.
+    await db.exec(`delete from talent_users where user_id = '${other}';`);
+    assert.equal(await reasons(other), 0);
 
     const can = async (q: string) => (await db.query<any>(`select ${q} as ok`)).rows[0].ok;
     const fn = "set_external_candidate_company_decision_v1(uuid,uuid,text,uuid,text,text)";
