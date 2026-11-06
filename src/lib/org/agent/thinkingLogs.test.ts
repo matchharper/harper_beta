@@ -176,7 +176,7 @@ test("compacts legacy adjacent running and terminal rows by label", () => {
 });
 
 test("a running web step names its search words or page host, as on the candidate side", () => {
-  assert.equal(orgAgentToolTarget("web_search", JSON.stringify({ query: "  Canopy   frontend\n hiring " })), "Canopy frontend hiring");
+  assert.equal(orgAgentToolTarget("web_search", JSON.stringify({ query: "  Acme   frontend\n hiring " })), "Acme frontend hiring");
   assert.equal(orgAgentToolTarget("web_search", JSON.stringify({ query: "x".repeat(120) }))?.length, 80);
   assert.equal(orgAgentToolTarget("open_url", JSON.stringify({ url: ["https://www.example.com/a", "https://example.com/b", "not a url"] })), "example.com");
   assert.equal(orgAgentToolTarget("open_url", "{not json"), undefined);
