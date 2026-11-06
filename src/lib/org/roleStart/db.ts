@@ -5,6 +5,9 @@ import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 
 let client: ReturnType<typeof postgres> | null = null;
 
+/** The client or one of its transactions: both run the same tagged queries. */
+export type RoleStartDb = postgres.ISql;
+
 /**
  * Direct SQL for the role start fast path (pgvector math and set-based
  * filters that PostgREST cannot express). Authorization happens before any

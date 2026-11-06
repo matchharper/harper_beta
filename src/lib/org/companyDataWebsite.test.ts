@@ -391,7 +391,8 @@ test("applies Slack role deletion status and expiry in one atomic RPC", async ()
   });
 
   assert.equal(fixture.rpcCalls.length, 1);
-  assert.equal(fixture.rpcCalls[0]?.name, "apply_company_data_changes_v1");
+  // Role facts alone go through the writer that records who and where on versions.
+  assert.equal(fixture.rpcCalls[0]?.name, "apply_company_data_with_hiring_history_v2");
   assert.equal(fixture.rpcCalls[0]?.args.p_source, "slack");
   assert.deepEqual(fixture.rpcCalls[0]?.args.p_changes, [
     {
@@ -446,7 +447,7 @@ test("saves search toggles with the canonical boolean expectation", async () => 
     });
 
     assert.equal(fixture.rpcCalls.length, 1);
-    assert.equal(fixture.rpcCalls[0]?.name, "apply_company_data_changes_v1");
+    assert.equal(fixture.rpcCalls[0]?.name, "apply_company_data_with_hiring_history_v2");
     assert.deepEqual(fixture.rpcCalls[0]?.args.p_changes, [
       {
         expected: !enabled,
@@ -583,4 +584,48 @@ test("an internal Role without an extension can save its first canonical brief",
     workspaceId:"workspace-1",changes:[{key:"role_request",roleId:"role-1",value:"First brief"}]});
   assert.deepEqual(fixture.rpcCalls[0].args.p_changes,[{
     key:"role_request",role_id:"role-1",expected:null,value:"First brief"}]);
+});
+
+test("one save carries who, where and the salary text to one writer call", async () => {
+  const fixture = createWebsiteMutationAdminFixture({
+    roles: {
+      "role-1": { location_text: "Seoul", name: "Backend", role_id: "role-1", source_type: "internal", status: "active" },
+    },
+    workspace: { company_db_id: null, company_workspace_id: "workspace-1" },
+  });
+
+  await applyWebsiteCompanyDataChanges({
+    actorLabel: "Ops",
+    actorUserId: "user-1",
+    admin: fixture.admin as never,
+    changeSource: "ops",
+    changes: [{ key: "role_location", roleId: "role-1", value: "Busan" }],
+    salaryRange: { roleId: "role-1", value: "1억" },
+    workspaceId: "workspace-1",
+  });
+
+  assert.equal(fixture.rpcCalls.length, 1);
+  assert.equal(fixture.rpcCalls[0]?.name, "apply_company_data_with_hiring_history_v2");
+  const rpcArgs = fixture.rpcCalls[0]!.args;
+  assert.deepEqual(
+    [rpcArgs.p_source, rpcArgs.p_change_source, rpcArgs.p_actor_user_id, rpcArgs.p_actor_label],
+    ["website", "ops", "user-1", "Ops"]
+  );
+  assert.deepEqual(rpcArgs.p_salary_range, { draft_only: false, role_id: "role-1", value: "1억" });
+  assert.deepEqual(rpcArgs.p_criteria_changes, []);
+
+  // The salary alone is a save too.
+  const salaryOnly = createWebsiteMutationAdminFixture({
+    workspace: { company_db_id: null, company_workspace_id: "workspace-1" },
+  });
+  await applyWebsiteCompanyDataChanges({
+    actorLabel: "Kim",
+    admin: salaryOnly.admin as never,
+    changes: [],
+    salaryRange: { draftOnly: true, roleId: "role-1", value: null },
+    source: "chat",
+    workspaceId: "workspace-1",
+  });
+  assert.deepEqual(salaryOnly.rpcCalls[0]?.args.p_salary_range, { draft_only: true, role_id: "role-1", value: null });
+  assert.equal(salaryOnly.rpcCalls[0]?.args.p_change_source, null);
 });
