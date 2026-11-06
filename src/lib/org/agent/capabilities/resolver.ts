@@ -39,8 +39,10 @@ function loadCapabilitiesTool(ids: string[]) {
 }
 
 // external_sourcing is listed only where it is turned on, so other workspaces keep the same schema as before.
-export const LOAD_CAPABILITIES_TOOL = loadCapabilitiesTool(COMPANY_CAPABILITIES.map((c) => c.id).filter((id) => id !== "external_sourcing"));
-const LOAD_CAPABILITIES_TOOL_WITH_EXTERNAL_SOURCING = loadCapabilitiesTool(COMPANY_CAPABILITIES.map((c) => c.id));
+// criteria_proposal belongs to Harper's own review (a trusted caller), never to a member's conversation.
+const MEMBER_CAPABILITY_IDS = COMPANY_CAPABILITIES.map((c) => c.id).filter((id) => id !== "criteria_proposal");
+export const LOAD_CAPABILITIES_TOOL = loadCapabilitiesTool(MEMBER_CAPABILITY_IDS.filter((id) => id !== "external_sourcing"));
+const LOAD_CAPABILITIES_TOOL_WITH_EXTERNAL_SOURCING = loadCapabilitiesTool(MEMBER_CAPABILITY_IDS);
 
 export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mode: CompanyCapabilityMode; emailReply?: boolean; loaded: ReadonlySet<CompanyCapabilityId>; allowedToolNames?: ReadonlySet<string>; workspaceId?: string; agentService?: boolean }) {
   // Trusted caller restriction. Loading a capability can never broaden it.

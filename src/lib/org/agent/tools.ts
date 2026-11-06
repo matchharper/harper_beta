@@ -22,7 +22,7 @@ import { CRITERIA_PROPOSALS_ENABLED } from "@/lib/org/criteriaProposals";
 // Tags stay on the company's private decision record. Only while criteria
 // suggestions are on does anything read them back.
 const REASON_TAGS_EFFECT = CRITERIA_PROPOSALS_ENABLED
-  ? " When recent passes on this Role keep naming the same criterion, Harper suggests making it stricter in the Role's To-do; nothing changes until the company accepts."
+  ? " Harper later reads recent pass reasons on this Role, these labels with the user's own words, and when they keep pointing at the same criterion Harper suggests making it stricter in the Role's To-do; nothing changes until the company accepts."
   : "";
 const REASON_TAGS_INPUT = (when: string) =>
   ({
@@ -65,6 +65,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "get_more_data",
   "read_conversation_history",
   "update_role_criteria",
+  "propose_criteria_change",
   "update_data",
   "change_role_status",
   "set_role_notification",
@@ -799,6 +800,43 @@ export const ORG_AGENT_TOOLS = [
           },
         },
         required: ["roleId"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_criteria_change",
+      description:
+        "In Harper's review of pass reasons only: add one suggestion to the Role's To-do to make one existing criterion one level stricter (nice to have → important → required), backed by the passes in this review whose stated reasons support it. Nothing changes until a company member applies it in the To-do; the company can dismiss it, and an applied or dismissed change is never suggested again. One suggestion per Role is open at a time and one per review. This does not edit the Role, add or rewrite a criterion, contact anyone or start a search. The result says whether the suggestion was added.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          criterionId: {
+            description: "The criterion's id exactly as the review lists it.",
+            minLength: 1,
+            type: "string",
+          },
+          decisionIds: {
+            description:
+              "The listed pass decisions whose stated reasons support this change, including at least one passed since the last review. A suggestion backed by one candidate is refused.",
+            items: { type: "integer" },
+            minItems: 1,
+            type: "array",
+          },
+          reason: {
+            description:
+              "One short sentence shown on the To-do card, in the workspace language (Korean in the friendly 해요체 the rest of the To-do uses): what these passes had in common, in the company's terms. No candidate names and no number or share such as many or most; the card adds the counts. A long sentence is shortened to fit the card.",
+            minLength: 1,
+            type: "string",
+          },
+          roleId: {
+            description: "The reviewed Role. Omit to use it.",
+            type: "string",
+          },
+        },
+        required: ["criterionId", "decisionIds", "reason"],
         type: "object",
       },
     },
@@ -1676,6 +1714,8 @@ export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat", trus
   const tools = ORG_AGENT_TOOLS.filter(
     (tool) =>
       (tool.function.name !== "recommend_talents" || trusted?.scheduledMatching === true) &&
+      // Harper's own review files suggestions; a company member's chat edits criteria directly.
+      (tool.function.name !== "propose_criteria_change" || trusted?.agentService === true) &&
       (COMPANY_MEETING_SCHEDULING_ENABLED ||
       tool.function.name !== "manage_interview_availability")
   );

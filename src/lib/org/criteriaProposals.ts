@@ -10,24 +10,24 @@ import { criterionReasonTag } from "@/lib/org/reasonTags";
 import { withKoreanRo, type CompanyTermLocale } from "@/lib/org/terms";
 
 /**
- * Pass reasons sharpen the criteria (S2 G): the counting rules.
+ * Pass reasons sharpen the criteria (S2 G): what a suggestion is.
  *
- * Harper reads the reasons a company gave when it passed on candidates for a
- * Role (a Pass, a stop, an archive). When most recent reasons name the same
- * criterion, it suggests making that criterion one level stricter. A
- * suggestion changes nothing until a company user accepts it.
+ * Harper (the company agent) reads the reasons a company gave when it passed
+ * on candidates for a Role (a Pass, a stop, an archive): the company's own
+ * words, its reason tags and who the candidates were. When the reasons keep
+ * pointing at the same criterion, Harper may suggest making that criterion
+ * one level stricter (criteriaReview.server.ts). A suggestion changes nothing
+ * until a company user accepts it.
  *
- * Counting is deterministic: only reason tags name a criterion. A reason
- * given as free text only counts as a reason that names no criterion, so it
- * makes a suggestion less likely, never more. No model is called.
+ * This file holds the parts that are not a judgment: when a Role is read
+ * again, the levels, the stored payload and the To-do text.
  */
 
 /**
- * Whether Harper makes these suggestions. Off: nothing is queued and the
- * To-do shows nothing new, as before this change. One switch; see the S2
- * report (Decisions for Shaun).
+ * Whether Harper makes these suggestions (on since 11/6). Off: nothing is
+ * queued and the To-do shows nothing new. One switch; see the S2 report.
  */
-export const CRITERIA_PROPOSALS_ENABLED = false;
+export const CRITERIA_PROPOSALS_ENABLED = true;
 
 /** The numbers, in one place. */
 export const CRITERIA_PROPOSAL_RULES = {
@@ -35,12 +35,8 @@ export const CRITERIA_PROPOSAL_RULES = {
   everyDecisions: 3,
   /** ...or this many days after the oldest one not read yet. */
   waitDays: 7,
-  /** How many recent passes with a reason are counted (one per candidate). */
-  window: 10,
-  /** A criterion needs at least this many of them... */
-  minCount: 3,
-  /** ...and at least this share of them. */
-  minShare: 0.5,
+  /** Candidates Harper reads per review: every new pass, then earlier ones up to this many. */
+  reviewSize: 20,
   /** The strictest level Harper suggests (필수 keeps people out of searches). */
   highestLevel: "required" as OrgRoleCriterionLevel,
   /** Days an unanswered suggestion stays in the To-do. */
@@ -48,9 +44,6 @@ export const CRITERIA_PROPOSAL_RULES = {
 };
 
 export type CriteriaProposalRules = typeof CRITERIA_PROPOSAL_RULES;
-
-/** Reason tags that are not about the Role's criteria. */
-const NOT_ABOUT_CRITERIA = new Set<string>(["timing"]);
 
 /** One pass decision, as company_decision_consolidation_input_v1 returns it. */
 export type PassDecision = {
@@ -75,10 +68,15 @@ export type CriteriaProposalChange = {
 export type CriteriaProposalPayload = {
   version: 1;
   change: CriteriaProposalChange;
-  /** count of the window most recent passes with a reason named the criterion. */
+  /**
+   * Harper found that count of the window candidates it read with a stated
+   * reason were passed for this criterion; decisionIds are those passes.
+   */
   evidence: { count: number; window: number; decisionIds: number[] };
   /** The workspace language the suggestion was made in. */
   locale?: CompanyTermLocale;
+  /** Harper's one sentence for the To-do card, in locale. */
+  rationale?: string;
 };
 
 const LEVEL_ORDER = ORG_ROLE_CRITERION_LEVELS.map((item) => item.level);
@@ -101,97 +99,6 @@ export function nextCriterionLevel(
 /** What a proposal changes, as one stable key (never suggested twice). */
 export function criteriaProposalContentKey(change: CriteriaProposalChange) {
   return `criterion_level:${change.criterionKey}:${change.from}>${change.to}`;
-}
-
-/**
- * The passes that are counted: newest first, the newest one with a reason per
- * candidate. A reason tagged only as timing is about the candidate's moment,
- * not the Role, and is left out.
- */
-export function countedPasses(decisions: PassDecision[], size: number) {
-  const counted: PassDecision[] = [];
-  const seen = new Set<string>();
-  for (const decision of [...decisions].sort((a, b) => b.id - a.id)) {
-    if (counted.length >= size) break;
-    const tags = [...new Set(decision.reasonTags)].filter(
-      (tag) => !NOT_ABOUT_CRITERIA.has(tag)
-    );
-    if (decision.reasonTags.length > 0 && tags.length === 0) continue;
-    if (!tags.length && !decision.hasReasonText) continue;
-    const candidate = decision.subjectId ?? `decision:${decision.id}`;
-    if (seen.has(candidate)) continue;
-    seen.add(candidate);
-    counted.push({ ...decision, reasonTags: tags });
-  }
-  return counted;
-}
-
-/**
- * The suggestion these passes support, or null. A criterion qualifies when at
- * least minCount and minShare of the counted passes name it; the most named
- * one that can still go a level up, and was not suggested before, is chosen.
- */
-export function findCriteriaProposal(args: {
-  decisions: PassDecision[];
-  criteria: unknown;
-  /** Content keys the company already accepted or dismissed for this Role. */
-  answeredKeys?: Iterable<string>;
-  rules?: CriteriaProposalRules;
-}): CriteriaProposalPayload | null {
-  const rules = args.rules ?? CRITERIA_PROPOSAL_RULES;
-  const counted = countedPasses(args.decisions, rules.window);
-  if (counted.length < rules.minCount) return null;
-  const criteria = normalizeOrgRoleCriteria(args.criteria);
-  const byKey = new Map<string, OrgRoleCriterion>();
-  for (const criterion of criteria) {
-    const key = criterionReasonTag(criterion);
-    if (key && !byKey.has(key)) byKey.set(key, criterion);
-  }
-  const order = [...byKey.keys()];
-  const tally = new Map<string, { count: number; latest: number; ids: number[] }>();
-  for (const decision of counted) {
-    for (const tag of decision.reasonTags) {
-      if (!byKey.has(tag)) continue;
-      const entry = tally.get(tag) ?? { count: 0, latest: 0, ids: [] };
-      entry.count += 1;
-      entry.latest = Math.max(entry.latest, decision.id);
-      entry.ids.push(decision.id);
-      tally.set(tag, entry);
-    }
-  }
-  const answered = new Set(args.answeredKeys ?? []);
-  const qualified = [...tally]
-    .filter(
-      ([, entry]) =>
-        entry.count >= rules.minCount &&
-        entry.count / counted.length >= rules.minShare
-    )
-    .sort(
-      ([leftKey, left], [rightKey, right]) =>
-        right.count - left.count ||
-        right.latest - left.latest ||
-        order.indexOf(leftKey) - order.indexOf(rightKey)
-    );
-  for (const [key, entry] of qualified) {
-    const criterion = byKey.get(key)!;
-    const from = criterionLevel(criterion);
-    const to = nextCriterionLevel(from, rules.highestLevel);
-    if (!to) continue;
-    const change: CriteriaProposalChange = {
-      type: "criterion_level",
-      criterionKey: key,
-      criterionName: criterion.name,
-      from,
-      to,
-    };
-    if (answered.has(criteriaProposalContentKey(change))) continue;
-    return {
-      version: 1,
-      change,
-      evidence: { count: entry.count, window: counted.length, decisionIds: entry.ids },
-    };
-  }
-  return null;
 }
 
 /** Whether the criterion is still where the proposal found it. */
@@ -224,14 +131,21 @@ export function applyCriteriaProposal(
   );
 }
 
+/** Longest stored sentence Harper writes for the card. */
+export const CRITERIA_PROPOSAL_RATIONALE_MAX = 200;
+
 function shorten(value: string, max: number) {
   const chars = Array.from(value.trim());
   return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : chars.join("");
 }
 
+/** The To-do summary column holds this many characters. */
+export const CRITERIA_PROPOSAL_SUMMARY_MAX = 160;
+
 /**
  * The company-facing line (To-do, at most 160 characters) and a one-line
- * preview of the change.
+ * preview of the change. Harper's own sentence is used when the reader reads
+ * the language it was written in; the numbers always come from the evidence.
  */
 export function criteriaProposalText(
   payload: CriteriaProposalPayload,
@@ -241,15 +155,30 @@ export function criteriaProposalText(
   const name = shorten(change.criterionName, 40);
   const from = levelName(change.from, locale);
   const to = levelName(change.to, locale);
+  const preview = `${name}: ${from} → ${to}`;
+  const question =
+    locale === "en"
+      ? `Raise '${name}' from ${from} to ${to}?`
+      : `'${name}' 기준을 ${from}에서 ${withKoreanRo(to)} 올릴까요?`;
+  const rationale = payload.rationale?.trim();
+  if (rationale && (payload.locale ?? "ko") === locale) {
+    const count =
+      locale === "en"
+        ? `(${evidence.count} of ${evidence.window} passes with a reason)`
+        : `(이유를 남긴 ${evidence.window}명 중 ${evidence.count}명)`;
+    const room = CRITERIA_PROPOSAL_SUMMARY_MAX - Array.from(`${question}  ${count}`).length;
+    if (room >= 20)
+      return { summary: `${question} ${shorten(rationale, room)} ${count}`, preview };
+  }
   if (locale === "en") {
     return {
-      summary: `Raise '${name}' from ${from} to ${to}? It was the reason for ${evidence.count} of your last ${evidence.window} passes with a reason.`,
-      preview: `${name}: ${from} → ${to}`,
+      summary: `${question} It was the reason for ${evidence.count} of your last ${evidence.window} passes with a reason.`,
+      preview,
     };
   }
   return {
-    summary: `'${name}' 기준을 ${from}에서 ${withKoreanRo(to)} 올릴까요? 최근 이유를 남기고 넘긴 후보 ${evidence.window}명 중 ${evidence.count}명이 이 기준 때문이었어요.`,
-    preview: `${name}: ${from} → ${to}`,
+    summary: `${question} 최근 이유를 남기고 넘긴 후보 ${evidence.window}명 중 ${evidence.count}명이 이 기준 때문이었어요.`,
+    preview,
   };
 }
 
@@ -307,5 +236,8 @@ export function parseCriteriaProposalPayload(
         : [],
     },
     ...(raw.locale === "en" || raw.locale === "ko" ? { locale: raw.locale } : {}),
+    ...(typeof raw.rationale === "string" && raw.rationale.trim()
+      ? { rationale: shorten(raw.rationale, CRITERIA_PROPOSAL_RATIONALE_MAX) }
+      : {}),
   };
 }

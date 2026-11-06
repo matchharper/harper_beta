@@ -11,7 +11,9 @@ import { buildCompanySystemInput } from "../input";
 
 test("domain tools are discoverable, including shared correspondence capabilities", () => {
   const names = [...COMPANY_BASE_TOOLS, ...COMPANY_CAPABILITIES.flatMap((c) => [...c.toolIds])];
-  assert.deepEqual([...new Set(names)].filter(name => name !== "recommend_talents").sort(), getEnabledOrgAgentTools("slack").map((t) => t.function.name).sort());
+  // Trusted callers only: scheduled matching recommends, Harper's own review of pass reasons suggests criteria.
+  const trustedOnly = ["recommend_talents", "propose_criteria_change"];
+  assert.deepEqual([...new Set(names)].filter(name => !trustedOnly.includes(name)).sort(), getEnabledOrgAgentTools("slack").map((t) => t.function.name).sort());
   for (const c of COMPANY_CAPABILITIES) for (const id of c.policyIds) assert.ok(getCompanyPolicy(id, "slack").length > 0);
 });
 
@@ -20,8 +22,10 @@ test("initial request includes core communication, deferring heavy schemas AND d
   assert.deepEqual([...resolved.offeredToolNames].sort(), [...COMPANY_BASE_TOOLS, "list_contacts", "read_contact", "read_agent_messages", "contact_talent", "load_capabilities"].sort());
   assert.deepEqual(resolved.policyIds, ["agent_correspondence", "candidate_contact"]);
   const system = buildCompanySystemInput({ resolved, surface: "slack" });
-  // external_sourcing is offered only to workspaces that have it turned on (tested below).
-  for (const c of COMPANY_CAPABILITIES) if (c.id !== "external_sourcing") assert.ok(system.includes(c.id));
+  // external_sourcing is offered only to workspaces that have it turned on (tested below);
+  // criteria_proposal only to Harper's own review, never to a member's conversation.
+  for (const c of COMPANY_CAPABILITIES) if (c.id !== "external_sourcing" && c.id !== "criteria_proposal") assert.ok(system.includes(c.id));
+  assert.ok(!system.includes("criteria_proposal"));
   assert.ok(!system.includes("<hiring_brief_authoring_contract>"));
   assert.ok(!JSON.stringify(resolved.tools).includes('"update_data"'));
 });

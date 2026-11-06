@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { buildOrgAgentPromptContext } from "@/lib/org/agent/context";
 import { runOrgAgentToolLoop } from "@/lib/org/agent/chat";
 import { resolveOrgAgentModel } from "@/lib/org/agent/modelConfig";
-import { withCompanyAgentScope, companyAgentServiceTools } from "./companyScope";
+import { withCompanyAgentScope, companyAgentCorrespondenceTools } from "./companyScope";
 import {
   agentContactDatabase,
   assertAgentContactSource,
@@ -185,7 +185,7 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
       scheduleTier === null
         ? ["agent_correspondence"]
         : ["company_messaging", "harper_schedule", ...(scheduleTier >= 2 ? (["candidate_search", "candidate_contact"] as const) : [])],
-    allowedToolNames: scheduleTier === null ? companyAgentServiceTools() : scheduleTierTools(scheduleTier),
+    allowedToolNames: scheduleTier === null ? companyAgentCorrespondenceTools() : scheduleTierTools(scheduleTier),
     source: "chat",
     readAudience: "company_safe",
     scopeKey: `agent-event:${job.id}`,
