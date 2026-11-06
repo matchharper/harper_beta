@@ -34,6 +34,7 @@ export type AutoIntroRoleSummaryItem = {
 
 export type AutoIntroCandidateReplyReminder = {
   candidateName: string;
+  documentReceived: boolean;
   expectsDocument: boolean;
   recommendationId: string | null;
   roleId: string;
@@ -301,13 +302,18 @@ export function buildAutoIntroRoleSummaryReminderText(args: {
         locale: args.locale,
         publicSiteUrl: args.publicSiteUrl,
       });
-      if (args.locale === "en")
-        return reminder.expectsDocument
+      if (args.locale === "en") {
+        if (!reminder.expectsDocument)
+          return `• ${candidateLink} answered your question about ${roleLink}. Review the reply and decide whether to connect.`;
+        return reminder.documentReceived
           ? `• ${candidateLink} sent the requested material for ${roleLink}. Review it and decide whether to connect.`
-          : `• ${candidateLink} answered your question about ${roleLink}. Review the reply and decide whether to connect.`;
-      const receivedCopy = reminder.expectsDocument
-        ? `${candidateLink}께 이력서를 요청했고, 자료를 받았어요.`
-        : `질문하신 내용을 ${candidateLink}께 전달했고 답변을 받았어요.`;
+          : `• ${candidateLink} replied to your resume request for ${roleLink} but hasn't sent the resume yet. Review the reply and decide whether to connect.`;
+      }
+      const receivedCopy = !reminder.expectsDocument
+        ? `질문하신 내용을 ${candidateLink}께 전달했고 답변을 받았어요.`
+        : reminder.documentReceived
+          ? `${candidateLink}께 이력서를 요청했고, 자료를 받았어요.`
+          : `${candidateLink}께 이력서를 요청했고 답변은 받았지만, 이력서는 아직 오지 않았어요.`;
       return `• ${roleLink} 역할과 관련해 ${receivedCopy} 연결을 받으실지, 거절하실지 알려 주세요.`;
     }
   );
