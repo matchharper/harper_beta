@@ -182,9 +182,26 @@ export function RoleStartOnboarding({
   const [historyRoleId, setHistoryRoleId] = useState<string | null>(null);
   const reviewingQuestions = historyRoleId === roleId;
   const session = query.data?.session ?? null;
+  // "바로 후보 받기": the first-three loading shows from the press, so the
+  // Brief screen does not flash while confirming waits for answers to land.
+  // A Brief that cannot be confirmed (a conflict, or an answer still being
+  // applied) opens the Brief screen instead.
+  const [candidatesNowRoleId, setCandidatesNowRoleId] = useState<string | null>(null);
+  const candidatesNow =
+    candidatesNowRoleId === roleId &&
+    (session?.phase === "questions" || session?.phase === "review");
+  const getCandidatesNow = async () => {
+    setCandidatesNowRoleId(roleId);
+    try {
+      if (await run({ action: "finish_questions" })) await run({ action: "confirm" });
+    } finally {
+      setCandidatesNowRoleId(null);
+    }
+  };
   const phaseStep = roleStartStepOf(session?.phase ?? null);
-  const step: RoleStartStepId =
-    phaseStep === "brief" && !setupDone
+  const step: RoleStartStepId = candidatesNow
+    ? "align"
+    : phaseStep === "brief" && !setupDone
       ? "setup"
       : phaseStep === "setup" && setupDone && session?.phase === "drafting"
         ? "brief"
@@ -360,12 +377,14 @@ export function RoleStartOnboarding({
                 setSetupDone(false);
               }}
               onFinish={() => run({ action: "finish_questions" })}
+              onCandidatesNow={() => void getCandidatesNow()}
               session={session}
             />
           )
         ) : step === "align" ? (
           <AlignStep
             busy={busy}
+            searching={candidatesNow}
             onEvaluate={(body) => run({ action: "evaluate", ...body })}
             onNext={() => setFinalizeOpen(true)}
             onReopen={() => run({ action: "reopen_review" })}
@@ -972,6 +991,8 @@ function BriefQuestion(props: {
   onBack?: () => void;
   choices: Array<{ id: string; label: string; onSelect: () => void }>;
   answer?: ReactNode;
+  /** Skips the remaining questions and the Brief screen, straight to the first three. */
+  onCandidatesNow?: () => void;
 }) {
   const { c } = useOrgLocale();
   const reviewing = props.answer !== undefined;
@@ -1046,6 +1067,25 @@ function BriefQuestion(props: {
           {hasAnswer ? <ArrowRight aria-hidden className="size-4" /> : null}
         </MuteButton>
       </div>
+      {props.onCandidatesNow ? (
+        <div className="mt-2 flex items-center justify-between gap-3 border-t border-neutral-1000-a10 pt-5">
+          <p className="text-[13px] leading-5 text-neutral-muted">
+            {c(
+              "답할수록 더 잘 맞는 후보를 찾아요. 지금 바로 후보 3명을 볼 수도 있어요.",
+              "Each answer sharpens the match. You can also see three candidates now."
+            )}
+          </p>
+          <MuteButton
+            className="shrink-0"
+            disabled={props.busy}
+            onClick={props.onCandidatesNow}
+            variant="transparent"
+          >
+            {c("바로 후보 받기", "See candidates now")}
+            <ArrowRight aria-hidden className="size-4" />
+          </MuteButton>
+        </div>
+      ) : null}
     </Centered>
   );
 }
@@ -1091,6 +1131,7 @@ function QuestionStep(props: {
   session: RoleStartView;
   onAnswer: (body: { chipId?: string; text?: string; skip?: boolean }) => void;
   onFinish: () => void;
+  onCandidatesNow: () => void;
   onBack: () => void;
 }) {
   const { c } = useOrgLocale();
@@ -1214,6 +1255,12 @@ function QuestionStep(props: {
       onTextChange={setText}
       onBack={goBack}
       onSkip={goForward}
+      // Only on the live question: confirming needs the drafted Brief (phase questions).
+      onCandidatesNow={
+        viewing === null && props.session.phase === "questions"
+          ? props.onCandidatesNow
+          : undefined
+      }
       onSubmit={() => {
         if (viewing === null) props.onAnswer({ text: text.trim() });
         else goForward();
@@ -1292,9 +1339,18 @@ function BriefStep(props: {
           </p>
         ) : null}
         <RoleStartStepHeader
-          title={c("채용 기준을 작성해봤어요.", "Check the hiring criteria")}
+          title={
+            conflicts.length
+              ? c("후보를 찾기 전에 이것만 고쳐 주세요.", "Fix this before Harper finds candidates")
+              : c("채용 기준을 작성해봤어요.", "Check the hiring criteria")
+          }
           description={
-            answered
+            conflicts.length
+              ? c(
+                  "아래 조건이 서로 맞지 않아 후보를 찾을 수 없어요. 오른쪽에서 직접 고치거나, 어떻게 바꿀지 적어 주세요.",
+                  "These conditions don't fit together, so Harper can't find anyone yet. Edit who we're looking for on the right, or say what to change."
+                )
+              : answered
               ? c(
                   "답해 주신 내용을 반영해 채용 기준을 정리했어요. 바꿀 점이 있으면 직접 수정하시거나, 저에게 알려주세요.",
                   "Harper wrote the criteria with your answers. Tell Harper what to change, or edit them yourself."
@@ -1425,6 +1481,8 @@ function BriefStep(props: {
 /** Left: which person and the rating. Right: the person. */
 function AlignStep(props: {
   busy: boolean;
+  /** The search is about to start ("바로 후보 받기" is confirming): show its loading. */
+  searching?: boolean;
   profiles: Record<string, FirstThreeProfile>;
   session: RoleStartView;
   onEvaluate: (body: RoleStartEvaluateBody) => unknown;
@@ -1435,7 +1493,7 @@ function AlignStep(props: {
   const { c } = useOrgLocale();
   const { session } = props;
   const candidates = session.firstCandidates;
-  const searching = session.phase === "searching";
+  const searching = props.searching || session.phase === "searching";
   // The position belongs to one list: a new list (a widened condition) starts from the first person.
   const people = candidates.map((item) => item.talentId).join(",");
   const [position, setPosition] = useState({ people, index: 0 });
