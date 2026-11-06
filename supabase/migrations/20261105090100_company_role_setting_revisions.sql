@@ -85,10 +85,11 @@ begin
   if v_workspace is null then
     return;
   end if;
+  -- Taken before the snapshot so it includes a concurrent change to the same
+  -- Role that committed while this one waited.
+  perform pg_advisory_xact_lock(hashtextextended('company_role_setting_revision:' || p_role_id::text, 0));
   v_snapshot := public.company_role_settings_snapshot_v1(p_role_id);
   v_hash := md5(v_snapshot::text);
-
-  perform pg_advisory_xact_lock(hashtextextended('company_role_setting_revision:' || p_role_id::text, 0));
 
   select revision.revision, revision.content_hash, revision.created_at
     into v_previous_revision, v_previous_hash, v_previous_created_at
@@ -137,15 +138,21 @@ revoke all on function public.capture_company_role_setting_revision_trigger_v1()
   from public, anon, authenticated, service_role;
 
 -- Every column, so a setting column added later is versioned too; a write that
--- touches only the Brief, Memory or timestamps leaves the hash unchanged.
+-- touches only the Brief, Memory or timestamps leaves the hash unchanged, and a
+-- write that changes nothing skips the function.
 create trigger company_internal_roles_setting_revision
-  after insert or update on public.company_internal_roles
+  after insert on public.company_internal_roles
   for each row execute function public.capture_company_role_setting_revision_trigger_v1();
+create trigger company_internal_roles_setting_revision_update
+  after update on public.company_internal_roles
+  for each row
+  when (old.* is distinct from new.*)
+  execute function public.capture_company_role_setting_revision_trigger_v1();
 
 create trigger company_roles_setting_revision
   after update of status, priority on public.company_roles
   for each row
-  when (new.source_type = 'internal')
+  when (new.source_type = 'internal' and (old.status, old.priority) is distinct from (new.status, new.priority))
   execute function public.capture_company_role_setting_revision_trigger_v1();
 
 -- Version 1 for every Harper-managed role, from what is saved now.
