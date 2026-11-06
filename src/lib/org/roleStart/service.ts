@@ -3294,13 +3294,7 @@ export async function insertProposals(
   }
 ) {
   if (!args.items.length) return [];
-  // Test-only Roles (local E2E) expose proposals only for listed talents.
-  await sql`
-    update public.company_roles
-    set information = jsonb_set(information, '{testTalentIds}',
-      coalesce(information->'testTalentIds', '[]'::jsonb) || ${sql.json(args.items.map((item) => item.talentId))})
-    where role_id = ${args.roleId} and (information->>'testOnly') = 'true'
-  `;
+  await allowTestOnlyTalents(sql, args.roleId, args.items.map((item) => item.talentId));
   const ids: string[] = [];
   for (const item of args.items) {
     const rows = await sql<Array<{ id: string }>>`
@@ -3314,6 +3308,16 @@ export async function insertProposals(
     if (rows[0]) ids.push(rows[0].id);
   }
   return ids;
+}
+
+/** Test-only Roles (local E2E) expose proposals only for listed talents. */
+async function allowTestOnlyTalents(sql: ReturnType<typeof roleStartSql>, roleId: string, talentIds: string[]) {
+  await sql`
+    update public.company_roles
+    set information = jsonb_set(information, '{testTalentIds}',
+      coalesce(information->'testTalentIds', '[]'::jsonb) || ${sql.json(talentIds)})
+    where role_id = ${roleId} and (information->>'testOnly') = 'true'
+  `;
 }
 
 /** What a proposal shows: the first-three verdict, or only the headline when that read failed. */
@@ -3370,7 +3374,8 @@ export async function keepLikedFirstThree(
  * Registration: first-three people rated 맞지 않음 are recorded as passed for
  * this Role exactly like the inbox Pass button (a proposal, then
  * pass_company_intro_v2, which also records the decision with channel
- * role_start). Eligibility for every
+ * role_start), in one call (pass_role_start_candidate_v1). They were shown in
+ * role start, so the proposal records no inbox showing. Eligibility for every
  * later search (company_first_pair_is_available_v1) skips any person with a
  * proposal row for the Role, so they are not proposed again. 정보가 부족해요
  * goes to the inbox instead (keepLikedFirstThree). Returns how many were passed.
@@ -3401,21 +3406,20 @@ export async function passDislikedFirstThree(
   const disliked = rated.filter((candidate) => !present.has(candidate.talentId));
   if (!disliked.length) return 0;
   const runId = await ensureSelectionRun(args.workspaceId, args.roleId, sql);
-  const ids = await insertProposals(sql, {
-    roleId: args.roleId,
-    workspaceId: args.workspaceId,
-    runId,
-    items: disliked.map((candidate) => ({
-      talentId: candidate.talentId,
-      reason: candidate.verdict?.tldr ?? candidate.headline ?? "",
-      presentation: candidatePresentation(candidate, args.session.brief),
-    })),
-    roleFingerprint: `role-start:${hardConditionsHash(args.session.brief)}`,
-  });
-  for (const id of ids) {
-    await sql`select public.pass_company_intro_v2(${id}::uuid, ${args.workspaceId}::uuid, ${args.userId}::uuid, 'role_start')`;
+  await allowTestOnlyTalents(sql, args.roleId, disliked.map((candidate) => candidate.talentId));
+  const roleFingerprint = `role-start:${hardConditionsHash(args.session.brief)}`;
+  let passed = 0;
+  for (const candidate of disliked) {
+    const presentation = wellFormedJson(candidatePresentation(candidate, args.session.brief));
+    const [row] = await sql<Array<{ id: string | null }>>`
+      select public.pass_role_start_candidate_v1(${args.workspaceId}::uuid, ${args.roleId}::uuid,
+        ${candidate.talentId}::uuid, ${args.userId}::uuid, ${runId}::uuid,
+        ${candidate.verdict?.tldr ?? candidate.headline ?? ""}, ${sql.json(presentation as never)},
+        ${roleFingerprint}, ${"role-start-v1"})::text as id
+    `;
+    if (row?.id) passed += 1;
   }
-  return ids.length;
+  return passed;
 }
 
 /** Background: registration → ratings applied to the Brief, then the Role turns on. */

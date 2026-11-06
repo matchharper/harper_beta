@@ -3919,6 +3919,8 @@ export async function requestOrgCompanyIntro(args: {
   introCandidateId: string;
   introRecipientEmails: string[];
   nextStageId?: string | null;
+  /** company_presentations.id the decision was made on (the mail with the button). */
+  presentationId?: string | null;
   /** company_messages.id of the chat/Slack message that confirmed the decision. */
   sourceMessageId?: number | null;
   user: User;
@@ -3928,6 +3930,7 @@ export async function requestOrgCompanyIntro(args: {
   const workspaceId = normalizeText(args.workspaceId);
   const introCandidateId = normalizeText(args.introCandidateId);
   const nextStageId = normalizeText(args.nextStageId);
+  const presentationId = normalizeText(args.presentationId);
   const companyAppeal = String(args.companyAppeal ?? "").trim();
   const introRecipientEmails = normalizeLooseEmailList(
     args.introRecipientEmails
@@ -3945,16 +3948,21 @@ export async function requestOrgCompanyIntro(args: {
   await assertOrgIntroRoleAccess({ admin, user: args.user, workspaceId, introCandidateId });
   // v2 runs request_company_intro_v1 and, when the card became requested,
   // records the decision (company_decision_events) in the same transaction.
-  const { data, error } = await (admin.rpc as any)("request_company_intro_v2", {
-    p_channel: args.channel,
-    p_company_appeal: companyAppeal,
-    p_company_user_id: args.user.id,
-    p_company_workspace_id: workspaceId,
-    p_intro_candidate_id: introCandidateId,
-    p_intro_recipient_emails: introRecipientEmails,
-    p_next_stage_id: nextStageId || null,
-    p_source_message_id: args.sourceMessageId ?? null,
-  });
+  // The _with_presentation version also records what it was made on.
+  const { data, error } = await (admin.rpc as any)(
+    presentationId ? "request_company_intro_with_presentation_v1" : "request_company_intro_v2",
+    {
+      p_channel: args.channel,
+      p_company_appeal: companyAppeal,
+      p_company_user_id: args.user.id,
+      p_company_workspace_id: workspaceId,
+      p_intro_candidate_id: introCandidateId,
+      p_intro_recipient_emails: introRecipientEmails,
+      p_next_stage_id: nextStageId || null,
+      p_source_message_id: args.sourceMessageId ?? null,
+      ...(presentationId ? { p_presentation_id: presentationId } : {}),
+    }
+  );
   if (error) {
     if (error.message?.includes("workspace_credits_exhausted") || error.message?.includes("workspace_feature_unavailable"))
       throwBillingDbError(error);
@@ -4018,6 +4026,8 @@ export async function passOrgCompanyIntro(args: {
   /** The company's own reason, kept company-side on the decision record. */
   reason?: string;
   introCandidateId: string;
+  /** company_presentations.id the decision was made on (the mail with the button). */
+  presentationId?: string | null;
   /** company_messages.id of the chat/Slack message that confirmed the decision. */
   sourceMessageId?: number | null;
   user: User;
@@ -4026,6 +4036,7 @@ export async function passOrgCompanyIntro(args: {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
   const introCandidateId = normalizeText(args.introCandidateId);
+  const presentationId = normalizeText(args.presentationId);
   if (!workspaceId || !introCandidateId) {
     throw new OrgHttpError(400, "제안할 후보자 정보가 누락되었습니다.");
   }
@@ -4040,14 +4051,19 @@ export async function passOrgCompanyIntro(args: {
   const reason = String(args.reason ?? "").trim().slice(0, 2000) || null;
   // v2 runs pass_company_intro_v1 and, when the card became passed, records the
   // decision with its reason (company_decision_events) in the same transaction.
-  const { data, error } = await (admin.rpc as any)("pass_company_intro_v2", {
-    p_channel: args.channel,
-    p_company_user_id: args.user.id,
-    p_company_workspace_id: workspaceId,
-    p_intro_candidate_id: introCandidateId,
-    p_reason_text: reason,
-    p_source_message_id: args.sourceMessageId ?? null,
-  });
+  // The _with_presentation version also records what it was made on.
+  const { data, error } = await (admin.rpc as any)(
+    presentationId ? "pass_company_intro_with_presentation_v1" : "pass_company_intro_v2",
+    {
+      p_channel: args.channel,
+      p_company_user_id: args.user.id,
+      p_company_workspace_id: workspaceId,
+      p_intro_candidate_id: introCandidateId,
+      p_reason_text: reason,
+      p_source_message_id: args.sourceMessageId ?? null,
+      ...(presentationId ? { p_presentation_id: presentationId } : {}),
+    }
+  );
   if (error) throw error;
   const result = normalizeCompanyIntroRpcResult(data);
   // Only the web Pass button wrote this candidate note before; other channels
