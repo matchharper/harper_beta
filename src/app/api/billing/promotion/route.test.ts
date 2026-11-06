@@ -17,7 +17,7 @@ test("promotion entry retains a signed offer through login without granting work
   assert.throws(() => readPromotion(token, PROMOTION_END));
   const response = await GET(new NextRequest(`https://harper.invalid/api/billing/promotion?token=${token}`));
   assert.equal(response.status, 307);
-  assert.equal(response.headers.get("location"), "https://harper.invalid/org/slots?purchase=slot&interval=month&lang=ko");
+  assert.equal(response.headers.get("location"), "https://harper.invalid/org/billing?section=slots&purchase=slot&interval=month&lang=ko");
   const cookie = response.cookies.get(PROMOTION_COOKIE)!;
   assert.equal(cookie.value, token);
   assert.equal(cookie.httpOnly, true);

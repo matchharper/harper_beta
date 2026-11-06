@@ -18,15 +18,59 @@ const ENGLISH_STATUS_LABELS: Record<
   write: { running: "Remembering", done: "Remembered", error: "Could not remember" },
 };
 
+/** The running label of a web step that names its target, as on the candidate side. */
+function runningTargetLabel(log: OrgAgentThinkingLog, locale: OrgLocale) {
+  if (!log.target || (log.status ?? "running") !== "running") return null;
+  if (log.icon === "search") return locale === "ko" ? `"${log.target}" 검색 중` : `Searching "${log.target}"`;
+  if (log.icon === "link") return locale === "ko" ? `${log.target} 읽는 중` : `Reading ${log.target}`;
+  return null;
+}
+
 export function localizeOrgAgentThinkingLogs(
   logs: OrgAgentThinkingLog[],
   locale: OrgLocale
 ): OrgAgentThinkingLog[] {
-  if (locale === "ko") return logs;
-  return logs.map((log) => ({
-    ...log,
-    label: ENGLISH_STATUS_LABELS[log.icon ?? "run"][log.status ?? "running"],
-  }));
+  // Korean saved logs are already worded; only a running web step gets its target.
+  if (locale === "ko" && !logs.some((log) => runningTargetLabel(log, locale))) return logs;
+  return logs.map((log) => {
+    const targetLabel = runningTargetLabel(log, locale);
+    if (targetLabel) return { ...log, label: targetLabel };
+    if (locale === "ko") return log;
+    return {
+      ...log,
+      label: ENGLISH_STATUS_LABELS[log.icon ?? "run"][log.status ?? "running"],
+    };
+  });
+}
+
+/**
+ * What web_search and open_url look at: the search words (80 characters at
+ * most) or the hosts of the pages. Nothing for other tools or unreadable input.
+ */
+export function orgAgentToolTarget(toolName: string, rawArguments: string): string | undefined {
+  if (toolName !== "web_search" && toolName !== "open_url") return undefined;
+  let input: Record<string, unknown>;
+  try {
+    const parsed = rawArguments ? JSON.parse(rawArguments) : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+    input = parsed as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  if (toolName === "web_search") {
+    const query = typeof input.query === "string" ? input.query.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+    return query || undefined;
+  }
+  const urls = Array.isArray(input.url) ? input.url : [input.url];
+  const hosts = [...new Set(urls.map((url) => {
+    if (typeof url !== "string") return "";
+    try {
+      return new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      return "";
+    }
+  }).filter(Boolean))];
+  return hosts.length ? hosts.join(", ") : undefined;
 }
 
 export function hasOrgAgentToolWork(logs: OrgAgentThinkingLog[]) {
@@ -137,4 +181,22 @@ export function compactOrgAgentThinkingLogs(
     [] as OrgAgentThinkingLog[]
   );
   return compacted.slice(-maxItems);
+}
+
+/**
+ * The live line while no step runs, as on the candidate side: "thinking"
+ * before the first step, "deciding the next step" after one. Finished turns
+ * keep the panel's own words ("Worked for …"), and "Thought" when no step ran.
+ */
+export function orgAgentLiveStatusLabel(
+  c: (ko: string, en: string) => string,
+  active: boolean | undefined,
+  stepCount: number
+) {
+  if (active) {
+    return stepCount === 0
+      ? c("생각하는 중", "Thinking")
+      : c("다음 할 일을 정하는 중", "Deciding the next step");
+  }
+  return stepCount === 0 ? "Thought" : undefined;
 }

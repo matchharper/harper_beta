@@ -2,6 +2,7 @@ import type { GetServerSideProps } from "next";
 import { OrgWorkspaceApp } from "@/components/org/workspace/OrgWorkspaceApp";
 import dynamic from "next/dynamic";
 import { OrgPageLoading } from "@/components/org/workspace/OrgPageLoading";
+import { orgJobsRoleRedirect } from "@/lib/org/routes";
 const OrgJobsPage = dynamic(
   () =>
     import("@/components/org/workspace/pages/OrgJobsPage").then(
@@ -19,26 +20,7 @@ export default function OrgJobsRoute() {
 }
 
 export const getServerSideProps: GetServerSideProps = async ({ query }) => {
-  const roleId = typeof query.roleId === "string" ? query.roleId.trim() : "";
-  if (!roleId || roleId === "all") return { props: {} };
-
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (typeof value === "string" && value.trim()) params.set(key, value);
-  }
-  params.set("roleId", roleId);
-  if (params.get("view") === "pipeline") {
-    params.set("tab", "pipeline");
-    params.set("view", "pipeline");
-  } else {
-    params.delete("view");
-    params.delete("tab");
-  }
-
-  return {
-    redirect: {
-      destination: `/org/role?${params.toString()}`,
-      permanent: false,
-    },
-  };
+  const destination = orgJobsRoleRedirect(query);
+  if (!destination) return { props: {} };
+  return { redirect: { destination, permanent: false } };
 };

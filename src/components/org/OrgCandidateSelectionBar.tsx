@@ -99,9 +99,13 @@ export function OrgCandidateSelectionBar({
               }}
               size="sm"
             >
-              Save
+              {ct(c, COMPANY_TERMS.action.save)}
             </MuteButton>
-            <MuteButton onClick={() => setClosing(selected)} size="sm">
+            <MuteButton
+              className="whitespace-nowrap"
+              onClick={() => setClosing(selected)}
+              size="sm"
+            >
               {ct(c, COMPANY_TERMS.action.pass)}
             </MuteButton>
             {pass ? (

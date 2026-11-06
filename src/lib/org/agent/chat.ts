@@ -128,6 +128,7 @@ import type {
 import {
   finalizeOrgAgentThinkingLogs,
   getOrgAgentThinkingLogIcon,
+  orgAgentToolTarget,
   upsertOrgAgentThinkingLog,
 } from "@/lib/org/agent/thinkingLogs";
 import { OrgHttpError } from "@/lib/org/server";
@@ -321,7 +322,7 @@ function normalizeText(value: unknown) {
 function nowLog(
   label: string,
   status: OrgAgentThinkingLog["status"],
-  options: Pick<OrgAgentThinkingLog, "icon" | "id"> = {}
+  options: Pick<OrgAgentThinkingLog, "icon" | "id" | "target"> = {}
 ) {
   return {
     at: new Date().toISOString(),
@@ -942,11 +943,16 @@ export async function runOrgAgentToolLoop(
         continue;
       }
 
+      const toolTarget = orgAgentToolTarget(toolName, toolCall.function.arguments);
       const emitToolStatus = (status: "done" | "error" | "running") => {
         const log = nowLog(
           getOrgAgentToolStatusLabel({ name: toolName, status }),
           status,
-          { icon: getOrgAgentThinkingLogIcon(toolName), id: toolCall.id }
+          {
+            icon: getOrgAgentThinkingLogIcon(toolName),
+            id: toolCall.id,
+            ...(toolTarget ? { target: toolTarget } : {}),
+          }
         );
         args.emit?.("tool_status", log);
         args.onToolStatus?.(log);

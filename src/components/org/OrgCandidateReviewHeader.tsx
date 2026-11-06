@@ -201,7 +201,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
               ) : (
                 <>
                   <MuteButton
-                    className="px-3 py-1.5 border-none text-[15px]"
+                    className="px-3 py-1.5 border-none text-[15px] whitespace-nowrap"
                     variant="neutral"
                     disabled={pending}
                     onClick={props.onReject}
@@ -229,8 +229,8 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
       {actionable && canManage ? (
         <p className="px-6 pt-1 text-right text-[11px] leading-4 text-neutral-muted">
           {detail?.companyIntro
-            ? c("연결 요청: 요청하면 연결 1회를 써요", "Request intro: uses 1 intro when you send it")
-            : c("연결하기: 연결 1회 사용", "Connect: uses 1 intro")}
+            ? `${ct(c, COMPANY_TERMS.action.request)}: ${ct(c, COMPANY_TERMS.caption.requestUsesIntro)}`
+            : `${ct(c, COMPANY_TERMS.action.connect)}: ${ct(c, COMPANY_TERMS.caption.connectUsesIntro)}`}
         </p>
       ) : null}
       {actionError && (

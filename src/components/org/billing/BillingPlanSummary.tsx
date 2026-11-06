@@ -18,12 +18,15 @@ export function BillingPlanSummary({
   onPortal,
   onAddSlot,
   canManage,
+  canViewBilling = true,
   onCancel,
   onResume,
 }: BillingSlotActions & {
   summary: BillingSummary;
   busy: boolean;
   canManage: boolean;
+  /** Owner only: the payment portal. */
+  canViewBilling?: boolean;
   onAddSlot: () => void;
 }) {
   const { c } = useOrgLocale();
@@ -104,7 +107,7 @@ export function BillingPlanSummary({
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          {summary.hasCustomer && (
+          {summary.hasCustomer && canViewBilling && (
             <MuteButton disabled={busy} onClick={onPortal}>
               {c("결제 관리", "Manage billing")}
             </MuteButton>
@@ -127,6 +130,7 @@ export function BillingPlanSummary({
         now={now}
         busy={busy}
         canManage={canManage}
+        canViewBilling={canViewBilling}
         onPortal={onPortal}
         onCancel={onCancel}
         onResume={onResume}

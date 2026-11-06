@@ -12,7 +12,6 @@ import {
   CircleHelp,
   Home,
   Landmark,
-  Layers3,
   Menu,
   ListFilter,
   LogOut,
@@ -40,6 +39,7 @@ import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
 import type { OrgDocumentsHeading } from "@/components/org/workspace/OrgDocumentsMarkdown";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { orgWorkspaceThemeProps } from "@/lib/org/theme";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -67,7 +67,7 @@ import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import {
   buildOrgHref,
   buildOrgOrganizationCreationHref,
-  resolveOrgRoleTab,
+  resolveOrgRoleLocation,
   type OrgPipelineDisplay,
   type OrgRoleTab,
   type OrgWorkspacePageId,
@@ -505,10 +505,13 @@ function RecentRolesSection({
             const active =
               activePage === "role" && activeRoleId === role.roleId;
             const nextTab = roleTab
-              ? resolveOrgRoleTab({
-                  isDraft: normalizeOrgRoleStatus(role.status) === "draft",
-                  tab: roleTab,
-                })
+              ? resolveOrgRoleLocation(
+                  { tab: roleTab },
+                  {
+                    externalEnabled: false,
+                    isDraft: normalizeOrgRoleStatus(role.status) === "draft",
+                  }
+                ).tab
               : null;
             return (
               <div key={role.roleId} className="group/role relative">
@@ -686,10 +689,10 @@ export function OrgWorkspaceSidebar({
   const activeRole = roles.find((role) => role.roleId === activeRoleId);
   const recentRoleTab =
     activePage === "role"
-      ? resolveOrgRoleTab({
+      ? resolveOrgRoleLocation(router.query, {
+          externalEnabled: false,
           isDraft: normalizeOrgRoleStatus(activeRole?.status) === "draft",
-          tab: typeof router.query.tab === "string" ? router.query.tab : "",
-        })
+        }).tab
       : null;
   const recentPipelineView: OrgPipelineDisplay | null =
     recentRoleTab === "pipeline" &&
@@ -753,20 +756,14 @@ export function OrgWorkspaceSidebar({
       icon: FileText,
       label: ct(c, COMPANY_TERMS.nav.templates),
     },
+    // One 결제 item (slots are inside it): owners and admins. Invoices and
+    // the payment portal stay owner-only inside the page.
     ...(permissions.canManageWorkspace
       ? [
           {
-            active: organizationSection === "slots",
-            href: navHref("slots"),
-            icon: Layers3,
-            label: ct(c, COMPANY_TERMS.nav.slots),
-          },
-        ]
-      : []),
-    ...(permissions.role === "owner"
-      ? [
-          {
-            active: organizationSection === "billing",
+            active:
+              organizationSection === "billing" ||
+              organizationSection === "slots",
             href: navHref("billing"),
             icon: CreditCard,
             label: ct(c, COMPANY_TERMS.nav.billing),
@@ -1394,8 +1391,14 @@ export function OrgWorkspaceShellSkeleton({
   compact?: boolean;
   wide?: boolean;
 }) {
+  const theme = orgWorkspaceThemeProps();
   return (
-    <Page as="main" background="neutral">
+    <Page
+      as="main"
+      background={theme.className ? "none" : "neutral"}
+      className={theme.className}
+      data-harper-theme={theme["data-harper-theme"]}
+    >
       <aside
         className={cn(
           "fixed inset-y-0 left-0 hidden border-r border-neutral-1000-a05 py-4 md:block ",

@@ -81,14 +81,14 @@ test("scheduled work rows show time and owner, paused work, and failed cancels",
   const click = async (title: string) => { await act(async () => cancelButton(title)!.click()); await flush(); };
 
   // When it runs, and who set it up.
-  assert.match(row("후보 답장 다시 확인").textContent!, /Harper 예정: 후보 답장 다시 확인 · 수 오전 9:00/);
+  assert.match(row("후보 답장 다시 확인").textContent!, /Harper 예정: 후보 답장 다시 확인 · 11월 11일\(수\) 오전 9:00/);
   assert.match(row("후보 답장 다시 확인").textContent!, /Harper가 정한 일/);
   assert.match(row("지원자 정리").textContent!, /팀이 요청한 일/);
   // Paused work is not called 예정 and has no next time.
   assert.match(row("주간 요약").textContent!, /잠시 멈춤: 주간 요약/);
   assert.doesNotMatch(row("주간 요약").textContent!, /Harper 예정|·/);
   // Someone who may not cancel sees the row without the button.
-  assert.match(row("보기만").textContent!, /Harper 예정: 보기만 · 목 오후 2:30/);
+  assert.match(row("보기만").textContent!, /Harper 예정: 보기만 · 11월 12일\(목\) 오후 2:30/);
   assert.equal(cancelButton("보기만"), null);
 
   // A stale revision: the list reloads and one more press uses the new revision.

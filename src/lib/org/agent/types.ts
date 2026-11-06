@@ -116,6 +116,8 @@ export type OrgAgentThinkingLog = {
   icon?: OrgAgentThinkingLogIcon;
   label: string;
   status?: "done" | "error" | "running";
+  /** What a web step looks at (search words or a page's host), shown while it runs. */
+  target?: string;
 };
 
 export type OrgAgentMessageAction =

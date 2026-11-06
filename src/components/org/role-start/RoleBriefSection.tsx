@@ -179,12 +179,9 @@ export function RoleBriefSection({
       ) : null}
       <div className="mb-3 flex items-start justify-between gap-4">
         <RoleSectionHeading
-          description={c(
-            "Harper가 후보를 찾고 추천할 때 쓰는 기준이에요.",
-            "Harper uses this to find candidates."
-          )}
+          description={ct(c, COMPANY_TERMS.caption.whoWeAreLookingFor)}
           size="large"
-          title={c("찾는 사람", "Who we're looking for")}
+          title={ct(c, COMPANY_TERMS.brief.whoWeAreLookingFor)}
         />
         {canManage && !editing ? (
           <MuteButton disabled={save.isPending || locked} onClick={() => setEditing(true)} variant="transparent">
@@ -249,8 +246,11 @@ export function RoleBriefSection({
         </>
       ) : (
         <>
-          <div className="mt-8 pb-6">
-            <RoleSectionHeading title={ct(c, COMPANY_TERMS.criteria.section)} />
+          <div className="mt-8 scroll-mt-6 pb-6" id="criteria">
+            <RoleSectionHeading
+              description={ct(c, COMPANY_TERMS.caption.criteria)}
+              title={ct(c, COMPANY_TERMS.criteria.section)}
+            />
             {shown.hardConditions.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {shown.hardConditions.map((condition) => (

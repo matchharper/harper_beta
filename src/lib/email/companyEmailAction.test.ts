@@ -79,6 +79,19 @@ test("confirm copy follows the copy document and has an English counterpart", ()
   assert.equal(companyEmailActionCopy("en").actingAs("Jisoo", "j@example.com"), "Acting as Jisoo (j@example.com)");
 });
 
+test("the confirm button carries the same static credit caption as the web; passing has none", () => {
+  const caption = (locale: "ko" | "en", action: Parameters<typeof companyEmailActionText>[1]) => {
+    const text = companyEmailActionText(locale, action, "김민준", "");
+    return "creditCaption" in text ? text.creditCaption : null;
+  };
+  assert.equal(caption("ko", "request_intro"), "요청하면 연결 1회를 써요");
+  assert.equal(caption("en", "request_intro"), "Uses 1 intro when you send it");
+  assert.equal(caption("ko", "accept_connection"), "연결 1회 사용");
+  assert.equal(caption("en", "accept_connection"), "Uses 1 intro");
+  assert.equal(caption("ko", "pass"), null);
+  assert.equal(caption("ko", "reject_connection"), null);
+});
+
 test("links that do not exist answer in the browser language", () => {
   assert.equal(companyEmailActionLocale("ko-KR,ko;q=0.9"), "ko");
   assert.equal(companyEmailActionLocale("en-US"), "en");

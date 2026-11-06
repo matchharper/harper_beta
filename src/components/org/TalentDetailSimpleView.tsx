@@ -10,6 +10,7 @@ import { useOrgCandidateSave } from "@/hooks/org/useOrgCandidateSave";
 import { isOrgQueryAccessError } from "@/lib/org/queryError";
 import { isOrgCandidateProfilePreview } from "@/lib/org/candidatePreview";
 import { OrgTalentProfile } from "./OrgTalentProfile";
+import { OrgTalentNotes } from "./OrgTalentNotes";
 import { getHarperProgressText } from "@/components/org/harperProgressPresentation";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
@@ -357,7 +358,7 @@ function CandidateDecisionActions({
           variant="critical"
           onClick={onRejectClick}
           disabled={decisionPending || !onRejectClick}
-          className="min-h-10 w-full"
+          className="min-h-10 w-full whitespace-nowrap"
         >
           {ct(c, COMPANY_TERMS.action.pass)}
         </MuteButton>
@@ -1497,7 +1498,7 @@ export function TalentDetailSimpleView({
                   >
                     {optionalBoard?.board?.items.find(
                       (item) => item.recommendationId === activeDetailRecommendationId
-                    )?.savedAt ? c("저장 해제", "Unsave") : "Save"}
+                    )?.savedAt ? c("저장 해제", "Unsave") : ct(c, COMPANY_TERMS.action.save)}
                   </MuteButton>
                   {detail?.companyIntro ? (
                     <OrgPassPopover
@@ -1509,7 +1510,7 @@ export function TalentDetailSimpleView({
                     />
                   ) : (
                     <MuteButton
-                      className="min-w-11 border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 hover:text-neutral-00 active:bg-critical/80"
+                      className="min-w-11 whitespace-nowrap border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 hover:text-neutral-00 active:bg-critical/80"
                       disabled={decisionPending || !onRejectCandidate}
                       onClick={() => setRejectDialogOpen(true)}
                       size="md"
@@ -1721,6 +1722,14 @@ export function TalentDetailSimpleView({
                           if (!detail.capabilities.viewResume) return;
                           setResumeRequest({ documentId, kind, link });
                         }}
+                        // Notes close the body here too, as in the inline review.
+                        footer={
+                          <OrgTalentNotes
+                            key={`${detail.role.roleId}:${detail.talent.userId}`}
+                            detail={detail}
+                            canManage={canManageCandidates}
+                          />
+                        }
                       />
                     )}
                   </div>

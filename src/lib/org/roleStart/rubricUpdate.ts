@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import { fetchOrgBoard, OrgHttpError, type OrgBoardItem } from "@/lib/org/server";
 import { fetchRoleCreationState } from "@/lib/org/agent/roleCreationState";
 import { normalizeOrgRoleCriteria, type OrgRoleCriterion } from "@/lib/org/roleCriteria";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { briefForModel, normalizeRoleStartBrief, shortId, type RoleStartBrief, type RoleStartCriterion } from "./brief";
 import { CHANGED_CRITERION_NOTE, isGradedCriterion } from "@/lib/companyFirstSearch/presentation";
@@ -141,7 +142,7 @@ export async function updateRoleRubric(
         return { ...(match.criteria === criterion.criteria ? match : rest), ...criterion, id: match.id };
       }),
     });
-    summary = "확인할 기준 탭에서 수정";
+    summary = `${COMPANY_TERMS.tab.roleInfo.ko} 탭에서 수정`;
   } else if (String(args.request ?? "").trim()) {
     const request = String(args.request).trim().slice(0, 4_000);
     const { data, usage: used } = await callRoleStartJson<{

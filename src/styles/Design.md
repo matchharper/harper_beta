@@ -905,3 +905,12 @@ streaming 구간은 대기하고, 완성된 버블에 짧은 fade/slide 진입�
 - 팔로업·기회 패널은 `--career-panel-width: 420px` 하나를 공유한다(768–1023px는 360px). 원본의 Apple/system font와 ink/secondary/soft 세 색을 유지한다. 새 기회는 지원 방식이나 추천 날짜 제목 없이 최신 추천 순서로 나열한다.
 - 모바일 상단 탐색은 흰색→투명 gradient overlay다. 홈·채팅·기회 스크롤 영역은 화면 위에서 시작하고 첫 내용에만 top padding을 둔다. 제목·서브 탭·본문이 상단 뒤로 지나가며 safe area와 키보드 focus scroll-padding을 보존한다.
 - 데스크톱의 채팅과 오른쪽 패널도 스크롤 영역이 화면 위에서 시작한다. 첫 내용의 top padding과 focus scroll-padding을 유지하고, 두 패널 상단에 같은 gradient·blur overlay를 적용한다. overlay는 포인터 입력을 가로채지 않는다.
+
+### 회사 화면의 Floating Sky · 2026-11-06
+
+- 회사 워크스페이스(`OrgWorkspaceApp`과 로딩 화면)는 `data-harper-theme="sky"`와 `career-sky-canvas`로 후보 쪽 테마를 켠다. `career-floating-sky.css`의 테마 선택자는 `:is([data-career-theme="sky"], [data-harper-theme="sky"])`(루트는 `:has(…, …)`)로 두 속성을 함께 받는다. 명시도가 같아서 Career 화면은 그대로다. 끄는 곳은 `src/lib/org/theme.ts` 한 곳이다.
+- 회사 화면은 Career의 틀·카드·pill 클래스를 그대로 쓴다: `career-workspace`, `career-topbar`, `career-top-tabs`, `career-nav-count`, `career-chat-column`, `career-right-column`, `career-right-scroll`, `career-panel-heading`, `career-followup-card`, `career-content-heading`, `career-opportunity-card`. 회사에만 필요한 배치는 `src/styles/org-floating-sky.css`에 두고, 선택자는 모두 `.org-*`, `[data-org-*]`, `[data-harper-theme]` 아래에 둔다(`src/styles/orgSkyTheme.test.ts`).
+- 등록된 역할 화면(`OrgRoleScreen`)은 `CareerWorkspaceScreen`과 같은 틀이다. 왼쪽은 그 역할의 Harper 채팅, 가운데 `채팅 | 후보 N` pill은 오른쪽 칸만 바꾸고, 오른쪽 칸은 따로 스크롤한다. 채팅 쪽 오른쪽 칸은 할 일 카드(`OrgTodoList variant="cards"`), 후보 쪽은 하위 탭과 펼침 카드다. 역할 정보·설정은 머리 오른쪽 버튼으로 오른쪽 칸에 연다. 1024px 미만은 한 칸이고 pill이 채팅과 오른쪽 칸을 오가며, 할 일은 입력창 위 칩으로 남는다.
+- 후보 카드(`OrgRoleCandidateCard`)는 `OpportunityCard`처럼 접힘은 투명, 펼침은 글라스다. 펼치면 한 줄 요약 → Harper 메모 → 확인할 기준 → 결정 버튼과 연결 문구 순서다. 결정은 `OrgRoleTalentBoard`의 `card="expandable"`·`renderLayout`으로 기존 흐름(대화상자, 넘김 사유, 연결 요청)을 그대로 쓴다.
+- 회사 설정·역할 정보의 `OrgSection`은 sky 테마에서 글라스 카드로 보인다(`data-org-section`).
+- 홈(`OrgHomeScreen`)도 같은 틀이다. 왼쪽은 회사 Harper 채팅(역할 없는 general), 가운데 `채팅 | 후보 N` pill. 채팅 쪽 오른쪽 칸은 후보 쪽 패널을 회사용으로 옮긴 것이다: 결정할 것(지금 팔로업: 할 일과 막힌 것, 역할 이름을 단 큰 카드) → 볼 만한 것(Harper 제안과 알림, `역할 · 언제 · 출처` meta 줄의 `career-content-card`) → Harper가 하는 중 · 예정 → 역할 현황(지원 현황처럼 `career-summary` 카드, 역할마다 숫자 넷, 숫자가 그 목록을 연다). 셀 것도 할 것도 없으면 역할 카드만 둔다. 후보 쪽은 역할별 묶음의 펼침 카드(연결을 기다리는 후보 · 연결을 요청할 후보)와 소식이다. 1024px 미만은 한 칸이고 할 일은 머리 버튼으로 연다. 예전 홈 링크(`?tab=feed`, `?queue=`, `/org/inbox`)는 `src/lib/org/homeScreen.ts`가 받는다.

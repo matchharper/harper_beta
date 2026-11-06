@@ -1,5 +1,7 @@
 /* Career Floating Sky. Source: handoff glass + bgD. See docs/career-floating-sky-design-system.md. */
-:root:has([data-career-theme="sky"]) {
+/* The company workspace shares this theme: [data-harper-theme="sky"] turns on the same tokens and
+   shared rules, and its screens reuse the career-* frame, card and pill classes. Career output is unchanged. */
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"]) {
   --career-sky-background:
     radial-gradient(
       760px 520px at 10% 6%,
@@ -215,15 +217,15 @@
   --blur-toast: var(--career-glass-blur);
   --toast-border-width: 0px;
 }
-:root:has([data-career-theme="sky"]) body {
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"]) body {
   font-family: var(--career-font-family);
   -webkit-font-smoothing: antialiased;
   background: #e9ecf0;
 }
-[data-career-theme="sky"] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"]) {
   color: var(--color-neutral-primary);
 }
-[data-career-theme="sky"] [data-chat-message-lifted] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"]) [data-chat-message-lifted] {
   -webkit-backdrop-filter: blur(var(--career-glass-blur));
   backdrop-filter: blur(var(--career-glass-blur));
 }
@@ -243,7 +245,7 @@
 .career-work-surface {
   background-image: var(--career-work-image);
 }
-:root:has([data-career-theme="sky"])
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"])
   :is(
     .backdrop-blur-card,
     .backdrop-blur-opportunity,
@@ -409,7 +411,7 @@
 .career-side-panel-header {
   background: linear-gradient(180deg, rgb(246 247 249 / 0.98) 65%, transparent);
 }
-[data-career-theme="sky"] [data-document-editor-panel] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"]) [data-document-editor-panel] {
   background-color: var(--career-surface-raised);
   background-image: var(--career-glass-image);
   border-radius: var(--career-radius-card);
@@ -544,7 +546,7 @@
 .career-right-column [data-opportunity-id] {
   margin: 0;
 }
-[data-career-theme="sky"] [data-rich-text-table] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"]) [data-rich-text-table] {
   background: var(--career-glass-image);
   border-radius: var(--career-radius-card);
   box-shadow: var(--career-glass-shadow);
@@ -792,9 +794,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  :root:has([data-career-theme="sky"]) *,
-  :root:has([data-career-theme="sky"]) *::before,
-  :root:has([data-career-theme="sky"]) *::after {
+  :root:has([data-career-theme="sky"], [data-harper-theme="sky"]) *,
+  :root:has([data-career-theme="sky"], [data-harper-theme="sky"]) *::before,
+  :root:has([data-career-theme="sky"], [data-harper-theme="sky"]) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -972,12 +974,12 @@
   }
 }
 
-[data-career-theme="sky"] [data-opportunity-id] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"]) [data-opportunity-id] {
   scroll-margin-top: 12px;
 }
 
 /* Shared feedback also reaches Radix portals, which live outside the page root. */
-:root:has([data-career-theme="sky"])
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"])
   :where(button, a, [role="button"], [role="tab"], [role="menuitem"], summary) {
   -webkit-tap-highlight-color: transparent;
   transition-property:
@@ -985,7 +987,7 @@
   transition-duration: var(--career-duration-state);
   transition-timing-function: var(--career-ease);
 }
-:root:has([data-career-theme="sky"])
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"])
   :where(
     button,
     a,
@@ -997,7 +999,7 @@
   outline: 2px solid var(--career-focus);
   outline-offset: 3px;
 }
-:root:has([data-career-theme="sky"])
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"])
   :where(button, [role="button"], [role="tab"]):not(
     :disabled,
     [aria-disabled="true"]
@@ -1012,10 +1014,10 @@
     box-shadow var(--career-duration-state) var(--career-ease),
     color var(--career-duration-state) var(--career-ease);
 }
-[data-career-theme="sky"] [data-opportunity-id] > [role="button"] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"]) [data-opportunity-id] > [role="button"] {
   border-radius: var(--career-radius-card);
 }
-[data-career-theme="sky"]
+:is([data-career-theme="sky"], [data-harper-theme="sky"])
   [data-opportunity-id]
   > [role="button"][aria-expanded="true"] {
   border-bottom-left-radius: var(--career-radius-item);
@@ -1036,10 +1038,10 @@
 .career-composer-width {
   max-width: var(--career-chat-width);
 }
-:root:has([data-career-theme="sky"]) [role="tab"] {
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"]) [role="tab"] {
   border-radius: var(--career-radius-item);
 }
-:root:has([data-career-theme="sky"]) [role="tab"][aria-selected="true"] {
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"]) [role="tab"][aria-selected="true"] {
   background-color: var(--color-tab-selected-bg);
   color: var(--color-tab-selected);
   box-shadow: var(--shadow-tab-selected);

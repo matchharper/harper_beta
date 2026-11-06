@@ -11,8 +11,20 @@ function subscribeToDocumentBody() {
   return () => {};
 }
 
-function getDocumentBody() {
-  return document.body;
+const STACK_ATTRIBUTE = "data-org-unsaved-changes-stack";
+
+// Editors on one screen (역할 정보 has two) can be dirty together: their bars
+// stack in one place instead of covering each other.
+function getBarStack() {
+  let stack = document.body.querySelector<HTMLElement>(`[${STACK_ATTRIBUTE}]`);
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.setAttribute(STACK_ATTRIBUTE, "");
+    stack.className =
+      "pointer-events-none fixed inset-x-0 bottom-4 z-40 flex flex-col items-center gap-2 px-4";
+    document.body.appendChild(stack);
+  }
+  return stack;
 }
 
 function getServerDocumentBody() {
@@ -35,12 +47,18 @@ export function OrgUnsavedChangesBar({
   const { c } = useOrgLocale();
   const portalTarget = useSyncExternalStore(
     subscribeToDocumentBody,
-    getDocumentBody,
+    getBarStack,
     getServerDocumentBody
   );
 
   const bar = (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+    <div
+      className={
+        portalTarget
+          ? "flex w-full justify-center"
+          : "pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4"
+      }
+    >
       <div
         className="pointer-events-auto flex w-fit max-w-full flex-col gap-3 rounded-lg border border-neutral-1000-a05 bg-bg-floating/70 backdrop-blur-md p-2 pl-3 shadow-(--shadow-lg) sm:flex-row sm:items-center"
         data-org-unsaved-changes-bar=""

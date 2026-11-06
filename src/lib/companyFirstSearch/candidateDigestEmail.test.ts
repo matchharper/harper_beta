@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildCandidateDigestEmail,
+  candidateDigestActionRowHtml,
+  candidateDigestActionRowText,
   candidateDigestSubject,
 } from "./candidateDigestEmail";
 
@@ -311,8 +313,8 @@ test("each candidate is one borderless card holding its text, ratings and button
     ...mail.html.matchAll(/<div style="border-radius:10px;background:#f9fafb/g),
   ].map((m) => m.index!);
   assert.equal(opens.length, 3);
-  // Every card closes right after its button row, so cards never nest or overlap.
-  assert.equal((mail.html.match(/<\/table><\/div>/g) ?? []).length, 3);
+  // Every card closes right after its button row and credit caption, so cards never nest or overlap.
+  assert.equal((mail.html.match(/<\/table><p [^>]*>[^<]*<\/p><\/div>/g) ?? []).length, 3);
   const [c1, c2, c3] = ["c1", "c2", "c3"].map((id) =>
     mail.html.indexOf(`${id}-`)
   );
@@ -339,4 +341,31 @@ test("each candidate is one borderless card holding its text, ratings and button
     !mail.text.includes("HARPERDIGEST") &&
       !mail.replyContext.includes("HARPERDIGEST")
   );
+});
+
+test("the credit caption sits under the buttons, after both action lines in text", () => {
+  const row = {
+    caption: "연결 요청: 요청하면 연결 1회를 써요",
+    criteria: [],
+    primary: { label: "연결 요청", url: "https://matchharper.com/email-action/c2-request" },
+    secondary: { label: "이번엔 넘길게요", url: "https://matchharper.com/email-action/c2-pass" },
+  };
+  const html = candidateDigestActionRowHtml(row);
+  assert.ok(html.indexOf("c2-pass") < html.indexOf("요청하면 연결 1회를 써요"));
+  assert.match(html, /<\/table><p style="margin:0 0 16px;font-size:12px[^>]*>연결 요청: 요청하면 연결 1회를 써요<\/p>$/);
+  assert.equal(
+    candidateDigestActionRowText(row),
+    "연결 요청: https://matchharper.com/email-action/c2-request\n이번엔 넘길게요: https://matchharper.com/email-action/c2-pass\n연결 요청: 요청하면 연결 1회를 써요"
+  );
+  // A row without a caption keeps its old spacing.
+  assert.match(candidateDigestActionRowHtml({ ...row, caption: null }), /margin:0 0 16px"><tr>/);
+});
+
+test("each mail row names its caption: 연결 요청 and 연결하기 use an intro, 넘기기 none", () => {
+  const email = build();
+  assert.match(email.text, /이번엔 넘길게요: https:\/\/matchharper.com\/email-action\/c1-reject\n연결하기: 연결 1회 사용/);
+  assert.match(email.text, /이번엔 넘길게요: https:\/\/matchharper.com\/email-action\/c2-pass\n연결 요청: 요청하면 연결 1회를 써요/);
+  const english = build({ locale: "en", recipientName: "Jisoo" });
+  assert.match(english.text, /Connect: Uses 1 intro/);
+  assert.match(english.text, /Request intro: Uses 1 intro when you send it/);
 });

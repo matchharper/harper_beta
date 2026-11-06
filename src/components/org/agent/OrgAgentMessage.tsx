@@ -42,6 +42,7 @@ import {
 import {
   hasOrgAgentToolWork,
   localizeOrgAgentThinkingLogs,
+  orgAgentLiveStatusLabel,
 } from "@/lib/org/agent/thinkingLogs";
 import type {
   OrgAgentMessage,
@@ -433,8 +434,10 @@ export function OrgAgentMessageBubble({
           active={workActive}
           completedAt={message.createdAt}
           hasToolWork={hasOrgAgentToolWork(message.thinkingLogs)}
+          liveLine
           logs={localizeOrgAgentThinkingLogs(message.thinkingLogs, locale)}
           startedAt={turnStartedAt}
+          statusLabel={orgAgentLiveStatusLabel(c, workActive, message.thinkingLogs.length)}
         />
       )}
       {!isUser &&

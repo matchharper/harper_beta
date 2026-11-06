@@ -13,7 +13,9 @@ import {
   Trash2,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/router";
+import { useQueries } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { OrgInterviewAvailabilityDialog } from "@/components/org/meetings/OrgInterviewAvailabilityDialog";
 import { OrgSlackChannelPicker } from "@/components/org/OrgSlackChannelPicker";
@@ -46,6 +48,8 @@ import {
   useRemoveOrgSlackChannel,
 } from "@/hooks/org/useOrgSlack";
 import { useOrgMeetingAvailability } from "@/hooks/org/useOrgMeetingAvailability";
+import { orgRoleNotificationSettingsQueryOptions } from "@/hooks/org/useOrgRoleNotifications";
+import { buildOrgHref } from "@/lib/org/routes";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { ISO_WEEKDAYS } from "@/lib/meetings/availability";
 import { cn } from "@/lib/utils";
@@ -77,7 +81,7 @@ export function OrgSettingsPage() {
     c("토", "Sat"),
     c("일", "Sun"),
   ];
-  const { permissions, user, workspace } = useOrgWorkspace();
+  const { permissions, roles, user, workspace } = useOrgWorkspace();
   const router = useRouter();
   const isCalendarCallback =
     router.isReady && router.query.googleCalendar === "callback";
@@ -110,6 +114,23 @@ export function OrgSettingsPage() {
   const removeSlackChannel = useRemoveOrgSlackChannel(workspace.workspaceId);
   const status = statusQuery.data;
   const refetchSlackStatus = statusQuery.refetch;
+  // Which roles use each channel, read-only: a role's channels are set in its 설정 tab.
+  const roleChannelSettings = useQueries({
+    queries: roles.map((role) =>
+      orgRoleNotificationSettingsQueryOptions({
+        enabled: activeIntegration === "slack" && Boolean(status?.channels.length),
+        roleId: role.roleId,
+        workspaceId: workspace.workspaceId,
+      })
+    ),
+  });
+  const channelRolesLoading = roleChannelSettings.some((query) => query.isPending);
+  const channelRoles = (channelId: string) =>
+    roles.filter((role, index) =>
+      roleChannelSettings[index]?.data?.channels.some(
+        (channel) => channel.channelId === channelId && channel.enabled
+      )
+    );
   const availabilityQuery = useOrgMeetingAvailability({
     enabled: activeIntegration === "calendar",
     workspaceId: workspace.workspaceId,
@@ -497,9 +518,14 @@ export function OrgSettingsPage() {
 
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-[14px] font-medium text-neutral-primary">
-                    {c("연결된 채널", "Connected channels")}
-                  </h3>
+                  <div>
+                    <h3 className="text-[14px] font-medium text-neutral-primary">
+                      {c("연결된 채널", "Connected channels")}
+                    </h3>
+                    <p className="mt-0.5 text-[12px] font-light text-neutral-muted">
+                      {ct(c, COMPANY_TERMS.caption.channelRoles)}
+                    </p>
+                  </div>
                   {permissions.canManageIntegrations ? (
                     <MuteButton
                       size="sm"
@@ -571,6 +597,31 @@ export function OrgSettingsPage() {
                               </span>
                             ) : null}
                           </div>
+                          {channelRolesLoading ? null : (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+                              <span className="text-neutral-muted">
+                                {ct(c, COMPANY_TERMS.nav.roles)}
+                              </span>
+                              {channelRoles(channel.channelId).length ? (
+                                channelRoles(channel.channelId).map((role) => (
+                                  <Link
+                                    className="text-neutral-primary underline-offset-2 hover:underline"
+                                    href={buildOrgHref({
+                                      orgId: workspace.workspaceId,
+                                      page: "role",
+                                      roleId: role.roleId,
+                                      tab: "settings",
+                                    })}
+                                    key={role.roleId}
+                                  >
+                                    {role.name}
+                                  </Link>
+                                ))
+                              ) : (
+                                <span className="text-neutral-soft">—</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       {permissions.canManageIntegrations ? (
@@ -591,11 +642,6 @@ export function OrgSettingsPage() {
                             </MuteButton>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem
-                              onSelect={() => setRoleChannel(channel)}
-                            >
-                              {c("역할 할당", "Assign roles")}
-                            </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={removeSlackChannel.isPending}
                               onSelect={() =>
