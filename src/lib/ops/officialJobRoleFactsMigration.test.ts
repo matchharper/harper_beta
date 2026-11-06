@@ -8,7 +8,7 @@ import { PGlite } from "@electric-sql/pglite";
 const SETUP = `
   create role anon; create role authenticated; create role service_role;
   create table company_roles(role_id uuid primary key, name text, location_text text, country_code text,
-    type text[], salary_range text, seniority_level text, updated_at timestamptz default now());
+    type text[], salary_range text, seniority_level text, source_type text default 'internal', updated_at timestamptz default now());
   create table company_internal_roles(role_id uuid primary key references company_roles, request text, criteria jsonb);
   create table official_jobs(id uuid primary key default gen_random_uuid(), company_name text not null,
     role_title text not null, location text not null, vertical text not null default '',
@@ -93,6 +93,15 @@ test("posting facts follow the Role; text versions flag a Brief change for revie
     assert.equal((await job("a")).location, "🇹🇭 Bangkok");
     await db.query(`update company_roles set location_text = 'APAC', country_code = null where role_id = '${seoul}'`);
     assert.equal((await job("a")).location, "APAC");
+
+    // The Role drops a fact: a posting showing the Role's earlier value drops it
+    // too; a posting's own value stays; location stays (a posting needs one).
+    await db.query(`update company_roles set salary_range = null, seniority_level = null, location_text = null where role_id = '${seoul}'`);
+    a = await job("a");
+    assert.deepEqual([a.compensation, a.seniority, a.location], [null, null, "APAC"]);
+    await db.query(`update company_roles set seniority_level = 'Mid' where role_id = '${bare}'`);
+    await db.query(`update company_roles set seniority_level = null where role_id = '${bare}'`);
+    assert.deepEqual([(await job("b")).compensation, (await job("b")).seniority], ["Paid", null]);
 
     // The posting as it was at a moment.
     const first = (await db.query<any>("select official_job_as_of_v1($1, $2::timestamptz) v", [a.id, "2026-10-02T00:00:00Z"])).rows[0].v;

@@ -10,7 +10,9 @@
 -- read_career_internal_role_v1, LinkedIn work, reports). For a posting linked
 -- to a Role, each is the Role's value whenever the Role has one, kept so by
 -- triggers in the same transaction; the posting's own value stays only where
--- the Role is empty. A write to a posting cannot override a Role fact.
+-- the Role is empty. A write to a posting cannot override a Role fact. When the
+-- Role drops a fact, the posting drops it too where it still shows the Role's
+-- earlier value (location stays: a posting needs one).
 --   location        = flag from country_code + location_text
 --   compensation    = salary_range
 --   employment_type = label of the Role's type list (full_time -> Full-time)
@@ -26,8 +28,8 @@
 -- was written against. A posting whose Role Brief changed since its text was
 -- last edited or reviewed needs review (Ops: "공고 확인 필요").
 
--- 1. The Role's facts as a posting shows them.
-create or replace function public.official_job_role_facts_v1(p_role_id uuid)
+-- 1. The Role's facts as a posting shows them (of a Role row; by Role id).
+create or replace function public.official_job_role_facts_of_v1(r public.company_roles)
 returns table(location text, compensation text, employment_type text, seniority text)
 language sql
 stable
@@ -37,7 +39,9 @@ as $$
     case
       when nullif(btrim(r.location_text), '') is null then null
       when upper(coalesce(r.country_code, '')) ~ '^[A-Z]{2}$'
-        and not (left(btrim(r.location_text), 1) between chr(127462) and chr(127487)) then
+        -- Already starts with a flag (regional indicator, by code point so
+        -- the database collation does not matter).
+        and not (ascii(left(btrim(r.location_text), 1)) between 127462 and 127487) then
         chr(127397 + ascii(upper(substr(r.country_code, 1, 1))))
           || chr(127397 + ascii(upper(substr(r.country_code, 2, 1)))) || ' ' || btrim(r.location_text)
       else btrim(r.location_text)
@@ -56,9 +60,22 @@ as $$
       order by position
     ), ', '), ''),
     nullif(btrim(r.seniority_level), '')
+$$;
+
+create or replace function public.official_job_role_facts_v1(p_role_id uuid)
+returns table(location text, compensation text, employment_type text, seniority text)
+language sql
+stable
+set search_path = ''
+as $$
+  select facts.location, facts.compensation, facts.employment_type, facts.seniority
   from public.company_roles r
+  cross join lateral public.official_job_role_facts_of_v1(r) facts
   where r.role_id = p_role_id
 $$;
+
+revoke all on function public.official_job_role_facts_of_v1(public.company_roles) from public, anon, authenticated;
+grant execute on function public.official_job_role_facts_of_v1(public.company_roles) to service_role;
 
 revoke all on function public.official_job_role_facts_v1(uuid) from public, anon, authenticated;
 grant execute on function public.official_job_role_facts_v1(uuid) to service_role;
@@ -116,17 +133,29 @@ create trigger official_jobs_zz_keep_updated_at_on_fact_sync
   before update on public.official_jobs
   for each row execute function public.keep_official_job_updated_at_on_fact_sync_v1();
 
--- 3. A Role fact change reaches its postings.
+-- 3. A Role fact change reaches its postings. A fact the Role no longer has is
+-- dropped from a posting that still shows the Role's earlier value.
 create or replace function public.sync_official_job_role_facts_v1()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_old record;
+  v_new record;
 begin
+  select * into v_old from public.official_job_role_facts_of_v1(old);
+  select * into v_new from public.official_job_role_facts_of_v1(new);
   perform set_config('harper.official_job_fact_sync', 'on', true);
   update public.official_jobs job
-  set location = job.location
+  set location = job.location,
+      compensation = case when v_new.compensation is null
+        and job.compensation is not distinct from v_old.compensation then null else job.compensation end,
+      employment_type = case when v_new.employment_type is null
+        and job.employment_type is not distinct from v_old.employment_type then null else job.employment_type end,
+      seniority = case when v_new.seniority is null
+        and job.seniority is not distinct from v_old.seniority then null else job.seniority end
   where job.role_id = new.role_id;
   perform set_config('harper.official_job_fact_sync', '', true);
   return new;
@@ -140,7 +169,10 @@ create trigger company_roles_sync_official_job_facts
   after update of location_text, country_code, type, salary_range, seniority_level
   on public.company_roles
   for each row
-  when ((old.location_text, old.country_code, old.type, old.salary_range, old.seniority_level)
+  -- Postings link only to Harper-managed Roles; external Role refreshes
+  -- (thousands a day) never fire this.
+  when (new.source_type = 'internal'
+    and (old.location_text, old.country_code, old.type, old.salary_range, old.seniority_level)
     is distinct from (new.location_text, new.country_code, new.type, new.salary_range, new.seniority_level))
   execute function public.sync_official_job_role_facts_v1();
 
