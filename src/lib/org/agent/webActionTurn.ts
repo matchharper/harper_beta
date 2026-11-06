@@ -17,6 +17,14 @@ function clean(value: unknown) {
   return String(value ?? "").trim();
 }
 
+/**
+ * Events that join one company Harper run when they come in quick succession
+ * (D12): the run collects them for this many seconds, then starts once.
+ */
+const BATCHED_WEB_ACTIONS: Record<string, number> = {
+  company_intro_decision: 45,
+};
+
 /** The normal dispatcher resumes interrupted work under its original job ID. */
 export async function recoverOrgAgentWebActionJobs(admin = getSupabaseAdmin()) {
   const { data, error } = await (admin.rpc as any)("recover_company_agent_web_action_jobs_v1", {
@@ -67,8 +75,9 @@ export async function enqueueOrgAgentWebActionTurn(args: {
     // The authenticated scope above verifies the related Role.
     conversation = chooseWebActionConversation(conversation, data, roleId);
   }
+  const batchWindowSeconds = BATCHED_WEB_ACTIONS[actionName];
   const { data, error } = await traceStageStep("enqueueOrgAgentWebActionTurn:68", async () => ((admin.rpc as any)(
-    "enqueue_company_agent_web_action_v1",
+    batchWindowSeconds ? "enqueue_company_agent_web_action_batched_v1" : "enqueue_company_agent_web_action_v1",
     {
       p_action_context: actionContext,
       p_action_name: actionName,
@@ -77,6 +86,7 @@ export async function enqueueOrgAgentWebActionTurn(args: {
       p_conversation_id: conversation.id,
       p_idempotency_key: idempotencyKey,
       p_role_id: conversation.role_id,
+      ...(batchWindowSeconds ? { p_window_seconds: batchWindowSeconds } : {}),
     }
   )));
   if (error) throw error;
