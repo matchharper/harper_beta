@@ -6579,8 +6579,9 @@ export async function executeOrgAgentTool(args: {
   assertOrgAgentToolAvailable(args.name);
   args.signal?.throwIfAborted();
   const input = record(args.input);
-  const {companyAgentScope}=await import("@/lib/agentContacts/companyScope");
+  const {companyAgentScope,companyAgentServiceTools}=await import("@/lib/agentContacts/companyScope");
   if(companyAgentScope(args.admin) && (
+    !companyAgentServiceTools().has(args.name) ||
     (args.name==='contact_talent' && input.action!=='send_to_agent') ||
     (args.name==='publish_role_recommendations' && !input.introductionRootId)
   )) throw new OrgAgentToolInputError("This service event can act only on agent correspondence with an exact introduction reference.");

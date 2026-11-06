@@ -7,6 +7,7 @@ import { RESUME_RENDER_VERSION } from "@/lib/resumes/template";
 import { AUTHORED_DOCUMENT_ORIGIN } from "@/lib/documents/authoring";
 import { exportDocument } from "@/lib/documents/export";
 import { DOCUMENT_RENDER_VERSION } from "@/lib/documents/template";
+import type { PdfArtifactCache } from "@/lib/resumes/pdfCache";
 
 /** Public attachment basename; storage identifiers stay in the parent directory. */
 export function applicationAttachmentName(doc: Partial<TalentDocumentRow>): string {
@@ -33,6 +34,7 @@ export async function applicationAttachment(args: {
   download: (path: string) => Promise<Buffer>;
   render?: Parameters<typeof exportResume>[0]["render"];
   renderDocument?: Parameters<typeof exportDocument>[0]["render"];
+  cache?: PdfArtifactCache;
 }) {
   const doc = await args.read();
   if (!doc || doc.is_deleted) throw new Error("Selected attachment is unavailable");
@@ -41,12 +43,12 @@ export async function applicationAttachment(args: {
   if (doc.origin_type === GENERATED_RESUME_ORIGIN) {
     if (typeof doc.revision !== "number") throw new Error("Resume revision unavailable");
     const artifact = await exportResume({read: args.read, expectedRevision: doc.revision,
-      renderVersion: RESUME_RENDER_VERSION, render: args.render});
+      renderVersion: RESUME_RENDER_VERSION, render: args.render, cache: args.cache});
     bytes = artifact.pdf;
   } else if (doc.origin_type === AUTHORED_DOCUMENT_ORIGIN) {
     if (typeof doc.revision !== "number") throw new Error("Document revision unavailable");
     const artifact = await exportDocument({read: args.read, expectedRevision: doc.revision,
-      renderVersion: DOCUMENT_RENDER_VERSION, render: args.renderDocument});
+      renderVersion: DOCUMENT_RENDER_VERSION, render: args.renderDocument, cache: args.cache});
     bytes = artifact.pdf;
   } else {
     if (!doc.storage_path) throw new Error("Selected attachment is unavailable");

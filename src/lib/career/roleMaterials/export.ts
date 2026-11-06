@@ -10,6 +10,7 @@ import { RESUME_RENDER_VERSION } from "@/lib/resumes/template";
 import { AUTHORED_DOCUMENT_ORIGIN } from "@/lib/documents/authoring";
 import { renderAuthoredDocument } from "@/lib/documents/export";
 import { DOCUMENT_RENDER_VERSION } from "@/lib/documents/template";
+import { createPdfArtifactCache } from "@/lib/resumes/pdfCache";
 import type { RoleMaterial } from "./store";
 const hash = (value: string | Uint8Array) =>
   createHash("sha256").update(value).digest("hex");
@@ -38,17 +39,21 @@ export async function exportRoleMaterialDocument(args: {
   };
   let stored = await readFile();
   if (!stored) {
+    const context = { cache: createPdfArtifactCache(args.admin), document: {
+      userId: args.material.talent_id, documentId: document.id, revision: document.revision ?? null,
+    } };
     let bytes: Buffer, rendererVersion: string;
     if (document.origin_type === GENERATED_RESUME_ORIGIN) {
       bytes = (
-        await renderResumePdf(readResumeContent(document.structured_content))
+        await renderResumePdf(readResumeContent(document.structured_content), context)
       ).pdf;
       rendererVersion = RESUME_RENDER_VERSION;
     } else if (document.origin_type === AUTHORED_DOCUMENT_ORIGIN) {
       bytes = (
         await renderAuthoredDocument(
           document.file_name,
-          document.extracted_text ?? ""
+          document.extracted_text ?? "",
+          context
         )
       ).pdf;
       rendererVersion = DOCUMENT_RENDER_VERSION;

@@ -16,7 +16,7 @@ import prompts from "../ops/roleSalaryEstimation.prompts.json";
 import fx from "./salaryFx.json";
 import { chunks, mapConcurrent } from "./contract";
 
-export const SALARY_ESTIMATION_VERSION = "salary-decisions-production-v2";
+export const SALARY_ESTIMATION_VERSION = "salary-decisions-production-v4-ingestion";
 const krwAnchors = [20, 30, 40, 50, 65, 80, 100, 130, 180, 260].map(
   (n) => n * 1e6
 );
@@ -38,7 +38,8 @@ export const SALARY_FILL_SELECT = `cr.role_id::text AS id,cr.name AS title,cw.co
  jsonb_strip_nulls(jsonb_build_object('company_description',cw.company_description,
  'short_description',cd.short_description,'founded_year',cd.founded_year,
  'employee_count_range',cd.employee_count_range,'last_funding_stage',dat.last_funding_stage,
- 'total_funding_raised',dat.total_funding_raised)) AS company_context`;
+ 'total_funding_raised',dat.total_funding_raised,
+ 'estimated_average_salary',dat.estimated_average_salary)) AS company_context`;
 export const SALARY_FILL_JOINS = `JOIN public.company_workspace cw ON cw.company_workspace_id=cr.company_workspace_id
  LEFT JOIN public.company_db cd ON cd.id=cw.company_db_id
  LEFT JOIN public.company_data dat ON dat.company_workspace_id=cr.company_workspace_id`;
@@ -164,7 +165,10 @@ export async function fillExternalRoleSalaries(
     FROM public.company_roles cr ${SALARY_FILL_JOINS} WHERE ${MISSING_SALARY_SQL}
     AND cr.role_id IN (${roleIds.map(sqlLiteral).join(",")})`,
     } as never
-  );
+  ).then(value => value, (error: unknown) => {
+    signal?.throwIfAborted();
+    return { data: null, error: { message: error instanceof Error ? error.message : String(error) } };
+  });
   if (error) {
     console.warn("[external salary] capture failed", error.message);
     metrics.failed = roleIds.length;

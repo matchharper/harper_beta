@@ -4,6 +4,8 @@ The post-onboarding text runtime supplies general tools without an application m
 
 `registry.ts` defines reusable capability bundles. The full eligible catalog remains visible; `load_career_capabilities` exposes a bundle's schemas and policies from the next completion. The original assistant also has `load_handbook`. Internal loading has no UI status, external effect or consent implication.
 
+`manage_work` belongs to the manually loaded `delegation` capability. The catalog exposes its purpose, but Decisions and full mode do not automatically load it. A delegate can use its own management contract immediately. Delegation is optional for independent reasoning/context, not a requirement for multiple messages, multiple applications or human waits.
+
 `web_search` and `open_url` are core tools, immediately callable whenever the channel/caller allows them. There is no Career `web_research` bundle or loading step. Existing caller eligibility still applies.
 
 ## Turn preparation
@@ -29,6 +31,16 @@ Checkpoints are keyed by logical reply, so a later user reply cannot overwrite a
 Career Stop records `careerTurnStopped` on the original user message. A Stop before the first SSE event records a hidden `career_turn_stop` receipt keyed by the client's request ID; the source insert and Stop endpoint both check the other side, so neither ordering loses cancellation. A claimed turn observes the durable flag before model/tool execution and every two seconds during an in-flight call. Its existing reply claim settles cancelled checkpoints without consuming handbook replies. Matching and browser executors reuse their cancellation contracts; already dispatched Gmail writes retain their real success or uncertain outcome. Completed results, saved settings and schedules remain intact. Stop preserves visible partial text and appears in subsequent model history as an execution fact; it does not generate a final assistant reply.
 
 The existing every-minute dispatch route repairs a saved-checkpoint/failed-publish gap. A server-only batch claim gives pending generic checkpoints a two-minute dispatch lease and returns only queue routing facts. Each checkpoint has a distinct publication key, including repeated timeouts with unchanged transcript length. Failed publishing is retried after that lease; the same reply claim and publication key prevent duplicate work. Adapter-owned email checkpoints stay in the email queue. The recovery scanner never publishes private provider transcripts into queue payloads.
+
+## Conversation execution and optional delegation
+
+Post-onboarding text inputs, including card actions and saved answers, enter the same durable inbox without owning a browser stream. The original conversation consumes pending messages before a model completion and checks for newer input before each individual tool call. Unstarted calls in an already-issued batch receive explicit non-execution results; the provider transcript remains valid before the new input is appended. An in-flight synchronous tool is allowed to finish. This does not run another conversation LLM during that tool.
+
+Pending browser/evaluation receipts are watched by the existing recovery dispatcher, independently of message admission. The main conversation may continue other authorized work or finish its response. Completion, browser control-return and optional delegate results enter its inbox as execution evidence tied to the original user source. They are not synthetic user authorization. Delivery receipts and the exact transcript are checkpointed together; late inputs/events pass to a successor under the conversation lock. Existing private delegated checkpoints retain their own resumable transcript.
+
+Delegates persist their final text privately in the invocation result. They cannot call the user-contact or form tools; the originating conversation owns explanations and questions. Public tool labels appear under the originating reply while running and are preserved with the delivered result. The main conversation receives actual work notes, evidence references and remaining needs. There is no extra summarizer LLM.
+
+Conversation-owned browser execution/email effects use the same stable effect identity and dispatch receipt pattern as delegated work. A live claim, source ownership, Stop and unread inputs fence dispatch. A completed receipt is reused across replies; an uncertain dispatch is not automatically repeated. Stop also covers receipts still pending after the visible reply finished.
 
 ## Observability and verification
 

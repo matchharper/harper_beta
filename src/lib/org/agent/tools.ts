@@ -1,5 +1,6 @@
 import { COMPANY_EMAIL_PREFERENCE_TOOL } from "@/lib/email/companyPreferencesContract";
 import { READ_AGENT_MESSAGES_TOOL, CONTACT_USER_TOOL, COMPANY_SCHEDULE_TOOL } from "@/lib/agentContacts/toolContracts";
+import { AGENT_CONTACT_DESCRIPTION, AGENT_MESSAGE_DESCRIPTION, AGENT_PRESENTATION_DESCRIPTION, COMPANY_AGENT_CONTACT_TOOL, COMPANY_AGENT_PRESENTATION_TOOL } from "@/lib/agentContacts/companyToolDefinitions";
 import { COMPANY_LANGUAGE_SETTING_TOOL } from "@/lib/org/agent/languageSettingContract";
 /**
  * Tool contracts exposed to the organization-wide Harper agent.
@@ -560,10 +561,11 @@ export const ORG_AGENT_TOOLS = [
   {
     type: "function", function: {
       name: "publish_role_recommendations",
-      description: "With introductionRootId and presentation, publish the candidate-authorized introduction to the Role inbox without score gating or another writer; this saves the presentation and never notifies people or makes a company decision. Without introductionRootId, publish selected company-first candidates for one Role. kind=add takes only the new IDs to add and preserves every existing card; an empty add changes nothing. kind=replace takes the complete desired untouched list, including retained existing IDs; omitted untouched cards retire without rejection, and [] clears that pool. Read matching.view=selection for evidence and current membership. The server manages Brief/pool versions. New candidates need current stage-2 evidence and sharing eligibility. The web API writes descriptions concurrently, one call per selected candidate, using their recorded scores without reranking or topping up. The tool waits for every description and the atomic list save. Existing cards included in add remain unchanged; replace can retain existing cards without current scores. Save/Pass/Accept/Intro progress is preserved. The company-first discovery mode never contacts candidates or moves them to connection pending. A completed result confirms the saved additions, refreshes, removals and retained candidates; there is no background publication wait.",
+      description: `With introductionRootId and presentation: ${AGENT_PRESENTATION_DESCRIPTION} Without introductionRootId, publish selected company-first candidates for one Role. kind=add takes only the new IDs to add and preserves every existing card; an empty add changes nothing. kind=replace takes the complete desired untouched list, including retained existing IDs; omitted untouched cards retire without rejection, and [] clears that pool. Read matching.view=selection for evidence and current membership. The server manages Brief/pool versions. New candidates need current stage-2 evidence and sharing eligibility. The web API writes descriptions concurrently, one call per selected candidate, using their recorded scores without reranking or topping up. The tool waits for every description and the atomic list save. Existing cards included in add remain unchanged; replace can retain existing cards without current scores. Save/Pass/Accept/Intro progress is preserved. The company-first discovery mode never contacts candidates or moves them to connection pending. A completed result confirms the saved additions, refreshes, removals and retained candidates; there is no background publication wait.`,
       parameters: {type:"object",additionalProperties:false,required:["roleId"],properties:{
         introductionRootId:{type:"string",description:"For a candidate-authorized introduction: publish that exact shared candidate to the Role inbox, preserving later company decisions. No evaluation score prerequisite. Supply presentation from your own judgment; no separate writer runs. This is independent of contact_user and never sends a human notification."},
-        presentation:{type:"string",description:"Company-facing presentation for introductionRootId, grounded in the shared materials and company context."},
+        presentation:{type:"string",description:"Company-facing presentation for introductionRootId, grounded in the shared materials and company context. Creates or updates the presentation; updating preserves shared materials and hiring progress."},
+        expectedPresentation:{type:"string",description:"When updating an existing introduction presentation, its exact current text from read_agent_messages. Detects concurrent changes; omit for a new presentation."},
         roleId:{type:"string"},
         kind:{type:"string",enum:["add","replace"],description:"add preserves existing recommendations and adds only talentIds. replace makes talentIds the complete untouched recommendation list."},
         sourceRunId:{type:"string",description:"Optional saved run whose exact evaluation references should be reused without discovery or stage-1/2 scoring. Read selection with that runId first. Its Brief must equal the current saved Brief; prior criteria never become current criteria implicitly. Omit to use latest current-Brief evaluations."},
@@ -942,7 +944,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
     type: "function",
     function: {
       name: "contact_talent",
-      description: "Communicate with the candidate's agent within the company's delegated purpose and sharing permissions. action=send_to_agent immediately queues the candidate agent to handle questions, information, requests or replies using introductionRootId or replyToMessageId; it does not wait for daily processing. The receiving agent acts for its user; this does not directly notify the candidate. For existing legacy contacts, deliver a message to exact candidate(s), or prepare/revise a reviewable draft, schedule an approved draft, expedite a queued delivery, or cancel. Choose send vs create_draft from conversational authorization under the loaded candidate_contact policy, not the topic. send accepts talentId + roleId + messageContent for an authorized new message, or relayId + messageContent for a continuation. One target or items of up to ten; inspect partial outcomes. This never changes candidate interest, sharing consent, or pipeline stage.",
+      description: `${AGENT_CONTACT_DESCRIPTION} For existing legacy contacts, deliver a message to exact candidate(s), or prepare/revise a reviewable draft, schedule an approved draft, expedite a queued delivery, or cancel. Choose send vs create_draft from conversational authorization under the loaded candidate_contact policy, not the topic. send accepts talentId + roleId + messageContent for an authorized new message, or relayId + messageContent for a continuation. One target or items of up to ten; inspect partial outcomes. This never changes candidate interest, sharing consent, or pipeline stage.`,
       parameters: {
         additionalProperties: false,
         properties: {
@@ -1000,7 +1002,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
           },
           messageContent: {
             description:
-              `For send_to_agent, this is your message to the candidate's agent within the company-authorized scope. That agent decides how to act for its user. For legacy direct-contact actions: ${DIRECT_CONTACT_MESSAGE_CONTRACT} ${AUTHORIZED_MESSAGE_CONTENT_CONTRACT}`,
+              `${AGENT_MESSAGE_DESCRIPTION} For legacy direct-contact actions: ${DIRECT_CONTACT_MESSAGE_CONTRACT} ${AUTHORIZED_MESSAGE_CONTENT_CONTRACT}`,
             maxLength: 5000,
             minLength: 1,
             type: "string",
@@ -1652,16 +1654,21 @@ Call this once per exact candidate Role change and review the result before anot
   },
 ] as const;
 
-export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat", trusted?: {scheduledMatching?: boolean}) {
+export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat", trusted?: {scheduledMatching?: boolean; agentService?: boolean}) {
   const tools = ORG_AGENT_TOOLS.filter(
     (tool) =>
       (tool.function.name !== "recommend_talents" || trusted?.scheduledMatching === true) &&
       (COMPANY_MEETING_SCHEDULING_ENABLED ||
       tool.function.name !== "manage_interview_availability")
   );
-  return surface === "slack"
+  const surfaceTools = surface === "slack"
     ? tools
     : tools.filter((tool) => tool.function.name !== "start_role_creation" && tool.function.name !== "send_company_message");
+  return surfaceTools.map(tool => {
+    if (trusted?.agentService && tool.function.name === "contact_talent") return COMPANY_AGENT_CONTACT_TOOL;
+    if (trusted?.agentService && tool.function.name === "publish_role_recommendations") return COMPANY_AGENT_PRESENTATION_TOOL;
+    return tool;
+  });
 }
 
 export function isOrgAgentToolName(value: unknown): value is OrgAgentToolName {

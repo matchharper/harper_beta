@@ -27,6 +27,7 @@ export function buildFilterFirstRoleSql(args: {
   vector: number[];
   userId: string;
   blockedCompanies: string[];
+  companyWorkspaceIds?: string[];
   candidateLimit?: number;
   includePreviouslyRecommended?: boolean;
   unlimitedPerCompany?: boolean;
@@ -79,6 +80,7 @@ export function buildFilterFirstRoleSql(args: {
     ? ROLE_JOINS
     : "JOIN public.company_workspace cw ON cw.company_workspace_id=cr.company_workspace_id";
   const nearest = indexedTitleCandidatesSql({
+    companyWorkspaceIds: args.companyWorkspaceIds,
     countries: countryRows.map((c) => c.countryCode),
     countryWeights: countryRows,
     excludeIntern: !plan.includeIntern,

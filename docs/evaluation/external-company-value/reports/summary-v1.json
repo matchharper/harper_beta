@@ -1,0 +1,193 @@
+{
+  "cases": 70,
+  "excludedIncomplete": 0,
+  "users": 19,
+  "positive": 62,
+  "negative": 8,
+  "negativeUsers": 3,
+  "metrics": [
+    {
+      "arm": "stored",
+      "candidateAuc": 0.719758064516129,
+      "rankingAuc": 0.7721774193548387,
+      "withinUserAuc": 0.5,
+      "mixedUsers": 2,
+      "axisMeans": {
+        "0": {
+          "candidateInterest": 65.75,
+          "mutualFit": 53.59375,
+          "companyInterest": 76.625,
+          "roleFit": 63.46875,
+          "constraintPass": 89.625
+        },
+        "1": {
+          "candidateInterest": 76.3225806451613,
+          "mutualFit": 62.07258064516129,
+          "companyInterest": 83.74193548387096,
+          "roleFit": 70.09677419354838,
+          "constraintPass": 97.41935483870968
+        }
+      },
+      "weights": {
+        "current": 0.7721774193548387,
+        "former": 0.7943548387096774,
+        "moderate": 0.7762096774193549,
+        "equal": 0.7782258064516129,
+        "mutualOnly": 0.7943548387096774
+      },
+      "salarySubsetAuc": 0.7819767441860465,
+      "constraintFailures": 0
+    },
+    {
+      "arm": "baseline",
+      "candidateAuc": 0.7449596774193549,
+      "rankingAuc": 0.7379032258064516,
+      "withinUserAuc": 0.4166666666666667,
+      "mixedUsers": 2,
+      "axisMeans": {
+        "0": {
+          "candidateInterest": 51.375,
+          "mutualFit": 49.78125,
+          "companyInterest": 71.25,
+          "roleFit": 62.25,
+          "constraintPass": 89.75
+        },
+        "1": {
+          "candidateInterest": 68.08064516129032,
+          "mutualFit": 54.25403225806452,
+          "companyInterest": 78.7741935483871,
+          "roleFit": 66.29435483870968,
+          "constraintPass": 95.53225806451613
+        }
+      },
+      "weights": {
+        "current": 0.7379032258064516,
+        "former": 0.7459677419354839,
+        "moderate": 0.7399193548387096,
+        "equal": 0.7520161290322581,
+        "mutualOnly": 0.7036290322580645
+      },
+      "salarySubsetAuc": 0.7441860465116279,
+      "constraintFailures": 1
+    },
+    {
+      "arm": "salary",
+      "candidateAuc": 0.6350806451612904,
+      "rankingAuc": 0.6370967741935484,
+      "withinUserAuc": 0.08333333333333333,
+      "mixedUsers": 2,
+      "axisMeans": {
+        "0": {
+          "candidateInterest": 54.625,
+          "mutualFit": 52.59375,
+          "companyInterest": 68.875,
+          "roleFit": 61.9375,
+          "constraintPass": 93
+        },
+        "1": {
+          "candidateInterest": 63.62903225806452,
+          "mutualFit": 54.57661290322581,
+          "companyInterest": 78.33870967741936,
+          "roleFit": 66.93548387096774,
+          "constraintPass": 95.37096774193549
+        }
+      },
+      "weights": {
+        "current": 0.6370967741935484,
+        "former": 0.6270161290322581,
+        "moderate": 0.6350806451612904,
+        "equal": 0.65625,
+        "mutualOnly": 0.5705645161290323
+      },
+      "salarySubsetAuc": 0.6017441860465116,
+      "constraintFailures": 1
+    },
+    {
+      "arm": "prompt",
+      "candidateAuc": 0.71875,
+      "rankingAuc": 0.7399193548387096,
+      "withinUserAuc": 0.3333333333333333,
+      "mixedUsers": 2,
+      "axisMeans": {
+        "0": {
+          "candidateInterest": 61,
+          "mutualFit": 54.15625,
+          "companyInterest": 74.625,
+          "roleFit": 63.84375,
+          "constraintPass": 93.125
+        },
+        "1": {
+          "candidateInterest": 75.53225806451613,
+          "mutualFit": 60.03225806451613,
+          "companyInterest": 81.56451612903226,
+          "roleFit": 68.45967741935483,
+          "constraintPass": 95.48387096774194
+        }
+      },
+      "weights": {
+        "current": 0.7399193548387096,
+        "former": 0.75,
+        "moderate": 0.7540322580645161,
+        "equal": 0.7560483870967742,
+        "mutualOnly": 0.7439516129032258
+      },
+      "salarySubsetAuc": 0.7412790697674418,
+      "constraintFailures": 0
+    },
+    {
+      "arm": "combined",
+      "candidateAuc": 0.6522177419354839,
+      "rankingAuc": 0.6854838709677419,
+      "withinUserAuc": 0.16666666666666666,
+      "mixedUsers": 2,
+      "axisMeans": {
+        "0": {
+          "candidateInterest": 61.875,
+          "mutualFit": 51.875,
+          "companyInterest": 78.375,
+          "roleFit": 65.40625,
+          "constraintPass": 92.125
+        },
+        "1": {
+          "candidateInterest": 70.35483870967742,
+          "mutualFit": 59.76209677419355,
+          "companyInterest": 82.12903225806451,
+          "roleFit": 68.4758064516129,
+          "constraintPass": 94.12903225806451
+        }
+      },
+      "weights": {
+        "current": 0.6854838709677419,
+        "former": 0.7076612903225806,
+        "moderate": 0.6915322580645161,
+        "equal": 0.6723790322580645,
+        "mutualOnly": 0.7268145161290323
+      },
+      "salarySubsetAuc": 0.6366279069767442,
+      "constraintFailures": 1
+    }
+  ],
+  "rankingAucDeltaUserBootstrap95": {
+    "salary": {
+      "replicates": 1922,
+      "lower": -0.22919937205651486,
+      "upper": 0.1159420289855072
+    },
+    "prompt": {
+      "replicates": 1922,
+      "lower": -0.1125,
+      "upper": 0.2682926829268292
+    },
+    "combined": {
+      "replicates": 1922,
+      "lower": -0.21024258760107817,
+      "upper": 0.2777777777777778
+    }
+  },
+  "calls": 88,
+  "completedCalls": 88,
+  "costUsd": 0.10003195499999998,
+  "budgetCommittedUsd": 0.12503994374999997,
+  "validEvaluations": 280,
+  "reportSourceHash": "89732f7b5b08c9495fff8a013a3e6c99a9e330604c753f80829dc62fc5ab04bf"
+}

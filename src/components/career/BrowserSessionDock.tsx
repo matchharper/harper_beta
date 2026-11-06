@@ -313,16 +313,24 @@ function BrowserSessionFloatingPanel({
   const [collapsedPreference, setCollapsedPreference] = useState<
     boolean | null
   >(() => props.expanded && !props.preview ? false : null);
+  const [minimizedControlRevision, setMinimizedControlRevision] = useState<number | null>(null);
+  const human = props.view.session.status === "human";
+  const fullScreen = human && minimizedControlRevision !== props.view.session.revision;
+  const fold = () => {
+    if (human) setMinimizedControlRevision(fullScreen ? props.view.session.revision : null);
+    else setCollapsedPreference(!collapsed);
+  };
   const { inline, collapsed } = useBrowserSessionPlacement({
     dock,
     layout,
     inlineAnchor,
     content,
     depth: props.depth,
-    collapsed: collapsedPreference,
+    collapsed: human ? !fullScreen : collapsedPreference,
+    fullScreen,
   });
   return (
-    <Dialog open onOpenChange={() => setCollapsedPreference(true)} modal={false}>
+    <Dialog open onOpenChange={() => { if (human) setMinimizedControlRevision(props.view.session.revision); else setCollapsedPreference(true); }} modal={false}>
       <DialogPanelContent
         ref={setContent}
         forceMount
@@ -330,8 +338,9 @@ function BrowserSessionFloatingPanel({
         onCloseAutoFocus={(event) => event.preventDefault()}
         onInteractOutside={(event) => event.preventDefault()}
         aria-describedby={undefined}
-        data-browser-placement={inline ? "inline" : "dock"}
-        className="overflow-y-auto rounded-modal shadow-(--shadow-modal) outline-none"
+        popover={fullScreen ? "manual" : undefined}
+        data-browser-placement={fullScreen ? "fullscreen" : inline ? "inline" : "dock"}
+        className="m-0 border-0 p-0 overflow-y-auto rounded-modal shadow-(--shadow-modal) outline-none"
       >
         <DialogTitle className="sr-only">
           {t("career.browser.title", "지원 브라우저")}
@@ -340,7 +349,8 @@ function BrowserSessionFloatingPanel({
           {...props}
           expanded={!collapsed}
           collapsed={collapsed}
-          onToggleCollapsed={() => setCollapsedPreference(!collapsed)}
+          onToggleCollapsed={fold}
+          fullScreen={fullScreen}
         />
       </DialogPanelContent>
     </Dialog>
@@ -356,12 +366,14 @@ function BrowserPopup({
   collapsed = false,
   onToggleCollapsed,
   preview = false,
+  fullScreen = false,
 }: {
   view: BrowserSessionViewData;
   number?: number;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
   preview?: boolean;
+  fullScreen?: boolean;
   depth: number;
   count: number;
   expanded: boolean;
@@ -372,7 +384,7 @@ function BrowserPopup({
   const t = useCareerT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const act = async (action: "handoff" | "close") => {
+  const act = async (action: "handoff" | "resume" | "close") => {
     if (preview) {
       if (action === "close") onExpand(false);
       return;
@@ -383,7 +395,8 @@ function BrowserPopup({
     try {
       const response = await fetchWithAuth("/api/talent/browser", {
         method: "POST",
-        body: JSON.stringify({ action, sessionId: view.session.id }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, sessionId: view.session.id, revision: view.session.revision }),
       });
       if (!response.ok) throw new Error("Browser action unavailable");
       onExpand(action === "handoff");
@@ -398,7 +411,7 @@ function BrowserPopup({
     <div
       data-browser-session-id={view.session.id}
       data-browser-expanded={expanded}
-      className="w-full"
+      className={fullScreen ? "h-full w-full" : "w-full"}
     >
       <BrowserSessionView
         view={view}
@@ -409,6 +422,7 @@ function BrowserPopup({
         collapsed={collapsed}
         preview={preview}
         number={number}
+        fullScreen={fullScreen}
         error={
           failed
             ? t(

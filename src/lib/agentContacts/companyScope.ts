@@ -1,3 +1,4 @@
+import { COMPANY_BASE_TOOLS, COMPANY_CAPABILITIES, COMPANY_AGENT_SERVICE_CAPABILITIES } from "@/lib/org/agent/capabilities/registry";
 import type { AgentContactSource } from "./contracts";
 
 export type CompanyAgentScope = Extract<
@@ -26,4 +27,21 @@ export function withCompanyAgentScope<T extends object>(
 }
 export function companyAgentScope(admin: object) {
   return (admin as { [scopeKey]?: CompanyAgentScope })[scopeKey];
+}
+
+/** Service principals can inspect their Role, research public evidence and act on
+ * existing correspondence. Membership-only hiring mutations remain unavailable.
+ * Use the shared capability registry; the receiver has no separate tool catalog.
+ */
+export function companyAgentServiceTools(): ReadonlySet<string> {
+  return new Set([
+    ...COMPANY_BASE_TOOLS,
+    ...COMPANY_CAPABILITIES.filter(capability =>
+      (COMPANY_AGENT_SERVICE_CAPABILITIES as readonly string[]).includes(capability.id)
+    ).flatMap(capability => [...capability.toolIds]),
+  ]);
+}
+
+export function formatCompanyAgentServiceScope(scope: Pick<CompanyAgentScope, "roleId">) {
+  return `회사 에이전트의 서비스 실행입니다. 팀원 계정의 지시나 권한 위임을 가장하지 않습니다. 접근은 Role ${scope.roleId}의 승인된 자료와 연락으로 제한됩니다. 채용 결정·결제·팀원 관리 권한은 없습니다.`;
 }

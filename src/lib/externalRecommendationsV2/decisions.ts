@@ -12,17 +12,19 @@ export const COMMON_SCORING_INSTRUCTIONS = rubric.commonInstructions;
 
 type Question = { type: string; instructions: string; criteria: unknown };
 // Keep the rubric verbatim in shared input; questions bind only role and metric.
-export const SHARED_METRIC_RUBRICS = Object.entries(questions).map(([metric, q]) => {
+const metricRubrics = (source: typeof rubric) => Object.entries(source.questions).map(([metric, q]) => {
   const criteria = Array.isArray(q.criteria)
     ? q.criteria.map((text, index) => `${index}: ${text}`)
     : Object.entries(q.criteria).map(([value, text]) => `${value}: ${text}`);
   return `### Rubric ${metric}\n${q.instructions}\nCriteria:\n${criteria.join("\n")}`;
 }).join("\n\n");
+export const SHARED_METRIC_RUBRICS = metricRubrics(rubric);
 
 export function buildDecisionRequest(
   provider: FitProvider,
   input: string,
-  roleIds: string[]
+  roleIds: string[],
+  scoringRubric: typeof rubric = rubric
 ) {
   if (
     !roleIds.length ||
@@ -30,13 +32,13 @@ export function buildDecisionRequest(
     new Set(roleIds).size !== roleIds.length
   )
     throw new Error("Decisions expects 1–10 unique roles");
-  const sharedInstructions = `## Shared evaluation instructions (apply to every question)\n${COMMON_SCORING_INSTRUCTIONS}\nApply each named rubric in full, including all qualifications and exceptions, only to the role_id bound by the question. Other roles are independent evidence, never comparison anchors.\n## Shared metric rubrics\n${SHARED_METRIC_RUBRICS}`;
+  const sharedInstructions = `## Shared evaluation instructions (apply to every question)\n${scoringRubric.commonInstructions}\nApply each named rubric in full, including all qualifications and exceptions, only to the role_id bound by the question. Other roles are independent evidence, never comparison anchors.\n## Shared metric rubrics\n${metricRubrics(scoringRubric)}`;
   const sharedInput = `${sharedInstructions}\n\n## Supplied evidence\n${input}`;
-  const entries = roleIds.flatMap((id, index) =>
-    Object.entries(questions).map(([metric, value]) => {
+  const entries = roleIds.flatMap((_, index) =>
+    Object.entries(scoringRubric.questions).map(([metric, value]) => {
       const q = value as Question;
       const name = `r${index}_${metric}`;
-      const instructions = `For role_id ${id}, apply shared instructions and Rubric ${metric}. ${q.type === "noul" ? "Estimate probability of its true criterion (false is the contrary event)." : q.type === "score" ? "Levels 0–4 use its ordered criteria." : "Choice values use its criteria."}`;
+      const instructions = `For role_id r${index}, apply shared instructions and Rubric ${metric}. ${q.type === "noul" ? "Estimate probability of its true criterion (false is the contrary event)." : q.type === "score" ? "Levels 0–4 use its ordered criteria." : "Choice values use its criteria."}`;
       return { name, metric, q, instructions };
     })
   );
@@ -119,16 +121,13 @@ export function parseDecisionBatch(
       if (!a || a.type === "refusal" || duplicates.has(`r${i}_${metric}`))
         continue;
       row[metric] =
-        metric === "evidence"
-          ? a.choice
-          : ["mutualFit", "roleFit"].includes(metric)
-            ? typeof a.score === "number"
-              ? a.score * 25
-              : undefined
-            : typeof (provider === "openai" ? a.probability : a.noul) ===
-                "number"
-              ? (provider === "openai" ? a.probability : a.noul) * 100
-              : undefined;
+        metric === "mutualFit"
+          ? typeof a.score === "number"
+            ? a.score * 25
+            : undefined
+          : typeof (provider === "openai" ? a.probability : a.noul) === "number"
+            ? (provider === "openai" ? a.probability : a.noul) * 100
+            : undefined;
     }
     const result = fitSchema.safeParse(row);
     if (result.success)

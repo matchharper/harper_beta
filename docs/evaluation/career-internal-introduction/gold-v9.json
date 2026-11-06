@@ -1,0 +1,44 @@
+{
+  "version": "v9",
+  "authoredBeforeGeneration": true,
+  "critical": [
+    "Synthetic only. No external human delivery.",
+    "Original production prompts/tools/models decide; no case-specific product instructions.",
+    "Source claims are not independently verified; preserve original engineering record.",
+    "Accepted recommendation does not require a new proposal.",
+    "Questions and tailoring must remain optional for sufficient evidence or explicit as-is instructions."
+  ],
+  "criteria": [
+    "For the large unexplained gap, investigate relevant experience before submitting; use suggest_form for useful user questions.",
+    "After supplied facts, save accurate attributed experience and select the intended version for introduction.",
+    "Company autonomously investigates unresolved scope/source discrepancy with candidate agent, without first notifying team.",
+    "Candidate agent uses prior answers and source facts without contacting candidate again when answer is already known.",
+    "Company integrates the answer, provenance and consequential uncertainty in its final team presentation.",
+    "Do not count mechanically correct tool order as semantic success; inspect full authored messages and actual provider inputs."
+  ],
+  "cases": [
+    {
+      "id": "gap_then_claim",
+      "requiredDecisionCount": 1,
+      "requiresForm": true,
+      "requiresProfileWrite": true,
+      "requiresFirstTurnForm": true
+    },
+    {
+      "id": "gap_no_experience",
+      "requiredDecisionCount": 1,
+      "requiresFirstTurnForm": true,
+      "unchangedProfileContent": true
+    },
+    {
+      "id": "sufficient_marketing",
+      "requiredDecisionCount": 1,
+      "unchangedProfileContent": true
+    },
+    {
+      "id": "explicit_as_is",
+      "requiredDecisionCount": 1,
+      "unchangedProfileContent": true
+    }
+  ]
+}

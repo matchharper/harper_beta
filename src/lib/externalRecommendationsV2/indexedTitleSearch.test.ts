@@ -93,6 +93,20 @@ test("country budgets are applied before merging and employment/remote condition
       `WITH nearest AS MATERIALIZED (${sql}) SELECT role_id FROM nearest JOIN company_roles USING(role_id) WHERE NOT (${titleBucketPredicate(0)} OR ${titleBucketPredicate(8)}) OR (country_code='US' AND work_mode<>'remote')`
     );
     assert.equal(invalid.rows.length, 0);
+    const workspaceA = "00000000-0000-4000-8000-000000000001";
+    const workspaceB = "00000000-0000-4000-8000-000000000002";
+    await db.exec(`ALTER TABLE company_roles ADD COLUMN company_workspace_id uuid;
+      CREATE INDEX company_roles_workspace_idx ON company_roles(company_workspace_id);
+      UPDATE company_roles SET company_workspace_id='${workspaceA}' WHERE role_id IN (101,102);
+      UPDATE company_roles SET company_workspace_id='${workspaceB}' WHERE role_id=801;`);
+    const scoped = indexedTitleCandidatesSql({ ...args, companyWorkspaceIds: [workspaceA, workspaceB, workspaceA] });
+    assert.deepEqual((await db.query<{ role_id: number }>(scoped)).rows.map(r => r.role_id).sort((a,b) => a-b), [101,102,801]);
+    assert.doesNotMatch(scoped, /external_role_index_vector/);
+    assert.match(JSON.stringify((await db.query("EXPLAIN (FORMAT JSON) " + scoped)).rows), /company_roles_workspace_idx/);
+    const unknown = indexedTitleCandidatesSql({ ...args, companyWorkspaceIds: ["00000000-0000-4000-8000-000000000003"] });
+    assert.equal((await db.query(unknown)).rows.length, 0);
+    assert.throws(() => indexedTitleCandidatesSql({ ...args, companyWorkspaceIds: [] }));
+    assert.throws(() => indexedTitleCandidatesSql({ ...args, companyWorkspaceIds: ["invalid"] }));
     // Exhaustion does not refill from the other country's index.
     await db.exec(
       `UPDATE company_roles SET is_expired=true WHERE country_code='US' AND role_id>710`

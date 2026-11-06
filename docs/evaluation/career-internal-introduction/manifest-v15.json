@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v15",
+  "createdAt": "2026-11-05",
+  "provenance": "v12 company decision test plus v14 complete candidate history. No fixed company question. Company first-turn input unchanged; candidate history includes the actual preparation/submission completion. Frozen before generation.",
+  "hashes": {
+    "cases-v15.json": "31f6834c73ce4c9f6be4d8842af2bea7af1f1e1433f08f42455df679633809b5",
+    "gold-v15.json": "9c164e26926a0f7bc91fda6de50591ce26ee00b5ad72c51e596c327d26181734"
+  }
+}

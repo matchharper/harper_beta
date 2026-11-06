@@ -8,12 +8,18 @@ export const CAREER_CORE_TOOLS = [
   "open_url",
   // A form is a conversation/review surface, so it stays available like text.
   "suggest_form",
-  "manage_work",
   "manage_action_items",
 ] as const;
 
 export const CAREER_CONDITIONAL_TOOLS = [] as const;
 export const CAREER_CAPABILITIES = [
+  {
+    id: "delegation",
+    turns: 1,
+    manualOnly: true,
+    summary: "Delegate a bounded responsibility when independent reasoning or a separate large context benefits the user's outcome. The conversation normally performs its own work and handles new inputs between calls. Message count, multiple targets and human waits do not require delegation. Delegates return findings and remaining needs to this conversation; they do not independently address the user.",
+    tools: [["manage_work", "start, inspect, update or cancel an independent delegated responsibility"]],
+  },
   {
     id: "profile",
     turns: 2,
@@ -32,7 +38,7 @@ export const CAREER_CAPABILITIES = [
     id: "opportunities",
     turns: 3,
     summary:
-      "Record the user's acceptance, rejection or save-for-later decision on an exact recommendation; a reply alone does not persist it. Import an external posting from its URL for a requested save or application. Read roles and prior recommendations, manage matching criteria, search/evaluate external opportunities and help with existing Harper-connected recommendations. Company-side agents select new internal recommendations. Searching does not publish. Add, reorder, archive, restore, replace or reset recommendation lists while preserving independent saved/applied/connected decisions. No fixed count or quality quota.",
+      "Record the user's acceptance, rejection or save-for-later decision on an exact recommendation; a reply alone does not persist it. Import an external posting from its URL for a requested save or application. Read roles and prior recommendations, manage matching criteria, search/evaluate external opportunities and present existing Harper-connected recommendations and already selected unpublished proposals. Reads reuse this selected pool; they do not expand it. Searching does not publish. Add, reorder, archive, restore, replace or reset recommendation lists while preserving independent saved/applied/connected decisions. No fixed count or quality quota.",
     tools: [
       ["list_matchings", "read the current and past matching index"],
       [
@@ -85,7 +91,7 @@ export const CAREER_CAPABILITIES = [
     id: "internal_applications",
     turns: 3,
     summary:
-      "Help the user with a specific public internal Role they explicitly chose, including a /jobs posting. Resolve that posting when needed; this capability does not browse hidden roles or select new recommendations. apply_to_internal_role saves the private opportunity immediately. It does not introduce or share. After the candidate has reviewed the Role and requests introduction, use company_contact → contact_company with recommendationId and acceptIntroduction=true to request the introduction and share prepared materials or the default profile/public documents.",
+      "Prepare for a specific internal Role the candidate chose or was recommended. Resolve an exact public posting, save a private opportunity, and select profile/document versions. These tools do not introduce or share; company_contact provides authorized introduction and ongoing agent correspondence. This capability does not browse hidden Roles or select new recommendations.",
     tools: [
       [
         "apply_to_internal_role",
@@ -102,11 +108,11 @@ export const CAREER_CAPABILITIES = [
     id: "companies",
     turns: 2,
     summary:
-      "Follow several companies by name or workspace ID in one call, including companies absent from the directory. Optionally find workspaces by name or URL. Read, update or unfollow existing subscriptions. Scheduled Career checks receive follow names, user instructions and follow dates, with external roles/assessments and existing internal recommendations where linked. Changes do not start separate contact runs; timing and pauses use the existing Career schedule. Unfollow removes the saved interest and preserves history.",
+      "Follow several companies by name or workspace ID in one call, including companies absent from the directory. Optionally find workspaces using multiple company names or LinkedIn URLs. Read, update or unfollow existing subscriptions. Scheduled Career checks receive follow names, user instructions and follow dates, with external roles/assessments and existing internal recommendations where linked. Changes do not start separate contact runs; timing and pauses use the existing Career schedule. Unfollow removes the saved interest and preserves history.",
     tools: [
       [
         "search_companies",
-        "find company workspaces by name or URL",
+        "find company workspaces using multiple names or LinkedIn URLs",
       ],
       ["follow_company", "list follows, read follow facts, external roles and existing internal recommendations, follow, update or unfollow a company"],
     ],
@@ -143,14 +149,14 @@ export const CAREER_CAPABILITIES = [
     id: "company_contact",
     turns: 2,
     summary:
-      "Communicate with company agents for the user's delegated purpose, including questions, requests, replies and shared updates. Read current relationships and correspondence; share only authorized material. Agent receipt, human notification and connection completion are separate facts.",
+      "Start authorized introductions and communicate with company agents for the user's delegated purpose, including questions, requests, replies and shared updates. Read current relationships and correspondence; share only authorized material. Agent receipt, human notification and connection completion are separate facts.",
     tools: [
       ["read_company_connections", "read current company connections"],
       ["read_agent_messages", "read agent correspondence and shared material references"],
       ["contact_user", "deliver a message to this candidate from background work"],
       [
         "contact_company",
-        "send a message to the company agent, or through an existing mutual connection",
+        "start a candidate-authorized introduction or continue company-agent correspondence; also supports legacy mutual connections",
       ],
     ],
   },

@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v7",
+  "createdAt": "2026-11-05",
+  "provenance": "Synthetic mismatched and sufficient profiles; accepted recommendation; exaggerated new user account; current original candidate/company models. Gold frozen before generation. Actual profile/material PostgreSQL with captured transport; paired agent chain optional.",
+  "hashes": {
+    "cases-v7.json": "85ff420bd01a969f3e9da55577fd3b020afd9e6bf2ebcfdf31fa3b362db2fc3b",
+    "gold-v7.json": "2d9e8066b123073e6e6463df120c5fa92133c844d6d4e103a96273690f2477dd"
+  }
+}

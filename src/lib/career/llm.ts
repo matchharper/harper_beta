@@ -1789,6 +1789,11 @@ async function runCareerChatAssistantImpl(args: {
       }
 
       for (const toolCall of executableToolCalls) {
+        if (await args.toolRuntime?.shouldDeferToolCall()) {
+          toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id,
+            content: "Not executed: new conversation input arrived. Read that input before choosing the next action." });
+          continue;
+        }
         totalToolCalls += 1;
 
         const toolInput =
@@ -2398,6 +2403,11 @@ async function runCareerChatAssistantStreamImpl(args: {
       }
 
       for (const toolCall of executableToolCalls) {
+        if (await args.toolRuntime?.shouldDeferToolCall()) {
+          toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id,
+            content: "Not executed: new conversation input arrived. Read that input before choosing the next action." });
+          continue;
+        }
         totalToolCalls += 1;
 
         const toolInput =
@@ -2796,6 +2806,7 @@ export async function runCareerOnboardingDeferClose(args: {
 }
 
 export async function runCareerProfileIngestion(args: {
+  abortSignal?: AbortSignal;
   messages: TalentChatMessage[];
   usageLabel?: string;
 }) {
@@ -2803,6 +2814,8 @@ export async function runCareerProfileIngestion(args: {
     ...assistantModelConfig(),
     maxTokens: CAREER_LLM_CONFIG.profileIngestion.maxTokens,
     messages: args.messages,
+    abortSignal: args.abortSignal,
+    jsonMode: true,
     temperature: CAREER_LLM_CONFIG.profileIngestion.temperature,
     usageLabel: args.usageLabel,
   });

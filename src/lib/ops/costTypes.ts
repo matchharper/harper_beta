@@ -3,11 +3,19 @@ export type OpsCostProviderId =
   | "openai"
   | "openrouter"
   | "exa"
-  | "ec2";
+  | "ec2"
+  | "browser-use"
+  | "browserless"
+  | "vercel"
+  | "supabase";
 
-export type OpsCreditProviderId = "openrouter" | "aws";
+export type OpsCreditProviderId = "openrouter" | "aws" | "browser-use";
 
-export type OpsCostSourceStatus = "ok" | "not_configured" | "error";
+export type OpsCostSourceStatus =
+  | "ok"
+  | "not_configured"
+  | "unavailable"
+  | "error";
 
 export type OpsDailyCostPoint = {
   amount: number;
@@ -23,6 +31,7 @@ export type OpsCostBreakdownItem = {
 export type OpsCostProviderResult = {
   breakdown?: OpsCostBreakdownItem[];
   currency: "USD";
+  dashboardUrl?: string;
   id: OpsCostProviderId;
   label: string;
   message: string | null;
@@ -30,7 +39,16 @@ export type OpsCostProviderResult = {
   netTotal?: number;
   points: OpsDailyCostPoint[];
   status: OpsCostSourceStatus;
-  total: number;
+  total: number | null;
+  totalLabel?: string;
+  usage?: {
+    from: string;
+    through: string;
+    plan: string;
+    used: number;
+    included: number;
+    remaining: number;
+  };
 };
 
 export type OpsCreditAmount = {

@@ -170,7 +170,7 @@ export function buildSalaryModelRole(row: SalaryRoleRow): SalaryModelRole {
     company_context: Object.fromEntries(
       Object.entries(row.company_context ?? {}).map(([k, v]) => [
         k,
-        typeof v === "string" ? v.slice(0, 2500) : v,
+        typeof v === "string" && k !== "estimated_average_salary" ? v.slice(0, 2500) : v,
       ])
     ),
     jd: blindSalaryText(row.description || row.description_summary || "").slice(
@@ -205,7 +205,8 @@ export async function runSalaryEstimation(
     jsonb_strip_nulls(jsonb_build_object('company_description',cw.company_description,
       'short_description',cd.short_description,'founded_year',cd.founded_year,
       'employee_count_range',cd.employee_count_range,'last_funding_stage',dat.last_funding_stage,
-      'total_funding_raised',dat.total_funding_raised)) AS company_context
+      'total_funding_raised',dat.total_funding_raised,
+      'estimated_average_salary',dat.estimated_average_salary)) AS company_context
     FROM public.company_roles cr
     JOIN public.company_workspace cw ON cw.company_workspace_id = cr.company_workspace_id
     LEFT JOIN public.company_db cd ON cd.id = cw.company_db_id

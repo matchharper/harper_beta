@@ -1,0 +1,19 @@
+{
+  "preparedAt": "2026-11-06T06:00:05.456Z",
+  "sampleHash": "1c1b65af18bb7e872cdeb5df16c2b1c8c44ea9c482be21c3158109407b55460f",
+  "requestHash": "c3774e7b1f47fcb85c8de560906e81deac5d98eed6ade6cccd05ae91d46a2320",
+  "sourceHashes": {
+    "src/lib/externalRecommendationsV2/scoringInput.ts": "9cd6e7df53c48c4bbb8eb87a5108a3eb81b16a1241b2b2c301d49857f93c5df6",
+    "src/lib/externalRecommendationsV2/workerInputText.ts": "07f74299f4d5100e0eda8c8b3b01f6abf413e6252986ab3a1940d4ed2de176cf",
+    "src/lib/externalRecommendationsV2/decisions.ts": "4973fdc37159950627813c1af4724219cd9dc86ab96ead0afef2b038fe4657ca",
+    "src/lib/externalRecommendationsV2/fitQuestions.v4.json": "0df36950428fc07bf2cb54e500f84a83bbfe2458dcde3dc4657deec1d63b2471",
+    "scripts/probeExternalScoringCost.ts": "e877fe65e90c21e501eb719b6304bf13f1c598a98a34da6a622c8cd6a0b41267"
+  },
+  "model": "gpt-6-luna",
+  "roles": 10,
+  "questions": 60,
+  "calls": 1,
+  "retries": 0,
+  "qualityGold": null,
+  "scope": "UUID refs and generated indentation; structural smoke only"
+}

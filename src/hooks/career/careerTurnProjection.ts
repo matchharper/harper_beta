@@ -19,6 +19,7 @@ export function createCareerTurnProjection() {
     const groups = new Map<string, CareerMessage>();
     for (const message of messages) if (message.workReplyId) seenInHistory.add(message.workReplyId);
     for (const activity of snapshot?.activities ?? []) {
+      if (activity.ownerReplyId) continue;
       const replyId = `invocation:${activity.id}`;
       const prior = observed.get(replyId);
       groups.set(replyId, prior ? { ...prior, workStartedAt: prior.workStartedAt ?? activity.startedAt, thinkingLogs: activity.logs } : {
@@ -54,11 +55,44 @@ export function createCareerTurnProjection() {
       }
       observed.set(id, groups.get(id)!);
     }
+    const delegated = new Map<string, string[]>();
+    for (const activity of snapshot?.activities ?? []) {
+      if (activity.ownerReplyId) delegated.set(activity.ownerReplyId, [...(delegated.get(activity.ownerReplyId) ?? []), ...activity.logs]);
+    }
+    for (const [replyId, message] of groups) {
+      groups.set(replyId, { ...message, workBackgroundLogs: delegated.get(replyId) ?? [],
+        ...(delegated.has(replyId) ? { workPending: true } : {}) });
+    }
     const result = messages.filter(message => !message.workReplyId);
     for (const message of [...groups.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
       const index = result.findIndex(item => item.createdAt > message.createdAt);
       if (index < 0) result.push(message); else result.splice(index, 0, message);
     }
-    return result;
+    // Artifacts retain their own persisted IDs and controls, but are displayed
+    // inside the reply that produced them, between its activity and final text.
+    const owners = new Map(result.filter(m => m.workReplyId).map(m => [m.workReplyId!, m]));
+    const browserOwners = new Map<string, string>();
+    for (const message of messages) {
+      if (!message.artifactReplyId || !owners.has(message.artifactReplyId)) continue;
+      for (const ref of message.careerForm?.relatedRefs ?? []) {
+        // Older browser cards have no reply ID. An explicit form reference can
+        // associate them without guessing from timestamps or the nearest reply.
+        if (ref.type === "browser_session" && !browserOwners.has(ref.id)) browserOwners.set(ref.id, message.artifactReplyId);
+      }
+    }
+    const artifactsByReply = new Map<string, CareerMessage[]>();
+    const rows = result.filter(message => {
+      if (!message.browserSession && !message.careerForm) return true;
+      const replyId = message.artifactReplyId ?? (message.browserSession ? browserOwners.get(message.browserSession.sessionId) : undefined);
+      if (!replyId || !owners.has(replyId)) return true;
+      const artifacts = artifactsByReply.get(replyId) ?? [];
+      artifacts.push(message);
+      artifactsByReply.set(replyId, artifacts);
+      return false;
+    });
+    return rows.map(message => {
+      const artifacts = message.workReplyId ? artifactsByReply.get(message.workReplyId) : undefined;
+      return artifacts ? { ...message, workArtifacts: artifacts.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || Number(a.id) - Number(b.id)) } : message;
+    });
   };
 }

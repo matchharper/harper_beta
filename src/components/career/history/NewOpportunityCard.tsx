@@ -107,8 +107,7 @@ export default memo(function NewOpportunityCard({
     ? t("career.company.jobs.save", "저장하기")
     : positiveLabel;
   const negativeTooltip = negativeLabel;
-  const actionClass =
-    "py-2.5 rounded-sm font-normal md:font-light text-sm truncate";
+  const actionClass = "py-2.5 rounded-sm font-normal text-sm truncate";
   const feedbackActions = (
     <div className="flex shrink-0 items-center gap-1">
       {isInternal ? (
@@ -189,7 +188,7 @@ export default memo(function NewOpportunityCard({
         onOpenLink={onOpenLink}
         collapsedActions={feedbackActions}
         actions={
-          <div className="grid grid-cols-2 items-center gap-2 pt-4 md:grid-cols-3 max-md:[&>button:last-child:nth-child(odd)]:col-start-2">
+          <div className="grid grid-cols-2 items-center gap-2 pt-4 max-md:[&>button:last-child:nth-child(odd)]:col-start-2">
             {isInternal ? (
               <Tooltips
                 text={t(
@@ -222,7 +221,7 @@ export default memo(function NewOpportunityCard({
               disabled={pending}
               onClick={() => handleFeedbackClick("positive")}
               size="md"
-              variant={isInternal ? "primary" : "dark"}
+              variant={isInternal ? "primary" : "neutral"}
               className={actionClass}
             >
               {pending ? (

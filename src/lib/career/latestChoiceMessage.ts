@@ -2,7 +2,7 @@ import type { CareerMessage } from "@/components/career/types";
 
 function isSupplementaryMessage(message: CareerMessage) {
   return Boolean(message.simulationSession || message.simulationAction ||
-    message.simulation || message.applicationStartOffer);
+    message.simulation || message.applicationStartOffer || message.browserSession || message.careerForm);
 }
 
 // Choice clicks send their exact value as a normal, persisted user message.
@@ -23,7 +23,7 @@ export function choiceRepliesByMessageId(messages: readonly CareerMessage[]) {
   return replies;
 }
 
-// Simulation state/card messages can follow the answer without replacing its choices.
+// Artifact cards can follow the answer without replacing its choices.
 export function latestChoiceMessageIndex(messages: readonly CareerMessage[]) {
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index];

@@ -1,26 +1,85 @@
 import type { TalentAdminClient } from '@/lib/talentOnboarding/admin';
 import { isTestOnlyInternalRole } from '@/lib/internalRoleSafety';
 import { formatLlmDateTime, PROMPT_TIME_ZONE } from '@/lib/llm/promptDateTime';
+import { z } from 'zod';
 
 const db = (admin: TalentAdminClient) => admin as any;
 export const COMPANY_FOLLOW_COVERAGE = 'Following saves interest in a company by name or an existing company/workspace identity. Scheduled Career checks receive the followed company names, user instructions and follow dates, along with external roles and existing internal recommendations when a directory identity is linked. A follow does not expose unrecommended internal roles. Company changes do not start a separate contact run. Timing follows the existing Career schedule, including pauses.';
-export type CompanyIdentity = { companyDbId: number | null; companyWorkspaceId: string | null; name: string; website: string | null; linkedin: string | null; scope: 'company' | 'workspace' };
+export type CompanyIdentity = {
+  companyDbId: number | null;
+  companyWorkspaceId: string | null;
+  name: string;
+  website: string | null;
+  linkedin: string | null;
+  matchedQueries: string[];
+  scope: 'company' | 'workspace';
+};
 export type CompanyFollow = { id: string; talent_id: string; company_name?: string | null; company_db_id: number | null; company_workspace_id: string | null; scope: string; revision: number; instruction: string; followed_at: string; unfollowed_at: string | null; conversation_id: string | null; company?: { name?: string } | null; workspace?: { company_name?: string } | null; scan_state: Record<string, unknown> };
 
 /** Parameter values are escaped for PostgREST's filter grammar, not interpreted as instructions. */
 const filterLiteral = (value: string) => `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-export async function searchCareerCompanies(args: { admin: TalentAdminClient; query: string; offset?: number; limit?: number }) {
-  let query = args.query.trim();
-  try { const url = new URL(query.includes('://') ? query : `https://${query}`); if (url.hostname.includes('.')) query = `${url.hostname.replace(/^www\./, '')}${url.pathname.replace(/\/$/, '')}`; } catch { /* Company names remain literal text. */ }
-  if (!query) throw new Error('A company name, website or LinkedIn URL is required.');
-  const offset = args.offset ?? 0, limit = args.limit ?? 20;
-  const needle = filterLiteral(`%${query.replace(/[%_]/g, value => `\\${value}`)}%`);
-  const workspaces = await db(args.admin).from('company_workspace').select('company_workspace_id,company_db_id,company_name,homepage_url,linkedin_url', { count: 'exact' }).or(`company_name.ilike.${needle},homepage_url.ilike.${needle},linkedin_url.ilike.${needle}`).order('company_workspace_id').range(offset, offset + limit - 1);
+export const companySearchInputSchema = z.object({
+  queries: z.array(z.string().trim().min(1)).min(1),
+  offset: z.number().int().nonnegative().default(0),
+});
+
+function normalizeCompanyQuery(query: string) {
+  try {
+    const url = new URL(query.includes('://') ? query : `https://${query}`);
+    if (url.hostname.includes('.')) {
+      query = `${url.hostname.replace(/^www\./, '')}${url.pathname.replace(/\/$/, '')}`;
+    }
+  } catch { /* Company names remain literal text. */ }
+  return query.toLowerCase();
+}
+
+export async function searchCareerCompanies(args: {
+  admin: TalentAdminClient;
+  queries: string[];
+  offset?: number;
+}) {
+  const { queries, offset } = companySearchInputSchema.parse(args);
+  const searchTerms = [...new Set(queries)].map(query => ({
+    query, value: normalizeCompanyQuery(query),
+  }));
+  const terms = [...new Set(searchTerms.map(term => term.value))];
+  const filters = terms.flatMap(query => {
+    // Escape a literal substring regex: PostgREST treats '*' as a LIKE wildcard
+    // even inside a quoted value. imatch preserves *, %, and _ in company names.
+    const needle = filterLiteral(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return [`company_name.imatch.${needle}`, `linkedin_url.imatch.${needle}`];
+  });
+  const limit = 20;
+  // One OR query returns each workspace once. Read one extra row for paging;
+  // an exact count would scan every match again on every page.
+  const workspaces = await args.admin
+    .from('company_workspace')
+    .select('company_workspace_id,company_db_id,company_name,homepage_url,linkedin_url')
+    .or(filters.join(','))
+    .order('test_score', { ascending: false, nullsFirst: false })
+    .order('company_name')
+    .order('company_workspace_id')
+    .range(offset, offset + limit);
   if (workspaces.error) throw new Error(workspaces.error.message);
-  const items: CompanyIdentity[] = [
-    ...(workspaces.data ?? []).map((row: any) => ({ companyDbId: row.company_db_id, companyWorkspaceId: row.company_workspace_id, name: row.company_name, website: row.homepage_url, linkedin: row.linkedin_url, scope: 'workspace' as const })),
-  ];
-  return { companies: items, nextOffset: offset + limit < (workspaces.count ?? 0) ? offset + limit : null, coverage: COMPANY_FOLLOW_COVERAGE };
+  const rows = workspaces.data ?? [];
+  const items: CompanyIdentity[] = rows.slice(0, limit).map(row => ({
+    companyDbId: row.company_db_id,
+    companyWorkspaceId: row.company_workspace_id,
+    name: row.company_name,
+    website: row.homepage_url,
+    linkedin: row.linkedin_url,
+    matchedQueries: searchTerms.filter(term =>
+      [row.company_name, row.linkedin_url].some(value =>
+        typeof value === 'string' && value.toLowerCase().includes(term.value)
+      )
+    ).map(term => term.query),
+    scope: 'workspace' as const,
+  }));
+  return {
+    companies: items,
+    nextOffset: rows.length > limit ? offset + limit : null,
+    coverage: COMPANY_FOLLOW_COVERAGE,
+  };
 }
 
 export async function listCareerCompanyFollows(args: { admin: TalentAdminClient; userId: string; includeUnfollowed?: boolean; offset?: number; limit?: number }) {
@@ -52,6 +111,7 @@ export function formatCompanySearch(companies: CompanyIdentity[], nextOffset: nu
   return [...companies.map(item => [
     `${item.name}; company_workspace_id ${item.companyWorkspaceId}`,
     item.linkedin ? `LinkedIn: ${item.linkedin}` : '',
+    item.matchedQueries?.length ? `Matched queries: ${item.matchedQueries.join(', ')}` : '',
   ].filter(Boolean).join('\n')), !companies.length ? 'No matching company found in the current directory.' : '', nextOffset !== null ? `More results: offset ${nextOffset}` : 'End of company results.'].filter(Boolean).join('\n\n');
 }
 export function formatCompanyFollows(follows: CompanyFollow[], nextOffset: number | null = null) {
@@ -73,6 +133,13 @@ export class CareerSourceChangedError extends Error {
   constructor() { super('Career source changed or was cancelled.'); this.name = 'CareerSourceChangedError'; }
 }
 export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdminClient; run: CareerSourceRun }) {
+  if ((args.run.trigger_payload as any)?.companyIntroCandidateId) {
+    const { data, error } = await db(args.admin).rpc('career_company_intro_is_current', {
+      p_run: args.run.id, p_talent: args.run.talent_id,
+    });
+    if (error) throw new Error(error.message);
+    if (!data) throw new CareerSourceChangedError();
+  }
   const current: SourceEvent[] = [];
   let changed = false;
   const events = sourceEvents(args.run);

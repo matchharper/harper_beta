@@ -29,6 +29,7 @@ export type ExternalToolContext = {
   workRevision?: number;
   claimId?: string;
   requestId: string;
+  replyId?: string;
   signal?: AbortSignal;
   /** Request budget; yielding observation preserves the already dispatched run. */
   deadlineAt?: number;

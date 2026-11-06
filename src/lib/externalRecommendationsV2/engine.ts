@@ -185,9 +185,9 @@ export function summary(card: RoleCard, lang: string) {
   const s = card.roleSummary?.[lang] as { content?: unknown } | undefined;
   return typeof s?.content === "string" ? s.content.trim() : "";
 }
-function roleSourceHash(card: RoleCard) {
+function roleSourceHash(card: RoleCard, language: "ko" | "en") {
   // Includes funding and leadership evidence; cached fit must match actual scorer inputs.
-  const p = v2PromptCandidate(card, "en");
+  const p = v2PromptCandidate(card, language);
   return fingerprint(buildScoringInput({}, [p]));
 }
 export async function getSearchPlan(
@@ -353,11 +353,11 @@ export async function loadFitCache(
   for (const row of data ?? []) {
     const card = byId.get(row.role_id);
     if (!card) continue;
-    // Stored evaluations survive input, provider, prompt and age changes.
-    // Metadata remains provenance; only an explicit refresh bypasses the cache.
+    // Reuse within the same scoring contract; a changed rubric needs new scores.
+    // Input/provider/age changes retain the legacy explicit-refresh behavior.
     const evaluations = Object.values(row.evaluations ?? {}) as FitEvaluation[];
     const value = evaluations
-      .filter((value) => value && fitSchema.safeParse(value).success)
+      .filter((value) => value?.promptVersion === PROMPT_VERSION && fitSchema.safeParse(value).success)
       .sort((a, b) => (Date.parse(b.evaluatedAt) || 0) - (Date.parse(a.evaluatedAt) || 0))[0];
     if (value) result.set(row.role_id, value);
   }
@@ -769,7 +769,7 @@ export async function runExternalV2(
       model: r.model,
       promptVersion: PROMPT_VERSION,
       inputFingerprint,
-      roleSourceHash: roleSourceHash(byId.get(e.roleId)!),
+      roleSourceHash: roleSourceHash(byId.get(e.roleId)!, args.language),
       evaluatedAt: new Date().toISOString(),
     }));
     const stored = [
@@ -780,7 +780,7 @@ export async function runExternalV2(
         model: r.model,
         promptVersion: PROMPT_VERSION,
         inputFingerprint,
-        roleSourceHash: roleSourceHash(byId.get(e.roleId)!),
+        roleSourceHash: roleSourceHash(byId.get(e.roleId)!, args.language),
         evaluatedAt: new Date().toISOString(),
       })),
     ];

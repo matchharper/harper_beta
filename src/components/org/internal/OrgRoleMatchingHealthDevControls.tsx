@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useOrgAnnouncements } from "@/components/org/announcements";
 import { AnnouncementCard } from "@/components/common/AnnouncementCard";
-import { DevColorPaletteControls } from "@/components/common/DevColorPaletteControls";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { OrgBillingDevControls } from "@/components/org/internal/OrgBillingDevControls";
@@ -59,37 +58,6 @@ export function OrgRoleMatchingHealthDevControls({
       value: "candidate_feedback",
     },
   ];
-  const paletteCopy = {
-    title: c("색상 미리보기", "Color preview"),
-    labels: {
-      current: c("1. 현재", "1. Current"),
-      soft: c("2. 누런끼 조금 제거", "2. Less warm"),
-      clean: c("3. 누런끼 거의 제거", "3. Neutral"),
-      mono: c("4. White · Black · Gray", "4. White · Black · Gray"),
-    },
-    descriptions: {
-      current: c(
-        "누런끼를 조금 줄인 기본 배경과 색상을 표시해요.",
-        "Current base colors with slightly less warmth."
-      ),
-      soft: c(
-        "전체 기본 색상에 반영된 팔레트예요. ‘현재’와 같은 색상으로 표시해요.",
-        "Palette applied to the base UI. Matches Current."
-      ),
-      clean: c(
-        "배경과 글자를 중성 회색에 가깝게, 따뜻한 강조 배경은 더 차분하게 표시해요.",
-        "Neutral grays with softer warm accents."
-      ),
-      mono: c(
-        "primary 포인트를 제외한 공통 UI 색상을 흰색·검정·회색으로 표시해요.",
-        "White, black, and gray UI colors, except the primary accent."
-      ),
-    },
-    footnote: c(
-      "primary는 모든 옵션에서 유지돼요. 이 브라우저의 Career·Org 화면에만 적용되며, ‘현재’를 누르면 원래 색상으로 돌아가요.",
-      "The primary accent stays in every option. These changes affect only Career and Org in this browser. Select Current to reset."
-    ),
-  };
   const roleOptions = useMemo(
     () => roles.map((role) => ({ label: role.name, value: role.roleId })),
     [roles]
@@ -161,7 +129,6 @@ export function OrgRoleMatchingHealthDevControls({
         )}
       >
         <div className="relative z-20 space-y-4">
-          <DevColorPaletteControls copy={paletteCopy} />
           <div className="flex flex-wrap gap-2">
             <MuteButton type="button" onClick={() => setAnnouncementOpen(true)}>
               {c("Welcome 안내 띄우기", "Show welcome notice")}
@@ -177,7 +144,13 @@ export function OrgRoleMatchingHealthDevControls({
               </Link>
             </MuteButton>
           </div>
-          {canRunTalentFirst && <RoleSearchControls roles={roles} workspaceId={workspaceId} surface="org" />}
+          {canRunTalentFirst && (
+            <RoleSearchControls
+              roles={roles}
+              workspaceId={workspaceId}
+              surface="org"
+            />
+          )}
           <OrgBillingDevControls workspaceId={workspaceId} />
           <div className="space-y-1">
             <div className="flex items-center gap-2">

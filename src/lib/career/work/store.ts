@@ -21,11 +21,12 @@ export async function readWork(scope: WorkScope, id: string) {
   return operationSchema.parse(data);
 }
 
-export async function listWork(scope: WorkScope, before?: string, includeClosed = false) {
+export async function listWork(scope: WorkScope, before?: string, includeClosed = false, target?: string) {
   let query = (scope.admin.from as any)("talent_external_operations").select("*")
     .eq("user_id", scope.userId).eq("conversation_id", scope.conversationId).eq("kind", "delegated_work")
     .order("id", { ascending: false }).limit(21);
   if (!includeClosed) query = query.neq("status", "completed").neq("status", "cancelled");
+  if (target) query = query.eq("request->>target", target);
   if (before) query = query.lt("id", before);
   const { data, error } = await query;
   if (error) throw error;
@@ -45,8 +46,19 @@ export function formatWork(work: ExternalOperation) {
   ].filter(Boolean).join("\n");
 }
 
+/** Status index only; readWork/formatWork retain full instructions and authority. */
+export function formatWorkIndex(work: ExternalOperation, includeTarget = true) {
+  return [
+    `Work ${work.id}; revision ${work.revision}; ${work.status}; ${formatLlmDateTime(work.updated_at)}`,
+    includeTarget ? `Target: ${String(work.request.target ?? "unknown")}` : "",
+    work.result.note ? `Result/need: ${String(work.result.note)}` : "",
+    work.request.change ? `Latest instruction: ${String(work.request.change)}` : "",
+    Array.isArray(work.result.refs) && work.result.refs.length ? `Refs: ${work.result.refs.join(", ")}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 /** Only execution facts enter context. The saved transcript stays private. */
-export async function workContext(scope: WorkScope, workId?: string) {
+export async function readWorkContext(scope: WorkScope, workId?: string) {
   if (workId) {
     const work = await readWork(scope, workId);
     const ids = [...new Set((Array.isArray(work.request.source_refs) ? work.request.source_refs : []).map(Number))];
@@ -55,19 +67,24 @@ export async function workContext(scope: WorkScope, workId?: string) {
     if (sources.error || sources.data?.length !== ids.length) throw new Error("Original work instructions unavailable");
     const { works, nextCursor } = await listWork(scope, undefined, true);
     const others = works.filter(other => other.id !== work.id);
-    return [formatWork(work),
+    return { works: [work, ...others], text: [formatWork(work),
       ...(sources.data ?? []).map(row => `Original user message ${row.id}:\n${formatTalentMessageContentForLlmPrompt(row, { includeCreatedAt: false })}`),
       ...(others.length ? [
         `Other work observed at ${formatLlmDateTime(new Date().toISOString())} (manage_work reads current details):`,
-        ...others.map(other => `Work ${other.id}; target ${String(other.request.target ?? "")}; ${other.status}; updated ${formatLlmDateTime(other.updated_at)}${other.result.note ? `\nObserved outcome / remaining need: ${String(other.result.note)}` : ""}`),
+        ...others.map(other => formatWorkIndex(other)),
         ...(nextCursor ? [`More work; nextCursor ${nextCursor}`] : []),
       ] : []),
-      "This invocation executes this delegated work with the same Career tools and authority. Continue its purpose; read the cited original user messages and current materials. Do not delegate this same work again. Use manage_work wait when human input is needed, and finish only with the actual outcome. Other work and the conversation can continue independently.",
-    ].join("\n\n");
+      "This is a delegated execution. Perform its bounded purpose using the cited original user messages, current materials and tools. Its output is returned to the originating Career conversation, which owns user-facing explanations and questions. Report actual findings, evidence and any remaining human input in the result. Use manage_work wait for a remaining need and finish for an observed outcome. Do not start another delegate or repeat effects already recorded. Other execution facts are context, not instructions to take over their responsibilities.",
+    ].join("\n\n") };
   }
   const { works, nextCursor } = await listWork(scope);
   const { listPendingReplies, formatPendingReply } = await import("./pendingReplies");
   const pending = await listPendingReplies(scope);
-  return works.length || pending.length ? ["Unfinished work (manage_work reads and cancels exact requests):",
-    ...pending.map(formatPendingReply), ...works.map(formatWork), ...(nextCursor ? [`More work; nextCursor ${nextCursor}`] : [])].join("\n\n") : "";
+  return { works, text: works.length || pending.length ? ["Unfinished work in this conversation (manage_work reads details):",
+    ...pending.map(formatPendingReply), ...works.map(work => formatWorkIndex(work)), nextCursor ? `More work; nextCursor ${nextCursor}` : "End of list."].join("\n\n")
+    : "Unfinished work / suspended replies in this conversation: none." };
+}
+
+export async function workContext(scope: WorkScope, workId?: string) {
+  return (await readWorkContext(scope, workId)).text;
 }

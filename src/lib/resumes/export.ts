@@ -2,6 +2,7 @@ import type { TalentDocumentRow } from "@/lib/talentOnboarding/models";
 import { GENERATED_RESUME_ORIGIN, readResumeContent } from "./schema";
 import { RESUME_RENDER_VERSION } from "./template";
 import { renderResumePdf } from "./render";
+import type { PdfArtifactCache } from "./pdfCache";
 
 export class ResumeExportError extends Error {
   constructor(
@@ -19,6 +20,7 @@ export async function exportResume(args: {
   // and exclude deleted documents.
   read: () => Promise<TalentDocumentRow | null>;
   render?: typeof renderResumePdf;
+  cache?: PdfArtifactCache;
 }) {
   const verify = (document: TalentDocumentRow | null) => {
     if (
@@ -44,7 +46,9 @@ export async function exportResume(args: {
   } catch {
     throw new ResumeExportError(422, "Editable resume content unavailable");
   }
-  const artifact = await (args.render ?? renderResumePdf)(content);
+  const artifact = await (args.render ?? renderResumePdf)(content, {
+    cache: args.cache, document: { userId: document.talent_id, documentId: document.id, revision: document.revision ?? null },
+  });
   verify(await args.read());
   return { ...artifact, fileName: document.file_name };
 }

@@ -10,6 +10,7 @@ import { AUTHORED_DOCUMENT_ORIGIN } from "@/lib/documents/authoring";
 import { exportDocument } from "@/lib/documents/export";
 import { recordPdfExport } from "@/lib/documents/pdfDiagnostics";
 import { formatToolError } from "@/lib/llm/toolError";
+import { createPdfArtifactCache } from "@/lib/resumes/pdfCache";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -46,6 +47,7 @@ export async function POST(
         ? exportDocument
         : exportResume;
     const artifact = await exporter({
+      cache: createPdfArtifactCache(admin),
       expectedRevision: body.expected_revision,
       renderVersion: body.render_version,
       read,

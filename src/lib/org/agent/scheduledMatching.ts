@@ -49,6 +49,11 @@ If the supplied evidence leaves no concrete case for contacting the person now, 
 company_first if company review has value, or leave them unselected. Zero talent-first is
 valid for every Role; M is a maximum, never a target. Existing recommendations and responses
 must inform judgment, and prior role-specific disinterest is not erased by a high score.
+Use outstanding proposal counts together with the company’s recent replies and instructions
+to judge whether more outreach is useful now. Selected unpublished proposals, published
+proposals awaiting the candidate, accepted people not yet introduced and pending company
+decisions are different workloads. A request from the candidate for more opportunities
+does not increase the outreach budget or lower the fit bar.
 Do not invent candidate preferences, willingness, availability, salary or future response.
 The same person may receive both new directions only if each is independently useful and
 allowed. Include that ref in both action groups; no extra reasoning schema is needed.

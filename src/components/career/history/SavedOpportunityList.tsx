@@ -40,7 +40,6 @@ const SavedOpportunityRow = memo(function SavedOpportunityRow({
       collapsedActions={
         <MuteButton
           variant="dark"
-          size="sm"
           disabled={pending || expired}
           onClick={() => onApply(item)}
         >

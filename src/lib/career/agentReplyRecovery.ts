@@ -11,6 +11,10 @@ export async function dispatchCareerAgentReplies(
 ) {
   if (Date.now() >= deadlineAt) return { dispatched: 0, deferred: 0 };
   const { publishCareerInvocations } = await import("./work/invocations");
+  const { reconcileCareerDependencies } = await import("./work/events");
+  await reconcileCareerDependencies({admin, deadlineAt}).catch(error => {
+    console.warn("[career] Dependency observation deferred", String(error));
+  });
   const invocations = await publishCareerInvocations({ admin }, publish);
   let dispatched = invocations.dispatched;
   let deferred = invocations.deferred;

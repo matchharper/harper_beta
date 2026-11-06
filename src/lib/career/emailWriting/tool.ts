@@ -29,7 +29,7 @@ export const WRITE_EMAIL_TOOL = {
   parameters: {
     type: "object",
     properties: {
-      effect_key: { type: "string", description: "Stable effect identity within delegated work. Reuse the same key if this is an alternative to a browser submission." },
+      effect_key: { type: "string", description: "Stable purpose + target effect identity in this conversation or delegated work, required for sending. Reuse the same key if this is an alternative to a browser submission." },
       to: { type: "array", items: { type: "string" } },
       cc: { type: "array", items: { type: "string" } },
       bcc: { type: "array", items: { type: "string" } },

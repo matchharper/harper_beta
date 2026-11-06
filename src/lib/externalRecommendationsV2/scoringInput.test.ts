@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { externalScoringInput } from "./workerInputText";
-import { buildScoringInput } from "./scoringInput";
+import { buildScoringInput, v2PromptCandidate } from "./scoringInput";
+import { roleCard } from "../talentOnboarding/jobPostingRecommendations";
 import { buildDecisionRequest } from "./decisions";
-import oldQuestions from "./fitQuestions.v3.json";
 import rubric from "./fitQuestions.v4.json";
 import { descriptionText } from "./descriptionText";
 
@@ -53,18 +53,13 @@ test("HTML loses attributes and tags while duties, lists, table columns and link
   assert.equal(descriptionText(plain), plain);
 });
 
-test("common instructions move once; every original metric instruction and criterion is preserved verbatim", () => {
-  for (const metric of Object.keys(oldQuestions) as Array<keyof typeof oldQuestions>) {
-    assert.equal(rubric.commonInstructions + rubric.questions[metric].instructions, oldQuestions[metric].instructions);
-    assert.deepEqual(rubric.questions[metric].criteria, oldQuestions[metric].criteria);
-    assert.equal(rubric.questions[metric].type, oldQuestions[metric].type);
-  }
+test("common instructions occur once and all four metrics bind each role", () => {
   const ids = ["role-1", "role-2", "role-3"];
   for (const provider of ["openai", "jev"] as const) {
     const request = buildDecisionRequest(provider, "Verified source facts", ids);
     const serialized = JSON.stringify(request);
     assert.equal(serialized.split(JSON.stringify(rubric.commonInstructions).slice(1, -1)).length - 1, 1);
-    assert.equal(Object.keys(request.questions).length, 18);
+    assert.equal(Object.keys(request.questions).length, 12);
   }
 });
 
@@ -74,9 +69,52 @@ test("company is printed once and complete JD, salary, leadership and candidate 
     { ...common, roleId: "r1", roleName: "First", roleDescription: "a".repeat(7000) + "Final important condition" },
     { ...common, roleId: "r2", roleName: "Second", roleDescription: "Distinct duties" },
   ]);
-  for (const fact of ["Every brief fact", "Company facts", "Founder history", "Investor evidence", "Final important condition", "Distinct duties", "KRW 200 million", "r1", "r2"]) assert.ok(text.includes(fact));
+  for (const fact of ["Every brief fact", "Company facts", "Founder history", "Investor evidence", "Final important condition", "Distinct duties", "KRW 200 million", "role_id: r0", "role_id: r1"]) assert.ok(text.includes(fact));
   assert.equal(text.split("Company facts").length - 1, 1);
   assert.ok(!text.includes("companyKey"));
+});
+
+test("predicted salary reaches private Decisions evidence without becoming public compensation", () => {
+  const row = { role_id: "role-estimate", role_name: "Engineer", salary_is_predicted: true,
+    salary_min: 80000000, salary_max: 120000000, salary_currency: "KRW", salary_period: "year" };
+  const card = roleCard(row);
+  assert.equal(card.salaryRange, null);
+  assert.equal(card.row.salary_min, null);
+  const candidate = v2PromptCandidate(card, "en");
+  const input = buildScoringInput({}, [candidate]);
+  const request = buildDecisionRequest("openai", input, [row.role_id]);
+  const evidence = request.input!.find(message => message.role === "user")!.content;
+  assert.ok(evidence.includes("KRW 80,000,000–120,000,000 per year"));
+  assert.ok(evidence.includes("not employer-disclosed; bonus and equity excluded"));
+  assert.ok(evidence.includes("rough prediction; may be substantially inaccurate"));
+  const disclosed = v2PromptCandidate(roleCard({ ...row, salary_is_predicted: false }), "en");
+  assert.equal(disclosed.estimatedBaseSalary, null);
+  assert.ok(disclosed.salaryRange?.includes("80000000-120000000"));
+  assert.equal(v2PromptCandidate(roleCard({ ...row, salary_min: null, salary_max: null }), "en").estimatedBaseSalary, null);
+});
+
+test("scoring prefers the requested-language summary regardless of cache metadata and falls back to the complete JD", () => {
+  const description = "Full original JD\n" + "Detailed duty\n".repeat(500) + "Final source condition";
+  const row = { role_id: "summary-role", role_name: "Engineer", description };
+  const card = roleCard({ ...row, summary: {
+    ko: { content: "한국어 요약\n- 업무\n  - 하위 조건", version: "old", sourceHash: "old" },
+    en: { content: "English summary" },
+  } });
+  const before = structuredClone(card);
+  for (const [language, expected] of [["ko", "한국어 요약"], ["en", "English summary"]] as const) {
+    const candidate = v2PromptCandidate(card, language);
+    const input = buildScoringInput({}, [candidate]);
+    assert.ok(input.includes(expected));
+    assert.ok(!input.includes("Full original JD"));
+    assert.ok(!input.includes(language === "ko" ? "English summary" : "한국어 요약"));
+  }
+  assert.deepEqual(card, before);
+  for (const summary of [undefined, {}, { en: { content: "Only English" } }, { ko: {} },
+    { ko: { content: null } }, { ko: { content: 42 } }, { ko: { content: " \n " } }]) {
+    const candidate = v2PromptCandidate(roleCard({ ...row, summary }), "ko");
+    assert.equal(candidate.roleDescription, description);
+    assert.ok(buildScoringInput({}, [candidate]).includes("Final source condition"));
+  }
 });
 
 test("same-name companies stay separate without exposing their grouping IDs", () => {
@@ -86,8 +124,40 @@ test("same-name companies stay separate without exposing their grouping IDs", ()
     { ...candidate, companyKey: "workspace-a", roleId: "r1", company: { description: "First company" } },
     { ...candidate, companyKey: "workspace-b", roleId: "r2", company: { description: "Second company" } },
   ]);
-  for (const fact of ["First company", "Second company", "role_id: r1", "role_id: r2", "Build", "Ship"]) assert.ok(text.includes(fact));
+  for (const fact of ["First company", "Second company", "role_id: r0", "role_id: r1", "Build", "Ship"]) assert.ok(text.includes(fact));
   for (const absent of ["workspace-a", "workspace-b", "<p>", "## user_context", "employment:", "companyData:"]) assert.ok(!text.includes(absent));
+});
+
+test("role refs follow original batch order across company groups and retain authored nesting", () => {
+  const ids = [
+    "00000000-0000-4000-8000-000000000001",
+    "00000000-0000-4000-8000-000000000002",
+    "00000000-0000-4000-8000-000000000003",
+  ];
+  const source = `Requirements\n- Build APIs\n  - Keep nested detail\n    - Keep deeper detail\nReference: ${ids[0]}`;
+  const candidates = ids.map((roleId, index) => ({
+    roleId, roleName: `Role ${index}`, companyKey: index === 1 ? "b" : "a",
+    companyName: index === 1 ? "Company B" : "Company A", company: {},
+    employmentType: null, seniorityLevel: null, location: null, workMode: null,
+    postedAt: null, roleDescription: index === 0 ? source : `Duties ${index}`,
+  }));
+  const before = structuredClone(candidates);
+  const input = buildScoringInput({}, candidates);
+  assert.deepEqual([...input.matchAll(/^### role_id: (r\d+)$/gm)].map(match => match[1]), ["r0", "r2", "r1"]);
+  for (let index = 0; index < 3; index++) assert.ok(input.includes(`### role_id: r${index}\n- title: Role ${index}`));
+  assert.ok(input.includes("\n  - Build APIs\n    - Keep nested detail\n      - Keep deeper detail"));
+  assert.ok(input.includes(`Reference: ${ids[0]}`)); // Authored UUIDs are not globally replaced.
+  assert.ok(!input.includes(ids[1]) && !input.includes(ids[2]));
+  assert.ok(input.indexOf("## company_2") > input.indexOf("### role_id: r2"));
+  assert.deepEqual(candidates, before);
+  for (const provider of ["openai", "jev"] as const) {
+    const request = buildDecisionRequest(provider, input, ids);
+    const questions = Array.isArray(request.questions) ? request.questions : Object.values(request.questions);
+    for (const [index, id] of ids.entries()) {
+      assert.equal(questions.filter(q => q.instructions.startsWith(`For role_id r${index},`)).length, 4);
+      assert.ok(!JSON.stringify(questions).includes(id));
+    }
+  }
 });
 
 
@@ -107,15 +177,15 @@ test("each complete metric rubric occurs once in shared input; per-role question
         const item = Array.isArray(request.questions)
           ? request.questions.find(q => q.name === `r${i}_${metric}`)!
           : request.questions[`r${i}_${metric}`];
-        assert.ok(item.instructions.includes(`role_id role-${i + 1}`));
+        assert.ok(item.instructions.includes(`role_id r${i},`));
         assert.ok(item.instructions.includes(`Rubric ${metric}`));
       }
     }
     if (Array.isArray(request.questions)) {
       const score = request.questions.find(q => q.type === "score")!;
       assert.deepEqual(score.levels, [0, 1, 2, 3, 4].map(i => ({ label: String(i) })));
-      const choice = request.questions.find(q => q.type === "choice")!;
-      assert.deepEqual(choice.choices, Object.keys(rubric.questions.evidence.criteria).map(value => ({ value })));
+      assert.equal(request.questions.filter(q => q.type === "choice").length, 0);
+      assert.doesNotMatch(serializedQuestions, /_roleFit|_evidence/);
     }
   }
 });

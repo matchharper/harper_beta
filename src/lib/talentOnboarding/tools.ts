@@ -1,3 +1,6 @@
+import { getLocalizedRoleSummaryContent } from "@/lib/companyRoles/summary";
+import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
+import { readPendingInternalProposals } from "@/lib/career/internalSelections";
 import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { assertCareerTurnActive, careerTurnIsStopped, cancelCareerTurnWork } from "@/lib/career/turnCancellation.server";
 import { formatOpportunityDecisionReceipt } from "@/lib/career/opportunityFeedbackEvent";
@@ -721,6 +724,7 @@ const ROLE_CONTEXT_ROLE_SELECT = `
   role_id,
   name,
   description,
+  summary,
   external_jd_url,
   location_text,
   work_mode,
@@ -822,18 +826,30 @@ function pickLatestRoleContextRecommendation(
   })[0];
 }
 
+function roleContextJd(args: { jd: "full" | "summary" | "skip"; summary: unknown; description: unknown; locale: string }): { jd: "full" | "summary" | "skip"; summary?: string; description?: string | null; summaryUnavailable?: boolean } {
+  if (args.jd === "skip") return { jd: "skip" as const };
+  const summary = getLocalizedRoleSummaryContent(args.summary, args.locale);
+  if (args.jd === "summary" && summary) return { jd: "summary" as const, summary };
+  return { jd: "full" as const,
+    ...(args.jd === "summary" ? { summaryUnavailable: true } : {}),
+    description: typeof args.description === "string" ? args.description : null };
+}
+
 export async function runGetRoleContext(args: {
   activityOffset: number;
   admin: any;
   /** Stored public job/company facts, without candidate matching or activity reads. */
   externalFactsOnly?: boolean;
-  includeJd: boolean;
+  jd?: "full" | "summary" | "skip";
+  responseLocale?: string | null;
   roleIds: string[];
   userId: string;
 }) {
+  const jd = args.jd ?? "summary";
+  const locale = normalizeCareerPromptLocale(args.responseLocale);
   const roleQuery = (args.admin.from("company_roles" as any) as any)
     .select(
-      args.includeJd
+      jd !== "skip"
         ? ROLE_CONTEXT_ROLE_SELECT
         : ROLE_CONTEXT_ROLE_SELECT.replace("  description,\n", "")
     )
@@ -969,9 +985,8 @@ export async function runGetRoleContext(args: {
       role: {
         roleId,
         name: optionalToolString(publicRole?.name ?? row.name),
-        ...(args.includeJd
-          ? { description: optionalToolString(publicRole?.description ?? row.description) }
-          : {}),
+        ...roleContextJd({ jd, summary: row.summary,
+          description: publicRole?.description ?? row.description, locale }),
         externalJdUrl: optionalToolString(row.external_jd_url),
         locationText: optionalToolString(row.location_text),
         workMode: optionalToolString(row.work_mode),
@@ -1845,7 +1860,7 @@ async function presentInternalRoleRecommendationForReview(args: {
         ? compactOpportunityForTool(updatedOpportunity)
         : null,
       assistantInstruction: [
-        `This role is now formally available for review. Before answering, call get_role_context with roleId=${roleId} and include_jd=true, then give a substantive explanation of the company, the role's actual scope, why ${targetRoleName ?? "the requested role"} may fit, and any meaningful public-safe tradeoff.`,
+        `This role is now formally available for review. Use the available public context to give a substantive explanation of the company, the role's actual scope, why ${targetRoleName ?? "the requested role"} may fit, and any meaningful public-safe tradeoff.`,
         "Say the role has been added as a formal recommendation, but nothing has been sent to the company. if user accept, Harper will introduce you to the company.",
         "This is an internal Harper-connected role. Never describe it as an external or public opportunity, and do not attribute information limits to it being external.",
         "Tell the user they can read the full role in the Positions tab in Korean or the Jobs tab in English, and ask them to accept there or tell Harper after reviewing it if they still want to proceed.",
@@ -1867,7 +1882,7 @@ async function presentInternalRoleRecommendationForReview(args: {
       assistantInstruction:
         result.targetAccepted === true
           ? "Tell the user this role has already been accepted. Accurately state whether the company has received their information using companyShared."
-          : `Before answering, call get_role_context with roleId=${roleId} and include_jd=true. Explain this current formal recommendation in useful detail, say it is available in the Positions tab in Korean or the Jobs tab in English, and ask the user to accept there or tell Harper after reviewing it if they still want to proceed. It has not been accepted. Never describe it as an external or public opportunity.`,
+          : `Explain this current formal recommendation in useful detail, say it is available in the Positions tab in Korean or the Jobs tab in English, and ask the user to accept there or tell Harper after reviewing it if they still want to proceed. It has not been accepted. Never describe it as an external or public opportunity.`,
     };
   }
 
@@ -3153,10 +3168,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           maximum: 20,
           default: 8,
         },
+        pendingOffset: {
+          type: "integer", minimum: 0, default: 0,
+          description: "Offset for the selected unpublished internal proposals; use the returned nextOffset to read more. This does not search or select additional roles.",
+        },
         only_internal: {
           type: "boolean",
           description:
-            "When true, return only previously recommended internal opportunities.",
+            "When true, return only Harper-connected recommendations and selected unpublished proposals.",
           default: false,
         },
       },
@@ -3186,9 +3205,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const companyFilters = companyNames.map((name) =>
         name.toLocaleLowerCase("ko-KR"),
       );
+      const pending = await readPendingInternalProposals({ admin: admin as any, userId,
+        offset: input.pendingOffset === undefined ? 0 : Number(input.pendingOffset),
+        limit, companyNames, postingUrl });
       const opportunities = await fetchTalentOpportunityHistory({
         admin: admin as any,
         sourceType: onlyInternal ? "internal" : undefined,
+        locale: normalizeCareerPromptLocale(context.responseLocale),
         userId,
       });
       const filtered = opportunities.filter((item) => {
@@ -3259,6 +3282,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           limit,
           only_internal: onlyInternal,
         },
+        selectedUnpublishedInternalProposals: pending,
         returnedCount: displayedItems.length,
         totalMatchingCount: filtered.length,
         opportunities: displayedItems.map((item) => {
@@ -3298,7 +3322,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             ...(recentActivity ? { recentActivity } : {}),
             savedStage,
             ...(item.sourceType==='internal' ? {} : {status:item.status}),
-            ...(item.sourceType === "internal" ? {} : { summary: item.recommendationSummary }),
+            ...(item.sourceType === "internal" ? {} : {
+              summary: item.roleSummary ?? null,
+              ...(item.recommendationSummary && item.recommendationSummary !== item.roleSummary
+                ? { recommendationSummary: item.recommendationSummary }
+                : {}),
+            }),
           };
         }),
       };
@@ -3357,10 +3386,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           minimum: 0,
           maximum: 100000,
         },
-        include_jd: {
-          type: "boolean",
+        jd: {
+          type: "string",
+          enum: ["full", "summary", "skip"],
+          default: "summary",
           description:
-            "Whether to include the job description text as role.description. Set true when the user needs JD/details/responsibilities/requirements; set false when role metadata and recommendation context are enough.",
+            "JD detail: summary returns the saved summary in the conversation language, falling back to the full description when missing; full returns the complete description; skip omits JD text. Defaults to summary.",
         },
         roleIds: {
           type: "array",
@@ -3371,7 +3402,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           },
         },
       },
-      required: ["roleIds", "include_jd"],
+      required: ["roleIds"],
       additionalProperties: false,
     },
     channels: ["chat", "voice"],
@@ -3390,13 +3421,20 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         );
       }
 
+      if (input.jd !== undefined && (typeof input.jd !== "string" || !["full", "summary", "skip"].includes(input.jd))) {
+        throw new TalentToolError("jd must be full, summary or skip.");
+      }
       return runGetRoleContext({
         activityOffset: Math.min(
           100000,
           Math.max(0, Math.floor(Number(input.activityOffset) || 0)),
         ),
         admin: admin as any,
-        includeJd: input.include_jd === true,
+        // Resume already-issued calls without changing their requested detail level.
+        jd: input.jd === undefined && typeof input.include_jd === "boolean"
+          ? (input.include_jd ? "full" : "skip")
+          : (input.jd ?? "summary") as "full" | "summary" | "skip",
+        responseLocale: context.responseLocale,
         roleIds,
         userId,
       });

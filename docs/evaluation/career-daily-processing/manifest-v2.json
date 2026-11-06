@@ -1,0 +1,8 @@
+{
+  "version": "v2",
+  "synthetic": true,
+  "hashes": {
+    "cases-v2.json": "32a652744e86cda582671e199573d028cf0ffef6327b645cd9811efd90d6236e",
+    "gold-v2.json": "5752e85be602817fd7eb5422577f3dba19303ec6d9649c18cbadea42f4af5ddf"
+  }
+}

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  ExternalLink,
   LoaderCircle,
   RefreshCw,
   Settings2,
@@ -44,15 +45,10 @@ type Granularity = "daily" | "weekly";
 type RangeDays = 7 | 30;
 type CombinedProviderId = OpsCostProviderId;
 
-type CostChartRow = {
-  claude: number;
-  ec2: number;
+type CostChartRow = Record<OpsCostProviderId, number> & {
   ec2Net: number;
-  exa: number;
   label: string;
-  openai: number;
   breakdown: Partial<Record<OpsCostProviderId, number[]>>;
-  openrouter: number;
   period: string;
 };
 
@@ -62,9 +58,19 @@ const PROVIDER_META: Record<
 > = {
   claude: { color: "var(--color-chart-claude)", shortLabel: "Claude" },
   openai: { color: "var(--color-chart-openai)", shortLabel: "OpenAI" },
-  openrouter: { color: "var(--color-chart-openrouter)", shortLabel: "OpenRouter" },
+  openrouter: {
+    color: "var(--color-chart-openrouter)",
+    shortLabel: "OpenRouter",
+  },
   exa: { color: "var(--color-chart-exa)", shortLabel: "Exa" },
   ec2: { color: "var(--color-chart-cost)", shortLabel: "AWS EC2" },
+  "browser-use": {
+    color: "var(--color-chart-cyan)",
+    shortLabel: "Browser Use",
+  },
+  browserless: { color: "var(--color-chart-pink)", shortLabel: "Browserless" },
+  vercel: { color: "var(--color-chart-slate)", shortLabel: "Vercel" },
+  supabase: { color: "var(--color-chart-olive)", shortLabel: "Supabase" },
 };
 
 const COST_PROVIDER_IDS: OpsCostProviderId[] = [
@@ -73,12 +79,19 @@ const COST_PROVIDER_IDS: OpsCostProviderId[] = [
   "openrouter",
   "exa",
   "ec2",
+  "browser-use",
+  "browserless",
+  "vercel",
+  "supabase",
 ];
 const COMBINED_PROVIDER_IDS: CombinedProviderId[] = [
   "claude",
   "openai",
   "openrouter",
   "exa",
+  "browser-use",
+  "ec2",
+  "vercel",
 ];
 
 const BREAKDOWN_COLORS = [
@@ -159,6 +172,10 @@ function emptyCostRow(label: string, period: string): CostChartRow {
     openai: 0,
     breakdown: {},
     openrouter: 0,
+    "browser-use": 0,
+    browserless: 0,
+    vercel: 0,
+    supabase: 0,
     period,
   };
 }
@@ -242,6 +259,7 @@ function buildWeeklyRows(
 function statusLabel(status: OpsCostSourceStatus) {
   if (status === "ok") return "연결됨";
   if (status === "not_configured") return "설정 필요";
+  if (status === "unavailable") return "자동 조회 미지원";
   return "조회 실패";
 }
 
@@ -249,7 +267,7 @@ function StatusIcon({ status }: { status: OpsCostSourceStatus }) {
   if (status === "ok") {
     return <CheckCircle2 className="h-3.5 w-3.5" />;
   }
-  if (status === "not_configured") {
+  if (status === "not_configured" || status === "unavailable") {
     return <Settings2 className="h-3.5 w-3.5" />;
   }
   return <AlertTriangle className="h-3.5 w-3.5" />;
@@ -262,7 +280,7 @@ function StatusBadge({ status }: { status: OpsCostSourceStatus }) {
         "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
         status === "ok"
           ? "bg-positive-faded text-positive"
-          : status === "not_configured"
+          : status === "not_configured" || status === "unavailable"
             ? "bg-bg-weak text-neutral-soft"
             : "bg-critical-faded text-critical"
       )}
@@ -310,7 +328,7 @@ function CombinedCostChart({
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="text-sm font-medium text-neutral-muted">
-            Claude + OpenAI + OpenRouter + Exa
+            조회된 비용 합계
           </div>
           <div className="mt-1 text-[28px] font-semibold leading-none tabular-nums text-neutral-primary">
             {formatMoney(total)}
@@ -365,6 +383,7 @@ function CombinedCostChart({
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={rows}
+              stackOffset="sign"
               margin={{ bottom: 0, left: 0, right: 8, top: 8 }}
             >
               <CartesianGrid
@@ -512,10 +531,9 @@ function ServiceCostRow({
 }) {
   const meta = PROVIDER_META[provider.id];
   const isEc2 = provider.id === "ec2";
-  const isOpenRouter = provider.id === "openrouter";
   const breakdown = provider.breakdown;
-  const netTotal = Math.max(0, provider.netTotal ?? provider.total);
-  const coveredTotal = Math.max(0, provider.total - netTotal);
+  const netTotal = Math.max(0, provider.netTotal ?? provider.total ?? 0);
+  const coveredTotal = Math.max(0, (provider.total ?? 0) - netTotal);
   const forecast = isEc2 ? getAwsCreditForecast(credit) : null;
 
   return (
@@ -544,7 +562,7 @@ function ServiceCostRow({
             <div>
               <div className="text-xs text-neutral-muted">사용 비용</div>
               <div className="mt-1 text-xl font-semibold tabular-nums text-neutral-primary">
-                {formatMoney(provider.total)}
+                {formatMoney(provider.total ?? 0)}
               </div>
             </div>
             <div>
@@ -562,9 +580,13 @@ function ServiceCostRow({
           </div>
         ) : (
           <>
-            <div className="mt-5 text-xs text-neutral-muted">총 비용</div>
+            <div className="mt-5 text-xs text-neutral-muted">
+              {provider.totalLabel ?? "총 비용"}
+            </div>
             <div className="mt-1 text-2xl font-semibold tabular-nums text-neutral-primary">
-              {provider.status === "ok" ? formatMoney(provider.total) : "-"}
+              {provider.status === "ok" && provider.total !== null
+                ? formatMoney(provider.total)
+                : "—"}
             </div>
           </>
         )}
@@ -573,6 +595,17 @@ function ServiceCostRow({
           <p className="mt-3 break-words text-[11px] leading-4 text-neutral-muted">
             {provider.message}
           </p>
+        ) : null}
+
+        {provider.dashboardUrl ? (
+          <a
+            href={provider.dashboardUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-xs text-link"
+          >
+            청구 내역 <ExternalLink className="h-3 w-3" />
+          </a>
         ) : null}
 
         {isEc2 ? (
@@ -609,12 +642,39 @@ function ServiceCostRow({
               </div>
             ) : null}
           </>
-        ) : isOpenRouter ? (
-          <CreditSummary credit={credit} label="남은 OpenRouter 크레딧" />
+        ) : credit ? (
+          <CreditSummary
+            credit={credit}
+            label={`남은 ${provider.label} 크레딧`}
+          />
         ) : null}
       </div>
 
-      {provider.status !== "ok" ? (
+      {provider.usage ? (
+        <div className="flex flex-col justify-center gap-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-muted">
+            <span>{provider.usage.plan}</span>
+            <span>
+              {formatDate(provider.usage.from)} –{" "}
+              {formatDate(provider.usage.through)} UTC
+            </span>
+          </div>
+          <dl className="grid grid-cols-3 gap-3">
+            {[
+              ["사용 유닛", provider.usage.used],
+              ["포함 유닛", provider.usage.included],
+              ["잔여 유닛", provider.usage.remaining],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-xs text-neutral-muted">{label}</dt>
+                <dd className="mt-1 text-xl font-semibold tabular-nums text-neutral-primary">
+                  {Number(value).toLocaleString("ko-KR")}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : provider.status !== "ok" ? (
         <div className="flex min-h-[160px] items-center justify-center text-sm text-neutral-soft">
           {statusLabel(provider.status)}
         </div>
@@ -781,7 +841,7 @@ function ServiceCostRow({
               <Table className="text-xs">
                 <TableHeader>
                   <TableRow className="border-neutral-1000-a05">
-                    <TableHead scope="col">모델·API 청구 항목</TableHead>
+                    <TableHead scope="col">청구 항목</TableHead>
                     <TableHead scope="col" className="text-right">
                       기간 비용
                     </TableHead>
@@ -881,14 +941,10 @@ export default function OpsCostPage() {
       : dailyRows;
   }, [data, granularity]);
 
-  const awsCredit = data?.credits.find((credit) => credit.id === "aws");
-  const openRouterCredit = data?.credits.find(
-    (credit) => credit.id === "openrouter"
-  );
-
   return (
     <DebuggingPageShell
       showContextLabel={false}
+      showDescription={false}
       tab="cost"
       filters={
         <>
@@ -899,7 +955,7 @@ export default function OpsCostPage() {
             activeValue={view}
             onValueChange={setView}
             items={[
-              { label: "모델별 비용", value: "models" },
+              { label: "서비스별 비용", value: "models" },
               { label: "태스크별 비용", value: "tasks" },
             ]}
           />
@@ -979,13 +1035,10 @@ export default function OpsCostPage() {
                 key={provider.id}
                 provider={provider}
                 rows={chartRows}
-                credit={
-                  provider.id === "ec2"
-                    ? awsCredit
-                    : provider.id === "openrouter"
-                      ? openRouterCredit
-                      : undefined
-                }
+                credit={data.credits.find(
+                  (credit) =>
+                    credit.id === (provider.id === "ec2" ? "aws" : provider.id)
+                )}
               />
             ))}
           </div>
@@ -996,7 +1049,8 @@ export default function OpsCostPage() {
             예상은 Credit line까지 포함한 UnblendedCost 합계입니다. compute와
             EC2-Other를 합산하며, 소진일은 이번 달 AWS 전체 크레딧 사용 속도를
             기준으로 계산한 단순 추정치입니다. OpenRouter 사용 비용은 완료된 UTC
-            일자만 집계됩니다.
+            일자만 집계됩니다. Browser Use는 V4 모델·검색 비용만 합산합니다.
+            Browserless·Supabase 금액은 합계에 포함되지 않습니다.
           </div>
         </>
       ) : null}

@@ -15,6 +15,7 @@ const FULL_JD_ROLE_SUMMARY_MAX_CHARS = 1_400;
 type JsonRecord = Record<string, unknown>;
 
 export type FullJdPromptCandidate = {
+  estimatedBaseSalary?: string | null;
   cachedRoleSummary?: string | null;
   company: {
     description?: string | null;

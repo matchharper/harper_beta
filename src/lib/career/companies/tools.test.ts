@@ -75,13 +75,19 @@ test("list reads the authenticated user's follows without writing, including his
   }
 });
 
-test("company search only queries workspaces and projects names, workspace IDs and LinkedIn links", async () => {
+test("company search batches alternate names without counting matches and preserves paging and model output", async () => {
   const ranges: number[][] = [];
   const query = {
-    select() {
+    select(columns: string, options?: unknown) {
+      assert.equal(options, undefined, "Search must not request a full count");
+      assert.ok(columns.includes("company_workspace_id"));
       return this;
     },
-    or() {
+    or(filter: string) {
+      assert.equal(
+        filter,
+        'company_name.imatch."example",linkedin_url.imatch."example",company_name.imatch."예시",linkedin_url.imatch."예시"'
+      );
       return this;
     },
     order() {
@@ -90,16 +96,13 @@ test("company search only queries workspaces and projects names, workspace IDs a
     async range(start: number, end: number) {
       ranges.push([start, end]);
       return {
-        data: [
-          {
-            company_workspace_id: "00000000-0000-4000-8000-000000000001",
-            company_db_id: 12345,
-            company_name: "Example Labs",
-            homepage_url: "https://example.invalid",
-            linkedin_url: "https://linkedin.com/company/example-labs",
-          },
-        ],
-        count: 21,
+        data: Array.from({ length: start === 0 ? 21 : 1 }, (_, index) => ({
+          company_workspace_id: `00000000-0000-4000-8000-${String(start + index + 1).padStart(12, "0")}`,
+          company_db_id: 12345,
+          company_name: "Example Labs 예시",
+          homepage_url: "https://example.invalid",
+          linkedin_url: "https://linkedin.com/company/example-labs",
+        })),
         error: null,
       };
     },
@@ -112,23 +115,56 @@ test("company search only queries workspaces and projects names, workspace IDs a
   };
   for (const offset of [0, 20]) {
     const result = (await CAREER_COMPANY_TOOLS.search_companies.execute!(
-      { query: "Example", offset },
+      { queries: ["Example", "예시", "Example"], offset },
       { admin, userId: "owner" }
     )) as any;
     assert.equal(result.nextOffset, offset === 0 ? 20 : null);
+    assert.equal(result.companies.length, offset === 0 ? 20 : 1);
+    assert.deepEqual(result.companies[0].matchedQueries, ["Example", "예시"]);
     assert.equal(result.companies[0].companyDbId, 12345);
     assert.equal(result.companies[0].website, "https://example.invalid");
     const text = formatToolResultText(result);
-    assert.match(text, /Example Labs; company_workspace_id/);
+    assert.match(text, /Example Labs 예시; company_workspace_id/);
     assert.match(text, /https:\/\/linkedin.com\/company\/example-labs/);
+    assert.match(text, /Matched queries: Example, 예시/);
     assert.ok(!text.includes("company_db_id"));
     assert.ok(!text.includes("12345"));
     assert.ok(!text.includes("example.invalid"));
   }
   assert.deepEqual(ranges, [
-    [0, 19],
-    [20, 39],
+    [0, 20],
+    [20, 40],
   ]);
+});
+
+test("company search exposes queries and rejects malformed searches before reading the directory", async () => {
+  const search = CAREER_COMPANY_TOOLS.search_companies;
+  const schema = search.parameters as any;
+  assert.deepEqual(schema.required, ["queries"]);
+  assert.equal(schema.properties.query, undefined);
+  assert.equal(schema.properties.queries.items.type, "string");
+  const context = {
+    userId: "owner",
+    admin: {
+      from() {
+        assert.fail("Unexpected directory read");
+      },
+    },
+  };
+  for (const input of [
+    { queries: [] },
+    { queries: [""] },
+    { queries: ["  "] },
+    { queries: "Example" },
+    { queries: ["Example"], offset: -1 },
+    { queries: ["Example"], offset: 0.5 },
+  ]) {
+    await assert.rejects(search.execute!(input, context));
+  }
+  await assert.rejects(
+    search.execute!({ queries: ["Example"] }),
+    /Authenticated Career user required/
+  );
 });
 
 test("batch follow preserves partial results and per-company request identity across reordered retries", async () => {
@@ -208,7 +244,10 @@ test("batch follow preserves partial results and per-company request identity ac
 test("new follow schema offers names or workspace IDs without company_db IDs", () => {
   const schema = CAREER_COMPANY_TOOLS.follow_company.parameters as any;
   assert.equal(schema.properties.companies.items.required, undefined);
-  assert.equal(schema.properties.companies.items.properties.company_name.type, "string");
+  assert.equal(
+    schema.properties.companies.items.properties.company_name.type,
+    "string"
+  );
   assert.equal(schema.properties.company_db_id, undefined);
   assert.equal(schema.properties.scope, undefined);
 });

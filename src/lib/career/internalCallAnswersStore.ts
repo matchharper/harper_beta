@@ -115,11 +115,14 @@ export async function submitInternalCallAnswers(args: {
       // Earlier saves may predate the normal chat capability payload. Preserve
       // existing leases and unrelated payload fields when resuming that message.
       if (args.messagePayload && !assistantMessage) {
+        const needsAdmission = args.messagePayload.careerDurable === true && (message.payload as Record<string, unknown> | null)?.careerDurable !== true;
         [message] = await query<TalentMessageRow>(
           `update public.talent_messages set payload=$3::text::jsonb || coalesce(payload, '{}'::jsonb)
+            || case when $4 then '{"careerDurable":true}'::jsonb else '{}'::jsonb end
             where id=$1 and user_id=$2 returning *`,
-          [message.id, args.userId, JSON.stringify(args.messagePayload)]
+          [message.id, args.userId, JSON.stringify(args.messagePayload), needsAdmission]
         );
+        if (needsAdmission) await query("select public.queue_career_invocation($1,$2,$3)", [args.userId, args.input.conversationId, message.id]);
       }
       return {
         call: projectCall(row, Boolean(assistantMessage)),

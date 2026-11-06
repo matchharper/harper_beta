@@ -191,6 +191,7 @@ export async function upsertMatching(
 }
 export async function upsertOpportunities(
   args: Owner & {
+    backgroundRunId?: string;
     operationId: string;
     action: string;
     matchingId?: string;

@@ -3946,11 +3946,13 @@ export async function requestOrgCompanyIntro(args: {
   });
   await upsertOrgCompanyUser(admin, args.user);
   await assertOrgIntroRoleAccess({ admin, user: args.user, workspaceId, introCandidateId });
-  // v2 runs request_company_intro_v1 and, when the card became requested,
-  // records the decision (company_decision_events) in the same transaction.
-  // The _with_presentation version also records what it was made on.
+  // Commit the recommendation, billing, decision and original Career handoff together.
+  // From a mail button, the _with_presentation version runs the same Career
+  // function and records the mail the request was made in (#253).
   const { data, error } = await (admin.rpc as any)(
-    presentationId ? "request_company_intro_with_presentation_v1" : "request_company_intro_v2",
+    presentationId
+      ? "request_company_intro_for_career_with_presentation_v1"
+      : "request_company_intro_for_career_v1",
     {
       p_channel: args.channel,
       p_company_appeal: companyAppeal,

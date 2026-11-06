@@ -48,16 +48,20 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
-        query: { type: "string" },
+        queries: { type: "array", items: { type: "string" }, minItems: 1 },
         offset: { type: "integer", minimum: 0 },
       },
-      required: ["query"],
+      required: ["queries"],
       additionalProperties: false,
     },
     async execute(input, context) {
       const result = await searchCareerCompanies({
         ...base(context),
-        query: String(input.query),
+        // Previously saved tool calls may still contain the single-query input.
+        queries: (input.queries ??
+          (typeof input.query === "string"
+            ? [input.query]
+            : undefined)) as string[],
         offset: input.offset as number | undefined,
       });
       return {

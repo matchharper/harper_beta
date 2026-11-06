@@ -1,0 +1,76 @@
+{
+  "capturedAt": "2026-11-06T05:30:34.360Z",
+  "preparedAt": "2026-11-06T05:30:35.104Z",
+  "roles": 30,
+  "calls": 12,
+  "summariesPresent": 27,
+  "arms": [
+    "baseline",
+    "summary",
+    "four_metrics",
+    "both"
+  ],
+  "sourceRevision": "8aab790f535293ed39243c662fb86f7198d8bd4d",
+  "sourceHashes": {
+    "src/lib/externalRecommendationsV2/scoringInput.ts": "072ef5c2b0d6d52b3f124b27093ff3bfdea4cc3a2675bfaf2920c01506f56ff6",
+    "src/lib/externalRecommendationsV2/workerInputText.ts": "07f74299f4d5100e0eda8c8b3b01f6abf413e6252986ab3a1940d4ed2de176cf",
+    "src/lib/externalRecommendationsV2/decisions.ts": "28413adadacb3cbec902e0123bd9a871743616444f5d6f32c94a784b4698d834",
+    "src/lib/externalRecommendationsV2/fitQuestions.v4.json": "0df36950428fc07bf2cb54e500f84a83bbfe2458dcde3dc4657deec1d63b2471",
+    "src/lib/externalRecommendationsV2/usage.ts": "a2ed75c4f53e4b3a3fe7d0912e72ff009ba6a9fb58ea0420e5c6128485d358f4",
+    "scripts/probeExternalScoringCost.ts": "79c4c4003bae70c97b6cdb47de415b7229cd404026a7b9672023e32149963812"
+  },
+  "captureHash": "7825c83cbec4997e00dde04b224d640b2c73d1f7deb7eabdbf3bf502a855c3d5",
+  "requestHashes": [
+    {
+      "id": "batch1-baseline",
+      "hash": "fd5a5bc322863bb0fcbeadac06788c9864dcc2dc9fd63fb3170716b26e5c0a5d"
+    },
+    {
+      "id": "batch1-summary",
+      "hash": "3a21cc54322cc383b8d57b75a165f148ab7f5c3159757d136ac4434fc091a0ec"
+    },
+    {
+      "id": "batch1-four_metrics",
+      "hash": "cd2eb9a793cf9ca059e5812b156536fbbe133bb4b8b47bcd6d5cafc4ebdb7184"
+    },
+    {
+      "id": "batch1-both",
+      "hash": "907e9f68c053ae5617c2577a69b478a05fc966a892f8be2aba74eed7747c0bde"
+    },
+    {
+      "id": "batch2-summary",
+      "hash": "3f846b0fbd1ea556ac342f4343c663bf1ed442e99dbcb491ce2b80b43f8ecf3f"
+    },
+    {
+      "id": "batch2-four_metrics",
+      "hash": "796c5635325a7cb4ed6839d2eed9f9eb7a7014b74e728a8c7a3693719adcf6ab"
+    },
+    {
+      "id": "batch2-both",
+      "hash": "5cb16438cf636adcd83a83618db8ceef43ac6d09619e5973f1cd67d7ce00405b"
+    },
+    {
+      "id": "batch2-baseline",
+      "hash": "02e58d225729a620b0e70598cf0d93d1f7c9a37fbc96508018ac292a13f24b70"
+    },
+    {
+      "id": "batch3-four_metrics",
+      "hash": "f5dc662cb673fa9915d77913a1e5738fedcd8065f8a2a6ffd3ae97e70eca012f"
+    },
+    {
+      "id": "batch3-both",
+      "hash": "7662d925c6b8ae9f1dd453da1ca74095668ef5e0f93609a894e6972a477809a7"
+    },
+    {
+      "id": "batch3-baseline",
+      "hash": "d49f43c416c00c2e09483726cdd8da1d8a90b7d7c0b310c4cde6fec2b180b041"
+    },
+    {
+      "id": "batch3-summary",
+      "hash": "a79d75b8021edba08c122c54e8f6ce569221afc26780afad916bb2a44f8261cd"
+    }
+  ],
+  "model": "gpt-6-luna",
+  "qualityGold": null,
+  "pricing": "https://developers.openai.com/api/docs/guides/decisions#pricing-and-availability"
+}

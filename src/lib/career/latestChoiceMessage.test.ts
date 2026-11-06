@@ -14,6 +14,8 @@ test("latest answer choices stay available after simulation state and cards", ()
     "simulationAction",
     "simulation",
     "applicationStartOffer",
+    "browserSession",
+    "careerForm",
   ]) {
     const extra = {
       id: 3,

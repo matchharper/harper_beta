@@ -1,4 +1,13 @@
 import { countryQuotas, type CountryWeight } from "./countries";
+import { z } from "zod";
+import { sqlLiteral } from "@/lib/sqlLiteral";
+
+export const companyWorkspaceIdsSchema = z.array(z.string().uuid()).min(1);
+export function companyWorkspaceFilterSql(ids?: string[]) {
+  if (ids === undefined) return "TRUE";
+  const valid = [...new Set(companyWorkspaceIdsSchema.parse(ids))];
+  return `cr.company_workspace_id = ANY(ARRAY[${valid.map(id => `${sqlLiteral(id)}::uuid`).join(",")}])`;
+}
 
 // Permanent index coverage, not allowed product values. Other countries use
 // an exact search over their eligible rows until their indexes are provisioned.
@@ -93,6 +102,7 @@ export type TitleRemoteMode = "any" | "only" | "exclude";
 // Each country has a fixed candidate budget. Within it, merge only eligible
 // disjoint graphs. Never refill a country's shortfall or trim across countries.
 export function indexedTitleCandidatesSql(args: {
+  companyWorkspaceIds?: string[];
   countries: string[];
   countryWeights?: CountryWeight[];
   excludeIntern: boolean;
@@ -117,6 +127,7 @@ export function indexedTitleCandidatesSql(args: {
   const vectorSql = args.template
     ? ":title_embedding_1"
     : `'${JSON.stringify(args.vector)}'`;
+  const workspaceFilter = companyWorkspaceFilterSql(args.companyWorkspaceIds);
   const distance = `cr.title_embedding::public.halfvec(1536) OPERATOR(public.<=>) ${vectorSql}::public.halfvec(1536)`;
   const quotas = args.countryWeights
     ? countryQuotas(args.countryWeights, args.candidateLimit)
@@ -154,7 +165,7 @@ export function indexedTitleCandidatesSql(args: {
     const indexed =
       country === null ||
       (indexedTitleCountries as readonly string[]).includes(country);
-    const countryWhere = `${titleIndexEligibility}${country ? ` AND cr.country_code='${country}'` : ""}`;
+    const countryWhere = `${titleIndexEligibility}${country ? ` AND cr.country_code='${country}'` : ""}${args.companyWorkspaceIds ? ` AND ${workspaceFilter}` : ""}`;
     const select = (
       predicate: string,
       available: boolean,
@@ -162,14 +173,16 @@ export function indexedTitleCandidatesSql(args: {
     ) => `SELECT cr.role_id,${distanceSql} AS distance
  FROM public.company_roles cr WHERE ${countryWhere}${predicate ? ` AND ${predicate}` : ""}
  ORDER BY ${available ? distanceSql : `(${distanceSql}) + 0`} LIMIT ${limit}`;
-    if (!bucketSearch)
+    if (!bucketSearch && !args.companyWorkspaceIds)
       return [
         select(
           args.excludeIntern ? titleIndexNoInternPredicate : "",
           indexed && !(country === "JP" && args.excludeIntern)
         ),
       ];
-    if (!indexed)
+    // Company-scoped searches use the workspace B-tree then an exact sort.
+    // Global ANN followed by a company filter can omit that company's roles.
+    if (!indexed || args.companyWorkspaceIds)
       return [
         select(
           [

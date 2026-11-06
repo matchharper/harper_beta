@@ -247,7 +247,7 @@ export async function readCareerCheckIn(args: {
   admin: TalentAdminClient;
   userId: string;
 }) {
-  // Repairs only a missing initial row for existing onboarded users. Pauses and
+  // Repairs only a missing initial account reservation. Pauses and
   // custom rules are returned unchanged by this idempotent insert-only RPC.
   const { data, error } = await database(args.admin).rpc(
     "ensure_career_check_in",

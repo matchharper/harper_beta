@@ -538,6 +538,12 @@ export async function runTalentAssistantToolLoop(args: {
     }
 
     for (const toolCall of executableToolCalls) {
+      if (await args.toolRuntime?.shouldDeferToolCall()) {
+        workingMessages.push({ role: "tool", tool_call_id: String(toolCall.id),
+          name: String(toolCall.function?.name ?? "unknown_tool"),
+          content: "Not executed: new conversation input arrived. Read that input before choosing the next action." });
+        continue;
+      }
       totalToolCalls += 1;
 
       const toolName = String(toolCall.function?.name ?? "").trim();

@@ -37,7 +37,7 @@ export function resolveCareerCapabilities(args: {
   const alwaysActive = (capability: (typeof catalog)[number]) =>
     capability.tools.every(([name]) => coreNames.has(name));
   const active = catalog.filter(
-    (c) => args.mode === "full" || args.loaded.has(c.id) || alwaysActive(c)
+    (c) => (args.mode === "full" && !("manualOnly" in c && c.manualOnly)) || args.loaded.has(c.id) || alwaysActive(c)
   );
   const activeNames = new Set<string>(
     active.flatMap((c) => c.tools.map(([name]) => name))
@@ -69,12 +69,13 @@ export function resolveCareerCapabilities(args: {
   const allowLoaders =
     args.allowLoaders !== false && args.eligibleTools.length > 0;
   const hasLoader =
-    allowLoaders && args.mode === "progressive" && ids.length > 0;
+    allowLoaders && ids.some(id => args.mode === "progressive" || catalog.some(c => c.id === id && "manualOnly" in c && c.manualOnly));
   // Preserve a stable core prefix and registry order regardless of load order.
   const tools =
     args.mode === "full"
       ? [
-          ...args.eligibleTools,
+          ...args.eligibleTools.filter(t => !catalog.some(c => "manualOnly" in c && c.manualOnly && c.tools.some(([name]) => name === t.function.name)) || activeNames.has(t.function.name)),
+          ...(hasLoader ? [loader] : []),
           ...(allowLoaders ? [careerHandbookLoaderTool] : []),
         ]
       : [

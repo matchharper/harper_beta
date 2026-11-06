@@ -67,8 +67,8 @@
   --career-space-card: 18px;
   --career-space-stack: 12px;
   --career-chat-width: 560px;
-  --career-panel-width: 420px;
-  --career-panel-width-compact: 360px;
+  --career-panel-width: 480px;
+  --career-panel-width-compact: 420px;
   --career-detail-width: 640px;
   --career-topbar-height: 64px;
   --career-page-inset: 28px;
@@ -173,6 +173,7 @@
   --modal-border-width: 0px;
   --color-menu: var(--career-surface-raised);
   --color-menu-border: transparent;
+  --color-menu-hover: rgb(29 29 31 / 0.08);
   --background-image-menu-image: var(--career-glass-image);
   --radius-menu: var(--career-radius-card);
   --shadow-menu: var(--career-glass-shadow);
@@ -302,17 +303,26 @@
   color: inherit;
 }
 .career-top-tabs {
-  padding: 4px;
-  border-radius: var(--career-radius-control);
+  --color-tab-selected-bg: transparent;
+  --color-tab-selected: #fff;
+  --shadow-tab-selected: none;
+  --career-radius-item: var(--career-radius-pill);
+  padding: 3px;
+  border-radius: var(--career-radius-pill);
   width: auto;
+  min-width: 0;
+  scrollbar-width: none;
+}
+.career-top-tabs::-webkit-scrollbar {
+  display: none;
 }
 .career-top-tabs [role="tablist"] {
-  gap: 4px;
+  gap: 2px;
 }
 .career-top-tabs [role="tab"] {
-  height: 32px;
-  min-height: 32px;
-  padding: 0 14px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 12px;
   border-radius: var(--career-radius-item);
   background: transparent;
   color: var(--career-ink-secondary);
@@ -321,10 +331,14 @@
   box-shadow: none;
 }
 .career-top-tabs [role="tab"][aria-selected="true"] {
-  background: #fff;
-  color: var(--career-ink);
+  background: var(--color-tab-selected-bg);
+  color: var(--color-tab-selected);
   font-weight: 500;
-  box-shadow: var(--career-selected-shadow);
+  box-shadow: none;
+}
+.career-top-tabs [aria-selected="true"] .career-nav-count {
+  background: rgb(255 255 255 / 0.2);
+  color: #fff;
 }
 .career-nav-count {
   display: inline-flex;
@@ -339,9 +353,10 @@
   font-size: 11.5px;
 }
 .career-workspace-body {
+  --career-column-gap: clamp(24px, 3vw, 48px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--career-panel-width);
-  gap: clamp(24px, 4vw, 64px);
+  gap: var(--career-column-gap);
   flex: 1;
   min-height: 0;
   padding: 0 var(--career-panel-inset) 0 var(--career-page-inset);
@@ -358,6 +373,7 @@
   position: relative;
 }
 .career-right-column {
+  --career-panel-shadow-gutter: 20px;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -367,12 +383,12 @@
 .career-right-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 6px 32px;
-  margin-inline: -3px;
+  /* Vertical scroll also clips horizontally: reserve space for card shadows.
+     Matching negative margins preserve the cards' original width and position. */
+  padding: 0 calc(var(--career-panel-shadow-gutter) + 3px) 32px;
+  margin-inline: calc(-1 * var(--career-panel-shadow-gutter));
   min-height: 0;
   flex: 1;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(29 29 31 / 0.15) transparent;
 }
 .career-panel-heading {
   display: flex;
@@ -548,6 +564,27 @@
   min-height: 0;
   flex-direction: column;
 }
+.career-load-older {
+  position: absolute;
+  top: calc(
+    var(--career-mobile-header-height, var(--career-topbar-height)) + 4px
+  );
+  inset-inline: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.career-load-older > button {
+  pointer-events: auto;
+}
+/* Shared by cards, tables, code and other scrollable chat content. */
+.career-chat-column :where(*) {
+  scrollbar-width: none;
+}
+.career-chat-column ::-webkit-scrollbar {
+  display: none;
+}
 .career-chat-timeline,
 .career-mobile-home {
   /* Let text fade before the floating composer, including an open reply card. */
@@ -574,6 +611,57 @@
 @media (min-width: 768px) {
   .career-workspace {
     --career-content-inset-top: calc(var(--career-topbar-height) + 20px);
+  }
+  .career-workspace-body:not([data-call="true"]) .career-chat-column {
+    container-type: inline-size;
+    --career-chat-bleed: calc(var(--career-column-gap) + 160px);
+  }
+  .career-chat-column:has(.career-chat-timeline) .career-chat-surface,
+  .career-chat-column [data-career-chat-layout] {
+    overflow: visible;
+  }
+  .career-chat-timeline {
+    width: calc(100% + var(--career-chat-bleed, 0px));
+  }
+  .career-chat-timeline > [data-career-timeline] {
+    padding-right: var(--career-chat-bleed, 0px);
+  }
+  /* Extend horizontal content only; prose and the composer keep their width.
+     End padding lets the last card scroll fully out from under the panel. */
+  .career-chat-timeline
+    :where(.overflow-x-auto, .overflow-x-scroll):not(
+      :where(.overflow-x-auto, .overflow-x-scroll) *
+    ) {
+    --career-rail-bleed: calc(
+      var(--career-chat-bleed, 0px) + 20px +
+        max(0px, (100cqw - var(--career-chat-content-max-width)) / 2)
+    );
+    width: calc(100% + var(--career-rail-bleed));
+    max-width: none;
+    padding-right: var(--career-rail-bleed);
+    scroll-padding-right: var(--career-rail-bleed);
+  }
+  .career-right-column {
+    --career-panel-shadow-gutter: 32px;
+    z-index: 1;
+  }
+  .career-right-column::before {
+    content: "";
+    position: absolute;
+    inset: 0 calc(-1 * var(--career-panel-inset)) 0 -32px;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      rgb(245 246 248 / 0.54),
+      rgb(233 236 240 / 0.68)
+    );
+    -webkit-backdrop-filter: blur(24px) saturate(1.15);
+    backdrop-filter: blur(24px) saturate(1.15);
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 32px);
+    mask-image: linear-gradient(to right, transparent, #000 32px);
+  }
+  .career-right-scroll {
+    position: relative;
   }
   .career-right-scroll,
   .career-chat-column:not(:has(.career-chat-timeline)),
@@ -615,7 +703,7 @@
 }
 @media (max-width: 1023px) and (min-width: 768px) {
   .career-workspace-body {
-    gap: 20px;
+    --career-column-gap: 20px;
     padding-inline: 16px;
     grid-template-columns: minmax(0, 1fr) var(--career-panel-width-compact);
   }
@@ -634,7 +722,7 @@
     padding: max(8px, env(safe-area-inset-top)) 16px 8px;
     height: var(--career-mobile-header-height);
     min-height: var(--career-topbar-height);
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(32px, 1fr) minmax(0, auto) minmax(32px, 1fr);
     gap: 8px;
   }
   .career-topbar::before {
@@ -651,10 +739,10 @@
     );
   }
   .career-topbar-home {
-    display: none;
+    display: flex;
   }
   .career-top-tabs {
-    justify-self: start;
+    justify-self: center;
     max-width: 100%;
   }
   .career-top-tabs [role="tab"] {
@@ -725,7 +813,6 @@
 }
 
 .career-onboarding [data-onboarding-card] h1 {
-  font-weight: 300;
   letter-spacing: -0.5px;
 }
 .career-onboarding-option[data-selected="true"] {
@@ -758,9 +845,8 @@
   }
 }
 
-.career-followup-card[data-urgency="urgent"] {
-  outline: 1px solid rgb(190 88 72 / 0.18);
-  outline-offset: -1px;
+.career-followup-card[data-urgency="urgent"] .career-followup-title {
+  padding-right: 44px;
 }
 .career-opportunity-card {
   transition:
@@ -772,6 +858,12 @@
   box-shadow: none;
   backdrop-filter: none;
 }
+@media (hover: hover) {
+  .career-opportunity-card[data-expanded="false"]:hover {
+    background: rgb(255 255 255 / 0.3);
+  }
+}
+
 .career-opportunity-header {
   padding: var(--career-opportunity-inset);
 }

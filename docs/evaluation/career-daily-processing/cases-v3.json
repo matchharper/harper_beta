@@ -1,0 +1,119 @@
+{
+  "requestTime": "2026-11-06T03:00:00Z",
+  "cases": [
+    {
+      "trigger": "career_schedule_due",
+      "externalEnabled": true,
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "10000000-0000-4000-8000-000000000005",
+          "revision": 1,
+          "scheduleKey": "career_check_in",
+          "instruction": "Help this candidate explore suitable external opportunities using the available profile, documents, Brief, conversation and actual contact history. The career interview may be incomplete. Decide what useful work or conversation can proceed with the known facts, including asking for context needed for that purpose. Decide whether contact is useful now and adjust the future reservation using current user preferences and prior outcomes."
+        }
+      ],
+      "id": "signup_sparse",
+      "profile": "민서; no profile material yet.",
+      "facts": "Candidate 민서, Korean. Signed up today at 10:00 KST; it is now 12:00 KST. Career interview incomplete. No resume, work history, search Brief or prior messages; no earlier contact. External discovery enabled; status active. Existing external discovery reservation interval 3 days, next review in 3 days. No other delegation or company selection. This is the first review, not a promised email.",
+      "toolFacts": {
+        "search_opportunities": "No suitable saved external opportunities. Search completed in fixture; no recommendations or ongoing evaluation.",
+        "web_search": "No relevant results in this synthetic search corpus.",
+        "read_recommended_opportunities": "No previous recommendations.",
+        "list_documents": "No other documents available.",
+        "list_action_items": "No action items."
+      }
+    },
+    {
+      "trigger": "career_schedule_due",
+      "externalEnabled": true,
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "10000000-0000-4000-8000-000000000005",
+          "revision": 1,
+          "scheduleKey": "career_check_in",
+          "instruction": "Help this candidate explore suitable external opportunities using the available profile, documents, Brief, conversation and actual contact history. The career interview may be incomplete. Decide what useful work or conversation can proceed with the known facts, including asking for context needed for that purpose. Decide whether contact is useful now and adjust the future reservation using current user preferences and prior outcomes."
+        }
+      ],
+      "id": "partial_profile",
+      "profile": "민서, backend engineer, 5 years Java and payments systems.",
+      "facts": "Candidate 민서, Korean; resume: 5 years backend Java, payments systems. Career interview incomplete. Latest user message: I want a backend job in Seoul, hybrid if possible. External discovery enabled; status active. No previous contact. Existing reservation interval 3 days. No internal selections or introduction permission.",
+      "toolFacts": {
+        "search_opportunities": "No suitable saved external opportunities. Search completed in fixture; no recommendations or ongoing evaluation.",
+        "web_search": "No relevant results in this synthetic search corpus.",
+        "read_recommended_opportunities": "No previous recommendations.",
+        "list_documents": "No other documents available.",
+        "list_action_items": "No action items."
+      }
+    },
+    {
+      "trigger": "career_schedule_due",
+      "externalEnabled": true,
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "10000000-0000-4000-8000-000000000005",
+          "revision": 1,
+          "scheduleKey": "career_check_in",
+          "instruction": "Help this candidate explore suitable external opportunities using the available profile, documents, Brief, conversation and actual contact history. The career interview may be incomplete. Decide what useful work or conversation can proceed with the known facts, including asking for context needed for that purpose. Decide whether contact is useful now and adjust the future reservation using current user preferences and prior outcomes."
+        }
+      ],
+      "id": "recent_unanswered",
+      "profile": "민서; no profile material yet.",
+      "facts": "Candidate 민서, Korean. Career interview incomplete. No resume or work history. Yesterday Harper emailed asking what work they have done and what they want next; no reply or changed facts. External discovery enabled; status active. No obligation or deadline. Existing reservation interval 3 days. No other sources.",
+      "toolFacts": {
+        "search_opportunities": "No suitable saved external opportunities. Search completed in fixture; no recommendations or ongoing evaluation.",
+        "web_search": "No relevant results in this synthetic search corpus.",
+        "read_recommended_opportunities": "No previous recommendations.",
+        "list_documents": "No other documents available.",
+        "list_action_items": "No action items."
+      }
+    },
+    {
+      "id": "combined_updates",
+      "trigger": "career_daily_due",
+      "sources": [
+        {
+          "sourceKind": "process_closure",
+          "sourceId": "a-progress",
+          "revision": 1,
+          "dailySourceId": "10000000-0000-4000-8000-000000000001",
+          "recommendationId": "20000000-0000-4000-8000-000000000001",
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000001"
+          ],
+          "summary": "Aster declined the candidate's pending connection. The company authorized a closure notice; no candidate-facing reason was provided."
+        },
+        {
+          "sourceKind": "role_closure",
+          "sourceId": "b-role",
+          "revision": 1,
+          "dailySourceId": "10000000-0000-4000-8000-000000000002",
+          "recommendationId": "20000000-0000-4000-8000-000000000002",
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000002"
+          ],
+          "summary": "Birch ended its Platform Role. The candidate had accepted this process, not final-offer stage."
+        },
+        {
+          "sourceKind": "talent_selection",
+          "sourceId": "c-review",
+          "revision": 1,
+          "dailySourceId": "10000000-0000-4000-8000-000000000003",
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003"
+          ],
+          "summary": "Cedar's company-side agent selected this exact platform engineer Role as a talent-first proposal. Not yet published. No introduction consent."
+        },
+        {
+          "sourceKind": "appointment",
+          "sourceId": "interview",
+          "revision": 1,
+          "dailySourceId": "10000000-0000-4000-8000-000000000004",
+          "summary": "Today at 15:00 KST the candidate has a confirmed interview at Dune. Yesterday the candidate received a complete preparation pack and said it was sufficient. No changes."
+        }
+      ]
+    }
+  ]
+}

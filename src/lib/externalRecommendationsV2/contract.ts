@@ -3,7 +3,7 @@ import { z } from "zod";
 
 export const EXPERIMENT = "external-recommendations-2026-10-v1";
 export const V2_RUN_VERSION = "external-recommendations-v2";
-export const PROMPT_VERSION = "external-fit-questions-v6-strong-constraints";
+export const PROMPT_VERSION = "external-fit-questions-v9-summary-four-metrics";
 export const SEARCH_PLAN_VERSION = "external-search-v2-combined-title-v3";
 export const providerSchema = z.enum(["openai", "jev"]);
 export type FitProvider = z.infer<typeof providerSchema>;
@@ -45,10 +45,15 @@ export const fitSchema = z.object({
   candidateInterest: score,
   companyInterest: score,
   mutualFit: score,
-  roleFit: score,
   constraintPass: score,
+});
+// Historical six-metric records remain readable, but cannot satisfy the current
+// evaluator version or be synthesized from a new four-metric response.
+export const legacyFitSchema = fitSchema.extend({
+  roleFit: score,
   evidence: z.enum(["sufficient", "partial", "insufficient"]),
 });
+export type LegacyFit = z.infer<typeof legacyFitSchema>;
 export type Fit = z.infer<typeof fitSchema>;
 export type FitEvaluation = Fit & {
   roleId: string;
@@ -60,13 +65,27 @@ export type FitEvaluation = Fit & {
   model: string;
   promptVersion: string;
 };
-// Fit ordering uses only the model's fit signals. Salary shapes initial retrieval.
-export function rankScore(fit: Fit) {
-  const base =
-    0.65 * fit.mutualFit +
-    0.15 * fit.candidateInterest +
-    0.1 * fit.companyInterest +
-    0.1 * fit.roleFit;
+// Shared by Career result ordering and the web/Worker automatic engine.
+export const FIT_RANKING_WEIGHTS = {
+  mutualFit: 0.55,
+  candidateInterest: 0.35,
+  companyInterest: 0.1,
+} as const;
+export const LEGACY_FIT_RANKING_WEIGHTS = {
+  mutualFit: 0.45,
+  candidateInterest: 0.35,
+  companyInterest: 0.1,
+  roleFit: 0.1,
+} as const;
+
+// The automatic engine retains its existing hard-constraint penalty.
+export function rankScore(fit: Fit | LegacyFit) {
+  const mutualAndRole = "roleFit" in fit
+    ? LEGACY_FIT_RANKING_WEIGHTS.mutualFit * fit.mutualFit + LEGACY_FIT_RANKING_WEIGHTS.roleFit * fit.roleFit
+    : FIT_RANKING_WEIGHTS.mutualFit * fit.mutualFit;
+  const base = mutualAndRole +
+    FIT_RANKING_WEIGHTS.candidateInterest * fit.candidateInterest +
+    FIT_RANKING_WEIGHTS.companyInterest * fit.companyInterest;
   return fit.constraintPass <= 50
     ? base * 0.2 * (fit.constraintPass / 50) ** 2
     : base;
@@ -76,7 +95,7 @@ export function scoreForLlm(value: number) {
   return Math.trunc(value * 10) / 10;
 }
 export function fitForLlm(value: unknown) {
-  const fit = fitSchema.parse(value);
+  const fit = z.union([legacyFitSchema, fitSchema]).parse(value);
   return Object.fromEntries(
     Object.entries(fit).map(([key, v]) => [
       key,
@@ -87,6 +106,7 @@ export function fitForLlm(value: unknown) {
 // Control-cache scores have no V2 dimensions; do not invent missing evidence.
 export const priorFitSchema = z.union([
   z.object({ legacyScore: score }).strict(),
+  legacyFitSchema,
   fitSchema,
 ]);
 export function priorFitForLlm(value: unknown) {

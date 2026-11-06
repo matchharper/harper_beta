@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v17",
+  "createdAt": "2026-11-05",
+  "provenance": "User correction on 2026-11-05: asking is not mandatory; a handoff may be appropriate. Changed action-quality criteria prospectively, before generation. Old v15/v16 gold and failed results are preserved. Structural prepared-material metric remains unchanged.",
+  "hashes": {
+    "cases-v17.json": "cd5d253e2203403d197d44da0edfad4fef0ac00c0eb5e54534a9168185a62fcb",
+    "gold-v17.json": "050cf6cc582c53a021f17a4a62dafd2dd2996f20c7c4d54506588248b2eac777"
+  }
+}

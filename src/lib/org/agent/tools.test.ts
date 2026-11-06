@@ -774,9 +774,6 @@ test("candidate contact exposes immediate agent correspondence and legacy delive
   assert.equal(parameters.properties.messageContent.type, "string");
   assert.equal(parameters.properties.introductionRootId.type, "string");
   assert.equal(parameters.properties.replyToMessageId.type, "string");
-  assert.match(contactTalent?.function.description ?? "", /immediately queues the candidate agent/);
-  assert.match(contactTalent?.function.description ?? "", /questions, information, requests or replies/);
-  assert.match(contactTalent?.function.description ?? "", /does not wait for daily processing/);
   assert.match(contactTalent?.function.description ?? "", /talentId \+ roleId \+ messageContent/);
   assert.match(contactTalent?.function.description ?? "", /never changes candidate interest, sharing consent, or pipeline stage/);
   const policy = COMPANY_CAPABILITY_POLICIES.candidate_contact;

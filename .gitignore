@@ -52,3 +52,6 @@ next-env.d.ts
 
 # local read-only snapshots that may contain private company/candidate data
 /.local/
+
+# Generated from pinned font/Paged.js packages by next.config.mjs.
+/public/resume-assets/

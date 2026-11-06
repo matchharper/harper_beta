@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { sqlLiteral } from "@/lib/talentOnboarding/jobPostingRecommendations";
 import { executeSql } from "@/lib/externalRecommendationsV2/retrieval";
-import type { Fit } from "@/lib/externalRecommendationsV2/contract";
+import { FIT_RANKING_WEIGHTS, LEGACY_FIT_RANKING_WEIGHTS, type Fit, type LegacyFit } from "@/lib/externalRecommendationsV2/contract";
 import {
   eligibilitySql,
   expiredExternalRoleSql,
@@ -18,11 +18,13 @@ export type ExternalEvaluationResult = {
   id: string;
   role_id: string;
   is_recommended: boolean;
-  assessment: { fit: Fit; [key: string]: unknown };
+  assessment: { fit: Fit | LegacyFit; [key: string]: unknown };
   evaluated_at: string;
   input_fingerprint: string;
+  estimated_base_salary?: string | null;
   role: {
     name: string;
+    summary?: unknown;
     company_workspace_id: string;
     company_workspace: { company_name: string } | null;
   } | null;
@@ -76,10 +78,15 @@ export async function readExternalEvaluationResults(
     ), scoped AS MATERIALIZED (
       SELECT e.id, e.role_id,
         -- Rank the model's candidate list; the Career agent still selects recommendations.
-        0.30 * (e.assessment#>>'{fit,mutualFit}')::numeric
-          + 0.50 * (e.assessment#>>'{fit,candidateInterest}')::numeric
-          + 0.10 * (e.assessment#>>'{fit,companyInterest}')::numeric
-          + 0.10 * (e.assessment#>>'{fit,roleFit}')::numeric AS ranking_score,
+        CASE WHEN e.assessment->'fit' ? 'roleFit' THEN
+          ${LEGACY_FIT_RANKING_WEIGHTS.mutualFit} * (e.assessment#>>'{fit,mutualFit}')::numeric
+          + ${LEGACY_FIT_RANKING_WEIGHTS.candidateInterest} * (e.assessment#>>'{fit,candidateInterest}')::numeric
+          + ${LEGACY_FIT_RANKING_WEIGHTS.companyInterest} * (e.assessment#>>'{fit,companyInterest}')::numeric
+          + ${LEGACY_FIT_RANKING_WEIGHTS.roleFit} * (e.assessment#>>'{fit,roleFit}')::numeric
+        ELSE ${FIT_RANKING_WEIGHTS.mutualFit} * (e.assessment#>>'{fit,mutualFit}')::numeric
+          + ${FIT_RANKING_WEIGHTS.candidateInterest} * (e.assessment#>>'{fit,candidateInterest}')::numeric
+          + ${FIT_RANKING_WEIGHTS.companyInterest} * (e.assessment#>>'{fit,companyInterest}')::numeric
+        END AS ranking_score,
         row_number() OVER (PARTITION BY e.role_id ORDER BY e.evaluated_at DESC,e.id DESC) AS role_revision,
         ${expiredExternalRoleSql("role")} AS expired,
         EXISTS (
@@ -113,8 +120,9 @@ export async function readExternalEvaluationResults(
         'id', e.id, 'role_id', e.role_id, 'assessment', e.assessment,
         'is_recommended', page.previously_recommended,
         'evaluated_at', e.evaluated_at, 'input_fingerprint', e.input_fingerprint,
+        'estimated_base_salary', e.input_snapshot#>>'{candidate,estimatedBaseSalary}',
         'role', CASE WHEN role.role_id IS NULL THEN NULL ELSE jsonb_build_object(
-          'name', role.name, 'company_workspace_id', role.company_workspace_id,
+          'name', role.name, 'summary', role.summary, 'company_workspace_id', role.company_workspace_id,
           'company_workspace', CASE WHEN company.company_workspace_id IS NULL THEN NULL
             ELSE jsonb_build_object('company_name', company.company_name) END
         ) END

@@ -10,6 +10,7 @@ export function useBrowserSessionPlacement({
   content,
   depth,
   collapsed,
+  fullScreen = false,
 }: {
   dock: HTMLElement;
   layout: HTMLElement;
@@ -17,6 +18,7 @@ export function useBrowserSessionPlacement({
   content: HTMLElement | null;
   depth: number;
   collapsed: boolean | null;
+  fullScreen?: boolean;
 }) {
   const [placement, setPlacement] = useState({
     inline: Boolean(inlineAnchor),
@@ -25,13 +27,13 @@ export function useBrowserSessionPlacement({
   useLayoutEffect(() => {
     if (!content) return;
     return observePlacement(
-      { dock, layout, inlineAnchor, content, depth, collapsed },
+      { dock, layout, inlineAnchor, content, depth, collapsed, fullScreen },
       setPlacement
     );
-  }, [dock, layout, inlineAnchor, content, depth, collapsed]);
+  }, [dock, layout, inlineAnchor, content, depth, collapsed, fullScreen]);
   return {
     inline: placement.inline,
-    collapsed: collapsed ?? placement.mobile,
+    collapsed: fullScreen ? false : collapsed ?? placement.mobile,
   };
 }
 
@@ -44,6 +46,7 @@ function observePlacement(
     content,
     depth,
     collapsed,
+    fullScreen,
   }: {
     dock: HTMLElement;
     layout: HTMLElement;
@@ -51,6 +54,7 @@ function observePlacement(
     content: HTMLElement;
     depth: number;
     collapsed: boolean | null;
+    fullScreen: boolean;
   },
   setPlacement: React.Dispatch<
     React.SetStateAction<{ inline: boolean; mobile: boolean }>
@@ -66,7 +70,7 @@ function observePlacement(
     const rect = inlineAnchor?.getBoundingClientRect();
     const bounds = viewport?.getBoundingClientRect();
     const visible = Boolean(
-      !mobile && rect &&
+      !fullScreen && !mobile && rect &&
       bounds &&
       rect.width > 0 &&
       rect.height > 0 &&
@@ -77,7 +81,21 @@ function observePlacement(
     );
     const parent = layout.getBoundingClientRect();
     const anchor = dock.getBoundingClientRect();
-    if (visible && rect) {
+    if (fullScreen) {
+      // The native top layer escapes the chat's transformed/clipped container
+      // without moving or reconnecting the live iframe. Radix still owns dismissal.
+      const viewport = window.visualViewport;
+      const gap = mobile ? 8 : 16;
+      Object.assign(content.style, {
+        position: "fixed", inset: "auto",
+        left: `${(viewport?.offsetLeft ?? 0) + gap}px`,
+        top: `${(viewport?.offsetTop ?? 0) + gap}px`,
+        width: `${Math.max(0, (viewport?.width ?? window.innerWidth) - gap * 2)}px`,
+        height: `${Math.max(0, (viewport?.height ?? window.innerHeight) - gap * 2)}px`,
+        maxHeight: "none", zIndex: "80",
+      });
+      if (content.showPopover && !content.matches(":popover-open")) content.showPopover();
+    } else if (visible && rect) {
       Object.assign(content.style, {
         position: "fixed", left: `${rect.left - parent.left}px`,
         top: `${rect.top - parent.top}px`, width: `${rect.width}px`,
@@ -108,9 +126,10 @@ function observePlacement(
       });
       content.style.top = `${mobile ? top + depth * 56 : Math.max(16, bottom - content.offsetHeight)}px`;
     }
+    if (!fullScreen) content.style.height = "";
     // Animate only the change of placement. Native scrolling never trails the
     // pointer, and changing the slot cannot remount the live browser viewer.
-    if (wasInline !== undefined && wasInline !== visible && before.width &&
+    if (!fullScreen && wasInline !== undefined && wasInline !== visible && before.width &&
         content.animate && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
       animation?.cancel();
       const after = content.getBoundingClientRect();
