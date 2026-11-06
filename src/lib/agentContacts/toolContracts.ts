@@ -47,7 +47,7 @@ export const COMPANY_SCHEDULE_TOOL = {
   function: {
     name: "manage_agent_schedule",
     description:
-      "Read or save future work for the company agent on an exact Role. Instructions describe a delegated purpose, not a guaranteed send. Each occurrence rereads current facts and may stay silent. Updating or cancelling requires the current revision. Scheduling does not expand access or authorize a hiring decision. Work not tied to an introduction has an effectTier — 0: look again and message the company only if useful; 1: also propose changes for the company to accept; 2: also search, contact candidates or publish, only when a company member asked for that work. At most 5 active per Role, at most once a day, ending within 30 days; the company sees them in its To-do and can cancel them. A run woken by a schedule can set a next run only 23 hours or more after it started.",
+      "Read or save future work for the company agent on an exact Role. Instructions describe a delegated purpose, not a guaranteed send. Each occurrence rereads current facts and may stay silent. Updating or cancelling requires the current revision. Scheduling does not expand access or authorize a hiring decision. Work not tied to an introduction has an effectTier — 0: look again and message the company only if useful; 1: also propose changes for the company to accept; 2: also message candidates' agents in existing introductions or publish introduced candidates, only when a company member asked for that work. A run never starts a new search. At most 5 active per Role, at most once a day, ending within 30 days; the company sees them in its To-do and can cancel them. A run woken by a schedule can set a next run only 23 hours or more after it started.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -75,7 +75,7 @@ export const COMPANY_SCHEDULE_TOOL = {
         effectTier: {
           type: "integer",
           enum: [0, 1, 2],
-          description: "Work not tied to an introduction: what the run may do (0 look again, 1 propose, 2 search/contact/publish when a company member asked). Default 0.",
+          description: "Work not tied to an introduction: what the run may do (0 look again, 1 propose, 2 contact candidates' agents or publish introduced candidates when a company member asked). Default 0.",
         },
         expiresAt: { type: "string", description: "Work not tied to an introduction: when it ends (within 30 days; default 30 days)." },
         maxRuns: { type: ["integer", "null"], minimum: 1, description: "Work not tied to an introduction: stop after this many runs." },

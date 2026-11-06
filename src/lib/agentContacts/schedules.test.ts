@@ -272,3 +272,35 @@ test("a schedule at its run count stays active until its last run ends", async (
   assert.equal(closed.status, "expired");
   assert.equal(closed.run_count, 1);
 });
+
+test("a schedule remembers where the company asked for it", async (t) => {
+  const { db, read, created, wake, manage } = await fixture(t);
+  const said = async (type: "slack" | "chat") => (await db.query(
+    `insert into company_messages(company_workspace_id, role_id, company_user_id, role, message_type)
+    values ($1, $2, $3, 'user', $4) returning id`, [workspace, role, member, type]))[0];
+  const person = (message: Record<string, any>) =>
+    ({ kind: "company", workspaceId: workspace, userId: member, messageId: Number(message.id) }) as const;
+  const inSlack = await said("slack");
+  await manage(person(inSlack), { action: "create", title, instruction, nextRunAt: at(2 * DAY) }, "asked");
+  const asked = await created("asked");
+  assert.equal(asked.target_refs.originMessageId, inSlack.id);
+
+  // Its own run keeps the place when it changes the schedule, and passes it on.
+  const run = await wake(asked);
+  await manage(run, { action: "update", scheduleId: asked.id, expectedRevision: asked.revision,
+    instruction: "Look at the new result" });
+  assert.equal((await read(asked.id)).target_refs.originMessageId, inSlack.id);
+  await manage(run, { action: "create", title, instruction, nextRunAt: at(3 * DAY) }, "follow-up");
+  assert.equal((await created("follow-up")).target_refs.originMessageId, inSlack.id);
+
+  // A member's later change from web chat moves it there.
+  const inChat = await said("chat");
+  await manage(person(inChat), { action: "update", scheduleId: asked.id,
+    expectedRevision: (await read(asked.id)).revision, nextRunAt: at(4 * DAY) });
+  assert.equal((await read(asked.id)).target_refs.originMessageId, inChat.id);
+
+  // Made in another event's run: no place, so a run would use the Role's web chat.
+  await manage(await wake(null, "agent_contact_received"),
+    { action: "create", title, instruction, nextRunAt: at(2 * DAY) }, "event");
+  assert.equal((await created("event")).target_refs.originMessageId, undefined);
+});

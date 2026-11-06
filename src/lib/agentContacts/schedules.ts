@@ -8,6 +8,7 @@ import {
 import { nextScheduleOccurrence } from "@/lib/career/schedules/server";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import type { Database } from "@/lib/career/matching/internalScoring/database";
+import { scheduleOriginMessageId } from "./scheduleRun";
 
 const render = (rows: any[]) =>
   rows
@@ -200,6 +201,13 @@ export async function manageCompanySchedule(
     if (general && input.action !== "pause" && input.action !== "cancel") assertDailyAtMost(recurrence, timezone, interval);
     let expiresAt = general ? (input.expiresAt ?? previous?.expires_at ?? null) : null;
     if (expiresAt && !Number.isFinite(Date.parse(expiresAt))) throw new CompanyScheduleInputError("Invalid schedule end time");
+    // The member's message this work answers; its runs message the company
+    // there (scheduleRun.ts). A member's later change moves it, Harper's keep it.
+    let originMessageId = !general
+      ? undefined
+      : actor === "user" && source.kind === "company"
+        ? source.messageId
+        : scheduleOriginMessageId(previous);
     const maxRuns = general ? (input.maxRuns === undefined ? (previous?.max_runs ?? null) : input.maxRuns) : null;
     const [invokingJob] =
       source.kind === "company_event"
@@ -222,11 +230,12 @@ export async function manageCompanySchedule(
         );
       if (input.action === "create") {
         const [waking] = await q(
-          "SELECT expires_at FROM public.company_agent_schedules WHERE id=$1::uuid",
+          "SELECT expires_at,target_refs,source FROM public.company_agent_schedules WHERE id=$1::uuid",
           [invokingJob.action_context?.scheduleId]
         );
         if (waking?.expires_at && !(time(expiresAt) <= time(waking.expires_at)))
           expiresAt = new Date(waking.expires_at).toISOString();
+        originMessageId ??= scheduleOriginMessageId(waking);
       }
     }
     if (rootId && !["pause", "cancel"].includes(input.action)) {
@@ -244,6 +253,7 @@ export async function manageCompanySchedule(
     const targets = {
       ...(rootId ? { introductionRootId: rootId } : {}),
       ...(budgetAnchor ? { agentContactBudgetAnchor: budgetAnchor } : {}),
+      ...(originMessageId != null ? { originMessageId } : {}),
     };
     const changesOwnFuture = Boolean(
       previous && invokingJob?.action_context?.scheduleId === previous.id
