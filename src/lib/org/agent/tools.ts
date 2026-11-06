@@ -827,7 +827,7 @@ export const ORG_AGENT_TOOLS = [
           },
           reason: {
             description:
-              "One short sentence shown on the To-do card, in the workspace language: what these passes had in common, in the company's terms. No candidate names and no number or share such as many or most; the card adds the counts. A long sentence is shortened to fit the card.",
+              "One short sentence shown on the To-do card, in the workspace language (Korean in the friendly 해요체 the rest of the To-do uses): what these passes had in common, in the company's terms. No candidate names and no number or share such as many or most; the card adds the counts. A long sentence is shortened to fit the card.",
             minLength: 1,
             type: "string",
           },
