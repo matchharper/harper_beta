@@ -359,13 +359,33 @@ export function OrgAgentChatSurface({
     return () => window.clearTimeout(timer);
   }, [latestUserMessageAt]);
 
+  // Mirrors stickToBottom for the resize observer below, which must not wait
+  // for a render to learn that the reader scrolled away from the bottom.
+  const stickToBottomRef = useRef(true);
+  stickToBottomRef.current = stickToBottom;
   const syncScrollState = useCallback(() => {
     const node = scrollRef.current;
     if (!node) return;
     const distanceToBottom =
       node.scrollHeight - node.scrollTop - node.clientHeight;
-    setStickToBottom(distanceToBottom <= ORG_AGENT_BOTTOM_THRESHOLD_PX);
+    const atBottom = distanceToBottom <= ORG_AGENT_BOTTOM_THRESHOLD_PX;
+    stickToBottomRef.current = atBottom;
+    setStickToBottom(atBottom);
   }, []);
+
+  /** Loads older messages and keeps what the reader was looking at in place. */
+  const loadOlderMessagesInPlace = useCallback(async () => {
+    if (!history.hasOlderMessages || history.loadingOlderMessages) return;
+    const node = scrollRef.current;
+    const previousScrollHeight = node?.scrollHeight ?? null;
+    const previousScrollTop = node?.scrollTop ?? 0;
+    await history.loadOlderMessages();
+    if (!node || previousScrollHeight === null) return;
+    window.requestAnimationFrame(() => {
+      node.scrollTop = previousScrollTop + (node.scrollHeight - previousScrollHeight);
+      syncScrollState();
+    });
+  }, [history, syncScrollState]);
 
   useEffect(() => {
     if (!stickToBottom) return;
@@ -436,6 +456,25 @@ export function OrgAgentChatSurface({
       window.removeEventListener("resize", updateComposerHeight);
       if (frameId !== null) window.cancelAnimationFrame(frameId);
     };
+  }, [initialRoleCreation]);
+
+  // While the reader is at the bottom, keep the newest message in view whenever
+  // the timeline or the chat area changes size: a reply turning into its saved
+  // message, a card or step list growing, the area getting shorter. The effects
+  // above only react to a few known changes.
+  useEffect(() => {
+    if (initialRoleCreation) return;
+    const node = scrollRef.current;
+    const content = node?.firstElementChild;
+    if (!node || !content || !window.ResizeObserver) return;
+    const observer = new window.ResizeObserver(() => {
+      if (!stickToBottomRef.current) return;
+      if (node.scrollHeight - node.scrollTop - node.clientHeight <= 1) return;
+      node.scrollTop = node.scrollHeight;
+    });
+    observer.observe(node);
+    observer.observe(content);
+    return () => observer.disconnect();
   }, [initialRoleCreation]);
 
   useEffect(() => {
@@ -524,17 +563,10 @@ export function OrgAgentChatSurface({
                   composerOverlayHeight + ORG_AGENT_TIMELINE_BOTTOM_GAP_PX,
               }
         }
-        onScroll={(event) => {
-          const node = event.currentTarget;
-          syncScrollState();
-          if (
-            node.scrollTop < 80 &&
-            history.hasOlderMessages &&
-            !history.loadingOlderMessages
-          ) {
-            void history.loadOlderMessages();
-          }
-        }}
+        // Like the candidate chat: scrolling only tracks "at the bottom". Older
+        // messages load from the button, never because a layout shift (a reply
+        // finishing, the composer resizing) left the view near the top.
+        onScroll={syncScrollState}
       >
         <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
           {history.hasOlderMessages && (
@@ -544,7 +576,7 @@ export function OrgAgentChatSurface({
                 loading={history.loadingOlderMessages}
                 loadingLabel={c("불러오는 중...", "Loading...")}
                 onClick={() => {
-                  void history.loadOlderMessages();
+                  void loadOlderMessagesInPlace();
                 }}
               />
             </div>
