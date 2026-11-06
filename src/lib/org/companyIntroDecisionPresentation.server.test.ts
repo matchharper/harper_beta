@@ -62,15 +62,15 @@ test("a known presentation goes to the _with_presentation functions; otherwise v
 
   assert.deepEqual(rpcCalls.map((call) => [call.name, call.body.p_channel, call.body.p_presentation_id]), [
     ["pass_company_intro_with_presentation_v1", "email", "this-mail"],
-    ["pass_company_intro_v2", "web", undefined],
+    ["pass_company_intro_v3", "web", undefined],
     ["request_company_intro_for_career_with_presentation_v1", "email", "this-mail"],
     ["request_company_intro_for_career_v1", "chat", undefined],
   ]);
-  // The rest of each call is what v2 always received.
+  // The rest of each call is what v2/v3 always received; reason tags go only to v3.
   assert.deepEqual(Object.keys(rpcCalls[0].body).sort(), ["p_channel", "p_company_user_id", "p_company_workspace_id",
     "p_intro_candidate_id", "p_presentation_id", "p_reason_text", "p_source_message_id"]);
   assert.deepEqual(Object.keys(rpcCalls[1].body).sort(), ["p_channel", "p_company_user_id", "p_company_workspace_id",
-    "p_intro_candidate_id", "p_reason_text", "p_source_message_id"]);
+    "p_intro_candidate_id", "p_reason_tags", "p_reason_text", "p_source_message_id"]);
   assert.deepEqual(rpcCalls[2].body, {
     p_channel: "email", p_company_appeal: "결제 경험", p_company_user_id: "member", p_company_workspace_id: "workspace",
     p_intro_candidate_id: "card", p_intro_recipient_emails: ["member@example.com"], p_next_stage_id: null,
