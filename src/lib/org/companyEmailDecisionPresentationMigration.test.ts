@@ -24,7 +24,10 @@ const SETUP = `
   create table company_intro_candidates(id uuid primary key, company_workspace_id uuid, role_id uuid, talent_id uuid,
     status text, close_reason text, requested_by_company_user_id uuid, requested_at timestamptz, company_appeal text,
     next_stage_id uuid, revision int not null default 0, updated_at timestamptz, selection_run_id uuid,
-    selected_at timestamptz, presentation jsonb, shared_material_id uuid, created_at timestamptz default now());
+    selected_at timestamptz, presentation jsonb, shared_material_id uuid, created_at timestamptz default now(),
+    delivery_run_id uuid, recommendation_id uuid);
+  create table opportunity_discovery_run(id uuid primary key, talent_id uuid, status text, trigger_payload jsonb);
+  create table talent_opportunity_recommendation(id uuid primary key, talent_id uuid, evidence jsonb);
   create table company_first_slack_outbox(id uuid primary key, run_id uuid, company_workspace_id uuid, channel_id uuid,
     candidate_ids uuid[], status text, sent_at timestamptz, slack_message_ts text, delivery_kind text);
   create table company_email_outbox(id uuid primary key, recipient_id uuid);
@@ -80,6 +83,15 @@ const mailA = "60000000-0000-4000-8000-00000000000a";
 const mailB = "60000000-0000-4000-8000-00000000000b";
 const mailALater = "60000000-0000-4000-8000-00000000000c";
 
+/** The Career request exactly as the 11/6 release defines it (the rest of that file is candidate-side). */
+async function careerRequestFunction() {
+  const sql = await readFile(
+    new URL("../../../supabase/migrations/20261106084304_career_company_intro_agent.sql", import.meta.url), "utf8");
+  const start = sql.indexOf("create function public.request_company_intro_for_career_v1(");
+  assert.ok(start >= 0, "the Career request is defined in the 11/6 release");
+  return sql.slice(start, sql.indexOf("end $$;", start) + "end $$;".length);
+}
+
 test("a Pass or request from a mail button points at that recipient's mail", async () => {
   const db = new PGlite();
   try {
@@ -88,8 +100,10 @@ test("a Pass or request from a mail button points at that recipient's mail", asy
       "20261105020000_company_decision_events.sql",
       "20261105080000_company_role_brief_revisions.sql",
       "20261105110000_company_presentations.sql",
-      "20261107050000_company_email_decision_presentation.sql",
     ]) await db.exec(await readFile(new URL(`../../../supabase/migrations/${name}`, import.meta.url), "utf8"));
+    await db.exec(await careerRequestFunction());
+    await db.exec(await readFile(
+      new URL("../../../supabase/migrations/20261107050000_company_email_decision_presentation.sql", import.meta.url), "utf8"));
 
     await db.exec(`
       insert into company_workspace values ('${workspace}', 'Company');
@@ -136,7 +150,16 @@ test("a Pass or request from a mail button points at that recipient's mail", asy
     // same candidate are later.
     assert.deepEqual(await pointer(`intro_candidate_id = '${card(1)}'`), [a1]);
 
-    const requested = (await db.query<any>(`select request_company_intro_with_presentation_v1(
+    // A request goes through the Career request (the candidate's queued run is
+    // handed to the Career agent) and still records the mail it was made in.
+    const careerRun = (n: number) => `70000000-0000-4000-8000-00000000000${n}`;
+    const recommendation = (n: number) => `80000000-0000-4000-8000-00000000000${n}`;
+    for (const n of [2, 3]) await db.exec(`
+      insert into opportunity_discovery_run values ('${careerRun(n)}', '${talent(n)}', 'queued', '{}');
+      insert into talent_opportunity_recommendation values ('${recommendation(n)}', '${talent(n)}', '{"preFinalDelivery": true}');
+      update company_intro_candidates set delivery_run_id = '${careerRun(n)}', recommendation_id = '${recommendation(n)}'
+        where id = '${card(n)}';`);
+    const requested = (await db.query<any>(`select request_company_intro_for_career_with_presentation_v1(
       p_channel => 'email', p_company_appeal => 'Payments', p_company_user_id => $1, p_company_workspace_id => $2,
       p_intro_candidate_id => $3, p_intro_recipient_emails => array['b@example.com'], p_next_stage_id => null,
       p_source_message_id => null, p_presentation_id => $4) as result`,
@@ -146,14 +169,20 @@ test("a Pass or request from a mail button points at that recipient's mail", asy
       from company_decision_events where intro_candidate_id = '${card(2)}'`)).rows;
     assert.deepEqual(requestRow, [{ action: "request_intro", reason_text: "Payments", channel: "email",
       actor_user_id: memberB, presentation_id: b2 }]);
-
-    // A presentation of another person is not kept; the decision falls back to its own.
-    await db.query(`select pass_company_intro_with_presentation_v1(p_channel => 'web', p_company_user_id => $1,
-      p_company_workspace_id => $2, p_intro_candidate_id => $3, p_presentation_id => $4)`,
+    const handoff = async (n: number) => (await db.query<any>(`select run.trigger_payload->>'runContract' as contract,
+      rec.evidence ? 'preFinalDelivery' as pre_final from opportunity_discovery_run run, talent_opportunity_recommendation rec
+      where run.id = $1 and rec.id = $2`, [careerRun(n), recommendation(n)])).rows[0];
+    assert.deepEqual(await handoff(2), { contract: "career_agent_v1", pre_final: false });
+    // Another person's mail as the hint is not kept: the request falls back to its own.
+    await db.query(`select request_company_intro_for_career_with_presentation_v1(p_channel => 'email',
+      p_company_appeal => 'Payments', p_company_user_id => $1, p_company_workspace_id => $2, p_intro_candidate_id => $3,
+      p_intro_recipient_emails => array['a@example.com'], p_next_stage_id => null, p_presentation_id => $4)`,
       [memberA, workspace, card(3), a1]);
-    const [fallback] = await pointer(`intro_candidate_id = '${card(3)}'`);
-    assert.equal((await db.query<any>("select surface, subject_id from company_presentations where id = $1", [fallback])).rows[0]
+    const [ownFallback] = await pointer(`intro_candidate_id = '${card(3)}'`);
+    assert.equal((await db.query<any>("select subject_id from company_presentations where id = $1", [ownFallback])).rows[0]
       .subject_id, talent(3));
+    assert.deepEqual(await handoff(3), { contract: "career_agent_v1", pre_final: false });
+
     // A second call changes nothing.
     const again = (await db.query<any>(`select pass_company_intro_with_presentation_v1(p_channel => 'email',
       p_company_user_id => $1, p_company_workspace_id => $2, p_intro_candidate_id => $3, p_presentation_id => $4) as result`,
@@ -179,7 +208,7 @@ test("a Pass or request from a mail button points at that recipient's mail", asy
 
     const can = async (q: string) => (await db.query<any>(`select ${q} as ok`)).rows[0].ok;
     const pass = "pass_company_intro_with_presentation_v1(uuid,uuid,uuid,text,text,bigint,uuid)";
-    const request = "request_company_intro_with_presentation_v1(uuid,uuid,uuid,uuid,text[],text,text,bigint,uuid)";
+    const request = "request_company_intro_for_career_with_presentation_v1(uuid,uuid,uuid,uuid,text[],text,text,bigint,uuid)";
     for (const signature of [pass, request]) {
       assert.equal(await can(`has_function_privilege('service_role', '${signature}', 'EXECUTE')`), true);
       for (const user of ["anon", "authenticated"])

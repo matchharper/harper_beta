@@ -63,8 +63,8 @@ test("a known presentation goes to the _with_presentation functions; otherwise v
   assert.deepEqual(rpcCalls.map((call) => [call.name, call.body.p_channel, call.body.p_presentation_id]), [
     ["pass_company_intro_with_presentation_v1", "email", "this-mail"],
     ["pass_company_intro_v2", "web", undefined],
-    ["request_company_intro_with_presentation_v1", "email", "this-mail"],
-    ["request_company_intro_v2", "chat", undefined],
+    ["request_company_intro_for_career_with_presentation_v1", "email", "this-mail"],
+    ["request_company_intro_for_career_v1", "chat", undefined],
   ]);
   // The rest of each call is what v2 always received.
   assert.deepEqual(Object.keys(rpcCalls[0].body).sort(), ["p_channel", "p_company_user_id", "p_company_workspace_id",
