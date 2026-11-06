@@ -64,7 +64,7 @@ export function OrgEntryAppBar({
             size="md"
             variant="default"
           >
-            {c("Company", "Company")}
+            {c("회사", "Company")}
           </MuteButton>
         </div>
       </div>

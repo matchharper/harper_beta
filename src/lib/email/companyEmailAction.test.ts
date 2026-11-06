@@ -33,7 +33,7 @@ test("billing, permission, recipient and unknown failures are shown but never re
   assert.deepEqual(billing, { kind: "error", message: billingErrorCopy("credits_exhausted", "ko") });
   const copy = companyEmailActionCopy("ko");
   assert.deepEqual(classify(new OrgHttpError(403, "Forbidden")), { kind: "error", message: copy.noPermission });
-  assert.equal(copy.noPermission, "이 후보는 볼 수 있지만 결정은 할 수 없어요. Owner나 Admin에게 요청해 주세요.");
+  assert.equal(copy.noPermission, "이 후보는 볼 수 있지만 결정은 할 수 없어요. 소유자나 관리자에게 요청해 주세요.");
   assert.deepEqual(classify(new EmailPermanentError("company_email_membership_revoked")), { kind: "error", message: copy.recipientInvalid });
   assert.deepEqual(classify(new Error("socket hang up")), { kind: "error", message: copy.unknown });
   assert.match(copy.unknown, /^처리 결과를 확인하지 못했어요\./);
@@ -65,17 +65,17 @@ test("Ready to connect stays open only until another stage is recorded", () => {
 test("confirm copy follows the copy document and has an English counterpart", () => {
   const request = companyEmailActionText("ko", "request_intro", "김민준", "jisoo@example.com");
   assert.equal(request.title, "김민준님에게 먼저 제안할까요?");
-  assert.equal(request.confirm, "Send Intro");
+  assert.equal(request.confirm, "연결 요청");
   assert.equal(request.doneTitle, "먼저 제안을 요청했어요. 지금 후보에게 전달할 준비를 하고 있어요.");
   assert.equal(request.doneDescription, "김민준님이 수락하면 jisoo@example.com로 소개 메일이 가요.");
-  assert.equal(companyEmailActionText("ko", "pass", "김민준", "").confirm, "Pass");
+  assert.equal(companyEmailActionText("ko", "pass", "김민준", "").confirm, "이번엔 넘길게요");
   assert.equal(companyEmailActionText("ko", "accept_connection", "김민준", "").title, "김민준님과 연결할까요?");
-  assert.equal(companyEmailActionText("ko", "reject_connection", "김민준", "").confirm, "연결 거절");
+  assert.equal(companyEmailActionText("ko", "reject_connection", "김민준", "").confirm, "이번엔 넘길게요");
   assert.equal(companyEmailActionCopy("ko").actingAs("김지수", "jisoo@example.com"), "김지수님(jisoo@example.com)으로 처리돼요");
   assert.equal(companyEmailActionCopy("ko").introEmailNotice("jisoo@example.com"), "소개 메일은 jisoo@example.com로 가요.");
   assert.equal(companyEmailActionCopy("ko").expired, "이 버튼은 기간이 지났어요.");
   assert.equal(companyEmailActionCopy("ko").notFound, "링크를 찾지 못했어요.");
-  assert.equal(companyEmailActionText("en", "accept_connection", "Minjun", "").confirm, "Accept Intro");
+  assert.equal(companyEmailActionText("en", "accept_connection", "Minjun", "").confirm, "Connect");
   assert.equal(companyEmailActionCopy("en").actingAs("Jisoo", "j@example.com"), "Acting as Jisoo (j@example.com)");
 });
 

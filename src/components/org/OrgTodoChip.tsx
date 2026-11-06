@@ -18,6 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import {
   useDecideOrgTodoSuggestion,
   useMarkOrgTodoRead,
@@ -59,9 +60,9 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
         : c("연락", "message");
   switch (item.kind) {
     case "pending_connection":
-      return c("연결 수락한 후보 {n}명", "{n} ready to connect", { n });
+      return c("연결을 기다리는 후보 {n}명", "{n} waiting to connect", { n });
     case "company_intro":
-      return c("연결 제안할 후보 {n}명", "{n} suggested candidates", { n });
+      return c("연결을 요청할 후보 {n}명", "{n} ready to reach out", { n });
     case "contact_draft":
       return c(
         "{name}님에게 보낼 {request} 확인",
@@ -76,7 +77,7 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
       );
     case "role_start":
       return item.detail === "review"
-        ? c("Brief 확정하기", "Confirm the Brief")
+        ? c("찾는 사람 확정하기", "Confirm who we're looking for")
         : item.detail === "evaluating"
           ? c("첫 3명 평가하기", "Rate the first three")
           : c("역할 시작 질문에 답하기", "Answer the role questions");
@@ -117,7 +118,7 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
         { name, request }
       );
     case "intro_declined":
-      return c("{name}님이 Intro를 거절했어요", "{name} declined your intro", {
+      return c("{name}님이 연결을 거절했어요", "{name} declined your intro", {
         name,
       });
     case "meeting_waiting":
@@ -129,7 +130,7 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
     case "search_running":
       return c("후보 찾는 중", "Searching for candidates");
     case "scheduled_search":
-      return c("다음 정기 후보 검색", "Next scheduled candidate search");
+      return c("다음 정기 탐색", "Next scheduled search");
     case "harper_scheduled":
       return c("Harper 예정: {p0}", "Harper will: {p0}", { p0: item.detail ?? "" });
     case "role_start_working":
@@ -144,20 +145,20 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
       });
     case "brief_changed":
       return item.detail
-        ? c("Brief 변경: {p0}", "Brief changed: {p0}", { p0: item.detail })
-        : c("Brief를 바꿨어요", "Brief changed");
+        ? c("찾는 사람 변경: {p0}", "Who we're looking for changed: {p0}", { p0: item.detail })
+        : c("찾는 사람을 바꿨어요", "Who we're looking for changed");
     case "suggestion":
     case "suggestion_running":
     case "suggestion_done":
       return item.detail ?? "";
-    // The count is people added to 연결 제안할 후보 for this Role. Intros
+    // The count is people added to Ready to reach out for this Role. Intros
     // Harper sends to candidates directly are counted per run, not per Role,
     // so they are not in it and "none" is never claimed.
     case "search_done":
       return n
         ? c(
-            "후보 검색 · 연결 제안할 후보 {n}명 추가",
-            "Candidate search · {n} added to Suggested candidates",
+            "후보 검색 · 연결을 요청할 후보 {n}명 추가",
+            "Candidate search · {n} added to Ready to reach out",
             { n }
           )
         : c("후보 검색을 마쳤어요", "Candidate search finished");
@@ -335,10 +336,10 @@ export function OrgTodoList({
   const suggestions = todo.data?.suggestions ?? 0;
   const headings: Record<OrgTodoColumn, string> = {
     done: c("한 일", "Done"),
-    in_progress: c("진행 중인 일", "In progress"),
-    my_turn: c("할 일", "To do"),
-    notice: c("알림", "Updates"),
-    suggestion: c("하퍼의 제안", "Harper's suggestions"),
+    in_progress: ct(c, COMPANY_TERMS.todo.inProgress),
+    my_turn: ct(c, COMPANY_TERMS.todo.decide),
+    notice: ct(c, COMPANY_TERMS.todo.updates),
+    suggestion: ct(c, COMPANY_TERMS.todo.harperCan),
   };
   const answer = (
     item: OrgTodoItem,
@@ -473,7 +474,7 @@ export function OrgTodoList({
   if (todo.isError) {
     return (
       <p className="px-4 py-4 text-[13px] text-neutral-muted">
-        {c("To-do를 불러오지 못했어요.", "Couldn't load the To-do.")}{" "}
+        {c("할 일을 불러오지 못했어요.", "Couldn't load the to-do.")}{" "}
         <button
           className="underline"
           onClick={() => void todo.refetch()}
@@ -599,8 +600,8 @@ export function OrgTodoArea({
             <PopoverTrigger asChild>
               <MuteButton
                 aria-label={c(
-                  "To-do, 할 일과 알림 {n}개",
-                  "To-do, {n} to do or new",
+                  "할 일, 결정할 것과 알림 {n}개",
+                  "To-do, {n} to decide or new",
                   { n: badge }
                 )}
                 // Something to do or an unread update: glow until opened.
@@ -610,7 +611,7 @@ export function OrgTodoArea({
                 variant="raised"
               >
                 <ListTodo aria-hidden className="h-3.5 w-3.5" />
-                To-do
+                {ct(c, COMPANY_TERMS.todo.button)}
                 {badge ? (
                   // Same badge as the 인박스 tab.
                   <Badge size="xs" variant="count">
@@ -625,7 +626,7 @@ export function OrgTodoArea({
       </PopoverAnchor>
       <PopoverContent
         align="center"
-        aria-label="To-do"
+        aria-label={ct(c, COMPANY_TERMS.todo.button)}
         className="w-[var(--radix-popover-trigger-width)] px-4 md:px-5"
         side="top"
         surface={false}

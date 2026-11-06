@@ -166,7 +166,7 @@ export function OrgOnboardingSlack({
       {!permissions.canManageIntegrations ? (
         <p className="text-[13px] leading-6 text-neutral-muted">
           {c(
-            "Slack 연결은 회사의 Owner 또는 Admin이 설정할 수 있어요. 지금은 건너뛰고 Harper를 둘러보세요.",
+            "Slack 연결은 회사의 소유자 또는 관리자가 설정할 수 있어요. 지금은 건너뛰고 Harper를 둘러보세요.",
             "An Owner or Admin needs to connect Slack. You can skip this step and explore Harper for now."
           )}
         </p>

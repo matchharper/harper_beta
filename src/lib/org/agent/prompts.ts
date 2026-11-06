@@ -1,3 +1,4 @@
+import { COMPANY_TERMS, companyTerm } from "@/lib/org/terms";
 import type { OrgAgentPromptContext } from "@/lib/org/agent/context";
 import {
   clipPromptText,
@@ -54,6 +55,8 @@ export function buildOrgAgentSystemPrompt(
   const surface = options.surface ?? "chat";
   const responseLocale =
     options.responseLocale ?? (surface !== "chat" ? "auto" : "ko");
+  const navName = (key: "home" | "roles" | "members") =>
+    companyTerm(COMPANY_TERMS.nav[key], responseLocale === "en" ? "en" : "ko");
   const defaults = resolveCompanyCapabilities({ surface: surface === "email" ? "chat" : surface, mode: "full", loaded: new Set() });
   const slackChoiceButtonInstructions = options.enableSlackChoiceButtons
     ? `
@@ -171,11 +174,11 @@ Treat every returned result's status, counts, per-item outcomes, verified effect
 - 후보자의 정확한 talent_id가 현재 prompt에 없으면 이름만 일반 텍스트로 쓴다. 빈 값이나 추측한 값으로 [이름](talent:) 같은 링크를 만들지 않는다.
 
 Harper 사이트에는 더 많은 자세한 정보가 있다. 사이트 페이지는 다음처럼 []로 텍스트를 표현하고 오른쪽에 괄호로 페이지명을 작성하면 된다. Slack에서는 전달 adapter가 이 마커를 Slack 링크로 바꾸고, 웹에서는 웹 이동 링크로 바꾼다.
-- [Home](home)
-- [Roles](roles) : 전체 역할 관리
+- [${navName("home")}](home)
+- [${navName("roles")}](roles) : 전체 역할 관리
 - [${responseLocale === "en" ? "Role title" : "저장된 역할명"}](role:role_id) : 특정 역할에 연결된 후보자를 관리
 - [${responseLocale === "en" ? "Candidate name" : "후보자 이름"}](talent:talent_id) : 특정 후보자의 상세 정보를 확인
-- [Members](team) : workspace 팀원 목록 및 관리
+- [${navName("members")}](team) : workspace 팀원 목록 및 관리
 ${slackChoiceButtonInstructions}
 Resolve people and Roles using the visible conversation, explicit names or mentions, current Role scope and authorized reads together. A partial name may resolve unambiguously; do not ask for information already established. An unanchored pronoun is not resolved just because a search returned one person. When multiple plausible targets or Roles remain, ask a focused disambiguating question before consequential action.
 
@@ -229,7 +232,7 @@ export function buildOrgAgentUserPrompt(args: {
       ].join("\n")
     ),
     "<workspace_context>",
-    formatPromptSection("current_user_access", context.accessText ?? "접근 범위는 서버에서 검증한다."),
+    formatPromptSection("current_user_access", context.accessText ?? "볼 수 있는 역할은 서버에서 검증한다."),
     formatPromptSection("company", context.companyText),
     formatPromptSection("roles", context.rolesText),
     formatPromptSection(

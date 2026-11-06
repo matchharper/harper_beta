@@ -27,6 +27,7 @@ import {
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
 import { OrgCareerLineage } from "./OrgCareerLineage";
 import { OrgCriteriaEvaluation } from "./OrgCriteriaEvaluation";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 
 type ResourceLinkKind =
   | "github"
@@ -368,21 +369,18 @@ export function OrgTalentProfileContent({
 
       {detail.companyPresentation ? (
         <>
-          <ProfileSection title="TL;DR">
+          <ProfileSection title={ct(c, COMPANY_TERMS.detail.summary)}>
             {detail.companyPresentation.tldr}
           </ProfileSection>
           {detail.companyPresentation.harperNote ? (
-            <ProfileSection title="Harper Note">
+            <ProfileSection title={ct(c, COMPANY_TERMS.detail.harperNote)}>
               <MarkdownProfile value={detail.companyPresentation.harperNote} />
             </ProfileSection>
           ) : null}
         </>
       ) : detail.recommendation?.fitReason ? (
         <ProfileSection
-          title={c(
-            "Harper의 추천 이유",
-            "Why Harper recommends this candidate"
-          )}
+          title={ct(c, COMPANY_TERMS.detail.summary)}
         >
           <div className="mt-4 mb-10 border-l-2 border-primary px-3">
             <MarkdownProfile

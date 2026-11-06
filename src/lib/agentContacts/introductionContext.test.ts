@@ -21,7 +21,7 @@ test("correspondence carries recorded origin independently of its free-form body
   assert.equal(contexts[1].origin?.kind, "company_intro");
   assert.equal(contexts[2].origin, null);
   assert.match(formatIntroductionContext(contexts[0]), /후보자의 연결 요청/);
-  assert.match(formatIntroductionContext(contexts[1]), /회사에서 먼저 요청한 Intro/);
+  assert.match(formatIntroductionContext(contexts[1]), /회사에서 먼저 요청한 연결/);
   assert.match(formatIntroductionContext(contexts[1]), /Company Intro sent to candidate: 2026-11-03 15:03/);
   assert.match(formatIntroductionContext(contexts[2]), /not recorded/);
 });

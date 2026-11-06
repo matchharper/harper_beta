@@ -152,29 +152,29 @@ export function buildOrgRoleCreatedSlackMessage(args: {
       `Harper is starting to match candidates for *${formatSlackLink(roleUrl, args.roleName)}* at ${escapeSlackText(args.workspace.companyName)}.`,
       "",
       "*How candidates reach you*",
-      "• Harper introduces the role to suitable candidates. After someone accepts, Harper prepares their introduction and sends it to Ready to connect for your decision.",
+      "• Harper introduces the role to suitable candidates. After someone accepts, Harper prepares their introduction and sends it to Waiting to connect for your decision.",
       args.isCompanyFirstSearch
-        ? `• *Company-first suggestions are on:* Harper starts a new search ${englishSchedule}. If it finds suitable people, they appear in Suggested candidates.`
+        ? `• *Company-first suggestions are on:* Harper starts a new search ${englishSchedule}. If it finds suitable people, they appear in Ready to reach out.`
         : `• *Company-first suggestions are off:* Turn them on in the role settings to start new searches ${englishSchedule}.`,
       "",
       "*What you can do*",
       "• Ask Harper to search this role now if you want to review potential matches at any time.",
-      "• Suggested candidates have not accepted the role. Use Send Intro if you want Harper to contact one of them.",
-      "• In Ready to connect, choose whether to connect with each candidate. Tell Harper what matters to your team so future matches can reflect it.",
+      "• Candidates in Ready to reach out have not accepted the role. Use Request intro if you want Harper to contact one of them.",
+      "• In Waiting to connect, choose whether to connect with each candidate. Tell Harper what matters to your team so future matches can reflect it.",
     ].join("\n");
   return [
     `지금부터 ${escapeSlackText(args.workspace.companyName)}의 *${formatSlackLink(roleUrl, args.roleName)}* 역할의 리크루팅을 시작합니다.`,
     "",
     "*후보자를 찾고 소개하는 방법*",
-    "• Harper가 적합한 후보자에게 역할을 먼저 소개해요. 후보자가 수락하면 Harper가 소개를 준비해 ‘연결 수락한 후보’에서 알려드려요.",
+    "• Harper가 적합한 후보자에게 역할을 먼저 소개해요. 후보자가 수락하면 Harper가 소개를 준비해 ‘연결을 기다리는 후보’에서 알려드려요.",
     args.isCompanyFirstSearch
-      ? `• *정기 후보 검색 켜짐:* ${koreanSchedule}에 새 후보자 검색을 시작해요. 적합한 분이 있으면 ‘연결 제안할 후보’에 보여드려요.`
-      : `• *정기 후보 검색 꺼짐:* 역할 설정에서 켜면 ${koreanSchedule}에 새 후보자 검색을 시작해요.`,
+      ? `• *정기 탐색 켜짐:* ${koreanSchedule}에 새 후보자 검색을 시작해요. 적합한 분이 있으면 ‘연결을 요청할 후보’에 보여드려요.`
+      : `• *정기 탐색 꺼짐:* 역할 설정에서 켜면 ${koreanSchedule}에 새 후보자 검색을 시작해요.`,
     "",
     "*필요할 때 할 일*",
     "• 지금 먼저 연락을 보낼 수 있는 후보자를 확인하고 싶다면 Harper에게 이 역할의 후보 검색을 요청할 수 있어요.",
-    "• ‘연결 제안할 후보’는 아직 역할을 수락한 분들이 아니에요. 만나보고 싶다면 ‘Send Intro’를 눌러주세요.",
-    "• ‘연결 수락한 후보’에 도착한 후보자는 연결 여부를 결정해 주세요. 중요하게 보는 점이나 후보자 피드백도 알려주시면 다음 탐색에 반영할게요.",
+    "• ‘연결을 요청할 후보’는 아직 역할을 수락한 분들이 아니에요. 만나보고 싶다면 ‘연결 요청’을 눌러주세요.",
+    "• ‘연결을 기다리는 후보’에 도착한 후보자는 연결 여부를 결정해 주세요. 중요하게 보는 점이나 후보자 피드백도 알려주시면 다음 탐색에 반영할게요.",
   ].join("\n");
 }
 

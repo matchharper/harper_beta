@@ -255,7 +255,7 @@ export async function createOrResumeDraftRole(args: {
         : {},
     });
     if (insertError) {
-      if (insertError.message === "org_team_role_forbidden") throw new OrgHttpError(403, "Owner에게 팀과 Role 접근 범위 배정을 요청해 주세요.");
+      if (insertError.message === "org_team_role_forbidden") throw new OrgHttpError(403, "소유자에게 팀과 볼 수 있는 역할 배정을 요청해 주세요.");
       if (insertError.code !== "23505") throw insertError;
       const { data: raced, error: racedError } = await admin
         .from("company_roles")

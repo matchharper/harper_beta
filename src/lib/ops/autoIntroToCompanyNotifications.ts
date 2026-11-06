@@ -38,6 +38,7 @@ import {
   type AutoIntroSlackProfile,
 } from "@/lib/ops/autoIntroToCompanyMessage";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import { getTalentEngagementLabels } from "@/lib/talentNetworkOptions";
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
@@ -1602,14 +1603,14 @@ function buildWorkspaceMessageBody(args: {
     ...(args.locale === "en"
       ? [
           args.group.candidates.length === 1
-            ? "*A candidate is ready to connect.*"
-            : "*Candidates are ready to connect.*",
+            ? "*A candidate is waiting to connect.*"
+            : "*Candidates are waiting to connect.*",
         ]
       : AUTO_INTRO_WORKSPACE_OPENING),
     ...roleBlocks,
     "----------",
     args.locale === "en"
-      ? "Review each profile and Harper's notes, then decide whether to connect. Choose Email intro or Direct contact when connecting. If you choose Reject, Harper closes the process for that role and notifies the candidate. Feedback helps improve future recommendations."
+      ? `Review each profile and Harper's note, then choose ${COMPANY_TERMS.action.connect.en} or ${COMPANY_TERMS.action.pass.en}. When connecting, choose Email intro or Direct contact. If you pass, Harper closes the process for that role and lets the candidate know. Feedback helps improve future recommendations.`
       : AUTO_INTRO_RESPONSE_GUIDANCE,
     buildAutoIntroWorkspaceActionGuidance({
       locale: args.locale,
@@ -1669,7 +1670,7 @@ function parseCodexAuthoredMessage(
       if ("slackProfile" in row && row.slackProfile) {
         try {
           const slackProfile = validateAutoIntroSlackProfile(row.slackProfile);
-          candidateCopy = renderAutoIntroSlackProfile(slackProfile);
+          candidateCopy = renderAutoIntroSlackProfile(slackProfile, locale);
           fitReason = slackProfile.body;
         } catch (error) {
           throw new Error(`${formatError(error)}: ${key}`);
@@ -1689,7 +1690,7 @@ function parseCodexAuthoredMessage(
         if (!AUTO_INTRO_PRESENTATIONS.has(presentation)) {
           throw new Error(`Unsupported candidate presentation: ${key}`);
         }
-        candidateCopy = renderAutoIntroCandidateCopy(presentation, sentences);
+        candidateCopy = renderAutoIntroCandidateCopy(presentation, sentences, locale);
         fitReason = candidateCopy;
       }
       if (row.companyPresentation) {

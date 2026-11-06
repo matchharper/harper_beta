@@ -700,7 +700,7 @@ export async function buildOrgAgentPromptContext(args: {
       onError:()=>notes.push("범위별 회사 메모리 조회 불가. 저장된 기억이 없다고 해석하지 말고 필요하면 company_memory를 다시 조회한다."),
       task:()=>readCompanyMemory({admin:args.admin,user:args.user,workspaceId,input:{limit:8,...(args.conversation.role_id ? {forRoleId:args.conversation.role_id} : {})}})}),
     args.conversation.role_id ? optionalContext({fallback:null,label:'hiring_brief_history',
-      onError:()=>notes.push('매칭 기준 변경 이력 조회 불가. 이력이 없다고 단정하지 말고 hiring_brief_history로 조회한다.'),
+      onError:()=>notes.push('확인할 기준 변경 이력 조회 불가. 이력이 없다고 단정하지 말고 hiring_brief_history로 조회한다.'),
       task:()=>readHiringBriefHistory({admin:args.admin,user:args.user,workspaceId,roleId:args.conversation.role_id!,limit:3})}) : Promise.resolve(null),
     // Role-page decisions on external people leave no chat message; this keeps them in every turn.
     args.conversation.role_id && externalSourcingEnabledFor(workspaceId) ? optionalContext({fallback:null,label:"external_candidates",
@@ -820,18 +820,18 @@ export async function buildOrgAgentPromptContext(args: {
     );
   }
   return enforceOrgAgentContextBudget({
-    accessText: service ? `회사 에이전트의 서비스 실행입니다. 팀원 계정의 지시나 권한 위임을 가장하지 않습니다. 접근은 Role ${service.roleId}의 승인된 자료와 연락으로 제한됩니다. 채용 결정·결제·팀원 관리 권한은 없습니다.` : [
+    accessText: service ? `회사 에이전트의 서비스 실행입니다. 팀원 계정의 지시나 권한 위임을 가장하지 않습니다. 접근은 역할 ${service.roleId}의 승인된 자료와 연락으로 제한됩니다. 채용 결정·결제·팀원 관리 권한은 없습니다.` : [
       `현재 팀원: ${args.user.user_metadata?.name || args.user.email || args.user.id}`,
       `권한: ${access.authority}`,
       `배정 팀: ${access.teamNames.join(", ") || "없음"}`,
       access.audienceRestricted
-        ? "이 공유 대화의 팀 범위로 Role 조회와 설명을 제한한다. 이는 작성자 계정의 팀 배정을 바꾸지 않는다."
+        ? "이 공유 대화의 팀 범위로 역할 조회와 설명을 제한한다. 이는 작성자 계정의 팀 배정을 바꾸지 않는다."
         : access.scope === "organization"
-        ? "접근 범위: Organization의 모든 팀과 Role."
-        : "접근 범위: 배정된 팀의 Role만. 아래 Role 목록과 조회 도구는 이 범위로 제한된다. 목록 밖 Role의 존재나 내용을 추측하지 않는다.",
-      "팀은 Role 접근 범위만 정한다. 슬롯·Intro·결제는 Organization에서 함께 관리한다.",
-      "팀 생성·이름 변경·삭제와 팀원·Role 배정, 접근 범위 변경은 Owner만 관리한다. Admin은 허용된 Role을 관리하고 Viewer는 조회한다.",
-      ...(access.scope === "team" ? ["Organization 공용 메모에는 다른 Role의 맥락이 섞일 수 있어 제공하지 않는다. 배정된 Role의 메모를 사용한다."] : []),
+        ? "볼 수 있는 역할: Organization의 모든 팀과 역할."
+        : "볼 수 있는 역할: 배정된 팀의 역할만. 아래 역할 목록과 조회 도구는 이 범위로 제한된다. 목록 밖 역할의 존재나 내용을 추측하지 않는다.",
+      "팀은 볼 수 있는 역할만 정한다. 슬롯·연결·결제는 회사 설정에서 함께 관리한다.",
+      "팀 생성·이름 변경·삭제와 팀원·역할 배정, 볼 수 있는 역할 변경은 소유자만 관리한다. 관리자는 허용된 역할을 관리하고 조회자는 조회한다.",
+      ...(access.scope === "team" ? ["Organization 공용 메모에는 다른 역할의 맥락이 섞일 수 있어 제공하지 않는다. 배정된 역할의 메모를 사용한다."] : []),
     ].join("\n"),
     companyText: formatOrgAgentCompanyContext({
       companyDetailsAvailable: availability.companyDetailsAvailable,

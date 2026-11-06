@@ -535,7 +535,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
     "ended",
     "deleted",
   ]);
-  assert.match(changeRoleStatus?.function.description ?? "", /active \(진행\)/);
+  assert.match(changeRoleStatus?.function.description ?? "", /active \(진행 중\)/);
   assert.match(
     changeRoleStatus?.function.description ?? "",
     /exact existing Role is still draft/
@@ -548,7 +548,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
     changeRoleStatus?.function.description ?? "",
     /no activation occurs/
   );
-  assert.match(changeRoleStatus?.function.description ?? "", /paused \(중단\)/);
+  assert.match(changeRoleStatus?.function.description ?? "", /paused \(잠시 멈춤\)/);
   assert.match(changeRoleStatus?.function.description ?? "", /ended \(종료\)/);
   assert.match(
     changeRoleStatus?.function.description ?? "",

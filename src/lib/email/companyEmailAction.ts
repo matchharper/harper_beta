@@ -91,7 +91,7 @@ const CLOSING_STAGE_BY_TAG: Record<string, string> = {
   "내부:아카이브": "archived",
 };
 
-/** Ready to connect stays open only while the pair has the pending tag and no
+/** Waiting to connect stays open only while the pair has the pending tag and no
  * later stage, the same tag rule as company_first_outbox_is_deliverable_v1. */
 export function acceptedConnectionStatusFromTags(tags: string[]) {
   const closing = tags.find((tag) => CLOSING_STAGE_BY_TAG[tag] || tag.startsWith("내부단계:"));

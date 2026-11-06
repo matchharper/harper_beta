@@ -29,7 +29,7 @@ test("live Role status appears, advances, clears, and hides stale data after acc
     assert.match(node.textContent!, /첫 후보자 검색 대기 중/);
     assert.equal(node.querySelectorAll('[role="status"]').length, 1);
     await act(async () => { setActivity({trigger: "scheduled",phase: "searching"}); await new Promise(resolve => setTimeout(resolve, 10)); });
-    assert.match(node.textContent!, /정기 후보자 검색 중/);
+    assert.match(node.textContent!, /정기 탐색 중/);
     await act(async () => { setActivity({trigger: "scheduled",phase: "preparing"}); await new Promise(resolve => setTimeout(resolve, 10)); });
     assert.match(node.textContent!, /후보자 추천 준비 중/);
     await act(async () => {

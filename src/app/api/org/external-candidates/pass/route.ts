@@ -27,6 +27,6 @@ export async function POST(req: NextRequest) {
     if (error instanceof OrgHttpError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof Error && error.message === "Unauthorized") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     console.error("[org/external-candidates/pass]", error);
-    return NextResponse.json({ error: "Pass 처리를 하지 못했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "넘기기를 처리하지 못했습니다." }, { status: 500 });
   }
 }

@@ -13,6 +13,7 @@ import type {
 } from "@/lib/org/detailNavigation";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { OrgAcceptIntroButton } from "./OrgAcceptIntroButton";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 
 export type OrgCandidateReviewHeaderProps = {
   detail?: Pick<
@@ -175,7 +176,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
                 aria-keyshortcuts="s"
                 variant="neutral"
               >
-                {props.saved ? c("저장 해제", "Unsave") : "Save"}
+                {props.saved ? c("저장 해제", "Unsave") : ct(c, COMPANY_TERMS.action.save)}
               </MuteButton>
               {detail?.companyIntro ? (
                 <>
@@ -194,7 +195,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
                     onClick={props.onAccept}
                     aria-keyshortcuts="r"
                   >
-                    {c("Send Intro", "Send Intro")}
+                    {ct(c, COMPANY_TERMS.action.request)}
                   </MuteButton>
                 </>
               ) : (
@@ -206,7 +207,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
                     onClick={props.onReject}
                     aria-keyshortcuts="p"
                   >
-                    Reject
+                    {ct(c, COMPANY_TERMS.action.pass)}
                   </MuteButton>
                   <OrgAcceptIntroButton
                     className="px-3 py-1.5 border-none text-[15px] font-normal"
@@ -225,6 +226,13 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
           </div>
         )}
       </header>
+      {actionable && canManage ? (
+        <p className="px-6 pt-1 text-right text-[11px] leading-4 text-neutral-muted">
+          {detail?.companyIntro
+            ? c("연결 요청: 요청하면 연결 1회를 써요", "Request intro: uses 1 intro when you send it")
+            : c("연결하기: 연결 1회 사용", "Connect: uses 1 intro")}
+        </p>
+      ) : null}
       {actionError && (
         <p role="alert" className="px-6 pt-3 text-xs text-critical">
           {actionError}

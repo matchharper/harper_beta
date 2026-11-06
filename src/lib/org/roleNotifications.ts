@@ -90,7 +90,7 @@ export async function fetchOrgRoleNotificationSettings(args: {
   ]);
   if (membershipResult.error) throw membershipResult.error;
   if (roleResult.error) throw roleResult.error;
-  if (!roleResult.data) throw new OrgHttpError(404, "Role을 찾지 못했습니다.");
+  if (!roleResult.data) throw new OrgHttpError(404, "역할을 찾지 못했습니다.");
   const internalRole = getCompanyInternalRoleRecord(roleResult.data.company_internal_roles);
   const eligibleIds = new Set((membershipResult.data ?? []).filter((row: WorkspaceMemberRow) =>
     canAccessOrgRole(resolveOrgRoleAccess(row), internalRole?.team_id)).map((row: WorkspaceMemberRow) => row.company_user_id));
@@ -167,7 +167,7 @@ async function replaceRoleAssignees(args: {
   const roleResult = await (args.admin.from("company_roles" as any) as any)
     .select("company_internal_roles(team_id)").eq("company_workspace_id", args.workspaceId).eq("role_id", args.roleId).maybeSingle();
   if (roleResult.error) throw roleResult.error;
-  if (!roleResult.data) throw new OrgHttpError(404, "Role을 찾지 못했습니다.");
+  if (!roleResult.data) throw new OrgHttpError(404, "역할을 찾지 못했습니다.");
 
   const memberIds = new Set(
     ((memberResult.data ?? []) as WorkspaceMemberRow[]).map(
@@ -175,7 +175,7 @@ async function replaceRoleAssignees(args: {
     ).filter(Boolean)
   );
   if (args.assigneeUserIds.some((userId) => !memberIds.has(userId))) {
-    throw new OrgHttpError(400, "담당자는 이 Role에 접근할 수 있는 팀원이어야 합니다.");
+    throw new OrgHttpError(400, "담당자는 이 역할에 접근할 수 있는 팀원이어야 합니다.");
   }
 
   const deleteResult = await (
@@ -281,7 +281,7 @@ async function writeRoleEmailEnabled(args: {
     .select("role_id")
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new OrgHttpError(404, "Role을 찾지 못했습니다.");
+  if (!data) throw new OrgHttpError(404, "역할을 찾지 못했습니다.");
 }
 
 export async function updateOrgRoleNotificationSettings(
@@ -319,7 +319,7 @@ export async function updateOrgRoleNotificationSettings(
     const { isHarperSlackAudienceAllowed } = await import("./slackHarper");
     for (const [channelId, enabled] of channelUpdates) {
       if (enabled && !await isHarperSlackAudienceAllowed({ workspaceId, roleId, channelId })) {
-        throw new OrgHttpError(403, "채널 참여자의 Role 접근 권한을 확인하지 못했어요. 팀과 채널 참여자를 확인해 주세요.");
+        throw new OrgHttpError(403, "채널 참여자의 역할 접근 권한을 확인하지 못했어요. 팀과 채널 참여자를 확인해 주세요.");
       }
     }
   }

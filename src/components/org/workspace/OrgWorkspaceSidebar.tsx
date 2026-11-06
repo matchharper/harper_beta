@@ -1,5 +1,6 @@
 import { CreditCard } from "lucide-react";
 import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct, type CompanyTerm } from "@/lib/org/terms";
 import {
   ArrowLeft,
   Blocks,
@@ -56,7 +57,6 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgRoleActions } from "@/hooks/org/useOrgRoleActions";
 import { usePreviousPathname } from "@/hooks/useRouteHistory";
 import { sortOrgRolesForRecentList } from "@/lib/org/recentRoles";
-import { ORG_PRODUCT_LABELS } from "@/lib/org/productVocabulary";
 import {
   getOrgRoleStatusFilterValue,
   normalizeOrgRoleStatus,
@@ -81,24 +81,24 @@ import { useToastStore } from "@/store/useToastStore";
 type OrgNavItem = {
   icon: ComponentType<{ className?: string; strokeWidth?: number }>;
   id: OrgWorkspacePageId;
-  label: string;
+  label: CompanyTerm;
   location?: "top" | "bottom";
 };
 
 const PRIMARY_NAV: OrgNavItem[] = [
-  { icon: Home, id: "home", label: ORG_PRODUCT_LABELS.home },
-  { icon: BriefcaseBusiness, id: "jobs", label: ORG_PRODUCT_LABELS.roles },
+  { icon: Home, id: "home", label: COMPANY_TERMS.nav.home },
+  { icon: BriefcaseBusiness, id: "jobs", label: COMPANY_TERMS.nav.roles },
   {
     icon: Landmark,
     id: "team",
-    label: ORG_PRODUCT_LABELS.organization,
+    label: COMPANY_TERMS.nav.settings,
     location: "bottom",
   },
 ];
 const NEW_ROLE_NAV: OrgNavItem = {
   icon: Plus,
   id: "new-role",
-  label: ORG_PRODUCT_LABELS.newRole,
+  label: COMPANY_TERMS.nav.newRole,
 };
 const ALL_ROLE_STATUSES = ORG_ROLE_STATUS_FILTER_OPTIONS.map(
   (option) => option.status
@@ -389,7 +389,7 @@ function RecentRoleStatusFilter({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <MuteButton
-          aria-label={c("Recent 역할 상태 필터", "Recent role status filter")}
+          aria-label={c("최근 역할 상태 필터", "Recent role status filter")}
           aria-pressed={active}
           size="sm"
           variant={active ? "neutral" : "transparent"}
@@ -418,7 +418,7 @@ function RecentRoleStatusFilter({
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onReset} selected={!active}>
-          {c("전체 상태", "All statuses")}
+          {c("전체", "All")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -485,7 +485,7 @@ function RecentRolesSection({
             : "mx-3 mb-2 px-2.5 text-[13px] font-normal",
         )}
       >
-        <span>{ORG_PRODUCT_LABELS.recent}</span>
+        <span>{ct(c, COMPANY_TERMS.nav.recent)}</span>
         <RecentRoleStatusFilter
           active={statusFilterActive}
           onReset={onResetStatusFilter}
@@ -620,7 +620,7 @@ function OrgSlackConnectionCard() {
         width={16}
         src="/images/logos/slack.svg"
       />
-      {c("Slack 연결", "Connect Slack")}
+      {c("Slack 연결하기", "Connect Slack")}
     </MuteButton>
   );
 }
@@ -733,25 +733,25 @@ export function OrgWorkspaceSidebar({
       active: organizationSection === "company",
       href: navHref("team"),
       icon: Building2,
-      label: ORG_PRODUCT_LABELS.company,
+      label: ct(c, COMPANY_TERMS.nav.company),
     },
     {
       active: organizationSection === "members",
       href: navHref("member"),
       icon: Users,
-      label: c("Members", "Members"),
+      label: ct(c, COMPANY_TERMS.nav.members),
     },
     {
       active: organizationSection === "integration",
       href: navHref("settings"),
       icon: Blocks,
-      label: ORG_PRODUCT_LABELS.integrations,
+      label: ct(c, COMPANY_TERMS.nav.integrations),
     },
     {
       active: organizationSection === "templates",
       href: navHref("templates"),
       icon: FileText,
-      label: "Templates",
+      label: ct(c, COMPANY_TERMS.nav.templates),
     },
     ...(permissions.canManageWorkspace
       ? [
@@ -759,7 +759,7 @@ export function OrgWorkspaceSidebar({
             active: organizationSection === "slots",
             href: navHref("slots"),
             icon: Layers3,
-            label: "Slots",
+            label: ct(c, COMPANY_TERMS.nav.slots),
           },
         ]
       : []),
@@ -769,7 +769,7 @@ export function OrgWorkspaceSidebar({
             active: organizationSection === "billing",
             href: navHref("billing"),
             icon: CreditCard,
-            label: "Billing",
+            label: ct(c, COMPANY_TERMS.nav.billing),
           },
         ]
       : []),
@@ -890,14 +890,14 @@ export function OrgWorkspaceSidebar({
                 />
               </div>
               <nav
-                aria-label="Documents"
+                aria-label={ct(c, COMPANY_TERMS.nav.help)}
                 className="mx-3 min-h-0 space-y-1 overflow-y-auto"
               >
                 <NavLink
                   active={!activeDocumentSection}
                   href={documentsHref}
                   icon={BookOpenText}
-                  label={c("Documents", "Documents")}
+                  label={ct(c, COMPANY_TERMS.nav.help)}
                 />
                 <div className="space-y-1 pt-2">
                   {documentSections.map((section) => (
@@ -943,7 +943,7 @@ export function OrgWorkspaceSidebar({
               </div>
               <div className="flex min-h-0 flex-1 flex-col">
                 <nav
-                  aria-label={c("Organization", "Organization")}
+                  aria-label={c("메뉴", "Menu")}
                   className="mx-3 space-y-1"
                 >
                   {topNav.map((item) => (
@@ -954,7 +954,7 @@ export function OrgWorkspaceSidebar({
                       href={navHref(item.id)}
                       icon={item.icon}
                       iconBackground={item.id === "new-role"}
-                      label={item.label}
+                      label={ct(c, item.label)}
                     />
                   ))}
                 </nav>
@@ -987,7 +987,7 @@ export function OrgWorkspaceSidebar({
                       compact={compact}
                       href={navHref(item.id)}
                       icon={item.icon}
-                      label={item.label}
+                      label={ct(c, item.label)}
                     />
                   </div>
                 ))}
@@ -1052,14 +1052,14 @@ export function OrgWorkspaceSidebar({
                 onSelect={() => openCustomCrispWidget()}
               >
                 <CircleHelp />
-                {c("문의하기", "Contact Harper")}
+                {c("문의하기", "Contact")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 variant="sm"
                 onSelect={() => void router.push(navHref("documents"))}
               >
                 <BookOpenText />
-                {c("Documents", "Documents")}
+                {ct(c, COMPANY_TERMS.nav.help)}
               </DropdownMenuItem>
               <DropdownMenuItem
                 variant="sm"
@@ -1072,14 +1072,14 @@ export function OrgWorkspaceSidebar({
                   src="/images/logos/calendar.png"
                   width={16}
                 />
-                {c("일정 저장", "Set availability")}
+                {ct(c, COMPANY_TERMS.nav.calendar)}
               </DropdownMenuItem>
               <DropdownMenuItem
                 variant="sm"
                 onSelect={() => void router.push(navHref("personal-settings"))}
               >
                 <Settings2 />
-                {c("개인 설정", "Personal settings")}
+                {c("개인 설정", "Settings")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -1188,7 +1188,7 @@ export function OrgWorkspaceSidebar({
                   {c("돌아가기", "Back")}
                 </MuteButton>
                 <nav
-                  aria-label="Documents"
+                  aria-label={ct(c, COMPANY_TERMS.nav.help)}
                   className="min-h-0 space-y-1 overflow-y-auto"
                 >
                   <Link
@@ -1203,7 +1203,7 @@ export function OrgWorkspaceSidebar({
                     onClick={closeNavigation}
                   >
                     <BookOpenText className="size-4" strokeWidth={1.55} />
-                    {c("Documents", "Documents")}
+                    {ct(c, COMPANY_TERMS.nav.help)}
                   </Link>
                   {documentSections.map((section) => (
                     <Link
@@ -1231,7 +1231,7 @@ export function OrgWorkspaceSidebar({
             ) : (
               <div className="flex min-h-0 flex-1 flex-col">
                 <nav
-                  aria-label={c("Organization", "Organization")}
+                  aria-label={c("메뉴", "Menu")}
                   className="shrink-0 space-y-1 px-2 py-2"
                 >
                   {primaryNav.map((item) => {
@@ -1257,7 +1257,7 @@ export function OrgWorkspaceSidebar({
                           variant="transparent"
                         >
                           <Icon className="size-4" strokeWidth={1.55} />
-                          <span>{item.label}</span>
+                          <span>{ct(c, item.label)}</span>
                         </MuteButton>
                       );
                     }
@@ -1282,7 +1282,7 @@ export function OrgWorkspaceSidebar({
                         ) : (
                           <Icon className="size-4" strokeWidth={1.55} />
                         )}
-                        <span>{item.label}</span>
+                        <span>{ct(c, item.label)}</span>
                       </Link>
                     );
                   })}
@@ -1337,13 +1337,13 @@ export function OrgWorkspaceSidebar({
                 >
                   <DropdownMenuItem onSelect={() => openCustomCrispWidget()}>
                     <CircleHelp />
-                    {c("문의하기", "Contact Harper")}
+                    {c("문의하기", "Contact")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => void router.push(navHref("documents"))}
                   >
                     <BookOpenText />
-                    {c("Documents", "Documents")}
+                    {ct(c, COMPANY_TERMS.nav.help)}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => void router.push(calendarSettingsHref)}
@@ -1355,7 +1355,7 @@ export function OrgWorkspaceSidebar({
                       src="/images/logos/calendar.png"
                       width={16}
                     />
-                    {c("일정 저장", "Set availability")}
+                    {ct(c, COMPANY_TERMS.nav.calendar)}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
@@ -1364,7 +1364,7 @@ export function OrgWorkspaceSidebar({
                     }}
                   >
                     <Settings2 />
-                    {c("개인 설정", "Personal settings")}
+                    {c("개인 설정", "Settings")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem

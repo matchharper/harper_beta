@@ -12,6 +12,6 @@ export async function GET(req:NextRequest) {
     return NextResponse.json(query.has('historyId') ? result.items[0] ?? null : result);
   } catch(error) {
     const status=error && typeof error==='object' && 'status' in error ? Number(error.status) : error instanceof Error && error.message==='Unauthorized' ? 401 : 400;
-    return NextResponse.json({error:error instanceof Error ? error.message : 'Failed to read Hiring Brief history'},{status});
+    return NextResponse.json({error:error instanceof Error ? error.message : 'Failed to read the history of who we\'re looking for'},{status});
   }
 }

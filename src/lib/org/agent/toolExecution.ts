@@ -413,7 +413,7 @@ const ORG_AGENT_ROLE_STATUS_COPY: Record<
     expectation:
       "역할의 기준과 팀의 선호도를 바탕으로 후보자를 살펴보고, 회사와 역할을 소개해 연결 의사를 확인한 분이 생기면 알려드릴게요.",
     nextProcess:
-      "새 후보자가 추천되면 프로필과 Harper의 추천 이유를 검토한 뒤 연결을 수락할지 거절할지 알려 주세요.",
+      "새 후보자가 추천되면 프로필과 한 줄 요약을 검토한 뒤 연결을 수락할지 거절할지 알려 주세요.",
   },
   paused: {
     effect:
@@ -427,15 +427,15 @@ const ORG_AGENT_ROLE_STATUS_COPY: Record<
     effect:
       "새 후보자 추천을 멈추고 역할을 종료 상태로 바꿔요. 종료 안내는 상태 변경과 동시에 발송되지는 않아요.",
     expectation:
-      "유예기간이 지나면 수락 후 진행 중인 후보자에게 Harper가 종료를 안내하고 Position을 닫아요. 최종 오퍼 단계만 이 자동 종료에서 제외돼요.",
+      "유예기간이 지나면 수락 후 진행 중인 후보자에게 Harper가 종료를 안내하고 Position을 닫아요. 오퍼 단계만 이 자동 종료에서 제외돼요.",
     nextProcess:
-      "다시 진행하려면 역할을 먼저 진행 상태로 바꾼 뒤 후보자의 재연결 의향을 확인해야 해요. 최종 오퍼 후보자는 현재 진행 상태를 따로 관리해 주세요.",
+      "다시 진행하려면 역할을 먼저 진행 상태로 바꾼 뒤 후보자의 재연결 의향을 확인해야 해요. 오퍼 후보자는 현재 진행 상태를 따로 관리해 주세요.",
   },
   deleted: {
     effect:
       "역할을 삭제 상태로 바꾸고 새 후보자 추천을 멈춰요. 종료 안내는 상태 변경과 동시에 발송되지는 않아요.",
     expectation:
-      "유예기간이 지나면 수락 후 진행 중인 후보자에게 Harper가 종료를 안내하고 Position을 닫아요. 최종 오퍼 단계만 이 자동 종료에서 제외돼요.",
+      "유예기간이 지나면 수락 후 진행 중인 후보자에게 Harper가 종료를 안내하고 Position을 닫아요. 오퍼 단계만 이 자동 종료에서 제외돼요.",
     nextProcess:
       "삭제한 역할에서 후보자를 바로 재개할 수는 없어요. 먼저 역할을 진행 가능한 상태로 복구한 뒤 후보자의 재연결 의향을 확인해 주세요.",
   },
@@ -542,9 +542,9 @@ export function getOrgAgentToolStatusLabel(args: {
       "새 후보자 검색을 요청하지 못했습니다",
     ],
     calibrate_role_hiring_brief: [
-      "참고 인물을 바탕으로 Hiring Brief를 정리하는 중",
-      "Hiring Brief 기준 정리 완료",
-      "Hiring Brief 기준을 정리하지 못했습니다",
+      "참고 인물을 바탕으로 찾는 사람을 정리하는 중",
+      "찾는 사람 기준 정리 완료",
+      "찾는 사람 기준을 정리하지 못했습니다",
     ],
     read_talent: [
       "후보자와 진행 현황을 읽는 중",
@@ -572,9 +572,9 @@ export function getOrgAgentToolStatusLabel(args: {
       "이전 대화를 읽지 못했습니다",
     ],
     update_role_criteria: [
-      "역할 평가 기준을 수정하는 중",
-      "역할 평가 기준 수정 완료",
-      "역할 평가 기준을 수정하지 못했습니다",
+      "확인할 기준을 수정하는 중",
+      "확인할 기준 수정 완료",
+      "확인할 기준을 수정하지 못했습니다",
     ],
     update_data: [
       "요청하신 변경을 확인하는 중",
@@ -1665,18 +1665,18 @@ async function executeUpdateRoleCriteria(args: {
         .filter(Boolean)
         .join(", ")
     : "전체 교체";
-  const summary = `${role.name} 역할 평가 기준 ${editSummary} (총 ${criteriaCount}개)`;
+  const summary = `${role.name} 확인할 기준 ${editSummary} (총 ${criteriaCount}개)`;
   args.state.fallbackReply = viaBrief && changed
-    ? `${role.name} 역할의 평가 기준을 Brief에 반영했어요. ${editSummary}, 총 ${criteriaCount}개예요. 저장된 Brief 글도 같은 Brief로 함께 바뀌어요.`
+    ? `${role.name} 역할의 확인할 기준을 찾는 사람에 반영했어요. ${editSummary}, 총 ${criteriaCount}개예요. 저장된 찾는 사람 글도 함께 바뀌었어요.`
     : changed
-    ? `${role.name} 역할의 Evaluation Criteria를 저장했어요. ${editSummary}, 총 ${criteriaCount}개예요. Hiring Brief와 Context for Harper는 바꾸지 않았어요.`
-    : "이미 같은 Evaluation Criteria가 저장되어 있어 바뀐 내용은 없어요.";
+    ? `${role.name} 역할의 확인할 기준을 저장했어요. ${editSummary}, 총 ${criteriaCount}개예요. 찾는 사람과 Context for Harper는 바꾸지 않았어요.`
+    : "이미 같은 확인할 기준이 저장되어 있어 바뀐 내용은 없어요.";
   if (changed) {
     args.state.updateSummaries.push(summary);
     args.state.actions.push({
       id: crypto.randomUUID(),
       kind: "entity_updated",
-      label: "Evaluation Criteria 저장 완료",
+      label: "확인할 기준 저장 완료",
       payload: { changeSummary: summary, scope: "role" },
     });
   }
@@ -2150,12 +2150,12 @@ async function executeChangeRoleStatus(args: {
     const missingFieldKeys = getRoleCreationMissingFields(creationState);
     if (missingFieldKeys.length > 0) {
       const missingFieldLabels: Record<string, string> = {
-        assignee: "담당자",
+        assignee: "맡은 사람",
         connected_slack: "알림 받을 곳(Slack 채널이나 메일)",
         description: "역할 설명",
         employment_type: "고용 형태",
         location: "근무 지역",
-        request: "내부 매칭 기준",
+        request: "찾는 사람",
         role_title: "역할명",
         work_mode: "근무 방식",
       };
@@ -2852,7 +2852,7 @@ async function immediatelyPresentedCandidateDecision(args: {
 }
 
 /**
- * Accept Intro adds the interview booking link on the accepting person's
+ * Connect adds the interview booking link on the accepting person's
  * own calendar when it is set up, so the confirmation says so first.
  */
 const INTRO_BOOKING_LINK_NOTICE =
@@ -4390,7 +4390,7 @@ async function executeMoveCandidateStage(args: {
   );
   if (currentStage === "company_intro" || currentStage === "intro_requested") {
     throw new OrgAgentToolInputError(
-      "연결 제안할 후보와 연결 제안한 후보는 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 Send Intro에서 만나고 싶은 이유와 수락 시 소개 이메일을 받을 담당자를 정해 주세요. 이미 제안을 요청했다면 연결 제안한 후보에서 진행 상태를 확인해 주세요."
+      "연결을 요청할 후보와 연결 요청함은 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 연결 요청에서 만나고 싶은 이유와 수락 시 소개 이메일을 받을 담당자를 정해 주세요. 이미 제안을 요청했다면 연결 요청함에서 진행 상태를 확인해 주세요."
     );
   }
   const candidateName = text(talent.candidate.name) || "후보자";
@@ -4505,12 +4505,12 @@ async function executeMoveCandidateStage(args: {
   }
   if (targetStage === "final_offer" && args.input.confirmFinalOffer !== true) {
     args.state.fallbackReply =
-      "설정된 다음 프로세스가 없습니다. 최종 오퍼로 옮길까요?";
+      "설정된 다음 프로세스가 없습니다. 오퍼로 옮길까요?";
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
       status: "unchanged",
-      summary: `${candidateName} 후보자 최종 오퍼 이동 확인 필요`,
+      summary: `${candidateName} 후보자 오퍼 이동 확인 필요`,
     });
     return {
       candidateName,
@@ -5063,7 +5063,7 @@ async function readCandidateDecisionTarget(args: {
   if (matchingPositions.length === 0) {
     throw new OrgAgentToolInputError(
       args.decision === "accept"
-        ? "후보자가 현재 이 역할의 연결 수락한 후보 또는 프로세스 종료 상태가 아니라 연결을 시작할 수 없어요."
+        ? "후보자가 현재 이 역할의 연결을 기다리는 후보 또는 진행 종료 상태가 아니라 연결을 시작할 수 없어요."
         : "후보자가 현재 이 역할에서 종료할 수 있는 회사 측 진행 상태가 아니에요."
     );
   }
@@ -5197,7 +5197,7 @@ function companyIntroConfirmationFallback(args: {
   roleName: string;
 }) {
   if (args.decision === "pass") {
-    return `${args.candidateName}님에게 ${args.roleName} 역할을 이번에는 제안하지 않을게요. 반영하면 후보자에게 이 기회나 연락이 전달되지 않고, 연결 제안할 후보 목록에서 제외돼요. 이대로 제안하지 않기로 할까요?`;
+    return `${args.candidateName}님에게 ${args.roleName} 역할을 이번에는 제안하지 않을게요. 반영하면 후보자에게 이 기회나 연락이 전달되지 않고, 연결을 요청할 후보 목록에서 제외돼요. 이대로 제안하지 않기로 할까요?`;
   }
   return [
     `${args.candidateName}님은 아직 ${args.roleName} 역할을 수락하지 않은 상태예요.`,

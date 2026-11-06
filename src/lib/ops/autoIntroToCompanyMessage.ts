@@ -6,6 +6,7 @@ import {
   ORG_ROLE_QUICK_ACTIONS,
 } from "@/lib/org/roleQuickActions";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
+import { COMPANY_TERMS, companyTerm } from "@/lib/org/terms";
 
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
 export const AUTO_INTRO_SLACK_REVIEW_ACTION_ID = "harper_talent_review:open";
@@ -308,7 +309,7 @@ export function buildAutoIntroRoleSummaryReminderText(args: {
       const receivedCopy = reminder.expectsDocument
         ? `${candidateLink}께 이력서를 요청했고, 자료를 받았어요.`
         : `질문하신 내용을 ${candidateLink}께 전달했고 답변을 받았어요.`;
-      return `• ${roleLink} 역할과 관련해 ${receivedCopy} 연결을 받으실지, 거절하실지 알려 주세요.`;
+      return `• ${roleLink} 역할과 관련해 ${receivedCopy} 연결할지, 이번엔 넘길지 알려 주세요.`;
     }
   );
   const meetingLines = (args.summary.reminders?.upcomingMeetings ?? []).flatMap(
@@ -383,7 +384,7 @@ export function buildAutoIntroRoleSummaryText(args: {
       })}|${escapeSlackLinkLabel(role.roleTitle)}> | ${autoIntroRoleStatusLabel(
         role.status,
         args.locale
-      )} | ${args.locale === "en" ? `${role.pendingDecisionCount} ready to connect` : `${role.pendingDecisionCount}명`}${role.talentFirstCapacityBlocked ? ` | ${TALENT_FIRST_CAPACITY_NOTICE[args.locale ?? "ko"]}` : ""}`
+      )} | ${args.locale === "en" ? `${role.pendingDecisionCount} waiting to connect` : `${role.pendingDecisionCount}명`}${role.talentFirstCapacityBlocked ? ` | ${TALENT_FIRST_CAPACITY_NOTICE[args.locale ?? "ko"]}` : ""}`
   );
   const reminderText = buildAutoIntroRoleSummaryReminderText(args);
   return [
@@ -486,9 +487,10 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
       autoIntroRoleStatusLabel(role.status, args.locale).length +
       String(role.pendingDecisionCount).length +
       (showCapacityNotice ? capacityNotice(role).length : 0),
-    (args.locale === "en"
-      ? "RoleStatusReady to connect"
-      : "Role상태연결 결정 대기"
+    (
+      companyTerm(COMPANY_TERMS.role, args.locale ?? "ko") +
+      (args.locale === "en" ? "Status" : "상태") +
+      companyTerm(COMPANY_TERMS.stage.pending_connection, args.locale ?? "ko")
     ).length + (showCapacityNotice ? capacityHeader.length : 0)
   );
   if (tableCharacterCount > 10_000) {
@@ -526,10 +528,16 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
       ],
       rows: [
         [
-          { text: "Role", type: "raw_text" },
+          {
+            text: companyTerm(COMPANY_TERMS.role, args.locale ?? "ko"),
+            type: "raw_text",
+          },
           { text: args.locale === "en" ? "Status" : "상태", type: "raw_text" },
           {
-            text: args.locale === "en" ? "Ready to connect" : "연결 결정 대기",
+            text: companyTerm(
+              COMPANY_TERMS.stage.pending_connection,
+              args.locale ?? "ko"
+            ),
             type: "raw_text",
           },
           ...(showCapacityNotice
@@ -601,16 +609,34 @@ export function buildAutoIntroWorkspaceActionGuidance(args: {
     : `후보자에 대한 더 자세한 정보는 <${link}|Harper 웹에서 확인해 주세요>.`;
 }
 
+/**
+ * The model writes and we store the brief with its working labels
+ * (*TL;DR*, *Harper Note*); companies see the current names.
+ */
+function companyBriefLabel(
+  label: "TL;DR" | "Harper Note",
+  locale: "ko" | "en"
+) {
+  return companyTerm(
+    label === "TL;DR"
+      ? COMPANY_TERMS.detail.summary
+      : COMPANY_TERMS.detail.harperNote,
+    locale
+  );
+}
+
 export function renderAutoIntroCandidateCopy(
   presentation: AutoIntroPresentation,
-  sentences: string[]
+  sentences: string[],
+  locale: "ko" | "en" = "ko"
 ) {
+  const summaryLabel = `*${companyBriefLabel("TL;DR", locale)}*`;
   const first = sentences[0] as string;
   const last = sentences[sentences.length - 1] as string;
   const middle = sentences.slice(1, -1);
   if (presentation === "paragraph") return sentences.join(" ");
   if (presentation === "tldr") {
-    return [`*TL;DR* — ${first}`, [...middle, last].join(" ")].join("\n\n");
+    return [`${summaryLabel} — ${first}`, [...middle, last].join(" ")].join("\n\n");
   }
   if (presentation === "bullets") {
     return [
@@ -622,7 +648,7 @@ export function renderAutoIntroCandidateCopy(
     ].join("\n\n");
   }
   return [
-    `*TL;DR* — ${first}`,
+    `${summaryLabel} — ${first}`,
     middle.map((sentence) => `• ${sentence}`).join("\n"),
     last,
   ]
@@ -813,8 +839,17 @@ export function validateAutoIntroSlackProfile(
   };
 }
 
-export function renderAutoIntroSlackProfile(value: AutoIntroSlackProfile) {
+export function renderAutoIntroSlackProfile(
+  value: AutoIntroSlackProfile,
+  locale: "ko" | "en" = "ko"
+) {
   const profile = validateAutoIntroSlackProfile(value);
+  const body = profile.body
+    .replace(/^\*TL;DR\* -/m, `*${companyBriefLabel("TL;DR", locale)}* -`)
+    .replace(
+      /^\*Harper Note\* -/m,
+      `*${companyBriefLabel("Harper Note", locale)}* -`
+    );
   const lines = [
     ...(profile.currentRole
       ? [`*Role:* ${escapeSlackText(profile.currentRole)}`]
@@ -828,7 +863,7 @@ export function renderAutoIntroSlackProfile(value: AutoIntroSlackProfile) {
     "",
     "_*PLEASE REPLY TO REQUEST AN INTRO*_",
     "",
-    profile.body,
+    body,
   ];
 
   return lines.join("\n").trim();

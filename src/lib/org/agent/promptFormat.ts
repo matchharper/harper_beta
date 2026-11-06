@@ -23,7 +23,7 @@ const EMPTY_CELL = "-";
 /** Use product-facing meanings, not storage codes, in the model's evidence. */
 export function formatCriterionRating(value: unknown) {
   const fit = value === "bad" ? "unfit" : value;
-  if (fit !== "excellent" && fit !== "good" && fit !== "uncertain" && fit !== "unfit") return "확인 필요 / More information needed";
+  if (fit !== "excellent" && fit !== "good" && fit !== "uncertain" && fit !== "unfit") return "확인 필요 / Needs a check";
   return `${companyPresentationFinalFitLabel(fit, "ko")} / ${companyPresentationFinalFitLabel(fit, "en")}`;
 }
 
@@ -182,7 +182,7 @@ function candidateReadIndex() {
   const notes: string[] = [];
   const permissionLabels: Record<string, string> = {
     contactCandidate: "연락", moveStage: "단계 이동", pass: "거절",
-    requestIntro: "Intro 요청", scheduleInterview: "인터뷰 조율", viewResume: "이력서 조회",
+    requestIntro: "연결 요청", scheduleInterview: "인터뷰 조율", viewResume: "이력서 조회",
   };
   return {
     definitions(roleId: unknown, values: any[]) {
@@ -212,7 +212,7 @@ function candidateReadIndex() {
     render(criteriaSection = "assessment_criteria") {
       return [
         ...(criteria.length ? [formatPromptSection(criteriaSection, [
-          "excellent=매우 잘 맞음; good=잘 맞음; limited=근거 제한; conflict=조건 상충; uncertain=확인 필요; unfit=맞지 않음; unknown=평가 미확인. 번호는 이 응답 안의 참조다.",
+          "excellent=아주 잘 맞음; good=잘 맞음; limited=근거 제한; conflict=조건 상충; uncertain=확인 필요; unfit=맞지 않음; unknown=평가 미확인. 번호는 이 응답 안의 참조다.",
           ...Array.from(new Set(criteria.map(item => item.roleId))).flatMap(roleId => [
             `role_id=${roleId || "미지정"}`,
             ...criteria.filter(item => item.roleId === roleId).map(item => [
@@ -941,7 +941,7 @@ function formatTalentResult(result: Record<string, any>, professionalOnly = fals
     ...(!professionalOnly ? [
       "read_scope: 0=조회 결과 없음; not_included=이번 조회에 포함되지 않음. 회사 연락은 list_contacts로 별도 조회 가능.",
       ...(items.some(item => item.positions?.some((position: any) => Object.hasOwn(position, "harperRecommendation"))) ? [
-        "harper_recommendations=Harper 선추천 앱 카드·이메일 기록으로 회사 Intro 발송과 별개. 기록 없음은 미발송 확정이 아니며 열람·관심·선추천 수락/거절은 이 기록에서 확인하지 못함.",
+        "harper_recommendations=Harper 선추천 앱 카드·이메일 기록으로 회사 연결 발송과 별개. 기록 없음은 미발송 확정이 아니며 열람·관심·선추천 수락/거절은 이 기록에서 확인하지 못함.",
       ] : []),
     ] : []),
     index.render(),
@@ -1010,7 +1010,7 @@ function formatRoleResult(result: Record<string, any>) {
           ["work_mode", role.workMode],
           ["salaryRange", role.salaryRange],
           [
-            "정기 후보 검색",
+            "정기 탐색",
             typeof role.isCompanyFirstSearch === "boolean"
               ? role.isCompanyFirstSearch
                 ? "켜짐"
@@ -1130,7 +1130,7 @@ function formatRoleSearchHistory(item: MatchingRunHistory["items"][number]) {
   return [
     ...(search.selectionMethod === "evaluation_only" ? ["평가만 완료. 추천 목록은 변경하지 않았음. matching.view=selection에서 통계·상위 후보·현재 미결정 추천을 읽고 필요한 경우 publish_role_recommendations로 직접 선정할 수 있음."] : []),
     ...(Array.isArray(asRecord(search.evidence).evaluationIds)
-      ? [`당시 기준·평가 참조·추천 가능 후보 ${idCount(asRecord(search.evidence).rankedEvaluationIds)}·당시 추천 풀을 보존함. matching={roleId,runId:"${item.id}",view:"selection"}으로 현재 풀과 비교 가능. 같은 Brief에서는 sourceRunId를 지정해 재검색 없이 유지·교체 가능.`]
+      ? [`당시 기준·평가 참조·추천 가능 후보 ${idCount(asRecord(search.evidence).rankedEvaluationIds)}·당시 추천 풀을 보존함. matching={roleId,runId:"${item.id}",view:"selection"}으로 현재 풀과 비교 가능. 같은 찾는 사람에서는 sourceRunId를 지정해 재검색 없이 유지·교체 가능.`]
       : ["이 실행은 당시 전체 후보 목록의 고정 참조가 없음. runId 조회는 직접 저장된 평가 범위이며 당시 전체 풀 복원은 아님."]),
     ...(search.selectionMethod === "company_agent_selected_ids" ? ["회사 대화 LLM이 지정한 후보만 company-first 목록에 반영. Worker 재선정·인원 보충 없음."] : []),
     ...(search.selectionMethod === "stage2_mutual_fit_desc_v1"
@@ -1139,7 +1139,7 @@ function formatRoleSearchHistory(item: MatchingRunHistory["items"][number]) {
     `이번 실행의 새 평가: 1차 ${people(counts.stage1Evaluated)} 중 통과 ${people(search.stage1Passed)}, 제외 ${people(counts.stage1Excluded)}; 2차 ${people(search.stage2Evaluated)}. 추천 설명 작성 ${people(counts.stage3Written)}.`,
     ...(typeof counts.evaluationFailed === "number" ? [`이 실행의 평가 미완료 ${counts.evaluationFailed}건. 성공한 개별 평가 이력은 보존되어 있으며 실패는 부적합 판정이 아님. 미완료 대상은 해당 실행 상세에서 조회할 수 있음.`] : []),
     `이번 실행의 회사 목록 변화: 추가 ${idCount(search.addedTalentIds)}, 제외 ${idCount(search.removedTalentIds)}, 기존 설명 갱신 ${idCount(search.refreshedTalentIds)}. 현재 목록 전체 인원이나 메시지 전달 수가 아님.`,
-    `실행 완료 시 같은 Brief의 전체 누적 2차 평가 ${people(counts.currentStage2Evaluated)}; 이번 요청 범위·지정 후보로 좁힌 비교 모집단 ${people(counts.selectionPoolStage2Evaluated)}. 공유·기존 결정 자격을 적용하기 전 2차 기록 수이며 실제 선정 입력 수는 아님. 이전 평가 재사용이 포함될 수 있으며 새 2차 평가 인원과 다름.`,
+    `실행 완료 시 같은 찾는 사람의 전체 누적 2차 평가 ${people(counts.currentStage2Evaluated)}; 이번 요청 범위·지정 후보로 좁힌 비교 모집단 ${people(counts.selectionPoolStage2Evaluated)}. 공유·기존 결정 자격을 적용하기 전 2차 기록 수이며 실제 선정 입력 수는 아님. 이전 평가 재사용이 포함될 수 있으며 새 2차 평가 인원과 다름.`,
     ...(criteria.length ? [
       comparisonRecorded
         ? "아래 기준별 분포는 이번 비교 모집단의 저장된 평가 라벨이다. 전체 누적 분포는 현재 기준의 summary로 별도 조회한다."
@@ -1166,10 +1166,10 @@ export function formatMatchingRunHistory(value: MatchingRunHistory) {
     `회사에게 먼저 추천할 후보자 선정: ${measure(item.companyProposals, "명")} · 후보자에게 먼저 추천 선정: ${measure(item.candidateProposalsSelected, "명")}`,
     ...(item.candidateOutreachPauses?.length ? [
       `후보자에게 먼저 제안하는 경로 중단: ${item.candidateOutreachPauses.map(fact =>
-        `${formatPromptCell(item.roles.find(role => role.roleId === fact.roleId)?.name ?? fact.roleId, 250)} · 당시 연결 수락한 후보 ${fact.pendingCount}명 / 상한 ${fact.maxPendingTalents}명`).join("; ")}. 이 상한은 회사에 먼저 후보를 제안하는 경로에는 적용하지 않음. 검색·fit 평가 전체를 생략했다는 의미가 아님. Role-based 검색의 새 후보자 선추천은 연결 수락한 후보가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아님.`,
+        `${formatPromptCell(item.roles.find(role => role.roleId === fact.roleId)?.name ?? fact.roleId, 250)} · 당시 연결을 기다리는 후보 ${fact.pendingCount}명 / 상한 ${fact.maxPendingTalents}명`).join("; ")}. 이 상한은 회사에 먼저 후보를 제안하는 경로에는 적용하지 않음. 검색·fit 평가 전체를 생략했다는 의미가 아님. 역할 기반 검색의 새 후보자 선추천은 연결을 기다리는 후보가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아님.`,
     ] : [item.candidateOutreachPauses === undefined
-      ? "당시 연결 수락한 후보 인원과 선추천 상한 중단 여부는 이 실행 기록에 남아 있지 않아 확인할 수 없음. 비공개라서 숨기는 값이 아니라 과거 측정 기록이 없는 상태임."
-      : "이번 실행에는 연결 수락한 후보 상한 때문에 후보자 선추천을 중단한 역할이 없음."]),
+      ? "당시 연결을 기다리는 후보 인원과 선추천 상한 중단 여부는 이 실행 기록에 남아 있지 않아 확인할 수 없음. 비공개라서 숨기는 값이 아니라 과거 측정 기록이 없는 상태임."
+      : "이번 실행에는 연결을 기다리는 후보 상한 때문에 후보자 선추천을 중단한 역할이 없음."]),
     `검색 판단 근거: ${formatPromptMarkdown(item.searchReason, 300)}`,
     `검색 방향: ${formatPromptMarkdown(item.searchStrategy, 500)}`,
   ].join("\n"));
@@ -1177,8 +1177,8 @@ export function formatMatchingRunHistory(value: MatchingRunHistory) {
     `${value.roleId ? `Role ${value.roleId}의` : "회사 전체"} 검색 실행 이력 (최신 등록 순). 실행별 새 평가·목록 변화와 누적/비교 모집단을 구분한다. 실제 추천 발송·후보자 수락·회사 수락·연결 완료 여부는 이 이력에서 제공하지 않는다.`,
     "양쪽에 선정된 동일 후보자가 두 방향 수에 포함될 수 있다. 기록이 없는 수치는 0이 아니다. 개별 비공개 fit/선정 이유는 제공하지 않는다.",
     "기준 라벨은 평가 분포이며 limited/conflict 등의 합계가 실제 제외 인원이나 제외 사유는 아니다. 1·2차 Decisions의 당시 판단은 점수·분류로 저장되고 이유 원문은 없다. 후보별 공개 근거와 3차 추천 설명은 일반 상세 조회로 확인한다.",
-    "실패·과거 실행의 요약 수치가 없더라도 저장된 평가가 없다는 뜻은 아니다. 단계별 기록은 matching={roleId,view:\"evaluations\",runId}로 확인하며, 현재 Brief 전체 누적 통계는 runId 없이 matching={roleId,view:\"summary\"}로 조회한다.",
-    "역할의 연결 수락한 후보 인원·선추천 상한 중단 여부는 기록이 있으면 회사에 설명할 수 있는 운영 사실이다. 상한 해소는 다음 검색에서 새 후보자 선추천 경로를 허용할 뿐, 후보 선정·추천 발송을 보장하지 않는다.",
+    "실패·과거 실행의 요약 수치가 없더라도 저장된 평가가 없다는 뜻은 아니다. 단계별 기록은 matching={roleId,view:\"evaluations\",runId}로 확인하며, 현재 찾는 사람 전체 누적 통계는 runId 없이 matching={roleId,view:\"summary\"}로 조회한다.",
+    "역할의 연결을 기다리는 후보 인원·선추천 상한 중단 여부는 기록이 있으면 회사에 설명할 수 있는 운영 사실이다. 상한 해소는 다음 검색에서 새 후보자 선추천 경로를 허용할 뿐, 후보 선정·추천 발송을 보장하지 않는다.",
     rows.length ? rows.join("\n\n") : "이 페이지에 검색 실행 기록 없음.",
     value.nextOffset === null ? "다음 페이지 없음." :
       `더 오래된 실행: get_more_data(kinds=[\"matching_runs\"]${value.roleId ? `, roleId="${value.roleId}"` : ""}, offset=${value.nextOffset}). 역할별 상세·통계·후보 목록은 matching={roleId,view,runId?}로 조회한다.`,
@@ -1195,7 +1195,7 @@ export function serializeOrgAgentMoreData(value: OrgAgentMoreDataToolResult) {
   if (value.hiringBriefHistory) blocks.push(formatPromptSection("hiring_brief_history",formatHiringBriefHistory(value.hiringBriefHistory)));
   if (value.companyMemory) blocks.push(formatPromptSection("company_memory", formatCompanyMemory(value.companyMemory)));
   if (value.teams) blocks.push(formatPromptSection("teams",[
-    `현재 대화 권한으로 조회 가능한 활성 팀 ${value.teams.length}개. 배정된 팀원·Role·Memory 유무와 독립적인 전체 팀 목록이다.`,
+    `현재 대화 권한으로 조회 가능한 활성 팀 ${value.teams.length}개. 배정된 팀원·역할·Memory 유무와 독립적인 전체 팀 목록이다.`,
     formatPromptTable(['team_id','name'],value.teams.map(team=>[team.teamId,team.name]),[100,Number.MAX_SAFE_INTEGER]),
   ].join('\n')));
   if (value.matchingRuns) {
@@ -2314,7 +2314,7 @@ export function formatOrgAgentToolResult(
     if (result.status === 'completed') {
       const ids = (value: unknown) => Array.isArray(value) ? value.join(', ') || '없음' : '미확인';
       return [
-        'status=completed; 후보 설명 작성 및 연결 제안할 후보 목록 저장 완료',
+        'status=completed; 후보 설명 작성 및 연결을 요청할 후보 목록 저장 완료',
         `role=${formatPromptCell(result.requestedRoleName ?? result.roleName, 200)}; run=${result.runId}`,
         `kind=${result.kind}; requested_talent_ids=${ids(result.requestedTalentIds)}`,
         `추가=${ids(result.addedTalentIds)}`,
@@ -2322,7 +2322,7 @@ export function formatOrgAgentToolResult(
         `제외=${ids(result.removedTalentIds)}`,
         `기존 목록 유지=${ids(result.retainedTalentIds)}`,
         ...(result.sourceRunId ? [`source_run=${result.sourceRunId}`] : []),
-        '후보자 연락·Intro 발송·연결 수락은 이 작업에 포함되지 않음.',
+        '후보자 연락·연결 발송·연결 수락은 이 작업에 포함되지 않음.',
       ].join('\n');
     }
     // Historical queued tool receipts remain readable in existing conversations.
@@ -2338,7 +2338,7 @@ export function formatOrgAgentToolResult(
         : result.status === "already_completed"
           ? ["같은 요청의 기존 종료 기록. 새 발행은 시작하지 않음. 이 run의 실제 결과를 조회하면 추가·유지·제외 및 실패 여부를 확인할 수 있음."]
           : ["추천 발행 요청 접수. 아직 목록 변경 완료를 뜻하지 않음. 완료 run 결과에서 실제 추가·유지·제외를 확인할 수 있음."]),
-      "후보자 연락·Intro 발송·연결 수락은 이 작업에 포함되지 않음.",
+      "후보자 연락·연결 발송·연결 수락은 이 작업에 포함되지 않음.",
     ].join("\n");
   }
   if (name === "recommend_talents") {

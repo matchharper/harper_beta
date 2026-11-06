@@ -171,7 +171,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
     `${
       ended
         ? c("{p0} 연결 종료", "Ended {p0}", { p0: target })
-        : c("{p0} 연결 거절", "Rejected {p0}", { p0: target })
+        : c("{p0} 넘김", "Passed {p0}", { p0: target })
     } · ${
       notifyCandidateOnClosure
         ? c("Harper가 종료 안내를 보내요", "Harper will send a closing note")
@@ -270,7 +270,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
     const intros = targets.map((target) => target.item);
     if (!intros.length) return;
     defer({
-      message: c("{p0} Pass", "Passed {p0}", { p0: who(intros) }),
+      message: c("{p0} 넘김", "Passed {p0}", { p0: who(intros) }),
       recommendationIds: intros.map((item) => item.recommendationId),
       roleId: intros[0]?.roleId,
       run: async () =>
@@ -285,7 +285,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
               .then(() => true)
           ),
           c(
-            "Pass하지 못했어요. 다시 시도해 주세요.",
+            "넘기지 못했어요. 다시 시도해 주세요.",
             "Couldn't pass. Try again."
           ),
           (target) => target.item
@@ -316,7 +316,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
     if (!targets.length) return;
     const values = { p0: who(targets.map((target) => target.item)) };
     defer({
-      message: `${c("{p0}에게 Intro를 보내요", "Sending intros to {p0}", values)} · ${c("파이프라인 > 연결 제안한 후보", "Pipeline > Intro requested")}`,
+      message: `${c("{p0}에게 연결을 요청하고 있어요", "Requesting intros for {p0}", values)} · ${c("파이프라인 > 연결 요청함", "Pipeline > Intro requested")}`,
       recommendationIds: targets.map((target) => target.item.recommendationId),
       roleId: targets[0]?.item.roleId,
       run: async () =>
@@ -332,7 +332,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
               .then(() => true)
           ),
           c(
-            "Intro를 보내지 못했어요. 다시 시도해 주세요.",
+            "연결을 요청하지 못했어요. 다시 시도해 주세요.",
             "Couldn't send the intro. Try again."
           ),
           (target) => target.item
@@ -344,7 +344,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
   const save = (items: OrgBoardItem[]) => {
     if (!items.length) return;
     defer({
-      message: c("{p0}을 저장함에 넣었어요", "Saved {p0}", {
+      message: c("{p0}을 저장했어요", "Saved {p0}", {
         p0: who(items),
       }),
       recommendationIds: items.map((item) => item.recommendationId),

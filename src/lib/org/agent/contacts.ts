@@ -187,7 +187,7 @@ const PROGRESS_NOTICE_KINDS = [
 
 function progressNoticeState(kind: unknown) {
   if (text(kind) === "internal_process_stopped_notified") {
-    return "Harper가 후보자에게 이 역할의 프로세스 종료를 안내함";
+    return "Harper가 후보자에게 이 역할의 진행 종료를 안내함";
   }
   if (text(kind) === "company_request_followup_sent") {
     return "Harper가 후보자에게 회사 요청을 다시 안내함";
@@ -474,7 +474,7 @@ export async function listOrgAgentContacts(args: {
           "회사 담당자",
         kind,
         roleId: text(row.role_id),
-        roleName: text(row.role_name) || "이름 없는 Role",
+        roleName: text(row.role_name) || "이름 없는 역할",
         state: stateForKind(kind, stateRow),
         talentId: text(row.talent_id),
       };
@@ -830,7 +830,7 @@ async function readCandidateContacts(args: {
       },
       request: text(row.request_context) || null,
       role: {
-        name: text(role?.name) || "이름 없는 Role",
+        name: text(role?.name) || "이름 없는 역할",
         roleId: text(row.role_id),
       },
       state: contactState(stateRow),
@@ -935,7 +935,7 @@ async function readInterviewRequests(args: {
       },
       responseReceivedAt: text(round?.submitted_at) || null,
       role: {
-        name: text(one(schedule.role)?.name) || "이름 없는 Role",
+        name: text(one(schedule.role)?.name) || "이름 없는 역할",
         roleId: text(schedule.role_id),
       },
       state: interviewState(stateRow),
@@ -1160,7 +1160,7 @@ async function readConnectionIntros(args: {
           };
         }),
         role: {
-          name: text(role?.name) || "이름 없는 Role",
+          name: text(role?.name) || "이름 없는 역할",
           roleId: text(recommendation.role_id),
         },
         state: connectionIntroState({
@@ -1316,7 +1316,7 @@ async function readEmailNotices(args: {
           subject: text(message.subject) || null,
         },
         role: {
-          name: text(role?.name) || "이름 없는 Role",
+          name: text(role?.name) || "이름 없는 역할",
           roleId: text(recommendation.role_id),
         },
         state: roleChanged
@@ -1393,7 +1393,7 @@ async function readProgressNotices(args: {
           subject: null,
         },
         role: {
-          name: text(role.name) || "이름 없는 Role",
+          name: text(role.name) || "이름 없는 역할",
           roleId: text(progress.role_id),
         },
         state,

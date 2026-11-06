@@ -19,7 +19,7 @@ function toErrorResponse(error: unknown) {
   }
   console.error("[org/role-notifications]", error);
   return NextResponse.json(
-    { error: "Role 알림 설정을 처리하지 못했습니다." },
+    { error: "역할 알림 설정을 처리하지 못했습니다." },
     { status: 500 }
   );
 }

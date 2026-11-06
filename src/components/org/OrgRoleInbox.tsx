@@ -41,6 +41,7 @@ import {
   OrgCriteriaReviewPanel,
   useOrgCriteriaReviewCounts,
 } from "./OrgCriteriaRecheck";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 
 const NO_SELECTION: ReadonlySet<string> = new Set();
 
@@ -129,7 +130,7 @@ export function OrgRoleInbox() {
     return counts;
   }, [board?.items, deferredStages, inboxQuery?.data]);
   // The server counts every saved candidate; the loaded page only has the
-  // tab being viewed, so counting it showed 0 until 저장함 was opened.
+  // tab being viewed, so counting it showed 0 until Saved was opened.
   const savedCount = useMemo(() => {
     const serverSaved = inboxQuery?.data?.pages[0]?.counts?.saved;
     const deferredSaved = (board?.items ?? []).filter(
@@ -320,7 +321,7 @@ export function OrgRoleInbox() {
                   value: "pending_connection",
                   label: (
                     <span className="inline-flex items-center gap-1.5 text-sm">
-                      {c("연결 수락한 후보", "Ready to connect")}
+                      {ct(c, COMPANY_TERMS.stage.pending_connection)}
                       {stageCounts.pending_connection > 0 && (
                         <Badge
                           className="min-w-6"
@@ -340,7 +341,7 @@ export function OrgRoleInbox() {
                   value: "company_intro",
                   label: (
                     <span className="inline-flex items-center gap-2 text-sm">
-                      {c("연결 제안할 후보", "Suggested candidates")}
+                      {ct(c, COMPANY_TERMS.stage.company_intro)}
                       <span className="ml-0.5 flex items-center justify-center text-xs text-neutral-800">
                         {stageCounts.company_intro}
                       </span>
@@ -354,7 +355,7 @@ export function OrgRoleInbox() {
                   value: "saved",
                   label: (
                     <span className="inline-flex items-center gap-2 text-sm">
-                      {c("저장함", "Saved")}
+                      {ct(c, COMPANY_TERMS.inbox.saved)}
                       <span className="ml-0.5 flex items-center justify-center text-xs text-neutral-800">
                         {savedCount}
                       </span>
@@ -457,6 +458,19 @@ export function OrgRoleInbox() {
           roleId={activeRole?.roleId}
         />
       </div>
+      {!savedReview && (stage === "pending_connection" || stage === "company_intro") ? (
+        <p className="-mt-2 mb-3 text-[13px] leading-5 text-neutral-muted">
+          {stage === "pending_connection"
+            ? c(
+                "이 역할을 듣고 만나보겠다고 한 후보예요. 연결하면 바로 메일로 이어드려요.",
+                "They heard about this role and want to meet. Connect and we'll email you both."
+              )
+            : c(
+                "아직 이 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
+                "They haven't said yes to this role yet. Request an intro and Harper will ask them first."
+              )}
+        </p>
+      ) : null}
       {!savedReview && activeRole ? (
         <OrgCriteriaReviewPanel
           items={items}
@@ -495,7 +509,7 @@ export function OrgRoleInbox() {
             advanceAfterAction={card || savedReview}
             backLabel={
               savedReview
-                ? c("저장함으로 돌아가기", "Back to Saved")
+                ? c("저장으로 돌아가기", "Back to Saved")
                 : view === "grid"
                   ? c("그리드로 돌아가기", "Back to grid")
                   : view === "board"

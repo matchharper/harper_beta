@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { BillingActionNotice } from "@/components/org/billing/BillingActionNotice";
 import {
   Building2,
@@ -603,7 +604,7 @@ export function OrgAgentMessageBubble({
             <div className="mt-3">
               <MuteButton asChild variant="dark">
                 <Link href={briefReady.href}>
-                  {c("Brief 확인하기", "Review the Brief")}
+                  {ct(c, COMPANY_TERMS.brief.reviewButton)}
                 </Link>
               </MuteButton>
             </div>

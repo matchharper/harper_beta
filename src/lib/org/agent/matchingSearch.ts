@@ -79,25 +79,25 @@ export async function enqueueOrgMatchingSearch(args: {
 
 const MATCHING_SEARCH_UNAVAILABLE_REASONS: Record<string, string> = {
   workspace_forbidden:
-    "현재 계정에는 이 회사·Role의 검색을 요청할 권한이 없어 요청이 거절됐어요. 이번 요청으로 새 검색은 시작되지 않았어요.",
+    "현재 계정에는 이 회사·역할의 검색을 요청할 권한이 없어 요청이 거절됐어요. 이번 요청으로 새 검색은 시작되지 않았어요.",
   brief_missing:
-    "이 Role에는 아직 검색에 사용할 Hiring Brief가 저장되어 있지 않아요.",
+    "이 역할에는 아직 검색에 사용할 찾는 사람이 저장되어 있지 않아요.",
   pending_capacity_reached:
-    "이 Role은 현재 연결 수락한 후보 인원이 설정된 상한에 도달해 새 검색을 시작하지 않았어요.",
+    "이 역할은 현재 연결을 기다리는 후보 인원이 설정된 상한에 도달해 새 검색을 시작하지 않았어요.",
   ready_backlog_reached:
-    "아직 회사의 판단을 기다리는 연결 제안할 후보가 설정된 상한에 도달해 새 검색을 시작하지 않았어요.",
+    "아직 회사의 판단을 기다리는 연결을 요청할 후보가 설정된 상한에 도달해 새 검색을 시작하지 않았어요.",
   role_channel_unavailable:
-    "이 Role의 검색 결과를 전달할 활성 Slack 채널이 없어 새 검색을 시작하지 않았어요.",
+    "이 역할의 검색 결과를 전달할 활성 Slack 채널이 없어 새 검색을 시작하지 않았어요.",
   role_unavailable:
-    "이 Role은 현재 채용 중인 상태가 아니어서 새 검색을 시작하지 않았어요.",
+    "이 역할은 현재 채용 중인 상태가 아니어서 새 검색을 시작하지 않았어요.",
   slack_not_connected:
     "이 workspace에 활성 Slack 연결이 없어 새 검색을 시작하지 않았어요.",
-  paid_role_required: "이 Role에는 유료 검색 권한이 없어 검색이 시작되지 않았어요.",
-  test_role: "테스트 전용 Role에서는 실제 후보자 검색을 시작할 수 없어요.",
+  paid_role_required: "이 역할에는 유료 검색 권한이 없어 검색이 시작되지 않았어요.",
+  test_role: "테스트 전용 역할에서는 실제 후보자 검색을 시작할 수 없어요.",
 };
 
 export function matchingSearchUnavailableReason(reason: string | null | undefined) {
-  return MATCHING_SEARCH_UNAVAILABLE_REASONS[reason ?? ""] ?? "현재 상태에서는 이 Role의 새 검색을 시작할 수 없어요.";
+  return MATCHING_SEARCH_UNAVAILABLE_REASONS[reason ?? ""] ?? "현재 상태에서는 이 역할의 새 검색을 시작할 수 없어요.";
 }
 
 export async function enqueueOrgAgenticMatchingSearch(args: {

@@ -18,6 +18,7 @@ import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChang
 import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
@@ -52,7 +53,7 @@ export function registerMissingMessage(c: LocaleC, missingFields: string[]) {
   const labels: Record<string, [string, string]> = {
     role_title: ["역할 이름", "role title"],
     description: ["역할 설명", "description"],
-    request: ["Brief", "Brief"],
+    request: ["찾는 사람", "Who we're looking for"],
     location: ["근무 지역", "work location"],
     work_mode: ["근무 형태", "work arrangement"],
     employment_type: ["고용 형태", "employment type"],
@@ -137,8 +138,8 @@ export function OrgRoleStartPanel({
       <OrgSection>
         <RoleSectionHeading
           description={c(
-            "역할 설명을 읽고 비교할 기준 초안을 만든 뒤, 기준을 정하는 데 꼭 필요한 질문만 하나씩 드려요. Brief를 확정하면 1분 안에 첫 3명을 보여 드려요.",
-            "Harper drafts comparison criteria from the role description, then asks only the questions that change who you see. After you confirm the Brief, the first three candidates appear within a minute."
+            "역할 설명을 읽고 비교할 기준 초안을 만든 뒤, 기준을 정하는 데 꼭 필요한 질문만 하나씩 드려요. 찾는 사람을 확정하면 1분 안에 첫 3명을 보여 드려요.",
+            "Harper drafts comparison criteria from the role description, then asks only the questions that change who you see. After you confirm who you're looking for, the first three candidates appear within a minute."
           )}
           size="large"
           title={c("역할 시작하기", "Start this role")}
@@ -252,8 +253,8 @@ export function OrgRoleStartPanel({
             variant="transparent"
           >
             {c(
-              "질문 그만하고 Brief 보기",
-              "Stop questions and review the Brief"
+              "질문 그만하고 찾는 사람 보기",
+              "Stop questions and review who we're looking for"
             )}
           </MuteButton> */}
         </OrgSection>
@@ -323,7 +324,7 @@ function StepLine({ phase }: { phase: RoleStartPhase }) {
   const { c } = useOrgLocale();
   const steps: Array<{ label: string; phases: RoleStartPhase[] }> = [
     { label: c("질문", "Questions"), phases: ["drafting", "questions"] },
-    { label: c("Brief 확인", "Review Brief"), phases: ["review"] },
+    { label: c("찾는 사람 확인", "Review who we're looking for"), phases: ["review"] },
     {
       label: c("첫 3명", "First three"),
       phases: ["searching", "evaluating", "registering"],
@@ -481,8 +482,8 @@ function QuestionSection(props: {
             variant="transparent"
           >
             {c(
-              "질문 그만하고 Brief 보기",
-              "Stop questions and review the Brief"
+              "질문 그만하고 찾는 사람 보기",
+              "Stop questions and review who we're looking for"
             )}
           </MuteButton>
         </div>
@@ -552,8 +553,8 @@ function BriefReview(props: {
 
   if (readOnly) {
     return (
-      <OrgSection aria-label={c("지금까지의 Brief", "Brief so far")}>
-        <RoleSectionHeading title={c("지금까지의 Brief", "Brief so far")} />
+      <OrgSection aria-label={c("지금까지의 찾는 사람", "Who we're looking for so far")}>
+        <RoleSectionHeading title={c("지금까지의 찾는 사람", "Who we're looking for so far")} />
         <div className="mt-3 grid gap-2">
           {props.session.brief.criteria.map((criterion) => (
             <div
@@ -578,17 +579,17 @@ function BriefReview(props: {
 
   return (
     <>
-      <OrgSection aria-label={c("Brief 확인", "Review Brief")}>
+      <OrgSection aria-label={c("찾는 사람 확인", "Review who we're looking for")}>
         <RoleSectionHeading
           description={c(
             "확정하면 이 기준으로 첫 3명을 골라요. 기준과 필수 조건은 직접 고치거나 아래에 글로 요청할 수 있어요.",
             "Harper picks the first three with these criteria once you confirm. Edit them directly or describe the change below."
           )}
           size="large"
-          title={c("Brief 확인", "Review Brief")}
+          title={c("찾는 사람 확인", "Review who we're looking for")}
         />
         <Textarea
-          aria-label={c("Brief 요약", "Brief summary")}
+          aria-label={c("찾는 사람 요약", "Summary of who we're looking for")}
           autoResize
           className="mt-4 min-h-[88px]"
           disabled={props.busy}
@@ -775,7 +776,7 @@ function FirstThree(props: {
             size="lg"
             variant="primary"
           >
-            {c("채용 시작하기", "Start hiring")}
+            {ct(c, COMPANY_TERMS.roleStart.finalize)}
           </MuteButton>
           {!allRated ? (
             <span className="text-[12px] text-neutral-muted">
@@ -884,7 +885,7 @@ function FirstBatch({
       (batch?.status === "done" && !batch.candidates.length) ? (
         <p className="mt-4 text-[13px] leading-5 text-neutral-muted">
           {c(
-            "새 후보는 정기 추천에서 찾아 인박스에 넣어 드릴게요.",
+            "새 후보는 정기 탐색에서 찾아 인박스에 넣어 드릴게요.",
             "Regular recommendations will look for new people and add them to the inbox."
           )}
         </p>

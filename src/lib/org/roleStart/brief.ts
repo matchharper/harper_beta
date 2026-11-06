@@ -115,7 +115,7 @@ export const ROLE_START_GRADES: OrgRoleCriterionGrade[] = [
 ];
 
 export const ROLE_START_GRADE_LABELS: Record<OrgRoleCriterionGrade, string> = {
-  excellent: "매우 잘 맞음",
+  excellent: "아주 잘 맞음",
   good: "잘 맞음",
   uncertain: "확인 필요",
   bad: "맞지 않음",
@@ -495,7 +495,7 @@ export function criterionQueryText(criterion: OrgRoleCriterion) {
 }
 
 /**
- * The saved Brief text (저장된 Brief 글) for existing readers of the request field
+ * The saved Brief text (저장된 찾는 사람 글) for existing readers of the request field
  * (the scheduled search, the role chat). 필수 조건 — profile facts and required
  * criteria alike — are "## Hard constraints": people without them are not
  * recommended. 평가 기준 are "## Preferred criteria": they only order people.
@@ -522,7 +522,7 @@ export function renderBriefMarkdown(brief: RoleStartBrief) {
   if (!brief.hardConditions.length && !required.length) lines.push("- 회사가 정한 필수 조건은 없습니다.");
   lines.push("- 프로필에서 확인되지 않는 조건은 미충족이 아니라 확인 필요로 봅니다.", "");
   lines.push("## Preferred criteria");
-  if (!ordering.length) lines.push("- 회사가 정한 평가 기준은 없습니다.");
+  if (!ordering.length) lines.push("- 회사가 정한 확인할 기준은 없습니다.");
   for (const criterion of ordering) {
     lines.push(`- **${criterion.name}** (${levelLabel(levelOf(criterion))}): ${criterion.criteria}`);
     pushSignals(criterion);

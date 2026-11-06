@@ -5,6 +5,7 @@ import {
   buildOrgAgentUserPrompt,
 } from "@/lib/org/agent/prompts";
 import { resolveCompanyCapabilities } from "./capabilities/resolver";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 
 test("company prompt assembles selected policies and bounds the normal cold-turn prefix", () => {
   const prompt = buildOrgAgentSystemPrompt();
@@ -24,22 +25,28 @@ test("company prompt assembles selected policies and bounds the normal cold-turn
   assert.doesNotMatch(prompt, /김호진|E2E-MEET|workspaceId=/);
 });
 
-test("web response locale selects voice and exact stage names without changing lifecycle policy", () => {
+test("web response locale selects voice and the name table without changing lifecycle policy", () => {
   const english = buildOrgAgentSystemPrompt({ responseLocale: "en" });
   const korean = buildOrgAgentSystemPrompt({ responseLocale: "ko" });
   const slack = buildOrgAgentSystemPrompt({ surface: "slack" });
 
+  const stage = COMPANY_TERMS.stage;
   assert.match(english, /<response_language locale="en">/);
-  assert.match(english, /pending_connection: Ready to connect/);
-  assert.match(english, /company_intro: Suggested candidates/);
-  assert.match(english, /intro_requested: Intro requested/);
+  assert.ok(english.includes(`- pending_connection = ${stage.pending_connection.en} (formerly `));
+  assert.ok(english.includes(`- company_intro = ${stage.company_intro.en} (formerly `));
+  assert.ok(english.includes(`- intro_requested = ${stage.intro_requested.en} (formerly `));
   const sharedPolicies = resolveCompanyCapabilities({ surface: "chat", mode: "full", loaded: new Set() }).policyText;
   assert.ok(english.includes(sharedPolicies));
   assert.ok(korean.includes(sharedPolicies));
   assert.match(korean, /<response_language locale="ko">/);
-  assert.match(korean, /pending_connection: 연결 수락한 후보/);
-  assert.match(korean, /company_intro: 연결 제안할 후보/);
+  assert.ok(korean.includes(`- pending_connection = ${stage.pending_connection.ko} (예전 `));
+  assert.ok(korean.includes(`- company_intro = ${stage.company_intro.ko} (예전 `));
   assert.match(slack, /<response_language locale="conversation">/);
+  // A Slack thread may be in either language, so it carries both names.
+  assert.ok(slack.includes(`- connected = ${stage.connected.ko} / ${stage.connected.en}`));
+  for (const prompt of [english, korean, slack]) {
+    assert.equal(prompt.match(/^<company_names>$/gm)?.length, 1);
+  }
 });
 
 test("company reply language follows a one-off request and saves a lasting one", () => {

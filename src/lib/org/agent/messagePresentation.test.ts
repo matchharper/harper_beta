@@ -18,7 +18,7 @@ test("prefixes yesterday and uses calendar-day distance for older messages", () 
   );
   assert.equal(
     formatOrgChatMessageTime(new Date(2026, 7, 7, 18, 0).toISOString(), now),
-    "3일전"
+    "3일 전"
   );
 });
 

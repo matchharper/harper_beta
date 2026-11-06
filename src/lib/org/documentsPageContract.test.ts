@@ -157,7 +157,7 @@ test("Documents provides reusable callout, quote, example, and action formats", 
 test("the post-registration flow explains the company’s next steps", () => {
   assert.match(content, /화면을 계속 열어둘 필요는 없습니다/);
   assert.match(content, /회사와 역할에 대한 설명을 듣고 대화해 볼 의사/);
-  assert.match(content, /연결 수락한 후보는 회사의 답을 기다립니다/);
+  assert.match(content, /연결을 기다리는 후보는 회사의 답을 기다립니다/);
   assert.match(content, /Slack과 \[Inbox\]/);
   assert.match(content, /후보자의 관심이나 지원 의사를 확정할 수는 없습니다/);
 });
@@ -169,7 +169,7 @@ test("the introduction explains Harper's candidate introduction model", () => {
     /프로필만으로 역할을 판단하는 데 중요한 정보가 부족하면/
   );
   assert.match(content, /실제로 이 회사와 대화해 보고 싶다는 의사/);
-  assert.match(content, /연결 수락한 후보\*\* 상태로 회사에 소개/);
+  assert.match(content, /연결을 기다리는 후보\*\* 상태로 회사에 소개/);
   assert.match(content, /회사와 역할에 대한 설명을 듣고 대화해 볼 의사/);
   assert.doesNotMatch(content, /Harper 팀의 마지막 검토/);
   assert.doesNotMatch(content, /Harper의 마지막 검토/);
@@ -205,7 +205,7 @@ test("connection decisions explain what happens to the candidate", () => {
   );
   assert.match(
     content,
-    /Reject reason은 선택 사항이며 후보자에게 그대로 보내지지/
+    /넘기는 이유는 선택 사항이며 후보자에게 그대로 보내지지/
   );
   assert.doesNotMatch(content, /웹에도 바로 반영|한 번만 처리|중복 처리/);
 });
@@ -222,7 +222,7 @@ test("removed FAQ entries stay removed while practical questions are covered", (
   assert.doesNotMatch(faq, /정보가 부족해서 결정하기 어려워요/);
   assert.doesNotMatch(faq, /거절한 후보자를 다시 연결할 수 있나요/);
   assert.doesNotMatch(faq, /누가 후보자의 연결 여부를 결정할 수 있나요/);
-  assert.match(faq, /Owner, Admin, Viewer 권한은 어떻게 다른가요/);
+  assert.match(faq, /소유자, 관리자, 조회자 권한은 어떻게 다른가요/);
   assert.match(faq, /Email intro 수신자가 궁금해요/);
   assert.match(faq, /잠시 중단하는 것과 완전히 종료하는 것은/);
 });
@@ -247,7 +247,7 @@ test("profile menu Documents items navigate explicitly", () => {
 });
 
 test("profile menus link to Calendar settings directly below Documents", () => {
-  const documentsItem = /"Documents"\)\}\s*<\/DropdownMenuItem>/g;
+  const documentsItem = /COMPANY_TERMS\.nav\.help\)\}\s*<\/DropdownMenuItem>/g;
   const calendarNavigation =
     /onSelect=\{\(\) => void router\.push\(calendarSettingsHref\)\}/g;
   assert.equal(sidebar.match(documentsItem)?.length, 2);
@@ -255,7 +255,7 @@ test("profile menus link to Calendar settings directly below Documents", () => {
   assert.match(sidebar, /src="\/images\/logos\/calendar\.png"/);
   assert.equal(
     sidebar.match(
-      /"Documents"\)\}\s*<\/DropdownMenuItem>\s*<DropdownMenuItem\s+(?:variant="sm"\s+)?onSelect=\{\(\) => void router\.push\(calendarSettingsHref\)\}/g
+      /COMPANY_TERMS\.nav\.help\)\}\s*<\/DropdownMenuItem>\s*<DropdownMenuItem\s+(?:variant="sm"\s+)?onSelect=\{\(\) => void router\.push\(calendarSettingsHref\)\}/g
     )?.length,
     2
   );

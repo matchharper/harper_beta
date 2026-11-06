@@ -19,8 +19,8 @@ test("role quick actions keep the exact user-facing prompts", () => {
     },
     {
       id: "pending_intros",
-      label: "Ready to connect",
-      message: "지금 결정이 필요한 연결 수락한 후보 목록을 알려줘",
+      label: "Waiting to connect",
+      message: "지금 결정이 필요한 연결을 기다리는 후보 목록을 알려줘",
     },
   ]);
   assert.equal(
@@ -35,7 +35,7 @@ test("role chat quick actions append an immediate current-Brief search", () => {
     id: "run_search",
     label: "Run Search",
     message:
-      "이 역할의 현재 추천 목록에 없는 후보자를 더 찾아서, Intro를 요청해볼 만한 사람을 목록에 추가해줘.",
+      "이 역할의 현재 추천 목록에 없는 후보자를 더 찾아서, 연결을 요청해볼 만한 사람을 목록에 추가해줘.",
   });
   assert.equal(getOrgRoleQuickAction("run_search"), null);
 });
@@ -45,10 +45,10 @@ test("web quick actions use locale-specific prompts while Slack keeps its existi
     ko["agent.quickAction.pendingIntrosMessage"],
     getOrgRoleQuickAction("pending_intros")?.message
   );
-  assert.equal(en["agent.quickAction.pendingIntros"], "Ready to connect");
+  assert.equal(en["agent.quickAction.pendingIntros"], "Waiting to connect");
   assert.equal(
     en["agent.quickAction.pendingIntrosMessage"],
-    "Show candidates in Ready to connect who need our decision."
+    "Show candidates in Waiting to connect who need our decision."
   );
   assert.equal(
     en["agent.quickAction.pipelineSummaryMessage"],

@@ -56,6 +56,7 @@ import RichText from "@/components/ui/rich-text";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useUpdateOrgRole } from "@/hooks/org/useOrg";
 import {
   useOrgAgentChat,
@@ -774,8 +775,8 @@ function SetupStep(props: {
               // The draft stopped answering: the same retry as the other stalled steps.
               <div className="flex flex-wrap items-center gap-2 text-[14px] text-neutral-muted">
                 {c(
-                  "Brief 초안이 멈춘 것 같아요.",
-                  "The Brief draft seems to have stopped."
+                  "찾는 사람 초안이 멈춘 것 같아요.",
+                  "The draft seems to have stopped."
                 )}
                 <MuteButton
                   disabled={busy}
@@ -789,13 +790,13 @@ function SetupStep(props: {
               <LoadingLine
                 hint={c("보통 20초쯤 걸려요", "Usually takes about 20 seconds")}
                 text={c(
-                  "JD를 읽고 Brief 초안을 쓰고 있어요",
-                  "Reading the JD and drafting the Brief"
+                  "JD를 읽고 찾는 사람 초안을 쓰고 있어요",
+                  "Reading the JD and drafting who we're looking for"
                 )}
               />
             ) : phase === "failed" ? (
               <div className="flex flex-wrap items-center gap-2 text-[14px] text-neutral-muted">
-                {c("Brief 초안을 쓰지 못했어요.", "Could not draft the Brief.")}
+                {c("찾는 사람 초안을 쓰지 못했어요.", "Could not write the draft.")}
                 <MuteButton
                   disabled={busy}
                   onClick={props.onRetry}
@@ -806,7 +807,7 @@ function SetupStep(props: {
               </div>
             ) : (
               <DoneLine
-                text={c("Brief 초안이 준비됐어요", "The Brief draft is ready")}
+                text={c("찾는 사람 초안을 만들었어요", "Draft ready")}
               />
             )}
           </div>
@@ -930,9 +931,9 @@ function SetupStep(props: {
 
           <DocumentEditor
             {...documentEditorCopy}
-            aria-label={c("Description 수정", "Edit description")}
+            aria-label={c("역할 설명 수정", "Edit role description")}
             disabled={busy}
-            documentTitle="Description"
+            documentTitle={ct(c, COMPANY_TERMS.brief.roleDescription)}
             format="markdown"
             lastChangedAt={props.role.updatedAt}
             onValueChange={(description) => setDraft({ ...info, description })}
@@ -1191,8 +1192,8 @@ function QuestionStep(props: {
             variant="transparent"
           >
             {c(
-              "질문 그만하고 Brief 보기",
-              "Stop questions and review the Brief"
+              "질문 그만하고 찾는 사람 보기",
+              "Stop questions and review who we're looking for"
             )}
           </MuteButton>
         ) : null} */}
@@ -1285,8 +1286,8 @@ function BriefStep(props: {
                 "Could not find the first three."
               )}{" "}
             {c(
-              "Brief를 고친 뒤 다시 진행해 주세요.",
-              "Adjust the Brief and continue again."
+              "찾는 사람을 고친 뒤 다시 진행해 주세요.",
+              "Adjust who we're looking for and continue again."
             )}
           </p>
         ) : null}
@@ -1296,11 +1297,11 @@ function BriefStep(props: {
             answered
               ? c(
                   "답해 주신 내용을 반영해 채용 기준을 정리했어요. 바꿀 점이 있으면 직접 수정하시거나, 저에게 알려주세요.",
-                  "Harper wrote the Brief with your answers. Tell Harper what to change, or edit the Brief yourself."
+                  "Harper wrote the criteria with your answers. Tell Harper what to change, or edit them yourself."
                 )
               : c(
                   "JD를 바탕으로 채용 기준을 정리했어요. 바꿀 점이 있으면 직접 수정하시거나, 저에게 알려주세요.",
-                  "Harper wrote the Brief from the JD. Tell Harper what to change, or edit the Brief yourself."
+                  "Harper wrote the criteria from the JD. Tell Harper what to change, or edit them yourself."
                 )
           }
         />
@@ -1378,15 +1379,15 @@ function BriefStep(props: {
               ? locked
                 ? c("반영하는 중", "Applying")
                 : c("반영하기", "Apply")
-              : c("이 기준으로 진행하기", "Use this Brief")}
+              : c("이 기준으로 진행하기", "Use these criteria")}
             <ArrowRight className="size-4" />
           </MuteButton>
         </div>
         {props.session.refining ? (
           <LoadingLine
             text={c(
-              "마지막 답을 Brief에 반영하고 있어요",
-              "Applying your last answer to the Brief"
+              "마지막 답을 찾는 사람에 반영하고 있어요",
+              "Applying your last answer"
             )}
           />
         ) : null}
@@ -1461,8 +1462,8 @@ function AlignStep(props: {
           <div className="grid gap-3">
             <p className="text-[14px] leading-6 text-neutral-primary">
               {c(
-                "지금 Brief에 맞는 분을 찾지 못했어요. 필수 조건을 조금 넓혀 다시 찾아 볼까요?",
-                "No one fits the Brief right now. Loosen a required condition and search again?"
+                "지금 찾는 사람에 맞는 분을 찾지 못했어요. 필수 조건을 조금 넓혀 다시 찾아 볼까요?",
+                "No one fits right now. Loosen a required condition and search again?"
               )}
             </p>
             <MuteButton
@@ -1479,8 +1480,8 @@ function AlignStep(props: {
           <LoadingLine
             hint={c("보통 30초쯤 걸려요", "Usually takes about 30 seconds")}
             text={c(
-              "Brief에 맞는 첫 3명을 찾고 있어요",
-              "Finding the first three for the Brief"
+              "찾는 사람에 맞는 첫 3명을 찾고 있어요",
+              "Finding the first three"
             )}
           />
         ) : (
@@ -1791,8 +1792,8 @@ function FinalizeStep(props: {
         <LoadingLine
           hint={c("보통 1분 안에 끝나요", "Usually takes 1–2 minutes")}
           text={c(
-            "평가를 Brief에 반영하고 있어요",
-            "Applying your ratings to the Brief"
+            "평가를 찾는 사람에 반영하고 있어요",
+            "Applying your ratings"
           )}
         />
       </Centered>
@@ -2048,7 +2049,7 @@ function FinalizeStep(props: {
           size="lg"
           variant="primary"
         >
-          {c("채용 시작하기", "Start hiring")}
+          {ct(c, COMPANY_TERMS.roleStart.finalize)}
         </MuteButton>
       </div>
     </Centered>

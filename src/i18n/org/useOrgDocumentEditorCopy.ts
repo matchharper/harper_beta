@@ -10,12 +10,9 @@ export function useOrgDocumentEditorCopy() {
     showMore: c("더보기", "Show more"),
     showLess: c("접기", "Show less"),
     emptyPreview: c("내용을 작성해 주세요.", "Add content."),
-    meta: (changedAt, count) =>
-      c(
-        "마지막 변경: {changedAt}, {count} 글자",
-        "Last changed: {changedAt} · {count} characters",
-        { changedAt, count }
-      ),
+    // The character count is left out on company screens.
+    meta: (changedAt) =>
+      c("마지막 수정 · {changedAt}", "Last edited · {changedAt}", { changedAt }),
     justNow: c("방금 전", "Just now"),
     minutesAgo: (count) => c("{count}분 전", "{count} min ago", { count }),
     hoursAgo: (count) => c("{count}시간 전", "{count} hr ago", { count }),

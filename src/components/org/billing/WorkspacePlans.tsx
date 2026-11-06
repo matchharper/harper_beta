@@ -51,11 +51,11 @@ export function WorkspacePlans({
       detail: c("이용료 없음", "No monthly fee"),
       features: [
         c("카드 등록 필요없음", "No credit card required"),
-        c("활성 Role 1개", "1 active role"),
-        c("월 3개의 Intro", "3 Intros every month"),
+        c("활성 역할 1개", "1 active role"),
+        c("매월 기본 연결 3회", "3 included intros every month"),
         c(
-          "후보자 추천과 연결 수락한 후보",
-          "Candidate recommendations and Ready to connect"
+          "후보자 추천과 연결을 기다리는 후보",
+          "Candidate recommendations and Waiting to connect"
         ),
         c("Slack 연결 지원", "Slack integration included"),
         c("채용 성공보수 없음", "No placement fee"),
@@ -103,8 +103,8 @@ export function WorkspacePlans({
                 "Try again shortly or contact Harper."
               ),
       features: [
-        c("슬롯당 활성 Role 1개 추가", "1 additional active role per slot"),
-        c("슬롯당 매월 50 Intro", "50 monthly Intros per slot"),
+        c("슬롯당 활성 역할 1개 추가", "1 additional active role per slot"),
+        c("슬롯당 매월 연결 50회", "50 intros per slot every month"),
         c("Free의 모든 기능", "All Free features"),
         c("Slack 연결 지원", "Slack integration included"),
         c("채용 성공보수 없음", "No placement fee"),
@@ -143,7 +143,7 @@ export function WorkspacePlans({
       detail: c("별도 협의", "Custom pricing"),
       features: [
         c("채용 진행 역할 수 제한 없음", "Unlimited active roles"),
-        c("무제한 Intro", "Unlimited Intros"),
+        c("무제한 연결", "Unlimited Intros"),
         c("Harper 팀의 도입 지원", "Hands-on onboarding support"),
       ],
       action: (

@@ -1,10 +1,10 @@
 import { type ComponentProps } from "react";
 import { MuteButton } from "@/components/ui/button";
-import { CANDIDATE_DECISION_LABELS } from "@/lib/org/candidateDecision";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { cn } from "@/lib/utils";
-import { AnimatedHandshake } from "@/components/ui/animated-handshake";
 
-/** The existing candidate card's Accept Intro action, shared with inline review. */
+/** The existing candidate card's Connect action, shared with inline review. */
 export function OrgAcceptIntroButton({
   className,
   shortcut = false,
@@ -12,6 +12,7 @@ export function OrgAcceptIntroButton({
 }: Omit<ComponentProps<typeof MuteButton>, "children" | "variant"> & {
   shortcut?: boolean;
 }) {
+  const { c } = useOrgLocale();
   return (
     <MuteButton
       {...props}
@@ -22,8 +23,7 @@ export function OrgAcceptIntroButton({
         className
       )}
     >
-      <AnimatedHandshake />
-      {CANDIDATE_DECISION_LABELS.connect}
+      {ct(c, COMPANY_TERMS.action.connect)}
       {shortcut && (
         <kbd
           aria-hidden

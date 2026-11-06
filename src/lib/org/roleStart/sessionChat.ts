@@ -26,7 +26,7 @@ export function roleStartQuestionMessage(question: RoleStartQuestion) {
 
 export function roleStartBriefReadyMessage(roleId: string, workspaceId: string) {
   return {
-    content: "질문을 마쳤어요. Brief를 확인하고 확정하면 첫 후보를 보여 드려요.",
+    content: "질문을 마쳤어요. 기준을 확인하면 첫 후보를 보여 드릴게요.",
     metadata: { roleStartBriefReady: {
       href: buildOrgHref({ orgId: workspaceId, page: "role", roleId, tab: "start" }),
     } },

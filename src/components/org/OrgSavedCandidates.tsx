@@ -17,7 +17,7 @@ import { OrgCandidateCard } from "./OrgCandidateCard";
 export function OrgSavedCandidates({
   column = true,
 }: {
-  /** A pipeline column; otherwise the content of the board's 저장함 tab. */
+  /** A pipeline column; otherwise the content of the board's 저장 tab. */
   column?: boolean;
 }) {
   const { c } = useOrgLocale();
@@ -41,7 +41,7 @@ export function OrgSavedCandidates({
         <ReviewPipelineColumnHeader
           compact
           countPlacement="end"
-          label={c("저장함", "Saved")}
+          label={c("저장", "Saved")}
           count={items.length}
         />
       ) : null}
@@ -129,13 +129,13 @@ export function OrgSavedCandidates({
   );
   return column ? (
     <ReviewPipelineColumnShell
-      aria-label={c("저장함", "Saved")}
+      aria-label={c("저장", "Saved")}
       className="!flex !h-full !min-h-0 !w-[320px] !flex-col !border-0 !bg-transparent !ring-0"
     >
       {content}
     </ReviewPipelineColumnShell>
   ) : (
-    <section aria-label={c("저장함", "Saved")} className="mt-4">
+    <section aria-label={c("저장", "Saved")} className="mt-4">
       {content}
     </section>
   );

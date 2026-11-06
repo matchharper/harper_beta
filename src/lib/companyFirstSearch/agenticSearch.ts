@@ -448,7 +448,7 @@ export function formatCompanyRoleSearch(value: RoleSearchRead) {
     const period=(row:Record<string,any>)=>`${row.start_date??''} - ${row.end_date??''}`;
     const relationship=(row:Record<string,any>)=>{
       const r=row.currentCompanyRelationship;
-      return r?`회사에 공개된 이력 ${r.hasCompanyHistory?'있음':'없음'}; Intro 상태 ${r.introStatus??'없음'}; 공유된 진행 이력 ${r.hasSharedProgress?'있음':'없음'}; 현재 신규 추천 ${r.newPairAvailable?'가능':'불가'}`:undefined;
+      return r?`회사에 공개된 이력 ${r.hasCompanyHistory?'있음':'없음'}; 연결 상태 ${r.introStatus??'없음'}; 공유된 진행 이력 ${r.hasSharedProgress?'있음':'없음'}; 현재 신규 추천 ${r.newPairAvailable?'가능':'불가'}`:undefined;
     };
     const historical=Boolean(value.selection.sourceRunId);
     const compact=(raw:Record<string,any>)=>{

@@ -54,12 +54,12 @@ export function BillingPlanSummary({
               `Slot 플랜 · 슬롯 ${active.length}개`,
               `Slot plan · ${active.length} ${active.length === 1 ? "slot" : "slots"}`
             )
-          : c("Free 플랜", "Free plan");
+          : c("무료", "Free");
   const description =
     summary.model === "free"
       ? c(
-          "Role은 자유롭게 만들 수 있으며, Free Role은 한 번에 1개까지 채용을 진행할 수 있어요. 매월 공용 Intro 3개가 제공돼요. 슬롯을 추가해도 공용 Intro는 별도로 유지돼요.",
-          "Hire for one active role, create unlimited drafts, and use 3 shared Intros each month. You keep these shared Intros when you add paid slots."
+          "역할은 몇 개든 만들 수 있고, 무료 플랜에선 한 번에 1개를 진행해요. 매월 기본 연결 3회를 드려요. 슬롯을 추가해도 기본 연결은 별도로 유지돼요.",
+          "Create any number of roles and run one at a time on the free plan. You get 3 included intros every month, and keep them when you add slots."
         )
       : summary.model === "slot"
         ? paid.length === 0
@@ -87,7 +87,7 @@ export function BillingPlanSummary({
           );
   return (
     <OrgSection className="border-b-0 pb-0">
-      <div className="text-base">{c("현재 플랜", "Current plan")}</div>
+      <div className="text-base">{c("지금 플랜", "Current plan")}</div>
       <Card className="mt-3 flex flex-col gap-5 rounded-xl bg-bg-default py-4 px-5 shadow-none lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <h3 className="text-[15px]">{plan}</h3>
@@ -99,7 +99,7 @@ export function BillingPlanSummary({
                 window.open("https://matchharper.com/pricing", "_blank")
               }
             >
-              More <ArrowUpRight className="w-4 h-4" />
+              {c("자세히", "More")} <ArrowUpRight className="w-4 h-4" />
             </span>
           </p>
         </div>

@@ -103,7 +103,7 @@ test("when chip filling fails, a question with 2 or more chips stays and one wit
   assert.equal(keptWithoutFill({ question: "연차는요?", chips: [] }), null);
 });
 
-test("매우 잘 맞음 / 잘 맞음 get one chip per criterion the verdict read 잘 맞음 or better", async () => {
+test("아주 잘 맞음 / 잘 맞음 get one chip per criterion the verdict read 잘 맞음 or better", async () => {
   const { likedReasonChips } = await import("./session");
   const chips = likedReasonChips({
     tldr: "",

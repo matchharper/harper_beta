@@ -72,23 +72,23 @@ test("subjects use the fixed templates for each candidate mix and multiple roles
       acceptedCount,
       companyFirstCount,
     });
-  assert.equal(subject(1, 0), "ML Engineer: 연결 수락한 후보 1명");
-  assert.equal(subject(0, 2), "ML Engineer: 연결 제안할 후보 2명");
+  assert.equal(subject(1, 0), "ML Engineer: 연결을 기다리는 후보 1명");
+  assert.equal(subject(0, 2), "ML Engineer: 연결을 요청할 후보 2명");
   assert.equal(
     subject(1, 2),
-    "ML Engineer: 연결 수락한 후보 1명 · 연결 제안할 후보 2명"
+    "ML Engineer: 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
   );
   assert.equal(
     subject(1, 2, ["ML Engineer", "Data Engineer", "PM"]),
-    "ML Engineer 외 2개 역할: 연결 수락한 후보 1명 · 연결 제안할 후보 2명"
+    "ML Engineer 외 2개 역할: 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
   );
   assert.equal(
     subject(1, 2, ["ML Engineer"], "en"),
-    "ML Engineer: Ready to connect (1) · Suggested candidates (2)"
+    "ML Engineer: Waiting to connect (1) · Ready to reach out (2)"
   );
   assert.equal(
     subject(0, 1, ["ML Engineer", "PM"], "en"),
-    "ML Engineer and 1 more role: Suggested candidates (1)"
+    "ML Engineer and 1 more role: Ready to reach out (1)"
   );
 });
 
@@ -96,13 +96,13 @@ test("mail greets the recipient, puts Ready to connect first and keeps the Worke
   const email = build();
   assert.equal(
     email.subject,
-    "ML Engineer: 연결 수락한 후보 1명 · 연결 제안할 후보 2명"
+    "ML Engineer: 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
   );
   assert.match(email.text, /^김지수님, Harper가 찾은 후보예요\./);
   const acceptedAt = email.text.indexOf(
-    "✅ 연결 수락한 후보 · 후보가 이미 만나보겠다고 했어요"
+    "✅ 연결을 기다리는 후보 · 후보가 이미 만나보겠다고 했어요"
   );
-  const companyFirstAt = email.text.indexOf("연결 제안할 후보\n");
+  const companyFirstAt = email.text.indexOf("연결을 요청할 후보\n");
   assert.ok(acceptedAt > 0 && companyFirstAt > acceptedAt);
   assert.ok(email.text.indexOf("이서연") < email.text.indexOf("김민준"));
   assert.match(email.html, /<strong>ML<\/strong>/);
@@ -124,10 +124,10 @@ test("each candidate gets the local action labels right under its description", 
     acceptRow > email.html.indexOf("이서연") &&
       acceptRow < email.html.indexOf("김민준")
   );
-  assert.match(email.html, /background:#111827[^>]*>Accept Intro<\/a>/);
-  assert.match(email.html, /background:#ffffff[^>]*>Reject<\/a>/);
-  assert.match(email.html, /background:#111827[^>]*>Send Intro<\/a>/);
-  assert.match(email.html, /background:#ffffff[^>]*>Pass<\/a>/);
+  assert.match(email.html, /background:#111827[^>]*>연결하기<\/a>/);
+  assert.match(email.html, /background:#ffffff[^>]*>이번엔 넘길게요<\/a>/);
+  assert.match(email.html, /background:#111827[^>]*>연결 요청<\/a>/);
+  assert.match(email.html, /background:#ffffff[^>]*>이번엔 넘길게요<\/a>/);
   assert.doesNotMatch(email.html, />웹에서 자세히 보기<\/a>/);
   assert.doesNotMatch(email.html + email.text, /HARPERDIGESTACTIONS/);
 });
@@ -136,11 +136,11 @@ test("text part keeps the local two-action layout and profile links in the candi
   const email = build();
   assert.match(
     email.text,
-    /Accept Intro: https:\/\/matchharper.com\/email-action\/c1-accept\nReject: https:\/\/matchharper.com\/email-action\/c1-reject/
+    /연결하기: https:\/\/matchharper.com\/email-action\/c1-accept\n이번엔 넘길게요: https:\/\/matchharper.com\/email-action\/c1-reject/
   );
   assert.match(
     email.text,
-    /Send Intro: https:\/\/matchharper.com\/email-action\/c3-request/
+    /연결 요청: https:\/\/matchharper.com\/email-action\/c3-request/
   );
   assert.doesNotMatch(email.text, /버튼은 7일 동안/);
   assert.ok(email.text.includes(web("c1")));
@@ -155,8 +155,8 @@ test("reply context keeps the prose but never the one-time button links", () => 
 
 test("a mail with one kind only has one heading and the matching buttons", () => {
   const email = build({ sections: [companyFirst] });
-  assert.equal(email.subject, "ML Engineer: 연결 제안할 후보 2명");
-  assert.doesNotMatch(email.text, /연결 수락한 후보|Accept Intro/);
+  assert.equal(email.subject, "ML Engineer: 연결을 요청할 후보 2명");
+  assert.doesNotMatch(email.text, /연결을 기다리는 후보|연결하기/);
   assert.equal(
     (email.html.match(/href="https:\/\/matchharper.com\/email-action\//g) ?? [])
       .length,
@@ -168,18 +168,18 @@ test("English workspaces get the same structure with English copy", () => {
   const email = build({ locale: "en", recipientName: "Jisoo" });
   assert.equal(
     email.subject,
-    "ML Engineer: Ready to connect (1) · Suggested candidates (2)"
+    "ML Engineer: Waiting to connect (1) · Ready to reach out (2)"
   );
   assert.match(email.text, /^Jisoo, here are the candidates Harper found\./);
   assert.ok(
-    email.text.indexOf("✅ Ready to connect") <
-      email.text.indexOf("Suggested candidates")
+    email.text.indexOf("✅ Waiting to connect") <
+      email.text.indexOf("Ready to reach out")
   );
   assert.match(
     email.text,
-    /Accept Intro: https:\/\/matchharper.com\/email-action\/c1-accept\nReject: /
+    /Connect: https:\/\/matchharper.com\/email-action\/c1-accept\nPass for now: /
   );
-  assert.match(email.text, /Send Intro: .*\nPass: .*/);
+  assert.match(email.text, /Request intro: .*\nPass for now: .*/);
   assert.doesNotMatch(email.text, /The buttons work for 7 days/);
 });
 
@@ -230,12 +230,12 @@ test("criterion ratings sit under the candidate as mark + name with accessible l
     mail.html.includes('aria-label="확인 필요"') &&
       mail.html.includes('aria-label="맞지 않음"')
   );
-  assert.doesNotMatch(mail.html, / · (매우 잘 맞음|확인 필요|맞지 않음)/);
+  assert.doesNotMatch(mail.html, / · (아주 잘 맞음|확인 필요|맞지 않음)/);
   assert.ok(!/<img/i.test(mail.html));
   // Text: mark lines before the button links, only for the rated candidate.
   assert.match(
     mail.text,
-    /✓✓ ML 실무 3년 · 매우 잘 맞음\n\? 모델 서빙 · 확인 필요\n✗ 논문 · 맞지 않음\n\nSend Intro: https:\/\/matchharper.com\/email-action\/c2-request/
+    /✓✓ ML 실무 3년 · 아주 잘 맞음\n\? 모델 서빙 · 확인 필요\n✗ 논문 · 맞지 않음\n\n연결 요청: https:\/\/matchharper.com\/email-action\/c2-request/
   );
   assert.equal((mail.text.match(/✓/g) ?? []).length, 2);
   // Harper's reply context has the ratings, still without button links.
@@ -272,11 +272,11 @@ test("English mails keep rating labels accessible and in the plain-text fallback
   });
   assert.ok(
     mail.html.includes(">Serving</td>") &&
-      mail.html.includes('aria-label="Good fit"')
+      mail.html.includes('aria-label="Good"')
   );
   assert.ok(
-    !mail.html.includes("Serving · Good fit") &&
-      mail.text.includes("✓ Serving · Good fit")
+    !mail.html.includes("Serving · Good") &&
+      mail.text.includes("✓ Serving · Good")
   );
 });
 
@@ -310,7 +310,7 @@ test("each candidate is one borderless card holding its text, ratings and button
   const ratings = mail.html.indexOf(">ML 실무</td>");
   assert.ok(opens[1] < ratings && ratings < c2);
   // Group headings and intro lines sit outside the cards.
-  const suggested = mail.html.indexOf("연결 제안할 후보");
+  const suggested = mail.html.indexOf("연결을 요청할 후보");
   assert.ok(opens[0] < suggested && suggested < opens[1]);
   assert.ok(mail.html.indexOf("만나보겠다고 한 후보예요.") < opens[0]);
   assert.ok(!mail.html.includes("HARPERDIGEST"));

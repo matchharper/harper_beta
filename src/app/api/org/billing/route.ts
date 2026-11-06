@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
             ? (slotLabels.get(row.company_workspace_credit_periods.slot_id) ??
               null)
             : row.period_id
-              ? "Shared Intros"
+              ? "Shared Intros" // legacy-text: the slot label value other code compares
               : null,
         })),
         total: count ?? 0,

@@ -132,12 +132,12 @@ export function normalizeOrgRoleCriteria(value: unknown): OrgRoleCriterion[] {
 
 export function getOrgRoleCriteriaValidationError(value: unknown) {
   if (!Array.isArray(value)) {
-    return "평가 기준은 목록 형태여야 합니다.";
+    return "확인할 기준은 목록 형태여야 합니다.";
   }
 
   const criteria = normalizeOrgRoleCriteria(value);
   if (criteria.some((item) => !item.name || !item.criteria)) {
-    return "각 평가 기준의 이름과 상세 내용을 모두 작성해 주세요.";
+    return "기준마다 이름과 상세 내용을 모두 작성해 주세요.";
   }
   return null;
 }
@@ -158,7 +158,7 @@ export function applyOrgRoleCriteriaEdits(
   editsValue: unknown
 ): OrgRoleCriteriaEditResult {
   if (!Array.isArray(editsValue) || editsValue.length < 1) {
-    throw new Error("평가 기준 변경은 한 개 이상이어야 합니다.");
+    throw new Error("확인할 기준 변경은 한 개 이상이어야 합니다.");
   }
 
   const criteria = normalizeOrgRoleCriteria(currentValue);
@@ -169,11 +169,11 @@ export function applyOrgRoleCriteriaEdits(
       item.name === targetName ? [index] : []
     );
     if (matches.length === 0) {
-      throw new Error(`평가 기준을 찾을 수 없습니다: ${targetName}`);
+      throw new Error(`확인할 기준을 찾을 수 없습니다: ${targetName}`);
     }
     if (matches.length > 1) {
       throw new Error(
-        `같은 이름의 평가 기준이 여러 개라 대상을 고를 수 없습니다: ${targetName}`
+        `같은 이름의 확인할 기준이 여러 개라 대상을 고를 수 없습니다: ${targetName}`
       );
     }
     return matches[0]!;
@@ -185,7 +185,7 @@ export function applyOrgRoleCriteriaEdits(
         (item, index) => item.name === name && index !== exceptIndex
       )
     ) {
-      throw new Error(`같은 이름의 평가 기준이 이미 있습니다: ${name}`);
+      throw new Error(`같은 이름의 확인할 기준이 이미 있습니다: ${name}`);
     }
   };
 
@@ -235,10 +235,10 @@ export function applyOrgRoleCriteriaEdits(
       throw new Error("update에는 name이나 criteria 중 하나가 필요합니다.");
     }
     if (has(edit, "name") && !name) {
-      throw new Error("평가 기준 이름은 비워둘 수 없습니다.");
+      throw new Error("확인할 기준 이름은 비워둘 수 없습니다.");
     }
     if (has(edit, "criteria") && !detail) {
-      throw new Error("평가 기준 상세 내용은 비워둘 수 없습니다.");
+      throw new Error("확인할 기준 상세 내용은 비워둘 수 없습니다.");
     }
     const nextName = has(edit, "name") ? name : criteria[targetIndex]!.name;
     const nextDetail = has(edit, "criteria")

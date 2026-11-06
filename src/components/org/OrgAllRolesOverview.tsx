@@ -31,6 +31,8 @@ import { buildOrgHref } from "@/lib/org/routes";
 import type { OrgBoardResponse, OrgRole, OrgStageId } from "@/lib/org/server";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import { cn } from "@/lib/utils";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
+import { humanizeOrgWorkMode } from "@/lib/org/pipelineStage";
 
 function StageCountCell({
   compact = false,
@@ -82,7 +84,7 @@ function StageCountCell({
       </div>
       {stageId === "pending_connection" && count > 0 && (
         <div className="mt-1 text-[12px] font-medium leading-4 text-primary">
-          {c("결정이 필요합니다.", "Decision needed.")}
+          {c("결정할 후보가 있어요", "Needs your decision")}
         </div>
       )}
     </button>
@@ -362,7 +364,7 @@ export function OrgRolesOverview({
       <section className="space-y-3 bg-bg-basement p-4">
         <div className="flex items-center justify-between">
           <div className="text-[15px] font-medium text-neutral-primary">
-            {c("Roles", "Roles")}
+            {c("역할", "Roles")}
             <span className="ml-2 text-[12px] font-normal text-neutral-muted">
               {hasActiveFilter
                 ? `${filteredRoles.length} / ${roles.length}`
@@ -425,13 +427,14 @@ export function OrgRolesOverview({
                     </div>
                     <div className="flex flex-wrap items-center justify-start gap-1.5">
                       <RoleMetaChip>
-                        {c("Updated", "Updated")}{" "}
-                        {formatDate
-                          ? formatDate(role.updatedAt)
-                          : formatKstRelativeDate(role.updatedAt, {
-                              maxRelativeDays: 365,
-                              locale,
-                            })}
+                        {c("{date} 수정", "Updated {date}", {
+                          date: formatDate
+                            ? formatDate(role.updatedAt)
+                            : formatKstRelativeDate(role.updatedAt, {
+                                maxRelativeDays: 365,
+                                locale,
+                              }),
+                        })}
                       </RoleMetaChip>
                       {role.locationText ? (
                         <RoleMetaChip>
@@ -442,12 +445,12 @@ export function OrgRolesOverview({
                       {role.workMode ? (
                         <RoleMetaChip>
                           <BriefcaseBusiness className="h-3 w-3" />
-                          {role.workMode}
+                          {sourceT(humanizeOrgWorkMode(role.workMode))}
                         </RoleMetaChip>
                       ) : null}
                       <RoleMetaChip>
                         {c(
-                          "{count}명",
+                          "후보 {count}명",
                           totalCount === 1
                             ? "{count} candidate"
                             : "{count} candidates",
@@ -481,7 +484,7 @@ export function OrgRolesOverview({
                           </span>
                         </div>
                         <div className="flex items-center justify-between pl-3">
-                          <span>{c("중단", "Paused")}</span>
+                          <span>{ct(c, COMPANY_TERMS.stage.process_stopped)}</span>
                           <span className="text-[14px] font-medium text-neutral-primary">
                             {counts.get(`${role.roleId}:process_stopped`) ?? 0}
                           </span>
@@ -523,13 +526,13 @@ export function OrgRolesOverview({
                     <div className="hidden min-h-[76px] overflow-x-auto md:flex">
                       <div className="flex w-[116px] shrink-0 flex-col justify-center gap-1.5 border-r border-neutral-1000-a05 px-3 text-[12px] text-neutral-muted">
                         <div className="flex justify-between gap-2">
-                          <span>{c("총계", "Total")}</span>
+                          <span>{c("전체", "Total")}</span>
                           <span className="font-medium text-neutral-primary">
                             {totalCount}
                           </span>
                         </div>
                         <div className="flex justify-between gap-2">
-                          <span>{c("중단", "Paused")}</span>
+                          <span>{ct(c, COMPANY_TERMS.stage.process_stopped)}</span>
                           <span className="font-medium text-neutral-primary">
                             {counts.get(`${role.roleId}:process_stopped`) ?? 0}
                           </span>
