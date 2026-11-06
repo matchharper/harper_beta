@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v13",
+  "createdAt": "2026-11-05",
+  "provenance": "Separates candidate source-answer capability from company decision-to-ask. Derives stored source facts from v12; adds one fixed provenance question, explicit as fixture. No product prompt change.",
+  "hashes": {
+    "cases-v13.json": "6f7ca9b036c966f72095d0c75738af5f09c8843a699fb7877fa7f218f761a6b8",
+    "gold-v13.json": "126638b62101b0642ead2fc9548c39171e24778ffa4857f6bb36dd9974eadc34"
+  }
+}

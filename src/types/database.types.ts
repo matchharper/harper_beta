@@ -1237,6 +1237,7 @@ export type Database = {
           company_workspace_id: string
           confidence: number | null
           created_at: string
+          estimated_average_salary: string | null
           last_funding_round_description: string | null
           last_funding_stage: string | null
           last_news: string | null
@@ -1251,6 +1252,7 @@ export type Database = {
           company_workspace_id: string
           confidence?: number | null
           created_at?: string
+          estimated_average_salary?: string | null
           last_funding_round_description?: string | null
           last_funding_stage?: string | null
           last_news?: string | null
@@ -1265,6 +1267,7 @@ export type Database = {
           company_workspace_id?: string
           confidence?: number | null
           created_at?: string
+          estimated_average_salary?: string | null
           last_funding_round_description?: string | null
           last_funding_stage?: string | null
           last_news?: string | null
@@ -3329,6 +3332,7 @@ export type Database = {
           signup_domain: string | null
           signup_state: Json | null
           stripe_customer_id: string | null
+          estimated_search_score: number | null
           test_score: number
           updated_at: string
         }
@@ -3362,6 +3366,7 @@ export type Database = {
           signup_domain?: string | null
           signup_state?: Json | null
           stripe_customer_id?: string | null
+          estimated_search_score?: number | null
           test_score?: number
           updated_at?: string
         }
@@ -3395,6 +3400,7 @@ export type Database = {
           signup_domain?: string | null
           signup_state?: Json | null
           stripe_customer_id?: string | null
+          estimated_search_score?: number | null
           test_score?: number
           updated_at?: string
         }

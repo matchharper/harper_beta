@@ -111,6 +111,34 @@ test('active browsers mount automatically; docking, folding, mobile and selectio
     await act(async () => { selected = 'first'; render(); });
     assert.equal(dom.window.document.querySelectorAll('iframe').length, 3);
     assert.equal(dom.window.document.querySelector('iframe')?.classList.contains('pointer-events-none'), true, 'selecting is not a browser-control handoff');
+    // Taking control fills the viewport even after the preview was explicitly folded.
+    await act(async () => { visible = [{...views[0], session: {...views[0].session, status: 'human', revision: 2}}]; render(); });
+    assert.equal(placement(), 'fullscreen');
+    assert.equal(panel.style.width, '992px');
+    assert.equal(panel.style.height, `${dom.window.innerHeight - 32}px`);
+    assert.equal(first.closest('[hidden]'), null);
+    assert.equal((first as HTMLIFrameElement).style.width, '100%');
+    assert.equal(panel.querySelector('iframe'), first);
+    Object.defineProperty(dom.window, 'innerWidth', { configurable: true, value: 390 });
+    const visualViewport = new dom.window.EventTarget();
+    Object.assign(visualViewport, { width: 390, height: 400, offsetLeft: 0, offsetTop: 120 });
+    Object.defineProperty(dom.window, 'visualViewport', { configurable: true, value: visualViewport });
+    await act(async () => { dom.window.dispatchEvent(new dom.window.Event('resize')); });
+    assert.equal(panel.style.width, '374px');
+    assert.equal(panel.style.height, '384px', 'manual controls fit above the software keyboard');
+    assert.equal(panel.style.top, '128px');
+    await act(async () => toggle().click());
+    assert.equal(placement(), 'dock');
+    assert.ok(first.closest('[hidden]'));
+    await act(async () => toggle().click());
+    assert.equal(placement(), 'fullscreen');
+    assert.equal(panel.querySelector('iframe'), first);
+    await act(async () => { visible = [{...views[0], session: {...views[0].session, status: 'idle', revision: 3}}]; render(); });
+    assert.equal(placement(), 'dock');
+    assert.equal(panel.style.width, '320px');
+    assert.equal(panel.style.height, '');
+    assert.ok(first.closest('[hidden]'), 'Done restores the earlier preview preference');
+    assert.equal(panel.querySelector('iframe'), first);
     await act(async () => { selected = null; visible = [views[1]]; render(); });
     assert.equal(dom.window.document.querySelectorAll('iframe').length, 1);
   } finally {

@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { buildOrgAgentPromptContext } from "@/lib/org/agent/context";
 import { runOrgAgentToolLoop } from "@/lib/org/agent/chat";
 import { resolveOrgAgentModel } from "@/lib/org/agent/modelConfig";
-import { withCompanyAgentScope } from "./companyScope";
+import { withCompanyAgentScope, companyAgentServiceTools } from "./companyScope";
 import {
   agentContactDatabase,
   assertAgentContactSource,
@@ -13,17 +13,6 @@ import {
 } from "./store";
 import { readAgentCorrespondence } from "./read";
 import { companyAgentEventPrompt, type AgentContactSource } from "./contracts";
-
-const eventTools = new Set([
-  "read_role",
-  "read_conversation_history",
-  "get_more_data",
-  "read_agent_messages",
-  "contact_talent",
-  "contact_user",
-  "publish_role_recommendations",
-  "manage_agent_schedule",
-]);
 
 /**
  * Harper's own schedules (not tied to an introduction) get only the tools of
@@ -149,8 +138,7 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
   let scheduleTier: number | null = null;
   if (job.action_name === "agent_contact_received") {
     const correspondence = await readAgentCorrespondence(source, {
-      introductionRootId: job.action_context.introductionRootId,
-      messageId: job.action_context.messageId,
+      contextMessageId: job.action_context.messageId,
     });
     eventText = `Incoming message reference: ${job.action_context.messageId}\n${correspondence.modelOutput}`;
   } else {
@@ -192,12 +180,12 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     allowSilentCompletion: true,
     throwOnToolExecutionError: true,
     harperInitiated: true,
-    capabilityMode: "full",
+    capabilityMode: scheduleTier === null ? "progressive" : "full",
     initialCapabilities:
       scheduleTier === null
         ? ["agent_correspondence"]
         : ["company_messaging", "harper_schedule", ...(scheduleTier >= 2 ? (["candidate_search", "candidate_contact"] as const) : [])],
-    allowedToolNames: scheduleTier === null ? eventTools : scheduleTierTools(scheduleTier),
+    allowedToolNames: scheduleTier === null ? companyAgentServiceTools() : scheduleTierTools(scheduleTier),
     source: "chat",
     readAudience: "company_safe",
     scopeKey: `agent-event:${job.id}`,

@@ -1,3 +1,4 @@
+import { ResumeTextRecovery } from "@/components/career/ResumeTextRecovery";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
@@ -47,10 +48,14 @@ export const CareerAddDocumentModal = ({
     "resume"
   );
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [resumeRecovery, setResumeRecovery] = useState(false);
+  const [pastedText, setPastedText] = useState("");
 
   const resetForm = () => {
     setDocumentFile(null);
     setDocumentKind("resume");
+    setResumeRecovery(false);
+    setPastedText("");
   };
 
   const handleClose = () => {
@@ -87,6 +92,7 @@ export const CareerAddDocumentModal = ({
       resumeFile: documentFile,
     });
     if (saved) finishUpload({ type: "profile_apply" });
+    else setResumeRecovery(true);
   };
 
   return (
@@ -94,133 +100,167 @@ export const CareerAddDocumentModal = ({
       open={open}
       onClose={handleClose}
       closeOnBackdrop={!profileSavePending}
-      title={t("career.profile.documents.add_title", "문서 추가")}
-      description={t(
-        "career.profile.documents.add_description",
-        "업로드할 파일의 종류를 선택해 주세요."
-      )}
+      title={
+        resumeRecovery
+          ? t("career.resume_recovery.dialog", "프로필 가져오기")
+          : t("career.profile.documents.add_title", "문서 추가")
+      }
+      description={
+        resumeRecovery
+          ? undefined
+          : t(
+              "career.profile.documents.add_description",
+              "업로드할 파일의 종류를 선택해 주세요."
+            )
+      }
       mobileBottomSheet
       panelClassName="max-w-[560px] "
       bodyClassName="space-y-5 px-5 py-5"
       footer={
-        <div className="flex justify-end gap-2">
-          <MuteButton onClick={handleClose} disabled={profileSavePending}>
-            {t("career.common.cancel", "취소")}
-          </MuteButton>
-          <MuteButton
-            variant="dark"
-            onClick={() => void handleUpload()}
-            disabled={!documentFile || profileSavePending}
-          >
-            {profileSavePending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : null}
-            {t("career.profile.documents.upload", "업로드")}
-          </MuteButton>
-        </div>
+        resumeRecovery ? null : (
+          <div className="flex justify-end gap-2">
+            <MuteButton onClick={handleClose} disabled={profileSavePending}>
+              {t("career.common.cancel", "취소")}
+            </MuteButton>
+            <MuteButton
+              variant="dark"
+              onClick={() => void handleUpload()}
+              disabled={!documentFile || profileSavePending}
+            >
+              {profileSavePending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              {t("career.profile.documents.upload", "업로드")}
+            </MuteButton>
+          </div>
+        )
       }
     >
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Radio
-          name="career-document-kind"
-          value="resume"
-          checked={documentKind === "resume"}
-          onChange={() => {
-            setDocumentKind("resume");
-            setDocumentFile(null);
-          }}
-          label={
-            <span>
-              <span className="block">
-                {t("career.profile.documents.kind.resume", "이력서")}
-              </span>
-              <span className="mt-0.5 block text-xs text-neutral-soft">
-                {t(
-                  "career.profile.documents.resume_kind_help",
-                  "대표 이력서로 저장하고 프로필 반영 여부를 확인합니다."
-                )}
-              </span>
-            </span>
+      {resumeRecovery ? (
+        <ResumeTextRecovery
+          value={pastedText}
+          onChange={setPastedText}
+          pending={profileSavePending}
+          onSubmit={() =>
+            void (async () => {
+              const saved = await onSaveTalentProfile({
+                applyProfileSources: false,
+                links: savedProfileLinks,
+                persistError: false,
+                preserveLinkDrafts: true,
+                resumeFile: new File([pastedText], "resume.txt", {
+                  type: "text/plain",
+                }),
+              });
+              if (saved) finishUpload({ type: "profile_apply" });
+            })()
           }
-          className="rounded-lg bg-bg-basement p-3"
         />
-        <Radio
-          name="career-document-kind"
-          value="document"
-          checked={documentKind === "document"}
-          onChange={() => {
-            setDocumentKind("document");
-            setDocumentFile(null);
-          }}
-          label={
-            <span>
-              <span className="block">
-                {t("career.profile.documents.kind.document", "문서")}
-              </span>
-              <span className="mt-0.5 block text-xs text-neutral-soft">
-                {t(
-                  "career.profile.documents.document_kind_help",
-                  "저장 후 회사 공개 여부만 선택합니다."
-                )}
-              </span>
-            </span>
-          }
-          className="rounded-lg bg-bg-basement p-3"
-        />
-      </div>
-      <ResumeDropzone
-        inputId="career-settings-document-upload"
-        variant="compact"
-        accept={
-          documentKind === "resume"
-            ? ".pdf,.docx,.txt,.md"
-            : ".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg"
-        }
-        fileName={documentFile?.name ?? ""}
-        onFileSelect={(file) => setDocumentFile(file)}
-        onFileReject={(_file, _source, reason) =>
-          showToast({
-            message:
-              reason === "file-size"
+      ) : (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Radio
+              name="career-document-kind"
+              value="resume"
+              checked={documentKind === "resume"}
+              onChange={() => {
+                setDocumentKind("resume");
+                setDocumentFile(null);
+              }}
+              label={
+                <span>
+                  <span className="block">
+                    {t("career.profile.documents.kind.resume", "이력서")}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-neutral-soft">
+                    {t(
+                      "career.profile.documents.resume_kind_help",
+                      "대표 이력서로 저장하고 프로필 반영 여부를 확인합니다."
+                    )}
+                  </span>
+                </span>
+              }
+              className="rounded-lg bg-bg-basement p-3"
+            />
+            <Radio
+              name="career-document-kind"
+              value="document"
+              checked={documentKind === "document"}
+              onChange={() => {
+                setDocumentKind("document");
+                setDocumentFile(null);
+              }}
+              label={
+                <span>
+                  <span className="block">
+                    {t("career.profile.documents.kind.document", "문서")}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-neutral-soft">
+                    {t(
+                      "career.profile.documents.document_kind_help",
+                      "저장 후 회사 공개 여부만 선택합니다."
+                    )}
+                  </span>
+                </span>
+              }
+              className="rounded-lg bg-bg-basement p-3"
+            />
+          </div>
+          <ResumeDropzone
+            inputId="career-settings-document-upload"
+            variant="compact"
+            accept={
+              documentKind === "resume"
+                ? ".pdf,.docx,.txt,.md"
+                : ".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg"
+            }
+            fileName={documentFile?.name ?? ""}
+            onFileSelect={(file) => setDocumentFile(file)}
+            onFileReject={(_file, _source, reason) =>
+              showToast({
+                message:
+                  reason === "file-size"
+                    ? t(
+                        "career.resume_dropzone.file_too_large_generic",
+                        "파일은 최대 4MB까지 업로드할 수 있습니다."
+                      )
+                    : t(
+                        "career.profile.documents.unsupported_file",
+                        "지원하는 파일 형식만 업로드해 주세요."
+                      ),
+                variant: "white",
+              })
+            }
+            title={t(
+              "career.profile.documents.dropzone_title",
+              "파일을 끌어다 놓거나 선택하세요"
+            )}
+            description={
+              documentKind === "resume"
                 ? t(
-                    "career.resume_dropzone.file_too_large_generic",
-                    "파일은 최대 4MB까지 업로드할 수 있습니다."
+                    "career.profile.documents.resume_formats",
+                    "PDF, DOCX, TXT, MD · 최대 4MB"
                   )
                 : t(
-                    "career.profile.documents.unsupported_file",
-                    "지원하는 파일 형식만 업로드해 주세요."
-                  ),
-            variant: "white",
-          })
-        }
-        title={t(
-          "career.profile.documents.dropzone_title",
-          "파일을 끌어다 놓거나 선택하세요"
-        )}
-        description={
-          documentKind === "resume"
-            ? t(
-                "career.profile.documents.resume_formats",
-                "PDF, DOCX, TXT, MD · 최대 4MB"
-              )
-            : t(
-                "career.profile.documents.document_formats",
-                "PDF, Office, TXT, MD, PNG, JPG · 최대 4MB"
-              )
-        }
-        dragTitle={t(
-          "career.resume_dropzone.drag_title",
-          "여기에 놓으면 업로드됩니다"
-        )}
-        dragDescription={t(
-          "career.profile.documents.drag_description",
-          "파일을 놓아 선택하세요."
-        )}
-        selectedDescription={t(
-          "career.profile.documents.selected_description",
-          "업로드 버튼을 누르면 저장됩니다."
-        )}
-      />
+                    "career.profile.documents.document_formats",
+                    "PDF, Office, TXT, MD, PNG, JPG · 최대 4MB"
+                  )
+            }
+            dragTitle={t(
+              "career.resume_dropzone.drag_title",
+              "여기에 놓으면 업로드됩니다"
+            )}
+            dragDescription={t(
+              "career.profile.documents.drag_description",
+              "파일을 놓아 선택하세요."
+            )}
+            selectedDescription={t(
+              "career.profile.documents.selected_description",
+              "업로드 버튼을 누르면 저장됩니다."
+            )}
+          />
+        </>
+      )}
     </TalentCareerModal>
   );
 };

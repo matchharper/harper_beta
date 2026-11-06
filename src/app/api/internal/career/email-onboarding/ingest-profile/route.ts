@@ -10,11 +10,15 @@ import {
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
-import { resolveTalentDocumentUpload } from "@/lib/talentOnboarding/documentUpload";
+import {
+  extractResumeTextContent,
+  resolveTalentDocumentUpload,
+} from "@/lib/talentOnboarding/documentUpload";
+import { sanitizeMultilineDbText } from "@/lib/textSanitization";
 import type { Json } from "@/types/database.types";
 
 export const runtime = "nodejs";
-export const maxDuration = 240;
+export const maxDuration = 800;
 export const dynamic = "force-dynamic";
 
 type UntypedAdmin = TalentAdminClient & {
@@ -37,7 +41,6 @@ type EmailDocumentUpload = {
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const MAX_ATTACHMENT_COUNT = 3;
 const MAX_ATTACHMENT_CANDIDATE_COUNT = 10;
-const MAX_PARSED_ATTACHMENT_TEXT = 24_000;
 
 function toUntypedAdmin(admin: TalentAdminClient): UntypedAdmin {
   return admin as unknown as UntypedAdmin;
@@ -227,19 +230,16 @@ async function extractTextFromAttachmentBuffer(
   if (!isSupportedProfileAttachment(attachment)) {
     return "";
   }
-  if (isTextAttachment(attachment)) {
-    return buffer.toString("utf8").trim();
-  }
-  if (isDocxAttachment(attachment)) {
-    const mammoth = await import("mammoth");
-    const parsed = await mammoth.extractRawText({ buffer });
-    return String(parsed.value ?? "").trim();
-  }
-  // @ts-ignore: pdf-parse-fork does not ship module declarations.
-  const pdfModule = await import("pdf-parse-fork");
-  const parsePdf = pdfModule.default;
-  const parsed = await parsePdf(buffer, { max: 8 });
-  return String(parsed.text ?? "").trim();
+  // MIME-only attachment names are accepted here as well as names with extensions.
+  const extension = isTextAttachment(attachment)
+    ? "txt"
+    : isDocxAttachment(attachment)
+      ? "docx"
+      : "pdf";
+  return extractResumeTextContent({
+    bytes: buffer,
+    fileName: `attachment.${extension}`,
+  });
 }
 
 async function processEmailAttachments(args: {
@@ -436,8 +436,8 @@ async function processEmailAttachments(args: {
     processed,
     resumeFileName,
     resumeStoragePath,
-    resumeText: resumeTexts.join("\n\n").slice(0, MAX_PARSED_ATTACHMENT_TEXT),
-    text: texts.join("\n\n").slice(0, MAX_PARSED_ATTACHMENT_TEXT),
+    resumeText: resumeTexts.join("\n\n"),
+    text: texts.join("\n\n"),
     warnings,
   };
 }
@@ -465,7 +465,7 @@ async function saveResumeFileReference(args: {
   links?: string[];
   resumeFileName?: string;
   resumeStoragePath?: string;
-  resumeText?: string;
+  resumeText?: string | null;
   userId: string;
 }) {
   const links = Array.from(
@@ -477,7 +477,10 @@ async function saveResumeFileReference(args: {
   );
   const resumeFileName = String(args.resumeFileName ?? "").trim();
   const resumeStoragePath = String(args.resumeStoragePath ?? "").trim();
-  const resumeText = String(args.resumeText ?? "").trim();
+  const resumeText = sanitizeMultilineDbText(
+    args.resumeText,
+    args.resumeText?.length ?? 0
+  );
   if (!links.length && !resumeFileName && !resumeStoragePath && !resumeText) {
     return false;
   }
@@ -495,7 +498,7 @@ async function saveResumeFileReference(args: {
     payload.resume_storage_path = resumeStoragePath.slice(0, 2000);
   }
   if (resumeText) {
-    payload.resume_text = resumeText.slice(0, MAX_PARSED_ATTACHMENT_TEXT);
+    payload.resume_text = resumeText;
   }
 
   if (resumeStoragePath) {
@@ -507,9 +510,7 @@ async function saveResumeFileReference(args: {
           kind: "resume",
           file_name: resumeFileName || "resume",
           storage_path: resumeStoragePath.slice(0, 2000),
-          extracted_text: resumeText
-            ? resumeText.slice(0, MAX_PARSED_ATTACHMENT_TEXT)
-            : null,
+          extracted_text: resumeText || null,
           is_public: true,
           is_primary: true,
         },
@@ -632,10 +633,13 @@ export async function POST(req: NextRequest) {
         warnings,
       });
     }
-    const resumeText = [directResumeText, attachmentExtraction.text]
+    const combinedResumeText = [directResumeText, attachmentExtraction.text]
       .filter(Boolean)
-      .join("\n\n")
-      .slice(0, MAX_PARSED_ATTACHMENT_TEXT);
+      .join("\n\n");
+    const resumeText = sanitizeMultilineDbText(
+      combinedResumeText,
+      combinedResumeText.length
+    );
     const resumeFileName =
       (typeof body.resumeFileName === "string"
         ? body.resumeFileName.trim()

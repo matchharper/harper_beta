@@ -1,4 +1,5 @@
 import { formatToolResultText } from "@/lib/llm/promptText";
+import { companyAgentScope } from "@/lib/agentContacts/companyScope";
 import { stringifyLlmDateTimes } from '@/lib/llm/promptDateTime';
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { createCandidateEmailPrivacy } from "./candidateEmailPrivacy";
@@ -702,6 +703,7 @@ export async function runOrgAgentToolLoop(
       loaded: loadedCapabilities,
       allowedToolNames: args.allowedToolNames,
       workspaceId: args.conversation.company_workspace_id,
+      agentService: Boolean(companyAgentScope(args.admin)),
     });
     const offeredTools = resolved.offeredToolNames;
     messages[0] = {

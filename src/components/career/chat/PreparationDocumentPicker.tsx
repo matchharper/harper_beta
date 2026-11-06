@@ -58,6 +58,12 @@ export function PreparationDocumentPicker({
       setError(t("career.prep.uploadError", "파일을 연결하지 못했어요. 다시 시도해 주세요."));
     }
   };
+  const openDocument = () => {
+    if (snapshotId) { void openSnapshot(); return; }
+    if (!selectedId) return;
+    closeMobileChat?.();
+    void router.push(getCareerDocumentHref(selectedId));
+  };
   useEffect(() => {
     const controller = new AbortController();
     void fetchWithAuth("/api/talent/documents", { signal: controller.signal })
@@ -105,11 +111,7 @@ export function PreparationDocumentPicker({
       <BareButton
         id={id}
         type="button"
-        onClick={() => {
-          if (snapshotId) { void openSnapshot(); return; }
-          closeMobileChat?.();
-          void router.push(getCareerDocumentHref(selectedId));
-        }}
+        onClick={openDocument}
         className="flex w-full min-w-0 items-start gap-2 rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3 py-2.5 text-left text-sm text-neutral-primary underline-offset-4 hover:underline"
       >
         <FileText className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -127,8 +129,8 @@ export function PreparationDocumentPicker({
     );
   return (
     <div className="space-y-2">
-      {snapshotId ? <BareButton type="button" onClick={() => void openSnapshot()} className="text-sm underline underline-offset-4">
-        {snapshotName ?? t("career.application.review.attachedFile", "첨부 파일")}
+      {selectedId ? <BareButton type="button" onClick={openDocument} className="text-sm underline underline-offset-4">
+        {snapshotName ?? docs.find((document) => document.id === selectedId)?.fileName ?? t("career.application.review.attachedFile", "첨부 파일")}
       </BareButton> : null}
       <Select
         disabled={disabled || uploading}

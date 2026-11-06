@@ -1,0 +1,73 @@
+{
+  "version": "v7",
+  "requestTime": "2026-11-06T10:00:00+09:00",
+  "cases": [
+    {
+      "id": "all_connections_without_selection",
+      "message": "연결시켜줄 수 있는 회사 전부 말해줘. 없으면 한 번 더 찾아봐줘.",
+      "profile": {
+        "name": "박지민",
+        "email": "jimin@example.test",
+        "location": "서울",
+        "headline": "Data Scientist",
+        "bio": "산업용 센서 시계열을 분석한 데이터 사이언티스트, 경력 4년. 설비 에너지 수요 예측 모델을 운영했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000202",
+            "company_name": "Meterworks",
+            "role": "Data Scientist",
+            "start_date": "2022-07",
+            "end_date": null,
+            "description": "산업용 센서 시계열 분석과 에너지 수요 예측 모델 운영"
+          }
+        ]
+      },
+      "brief": "산업 에너지 효율·최적화 분야의 데이터 사이언스 정규직. 서울 또는 국내 원격. 주 2회 이하 출근. 해외 이주 불가. 기본연봉 최소 8천만 원.",
+      "memory": "현재 고용주에게 이직 의사를 알리지 않았습니다.",
+      "documents": [],
+      "role": null,
+      "matching": null,
+      "pages": [],
+      "gmail": false,
+      "pendingInternal": []
+    },
+    {
+      "id": "selected_opportunity_introduction",
+      "message": "지금 나에게 추천할 만한 연결 기회 있어? 있다면 어떤 회사이고 왜 추천하는지 자세히 알려줘.",
+      "profile": {
+        "name": "박지민",
+        "email": "jimin@example.test",
+        "location": "서울",
+        "headline": "Data Scientist",
+        "bio": "산업용 센서 시계열을 분석한 데이터 사이언티스트, 경력 4년. 설비 에너지 수요 예측 모델을 운영했습니다.",
+        "experiences": [
+          {
+            "id": "70000000-0000-4000-8000-000000000202",
+            "company_name": "Meterworks",
+            "role": "Data Scientist",
+            "start_date": "2022-07",
+            "end_date": null,
+            "description": "산업용 센서 시계열 분석과 에너지 수요 예측 모델 운영"
+          }
+        ]
+      },
+      "brief": "산업 에너지 효율·최적화 분야의 데이터 사이언스 정규직. 서울 또는 국내 원격. 주 2회 이하 출근. 해외 이주 불가. 기본연봉 최소 8천만 원.",
+      "memory": "현재 고용주에게 이직 의사를 알리지 않았습니다.",
+      "documents": [],
+      "role": null,
+      "matching": null,
+      "pages": [],
+      "gmail": false,
+      "pendingInternal": [
+        {
+          "id": "70000000-0000-4000-8000-000000000700",
+          "title": "Energy Forecasting Engineer",
+          "company": "VoltGrid",
+          "selectedAt": "2026-11-06 09:00",
+          "description": "VoltGrid는 국내 공장 40곳의 전력 사용량을 예측하고 수요반응 참여를 돕는 18명 규모의 에너지 소프트웨어 회사입니다. 데이터팀은 4명이며 이번 역할은 센서 시계열 예측부터 현장 검증, 운영 모니터링까지 맡습니다. 고객 엔지니어와 주 단위로 모델 오차와 절감 효과를 확인합니다. 서울 사무실 주 1회 출근, 기본연봉 9천만~1억 1천만 원. 전력 도메인 경험은 우대하며 시계열 모델 운영 경험이 핵심입니다.",
+          "sourceType": "internal"
+        }
+      ]
+    }
+  ]
+}

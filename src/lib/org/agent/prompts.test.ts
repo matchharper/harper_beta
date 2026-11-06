@@ -91,8 +91,9 @@ test("turn delivery keeps tool depth independent from visible message count", ()
   assert.match(direct, /narration is optional/);
   assert.match(direct, /terminal response completes the conversation/);
   assert.match(buildOrgAgentSystemPrompt({ surface: "slack" }), /Only the first useful non-terminal update/);
-  assert.match(webAction, /Follow the event's delivery requirement/);
-  assert.match(webAction, /Silence is a successful outcome/);
+  assert.match(webAction, /Honor actual delivery obligations/);
+  assert.match(webAction, /Receiving an event does not itself create a duty to notify/);
+  assert.match(webAction, /quiet completion is valid/);
   assert.match(webAction, /never an unverified result/);
   assert.match(
     webAction,

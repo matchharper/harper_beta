@@ -1,3 +1,4 @@
+import { hasDeliveredCareerContact } from "@/lib/career/background/contactHistory";
 import { companyReplyAddresses } from "../companyAlias";
 import {
   finishCompanyEmailReply,
@@ -248,8 +249,12 @@ export async function processEmailReply(
   let current = await readRow(admin, "email_reply_jobs", job.id);
   if (!current?.assistant_message_id) {
     const references = await loadEmailReferenceContext(ctx);
+    const setting = await readRow(admin, "talent_setting", ctx.talentId, "user_id");
+    const continuingCareer = setting?.is_onboarding_done !== true && !identity.lead && await hasDeliveredCareerContact({
+      admin, userId: ctx.talentId, replyAlias,
+    });
     const signupBody =
-      opsTest || identity.lead || references.internalConnectionReply
+      opsTest || identity.lead || references.internalConnectionReply || continuingCareer
         ? null
         : await processSignupFollowup(ctx);
     const intake = identity.lead
@@ -278,13 +283,7 @@ export async function processEmailReply(
         content: intake.body,
       });
     else {
-      const setting = await readRow(
-        admin,
-        "talent_setting",
-        ctx.talentId,
-        "user_id"
-      );
-      const onboarding = setting?.is_onboarding_done !== true;
+      const onboarding = setting?.is_onboarding_done !== true && !continuingCareer;
       const coverage = onboarding
         ? await getCareerOnboardingChecklistCoverage({
             admin,
@@ -312,7 +311,7 @@ export async function processEmailReply(
         ...(onboarding ? [] : [await emailCoachingContext(ctx)]),
         opsTest
           ? "Ops email test: treat the supplied input as the candidate's message and write to the candidate in the usual email voice. Reads, owned document changes and application preparation are real; email delivery, company contact, application submission and mutations that schedule future matching/contact are disabled. Describe only verified actions."
-          : await signupFollowupContext(ctx),
+          : continuingCareer ? "" : await signupFollowupContext(ctx),
         onboarding
           ? buildOnboardingRuntimeStateSection({
               checklistCoverage: coverage,

@@ -8,6 +8,7 @@ import {
 import { cx, opsTheme } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -38,7 +39,11 @@ function CompanyUrl({ value }: { value: string | null }) {
 export default function OpsCompanySearchPage() {
   const canFetch = useCanFetchInternal();
   const copy = useDebugCopyToClipboard();
-  const [query, setQuery] = useState("");
+  const [queryText, setQueryText] = useState("");
+  const queries = queryText
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean);
   const [offset, setOffset] = useState("0");
   const [result, setResult] = useState<CompanySearchDebugResponse | null>(null);
   const [error, setError] = useState("");
@@ -64,7 +69,7 @@ export default function OpsCompanySearchPage() {
         }
       );
       setResult(response);
-      setQuery(response.input.query);
+      setQueryText(response.input.queries.join("\n"));
       setOffset(String(response.input.offset));
     } catch (cause) {
       setError(
@@ -86,15 +91,16 @@ export default function OpsCompanySearchPage() {
           className="mt-4 flex flex-wrap items-end gap-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (query.trim() && validOffset)
-              void search({ query, offset: Number(offset) });
+            if (queries.length && validOffset)
+              void search({ queries, offset: Number(offset) });
           }}
         >
           <label className="grid min-w-60 flex-1 gap-1.5 text-sm">
-            회사명 · 웹사이트 · LinkedIn URL
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+            회사명 · LinkedIn URL (한 줄에 하나)
+            <Textarea
+              value={queryText}
+              onChange={(event) => setQueryText(event.target.value)}
+              rows={4}
               disabled={loading}
               required
             />
@@ -114,7 +120,7 @@ export default function OpsCompanySearchPage() {
           <MuteButton
             type="submit"
             variant="dark"
-            disabled={!canFetch || loading || !query.trim() || !validOffset}
+            disabled={!canFetch || loading || !queries.length || !validOffset}
           >
             {loading ? (
               <LoaderCircle aria-hidden className="h-4 w-4 animate-spin" />
@@ -142,7 +148,7 @@ export default function OpsCompanySearchPage() {
                 role="status"
                 className="flex flex-wrap items-center gap-3 text-sm"
               >
-                <strong>{result.input.query}</strong>
+                <strong>{result.input.queries.join(" · ")}</strong>
                 <span>{result.companies.length}개</span>
                 <span className="text-neutral-muted">company_workspace</span>
                 <span className="text-neutral-muted">
@@ -156,7 +162,7 @@ export default function OpsCompanySearchPage() {
                 onClick={() => {
                   if (result.nextOffset !== null)
                     void search({
-                      query: result.input.query,
+                      queries: result.input.queries,
                       offset: result.nextOffset,
                     });
                 }}
@@ -168,8 +174,9 @@ export default function OpsCompanySearchPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>회사</TableHead>
-                  <TableHead>범위</TableHead>
-                  <TableHead>Company ID</TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    일치 검색어
+                  </TableHead>
                   <TableHead>Workspace ID</TableHead>
                   <TableHead>웹사이트</TableHead>
                   <TableHead>LinkedIn</TableHead>
@@ -183,9 +190,8 @@ export default function OpsCompanySearchPage() {
                     <TableCell className="min-w-36 font-medium">
                       {company.name}
                     </TableCell>
-                    <TableCell>{company.scope}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {company.companyDbId ?? "—"}
+                    <TableCell className="min-w-24">
+                      {company.matchedQueries.join(" · ")}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {company.companyWorkspaceId ?? "—"}
@@ -201,7 +207,7 @@ export default function OpsCompanySearchPage() {
                 {!result.companies.length ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={5}
                       className="py-8 text-center text-neutral-muted"
                     >
                       검색 결과 없음

@@ -21,6 +21,7 @@ import {
   v2PromptCandidate,
 } from "@/lib/externalRecommendationsV2/scoringInput";
 import { callDecisions } from "@/lib/externalRecommendationsV2/decisions";
+import { fillExternalRoleSalaries } from "@/lib/externalRecommendationsV2/salaryEstimation.server";
 import {
   cachedFitEligible,
   chunks,
@@ -38,6 +39,7 @@ import {
 } from "@/lib/externalRecommendationsV2/retrieval";
 import type { V2SearchPlan } from "@/lib/externalRecommendationsV2/countries";
 import { ownSubmittedRoleSql } from "@/lib/externalRecommendationsV2/roleSql";
+import { companyWorkspaceFilterSql, companyWorkspaceIdsSchema } from "@/lib/externalRecommendationsV2/indexedTitleSearch";
 import { matchingTable, readExternalEvaluation } from "./store";
 import { readExternalEvaluationResults } from "./externalEvaluationResults";
 import { scheduleCareerDevelopmentJob } from "../developmentQueue.server";
@@ -84,6 +86,7 @@ export type ExternalSearchRequest = {
   operationId: string;
   matchingId?: string;
   roleIds?: string[];
+  companyWorkspaceIds?: string[];
   plan?: V2SearchPlan;
   evaluationLimit?: number;
   profileId?: string;
@@ -112,6 +115,9 @@ export async function requestExternalMatchingSearch(
   args: ExternalSearchRequest
 ) {
   args.signal?.throwIfAborted();
+  const companyWorkspaceIds = args.companyWorkspaceIds === undefined
+    ? undefined
+    : [...new Set(companyWorkspaceIdsSchema.parse(args.companyWorkspaceIds))];
   const db = matchingTable(args.admin, "external_recommendation_runs");
   const existing = await db
     .select("*")
@@ -170,6 +176,7 @@ export async function requestExternalMatchingSearch(
   };
   const request = {
     roleIds: args.roleIds,
+    companyWorkspaceIds,
     plan: args.plan,
     evaluationLimit: limit,
     replyId: args.replyId,
@@ -468,7 +475,7 @@ async function executeCareerMatchingSearch(
         rows.push(
           ...(await executeSql(
             admin,
-            `SELECT ${ROLE_SELECT} FROM public.company_roles cr ${ROLE_JOINS} WHERE ((${eligibilitySql({ userId: run.talent_id, blockedCompanies: loaded.blockedCompanies, includePreviouslyRecommended: true })}) OR (${ownSubmittedRoleSql({ userId: run.talent_id, blockedCompanies: loaded.blockedCompanies })})) AND cr.role_id=ANY(ARRAY[${part.map((id) => `${sqlLiteral(z.string().uuid().parse(id))}::uuid`).join(",")}])`,
+            `SELECT ${ROLE_SELECT} FROM public.company_roles cr ${ROLE_JOINS} WHERE ((${eligibilitySql({ userId: run.talent_id, blockedCompanies: loaded.blockedCompanies, includePreviouslyRecommended: true })}) OR (${ownSubmittedRoleSql({ userId: run.talent_id, blockedCompanies: loaded.blockedCompanies })})) AND (${companyWorkspaceFilterSql(request.companyWorkspaceIds)}) AND cr.role_id=ANY(ARRAY[${part.map((id) => `${sqlLiteral(z.string().uuid().parse(id))}::uuid`).join(",")}])`,
             part.length
           ))
         );
@@ -478,6 +485,7 @@ async function executeCareerMatchingSearch(
           admin,
           userId: run.talent_id,
           plan: request.plan,
+          companyWorkspaceIds: request.companyWorkspaceIds,
           blockedCompanies: loaded.blockedCompanies,
           limit: request.evaluationLimit,
           includePreviouslyRecommended: true,
@@ -486,10 +494,24 @@ async function executeCareerMatchingSearch(
           signal,
         })
       ).rows;
-    const cards = await attachCompanyContextToCards({
-      admin,
-      cards: rows.slice(0, request.evaluationLimit).map(roleCard),
-    });
+    const selectedRows = rows.slice(0, request.evaluationLimit);
+    const [cards] = await Promise.all([
+      attachCompanyContextToCards({ admin, cards: selectedRows.map(roleCard) }),
+      (async () => {
+        const began = Date.now();
+        // Persist for subsequent retrievals. Fit evaluation and public cards
+        // continue to receive published compensation only.
+        metrics.salaryFill = await fillExternalRoleSalaries(
+          admin,
+          selectedRows.filter((row) => !row.salary_is_predicted &&
+            row.salary_min == null && row.salary_max == null &&
+            !String(row.salary_range ?? "").trim()).flatMap((row) =>
+              row.role_id ? [row.role_id] : []),
+          signal
+        );
+        metrics.salaryFillMs = Date.now() - began;
+      })(),
+    ]);
     signal?.throwIfAborted();
     await update({ candidate_role_ids: cards.map((c) => c.roleId) });
     const scoringContext = { ...context };

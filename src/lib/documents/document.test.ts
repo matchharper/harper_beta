@@ -7,6 +7,7 @@ import { exportDocument, renderAuthoredDocument } from "./export";
 import { AUTHORED_DOCUMENT_ORIGIN } from "./authoring";
 import type { TalentDocumentRow } from "@/lib/talentOnboarding/models";
 import { applicationAttachment, applicationAttachmentName } from "@/lib/career/simulation/resumeAttachment";
+import { startResumeAssetServer } from "@/lib/resumes/testAssetServer";
 
 test("Markdown renders headings, tables and links without executable or remote content", async () => {
   const template = await documentTemplate(
@@ -69,6 +70,9 @@ test(
   "general Korean/English documents produce a complete multi-page PDF and responsive preview",
   { skip: process.env.DOCUMENT_PDF_TEST !== "1" },
   async (t) => {
+    const assets = await startResumeAssetServer();
+    const oldSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    process.env.NEXT_PUBLIC_SITE_URL = assets.origin;
     const browser = await chromium.launch({
       executablePath:
         process.env.RESUME_CHROMIUM_EXECUTABLE_PATH ||
@@ -80,7 +84,10 @@ test(
     t.after(async () => {
       if (oldToken === undefined) delete process.env.BROWSERLESS_API_TOKEN;
       else process.env.BROWSERLESS_API_TOKEN = oldToken;
+      if (oldSiteUrl === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+      else process.env.NEXT_PUBLIC_SITE_URL = oldSiteUrl;
       await browser.close();
+      await assets.close();
     });
     const page = await browser.newPage({
       viewport: { width: 900, height: 1100 },

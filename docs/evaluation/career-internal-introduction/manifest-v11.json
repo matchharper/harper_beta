@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v11",
+  "createdAt": "2026-11-05",
+  "provenance": "Same original user turns as v6 initial Jobs interest. Corrects harness exposing a pre-existing recommendation ID and saved opportunity before apply_to_internal_role; compares actual profile content instead of banning unchanged material selections. Prior failed runs retained. Frozen before v11 generation.",
+  "hashes": {
+    "cases-v11.json": "cd154f7a9e80c1a864fade2486ac79a7cd551331e36d879e9d087a2a16ad58d4",
+    "gold-v11.json": "96ac97928ee24698f8dd5cba6fd2e20690ce43611f1d9a13606356ebd0971a6e"
+  }
+}

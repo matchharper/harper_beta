@@ -12,7 +12,7 @@
 
 ## 저장과 동시 수정
 
-원본은 기존 `talent_documents.structured_content`의 JSON이다. `extracted_text`에는 같은 내용에서 만든 일반 텍스트를 저장한다. HTML이나 PDF를 별도로 저장하지 않는다.
+원본은 기존 `talent_documents.structured_content`의 JSON이다. `extracted_text`에는 같은 내용에서 만든 일반 텍스트를 저장한다. HTML은 저장하지 않는다. PDF는 다운로드·첨부 시 생성하며, 동일한 입력의 후속 요청에 재사용할 파일을 기존 비공개 Storage와 실행 기록에 저장한다. 생성 문서의 원본 컬럼을 PDF 파일로 바꾸지 않는다.
 
 수정 전 `read_document(format=structured)`로 현재 revision과 항목 ID를 읽는다. `changes`는 `content` 기준 JSON pointer 경로와 `set`·`add`·`remove` 작업을 담는다. 예를 들어 `{"op":"set","path":"/experience/<기존 항목 ID>/description","value":"수정한 설명"}`은 해당 설명만 바꾼다. 경력·학력·프로젝트 등은 안정적인 ID로 선택하고, bullet·기술 목록·연락처 링크처럼 ID가 없는 배열은 인덱스로 선택한다. `add`는 컬렉션 경로에 새 항목 하나를 추가하며 새 ID는 서버가 부여한다. `remove`는 지정한 필드 또는 항목만 삭제한다.
 
@@ -38,19 +38,35 @@
 
 폰트를 로드한 후 배치한다. 화면은 최대 82% 배율로 중앙 정렬하며 회색 배경과 용지 그림자를 표시한다. 좌우 여백은 데스크톱 28px, 모바일 16px 이상 확보한다. 좁은 화면에서는 A4 전체를 축소하며 내부 줄바꿈 폭을 바꾸지 않는다. PDF에는 화면 배율을 적용하지 않는다. revision이 바뀌면 새 iframe으로 이전 배치 결과를 버린다. Chrome/Edge를 기준으로 검증하며 브라우저 간 픽셀 단위 동일성은 보장하지 않는다.
 
-## 다운로드와 자동 지원 PDF 생성 (2026-10-19 로컬 변경, 미배포)
+## 다운로드와 자동 지원 PDF 생성 (2026-11-05 로컬 변경, 미배포)
 
 `POST /api/talent/documents/[documentId]/pdf`에 `expected_revision`, `render_version`을 보낸다. 서버는 인증된 사용자 소유의 저장 JSON만 읽는다. 클라이언트 HTML을 받지 않는다.
 
-다운로드와 자동 지원의 생성 이력서 첨부는 공통 `renderResumePdf`에서 Browserless PDF API를 사용한다. 공유 HTML·CSS·내장 폰트·Paged.js는 그대로 보내고, 페이지 배치가 끝나면 A4 PDF를 받는다. PDF 본문의 원문 누락과 실제 페이지 수를 확인한다. 출력 전 문서 revision·삭제·접근 권한을 다시 확인한다. 기존 업로드 파일은 변환 없이 그대로 사용한다.
+다운로드와 자동 지원의 생성 이력서 첨부는 공통 `renderResumePdf`에서 Browserless PDF API를 사용한다. 템플릿·본문·폰트 전체·Paged.js·페이지 분할 코드·인쇄 옵션은 기존과 동일하다. 폰트/CSS/라이브러리를 HTML에 인라인으로 싣는 대신, `next.config.mjs`가 `scripts/prepareResumeAssets.mjs`를 실행하여 원본 자산을 `public/resume-assets/<전체 자산 해시>/`에 복사한다. 파일에는 사용자 문서 내용이 없다. `assetManifest.json`의 해시가 설치된 자산과 다르면 빌드를 중단한다. 패키지를 의도적으로 변경할 때만 동일성 검토 후 `node scripts/prepareResumeAssets.mjs --update-manifest`로 정본을 갱신한다.
 
-PDF는 서버 메모리에서 다운로드 응답 또는 첨부로 전달한다. 다운로드는 `application/pdf`, UTF-8 파일명, `private, no-store`를 유지한다. 생성 실패는 저장 문서나 revision을 변경하지 않는다. 서비스 실패 시 로컬 Chromium으로 fallback하지 않는다.
+자산 URL은 공개 사이트 origin과 내용 해시를 사용한다. 캐시는 immutable이며 CSS/스크립트 SRI와 CORS, 해당 자산 경로로 제한된 CSP를 적용한다. 폰트/라이브러리를 불러오지 못하면 기존 글꼴로 대체해 출력하지 않고 배치 오류를 반환한다. Browserless가 해당 배포의 공개 자산 경로에 접근할 수 있어야 한다. 미배포 자산이나 보호된 Preview에 대한 원격 접근 성공은 로컬 검증만으로 확인되지 않는다.
+
+파일 캐시는 소유자·문서 ID·revision·실제 HTML·인쇄 옵션·자산 버전이 일치할 때 재사용한다. 기존 `talent_external_operations`의 `kind=pdf_artifact`, `conversation_id=null` 기록이 비공개 Storage 파일 경로·파일 해시·페이지 수를 보관한다. 캐시 파일을 읽을 때 해시를 검증하고, 다운로드/첨부 반환 전에는 기존 문서 revision·삭제·접근 권한을 다시 확인한다. 승인된 회사 자료 스냅샷은 기존 불변 자료의 접근 계약을 유지한다. 캐시 적중 시 Browserless를 호출하지 않는다. 동시 최초 요청이 겹치면 별도 서버에서 렌더링이 중복될 수 있으나, DB 고유 제약으로 먼저 저장된 한 파일의 바이트를 모두 반환한다. 기존 업로드 파일은 변환 없이 그대로 사용한다.
+
+PDF 형식과 페이지 수를 확인한 후 다운로드 응답 또는 첨부로 전달한다. 다운로드는 `application/pdf`, UTF-8 파일명, `private, no-store`를 유지한다. 생성 실패는 저장 문서나 revision을 변경하지 않는다. 서비스 실패 시 로컬 Chromium으로 fallback하지 않는다.
 
 서버 전용 `BROWSERLESS_API_TOKEN`이 필요하다. 로컬은 `.env.local`에서 읽으며 운영 설정은 아직 변경하지 않았다. 배포 시 별도 등록이 필요하다. 이력서 HTML은 Browserless로 전송된다. 제공량 초과·서비스 실패·시간 초과에는 생성 실패를 반환하며 provider 응답 본문과 인증키가 포함된 URL은 오류에 노출하지 않는다.
 
 PDF 생성 제한은 30초, 다운로드 API 제한은 60초다. 다운로드·자동 지원 실행 경로의 배포 파일에는 PDF worker·폰트·Paged.js를 포함한다. PDF 생성에 로컬 Chromium 설치나 실행은 필요하지 않다.
 
 ## 검증과 관측
+
+2026-11-05 로컬 확인: 영문 1페이지, 한·영 혼합 이력서 3페이지, 표·코드·링크 문서 4페이지와 당시 PDF 오류가 난 실제 이력서 1페이지를 변경 전 코드와 비교했다. 총 9페이지의 이미지(144 DPI), 텍스트, 링크, 페이지 내용 스트림이 같았으며 PDF 전체 바이트도 생성시각 메타데이터를 제외하고 일치했다. 실제 사용자 문서와 생성 결과는 git에 포함하지 않는다. 로컬 Next.js가 제공한 정적 자산으로 실제 이력서를 다시 출력한 결과도 같은 픽셀이었다.
+
+재현 가능한 확인:
+
+```sh
+PDF_EQUIVALENCE_TEST=1 node --import tsx --test src/lib/resumes/pdfEquivalence.test.ts
+python3 scripts/comparePdfRenders.py
+PDF_CACHE_E2E_ARTIFACT_PATH=output/pdf/equivalence/english-external.pdf node --import tsx --test src/lib/resumes/pdfCache.test.ts
+```
+
+비교 기준 코드를 별도로 고정하려면 `PDF_EQUIVALENCE_BASELINE_MODULE`에 변경 전 `paginatedPreviewHtml` 모듈 경로를 지정한다. 검증용 개인 문서 HTML은 `PDF_EQUIVALENCE_PRIVATE_HTML`로만 전달한다. 비교 결과는 `output/pdf/equivalence/comparison.json`에 기록한다. 캐시는 다운로드 → 브라우저 첨부 → 재다운로드가 렌더러 1회로 같은 PDF 바이트를 반환하는지, revision 변경 시 새로 생성하는지, 동시 쓰기·손상·권한 철회가 기존 파일을 잘못 전달하지 않는지 검사한다. 기존 PostgreSQL 스키마의 고유 제약과 권한도 PGlite에서 확인한다.
 
 실제 API 검증에는 `RESUME_PDF_TEST=1`과 `--env-file=.env.local`을 사용한다. `src/lib/resumes/resume.test.ts`, `export.test.ts`, `render.test.ts`, `src/lib/career/simulation/resumeAttachment.test.ts`에서 PDF 생성·원문 보존·접근 권한 재확인·첨부를 확인한다. 가상 이력서로 API 사용량을 소비하며 `--test-concurrency=1`로 실행한다. 미리보기 및 첨부 폼의 브라우저 테스트에만 로컬 Chromium이 필요하다.
 

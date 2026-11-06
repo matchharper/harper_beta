@@ -15,37 +15,15 @@ test("progress survives overlapping callbacks, hides waits for a newer reply, an
     status: "pending",
     result: {},
   };
+  let activeClaim = "attempt-1";
   const scope = {
     userId: "user",
     conversationId: "conversation",
     admin: {
-      from() {
-        let update: any;
-        const filters: Array<() => boolean> = [];
-        const value = (key: string) =>
-          key === "result->activity->>attemptId"
-            ? row.result.activity?.attemptId
-            : row[key];
-        const query: any = {
-          update(next: any) {
-            update = next;
-            return query;
-          },
-          eq(key: string, expected: unknown) {
-            filters.push(() => value(key) === expected);
-            return query;
-          },
-          neq(key: string, expected: unknown) {
-            filters.push(() => value(key) !== expected);
-            return query;
-          },
-          then(resolve: (result: unknown) => void) {
-            if (filters.every((filter) => filter()))
-              row = { ...row, ...update };
-            resolve({ error: null });
-          },
-        };
-        return query;
+      async rpc(_name: string, args: any) {
+        if (row.status !== "completed" && args.p_claim_id === activeClaim)
+          row = { ...row, result: { ...row.result, ...args.p_patch } };
+        return { error: null };
       },
     },
   } as unknown as WorkScope;
@@ -61,6 +39,7 @@ test("progress survives overlapping callbacks, hides waits for a newer reply, an
   } as CareerReplyCheckpoint);
   assert.deepEqual(projectCareerWorkActivity(row), []);
   const resumed = createCareerInvocationActivity(scope, row.id);
+  activeClaim = "attempt-2";
   await resumed.start("attempt-2");
   first.record(["늦게 도착한 이전 로그"]);
   await first.flush();

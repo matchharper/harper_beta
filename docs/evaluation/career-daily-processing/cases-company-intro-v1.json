@@ -1,0 +1,103 @@
+{
+  "requestTime": "2026-11-06T01:05:00Z",
+  "cases": [
+    {
+      "id": "fresh_company_interest",
+      "trigger": "immediate_opportunity_requested",
+      "facts": "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Wants platform design ownership and hybrid work in Seoul. Internal recommendations allowed; profile visibility open_to_matches. External discovery disabled. No Gmail integration. Current saved recommendation 20000000-0000-4000-8000-000000000003 for Role 30000000-0000-4000-8000-000000000003 is a company-originated Intro, already in the candidate list, unanswered. No additional profile-sharing or acceptance authorization. No candidate contact or company contact has been sent for this request. No appointments, other pending work, schedules or recent emails. This is the first direct company interest in this role.",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년. Kubernetes 배포 플랫폼 설계·운영, 여러 제품팀 개발자 경험 개선.",
+      "sources": [
+        {
+          "sourceKind": "company_intro",
+          "sourceId": "10000000-0000-4000-8000-000000000003",
+          "revision": 2,
+          "occurredAt": "2026-11-06T01:02:00Z",
+          "recommendationId": "20000000-0000-4000-8000-000000000003",
+          "roleId": "30000000-0000-4000-8000-000000000003"
+        }
+      ],
+      "companyIntroContext": {
+        "intro": {
+          "id": "10000000-0000-4000-8000-000000000003",
+          "role_id": "30000000-0000-4000-8000-000000000003",
+          "recommendation_id": "20000000-0000-4000-8000-000000000003",
+          "requested_at": "2026-11-06T01:02:00Z",
+          "company_appeal": "여러 팀의 배포 자동화를 설계하고 운영하신 경험이 인상적이었습니다. 저희 플랫폼의 설계 방향을 함께 정하고 실제 운영까지 책임질 분을 찾고 있어 만나고 싶습니다.",
+          "candidate_sent_at": null
+        },
+        "role": {
+          "roleId": "30000000-0000-4000-8000-000000000003",
+          "name": "Platform Engineer",
+          "description": "제품팀이 사용하는 배포 플랫폼을 설계하고 운영합니다. Kubernetes 기반 배포 자동화, 개발자 경험 개선, 서비스 운영 도구를 담당합니다.\n필수: 5년 이상 소프트웨어 개발 또는 플랫폼 운영 경험, Kubernetes 운영 경험.\n현재 온콜 체계는 팀이 정비 중이며 부담과 담당 범위는 면담에서 협의합니다.",
+          "companyName": "Cedar",
+          "companyDescription": "Cedar는 여러 제품팀이 안전하고 빠르게 배포할 수 있도록 개발자 플랫폼을 만드는 B2B 소프트웨어 회사입니다. 플랫폼팀은 현재 엔지니어 4명입니다.",
+          "location": "서울",
+          "workMode": "주 2회 사무실 출근",
+          "compensation": "연봉 9,000만~1억 2,000만원, 면담 후 협의"
+        },
+        "history": []
+      },
+      "toolFacts": {
+        "read_recommended_opportunities": "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Wants platform design ownership and hybrid work in Seoul. Internal recommendations allowed; profile visibility open_to_matches. External discovery disabled. No Gmail integration. Current saved recommendation 20000000-0000-4000-8000-000000000003 for Role 30000000-0000-4000-8000-000000000003 is a company-originated Intro, already in the candidate list, unanswered. No additional profile-sharing or acceptance authorization. No candidate contact or company contact has been sent for this request. No appointments, other pending work, schedules or recent emails. This is the first direct company interest in this role.",
+        "get_role_context": "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Wants platform design ownership and hybrid work in Seoul. Internal recommendations allowed; profile visibility open_to_matches. External discovery disabled. No Gmail integration. Current saved recommendation 20000000-0000-4000-8000-000000000003 for Role 30000000-0000-4000-8000-000000000003 is a company-originated Intro, already in the candidate list, unanswered. No additional profile-sharing or acceptance authorization. No candidate contact or company contact has been sent for this request. No appointments, other pending work, schedules or recent emails. This is the first direct company interest in this role.\n제품팀이 사용하는 배포 플랫폼을 설계하고 운영합니다. Kubernetes 기반 배포 자동화, 개발자 경험 개선, 서비스 운영 도구를 담당합니다.\n필수: 5년 이상 소프트웨어 개발 또는 플랫폼 운영 경험, Kubernetes 운영 경험.\n현재 온콜 체계는 팀이 정비 중이며 부담과 담당 범위는 면담에서 협의합니다.",
+        "read_matching": "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Wants platform design ownership and hybrid work in Seoul. Internal recommendations allowed; profile visibility open_to_matches. External discovery disabled. No Gmail integration. Current saved recommendation 20000000-0000-4000-8000-000000000003 for Role 30000000-0000-4000-8000-000000000003 is a company-originated Intro, already in the candidate list, unanswered. No additional profile-sharing or acceptance authorization. No candidate contact or company contact has been sent for this request. No appointments, other pending work, schedules or recent emails. This is the first direct company interest in this role.",
+        "list_matchings": "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Wants platform design ownership and hybrid work in Seoul. Internal recommendations allowed; profile visibility open_to_matches. External discovery disabled. No Gmail integration. Current saved recommendation 20000000-0000-4000-8000-000000000003 for Role 30000000-0000-4000-8000-000000000003 is a company-originated Intro, already in the candidate list, unanswered. No additional profile-sharing or acceptance authorization. No candidate contact or company contact has been sent for this request. No appointments, other pending work, schedules or recent emails. This is the first direct company interest in this role.",
+        "read_agent_messages": "No prior correspondence for this intro; candidate has not accepted. No message has been delivered.",
+        "read_company_connections": "No connected company conversation for this pending request."
+      }
+    },
+    {
+      "id": "previous_decline",
+      "trigger": "immediate_opportunity_requested",
+      "facts": "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Wants platform design ownership and hybrid work in Seoul. Internal recommendations allowed; profile visibility open_to_matches. External discovery disabled. No Gmail integration. Current saved recommendation 20000000-0000-4000-8000-000000000003 for Role 30000000-0000-4000-8000-000000000003 is a company-originated Intro, already in the candidate list, unanswered. No additional profile-sharing or acceptance authorization. No candidate contact or company contact has been sent for this request. No appointments, other pending work, schedules or recent emails. This is the first direct company interest in this role. The candidate previously declined this Role because of full-time office attendance and on-call load. Their last conversation asked to hear again if work conditions changed. Do not infer they now accept; on-call is still not settled.",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년. Kubernetes 배포 플랫폼 설계·운영, 여러 제품팀 개발자 경험 개선.",
+      "sources": [
+        {
+          "sourceKind": "company_intro",
+          "sourceId": "10000000-0000-4000-8000-000000000003",
+          "revision": 2,
+          "occurredAt": "2026-11-06T01:02:00Z",
+          "recommendationId": "20000000-0000-4000-8000-000000000003",
+          "roleId": "30000000-0000-4000-8000-000000000003"
+        }
+      ],
+      "companyIntroContext": {
+        "intro": {
+          "id": "10000000-0000-4000-8000-000000000003",
+          "role_id": "30000000-0000-4000-8000-000000000003",
+          "recommendation_id": "20000000-0000-4000-8000-000000000003",
+          "requested_at": "2026-11-06T01:02:00Z",
+          "company_appeal": "플랫폼 운영 경험이 좋아 만나고 싶습니다. 현재 주 2회 출근으로 운영하며 온콜 역할은 면담에서 협의할 수 있습니다.",
+          "candidate_sent_at": null
+        },
+        "role": {
+          "roleId": "30000000-0000-4000-8000-000000000003",
+          "name": "Platform Engineer",
+          "description": "제품팀이 사용하는 배포 플랫폼을 설계하고 운영합니다. Kubernetes 기반 배포 자동화, 개발자 경험 개선, 서비스 운영 도구를 담당합니다.\n필수: 5년 이상 소프트웨어 개발 또는 플랫폼 운영 경험, Kubernetes 운영 경험.\n현재 온콜 체계는 팀이 정비 중이며 부담과 담당 범위는 면담에서 협의합니다.",
+          "companyName": "Cedar",
+          "companyDescription": "Cedar는 여러 제품팀이 안전하고 빠르게 배포할 수 있도록 개발자 플랫폼을 만드는 B2B 소프트웨어 회사입니다. 플랫폼팀은 현재 엔지니어 4명입니다.",
+          "location": "서울",
+          "workMode": "주 2회 사무실 출근",
+          "compensation": "연봉 9,000만~1억 2,000만원, 면담 후 협의"
+        },
+        "history": [
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "created_at": "2026-09-02T01:02:00Z",
+            "opportunity_type": "internal_recommendation",
+            "feedback": "dislike",
+            "feedback_reason": "그때는 주 5회 출근과 온콜이 부담스러웠어요."
+          }
+        ]
+      },
+      "toolFacts": {
+        "read_recommended_opportunities": "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Wants platform design ownership and hybrid work in Seoul. Internal recommendations allowed; profile visibility open_to_matches. External discovery disabled. No Gmail integration. Current saved recommendation 20000000-0000-4000-8000-000000000003 for Role 30000000-0000-4000-8000-000000000003 is a company-originated Intro, already in the candidate list, unanswered. No additional profile-sharing or acceptance authorization. No candidate contact or company contact has been sent for this request. No appointments, other pending work, schedules or recent emails. This is the first direct company interest in this role. The candidate previously declined this Role because of full-time office attendance and on-call load. Their last conversation asked to hear again if work conditions changed. Do not infer they now accept; on-call is still not settled.",
+        "get_role_context": "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Wants platform design ownership and hybrid work in Seoul. Internal recommendations allowed; profile visibility open_to_matches. External discovery disabled. No Gmail integration. Current saved recommendation 20000000-0000-4000-8000-000000000003 for Role 30000000-0000-4000-8000-000000000003 is a company-originated Intro, already in the candidate list, unanswered. No additional profile-sharing or acceptance authorization. No candidate contact or company contact has been sent for this request. No appointments, other pending work, schedules or recent emails. This is the first direct company interest in this role. The candidate previously declined this Role because of full-time office attendance and on-call load. Their last conversation asked to hear again if work conditions changed. Do not infer they now accept; on-call is still not settled.\n제품팀이 사용하는 배포 플랫폼을 설계하고 운영합니다. Kubernetes 기반 배포 자동화, 개발자 경험 개선, 서비스 운영 도구를 담당합니다.\n필수: 5년 이상 소프트웨어 개발 또는 플랫폼 운영 경험, Kubernetes 운영 경험.\n현재 온콜 체계는 팀이 정비 중이며 부담과 담당 범위는 면담에서 협의합니다.",
+        "read_matching": "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Wants platform design ownership and hybrid work in Seoul. Internal recommendations allowed; profile visibility open_to_matches. External discovery disabled. No Gmail integration. Current saved recommendation 20000000-0000-4000-8000-000000000003 for Role 30000000-0000-4000-8000-000000000003 is a company-originated Intro, already in the candidate list, unanswered. No additional profile-sharing or acceptance authorization. No candidate contact or company contact has been sent for this request. No appointments, other pending work, schedules or recent emails. This is the first direct company interest in this role. The candidate previously declined this Role because of full-time office attendance and on-call load. Their last conversation asked to hear again if work conditions changed. Do not infer they now accept; on-call is still not settled.",
+        "list_matchings": "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Wants platform design ownership and hybrid work in Seoul. Internal recommendations allowed; profile visibility open_to_matches. External discovery disabled. No Gmail integration. Current saved recommendation 20000000-0000-4000-8000-000000000003 for Role 30000000-0000-4000-8000-000000000003 is a company-originated Intro, already in the candidate list, unanswered. No additional profile-sharing or acceptance authorization. No candidate contact or company contact has been sent for this request. No appointments, other pending work, schedules or recent emails. This is the first direct company interest in this role. The candidate previously declined this Role because of full-time office attendance and on-call load. Their last conversation asked to hear again if work conditions changed. Do not infer they now accept; on-call is still not settled.",
+        "read_agent_messages": "No prior correspondence for this intro; candidate has not accepted. No message has been delivered.",
+        "read_company_connections": "No connected company conversation for this pending request."
+      }
+    }
+  ]
+}

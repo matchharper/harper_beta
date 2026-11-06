@@ -126,7 +126,7 @@ test("provider capacity rejection yields without an external run and resumes the
 for (const replaceAttachments of [false, true]) {
   test(`resuming a browser ${replaceAttachments ? "clears attachments only for an explicit empty selection" : "preserves existing attachments when documents are omitted"}`, async (t) => {
     const { rows, messages, context } = fixture("reserved");
-    rows[0].status = "human";
+    rows[0].status = "idle";
     rows[0].provider_refs.workspace_id = "00000000-0000-4000-8000-000000000007";
     let clearCount = 0;
     t.mock.method(browserUseAgents, "clearFiles", async (workspaceId: string) => {
@@ -158,12 +158,13 @@ for (const replaceAttachments of [false, true]) {
       session_id: sessionId,
       task: "Continue the existing application",
       ...(replaceAttachments ? { documents: [] } : {}),
-    }, context);
+    }, { ...context, replyId: "invocation:browser-owner" });
     assert.equal(dispatched, true);
     assert.equal(clearCount, replaceAttachments ? 1 : 0);
     assert.equal(result.operation?.status, "uncertain");
     assert.equal(result.message?.messageType, "browser_session");
     assert.equal(messages[0].payload.session_id, sessionId);
+    assert.equal(result.message?.artifactReplyId, "invocation:browser-owner");
     const repeated = await executeUseBrowser({
       action: "run", session_id: sessionId, task: "Continue the existing application",
       ...(replaceAttachments ? { documents: [] } : {}),
@@ -174,7 +175,7 @@ for (const replaceAttachments of [false, true]) {
 }
 test("run delivers the browser card before waiting and returns the observation to the same tool call", async (t) => {
   const { rows, context } = fixture("reserved");
-  rows[0].status = "human";
+  rows[0].status = "idle";
   rows[0].provider_refs.workspace_id = remoteSession;
   let dispatched = 0;
   let finish!: () => void;
@@ -229,7 +230,7 @@ test("an aborted chat stops waiting without redispatching its existing browser e
 
 test("Stop racing with browser dispatch cancels that run and retains its completed external result", async (t) => {
   const { rows, context } = fixture("reserved");
-  rows[0].status = "human";
+  rows[0].status = "idle";
   rows[0].provider_refs.workspace_id = remoteSession;
   const controller = new AbortController();
   let cancellations = 0;
@@ -362,7 +363,7 @@ test("viewer actions cannot operate another owner's session", async (t) => {
   );
 });
 
-test("confirmed stopped browser removes stale human control while retaining the resumable session and files", async (t) => {
+test("confirmed stopped browser retains human ownership until Done and keeps the resumable session and files", async (t) => {
   const { rows, context } = fixture("completed");
   rows[0].status = "human";
   rows[0].provider_refs.workspace_id = "00000000-0000-4000-8000-000000000007";
@@ -372,7 +373,7 @@ test("confirmed stopped browser removes stale human control while retaining the 
   const view = await observeBrowserSession(context, structuredClone(rows[0]));
   assert.equal(view.browserAvailability, "stopped");
   assert.equal(view.liveUrl, null);
-  assert.equal(rows[0].status, "idle");
+  assert.equal(rows[0].status, "human");
   assert.equal(rows[0].provider_refs.session_id, remoteSession);
   assert.ok(rows[0].provider_refs.workspace_id);
   const text = formatBrowserToolResult([view.session, rows[1]]);
@@ -493,4 +494,59 @@ test("a host deadline yields the existing browser and its next invocation reads 
   assert.equal(next.operation?.id, first.operation?.id);
   assert.equal(next.operation?.status, "completed");
   assert.match(next.modelOutput, /Receipt TEST-42/);
+});
+
+for (const action of ["run", "release"] as const) {
+  test(`${action} cannot take control while the user is operating the browser`, async (t) => {
+    const { rows, context } = fixture("cancelled");
+    rows[0].status = "human";
+    t.mock.method(browserUseAgents, "upload", async () => assert.fail("Do not touch files during human control"));
+    t.mock.method(browserUseAgents, "createRun", async () => assert.fail("Do not dispatch during human control"));
+    t.mock.method(browserUseAgents, "stop", async () => assert.fail("Do not close a human-controlled browser"));
+    const result = await executeUseBrowser({ action, session_id: sessionId, task: "Continue" }, context);
+    assert.deepEqual(result.careerContinuation, { kind: "browser_control", id: sessionId });
+    assert.match(result.modelOutput, /control belongs to the user/);
+    assert.equal(rows[0].status, "human");
+  });
+}
+
+
+test("handoff while attachments upload prevents the prepared run from dispatching", async t => {
+  const { rows, context } = fixture("reserved");
+  rows[0].status = "idle";
+  rows[0].provider_refs.workspace_id = remoteSession;
+  t.mock.method(browserUseAgents, "upload", async () => {
+    await executeUseBrowser({ action: "handoff", session_id: sessionId }, context);
+    return [];
+  });
+  t.mock.method(browserUseAgents, "createRun", async () => assert.fail("Manual control revoked browser dispatch"));
+  const result = await executeUseBrowser({ action: "run", session_id: sessionId, task: "Prepare" }, context);
+  assert.equal(result.session?.status, "human");
+  assert.equal(rows[1].status, "cancelled");
+});
+
+
+test("old waiting-work cleanup cannot release a browser returned to a pending continuation", async t => {
+  const { rows, context } = fixture("completed");
+  rows[0].status = "idle";
+  const invocationId = "00000000-0000-4000-8000-000000000008";
+  rows[0].provider_refs.control_return = { invocation_id: invocationId, revision: 3 };
+  rows.push({ ...rows[1], id: invocationId, kind: "career_invocation", status: "ready" });
+  t.mock.method(browserUseAgents, "stop", async () => assert.fail("Retain the page until its returned-control invocation runs"));
+  const result = await executeUseBrowser({ action: "release", session_id: sessionId }, context);
+  assert.equal(result.session?.status, "idle");
+  assert.match(result.modelOutput, /owning continuation is pending/);
+});
+
+test("cancelled browser runs remain suspended until human control is returned", async () => {
+  const { careerCheckpointIsReady } = await import("../agentContinuation");
+  const { rows, context } = fixture("cancelled");
+  rows[0].status = "human";
+  for (const dependency of [{ kind: "browser_run", id: executionId }, { kind: "browser_control", id: sessionId }]) {
+    const checkpoint = { waitFor: [dependency] } as any;
+    assert.equal(await careerCheckpointIsReady(context.admin, userId, checkpoint), false);
+    rows[0].status = "idle";
+    assert.equal(await careerCheckpointIsReady(context.admin, userId, checkpoint), true);
+    rows[0].status = "human";
+  }
 });

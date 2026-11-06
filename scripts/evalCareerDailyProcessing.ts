@@ -8,7 +8,8 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = "https://evaluation.invalid";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "synthetic";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "synthetic";
 const task = "docs/evaluation/career-daily-processing";
-const frozen = JSON.parse(readFileSync(`${task}/manifest-v1.json`, "utf8"));
+const dataset = process.argv.includes("--dataset") ? process.argv[process.argv.indexOf("--dataset") + 1] : "v1";
+const frozen = JSON.parse(readFileSync(`${task}/manifest-${dataset}.json`, "utf8"));
 for (const [file, hash] of Object.entries(frozen.hashes))
   assert.equal(
     createHash("sha256")
@@ -16,7 +17,7 @@ for (const [file, hash] of Object.entries(frozen.hashes))
       .digest("hex"),
     hash
   );
-const fixtures = JSON.parse(readFileSync(`${task}/cases-v1.json`, "utf8"));
+const fixtures = JSON.parse(readFileSync(`${task}/cases-${dataset}.json`, "utf8"));
 const directory = `${task}/runs/${new Date().toISOString().replace(/[:.]/g, "-")}`;
 mkdirSync(directory, { recursive: true, mode: 0o700 });
 const save = (name: string, value: unknown) =>
@@ -37,6 +38,8 @@ async function main() {
   const { runCareerChatAssistant } = await import("../src/lib/career/llm");
   const { renderCareerBackgroundInvocation } =
     await import("../src/lib/career/background/prompt");
+  const { formatCompanyIntroContext } =
+    await import("../src/lib/career/background/companyIntro");
   const { careerContactSourceIds } =
     await import("../src/lib/career/background/sourceCoverage");
   const { resolveCareerTextChatModel } =
@@ -47,6 +50,7 @@ async function main() {
   const files = [
     "scripts/evalCareerDailyProcessing.ts",
     "src/lib/career/background/prompt.ts",
+    "src/lib/career/background/companyIntro.ts",
     "src/lib/career/handbooks/proactiveCareer.ts",
     "src/lib/career/handbooks/opportunitySearch.ts",
     "src/lib/llm/toolDescriptions.ts",
@@ -71,7 +75,7 @@ async function main() {
       process.argv[process.argv.indexOf("--only") + 1].split(",").includes(s.id)
   )) {
     const currentModel =
-      scenario.trigger === "agent_contact_received"
+      ["agent_contact_received", "immediate_opportunity_requested"].includes(scenario.trigger)
         ? resolveCareerTextChatModel(undefined).model
         : model;
     const trace: any = {
@@ -100,7 +104,7 @@ async function main() {
       );
       return response;
     };
-    const facts =
+    const facts = scenario.facts ??
       "Candidate 윤서, Korean, Seoul platform engineer, 6 years Kubernetes and deployment automation. Brief: platform roles in Seoul hybrid. status=stopped; get_external_recommendation=false; internal recommendations allowed; profile visibility open_to_matches. Matching list revision list-1. Last candidate-visible contact yesterday: Dune interview preparation pack delivered and candidate said sufficient. No closure or Cedar recommendation has been communicated. No agent schedules. No general discovery delegated. No introduction or new sharing authorization.";
     const invocation: any = {
       id: "90000000-0000-4000-8000-000000000001",
@@ -134,16 +138,17 @@ async function main() {
         isOnboardingDone: true,
         backgroundInvocation: true,
         profile: null,
-        structuredProfileText: "윤서, 서울 플랫폼 엔지니어 6년",
+        structuredProfileText: scenario.profile ?? "윤서, 서울 플랫폼 엔지니어 6년",
         talentContextSection: facts,
-        runtimeInstruction: renderCareerBackgroundInvocation(invocation),
+        runtimeInstruction: [renderCareerBackgroundInvocation(invocation),
+          scenario.companyIntroContext ? formatCompanyIntroContext(scenario.companyIntroContext) : ""].filter(Boolean).join("\n\n"),
         requestTime: new Date(fixtures.requestTime),
         timeZone: "Asia/Seoul",
         currentPreferences: {
           preferredLocale: "ko",
-          getExternalRecommendation: false,
+          getExternalRecommendation: scenario.externalEnabled ?? false,
           profileVisibility: "open_to_matches",
-          talentSettingStatus: "stopped",
+          talentSettingStatus: scenario.externalEnabled ? "active" : "stopped",
         },
       }),
     });
@@ -164,6 +169,23 @@ async function main() {
           status: "sent",
           modelOutput: `Email delivery confirmed and saved in Career history. Delivery receipt fixture-receipt-1. Communicated pending source IDs: ${covered.join(", ")}.`,
         };
+      }
+      if (scenario.toolFacts && name in scenario.toolFacts)
+        return { modelOutput: scenario.toolFacts[name] };
+      if (scenario.facts && ["list_schedules", "read_schedule", "read_talent_context", "read_profile", "list_profiles", "read_talent_activity_events", "read_talent_schedules"].includes(name))
+        return { modelOutput: facts };
+      if (scenario.facts && name === "upsert_schedule")
+        return { modelOutput: "Future reservation updated in the isolated fixture; no email sent." };
+      if (scenario.facts) {
+        if (name === "suggest_form") return { modelOutput: "Form saved in the isolated fixture. Form ID fixture-form-1; review URL https://matchharper.com/career?formId=fixture-form-1. This has not sent an email or shared anything with a company." };
+        if (["write_talent_context", "upsert_matching"].includes(name)) {
+          return { modelOutput: "Saved in the isolated fixture. No search, recommendation or delivery has completed. Current profile and search purpose remain as supplied." };
+        }
+        if (["read_matching", "list_matchings", "get_role_context", "read_agent_messages", "read_company_connections"].includes(name))
+          return { modelOutput: "No saved opportunities, evaluations, company connections, selections or process changes in this fixture." };
+        if (name === "manage_action_items") return { modelOutput: "No pending action items; requested fixture-only write recorded." };
+        if (name === "manage_work") return { modelOutput: "This is the original background invocation; no delegated work is pending." };
+        throw Error(`Synthetic pre-onboarding fixture does not implement ${name}`);
       }
       if (name === "manage_action_items")
         return {

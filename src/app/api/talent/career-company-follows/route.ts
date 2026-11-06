@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   try {
     const admin = getTalentSupabaseAdmin(), query = req.nextUrl.searchParams.get('query');
     const offset = Math.max(0, Number(req.nextUrl.searchParams.get('offset')) || 0);
-    return NextResponse.json(query ? await searchCareerCompanies({ admin, query, offset }) : await listCareerCompanyFollows({ admin, userId: user.id, offset }));
+    return NextResponse.json(query ? await searchCareerCompanies({ admin, queries: [query], offset }) : await listCareerCompanyFollows({ admin, userId: user.id, offset }));
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to read company follows' }, { status: 400 }); }
 }
 export async function POST(req: NextRequest) {

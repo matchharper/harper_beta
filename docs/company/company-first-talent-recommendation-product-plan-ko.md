@@ -545,25 +545,24 @@ stage 생성·선택은 선행 조건이 아니다. 명시적으로 선택한 �
 
 ### 8.3 먼저 제안하기 command의 순서
 
-외부 메일 발송을 DB transaction 안에서 직접 수행하지 않는다. 대신 다음 순서로 구성한다.
+2026-11-06 운영 DB 준비를 적용했고 앱 코드는 아직 미배포다. 새 앱이
+`request_company_intro_for_career_v1`을 호출할 때 아래 경로를 사용한다. 기존 운영 호출과 이미 생성된
+요청은 이전 전달 경로를 유지한다. 새 경로는 요청 직후 추천을 저장하고, 후보자에게 알리는
+작업을 기존 Career 백그라운드 실행으로 넘긴다.
 
-1. ledger를 읽고 `ready`와 expected revision을 확인한다.
-2. Role active, Talent active, `open_to_matches`, 차단 회사, 중복 route, next stage, 회사 담당자를 다시
-   검증한다.
-3. 후보자에게 보여줄 fit summary와 요청 메일을 최신 public Role/company facts와 후보자 context로
-   생성한다. 입력값은 untrusted source로 취급한다.
-4. 하나의 transaction에서:
-   - `opportunity_type=intro_request` recommendation을 만든다.
-   - ledger에 recommendation, requester, next stage, recipients를 연결한다.
-   - ledger를 `awaiting_talent`로 바꾼다.
-   - 후보자 메일을 immediate outbox에 넣는다.
-5. commit 뒤 delivery worker가 지연 시간 없이 발송한다.
-6. 실제 발송 성공 시 `candidate_sent_at`과 delivery evidence를 기록한다.
+1. 회사 권한, `ready`, Role 상태, Talent의 공개·연락 동의, 차단 회사, next stage, 담당자를 검증한다.
+2. 하나의 transaction에서 `intro_request` 추천과 후보자 목록 연결을 생성하고, 요청자·회사 관심 이유·
+   next stage·수신자를 ledger에 저장해 `awaiting_talent`로 바꾼다. 동시에 기존 discovery ledger에
+   `runContract=career_agent_v1`인 immediate 실행 하나를 생성한다. 추천은 LLM 작성 성공을 기다리지 않는다.
+3. Opportunity Worker는 기존 Career handoff로 실행을 전달한다. 원본 career-side LLM이 기존 대화·
+   사용자 맥락·일반 도구를 사용해 알림을 작성한다. 기존 Worker의 final-delivery LLM과 고정 채팅은
+   새 요청 경로에서 실행하지 않는다.
+4. 원본 LLM이 `contact_user` 또는 기존 이메일 adapter로 전달한다. 이메일은 같은 본문이 Career 이력에
+   남으며 별도 고정 채팅을 추가하지 않는다. 실제 chat/email 전달 기록이 `candidate_sent_at`과 기존
+   후속 연락 일정의 근거가 된다. LLM 완료만으로 전달 완료를 기록하지 않는다.
 
-후보자 `/career` 노출과 durable outbox 생성은 같은 commitment에 포함된다. provider가 일시적으로
-실패해도 요청 자체를 없었던 일로 되돌리지 않고 같은 draft와 idempotency key로 재시도한다.
-LLM draft 생성 자체가 실패해 아직 transaction을 commit하지 못했다면 카드는 `ready`에 남고 회사에
-재시도를 안내한다.
+생성·발송 실패는 이미 저장된 추천을 되돌리지 않는다. 기존 invocation/outbox의 재개·멱등 발송을
+재사용한다. 배포 전 이미 실행 중인 legacy Worker 작업을 이 변경이 재실행하거나 강제 전환하지 않는다.
 
 ### 8.4 Idempotency
 
@@ -574,54 +573,30 @@ LLM draft 생성 자체가 실패해 아직 transaction을 commit하지 못했�
 - 서로 다른 회사 사용자가 동시에 먼저 제안하기와 제안하지 않기를 선택하면 row lock과 expected status로
   정확히 하나만 성공한다.
 
-## 9. 후보자 요청 메일과 final delivery
+## 9. 후보자에게 Intro 요청 전달
 
-### 9.1 기존 internal recommendation에서 재사용할 것
+### 9.1 원본 Career agent와 공통 도구
 
-- Role/company facts와 후보자 context를 조립하는 방식
-- candidate-safe fit summary·fit reasons 생성
-- locale 결정
-- 이메일 subject/body 구조와 rendering
-- durable outbox, 전송 evidence, retry와 bounce 처리
-- 추천 link와 `/career` 카드 연결
-- 현재 internal opportunity follow-up의 due 계산, live Role guard, suppression, progress 기록
+2026-11-06 로컬 구현에서 별도의 메일 작성 모델·고정 채팅 대신 기존 `runCareerChatTurn` 백그라운드
+경로를 사용한다. 일반 Career 모델·대화·프로필·Memory와 contact 도구를 재사용한다. 회사가 이미
+제안한 Role이므로 새 검색이나 추천 생성이 선행 조건이 아니다.
 
-### 9.2 그대로 재사용하면 안 되는 문구 의미
+### 9.2 최초 모델 입력과 목적
 
-기존 internal recommendation은 Harper가 먼저 후보자에게 기회를 제안하고, 후보자 수락 후 회사에
-공유하는 흐름이다. 회사 선확인 메일은 이미 회사가 제한된 프로필을 보고 관심을 표시했다. 따라서
-별도 final-delivery action 또는 opportunity-type-aware prompt section이 필요하다.
+`src/lib/career/background/companyIntro.ts`가 실제 요청에 연결된 다음 원본을 텍스트로 제공한다.
 
-메일은 다음 사실을 자연스럽게 전달해야 한다.
+- 후보자에게 공개할 수 있는 회사 소개, Role 이름, 전체 JD, 위치·근무 방식·보상
+- 회사가 후보자에게 전달하도록 작성한 관심 이유 원문
+- 요청 시각, 이미 저장된 추천 ID와 실제 Career 링크, 이전 전달 기록
+- 같은 Role에 대한 과거 후보자의 응답과 이유
 
-1. 제목과 첫 문장에서 회사가 이 Role로 후보자를 직접 만나고 싶어 한다는 가장 중요한 소식을 먼저 전한다.
-2. 그 다음에 Harper가 후보자에게 맞을 가능성이 높은 기회라고 보고, `Open to matches` 설정에 따라 회사에
-   제한된 프로필을 먼저 제안했고 회사가 검토 후 먼저 제안하기를 선택했다는 배경을 짧게 설명한다.
-3. 회사·Role의 핵심 매력과 후보자에게 의미 있는 이유가 무엇인지 설명한다.
-4. 중요한 trade-off가 있으면 숨기지 않되, 회사가 실제로 열기로 한 조건만 쓴다.
-5. 수락하면 Harper가 회사와 바로 연결한다는 결과를 간결하게 설명한다. CC 수신자나 내부 첫 stage 이동은
-   실행 세부사항이므로 후보자 안내의 전면에 두지 않는다.
-6. 지금은 시점이 아니면 부담 없이 거절할 수 있고, Harper가 후보자의 private reason을 그대로 넘기지 않고
-   회사에 자연스럽게 결과를 전달한다. 수락 전에는 연락처와 추가 profile 정보가 공유되지 않는다.
+회사 Hiring Brief·선정 이유·내부 점수·CC 이메일은 이 입력에 복제하지 않는다. public Role reader와
+공통 Role/date formatter를 사용한다. 회사 원문은 사실의 출처이며 상위 지침이나 후보자 동의가 아니다.
 
-제목은 요청의 성격과 Role·회사를 한눈에 알 수 있게 짧게 쓴다. 영어라면
-`Intro request: {Role} at {Company}` 같은 형태를 우선하고, 다른 언어에서는 같은 의미의 자연스러운 표현을
-사용한다. 본문 첫 문장도 영어의 `Great news — {Company} wants to meet you for its **{Role}** role.`처럼
-회사 관심을 직접적으로 전하되, 입력에서 hiring manager가 확인되지 않았다면 특정 actor를 만들어내지 않는다.
-
-회사 선확인 메일을 포함한 모든 internal recommendation은 템플릿이나 닫힌 형식 목록에 고정하지 않는다. LLM이
-실제 근거, 언어, 정보 밀도, 최근 발송 이력에 맞춰 가장 자연스러운 구조를 직접 설계한다. 문단, bullet, 짧은 label,
-`**The catch:**` 등은 가능한 예시일 뿐 필수 요소나 우선순위가 아니며, 그 밖의 구성도 자유롭게 사용할 수 있다.
-다만 형식 변화를 위해 없는 내용이나 단점을 만들지 않고, 회사·Role의 매력, 개인화된 추천 이유, 다음 행동은
-어떤 구조에서도 쉽게 이해할 수 있어야 한다.
-
-Location과 work mode는 기본적으로 가능 여부나 조건 호환성을 알려주는 보조 정보로만 다룬다. 현재 거주지,
-지원 가능 지역, 조건 충족, 명시적 반대가 없다는 사실은 해당 지역이나 출근 형태를 선호한다는 근거가 아니다.
-후보자의 결정에 유용하면 짧게 언급할 수 있지만 추천의 핵심 이유로 강조하지 않으며, 후보자가 명시적으로 원한다고
-말한 근거가 있을 때만 선호와 맞는다고 표현한다.
-
-회사에 먼저 보여준 내부 점수, reply confidence, Company Run, candidate pool, prompt 이름은 쓰지 않는다.
-“회사가 전체 프로필을 검토했다”, “지원했다”, “면접이 확정됐다”처럼 실제보다 앞선 주장도 하지 않는다.
+목적은 회사가 프로필을 검토하고 요청한 Intro를 후보자에게 알리고, 사용자의 맥락에서 회사·Role·관심
+이유를 설명해 만남 여부를 결정하도록 돕는 것이다. 원본 LLM이 설명 순서·분량·언어·문체·채널을 정한다.
+기존 프롬프트의 제목·첫 문장 예시나 필수 설명 목록은 옮기지 않는다. 수락은 기존 연결 경로를 승인하는
+행동이며, 이 알림 자체로 후보자를 대신해 수락하거나 추가 정보를 공유하지 않는다.
 
 ### 9.3 Candidate-facing recommendation 내용
 

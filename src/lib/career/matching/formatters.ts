@@ -1,12 +1,14 @@
+import { getLocalizedRoleSummaryContent } from "@/lib/companyRoles/summary";
+import { normalizeCareerPromptLocale } from "../promptLocale";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
-import { scoreForLlm } from "@/lib/externalRecommendationsV2/contract";
+import { FIT_RANKING_WEIGHTS, LEGACY_FIT_RANKING_WEIGHTS, scoreForLlm } from "@/lib/externalRecommendationsV2/contract";
 const list = (value: any) => (Array.isArray(value) ? value : []);
 const brief = (value: any) =>
   list(value)
     .map((r) => `- ${r.ref ?? ""} ${r.label ?? ""}: ${r.content ?? ""}`)
     .join("\n");
 /** Deliberately compact evidence projection. Raw receipts stay available to executors. */
-export function formatCareerMatchingResult(value: any): string {
+export function formatCareerMatchingResult(value: any, locale?: string | null): string {
   if (value?.source === "internal") return "Read existing Harper-connected recommendations with read_recommended_opportunities and get_role_context.";
   if (value?.error && !value.runId)
     return `Matching operation failed: ${value.error}`;
@@ -83,7 +85,7 @@ export function formatCareerMatchingResult(value: any): string {
   const evaluations = list(value?.evaluations);
   if (value?.evaluationCount !== undefined)
     lines.push(
-      `Evaluations: showing ${evaluations.length} of ${value.evaluationCount}; ${value.remainingEvaluationCount} remaining after this page. Ordered by mutual fit, highest first.`
+      `Evaluations: showing ${evaluations.length} of ${value.evaluationCount}; ${value.remainingEvaluationCount} remaining after this page. Ordered by weighted fit (mutualFit ${Math.round(FIT_RANKING_WEIGHTS.mutualFit * 100)}%, candidateInterest ${FIT_RANKING_WEIGHTS.candidateInterest * 100}%, companyInterest ${FIT_RANKING_WEIGHTS.companyInterest * 100}%), highest first.${evaluations.some(e => e.assessment?.fit?.roleFit !== undefined) ? ` Older six-metric records retain mutualFit ${LEGACY_FIT_RANKING_WEIGHTS.mutualFit * 100}%, candidateInterest ${LEGACY_FIT_RANKING_WEIGHTS.candidateInterest * 100}%, companyInterest ${LEGACY_FIT_RANKING_WEIGHTS.companyInterest * 100}%, roleFit ${LEGACY_FIT_RANKING_WEIGHTS.roleFit * 100}%.` : ""}`
     );
   if (value?.expiredRoleCount !== undefined)
     lines.push(`Expired or closed roles excluded: ${value.expiredRoleCount}. Evaluation totals and remaining counts include only non-expired roles.`);
@@ -104,7 +106,7 @@ export function formatCareerMatchingResult(value: any): string {
   }
   if (evaluations.length)
     lines.push(
-      "Private assessment (reasoning-only). Scores use 0–100, higher is stronger: candidateInterest/candidateFit = candidate-side fit; companyInterest/companyFit = employer-side fit; mutualFit = mutual value; roleFit = work fit; constraintPass = stated constraints. Criterion labels are stored judgments, not hiring outcomes; missing scores were not assessed."
+      "Private assessment (reasoning-only). Scores use 0–100, higher is stronger: candidateInterest/candidateFit = candidate-side fit; companyInterest/companyFit = employer-side fit; mutualFit = mutual value, including work capability in current external scoring; constraintPass = stated constraints. Older external records may include separate roleFit (work fit) and evidence coverage. Criterion labels are stored judgments, not hiring outcomes; missing scores were not assessed."
     );
   else if (Array.isArray(value?.evaluations))
     lines.push(`No evaluated roles in this result.${value.status === "completed" ? " This run has finished; it is not waiting for further evaluations." : ""}`);
@@ -118,6 +120,8 @@ export function formatCareerMatchingResult(value: any): string {
     lines.push(
       `- Evaluation ${e.id}; role ${e.role_id}; evaluated ${formatLlmDateTime(e.evaluated_at)}`,
       `  info: ${[e.role?.company_workspace?.company_name, e.role?.name].filter(Boolean).join(" / ") || "role details not included"}`,
+      `  Job summary: ${getLocalizedRoleSummaryContent(e.role?.summary, normalizeCareerPromptLocale(locale)) ?? "not available in the conversation language"}`,
+      e.estimated_base_salary ? `  ${e.estimated_base_salary}` : "",
       `  assessment: ${["mutualFit", "candidateInterest", "companyInterest", "roleFit", "constraintPass", "candidateFit", "companyFit"]
         .filter(key => typeof fit[key] === "number").map(key => `${key}: ${scoreForLlm(fit[key])}`).join("; ") || "no numeric scores"}`,
       typeof fit.evidence === "string" ? `  Evidence coverage: ${fit.evidence}` : "",

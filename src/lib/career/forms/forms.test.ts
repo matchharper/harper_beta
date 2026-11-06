@@ -326,8 +326,7 @@ test("suggestion explanations and free replies survive storage and reach the mod
   assert.match(providerInput, /팀 결과와 본인의 기여를 구분해/);
   assert.match(providerInput, /현재 이력서에는 팀 성과만/);
   assert.ok(providerInput.includes(answer.message));
-  assert.match(providerInput, /Harper continuation guidance \(not part of the user's reply\)/);
-  assert.match(providerInput, /respecting the user's stated scope and retention limits/);
+  assert.doesNotMatch(providerInput, /Harper continuation guidance|Save or update/);
   assert.doesNotMatch(message.content, /Harper continuation guidance|Save or update/);
   assert.doesNotMatch(JSON.stringify(toUiMessage(message)), /Harper continuation guidance|Save or update/);
   assert.doesNotMatch(providerInput, /action undefined|"formSnapshot"/);

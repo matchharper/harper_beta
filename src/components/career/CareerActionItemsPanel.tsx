@@ -1,11 +1,13 @@
 "use client";
 
-import { ArrowRight, RefreshCw } from "lucide-react";
+import { ArrowRight, RefreshCw, X } from "lucide-react";
 import { CardButton, MuteButton } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Typography } from "@/components/ui/typography";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerActionItems } from "@/hooks/career/useCareerActionItems";
+import { CareerSwipeRow } from "./CareerSwipeRow";
 import {
   useCareerChatActivityContext,
   useCareerChatPanelContext,
@@ -29,54 +31,81 @@ export function CareerActionItemList({
 }) {
   const t = useCareerT();
   return (
-    <div className="space-y-3" data-career-action-items>
+    <div className="flex flex-col gap-3" data-career-action-items>
       {sortCareerActionItems(items).map((item) => (
-        <div key={item.id} className="career-followup-item">
-          <CardButton
-            data-urgency={item.urgency}
-            disabled={disabled}
-            onClick={() => onSelect({ ...item, kind: "action_item" })}
-            className="career-followup-card career-glass"
-          >
-            <Typography
-              as="span"
-              variant="body-sm"
-              className="career-followup-title"
+        <CareerSwipeRow
+          key={item.id}
+          className="my-0 rounded-card py-0"
+          disabled={disabled || !onClose}
+          positive={{
+            label: item.buttonText,
+            icon: <ArrowRight aria-hidden />,
+            onSelect: () => onSelect({ ...item, kind: "action_item" }),
+          }}
+          negative={{
+            label: t("career.followup.close", "닫기"),
+            icon: <X aria-hidden />,
+            onSelect: () => onClose?.(item),
+          }}
+        >
+          <div className="career-followup-item">
+            <CardButton
+              data-swipe-surface
+              data-urgency={item.urgency}
+              disabled={disabled}
+              onClick={() => onSelect({ ...item, kind: "action_item" })}
+              className="career-followup-card career-glass relative"
             >
-              {item.title}
-            </Typography>
-            {item.description && (
+              {item.urgency === "urgent" && (
+                <Badge
+                  tone="critical"
+                  variant="faded"
+                  size="xs"
+                  className="absolute right-3 top-3"
+                >
+                  {t("career.actions.urgent", "긴급")}
+                </Badge>
+              )}
               <Typography
                 as="span"
-                variant="description"
-                className="career-followup-description"
+                variant="body-sm"
+                className="career-followup-title"
               >
-                {item.description}
+                {item.title}
               </Typography>
+              {item.description && (
+                <Typography
+                  as="span"
+                  variant="description"
+                  className="career-followup-description"
+                >
+                  {item.description}
+                </Typography>
+              )}
+              <Typography
+                as="div"
+                variant="body-xs"
+                className="career-followup-action"
+              >
+                <span className="break-words">{item.buttonText}</span>
+                <ArrowRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-neutral-soft"
+                />
+              </Typography>
+            </CardButton>
+            {onClose && (
+              <button
+                type="button"
+                className="career-card-close career-followup-close"
+                aria-label={`${item.title}: ${t("career.followup.close", "닫기")}`}
+                onClick={() => onClose(item)}
+              >
+                {t("career.followup.close", "닫기")}
+              </button>
             )}
-            <Typography
-              as="div"
-              variant="body-xs"
-              className="career-followup-action"
-            >
-              <span className="break-words">{item.buttonText}</span>
-              <ArrowRight
-                aria-hidden="true"
-                className="size-4 shrink-0 text-neutral-soft"
-              />
-            </Typography>
-          </CardButton>
-          {onClose && (
-            <button
-              type="button"
-              className="career-card-close career-followup-close"
-              aria-label={`${item.title}: ${t("career.followup.close", "닫기")}`}
-              onClick={() => onClose(item)}
-            >
-              {t("career.followup.close", "닫기")}
-            </button>
-          )}
-        </div>
+          </div>
+        </CareerSwipeRow>
       ))}
     </div>
   );

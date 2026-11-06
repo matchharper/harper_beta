@@ -1,6 +1,6 @@
 import { getEnabledOrgAgentTools } from "../tools";
 import { EXTERNAL_SOURCING_TOOL_NAMES, externalSourcingEnabledFor } from "../externalSourcing";
-import { COMPANY_BASE_TOOLS, COMPANY_CAPABILITIES, COMPANY_DEFAULT_CAPABILITIES, capabilityForTool, type CompanyCapabilityId } from "./registry";
+import { COMPANY_BASE_TOOLS, COMPANY_CAPABILITIES, COMPANY_DEFAULT_CAPABILITIES, COMPANY_AGENT_SERVICE_CAPABILITIES, capabilityForTool, type CompanyCapabilityId } from "./registry";
 import type { OrgAgentConversationInput } from "../conversationInput";
 import { getCompanyPolicy, type CompanyPolicyId } from "./policies";
 
@@ -42,15 +42,16 @@ function loadCapabilitiesTool(ids: string[]) {
 export const LOAD_CAPABILITIES_TOOL = loadCapabilitiesTool(COMPANY_CAPABILITIES.map((c) => c.id).filter((id) => id !== "external_sourcing"));
 const LOAD_CAPABILITIES_TOOL_WITH_EXTERNAL_SOURCING = loadCapabilitiesTool(COMPANY_CAPABILITIES.map((c) => c.id));
 
-export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mode: CompanyCapabilityMode; emailReply?: boolean; loaded: ReadonlySet<CompanyCapabilityId>; allowedToolNames?: ReadonlySet<string>; workspaceId?: string }) {
+export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mode: CompanyCapabilityMode; emailReply?: boolean; loaded: ReadonlySet<CompanyCapabilityId>; allowedToolNames?: ReadonlySet<string>; workspaceId?: string; agentService?: boolean }) {
   // Trusted caller restriction. Loading a capability can never broaden it.
   // External sourcing is offered only to workspaces that have it turned on (it costs money per run).
   const externalSourcing = externalSourcingEnabledFor(args.workspaceId);
-  const enabled = getEnabledOrgAgentTools(args.surface, {scheduledMatching: args.allowedToolNames?.has("recommend_talents")}).filter(tool =>
+  const enabled = getEnabledOrgAgentTools(args.surface, {scheduledMatching: args.allowedToolNames?.has("recommend_talents"), agentService: args.agentService}).filter(tool =>
     (!args.allowedToolNames || args.allowedToolNames.has(tool.function.name))
     && (externalSourcing || !(EXTERNAL_SOURCING_TOOL_NAMES as readonly string[]).includes(tool.function.name)));
   const supported = new Set(enabled.map((tool) => tool.function.name));
-  const catalog = COMPANY_CAPABILITIES.filter((c) => c.toolIds.some((id) => supported.has(id)));
+  const catalog = COMPANY_CAPABILITIES.filter((c) => c.toolIds.some((id) => supported.has(id))
+    && (!args.agentService || (COMPANY_AGENT_SERVICE_CAPABILITIES as readonly string[]).includes(c.id)));
   const active = catalog.filter((c) => args.mode === "full" || args.loaded.has(c.id) || (args.emailReply && c.id === "email_preferences") || (COMPANY_DEFAULT_CAPABILITIES as readonly string[]).includes(c.id));
   const toolNames = new Set<string>(COMPANY_BASE_TOOLS);
   const policyIds = new Set<CompanyPolicyId>();
@@ -62,7 +63,7 @@ export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mo
   const orderedPolicies = [...new Set(COMPANY_CAPABILITIES.flatMap((c) => [...c.policyIds] as CompanyPolicyId[]))].filter((id) => policyIds.has(id));
   const domainTools = enabled.filter((t) => toolNames.has(t.function.name)).sort((a, b) => a.function.name.localeCompare(b.function.name));
   const tools = args.mode === "progressive"
-    ? [...domainTools, externalSourcing ? LOAD_CAPABILITIES_TOOL_WITH_EXTERNAL_SOURCING : LOAD_CAPABILITIES_TOOL]
+    ? [...domainTools, args.allowedToolNames ? loadCapabilitiesTool(catalog.map(capability => capability.id)) : externalSourcing ? LOAD_CAPABILITIES_TOOL_WITH_EXTERNAL_SOURCING : LOAD_CAPABILITIES_TOOL]
     : domainTools;
   return {
     tools,
@@ -71,7 +72,7 @@ export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mo
     policyText: orderedPolicies.map((id) => `<capability_policy id="${id}">\n${getCompanyPolicy(id, args.surface)}\n</capability_policy>`).join("\n\n"),
     catalogText: [
       "<capability_catalog>",
-      "These abilities remain discoverable even before detailed tools are loaded. Offer relevant help when useful, without taking unauthorized action. Use load_capabilities before using a deferred tool; then continue the original request without asking permission merely to load tools.",
+      "These abilities remain discoverable even before detailed tools are loaded. Use them to advance the company's purpose within your delegation. Use load_capabilities before using a deferred tool; then continue the original request without asking permission merely to load tools.",
       ...catalog.map((c) => `${c.id}: ${c.summary}`),
       "</capability_catalog>",
     ].join("\n"),

@@ -59,6 +59,7 @@ export type CareerReplyCheckpoint = {
   waitFor?: CareerDeferredWork[];
   /** Authenticated input rows included in this exact provider transcript. */
   inputMessageIds?: number[];
+  inputEventIds?: string[];
   /** Delivery ownership and original context required to recover an unpublished continuation. */
   continuation?: {
     assistantModel?: string;
@@ -75,10 +76,12 @@ export type CareerReplyCheckpoint = {
 export type CareerInputInbox = {
   append(messages: unknown[]): Promise<boolean>;
   messageIds(): number[];
+  eventIds?(): string[];
+  hasPending?(): Promise<boolean>;
   save(checkpoint: CareerReplyCheckpoint): Promise<void>;
 };
 /** Executor receipts, never a model's interpretation of the conversation. */
-export type CareerDeferredWork = { kind: "external_evaluation" | "internal_evaluation" | "email_delivery" | "browser_run" | "career_input" | "external_capacity"; id: string };
+export type CareerDeferredWork = { kind: "external_evaluation" | "internal_evaluation" | "email_delivery" | "browser_run" | "browser_control" | "career_input" | "external_capacity"; id: string };
 export class CareerReplyContinuation extends Error {
   readonly [TOOL_RUNTIME_CONTROL] = true;
   constructor(readonly checkpoint: CareerReplyCheckpoint) { super("Career reply saved for continuation"); this.name = "CareerReplyContinuation"; }
@@ -152,6 +155,8 @@ export class CareerCapabilityRuntime {
       checkpoint?: (checkpoint: CareerReplyCheckpoint) => Promise<void>;
       inputInbox?: CareerInputInbox;
       resumeDependenciesPending?: boolean;
+      delegated?: boolean;
+      observePendingWork?: (work: CareerDeferredWork) => Promise<void>;
       usageContext?: Omit<LlmUsageContext, "requestId">;
       refreshAfterTool?: (name: string, result: unknown) => Promise<void>;
       onStep?: (data: Record<string, unknown>) => void;
@@ -170,8 +175,9 @@ export class CareerCapabilityRuntime {
     this.handbooks = new CareerHandbookRuntime(options.resume?.handbooks ?? options.handbooks);
     this.handbooks.load(options.selection?.handbookIds ?? [], "selector");
     this.loaded = new Set((options.resume?.capabilityIds ?? []).filter(id => loadableIds.has(id)));
+    if (options.delegated) this.loaded.add("delegation");
     for (const id of [...(options.preloads ?? []), ...(options.selection?.capabilityIds ?? [])]) {
-      if (!loadableIds.has(id)) continue;
+      if (!loadableIds.has(id) || CAREER_CAPABILITIES.some(c => c.id === id && "manualOnly" in c && c.manualOnly)) continue;
       this.loaded.add(id);
       this.activated.add(id);
     }
@@ -209,18 +215,22 @@ export class CareerCapabilityRuntime {
     if (resume && resume.transport !== transport) throw new Error("Career continuation transport must match its saved transcript");
     return resume?.messages;
   }
+  async shouldDeferToolCall() {
+    await this.options.checkCancellation?.();
+    return await this.options.inputInbox?.hasPending?.() ?? false;
+  }
   async beforeCompletion(step: CareerCapabilityStep, input: { transport: CareerReplyCheckpoint["transport"]; model?: string; messages: unknown[]; systemBlocks?: CareerReplyCheckpoint["systemBlocks"] }) {
     await this.options.checkCancellation?.();
     this.options.abortSignal?.throwIfAborted();
     // A new user input wakes the conversation even while an earlier external
     // operation is pending. Its running receipt remains in the transcript.
     if (await this.options.inputInbox?.append(input.messages)) this.deferredWork.clear();
-    const shouldYield = this.deferredWork.size > 0 || (this.options.deadlineAt !== undefined && Date.now() >= this.options.deadlineAt);
+    const shouldYield = (!this.options.observePendingWork && this.deferredWork.size > 0) || (this.options.deadlineAt !== undefined && Date.now() >= this.options.deadlineAt);
     if (shouldYield || this.options.inputInbox) {
       const checkpoint: CareerReplyCheckpoint = { version: 1, checkpointId: crypto.randomUUID(), replyId: this.replyId, ...input, systemBlocks: input.systemBlocks ?? step.systemBlocks,
         tools: step.tools, capabilityIds: [...this.loaded], handbooks: this.handbooks.snapshot(), record: { ...this.completedRecord(), status: "in_progress" },
         continuation: this.options.continuation ?? this.options.resume?.continuation,
-        ...(this.options.inputInbox ? { inputMessageIds: this.options.inputInbox.messageIds() } : {}),
+        ...(this.options.inputInbox ? { inputMessageIds: this.options.inputInbox.messageIds(), inputEventIds: this.options.inputInbox.eventIds?.() ?? [] } : {}),
         ...(this.deferredWork.size ? { waitFor: [...this.deferredWork.values()] } : {}) };
       if (shouldYield) {
         if (!this.options.checkpoint) throw new Error("Career reply deadline reached without a continuation store");
@@ -382,8 +392,10 @@ export class CareerCapabilityRuntime {
   ) {
     const pending = result && typeof result === "object" && "careerContinuation" in result
       ? result.careerContinuation as CareerDeferredWork | undefined : undefined;
-    if (pending && ["external_evaluation", "email_delivery", "browser_run", "career_input", "external_capacity"].includes(pending.kind) && typeof pending.id === "string")
-      this.deferredWork.set(`${pending.kind}:${pending.id}`, pending);
+    if (pending && ["external_evaluation", "email_delivery", "browser_run", "browser_control", "career_input", "external_capacity"].includes(pending.kind) && typeof pending.id === "string") {
+      if (this.options.observePendingWork) await this.options.observePendingWork(pending);
+      else this.deferredWork.set(`${pending.kind}:${pending.id}`, pending);
+    }
     // Connection failures remain visible facts; the executor checks access on
     // each call instead of removing Gmail abilities from the next model input.
     const status =

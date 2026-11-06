@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentContactSource, AgentContactMessage } from "./contracts";
 import { agentContactReceipt } from "./contracts";
 import { companyAgentScope } from "./companyScope";
+import { companyPresentationReceipt } from "./contracts";
 import {
   agentContactDatabase,
   assertAgentContactPair,
@@ -40,7 +41,7 @@ export async function executeCompanyCorrespondence(
   database: Database = agentContactDatabase()
 ) {
   const { source, input } = args;
-  if (source.kind === "company_event" && !input.introductionRootId) {
+  if (source.kind === "company_event" && (args.name !== "read_agent_messages" || !(input.talentId || input.workspaceId || input.messageId)) && !input.introductionRootId) {
     const [job] = await database.query(
       "SELECT action_context FROM public.company_agent_web_action_jobs WHERE id=$1::uuid",
       [source.jobId]
@@ -116,14 +117,22 @@ export async function executeCompanyCorrespondence(
       if (input.roleId && input.roleId !== root.role_id)
         throw new Error("Introduction Role mismatch");
       const [existing] = await q(
-        "SELECT id FROM public.talent_progress WHERE metadata->>'agentIntroductionRootId'=$1 AND kind='intro_to_company'",
+        "SELECT id,text,metadata FROM public.talent_progress WHERE metadata->>'agentIntroductionRootId'=$1 AND kind='intro_to_company' FOR UPDATE",
         [root.id]
       );
-      if (existing)
-        return {
-          status: "saved",
-          modelOutput: `Candidate presentation ${existing.id} already saved for introduction ${root.id}. No new human delivery.`,
-        };
+      const explanation = String(input.presentation ?? "").trim();
+      if (!explanation) throw new Error("The company's original agent must provide the candidate presentation");
+      if (existing) {
+        if (existing.text === explanation) return companyPresentationReceipt("unchanged", existing.id);
+        if (input.expectedPresentation !== existing.text)
+          throw new Error("Candidate presentation changed or was not read. Read current correspondence and use its presentation as expectedPresentation before replacing it.");
+        await q(`UPDATE public.talent_progress SET text=$2,
+          metadata=jsonb_set(metadata,'{companyPresentation}', $3::jsonb) WHERE id=$1`,
+          [existing.id, explanation, JSON.stringify({ tldr: explanation, harperNote: "", criteriaEvaluations: [] })]);
+        return companyPresentationReceipt("updated", existing.id);
+      }
+      if (input.expectedPresentation !== undefined)
+        throw new Error("The referenced candidate presentation no longer exists. Read current correspondence before publishing.");
       const [advanced] = await q(
         "SELECT tag FROM public.talent_opportunity_tag WHERE talent_id=$1::uuid AND opportunity_id=$2::uuid AND (tag IN ('내부:연결됨','내부:최종오퍼','내부:프로세스중단','내부:거절','내부:아카이브') OR tag LIKE '내부단계:%') LIMIT 1",
         [root.talent_id, root.role_id]
@@ -134,11 +143,6 @@ export async function executeCompanyCorrespondence(
           modelOutput:
             "The existing company decision or hiring process is preserved. No presentation or pipeline change was made.",
         };
-      const explanation = String(input.presentation ?? "").trim();
-      if (!explanation)
-        throw new Error(
-          "The company's original agent must provide the candidate presentation"
-        );
       await q(
         "DELETE FROM public.talent_opportunity_tag WHERE talent_id=$1::uuid AND opportunity_id=$2::uuid AND tag IN ('내부:추천','내부:수락')",
         [root.talent_id, root.role_id]
@@ -171,10 +175,7 @@ export async function executeCompanyCorrespondence(
           }),
         ]
       );
-      return {
-        status: "saved",
-        modelOutput: `Candidate presentation ${progress.id} saved to the company's Role inbox for introduction ${root.id}. Connection awaits the company's decision. No human notification was sent.`,
-      };
+      return companyPresentationReceipt("saved", progress.id);
     });
   }
   if (args.name !== "contact_user")

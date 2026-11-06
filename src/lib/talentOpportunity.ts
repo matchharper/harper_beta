@@ -1,3 +1,4 @@
+import { getLocalizedRoleSummaryContent } from "./companyRoles/summary";
 import { executeSql } from "./externalRecommendationsV2/retrieval";
 import { sqlLiteral } from "./sqlLiteral";
 import {
@@ -25,6 +26,8 @@ import {
 import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
 import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 import { decideTalentCompanyIntro } from "@/lib/org/server";
+
+export { getLocalizedRoleSummaryContent } from "./companyRoles/summary";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -514,6 +517,7 @@ export type TalentOpportunityHistoryItem = {
   recommendationReasons: string[];
   recommendationScore: number | null;
   recommendationSummary: string | null;
+  roleSummary?: string | null;
   roleId: string;
   savedStage: TalentOpportunitySavedStage | null;
   sourceJobId: string | null;
@@ -1522,32 +1526,6 @@ function normalizeCompanyDataNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function getLocalizedRoleSummaryContent(
-  value: unknown,
-  locale?: string | null
-) {
-  const normalizedLocale = String(locale ?? "")
-    .trim()
-    .toLowerCase();
-  if (!normalizedLocale) return null;
-
-  const languageKey = normalizedLocale.startsWith("ko") ? "ko" : "en";
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-
-  const entry = (value as Record<string, unknown>)[languageKey];
-  const rawContent =
-    entry && typeof entry === "object" && !Array.isArray(entry)
-      ? (entry as Record<string, unknown>).content
-      : entry;
-  const content = String(rawContent ?? "")
-    .replace(/\r\n?/g, "\n")
-    .split("\n")
-    .map((line) => line.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .join("\n")
-    .trim();
-  return content || null;
-}
 
 function mapCompanyDataRow(
   value: RawCompanyDataRow | RawCompanyDataRow[] | null | undefined
@@ -1661,6 +1639,7 @@ function mapRecommendationRow(
       typeof row.score === "number" && Number.isFinite(row.score)
         ? row.score
         : null,
+    roleSummary: getLocalizedRoleSummaryContent(role.summary, locale),
     recommendationSummary:
       (row.list_explanation || getLocalizedRoleSummaryContent(role.summary, locale)) ??
       row.fit_summary ??
@@ -1798,6 +1777,7 @@ function mapPostingRoleRow(
       existingRecommendation?.fit_reasons ?? []
     ),
     recommendationScore: null,
+    roleSummary: getLocalizedRoleSummaryContent(row.summary, locale),
     recommendationSummary:
       getLocalizedRoleSummaryContent(row.summary, locale) ??
       existingRecommendation?.fit_summary ??

@@ -78,6 +78,8 @@ function makeDailyUserStatsReport(
     newSignupReferralActivatedCount: 0,
     newSignupReferralViewedCount: 0,
     newSignupSubmittedCount: 0,
+    submittedResumeUserCount: 0,
+    submittedResumeWithoutProfileUserCount: 0,
     newVisitorCount: 0,
     onboardingCompletedCount: 0,
     onboardingCompletedNoEmailUserCount: 0,

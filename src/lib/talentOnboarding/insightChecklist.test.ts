@@ -48,6 +48,7 @@ test("uses one onboarding checklist for every profile location", () => {
       "next_scope",
       "compensation",
       "language",
+      "team_style_fit",
     ]);
   }
 });
@@ -64,10 +65,10 @@ test("combines next role and must-haves into one checklist question", () => {
   assert.match(item.promptHint, /one natural question/);
 });
 
-test("requires five core questions without a final confirmation", () => {
+test("requires six core topics without a final confirmation", () => {
   assert.equal(ONBOARDING_QUESTION_CHECKLIST.length, 9);
-  assert.equal(ONBOARDING_QUESTION_MIN_COVERED_COUNT, 5);
-  assert.equal(TALENT_INTERVIEW_FINAL_STEP, 5);
+  assert.equal(ONBOARDING_QUESTION_MIN_COVERED_COUNT, 6);
+  assert.equal(TALENT_INTERVIEW_FINAL_STEP, 6);
   assert.equal(
     TALENT_INTERVIEW_FINAL_STEP,
     getOnboardingRequiredQuestionKeys().length

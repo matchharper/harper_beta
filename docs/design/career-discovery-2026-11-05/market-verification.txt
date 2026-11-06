@@ -1,0 +1,29 @@
+2026-11-05 — Market visualization revision
+
+Scope: standalone local prototype; product source and database unchanged; no deployment.
+Data: Harper read-only aggregates, KR / zighang / 12 title groups.
+Current cohort: 2026-10-05 to 2026-11-02 exclusive (KST), 6,018 new postings.
+Previous cohort: 2026-09-07 to 2026-10-05 exclusive (KST), 4,182 new postings.
+Current predicted salary sample: 4,580 postings.
+Salary: arithmetic mean of existing annual KRW predicted range midpoints.
+Period change is a difference in posting-cohort estimates, not personal wage growth or historical prediction snapshots.
+
+Verified:
+- Embedded JSON equals saved source JSON.
+- JavaScript syntax passes node --check.
+- All 12 groups' weekly posting and salary-sample counts reconcile with 28-day totals.
+- 12 demand tiles, 12 salary tiles, 96 weekly cells.
+- Desktop 1440px and mobile 390px visual inspection.
+- No mobile page-level horizontal overflow; weekly matrix intentionally scrolls horizontally.
+- Demand area/equal grid switch, salary change/level switch, weekly jobs/pay switch.
+- Occupation selection updates both maps and details; mobile small-sample label verified.
+- Scatter keyboard Enter selects Data and shows 273 postings, +93 / +51.7%.
+- Home preview and methodology/reference tabs checked; source table has 12 rows.
+- No captured browser warnings or errors.
+
+Files:
+market.html — self-contained interactive prototype (no external scripts or APIs).
+market-data.json — aggregate data and definitions.
+market-queries.sql — read-only reproducible SQL.
+market-desktop.png / market-grid.png / market-weekly.png / market-scatter.png
+market-mobile.png / market-home-desktop.png / market-home-mobile.png

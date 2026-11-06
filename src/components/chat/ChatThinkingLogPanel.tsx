@@ -30,9 +30,9 @@ export type ChatThinkingLogPanelProps = {
   hasToolWork?: boolean;
   statusLabel?: string;
   logs: Array<string | ChatThinkingLogEntry>;
-  /** While active, Harper's own words (entries with content) stay visible and
-   * the steps fold into one line under them that changes with each step; the
-   * full list opens on click. */
+  /** While active, steps fold into one status line above the entries that
+   * changes with each step. Harper's own words (entries with content) stay
+   * visible below it; the full list opens below it on click. */
   liveLine?: boolean;
   startedAt?: string;
 };
@@ -212,7 +212,7 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
       )}
       aria-live={active ? "polite" : undefined}
     >
-      {!live && button}
+      {button}
       {
         <div
           hidden={!entries.some(shows)}
@@ -241,7 +241,6 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
           </ol>
         </div>
       }
-      {live && button}
     </div>
   );
 });

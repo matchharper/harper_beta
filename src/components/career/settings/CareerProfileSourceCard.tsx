@@ -37,8 +37,8 @@ const CareerProfileSourceCard = ({
       >
         {icon}
       </span>
-      <span className="mt-auto block min-w-0">
-        <span className="line-clamp-2 break-words text-[13px] font-medium leading-[17px]">
+      <span className="mt-auto block w-full min-w-0">
+        <span className="line-clamp-2 text-[13px] font-medium leading-[17px] [overflow-wrap:anywhere]">
           {title}
         </span>
         {meta ? (
@@ -57,12 +57,12 @@ const CareerProfileSourceCard = ({
         <CardButton
           aria-label={ariaLabel}
           onClick={onActivate}
-          className="h-full w-full flex-col items-start rounded-card border-0 bg-transparent bg-none p-3 shadow-none backdrop-blur-none hover:border-0 hover:bg-transparent focus-visible:ring-inset"
+          className="h-full w-full min-w-0 flex-col items-start rounded-card border-0 bg-transparent bg-none p-3 shadow-none backdrop-blur-none hover:border-0 hover:bg-transparent focus-visible:ring-inset"
         >
           {content}
         </CardButton>
       ) : (
-        <div className="flex h-full w-full flex-col items-start p-3 text-left">
+        <div className="flex h-full w-full min-w-0 flex-col items-start p-3 text-left">
           {content}
         </div>
       )}

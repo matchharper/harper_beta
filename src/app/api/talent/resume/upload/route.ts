@@ -402,8 +402,6 @@ export async function POST(req: NextRequest) {
     const extractedText = await extractTalentDocumentTextContentBestEffort({
       bytes: buffer,
       fileName: originalName,
-      maxChars: isChatUpload || kind === "document" ? 120_000 : 24_000,
-      maxPdfPages: isChatUpload || kind === "document" ? 40 : 8,
       onError: (error) => {
         extractionError = error;
       },

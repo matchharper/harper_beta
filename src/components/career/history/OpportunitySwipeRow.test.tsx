@@ -22,7 +22,7 @@ test("mobile swipe commits only intentional releases and preserves other interac
     });
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   let mobile = true;
-  dom.window.matchMedia = ((query: string) => ({
+  dom.window.matchMedia = (query: string) => ({
     matches: mobile,
     media: query,
     onchange: null,
@@ -30,8 +30,10 @@ test("mobile swipe commits only intentional releases and preserves other interac
     removeListener() {},
     addEventListener() {},
     removeEventListener() {},
-    dispatchEvent() { return true; },
-  }));
+    dispatchEvent() {
+      return true;
+    },
+  });
   const { act } = await import("react");
   const { createRoot } = await import("react-dom/client");
   const { OpportunitySwipeRow } = await import("./OpportunitySwipeRow");
@@ -39,8 +41,9 @@ test("mobile swipe commits only intentional releases and preserves other interac
   let positive = 0,
     negative = 0,
     clicks = 0;
-  const render = async (disabled = false) =>
+  const render = async (disabled = false, surfaceButton = false) =>
     act(async () => {
+      const Card = surfaceButton ? "button" : "div";
       root.render(
         <OpportunitySwipeRow
           disabled={disabled}
@@ -59,14 +62,16 @@ test("mobile swipe commits only intentional releases and preserves other interac
             },
           }}
         >
-          <div
+          <Card
             id="card"
+            data-swipe-surface={surfaceButton ? "" : undefined}
             onClick={() => {
               clicks++;
             }}
           >
-            Opportunity<button>Details</button>
-          </div>
+            Opportunity{!surfaceButton && <button>Details</button>}
+          </Card>
+          <button id="close">Close</button>
         </OpportunitySwipeRow>
       );
     });
@@ -158,6 +163,36 @@ test("mobile swipe commits only intentional releases and preserves other interac
       [positive, negative],
       [1, 1],
       "nested controls, desktop and pending rows cannot swipe"
+    );
+    await render(false, true);
+    const surface = document.getElementById("card")!;
+    for (const distance of [180, -180]) {
+      await pointer("pointerdown", 0, 0, surface);
+      await pointer("pointermove", distance, 0, surface);
+      await pointer("pointerup", distance, 0, surface);
+    }
+    assert.deepEqual(
+      [positive, negative],
+      [2, 2],
+      "a card button can opt into swiping"
+    );
+    await act(async () => {
+      surface.dispatchEvent(
+        new dom.window.MouseEvent("click", { bubbles: true, detail: 1 })
+      );
+    });
+    assert.equal(
+      clicks,
+      1,
+      "swiping the button must not also activate its click action"
+    );
+    await pointer("pointerdown", 0, 0, document.getElementById("close")!);
+    await pointer("pointermove", 180, 0, surface);
+    await pointer("pointerup", 180, 0, surface);
+    assert.deepEqual(
+      [positive, negative],
+      [2, 2],
+      "the separate close button is not a swipe surface"
     );
   } finally {
     await act(async () => root.unmount());

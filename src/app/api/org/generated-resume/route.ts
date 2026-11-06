@@ -7,6 +7,7 @@ import { readOrgSharedGeneratedResume, OrgHttpError } from "@/lib/org/server";
 import { readResumeContent, resumeFileName } from "@/lib/resumes/schema";
 import { RESUME_RENDER_VERSION } from "@/lib/resumes/template";
 import { exportResume, ResumeExportError } from "@/lib/resumes/export";
+import { createPdfArtifactCache } from "@/lib/resumes/pdfCache";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
     const material = scope.roleId ? await resolveRoleSharedMaterials({ admin: getSupabaseAdmin(), userId: scope.talentId, roleId: scope.roleId, workspaceId: scope.workspaceId }) : null;
     const snapshotArtifact = material ? await exportRoleMaterialDocument({ admin: getSupabaseAdmin(), material, documentId: row.id }) : null;
     const artifact = snapshotArtifact ? { pdf: snapshotArtifact.bytes, fileName: snapshotArtifact.fileName } : await exportResume({
+      cache: createPdfArtifactCache(getSupabaseAdmin()),
       expectedRevision: body.expected_revision,
       renderVersion: body.render_version,
       read: () => readOrgSharedGeneratedResume({ ...params(req), user }),

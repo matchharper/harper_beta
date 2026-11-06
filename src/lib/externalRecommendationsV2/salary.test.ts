@@ -14,6 +14,17 @@ import {
 } from "../talentOnboarding/jobPostingRecommendations";
 import { publishedCompensation } from "../companyRoles/publishedCompensation";
 import { buildFullJdCandidateBatchText } from "../talentOnboarding/jobPostingFullJdScoring";
+import fx from "./salaryFx.json";
+
+test("disclosed local annual/monthly pay converts by currency and period, never by assumed won units", () => {
+  for (const [currency, period, amount, annualize] of [
+    ["USD", "year", 100_000, 1], ["USD", "month", 10_000, 12],
+    ["JPY", "year", 10_000_000, 1], ["SGD", "monthly", 8_000, 12], ["KRW", "year", 80_000_000, 1],
+  ] as const) {
+    assert.equal(annualSalaryKrw({ salary_min: amount, salary_currency: currency, salary_period: period }).min,
+      amount * fx.krwPerUnit[currency] * annualize);
+  }
+});
 
 test("salary utility saturates at target, integrates both bounds and treats missing pay as unknown", () => {
   assert.equal(salarySatisfaction(30e6, 30e6, 100e6), 0.09);

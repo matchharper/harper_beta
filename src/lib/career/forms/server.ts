@@ -140,15 +140,17 @@ async function assertConversation(scope: Scope) {
 }
 
 async function assertDocumentOwnership(scope: Scope, documentIds: string[]) {
-  if (!documentIds.length) return;
+  if (!documentIds.length) return [];
   const ids = [...new Set(documentIds)];
   const { data, error } = await scope.admin
     .from("talent_documents")
-    .select("id")
+    .select("id,revision,file_name")
     .eq("talent_id", scope.userId)
+    .eq("is_deleted", false)
     .in("id", ids);
   if (error) throw new Error(error.message);
   if ((data?.length ?? 0) !== ids.length) throw new Error("Document not found");
+  return data!;
 }
 
 export async function readCareerForm(
@@ -316,23 +318,30 @@ export async function executeSuggestForm(
   if (!input.form) throw new Error("form is required");
   if (args.workId) input.form.relatedRefs = [...(input.form.relatedRefs ?? []).filter(ref => ref.type !== "work" || ref.id !== args.workId), { type: "work", id: args.workId }];
   await assertConversation(args);
-  await assertDocumentOwnership(
+  const documents = await assertDocumentOwnership(
     args,
     input.form.items.flatMap((item) => {
       const content = getCareerFormContent(item);
       return typeof content.documentId === "string" ? [content.documentId] : [];
     })
   );
-  // A review is a real file snapshot, not merely a pointer to a mutable document.
-  const { prepareAttachments } = await import("../externalOperations/attachments");
+  // Display the owned document revision without rendering an attachment. The
+  // selected revision is checked and pinned when the user submits a selection.
   for (const item of input.form.items) {
     const content = getCareerFormContent(item);
     if (typeof content.documentId !== "string") continue;
-    const [file] = await prepareAttachments(args, [{ document_id: content.documentId,
-      ...(typeof content.revision === "number" ? { revision: content.revision } : {}),
-      ...(typeof content.snapshot_id === "string" ? { snapshot_id: content.snapshot_id } : {}),
-    }]);
-    item.content = { ...content, revision: file.revision, snapshot_id: file.snapshotId, fileName: file.name };
+    if (typeof content.snapshot_id === "string") {
+      const { readPinnedAttachmentReference } = await import("../externalOperations/attachments");
+      const file = await readPinnedAttachmentReference(args, content.snapshot_id);
+      if (file.documentId !== content.documentId || (typeof content.revision === "number" && file.revision !== content.revision))
+        throw new Error("Attachment snapshot does not match the selected document revision");
+      item.content = { ...content, revision: file.revision, fileName: file.name };
+      continue;
+    }
+    const document = documents.find(row => row.id === content.documentId)!;
+    if (typeof content.revision === "number" && content.revision !== document.revision)
+      throw new Error("Document revision changed");
+    item.content = { ...content, revision: document.revision, fileName: document.file_name };
   }
   if (input.action === "update" && (!input.formId || !input.expectedRevision))
     throw new Error("formId and expectedRevision are required for update");
@@ -472,6 +481,7 @@ export async function respondToCareerForm(args: Scope & { input: unknown }) {
     const content = getCareerFormContent(item);
     const { prepareAttachments } = await import("../externalOperations/attachments");
     const [file] = await prepareAttachments({ ...args, requestId: input.requestId }, [{ document_id: documentId,
+      ...(documentId === content.documentId && typeof content.revision === "number" ? { revision: content.revision } : {}),
       ...(documentId === content.documentId && typeof content.snapshot_id === "string" ? { snapshot_id: content.snapshot_id } : {}),
     }]);
     if (!file.snapshotId) throw new Error("Selected file could not be pinned");

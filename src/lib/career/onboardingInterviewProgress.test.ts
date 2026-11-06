@@ -67,6 +67,6 @@ test("falls back to live client signals only before a checklist snapshot exists"
   });
 
   assert.equal(progress.filledCount, 4);
-  assert.equal(progress.percent, 80);
-  assert.equal(progress.totalCount, 5);
+  assert.equal(progress.percent, 67);
+  assert.equal(progress.totalCount, 6);
 });

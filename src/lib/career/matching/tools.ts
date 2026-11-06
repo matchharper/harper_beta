@@ -168,9 +168,18 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
       runId: str,
       matchingId: str,
       roleIds: strings,
+      companyWorkspaceIds: {
+        type: "array",
+        items: { type: "string", format: "uuid" },
+        minItems: 1,
+        description: "Restrict roles to any of these company_workspace_id values returned by search_companies. Combine with a retrieval plan or exact roleIds.",
+      },
       plan,
       evaluationLimit: num,
-      targetSalaryKrw: { type: "number" },
+      targetSalaryKrw: {
+        type: "number",
+        description: "Annual pre-tax base salary benchmark in KRW, inferred from the candidate's career and local hiring market or explicitly requested by the candidate. A soft ranking signal for plan-based searches.",
+      },
       profileId: str,
       profileRevision: num,
       cursor: str,
@@ -206,6 +215,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
           ...args,
           matchingId: i.matchingId,
           roleIds: i.roleIds,
+          companyWorkspaceIds: i.companyWorkspaceIds,
           plan: i.plan,
           evaluationLimit: i.evaluationLimit,
           profileId: i.profileId,
@@ -251,6 +261,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
       upsertOpportunities({
         ...i,
         ...profileToolContext(c, "upsert_opportunities", i),
+        backgroundRunId: c?.backgroundInvocation?.runId,
       })
   ),
 };

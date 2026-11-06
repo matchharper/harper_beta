@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v10",
+  "createdAt": "2026-11-05",
+  "provenance": "Controlled synthetic receiver input omits provenance to test whether the original company agent independently investigates. Candidate private source response is already recorded. Unlike v9, this is explicitly a receiver test, not a complete generated candidate conversation. Gold frozen before generation.",
+  "hashes": {
+    "cases-v10.json": "040c44ac254538759dca41f6c26ab1015786728320e8d5550af7acbc002e63a6",
+    "gold-v10.json": "3d865b5fbdbcd458481e64338aeba68bbc88591313a8fb0f98d5b57824abd9f3"
+  }
+}

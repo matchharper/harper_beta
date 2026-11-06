@@ -52,10 +52,10 @@ function fixture() {
       assert.equal(args.memoryTokenBudget, 4000);
       return { allBriefs: [], briefs: [], memories: [], memorySelection: "all" as const, memoryTruncated: false };
     },
-    runGetRoleContext: async (args: { userId: string; roleIds: string[]; includeJd: boolean; externalFactsOnly?: boolean }) => {
+    runGetRoleContext: async (args: { userId: string; roleIds: string[]; jd?: "full" | "summary" | "skip"; externalFactsOnly?: boolean }) => {
       assert.equal(args.userId, "owner");
       assert.deepEqual(args.roleIds, ["role"]);
-      assert.equal(args.includeJd, true);
+      assert.equal(args.jd, "full");
       assert.equal(args.externalFactsOnly, true);
       return { roles: [{ found: true, role: { name: "Engineer", description: "Stored job description", sourceType: "external" }, companyDb: { name: "Company" } }] };
     },

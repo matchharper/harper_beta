@@ -13,7 +13,7 @@ import {
 } from "@/lib/textSanitization";
 
 export const runtime = "nodejs";
-export const maxDuration = 240;
+export const maxDuration = 800;
 
 type Body = {
   links?: string[];
@@ -38,7 +38,10 @@ export async function POST(req: NextRequest) {
     const links = (body.links ?? [])
       .map((link) => sanitizeSingleLineDbText(link, 2000) ?? "")
       .filter(Boolean);
-    const resumeText = sanitizeMultilineDbText(body.resumeText, 24000);
+    const resumeText = sanitizeMultilineDbText(
+      body.resumeText,
+      body.resumeText?.length ?? 0
+    );
     const resumeFileName = sanitizeSingleLineDbText(body.resumeFileName, 240);
     const resumeStoragePath = sanitizeSingleLineDbText(
       body.resumeStoragePath,

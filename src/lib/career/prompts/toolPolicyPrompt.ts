@@ -2,6 +2,7 @@ import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { normalizeToolNames } from "@/lib/career/prompts/promptUtils";
 import type { CareerToolPolicyChannel } from "@/lib/career/prompts/types";
 import { COMPANY_RELAY_CONTENT_CONTRACT } from "@/lib/companyTalentRequests/relayContract";
+import { AGENT_COLLABORATION_GUIDE } from "@/lib/agentContacts/guidance";
 
 const CHAT_TOOL_CONVERSATION_POLICY = `
 You may speak before or between tool calls when a new finding or actual blocker helps the user.
@@ -74,7 +75,7 @@ export function buildCareerToolPolicyPrompt(args: {
     "record_internal_fit_reevaluation_information"
   );
   const channelRule = args.backgroundInvocation
-    ? `- Background mode: intermediate and final plain assistant text are private execution notes. Only deliver_career_email sends your finished subject and body to the candidate. Write that email in ${outputLanguage}. If you need an answer, send the useful question through that tool and arrange any appropriate future check; no user is present to answer this invocation.`
+    ? "" // Background invocation context owns the actual delivery contract.
     : args.channel === "voice"
       ? args.conversationMode === "mock_interview"
         ? "- During interview preparation, give at most one brief notice in the selected interview language before a slow search. After asking the language question, wait for the answer before searching. Do not repeat preparation notices or narrate tool mechanics."
@@ -100,7 +101,7 @@ export function buildCareerToolPolicyPrompt(args: {
     `Callable tools in this response: ${toolNameText}`,
     "Use current tool results and this turn's capability catalog as evidence of what happened and what you can do. Earlier assistant claims about unavailable features may be stale or wrong; never repeat them over a later successful tool result. Answer the latest request without reviving already completed tasks.",
     "When an action fails, use the verified cause and execution outcome to find a solution through existing tools",
-    "Company-side agents select proactive Harper-connected recommendations by comparing a candidate's profile with their Role's requirements. Career can help with those recommendations and public Roles the user explicitly chooses, but cannot browse hidden internal-role lists or independently send a profile to a company. General job discovery uses external opportunities; profile sharing follows the user's authorization for the exact Role or existing correspondence.",
+    "read_recommended_opportunities includes already selected, unpublished internal proposals. Read their details with get_role_context and use upsert_opportunities to publish a useful proposal. These reads do not create new selections or reevaluate fits. Profile sharing follows the user's authorization for the exact Role or existing correspondence.",
     hasStatusMessageTools && !args.backgroundInvocation
       ? `When a tool schema includes \`_uiStatusMessage\`, include a specific user-facing Thinking log sentence in ${outputLanguage} for that call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters.`
       : "",
@@ -140,7 +141,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasRecommendedOpportunitiesTool
       ? [
-          "- Use `read_recommended_opportunities` when the answer depends on opportunities already recommended to this user, such as comparing them, recalling links, explaining recommendation reasons, or checking prior feedback.",
+          "- Use `read_recommended_opportunities` when the answer depends on opportunities already recommended or selected for this user, such as comparing them, recalling links, explaining recommendation reasons, or checking prior feedback.",
           "- To prepare an application from a posting URL without a known roleId, look it up with `read_recommended_opportunities(postingUrl=the supplied URL)` first. `get_internal_roles` covers only Harper-connected roles; an empty or unrelated result cannot establish that a public posting is absent. A failed filtered lookup establishes only that this query found no match, not that the role is unregistered.",
           "- If the user asks what happened after accepting a Harper-first internal recommendation, call `read_recommended_opportunities` and answer from the returned `progress.message` when it is present. Do not infer company-side progress from savedStage or stale internal fields.",
           "- When `companyRequestIntroProgress.origin=company_request_intro`, do not apply the Harper-first 7-day/21-day progress wording. Reason from the returned factual timestamps and statuses in the conversation's current context. Use natural wording rather than a fixed sentence or fixed elapsed-day threshold. If `canRelayToCompany=true` and the user is concerned or aksed about silence, you may offer to contact the company.",
@@ -161,12 +162,13 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasContactCompanyTool
       ? [
+          AGENT_COLLABORATION_GUIDE,
           "- contact_company uses recommendationId with acceptIntroduction for a reviewed introduction choice, or an existing introductionRootId/replyToMessageId for authorized agent correspondence. Legacy mutual connections keep their connectionId contract. Preserve the candidate's meaning and conditions in relayContent; distinguish the agent-inbox receipt from human delivery or a hiring decision.",
         ]
       : []),
     ...(hasRoleContextTool
       ? [
-          "- Read exact role details with get_role_context for existing recommendations or a public posting the user chose. Recover ambiguous references from the user's request and existing recommendations. Public role facts can be discussed before a recommendation exists; that does not authorize discovering other internal roles. You may ask useful questions about the candidate's relevant experience in your own words.",
+          "- Read exact role details with get_role_context for existing recommendations, selected unpublished proposals or a public posting the user chose. Recover ambiguous references from the user's request and existing recommendations. Public role facts can be discussed before a recommendation exists; that does not authorize discovering other internal roles. You may ask useful questions about the candidate's relevant experience in your own words.",
         ]
       : []),
     ...(hasInternalRolesTool
@@ -181,7 +183,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(toolNames.includes("apply_to_internal_role")
       ? [
-          "- apply_to_internal_role saves a user-chosen internal Role as a private opportunity. The initial review request is not introduction acceptance. Use the result and conversation to judge whether explanation, useful questions, or material preparation will help; a subsequent clear acceptance uses contact_company.",
+          "- apply_to_internal_role saves a user-chosen internal Role privately, without introducing or sharing. Help the candidate pursue their chosen Role with accurate, relevant materials; the actual conversation and source action establish existing knowledge and authorization. Preparation and agent correspondence are available within that purpose.",
         ]
       : []),
     ...(toolNames.includes("assign_to_role")

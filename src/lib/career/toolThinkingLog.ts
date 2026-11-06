@@ -40,7 +40,7 @@ export function getCareerToolStartThinkingLog(
         "문서 정보를 업데이트하고 있습니다."
       );
     case "open_url": {
-      const host = urlHost(input?.url);
+      const host = [...new Set((Array.isArray(input?.url) ? input.url : [input?.url]).map(urlHost).filter(Boolean))].join(", ");
       return host
         ? careerT(locale, "career.chat.tool.open_url.host", "{host} 읽는 중", {
             values: { host },

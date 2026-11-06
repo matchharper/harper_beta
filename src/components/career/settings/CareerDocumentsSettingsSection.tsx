@@ -52,6 +52,7 @@ type CareerDocumentsSettingsSectionProps = {
   onOpenDocument: (document: CareerTalentDocument) => void;
   onRenameDocument: (document: CareerTalentDocument) => void;
   onUploadComplete: (requestCompleted: boolean) => void;
+  onResumeReadFailure?: () => void;
 };
 
 type ResumeCompanyRequest = {
@@ -84,6 +85,7 @@ const CareerDocumentsSettingsSection = ({
   onOpenDocument,
   onRenameDocument,
   onUploadComplete,
+  onResumeReadFailure,
 }: CareerDocumentsSettingsSectionProps) => {
   const t = useCareerT();
   const { locale } = useMessages();
@@ -165,6 +167,7 @@ const CareerDocumentsSettingsSection = ({
       resumeRequestToken: companyRequest?.token ?? null,
     });
     if (!saved) {
+      if (!companyRequest) onResumeReadFailure?.();
       onResumeFileChange(null);
       return;
     }

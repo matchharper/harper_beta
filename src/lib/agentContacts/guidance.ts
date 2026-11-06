@@ -1,0 +1,2 @@
+/** Shared collaboration guide, independent of role, event and tool sequence. */
+export const AGENT_COLLABORATION_GUIDE = "Work with counterpart agents as collaborators with their own context and judgment. Exchange what each of you already knows, how it was learned and what remains unverified. A question between agents is not automatically a new task for either user. Choose further investigation and human involvement by its likely value to the user's current goal; a clear account of the evidence and its limits can be a useful answer.";

@@ -111,7 +111,7 @@ Control Worker 2,497건의 전체 경과시간 중앙값 207.3초, p90 346.8초.
 | 방문 | Career mount가 daily POST; cached-only여도 최종 reranker LLM 사용 가능 | `CareerWorkspacePage.tsx:223`, `useDailyExternalRecommendations.ts:69` |
 | 정기 주기 | 사용자 설정 기본 3일(1~7), passive 2배. 고정 매일 아님 | `harper_worker/opp/worker.py:2500,2660` |
 
-V2의 현재 rankScore는 `0.65*mutualFit + 0.15*candidateInterest + 0.1*companyInterest + 0.1*roleFit`이며 constraintPass≤50이면 감점한다 (`contract.ts:59`). 여기서 나온 순위는 최종 사용자 목록 순서와 같다고 볼 수 없다. reranker는 현재 전체 Brief·request와 역할 근거를 다시 읽는다.
+V2 v9의 현재 rankScore는 `0.55*mutualFit + 0.35*candidateInterest + 0.1*companyInterest`이며 constraintPass≤50이면 감점한다 (`contract.ts`의 `FIT_RANKING_WEIGHTS`·`rankScore`). mutualFit은 직무 수행 역량까지 통합하며 새 결과에는 roleFit·evidence가 없다. 새 Career 평가 결과 정렬도 동일한 가중치를 사용하고, 과거 6항목 결과는 기존 45/35/10/10으로 읽는다. 여기서 나온 순위는 최종 사용자 목록 순서와 같다고 볼 수 없다. reranker는 현재 전체 Brief·request와 역할 근거를 다시 읽는다.
 
 다만 예전 score가 낮아서 상위 25개 밖에 있는 역할은 최종 reranker가 보지 못한다. 기준 변경 후 점수 재사용만으로 ‘예전 목록 전체에서 지금 최선’을 보장할 수 없다.
 

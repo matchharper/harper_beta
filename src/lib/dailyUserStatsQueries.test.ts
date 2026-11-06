@@ -133,3 +133,99 @@ test("daily report queries preserve onboarding history and count included web ap
     false
   );
 });
+
+test("submitted resume gaps count missing structured profiles, not missing text", async (t) => {
+  const { supabaseServer } = await import("@/lib/supabaseServer");
+  const { buildDailyUserStatsReport, formatDailyUserStatsSlackMessages } =
+    await import("@/lib/dailyUserStats");
+  const base = {
+    resume_storage_path: "resume.pdf",
+    // Extracted text and a user/profile shell do not imply structured ingestion.
+    resume_text: "An uploaded resume with readable text",
+    talent_experiences: [{ count: 0 }],
+    talent_educations: [{ count: 0 }],
+    talent_extras: { content: { talent_extras: [] } },
+    talent_documents: [],
+  };
+  const profiles = [
+    { ...base, user_id: "missing-profile" },
+    { ...base, user_id: "returning-missing-profile" },
+    { ...base, user_id: "experience", talent_experiences: [{ count: 2 }] },
+    { ...base, user_id: "education", talent_educations: [{ count: 1 }] },
+    { ...base, user_id: "extras", talent_extras: { content: {
+      publications: [{ title: "Research paper" }],
+    } } },
+    { ...base, user_id: "no-upload", resume_storage_path: null },
+    { ...base, user_id: "document-only", resume_storage_path: null,
+      talent_documents: [{ storage_path: "upload.pdf", origin_type: null }] },
+    { ...base, user_id: "generated-only",
+      talent_documents: [{ storage_path: "resume.pdf", origin_type: "harper_generated_resume" }] },
+    { ...base, user_id: "not-submitted" },
+    { ...base, user_id: "internal" },
+    { ...base, user_id: "test-fixture" },
+  ];
+  let hasSubmissions = true;
+  let failProfileRead = false;
+  let profileReadCount = 0;
+  const client = createClient("http://127.0.0.1:54321", "fixture-key", {
+    global: {
+      fetch: async (input) => {
+        const url = new URL(String(input));
+        const table = url.pathname.split("/").at(-1);
+        const params = url.searchParams;
+        let rows: unknown[] = [];
+        if (table === "talent_users" && params.get("select")?.includes("talent_experiences")) {
+          profileReadCount += 1;
+          assert.equal(params.get("talent_documents.kind"), "eq.resume");
+          assert.equal(params.get("talent_documents.is_deleted"), "eq.false");
+          assert.equal(params.get("select")?.includes("resume_text"), false);
+          const ids = params.get("user_id")!.slice(4, -1).split(",");
+          for (const excluded of ["internal", "test-fixture", "not-submitted"]) {
+            assert.equal(ids.includes(excluded), false);
+          }
+          rows = profiles.filter((row) => ids.includes(row.user_id));
+          if (failProfileRead) return new Response(JSON.stringify({
+            code: "XX000", message: "profile read unavailable",
+          }), { status: 500, headers: { "content-type": "application/json" } });
+        } else if (table === "talent_users") {
+          rows = profiles.map(({ user_id }) => ({
+            user_id,
+            email: user_id === "internal" ? "person@matchharper.com" : `${user_id}@example.com`,
+            created_at: user_id.startsWith("returning")
+              ? "2026-10-01T00:00:00.000Z" : "2026-10-10T16:00:00.000Z",
+            last_logined_at: null,
+          }));
+        } else if (table === "logs" && params.get("type") === "eq.analytics_excluded_test_fixture_talent") {
+          rows = [{ user_id: "test-fixture" }];
+        } else if (hasSubmissions && table === "logs" && params.get("type")?.includes("career_onboarding_submitted")) {
+          rows = profiles.filter((row) => row.user_id !== "not-submitted").map(({ user_id }) => ({
+            user_id, type: "career_onboarding_submitted", created_at: "2026-10-10T18:00:00.000Z",
+          }));
+        } else if (hasSubmissions && table === "talent_messages") {
+          rows = [{ user_id: "missing-profile", role: "user", message_type: "profile_submit",
+            created_at: "2026-10-10T18:00:00.000Z" }];
+        }
+        return new Response(JSON.stringify(rows), {
+          headers: { "content-type": "application/json" },
+        });
+      },
+    },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  t.mock.method(supabaseServer, "from", client.from.bind(client));
+  const report = await buildDailyUserStatsReport("2026-10-11");
+  assert.equal(report.submittedCount, 8);
+  assert.equal(report.submittedResumeUserCount, 6);
+  assert.equal(report.submittedResumeWithoutProfileUserCount, 3);
+  assert.ok(formatDailyUserStatsSlackMessages(report).main.includes(
+    "기간 내 제출자 중 이력서 업로드 후 프로필 항목 없음: 3명 / 이력서 업로드 6명 (조회 시점 경력·학력·기타 이력 모두 없음)"
+  ));
+  failProfileRead = true;
+  await assert.rejects(buildDailyUserStatsReport("2026-10-11"), /profile read unavailable/);
+  hasSubmissions = false;
+  const readsBeforeEmptyReport = profileReadCount;
+  const empty = await buildDailyUserStatsReport("2026-10-11");
+  assert.equal(profileReadCount, readsBeforeEmptyReport);
+  assert.equal(empty.submittedResumeUserCount, 0);
+  assert.equal(empty.submittedResumeWithoutProfileUserCount, 0);
+});

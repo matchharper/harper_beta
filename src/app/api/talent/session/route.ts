@@ -1,3 +1,4 @@
+import { hasDeliveredCareerContact } from "@/lib/career/background/contactHistory";
 import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
@@ -330,7 +331,9 @@ export async function GET(req: NextRequest) {
     }
 
     let profile = await fetchTalentUserProfile({ admin, userId: user.id });
-    if (conversation.stage === "profile") {
+    const continuingCareerContact = !initialTalentSetting?.is_onboarding_done &&
+      await hasDeliveredCareerContact({ admin, userId: user.id, conversationId: conversation.id });
+    if (conversation.stage === "profile" && !continuingCareerContact) {
       const seeded = await autoStartClaimedTalentConversation({
         textChatModel: resolveCareerRequestTextChatModel(req, user).model,
         admin,
@@ -364,9 +367,10 @@ export async function GET(req: NextRequest) {
       const isProfileIngestionIncomplete =
         profileIngestionStatus === "processing" ||
         profileIngestionStatus === "failed";
-      const needsOnboarding =
+      const continuingCareer = continuingCareerContact;
+      const needsOnboarding = !continuingCareer && (
         isProfileIngestionIncomplete ||
-        (!hasFirstSubmission && !isOnboardingDone);
+        (!hasFirstSubmission && !isOnboardingDone));
 
       return NextResponse.json({
         ok: true,

@@ -8,6 +8,8 @@ export const OPENROUTER_JEV_MODEL = "typesafe/jev-1.13" as const;
 
 export const GPT_61_SOL_MODEL = "gpt-6.1-sol" as const;
 
+export const GPT_61_TERRA_MODEL = "gpt-6.1-terra" as const;
+
 export const OPENROUTER_DEEPSEEK_V4_1_FLASH_MODEL =
   "deepseek/deepseek-v4.1-flash" as const;
 

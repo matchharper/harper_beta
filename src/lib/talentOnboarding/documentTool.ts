@@ -79,7 +79,7 @@ function toDocumentMetadata(
   };
 }
 
-export async function listTalentDocumentsForTool(args: {
+export async function readTalentDocumentMetadataPage(args: {
   admin: TalentAdminClient;
   input: Record<string, unknown>;
   userId: string;
@@ -111,6 +111,15 @@ export async function listTalentDocumentsForTool(args: {
   const rows = (data ?? []) as TalentDocumentMetadataRow[];
   const hasMore = rows.length > limit;
   const pageRows = rows.slice(0, limit);
+  return { rows: pageRows, hasMore, limit, offset, nextOffset: hasMore ? offset + pageRows.length : null };
+}
+
+export async function listTalentDocumentsForTool(args: {
+  admin: TalentAdminClient;
+  input: Record<string, unknown>;
+  userId: string;
+}) {
+  const { rows: pageRows, hasMore, limit, offset, nextOffset } = await readTalentDocumentMetadataPage(args);
   const documentIdsWithExtractedText = new Set<string>();
   if (pageRows.length > 0) {
     const { data: textRows, error: textRowsError } = await args.admin
@@ -142,7 +151,7 @@ export async function listTalentDocumentsForTool(args: {
     documents: documents.map(document => pdfExports.has(document.documentId) ? { ...document, pdfExport: pdfExports.get(document.documentId) } : document),
     hasMore,
     limit,
-    nextOffset: hasMore ? offset + documents.length : null,
+    nextOffset,
     offset,
   };
 }

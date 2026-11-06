@@ -3943,9 +3943,8 @@ export async function requestOrgCompanyIntro(args: {
   });
   await upsertOrgCompanyUser(admin, args.user);
   await assertOrgIntroRoleAccess({ admin, user: args.user, workspaceId, introCandidateId });
-  // v2 runs request_company_intro_v1 and, when the card became requested,
-  // records the decision (company_decision_events) in the same transaction.
-  const { data, error } = await (admin.rpc as any)("request_company_intro_v2", {
+  // Commit the recommendation, billing, decision and original Career handoff together.
+  const { data, error } = await (admin.rpc as any)("request_company_intro_for_career_v1", {
     p_channel: args.channel,
     p_company_appeal: companyAppeal,
     p_company_user_id: args.user.id,

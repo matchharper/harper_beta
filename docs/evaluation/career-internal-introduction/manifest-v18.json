@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v18",
+  "createdAt": "2026-11-05",
+  "provenance": "Prospective diagnostic: distinguish a source-only question already answerable from the broader requests for new role/organization details generated in v17. Same source question as v14, explicit source chronology from v17. No earlier result relabeled.",
+  "hashes": {
+    "cases-v18.json": "e24d0fbc2a2240092f519fb50bb86a169a679ee3d96493fa4a4e4c7da349b96f",
+    "gold-v18.json": "aac7b7bc148f38ab39bd90a1f90316aa7d563f5a5b9dada74079813f8e0d6b62"
+  }
+}

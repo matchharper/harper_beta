@@ -116,6 +116,7 @@ export async function readCareerCapabilityCoaching(args: {
 
 export async function createCareerCapabilityTurn(args: {
   workId?: string;
+  observePendingWork?: ConstructorParameters<typeof CareerCapabilityRuntime>[0]["observePendingWork"];
   admin: TalentAdminClient;
   userId: string;
   conversationId: string;
@@ -199,6 +200,7 @@ export async function createCareerCapabilityTurn(args: {
     capabilityIds: args.resume.capabilityIds, handbookIds: [], status: "selected" as const, elapsedMs: 0,
   } : await withLlmUsageContext(usageContext, () => selectCareerPreloads({
     eligibleNames: new Set(args.eligibleTools.map(tool => tool.function.name)),
+    eligibleTools: args.eligibleTools,
     input: args.selectorInput ?? { messages: sourceMessage ? [{ role: "user", content: sourceMessage.content }] : [] },
     activeHandbooks: handbooks, signal: args.abortSignal,
     promptExperiment,
@@ -230,6 +232,8 @@ export async function createCareerCapabilityTurn(args: {
     deadlineAt: args.deadlineAt, resume: args.resume, checkpoint: args.checkpoint,
     continuation: args.continuation,
     inputInbox: args.inputInbox,
+    observePendingWork: args.observePendingWork,
+    delegated: Boolean(args.workId),
     resumeDependenciesPending: args.resumeDependenciesPending,
     usageContext,
     refreshAfterTool: async (name, result) => {

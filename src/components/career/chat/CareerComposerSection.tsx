@@ -124,7 +124,6 @@ const selectComposerChat = (chat: CareerChatPanelCoreContextValue) => ({
   user: chat.user,
   conversationId: chat.conversationId,
   stage: chat.stage,
-  scrollRef: chat.scrollRef,
   isOnboardingDone: chat.isOnboardingDone,
   sessionPending: chat.sessionPending,
   profilePending: chat.profilePending,
@@ -212,7 +211,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     user,
     conversationId,
     stage,
-    scrollRef,
     isOnboardingDone,
     sessionPending,
     profilePending,
@@ -987,17 +985,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     }
   };
 
-  const handleComposerFocus = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      const scrollElement = scrollRef.current;
-      if (!scrollElement) return;
-      scrollElement.scrollTo({
-        top: scrollElement.scrollHeight,
-        behavior: "smooth",
-      });
-    });
-  }, [scrollRef]);
-
   const handleForceComplete = () => {
     if (!onForceCompleteOnboarding || manualCompletionDisabled) return;
     logCareerEvent("click_chat_force_complete");
@@ -1347,8 +1334,9 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     ...pendingActionMenuItems,
   ];
 
+  const composerActionsHidden = !shouldShowCareerComposerRoleActions(draft);
   const composerActions =
-    showConversationActions && shouldShowCareerComposerRoleActions(draft) ? (
+    showConversationActions ? (
       desktopRoleActionOpportunity ? (
         <div key={desktopRoleActionOpportunity.id} className="hidden md:block">
           <HistoryOpportunityRoleActions
@@ -1411,7 +1399,23 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
               variant="composer"
             />
           ) : null}
-          <CareerSuggestionComposerSlot actions={composerActions}>
+          <CareerSuggestionComposerSlot
+            actions={
+              composerActions ? (
+                <div
+                  className={cn(
+                    "flex items-center gap-2",
+                    // Preserve clearance when typing hides the shortcut buttons.
+                    composerActionsHidden && "invisible"
+                  )}
+                  aria-hidden={composerActionsHidden}
+                  inert={composerActionsHidden}
+                >
+                  {composerActions}
+                </div>
+              ) : null
+            }
+          >
             <CareerAnimatedRegion open={Boolean(selectedPendingAction)}>
               {selectedPendingAction ? (
                 <div className="career-reply-slot">
@@ -1504,7 +1508,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                     event.currentTarget.selectionStart ?? value.length
                   );
                 }}
-                onFocus={handleComposerFocus}
                 onBeforeInput={opportunityTokens.handleBeforeInput}
                 onKeyDown={handleComposerKeyDown}
                 onScroll={(event) =>

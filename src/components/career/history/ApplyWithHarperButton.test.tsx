@@ -88,6 +88,8 @@ test("role CTA sends the selected role immediately, opens chat during streaming 
                   roleId,
                   companyName: "Example",
                   title: "Engineer",
+                  description: "Stored JD must not be copied into the visible request",
+                  externalJdUrl: "https://example.invalid/jobs/engineer",
                   ...itemOverrides,
                 } as CareerHistoryOpportunity
               }

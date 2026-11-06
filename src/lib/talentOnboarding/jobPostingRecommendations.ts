@@ -1,7 +1,7 @@
 import { sqlLiteral } from "../sqlLiteral";
 import { countriesSchema, type CountryWeight, type V2SearchPlan } from "../externalRecommendationsV2/countries";
 import { roleTitleNeighborsSql } from "../externalRecommendationsV2/roleTitleSearchSql";
-import { publishedCompensation } from "../companyRoles/publishedCompensation";
+import { estimatedBaseSalaryText, publishedCompensation } from "../companyRoles/publishedCompensation";
 import {
   SEARCH_TITLE_INSTRUCTION,
 } from "../externalRecommendationsV2/searchTitles";
@@ -119,6 +119,7 @@ export type RawRoleRow = {
 };
 
 export type RoleCard = {
+  estimatedBaseSalary?: string | null;
   company: {
     description?: string | null;
     employeeCountRange?: unknown;
@@ -2973,6 +2974,7 @@ export function roleCard(row: RawRoleRow): RoleCard {
   const companyScore = normalizeCompanyTestScore(row.company_test_score);
   const roleSummary = roleSummaryFromValue(row.summary);
   const card: RoleCard = {
+    estimatedBaseSalary: estimatedBaseSalaryText(row),
     company: {
       description:
         normalizeMultiline(row.company_description, 900) ||

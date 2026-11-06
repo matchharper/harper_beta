@@ -1,3 +1,4 @@
+import { hasDeliveredCareerContact } from "@/lib/career/background/contactHistory";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
@@ -93,7 +94,9 @@ export async function GET(req: NextRequest) {
     );
     const conversationStage = normalizeText(conversationResult.data?.stage);
     const isOnboardingDone = Boolean(settingResult.data?.is_onboarding_done);
-    const needsOnboarding = !hasFirstSubmission && !isOnboardingDone;
+    const continuingCareer = !hasFirstSubmission && !isOnboardingDone &&
+      await hasDeliveredCareerContact({ admin, userId: user.id });
+    const needsOnboarding = !hasFirstSubmission && !isOnboardingDone && !continuingCareer;
 
     return NextResponse.json({
       ok: true,

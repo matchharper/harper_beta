@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import { fitSchema, rankScore, type Fit } from "../src/lib/externalRecommendationsV2/contract";
+import { legacyFitSchema as fitSchema, type LegacyFit as Fit } from "../src/lib/externalRecommendationsV2/contract";
 
 process.umask(0o077);
 const root = process.cwd();
@@ -42,7 +42,7 @@ for (const [runIndex, run] of capture.runs.entries()) {
       const p = pool.find((p: any) => p.role_id === rec.roleId);
       if (!p) { reason = "recommended_role_missing"; break; }
       // Worker persists four decimal places on its normalized 0..1 score.
-      if (Math.abs(rankScore(p.evaluation) / 100 - Number(rec.score)) > 0.000051) {
+      if (Math.abs(weighted(p.evaluation, variants[0].weights) / 100 - Number(rec.score)) > 0.000051) {
         reason = "historical_recommendation_score_mismatch"; break;
       }
     }
@@ -57,7 +57,6 @@ for (const [runIndex, run] of capture.runs.entries()) {
   const ranks = variants.map(v => {
     const rows = pool.map((p: any) => {
       const fit = fitSchema.parse(p.evaluation);
-      assert.ok(Math.abs(weighted(fit, variants[0].weights) - rankScore(fit)) < 1e-10);
       return { id: p.role_id, score: weighted(fit, v.weights) };
     }).sort((a: any, b: any) => b.score - a.score || a.id.localeCompare(b.id));
     return new Map(rows.map((p: any, i: number) => [p.id, { rank: i + 1, score: p.score,

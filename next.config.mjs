@@ -1,7 +1,10 @@
 import { realpathSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { assertLocalStack } from "./scripts/localE2e/isolation.mjs";
+import { prepareResumeAssets } from "./scripts/prepareResumeAssets.mjs";
 assertLocalStack();
+await prepareResumeAssets();
 const supabaseHostname = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
 const supabaseStorageHostname = "zzojrniuppueizhnmqfd.supabase.co";
 
@@ -9,6 +12,11 @@ const supabaseStorageHostname = "zzojrniuppueizhnmqfd.supabase.co";
 // do not produce conflicting directory entries in Vercel function packages.
 const packageAsset = (packageName, asset) =>
   `./${path.relative(process.cwd(), realpathSync(`node_modules/${packageName}`)).split(path.sep).join("/")}/${asset}`;
+const configRequire = createRequire(import.meta.url);
+const pdfRequire = createRequire(configRequire.resolve("pdf-parse"));
+const pdfJsDirectory = path.dirname(pdfRequire.resolve("pdfjs-dist/package.json"));
+const pdfJsAsset = (asset) =>
+  `./${path.relative(process.cwd(), pdfJsDirectory).split(path.sep).join("/")}/${asset}`;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -26,6 +34,8 @@ const nextConfig = {
   env: {
     HARPER_RESUME_FONT_DIRECTORY: packageAsset("@fontsource/noto-sans-kr", ""),
     HARPER_RESUME_SCRIPT_PATH: packageAsset("pagedjs", "dist/paged.min.js"),
+    HARPER_PDFJS_CMAP_DIRECTORY: pdfJsAsset("cmaps"),
+    HARPER_PDFJS_FONT_DIRECTORY: pdfJsAsset("standard_fonts"),
   },
   serverExternalPackages: [
     "playwright-core",
@@ -34,9 +44,14 @@ const nextConfig = {
     "@fontsource/noto-sans-kr",
   ],
   // Private local checkpoints must never be packaged into deployed functions.
-  outputFileTracingExcludes: { "/*": ["./.local/career-reset/**"] },
+  outputFileTracingExcludes: { "/*": ["./.local/career-reset/**", "./.local/resume-parser-audit-*/**", "./.local/resume-reprocess-*/**"] },
   outputFileTracingIncludes: {
     "/*": ["./src/lib/career/simulation/applicationStagehand/*.mjs", "./src/lib/career/simulation/applicationStagehand/*.cjs", "./src/lib/career/simulation/applicationStagehand/package*.json"],
+    "/api/{talent/documents/upload,talent/resume/*,internal/career/email-onboarding/ingest-profile,internal/company-talent-requests/ingest-resume,org/agent/role-creation/extract-file,internal/org-agent/slack-turn,queues/process-slack-turn}": [
+      packageAsset("pdf-parse", "dist/worker/pdf.worker.mjs"),
+      pdfJsAsset("cmaps/**"),
+      pdfJsAsset("standard_fonts/**"),
+    ],
     "/api/resume-assets/*": [
       packageAsset("pagedjs", "dist/paged.min.js"),
       packageAsset("@fontsource/noto-sans-kr", "400.css"),
@@ -111,6 +126,13 @@ const nextConfig = {
   },
   async headers() {
     return [
+      {
+        source: "/resume-assets/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "Access-Control-Allow-Origin", value: "*" },
+        ],
+      },
       {
         source: "/:path*",
         headers: [

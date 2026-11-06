@@ -11,7 +11,7 @@ import {
   loadFitCache,
   type EngineArgs,
 } from "./engine";
-import { SEARCH_PLAN_VERSION, evaluatorKey, fingerprint } from "./contract";
+import { PROMPT_VERSION, SEARCH_PLAN_VERSION, evaluatorKey, fingerprint } from "./contract";
 import { PLAN_PROMPT, WORKER_PLAN_PROMPT } from "./prompts";
 const cards = (n: number) =>
   Array.from({ length: n }, (_, i) =>
@@ -135,9 +135,7 @@ test("incomplete summaries are excluded while valid summaries are saved and rera
         candidateInterest: 60,
         companyInterest: 60,
         mutualFit: 60,
-        roleFit: 60,
         constraintPass: 100,
-        evidence: "partial",
       },
     })),
     async (_system, text) => {
@@ -191,9 +189,7 @@ test("rerank sees only top twenty-five with requested-language summary and consu
       mutualFit: 60.999,
       candidateInterest: 34,
       companyInterest: 67,
-      roleFit: 64.25,
       constraintPass: 100,
-      evidence: "partial",
     },
     score: 90.999 - i,
   }));
@@ -225,13 +221,13 @@ test("rerank sees only top twenty-five with requested-language summary and consu
   assert.ok(text.includes("Summary 25"));
   assert.ok(text.includes("score: 89.9"));
   assert.ok(text.includes("mutualFit: 60.9"));
-  assert.ok(text.includes("roleFit: 64.2"));
+  assert.ok(!text.includes("roleFit:"));
+  assert.ok(!text.includes("evidence:"));
   assert.ok(text.includes("candidateInterest: 34"));
   for (const metric of [
     "candidateInterest",
     "companyInterest",
     "mutualFit",
-    "roleFit",
     "constraintPass",
   ])
     assert.ok(prompt.includes(metric + ":"));
@@ -584,9 +580,7 @@ test("worker rerank carries its search hypothesis beside the authoritative Brief
           mutualFit: 70,
           candidateInterest: 72,
           companyInterest: 80,
-          roleFit: 82,
           constraintPass: 100,
-          evidence: "partial",
         },
       },
     ],
@@ -604,7 +598,7 @@ test("worker rerank carries its search hypothesis beside the authoritative Brief
   );
 });
 
-test("all surfaces reuse cached fits despite age, source, context and evaluator changes", async () => {
+test("all surfaces reuse same-rubric fits but exclude older scoring contracts", async () => {
   const [card] = cards(1);
   const sourceHash = fingerprint(
     buildScoringInput({}, [v2PromptCandidate(card, "en")])
@@ -613,16 +607,15 @@ test("all surfaces reuse cached fits despite age, source, context and evaluator 
     candidateInterest: 40,
     companyInterest: 50,
     mutualFit: 40,
-    roleFit: 50,
     constraintPass: 90,
-    evidence: "sufficient",
     roleId: card.roleId,
     inputFingerprint: "previous-profile-and-brief",
+    promptVersion: PROMPT_VERSION,
     roleSourceHash: sourceHash,
     evaluatedAt: new Date(Date.now() - 1000).toISOString(),
   };
   const evaluations: Record<string, unknown> = {
-    "old-prompt:jev:old-model": fit,
+    "old-prompt:jev:old-model": { ...fit, promptVersion: "old-prompt", evaluatedAt: new Date(Date.now() + 1000).toISOString() },
     [evaluatorKey("openai")]: {
       ...fit,
       evaluatedAt: new Date(Date.now() - 2000).toISOString(),

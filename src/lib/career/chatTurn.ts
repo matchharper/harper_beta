@@ -1,3 +1,4 @@
+import { hasDeliveredCareerContact } from "./background/contactHistory";
 import { createCareerAssistantMessageWriter } from "./assistantMessageWriter";
 import { readCareerConversationVersion } from "./conversationVersion";
 import { readCareerReengagementOpportunities, REENGAGEMENT_OPPORTUNITY_PRELOAD } from "./reengagementOpportunities";
@@ -171,6 +172,7 @@ export type CareerTextTurnAdapter = {
 
 export type RunCareerChatTurnArgs = {
   inboxId?: string;
+  pendingInputMessageId?: number;
   resumeDependenciesPending?: boolean;
   workId?: string;
   workRevision?: number;
@@ -206,6 +208,8 @@ export type RunCareerChatTurnArgs = {
   onTextDelta?: (delta: string) => void | Promise<void>;
   pendingOpportunityFeedbackContext?: string | null;
   proactiveContext?: string | null;
+  /** Verified application event; never persisted as user speech or authorization. */
+  applicationEvent?: string;
   shouldInsertAssistantMessage?: () => Promise<boolean>;
   skipConversationWrites?: boolean;
   suppressOnboarding?: boolean;
@@ -608,9 +612,11 @@ export async function runCareerChatTurn(
   // the model for that reply; conversation text such as "영어로 문서 작성 가능"
   // describes the talent and must not switch the reply language.
   const responseLocale = talentSetting?.preferred_locale ?? null;
+  const continuingCareer = !talentSetting?.is_onboarding_done && !suppressOnboarding &&
+    await hasDeliveredCareerContact({ admin, userId, conversationId });
   const isOnboardingActiveForTurn =
     !Boolean(talentSetting?.is_onboarding_done) &&
-    (!suppressOnboarding || args.adapter?.onboardingActive === true);
+    (!suppressOnboarding || args.adapter?.onboardingActive === true) && !continuingCareer;
   const onboardingChecklistCoverage = isOnboardingActiveForTurn
     ? await getCareerOnboardingChecklistCoverage({
         admin,
@@ -634,7 +640,7 @@ export async function runCareerChatTurn(
         return "Saved search results could not be read for this return. Their absence is unknown; the ordinary matching tools can read current facts.";
       })
     : "";
-  const turnRuntimeInstruction = [proactiveContext, reengagementOpportunities]
+  const turnRuntimeInstruction = [proactiveContext, args.applicationEvent, reengagementOpportunities]
     .filter(Boolean)
     .join("\n\n");
   const shouldAutoExtractInsights = isOnboardingActiveForTurn && !suppressOnboarding;
@@ -740,7 +746,7 @@ export async function runCareerChatTurn(
     admin,
     conversationId,
     recentLimit: 16,
-    pendingUserMessageId: args.inboxId ? existingSourceMessage?.id : undefined,
+    pendingUserMessageId: args.inboxId ? args.pendingInputMessageId : undefined,
     userId,
   });
 
@@ -748,7 +754,7 @@ export async function runCareerChatTurn(
   // Current Career conversation includes work delivered while an external run
   // was in flight. Email adapters retain their existing inbound-message window.
   const sourceWindow = args.inboxId ? recentMessages : includeCareerSourceMessage(
-    args.adapter
+    args.adapter && !args.workId
       ? recentMessages.filter(item => Number(item.id) <= Number(args.adapter!.sourceMessage.id))
       : recentMessages,
     existingSourceMessage
@@ -770,13 +776,13 @@ export async function runCareerChatTurn(
     }))
     .filter((item) => item.content.trim().length > 0);
 
-  if (isSessionReengagement && proactiveContext) {
+  if (args.applicationEvent || (isSessionReengagement && proactiveContext)) {
     // A real app event opens a new model turn after the historical transcript.
     // Ending on an assistant message would be an unsupported Claude prefill.
     // This transport message is never persisted as candidate speech/consent.
     llmMessages.push({
       role: "user",
-      content: `Application event (not a user-authored message or new authorization):\n\n${proactiveContext}`,
+      content: `Application event (not a user-authored message or new authorization):\n\n${args.applicationEvent || proactiveContext}`,
     });
   }
 
@@ -877,7 +883,7 @@ export async function runCareerChatTurn(
     backgroundRunId: args.backgroundInvocation?.runId,
     sourceMessageCursor: args.backgroundInvocation?.sourceMessageCursor ?? args.sourceMessageCursor,
     ...(args.backgroundInvocation ? { selectionSnapshot: {
-      capabilityIds: ["schedules", "career_delivery"],
+      capabilityIds: ["schedules", "career_delivery", "company_contact"],
       handbookIds: ["proactive_career"], status: "selected" as const, elapsedMs: 0,
     } } : isSessionReengagement ? { selectionSnapshot: REENGAGEMENT_OPPORTUNITY_PRELOAD } : {}),
     continuation: {
@@ -1089,7 +1095,7 @@ export async function runCareerChatTurn(
   if (initialActivity) onArtifactMessage(toTalentMessageResponse(initialActivity));
   let assistantText: string;
   try {
-    const assistantArgs: Parameters<typeof runCareerChatAssistant>[0] = {
+    const assistantArgs: Omit<Parameters<typeof runCareerChatAssistant>[0], "onToolStart"> = {
       toolRuntime: capabilityTurn?.runtime,
       hasDeliveredArtifact: () => (!args.adapter || args.adapter.artifactsVisible === true) && (Array.from(artifactMessages.values()).some(message => message.messageType !== "career_turn_activity" || message.workEvents?.some(event => event.kind === "message")) || formPresenter.hasPending()),
       onAssistantMessage: args.backgroundInvocation || args.adapter ? undefined : async (text) => {
@@ -1120,28 +1126,6 @@ export async function runCareerChatTurn(
         thinkingLogs = [];
       },
       abortSignal: args.abortSignal,
-      onToolStart: ({ name, input }) => {
-        if (name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
-          recordRecommendationStatus({ state: "running" });
-          return;
-        }
-
-        // Harper's own status for this call is recorded in executeTool; the
-        // fixed label only fills the wait while the call is still being written.
-        if (
-          typeof input?._uiStatusMessage === "string" &&
-          input._uiStatusMessage.trim()
-        )
-          return;
-        const status = getCareerToolStartThinkingLog(
-          name,
-          responseLocale,
-          input
-        );
-        if (status) {
-          recordThinkingLog(status);
-        }
-      },
       executeTool: async ({ name, input }) => {
         const { _uiStatusMessage: rawStatus, ...toolInput } = input;
         const status =
@@ -1193,9 +1177,6 @@ export async function runCareerChatTurn(
             await args.onTextDelta?.(delta);
             const row = !args.transformAssistantTextBeforeInsert && await messageWriter?.delta(stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(delta)), thinkingLogs);
             if (row) onArtifactMessage(toTalentMessageResponse(row));
-          },
-          onToolStart: async ({ name }) => {
-            assistantArgs.onToolStart?.({ name, input: {} });
           },
         })
       : await runCareerChatAssistant(assistantArgs);
@@ -1292,6 +1273,11 @@ export async function runCareerChatTurn(
     return buildResult([]);
   }
   let assistantTextSource = assistantText.trim();
+  const { readCareerDelegatedEvents } = await import("./work/events");
+  const delegatedEvents = await readCareerDelegatedEvents({admin, userId, conversationId}, capabilityTurn?.runtime.options.inputInbox?.eventIds?.()).catch(error => {
+    console.warn("[career] Delegated display logs unavailable", String(error));
+    return [];
+  });
   if (recommendationReceiptRef.current) {
     assistantTextSource = recommendationReceiptRef.current.answerDraft;
   }
@@ -1299,7 +1285,7 @@ export async function runCareerChatTurn(
     // An empty final message can follow already delivered progress, a form or
     // delegated work. A second writer without that execution transcript/tools
     // would invent a new account of what happened.
-    const row = await messageWriter?.finish("", thinkingLogs);
+    const row = await messageWriter?.finish("", thinkingLogs, undefined, delegatedEvents);
     if (row) onArtifactMessage(toTalentMessageResponse(row));
     await formPresenter.flush();
     await capabilityTurn?.complete();
@@ -1454,7 +1440,7 @@ export async function runCareerChatTurn(
           ...(args.assistantMessagePayload as Record<string, unknown> ?? {}),
           ...(sourceModel ? { careerTextChatModel: sourceModel.model } : {}),
           ...(capabilityTurn ? { agentTurn: capabilityTurn.getCompletionPayload() } : {}),
-        }), error: null }
+        }, delegatedEvents), error: null }
     : await admin
     .from("talent_messages")
     .insert(
@@ -1509,14 +1495,14 @@ export async function runCareerChatTurn(
     });
   }
 
-  await persistInsightExtractionForAssistantMessage({
+  if (!args.workId) await persistInsightExtractionForAssistantMessage({
     content: stripCareerReengagementActions(
       stripOpportunityRunMarkers(safeAssistantText)
     ),
     messageId: insertedAssistantMessage.id,
   });
   const finalAssistantThinkingLogs = thinkingLogs;
-  summarizeConversationInBackground();
+  if (!args.workId) summarizeConversationInBackground();
 
   const latestChecklistCoverage = isOnboardingActiveForTurn
     ? await getCareerOnboardingChecklistCoverage({

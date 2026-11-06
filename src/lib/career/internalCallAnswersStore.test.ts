@@ -256,6 +256,34 @@ test("written Role answers preserve text, ownership, atomic completion and retry
   );
 });
 
+test("retrying a legacy saved answer admits its original source once and preserves execution metadata", async (t) => {
+  const { db, transaction, close } = await fixture();
+  t.after(close);
+  await db.exec(`create table talent_conversations(id uuid primary key,user_id uuid);
+    create table talent_calls(id uuid primary key,user_id uuid,kind text,status text,state jsonb);
+    create table talent_messages(id serial primary key,conversation_id uuid,user_id uuid,role text,content text,payload jsonb);
+    create table admissions(user_id uuid,conversation_id uuid,source_id bigint);
+    create function queue_career_invocation(uuid,uuid,bigint) returns void language sql as $$
+      insert into admissions values($1,$2,$3) $$;`);
+  await db.query("insert into talent_conversations values($1,$2)", [conversation,user]);
+  await db.query("insert into talent_messages values(1,$1,$2,'user','Original answer',$3)", [conversation,user,
+    {careerDurable:false,agentTurn:{checkpoint:"preserved"}}]);
+  await db.query("insert into talent_calls values($1,$2,'internal_opportunity_request','completed',$3)", [call,user,
+    {questions:["First?"],writtenAnswers:{messageId:1,conversationId:conversation}}]);
+  const args = {
+    transaction, userId:user, isMobile:false, messagePayload:{careerDurable:true},
+    input:internalCallSubmissionSchema.parse({callId:call,conversationId:conversation,questions:["First?"],responses:[{questionIndex:0,decision:"answer",text:"Retry body"}]}),
+    renderMessage:()=>"Retry must not replace the original answer",
+  };
+  for (let attempt=0;attempt<2;attempt++) {
+    const saved=await submitInternalCallAnswers(args);
+    assert.equal(saved.message.id,1);
+    assert.equal(saved.message.content,"Original answer");
+    assert.deepEqual(saved.message.payload,{careerDurable:true,agentTurn:{checkpoint:"preserved"}});
+  }
+  assert.deepEqual((await db.query("select * from admissions")).rows,[{user_id:user,conversation_id:conversation,source_id:1}]);
+});
+
 test("voice tool persists uncertainty, refusals and corrections; retries merge without losing responses", async () => {
   const { db, transaction, close } = await fixture();
   try {

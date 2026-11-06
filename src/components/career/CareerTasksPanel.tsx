@@ -50,8 +50,9 @@ function CareerNextStepsButton({ onOpenChat }: { onOpenChat: () => void }) {
 
   return (
     <MuteButton
-      className="mt-4 w-full"
+      className="mt-10 w-full"
       size="lg"
+      variant="transparent"
       disabled={
         !user ||
         !conversationId ||
@@ -139,15 +140,15 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
             />
           </div>
           <CareerContentSuggestionsPanel />
-          <CareerOpportunitySummary />
         </>
       ) : !workspaceDataLoading ? (
         <CareerHomePanel variant="onboarding" onOpenChat={onOpenChat} />
       ) : null}
+      <CareerNextStepsButton onOpenChat={onOpenChat} />
+      {completed && <CareerOpportunitySummary />}
       {tasksOverride === undefined && (
         <CareerHomeDevControls onOpenChat={onOpenChat} />
       )}
-      <CareerNextStepsButton onOpenChat={onOpenChat} />
     </div>
   );
 });

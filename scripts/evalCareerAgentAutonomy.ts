@@ -91,7 +91,7 @@ async function main() {
     finally { save("requests", requests); }
   };
   const sourcePaths = ["scripts/evalCareerAgentAutonomy.ts", "scripts/evaluation/careerAutonomyFixture.ts", "src/lib/career/prompts/mainPrompt2.ts", "src/lib/career/prompts/mainPrompts.ts", "src/lib/career/prompts/conversationPlan.ts", "src/lib/career/prompts/conversationSections.ts", "src/lib/career/llmTools.ts", "src/lib/career/llm.ts", "src/lib/talentOnboarding/llm.ts", "src/lib/llm/toolDescriptions.ts", "src/lib/talentOnboarding/tools.ts", "src/lib/documents/authoring.ts", "src/lib/resumes/service.ts", "src/lib/career/textChatModelConfig.ts", ...["capabilities", "handbooks"].flatMap(folder => readdirSync(`src/lib/career/${folder}`).filter(name => name.endsWith(".ts") && !name.endsWith(".test.ts")).map(name => `src/lib/career/${folder}/${name}`))];
-  sourcePaths.push("scripts/evaluation/careerAutonomyGuidance.ts");
+  sourcePaths.push("scripts/evaluation/careerAutonomyGuidance.ts", "src/lib/career/prompts/internalOpportunities.ts", "src/lib/career/internalSelections.ts");
   save("sources", Object.fromEntries(sourcePaths.map(path => [path, readFileSync(path, "utf8")])));
   if (guidance) save("replayed-guidance", guidance);
   save("manifest", { runId, datasetVersion: dataset, model, repeat, fixtureHashes: frozen.hashes, selected: cases.map((c: any) => c.id),

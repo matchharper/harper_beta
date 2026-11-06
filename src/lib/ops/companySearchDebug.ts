@@ -1,7 +1,7 @@
 import type { CompanyIdentity } from "@/lib/career/companies/server";
 
 export type CompanySearchDebugResponse = {
-  input: { query: string; offset: number };
+  input: { queries: string[]; offset: number };
   durationMs: number;
   companies: CompanyIdentity[];
   nextOffset: number | null;
