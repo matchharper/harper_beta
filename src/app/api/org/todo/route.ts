@@ -5,8 +5,11 @@ import {
   requireAuthenticatedUser,
 } from "@/lib/server/candidateAccess";
 import { OrgHttpError } from "@/lib/org/httpError";
-import { assertOrgRoleAccess } from "@/lib/org/server";
-import { loadOrgRoleTodo } from "@/lib/org/todo.server";
+import {
+  assertOrgRoleAccess,
+  assertOrgWorkspacePermission,
+} from "@/lib/org/server";
+import { readOrgNow } from "@/lib/org/todo.server";
 import {
   decideRoleTodoSuggestion,
   markTodoRead,
@@ -17,7 +20,8 @@ export const runtime = "nodejs";
 
 const scope = z.object({
   workspaceId: z.string().uuid(),
-  roleId: z.string().uuid(),
+  /** Without a Role: every Role this person can see. */
+  roleId: z.string().uuid().optional(),
   locale: z.enum(["ko", "en"]).default("ko"),
   range: z.enum(["all", "recent"]).default("recent"),
 });
@@ -132,14 +136,44 @@ export async function GET(req: NextRequest) {
     );
     if (!parsed.success) throw new OrgHttpError(400, "Invalid To-do query");
     const admin = getSupabaseAdmin();
-    await assertOrgRoleAccess({
+    const { roleId, ...rest } = parsed.data;
+    if (roleId) {
+      await assertOrgRoleAccess({
+        admin,
+        user,
+        workspaceId: rest.workspaceId,
+        roleId,
+        permission: "view",
+      });
+    } else {
+      await assertOrgWorkspacePermission({
+        admin,
+        user,
+        workspaceId: rest.workspaceId,
+        permission: "view",
+      });
+    }
+    // Cancelling Harper's scheduled work needs manage_candidates (viewers get
+    // 403), so only then do its rows carry what cancelling needs.
+    const canManage = await assertOrgWorkspacePermission({
       admin,
       user,
-      workspaceId: parsed.data.workspaceId,
-      roleId: parsed.data.roleId,
-      permission: "view",
+      workspaceId: rest.workspaceId,
+      permission: "manage_candidates",
+    }).then(
+      () => true,
+      (error) => {
+        if (error instanceof OrgHttpError && error.status === 403) return false;
+        throw error;
+      }
+    );
+    const todo = await readOrgNow({
+      admin,
+      user,
+      ...rest,
+      roleIds: roleId ? [roleId] : "all",
+      canManage,
     });
-    const todo = await loadOrgRoleTodo({ admin, user, ...parsed.data });
     return NextResponse.json(todo, {
       headers: { "Cache-Control": "private, no-store" },
     });

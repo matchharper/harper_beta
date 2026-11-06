@@ -42,6 +42,7 @@ import {
   useOrgCriteriaReviewCounts,
 } from "./OrgCriteriaRecheck";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
+import { OrgReviewingLine } from "./OrgReviewingLine";
 
 const NO_SELECTION: ReadonlySet<string> = new Set();
 
@@ -458,6 +459,7 @@ export function OrgRoleInbox() {
           roleId={activeRole?.roleId}
         />
       </div>
+      <OrgReviewingLine className="-mt-2 mb-3" count={inboxQuery?.data?.pages[0]?.counts?.reviewing} />
       {!savedReview && (stage === "pending_connection" || stage === "company_intro") ? (
         <p className="-mt-2 mb-3 text-[13px] leading-5 text-neutral-muted">
           {stage === "pending_connection"

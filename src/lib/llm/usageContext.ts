@@ -11,6 +11,11 @@ export type LlmUsageContext = {
   careerCapability?: Record<string, unknown>;
   /** Totals of every model call made inside one company Harper run (runUsage.ts). */
   companyRunUsage?: CompanyRunUsage;
+  /**
+   * The company Harper run (company_agent_web_action_jobs.id) this work is
+   * part of. Searches started inside it are linked to it.
+   */
+  companyRunId?: string;
 };
 
 export type CompanyRunUsage = {
@@ -30,8 +35,14 @@ export function withLlmUsageContext<T>(
   work: () => T
 ): T {
   // A nested context still adds to the run it is part of.
-  const runUsage = value.companyRunUsage ?? context.getStore()?.companyRunUsage;
-  return context.run({ ...value, ...(runUsage ? { companyRunUsage: runUsage } : {}) }, work);
+  const outer = context.getStore();
+  const runUsage = value.companyRunUsage ?? outer?.companyRunUsage;
+  const runId = value.companyRunId ?? outer?.companyRunId;
+  return context.run({
+    ...value,
+    ...(runUsage ? { companyRunUsage: runUsage } : {}),
+    ...(runId ? { companyRunId: runId } : {}),
+  }, work);
 }
 export function setCareerCapabilityUsageStep(step: Record<string, unknown>) {
   const current = context.getStore();

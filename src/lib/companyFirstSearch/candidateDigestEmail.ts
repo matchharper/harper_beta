@@ -71,7 +71,12 @@ function countPhrase(
     locale,
     kind === "accepted_connection" ? COPY.acceptedName : COPY.companyFirstName
   );
-  return locale === "ko" ? `${name} ${count}명` : `${name} (${count})`;
+  return locale === "ko" ? `${name} ${count}명` : `${count} new in ${name}`;
+}
+
+/** Under a section heading: how many are on that list now, new ones included. */
+function totalLine(locale: OrgLocale, total: number) {
+  return locale === "ko" ? `지금 모두 ${total}명` : `${total} in total now`;
 }
 
 export function candidateDigestSubject(args: {
@@ -99,7 +104,10 @@ export function candidateDigestSubject(args: {
       : args.locale === "ko"
         ? `${first} 외 ${others}개 역할`
         : `${first} and ${others} more ${others === 1 ? "role" : "roles"}`;
-  return `${prefix}: ${counts}`;
+  // The subject counts only the people this mail brings.
+  return args.locale === "ko"
+    ? `${prefix}: 새로 온 ${counts}`
+    : `${prefix}: ${counts}`;
 }
 
 function escapeMarkdownText(value: string) {
@@ -209,6 +217,11 @@ export function buildCandidateDigestEmail(args: {
   sections: CandidateDigestSection[];
   candidates: CandidateDigestCandidate[];
   workspaceId: string;
+  /**
+   * Everyone on each list now for these Roles (the inbox rule), shown as one
+   * line under its heading. Left out when unknown.
+   */
+  totals?: Partial<Record<CandidateDigestKind, number>>;
 }) {
   const { locale } = args;
   const byId = new Map(
@@ -243,6 +256,11 @@ export function buildCandidateDigestEmail(args: {
     if (section.kind === "company_first") blocks.push(SECTION_SPACER_MARKER);
     blocks.push(heading);
     replyBlocks.push(heading);
+    const total = args.totals?.[section.kind];
+    if (typeof total === "number" && total > 0) {
+      blocks.push(totalLine(locale, total));
+      replyBlocks.push(totalLine(locale, total));
+    }
     for (const part of section.parts) {
       if (part.candidateId) blocks.push(CARD_START_MARKER(rows.length));
       blocks.push(part.text.trim());

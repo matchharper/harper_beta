@@ -43,6 +43,8 @@ import { resolveTalentLocation } from "@/lib/talentLocation";
 import { roleStartOwnsRole } from "@/lib/org/roleStart/ownership";
 import { DEFAULT_INTRO_SEARCH_DAYS, DEFAULT_INTRO_SEARCH_HOUR, parseIntroSearchDays, parseIntroSearchHour } from "@/lib/org/introSearchSchedule";
 import { companyProgressText } from "@/lib/org/progressText";
+import { readOrgCandidateSaves } from "@/lib/org/candidateSaved.server";
+import { countsTowardDecision } from "@/lib/org/inboxPagination";
 
 export { serializeOrgAgentMoreData } from "@/lib/org/agent/promptFormat";
 
@@ -65,9 +67,14 @@ export type OrgAgentPipelineRoleCounts = {
   active: number;
   complete: boolean;
   ended: number;
+  /** 연결을 요청할 후보, by the inbox rule (saved left out). */
   intro: number;
   requested: number;
+  /** 연결을 기다리는 후보, by the inbox rule (saved left out). */
   waiting: number;
+  saved: number;
+  /** Harper가 확인 중: a number only. */
+  reviewing: number;
 };
 
 export type OrgAgentMoreDataFieldState = {
@@ -439,6 +446,7 @@ function compactBoardItem(
 async function fetchVisibleOrgAgentBoard(args: {
   admin: OrgAgentAdminClient;
   audience?: OrgAgentReadAudience;
+  countReviewing?: boolean;
   recommendationIds?: string[] | null;
   roleId?: string | null;
   user: User;
@@ -454,6 +462,7 @@ async function fetchVisibleOrgAgentBoard(args: {
       : args.user;
   const board = await fetchOrgBoard({
     admin: args.admin,
+    countReviewing: args.countReviewing,
     includeInternalStages: audience === "caller",
     includeProfileLabels: false,
     recommendationIds: args.recommendationIds,
@@ -508,6 +517,8 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
         intro: 0,
         requested: 0,
         waiting: 0,
+        saved: 0,
+        reviewing: 0,
       },
     ])
   );
@@ -533,6 +544,7 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
     fetchVisibleOrgAgentBoard({
       admin: args.admin,
       audience: args.audience,
+      countReviewing: true,
       roleId: selectedRoleId || null,
       user: args.user,
       workspaceId: args.workspaceId,
@@ -587,13 +599,26 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
         intro: 0,
         requested: 0,
         waiting: 0,
+        saved: 0,
+        reviewing: board.reviewingCountByRoleId?.[roleId] ?? 0,
       },
     ])
   );
-  for (const item of board.items) {
+  // Waiting and to request follow the inbox rule, the same numbers the
+  // company sees on Home, the inbox, the To-do, Slack and email.
+  const savedItems = await readOrgCandidateSaves(
+    args.admin as any,
+    args.workspaceId,
+    board.items
+  );
+  for (const item of savedItems) {
     const counts = countsByRoleId.get(item.roleId);
     const bucket = getOrgAgentPipelineBucket(item.stage);
-    if (!counts || !bucket) continue;
+    if (!counts) continue;
+    if (item.savedAt) counts.saved += 1;
+    if (!bucket) continue;
+    if (bucket === "waiting" && !countsTowardDecision(item, "pending_connection")) continue;
+    if (bucket === "intro" && !countsTowardDecision(item, "company_intro")) continue;
     counts[bucket] += 1;
   }
 
@@ -2137,6 +2162,8 @@ export async function readOrgAgentRole(args: {
     intro: 0,
     requested: 0,
     waiting: 0,
+    saved: 0,
+    reviewing: 0,
   };
   const pipelineResult = {
     ...result,

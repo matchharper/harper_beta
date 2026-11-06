@@ -4,6 +4,7 @@ import type {
   OrgRole,
   OrgStage,
 } from "./server";
+import { getOrgInboxCountsByRole } from "./inboxPagination";
 
 export function getRoleStageLabel(stage: OrgStage, role: OrgRole) {
   const prefix = `${role.name} · `;
@@ -41,6 +42,21 @@ export function buildCounts(items: OrgBoardItem[]) {
   for (const item of items) {
     const key = `${item.roleId}:${item.stage}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * The company roles overview: stage counts as in buildCounts, except the two
+ * decision lists, which follow the inbox rule (getOrgInboxCounts).
+ */
+export function buildRoleOverviewCounts(items: OrgBoardItem[]) {
+  const counts = buildCounts(items);
+  for (const [roleId, roleCounts] of Object.entries(
+    getOrgInboxCountsByRole(items)
+  )) {
+    counts.set(`${roleId}:pending_connection`, roleCounts.pending_connection);
+    counts.set(`${roleId}:company_intro`, roleCounts.company_intro);
   }
   return counts;
 }

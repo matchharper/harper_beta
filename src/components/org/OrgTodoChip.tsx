@@ -1,5 +1,7 @@
 import {
+  AlertTriangle,
   Bell,
+  CalendarClock,
   Check,
   Circle,
   CircleDashed,
@@ -29,6 +31,7 @@ import {
   orgHomeActivityTitle,
   type OrgHomeActivityKind,
 } from "@/lib/org/homeActivity";
+import { formatScheduledSearchTime } from "@/lib/org/introSearchSchedule";
 import { buildOrgHref } from "@/lib/org/routes";
 import {
   orgTodoBadge,
@@ -129,10 +132,48 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
       );
     case "search_running":
       return c("후보 찾는 중", "Searching for candidates");
+    case "external_search_running":
+      return c("외부 후보 찾는 중", "Searching outside Harper");
+    case "search_failed":
+      return item.detail === "external_search"
+        ? c(
+            "외부 후보 검색이 실패했어요. 다음 검색이 되면 사라져요.",
+            "The external search failed. This clears after the next one works."
+          )
+        : c(
+            "후보 검색이 실패했어요. 다음 검색이 되면 사라져요.",
+            "The candidate search failed. This clears after the next one works."
+          );
+    case "slack_delivery_error":
+      return item.detail === "integration"
+        ? c(
+            "Slack 연결이 끊겨서 후보를 보내지 못해요",
+            "Slack is disconnected, so candidates can't be sent"
+          )
+        : c(
+            "Slack으로 후보를 보내지 못했어요",
+            "Couldn't send candidates to Slack"
+          );
+    case "intros_empty":
+      return c(
+        "남은 {p0}이 없어요 · {p1} {n}명",
+        "No intros left · {p1} ({n})",
+        {
+          p0: ct(c, COMPANY_TERMS.connection),
+          p1: ct(c, COMPANY_TERMS.stage.pending_connection),
+          n,
+        }
+      );
     case "scheduled_search":
-      return c("다음 정기 탐색", "Next scheduled search");
+      return ct(c, COMPANY_TERMS.nextScheduledSearch);
     case "harper_scheduled":
-      return c("Harper 예정: {p0}", "Harper will: {p0}", { p0: item.detail ?? "" });
+      // Paused work does not run until it is resumed, so it is not called 예정.
+      return item.scheduleStatus === "paused"
+        ? c("{p0}: {p1}", "{p0}: {p1}", {
+            p0: ct(c, COMPANY_TERMS.todo.paused),
+            p1: item.detail ?? "",
+          })
+        : c("Harper 예정: {p0}", "Harper will: {p0}", { p0: item.detail ?? "" });
     case "role_start_working":
       return item.detail === "searching" || item.detail === "batch"
         ? c("첫 후보 찾는 중", "Finding the first candidates")
@@ -168,6 +209,12 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
 }
 
 function itemHref(item: OrgTodoItem, roleId: string, workspaceId: string) {
+  if (item.kind === "slack_delivery_error") {
+    return buildOrgHref({ orgId: workspaceId, page: "settings" });
+  }
+  if (item.kind === "intros_empty") {
+    return buildOrgHref({ orgId: workspaceId, page: "billing" });
+  }
   if (item.kind === "pending_connection" || item.kind === "company_intro") {
     return buildOrgHref({
       orgId: workspaceId,
@@ -213,18 +260,81 @@ function itemHref(item: OrgTodoItem, roleId: string, workspaceId: string) {
 /** The sections shown above the Role chat. */
 export const ORG_TODO_CHIP_COLUMNS: OrgTodoColumn[] = [
   "my_turn",
+  "blocked",
   "notice",
   "suggestion",
   "in_progress",
+  "scheduled",
 ];
 
 const COLUMN_ICON: Record<OrgTodoColumn, LucideIcon> = {
+  blocked: AlertTriangle,
   done: Check,
   in_progress: Clock,
   my_turn: Circle,
   notice: Bell,
+  scheduled: CalendarClock,
   suggestion: CircleDashed,
 };
+
+/** Rows whose time is the point: when Harper will do it, when the interview is. */
+function itemTitle(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
+  const text = itemText(item, c, locale);
+  const when =
+    item.nextAt &&
+    item.scheduleStatus !== "paused" &&
+    (item.column === "scheduled" || item.kind === "meeting_soon")
+      ? formatScheduledSearchTime(item.nextAt, locale)
+      : "";
+  return when ? `${text} · ${when}` : text;
+}
+
+/** Under Harper's scheduled work: who set it up. */
+function scheduleOwner(item: OrgTodoItem, c: Copy) {
+  if (item.kind !== "harper_scheduled") return null;
+  if (item.scheduledBy === "harper") return ct(c, COMPANY_TERMS.todo.byHarper);
+  if (item.scheduledBy === "team") return ct(c, COMPANY_TERMS.todo.byTeam);
+  return null;
+}
+
+/**
+ * Why cancelling one schedule did not work. A stale revision (409) reloads
+ * the list (the mutation refreshes it) and allows one more press; a second
+ * 409 stops there. Without permission (403) the button goes away.
+ */
+type CancelIssue = "stale" | "stale_again" | "failed" | "forbidden";
+
+function cancelIssueAfter(error: unknown, previous: CancelIssue | undefined): CancelIssue {
+  const status = (error as { status?: number } | null)?.status;
+  if (status === 403) return "forbidden";
+  if (status === 409) return previous === "stale" ? "stale_again" : "stale";
+  return "failed";
+}
+
+function cancelIssueText(issue: CancelIssue, c: Copy) {
+  switch (issue) {
+    case "stale":
+      return c(
+        "그사이 예약이 바뀌어 다시 불러왔어요. 한 번 더 눌러 주세요.",
+        "This schedule changed in the meantime and was reloaded. Press Cancel once more."
+      );
+    case "stale_again":
+      return c(
+        "예약을 취소하지 못했어요. 할 일을 다시 열어 확인해 주세요.",
+        "Couldn't cancel this schedule. Reopen the To-do and check it."
+      );
+    case "forbidden":
+      return c(
+        "이 예약을 취소할 권한이 없어요.",
+        "You don't have permission to cancel this schedule."
+      );
+    default:
+      return c(
+        "예약을 취소하지 못했어요. 다시 눌러 주세요.",
+        "Couldn't cancel this schedule. Try again."
+      );
+  }
+}
 
 /** A request the team can always ask Harper for, listed with its suggestions. */
 export type OrgTodoShortcut = {
@@ -307,7 +417,8 @@ function TodoRow({
 
 /**
  * The To-do sections for one Role: one line per thing with the button that
- * does it, and no second line of detail.
+ * does it. A second line only for a suggestion's control and for Harper's
+ * scheduled work (who set it up, a failed cancel).
  */
 export function OrgTodoList({
   columns,
@@ -331,14 +442,18 @@ export function OrgTodoList({
   const todo = useOrgRoleTodo({ range, roleId, workspaceId });
   const decide = useDecideOrgTodoSuggestion({ roleId, workspaceId });
   const cancelSchedule = useCancelOrgHarperSchedule({ roleId, workspaceId });
+  // Why cancelling each schedule did not work, by schedule.
+  const [cancelIssues, setCancelIssues] = useState<Record<string, CancelIssue>>({});
   const markRead = useMarkOrgTodoRead({ roleId, workspaceId });
   const items = todo.data?.items ?? [];
   const suggestions = todo.data?.suggestions ?? 0;
   const headings: Record<OrgTodoColumn, string> = {
+    blocked: ct(c, COMPANY_TERMS.todo.blocked),
     done: c("한 일", "Done"),
     in_progress: ct(c, COMPANY_TERMS.todo.inProgress),
     my_turn: ct(c, COMPANY_TERMS.todo.decide),
     notice: ct(c, COMPANY_TERMS.todo.updates),
+    scheduled: ct(c, COMPANY_TERMS.todo.scheduled),
     suggestion: ct(c, COMPANY_TERMS.todo.harperCan),
   };
   const answer = (
@@ -389,15 +504,30 @@ export function OrgTodoList({
         </>
       );
     }
-    if (item.kind === "harper_scheduled" && item.scheduleId) {
+    // Sent only to someone who may cancel; gone after a 403.
+    if (item.kind === "harper_scheduled") {
+      const scheduleId = item.scheduleId;
+      const issue = scheduleId ? cancelIssues[scheduleId] : undefined;
+      if (!scheduleId || issue === "forbidden") return null;
       return (
         <MuteButton
-          disabled={cancelSchedule.isPending}
+          disabled={cancelSchedule.isPending || issue === "stale_again"}
           onClick={() =>
-            cancelSchedule.mutate({
-              expectedRevision: item.scheduleRevision ?? 0,
-              scheduleId: item.scheduleId!,
-            })
+            cancelSchedule.mutate(
+              {
+                expectedRevision: item.scheduleRevision ?? 0,
+                scheduleId,
+              },
+              {
+                onError: (error) =>
+                  setCancelIssues((current) => ({
+                    ...current,
+                    [scheduleId]: cancelIssueAfter(error, current[scheduleId]),
+                  })),
+                onSuccess: () =>
+                  setCancelIssues(({ [scheduleId]: _done, ...rest }) => rest),
+              }
+            )
           }
           size="sm"
           type="button"
@@ -433,6 +563,8 @@ export function OrgTodoList({
       ) : null;
     }
     const labels: Partial<Record<OrgTodoItem["kind"], string>> = {
+      intros_empty: c("연결 추가하기", "Add intros"),
+      slack_delivery_error: c("연동 확인", "Check Slack"),
       company_intro: c("검토하기", "Review"),
       contact_draft: c("확인하기", "Review"),
       contact_failed: c("확인하기", "Review"),
@@ -460,6 +592,36 @@ export function OrgTodoList({
         >
           {c("읽음", "Mark read")}
         </MuteButton>
+      </>
+    );
+  };
+
+  // The second line: a suggestion's one control, or who set up Harper's
+  // scheduled work and why cancelling it did not work.
+  const detail = (item: OrgTodoItem) => {
+    if (item.kind === "suggestion") {
+      return (
+        <button
+          className="underline-offset-2 hover:underline"
+          disabled={decide.isPending}
+          onClick={() => answer(item, "mute")}
+          type="button"
+        >
+          {c("이런 제안 그만", "Stop suggesting this")}
+        </button>
+      );
+    }
+    const owner = scheduleOwner(item, c);
+    const issue = item.scheduleId ? cancelIssues[item.scheduleId] : undefined;
+    if (!owner && !issue) return undefined;
+    return (
+      <>
+        {owner}
+        {issue ? (
+          <span className="block text-critical" role="alert">
+            {cancelIssueText(issue, c)}
+          </span>
+        ) : null}
       </>
     );
   };
@@ -497,13 +659,16 @@ export function OrgTodoList({
       ) : null}
       {columns.map((column) => {
         const group = items.filter((item) => item.column === column);
+        // 막힌 것 shows only while something is blocked; it clears itself.
+        if (column === "blocked" && !group.length) return null;
         const extra = column === "suggestion" ? shortcuts : [];
         // Harper's suggestions plus the requests it always offers.
         const count =
           column === "suggestion" ? suggestions + extra.length : group.length;
-        // 할 일 and 알림 make up the To-do number: blue like it when above 0.
+        // 할 일, 막힌 것 and 알림 make up the To-do number: blue like it when above 0.
         const counted =
-          (column === "my_turn" || column === "notice") && count > 0;
+          (column === "my_turn" || column === "blocked" || column === "notice") &&
+          count > 0;
         return (
           <section key={column}>
             <h3 className="sticky top-0 z-10 flex items-center gap-1 bg-bg-floating px-4 pb-1 pt-3 text-[12px] text-neutral-muted">
@@ -520,22 +685,10 @@ export function OrgTodoList({
               {group.map((item) => (
                 <TodoRow
                   action={action(item)}
-                  detail={
-                    // The one control a suggestion keeps under its title.
-                    item.kind === "suggestion" ? (
-                      <button
-                        className="underline-offset-2 hover:underline"
-                        disabled={decide.isPending}
-                        onClick={() => answer(item, "mute")}
-                        type="button"
-                      >
-                        {c("이런 제안 그만", "Stop suggesting this")}
-                      </button>
-                    ) : undefined
-                  }
+                  detail={detail(item)}
                   icon={COLUMN_ICON[column]}
                   key={item.id}
-                  title={itemText(item, c, locale)}
+                  title={itemTitle(item, c, locale)}
                 />
               ))}
               {extra.map((shortcut) => (
@@ -600,8 +753,8 @@ export function OrgTodoArea({
             <PopoverTrigger asChild>
               <MuteButton
                 aria-label={c(
-                  "할 일, 결정할 것과 알림 {n}개",
-                  "To-do, {n} to decide or new",
+                  "할 일, 결정할 것·막힌 것·알림 {n}개",
+                  "To-do, {n} to decide, blocked or new",
                   { n: badge }
                 )}
                 // Something to do or an unread update: glow until opened.

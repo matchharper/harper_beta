@@ -138,10 +138,11 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
     );
   }
 
-  // Every model call this run makes adds to its usage (company_agent_web_action_jobs.usage).
+  // Every model call this run makes adds to its usage (company_agent_web_action_jobs.usage),
+  // and searches it starts are linked to it (company_agent_operations.run_id).
   const runUsage = createCompanyRunUsage();
   const runStartedAt = Date.now();
-  const usageContext = { requestId: message.jobId, companyRunUsage: runUsage };
+  const usageContext = { requestId: message.jobId, companyRunId: message.jobId, companyRunUsage: runUsage };
   const usage = () => mergeRunUsage(job.usage, companyRunUsageJson(runUsage, Date.now() - runStartedAt));
   try {
     if (["agent_contact_received","agent_schedule_due"].includes(job.action_name)) {

@@ -52,3 +52,15 @@ test("KST window and candidate-free reminders",()=>{
  assert(reminderWindow(args.now));assert(!reminderWindow(new Date("2026-10-16T00:59:00Z")));
  assert(!reminderWindow(new Date("2026-10-16T09:00:00Z")));assert(!reminderWindow(new Date("2026-10-17T01:00:00Z")));
 });
+test("writing the email saves its model usage for the outbox row and workspace; a saved draft costs nothing",async()=>{
+ const {addLlmCallToRunUsage}=await import("@/lib/llm/runUsage");
+ const {deps}=dependencies();const saved:any[]=[];
+ deps.compose=async()=>{await addLlmCallToRunUsage("gpt-6-luna",{usage:{prompt_tokens:900,completion_tokens:150}});
+  return {subject:"Synthetic",body:"Synthetic body",model:"test",usage:{},messages:[]};};
+ deps.recordUsage=async(target,usage)=>{saved.push({target,usage});};
+ assert.equal(await deliverCompanyConnectionJob(args,deps),"sent");
+ assert.deepEqual(saved.map(row=>row.target),[{kind:"connection_email",sourceId:"job-1",workspaceId:"workspace-1"}]);
+ assert.equal(saved[0].usage.calls,1);assert.equal(saved[0].usage.outputTokens,150);
+ assert.equal(await deliverCompanyConnectionJob({...args,job:{...job,draft:{subject:"Saved",body:"Saved body"}}},deps),"sent");
+ assert.equal(saved.length,1);
+});

@@ -15,6 +15,7 @@ import {
   type ExternalSourcingTrigger,
 } from "./externalSourcing";
 import { externalInviteSendingEnabled } from "./externalInvite";
+import { currentCompanyRunId } from "./runRecords.server";
 
 // Shadow runs are internal experiments: never counted for the company, shown or announced. Their
 // shortlists are stored like any run, so every company-side read joins the run and excludes them.
@@ -82,10 +83,12 @@ export async function requestExternalSourcing(args: {
       : { ...base, status: "not_queued", reason: decision.reason };
     return { ...result, modelOutput: formatExternalSearchRequestResult(result) };
   }
+  // Asked inside a company Harper run: the search's operation is linked to that run.
+  const runId = currentCompanyRunId();
   const { data, error } = await args.admin.from("external_sourcing_runs").insert({
     company_workspace_id: args.workspaceId, role_id: args.roleId, trigger: args.trigger,
     requested_by: args.trigger === "agent_initiative" ? null : args.userId,
-    input: { reason: args.reason.slice(0, 1_000) },
+    input: { reason: args.reason.slice(0, 1_000), ...(runId ? { webActionJobId: runId } : {}) },
   }).select("id").single();
   if (error?.code === "23505") {
     // A concurrent request queued this Role first (one active run per Role).

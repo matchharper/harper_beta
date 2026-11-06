@@ -53,6 +53,7 @@ import {
   mapOrgBoardCache,
   type OrgBoardCache,
   orgBoardMatches,
+  orgBoardNowMatches,
   orgDetailMatches,
   reconcileOrgCompanyIntro,
   reconcileOrgRole,
@@ -610,6 +611,10 @@ export function useSetOrgCandidateStage() {
       });
       void queryClient.invalidateQueries(accepted);
       void queryClient.invalidateQueries(board);
+      void queryClient.invalidateQueries({
+        predicate: (query: Query) =>
+          orgBoardNowMatches(query, variables.workspaceId),
+      });
       void queryClient.invalidateQueries(detail);
       void queryClient.invalidateQueries({
         queryKey: [...queryKeys.org.meetingSchedulesAll, variables.workspaceId],

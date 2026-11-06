@@ -189,6 +189,8 @@ export const COMPANY_TERMS = {
     "추천 후보 검색",
     "정기 후보 검색",
   ]),
+  /** "다음 정기 탐색 · 수 오전 9:00" on the To-do and above the chat. */
+  nextScheduledSearch: term("다음 정기 탐색", "Next scheduled search"),
 
   todo: {
     button: term("할 일", "To-do"),
@@ -196,6 +198,13 @@ export const COMPANY_TERMS = {
     updates: term("알림", "Updates"),
     harperCan: term("Harper가 할 수 있는 일", "Harper can help", ["하퍼의 제안"]),
     inProgress: term("Harper가 하는 중", "In progress"),
+    scheduled: term("예정", "Scheduled"),
+    blocked: term("막힌 것", "Blocked"),
+    /** Harper's scheduled work that does not run until it is resumed. */
+    paused: term("잠시 멈춤", "Paused"),
+    /** Under Harper's scheduled work: who set it up. */
+    byHarper: term("Harper가 정한 일", "Set up by Harper"),
+    byTeam: term("팀이 요청한 일", "Requested by your team"),
   },
 
   usage: {

@@ -2,9 +2,13 @@ import { Loading } from "@/components/ui/loading";
 import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useOrgMatchingSearchStatus } from "@/hooks/org/useOrgAgent";
+import { useOrgRoleTodo } from "@/hooks/org/useOrgRoleTodo";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import type { RoleMatchingActivity } from "@/lib/companyFirstSearch/activity";
+import { formatScheduledSearchTime } from "@/lib/org/introSearchSchedule";
 import { isOrgQueryAccessError } from "@/lib/org/queryError";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
+import type { OrgNowRole } from "@/lib/org/todo";
 
 export function RoleSearchActivityLabel({ activity }: { activity: RoleMatchingActivity }) {
   const { c } = useOrgLocale();
@@ -24,9 +28,23 @@ export function RoleSearchActivityLabel({ activity }: { activity: RoleMatchingAc
 }
 
 export function OrgRoleSearchActivity({ workspaceId, roleId }: { workspaceId: string; roleId: string }) {
-  const { c } = useOrgLocale();
+  const { c, locale } = useOrgLocale();
   const query = useOrgMatchingSearchStatus({ workspaceId, roleId, watchAutomatic: true });
-  if (!query.data?.activity || isOrgQueryAccessError(query.error)) return null;
+  // The same To-do read as the chip below, so the time matches its 예정 line.
+  const todo = useOrgRoleTodo({ range: "recent", roleId, workspaceId });
+  const nextSearchAt = todo.data?.roles?.find((role: OrgNowRole) => role.roleId === roleId)?.nextScheduledSearchAt;
+  if (isOrgQueryAccessError(query.error)) return null;
+  if (!query.data?.activity) {
+    // Nothing running: when Harper searches next, if it does on a schedule.
+    if (!query.data || !nextSearchAt) return null;
+    return <div className="mx-auto w-full max-w-[1120px] shrink-0 px-4 pb-2 md:px-5">
+      <Badge variant="faded" tone="neutral">
+        <span className="text-neutral-muted">
+          {ct(c, COMPANY_TERMS.nextScheduledSearch)} · {formatScheduledSearchTime(nextSearchAt, locale)}
+        </span>
+      </Badge>
+    </div>;
+  }
   return <div className="mx-auto w-full max-w-[1120px] shrink-0 px-4 pb-2 md:px-5">
     {query.isError ? (
       <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-muted">
