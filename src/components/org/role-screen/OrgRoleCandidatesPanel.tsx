@@ -290,7 +290,8 @@ export function OrgRoleCandidatesPanel({
       ) : (
         <ChevronsLeftRight aria-hidden className="size-4" strokeWidth={1.7} />
       )}
-      <span>{wide ? c("채팅과 같이 보기", "Show with chat") : c("전체 화면", "Full screen")}</span>
+      {/* Same length both ways, in the same spot: it can be pressed again without moving. */}
+      <span>{wide ? c("분할 화면", "Split view") : c("전체 화면", "Full screen")}</span>
     </MuteButton>
   ) : null;
 

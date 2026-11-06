@@ -52,10 +52,12 @@
   height: 100%;
   min-height: 0;
 }
-/* 전체 화면's way back sits top left, like a back link; the views' own toolbars follow. */
+/* 분할 화면 sits exactly where 전체 화면 was (top right of the column, the
+   right scroll's 3px inset), so the toggle can be pressed again in place. */
 .org-role-wide-header {
   display: flex;
-  padding: 0 0 8px;
+  justify-content: flex-end;
+  padding: 0 3px 8px 0;
 }
 .org-wide-toggle {
   flex: none;
