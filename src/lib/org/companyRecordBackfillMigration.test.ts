@@ -62,7 +62,7 @@ const SETUP = `
       revision = revision + 1 where id = v_intro.id;
     return jsonb_build_object('status', 'requested', 'introCandidateId', v_intro.id);
   end $$;
-  create table talent_users(user_id uuid primary key);
+  create table talent_users(user_id uuid primary key, deleted_at timestamptz);
   create table company_role_start_sessions(role_id uuid primary key references company_roles, evaluations jsonb not null default '{}',
     revision int not null default 0);
   create table company_todo_suggestions(id uuid primary key, company_workspace_id uuid, role_id uuid, kind text, title text,
@@ -86,7 +86,7 @@ test("earlier stage changes, first views and saves are copied once with their ti
       insert into company_workspace values ('${workspace}', 'Company');
       insert into company_roles(role_id, company_workspace_id, name) values ('${role}', '${workspace}', 'Engineer');
       insert into company_internal_roles(role_id, request, criteria) values ('${role}', 'brief', '[]');
-      insert into talent_users values ('${talent}');
+      insert into talent_users(user_id) values ('${talent}');
       insert into talent_progress(talent_id, role_id, company_user_id, kind, text, metadata, created_at) values
         ('${talent}', '${role}', '${actor}', 'org_stage_change', 's', '{"stage":"process_stopped","stopNote":"filled"}', '2026-10-01T00:00:00Z'),
         ('${talent}', '${role}', '${actor}', 'org_stage_change', 's', '{"stage":"connected","decisionChannel":"system"}', '2026-10-02T00:00:00Z'),
