@@ -28,8 +28,8 @@ const pass = (tags: string[], extra: Partial<PassDecision> = {}): PassDecision =
   return { id, subjectId: `talent-${id}`, reasonTags: tags, hasReasonText: false, ...extra };
 };
 
-test("off by default: nothing is suggested until Shaun turns it on", () => {
-  assert.equal(CRITERIA_PROPOSALS_ENABLED, false);
+test("on since 11/6 (Shaun), with these numbers", () => {
+  assert.equal(CRITERIA_PROPOSALS_ENABLED, true);
   assert.deepEqual(
     { every: CRITERIA_PROPOSAL_RULES.everyDecisions, wait: CRITERIA_PROPOSAL_RULES.waitDays },
     { every: 3, wait: 7 }

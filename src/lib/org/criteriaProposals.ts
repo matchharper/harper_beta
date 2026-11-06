@@ -23,11 +23,10 @@ import { withKoreanRo, type CompanyTermLocale } from "@/lib/org/terms";
  */
 
 /**
- * Whether Harper makes these suggestions. Off: nothing is queued and the
- * To-do shows nothing new, as before this change. One switch; see the S2
- * report (Decisions for Shaun).
+ * Whether Harper makes these suggestions (on since 11/6). Off: nothing is
+ * queued and the To-do shows nothing new. One switch; see the S2 report.
  */
-export const CRITERIA_PROPOSALS_ENABLED = false;
+export const CRITERIA_PROPOSALS_ENABLED = true;
 
 /** The numbers, in one place. */
 export const CRITERIA_PROPOSAL_RULES = {

@@ -109,13 +109,13 @@ beforeEach(() => {
 });
 
 test("the dispatcher queues nothing while suggestions are off", async () => {
-  assert.equal(await server.enqueueDueCriteriaConsolidations({ admin }), 0);
+  assert.equal(await server.enqueueDueCriteriaConsolidations({ admin, enabled: false }), 0);
   assert.equal(rpcs.length, 0);
   rpcResults.enqueue_due_company_decision_consolidations_v1 = () => 2;
   assert.equal(await server.enqueueDueCriteriaConsolidations({ admin, enabled: true }), 2);
   assert.deepEqual(rpcs[0].args, { p_every: 3, p_limit: 20, p_wait_days: 7 });
   // The job itself does nothing while off either.
-  assert.deepEqual(await server.runCriteriaConsolidation({ admin, roleId, workspaceId }), {
+  assert.deepEqual(await server.runCriteriaConsolidation({ admin, roleId, workspaceId, enabled: false }), {
     status: "off",
     throughDecisionId: null,
   });
@@ -199,7 +199,7 @@ test("the queued job completes silently under its lease", async () => {
     id: "job-1", role_id: roleId, company_workspace_id: workspaceId, locked_by: "worker-1",
     action_context: { roleId, throughDecisionId: 100 },
   };
-  const result = await server.runQueuedCriteriaConsolidation({ admin, job, usage: { calls: 0 }, now });
+  const result = await server.runQueuedCriteriaConsolidation({ admin, job, usage: { calls: 0 }, now, enabled: false });
   assert.equal(result.status, "off");
   assert.equal(updates.length, 1);
   assert.equal(updates[0].table, "company_agent_web_action_jobs");

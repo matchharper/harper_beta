@@ -179,10 +179,13 @@ export async function runQueuedCriteriaConsolidation(args: {
   job: Json;
   usage?: Json;
   now?: Date;
+  /** Defaults to CRITERIA_PROPOSALS_ENABLED (tests pass it). */
+  enabled?: boolean;
 }) {
   const { admin, job } = args;
   const result = await runCriteriaConsolidation({
     admin,
+    enabled: args.enabled,
     now: args.now,
     roleId: clean(job.role_id) || clean(job.action_context?.roleId),
     throughDecisionId: Number(job.action_context?.throughDecisionId) || null,
