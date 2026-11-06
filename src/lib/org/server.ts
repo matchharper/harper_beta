@@ -16,6 +16,7 @@ import { isCompanyFeedProgressVisible } from "@/lib/org/companyFeedVisibility";
 import { getCompanyFollowupProgress, type CompanyFollowupProgress } from "@/lib/org/companyFollowupProgress";
 import { isCompanyVisibleRole } from "@/lib/org/roleVisibility";
 import { recordOrgAction, recordOrgPassReasonNote } from "@/lib/org/actionLogs";
+import { normalizeReasonTags } from "@/lib/org/reasonTags";
 import type { OrgWorkspaceCreateResult, WorkspaceSignupState } from "./signup";
 import { companyHomepageInput, signupRpc } from "./signupServer";
 import { readCandidateDeliveryFacts, type CandidateDeliveryFacts } from "@/lib/companyFirstSearch/candidateDelivery";
@@ -4035,6 +4036,8 @@ export async function passOrgCompanyIntro(args: {
   channel: CompanyIntroDecisionChannel;
   /** The company's own reason, kept company-side on the decision record. */
   reason?: string;
+  /** Reason tags, already checked against the Role (allowedReasonTags). */
+  reasonTags?: string[] | null;
   introCandidateId: string;
   /** company_messages.id of the chat/Slack message that confirmed the decision. */
   sourceMessageId?: number | null;
@@ -4047,6 +4050,7 @@ export async function passOrgCompanyIntro(args: {
   if (!workspaceId || !introCandidateId) {
     throw new OrgHttpError(400, "제안할 후보자 정보가 누락되었습니다.");
   }
+  const reasonTags = normalizeReasonTags(args.reasonTags);
   await assertOrgWorkspacePermission({
     admin,
     permission: "manage_candidates",
@@ -4056,13 +4060,15 @@ export async function passOrgCompanyIntro(args: {
   await upsertOrgCompanyUser(admin, args.user);
   await assertOrgIntroRoleAccess({ admin, user: args.user, workspaceId, introCandidateId });
   const reason = String(args.reason ?? "").trim().slice(0, 2000) || null;
-  // v2 runs pass_company_intro_v1 and, when the card became passed, records the
-  // decision with its reason (company_decision_events) in the same transaction.
-  const { data, error } = await (admin.rpc as any)("pass_company_intro_v2", {
+  // v3 runs pass_company_intro_v1 and, when the card became passed, records the
+  // decision with its reason and tags (company_decision_events) in the same
+  // transaction.
+  const { data, error } = await (admin.rpc as any)("pass_company_intro_v3", {
     p_channel: args.channel,
     p_company_user_id: args.user.id,
     p_company_workspace_id: workspaceId,
     p_intro_candidate_id: introCandidateId,
+    p_reason_tags: reasonTags,
     p_reason_text: reason,
     p_source_message_id: args.sourceMessageId ?? null,
   });
@@ -5050,12 +5056,19 @@ export async function setOrgCandidateStage(args: {
    * a company decision. system: a move that follows the candidate or billing.
    */
   decisionChannel: "web" | "chat" | "slack" | "email" | "system";
+  /**
+   * The caller's key for this decision. The decision record uses it, so a
+   * retried request finds the decision it already made.
+   */
+  decisionKey?: string | null;
   emailMode?: InternalConnectionConfirmationEmailMode;
   expectedPreviousStage?: OrgStageId;
   introEmailDraft?: unknown;
   /** Reserved by the caller; the intro email carries it. */
   introBookingLink?: OrgIntroBookingLink | null;
   introEmails?: string[] | null;
+  /** Reason tags, already checked against the Role (allowedReasonTags). */
+  reasonTags?: string[] | null;
   recommendationId: string;
   reengagementActionId?: string | null;
   candidateConsentRelayId?: string | null;
@@ -5063,6 +5076,8 @@ export async function setOrgCandidateStage(args: {
   roleId: string;
   scheduleInterview?: boolean;
   skipAutomaticContact?: boolean;
+  /** company_messages.id of the chat/Slack message that asked for this move. */
+  sourceMessageId?: number | null;
   stage: OrgStageId;
   notifyCandidateOnClosure?: boolean;
   stopNote?: string | null;
@@ -5101,6 +5116,12 @@ export async function setOrgCandidateStage(args: {
     throw new OrgHttpError(400, "종료 안내 여부를 확인해 주세요.");
   }
   const stopNote = normalizeText(args.stopNote);
+  const reasonTags = normalizeReasonTags(args.reasonTags);
+  const sourceMessageId =
+    Number.isSafeInteger(args.sourceMessageId) && Number(args.sourceMessageId) > 0
+      ? Number(args.sourceMessageId)
+      : null;
+  const decisionKey = normalizeText(args.decisionKey).slice(0, 280) || null;
 
   if (!workspaceId || !roleId || !talentId || !recommendationId || !stage) {
     throw new OrgHttpError(400, "Missing required fields");
@@ -5133,12 +5154,21 @@ export async function setOrgCandidateStage(args: {
       ...Object.keys(original),
       ...Object.keys(normalized),
     ]);
-    // Where the retry comes from (web, Slack, ...) is not part of what was approved.
+    // Where the retry comes from (web, Slack, ...), which message or request
+    // key asked, and empty versus missing values are not part of what was
+    // approved.
     keys.delete("decisionChannel");
+    keys.delete("decisionKey");
+    keys.delete("sourceMessageId");
+    const approved = (value: unknown) =>
+      JSON.stringify(
+        value === undefined || (Array.isArray(value) && value.length === 0)
+          ? null
+          : value
+      );
     if (
       [...keys].some(
-        (key) =>
-          JSON.stringify(original[key]) !== JSON.stringify(normalized[key])
+        (key) => approved(original[key]) !== approved(normalized[key])
       )
     ) {
       throw new OrgHttpError(
@@ -5595,6 +5625,7 @@ export async function setOrgCandidateStage(args: {
       acceptReason: stage !== "process_stopped" ? acceptReason || null : null,
       contactDirectly,
       decisionChannel: args.decisionChannel,
+      decisionKey,
       introEmailCc: introDelivery?.cc ?? [],
       introEmailMessageId: introDelivery?.messageId ?? null,
       introEmailRecipients: introDelivery?.recipients ?? [],
@@ -5611,8 +5642,10 @@ export async function setOrgCandidateStage(args: {
       processClosureNotificationSentChannel:
         processClosureNotification?.sentChannel ?? null,
       reactivation,
+      reasonTags,
       scheduleInterview,
       skipAutomaticContact,
+      sourceMessageId,
       stage,
       notifyCandidateOnClosure: stage === "process_stopped" ? args.notifyCandidateOnClosure !== false : null,
       stopNote: stage === "process_stopped" ? stopNote : null,

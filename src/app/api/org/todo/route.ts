@@ -45,6 +45,14 @@ const read = z.object({
   roleId: z.string().uuid(),
   read: z.string().min(1).max(200),
 });
+const criteriaProposal = z.object({
+  workspaceId: z.string().uuid(),
+  roleId: z.string().uuid(),
+  proposal: z.object({
+    proposalId: z.string().uuid(),
+    action: z.enum(["accept", "dismiss"]),
+  }),
+});
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError)
@@ -107,6 +115,16 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       });
       return NextResponse.json({ ok: true });
+    }
+    // Harper's suggested criteria change: accept saves it to the Brief.
+    const proposalBody = criteriaProposal.safeParse(body);
+    if (proposalBody.success) {
+      const { workspaceId, roleId, proposal } = proposalBody.data;
+      await assertOrgRoleAccess({ admin, user, workspaceId, roleId });
+      const { answerCriteriaProposal } = await import("@/lib/org/criteriaProposals.server");
+      return NextResponse.json(
+        await answerCriteriaProposal({ admin, user, workspaceId, roleId, ...proposal })
+      );
     }
     const parsed = decision.safeParse(body);
     if (!parsed.success)

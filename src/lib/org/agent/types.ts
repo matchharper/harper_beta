@@ -31,6 +31,8 @@ export type OrgAgentCompanyIntroDecisionConfirmation = {
   companyAppeal: string | null;
   /** pass only: the company's own reason, kept on the company decision record. */
   reason?: string | null;
+  /** pass only: reason tags for the same record. */
+  reasonTags?: string[];
   decision: OrgAgentCompanyIntroDecision;
   introCandidateId: string;
   introRecipientEmails: string[];
@@ -64,6 +66,8 @@ export type OrgAgentCandidateDecisionConfirmation = {
   meetingDraft: OrgAgentMeetingScheduleConfirmation | null;
   processStageId: string | null;
   reason: string | null;
+  /** decline only: reason tags for the company decision record. */
+  reasonTags?: string[];
   recommendationId: string;
   roleId: string;
   slackThreadId: string | null;

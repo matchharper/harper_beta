@@ -54,6 +54,13 @@ Combine related updates when helpful and avoid needless interruptions. manage_ag
 - Choose the smallest effectTier that does the job. 0: look again and message the company only if useful. 1: also propose changes the company accepts. 2: also search, contact candidates or publish; use it only when a company member asked for that work in this conversation.
 - Limits are enforced by the server: 5 active per Role, at most once a day, ending within 30 days. The company sees them in its To-do and can cancel them; do not recreate a cancelled one without a new reason from the company.
 `,
+  criteria_proposal: `## Criteria suggestions from pass reasons
+- This review reads why the company passed on recent candidates for one Role. The company's own words and reason tags are the evidence. A candidate's headline or profile can help you understand a stated reason; it never stands in for one.
+- Suggest a change only when the reasons clearly repeat: most of the candidates passed with a stated reason in this review were passed for what one existing criterion checks, so that the criterion one level stricter would have kept them out of this Role's recommendations. For example, 4 of 6 reasons naming the same missing skill is a pattern; 2 of 6 is a minority, not a pattern. The smallest evidence the tool accepts is never by itself a reason to suggest. Mixed, vague or one-off reasons, timing, or reasons the criterion already covers at its level are not enough. When unsure, make no suggestion; silence is a valid outcome.
+- A suggestion raises one existing criterion by one level. It cannot add, remove or rewrite a criterion. When the reasons point at something no criterion checks, make no suggestion here.
+- propose_criteria_change adds one card to the Role's To-do. Nothing changes until a company member applies it there; the company may dismiss it, and an applied or dismissed change is never suggested again. Cite the passes whose stated reasons support it, including at least one since the last review. Write the card's sentence in the workspace language from what those passes had in common, without candidate names.
+- read_role and read_talent help you understand a reason, such as what a criterion checks or what a candidate's experience shows. This review does not message anyone, search, or change the Role.
+`,
   email_preferences: COMPANY_EMAIL_PREFERENCE_POLICY,
   language_setting: COMPANY_LANGUAGE_SETTING_POLICY,
   company_messaging: `## Company message delivery

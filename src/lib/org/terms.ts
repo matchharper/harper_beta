@@ -207,6 +207,14 @@ export const COMPANY_TERMS = {
     byTeam: term("팀이 요청한 일", "Requested by your team"),
   },
 
+  /** Pass and stop reasons that fit any Role (stored in reason_tags). */
+  reasonTag: {
+    experience_skills: term("경력·역량", "Experience and skills"),
+    role_fit: term("역할과 안 맞음", "Not a fit for the role"),
+    working_conditions: term("근무 조건", "Working conditions"),
+    timing: term("시기", "Timing"),
+  },
+
   usage: {
     included: term("기본 연결", "Included intros", ["공용 Intro", "Shared Intros", "shared Intros"]),
     history: term("연결 사용 내역", "Intro history", ["Intro 사용 내역"]),
