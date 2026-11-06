@@ -29,6 +29,7 @@ import {
 } from "@/hooks/org/useOrgWorkspace";
 import type { OrgWorkspacePageId } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
+import { orgWorkspaceThemeProps } from "@/lib/org/theme";
 import {
   isAdditionalOrgCreator,
   isOrgOnboardingComplete,
@@ -153,6 +154,7 @@ export function OrgWorkspaceApp({
     return <OrgLoginScreen authenticatedEmail={user.email} />;
   }
 
+  const theme = orgWorkspaceThemeProps();
   const pageTitle = !emptyRoleHome && isRoleWorkspacePage
     ? `${workspace.companyName} · ${page === "new-role" ? c("새 역할 등록", "Create new role") : c("역할", "Role")}`
     : `${workspace.companyName} · ${page === "personal-settings" ? c("개인 설정", "Personal settings") : `${page[0].toUpperCase()}${page.slice(1)}`}`;
@@ -189,8 +191,12 @@ export function OrgWorkspaceApp({
       <OrgMobileNavigationProvider>
         <Page
           as="main"
-          background="neutral"
-          className="overflow-x-clip overflow-y-auto overscroll-y-none font-sans text-neutral-primary"
+          background={theme.className ? "none" : "neutral"}
+          className={cn(
+            "overflow-x-clip overflow-y-auto overscroll-y-none font-sans text-neutral-primary",
+            theme.className
+          )}
+          data-harper-theme={theme["data-harper-theme"]}
           minHeight="fillScreen"
         >
           <OrgWorkspaceSidebar

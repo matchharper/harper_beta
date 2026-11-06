@@ -8,6 +8,7 @@ import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { Info, LoaderCircle } from "lucide-react";
 import {
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
@@ -16,6 +17,7 @@ import {
   useState,
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
 import {
@@ -25,7 +27,12 @@ import {
   getPreviousChatMessageDateKey,
 } from "@/components/chat/ChatTimeline";
 import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
-import { OrgTodoArea, useOrgTodoShortcuts } from "@/components/org/OrgTodoChip";
+import {
+  OrgTodoArea,
+  OrgTodoList,
+  useOrgTodoShortcuts,
+} from "@/components/org/OrgTodoChip";
+import { ORG_TODO_CARD_COLUMNS } from "@/components/org/role-screen/OrgTodoCards";
 import { OrgRoleSearchActivity } from "@/components/org/role-overview/OrgRoleSearchActivity";
 import {
   OrgAgentDateDivider,
@@ -52,6 +59,7 @@ import {
   shouldShowOrgRoleQuickActions,
 } from "@/lib/org/roleQuickActions";
 import { splitRoleCreationCompletionSentences } from "@/lib/org/agent/roleCreationCompletionMessage";
+import type { OrgAgentMention } from "@/lib/org/agent/types";
 import {
   hasOrgAgentToolWork,
   localizeOrgAgentThinkingLogs,
@@ -104,6 +112,7 @@ function OrgAgentInfo() {
 export function OrgAgentChatSurface({
   autoFocus = true,
   className,
+  composerSeed = null,
   initialMessage,
   onClose,
   onCompanyInfoClick,
@@ -112,9 +121,12 @@ export function OrgAgentChatSurface({
   readOnly = false,
   roleId,
   header = null,
+  todoTarget = null,
 }: {
   autoFocus?: boolean;
   className?: string;
+  /** A candidate the team picked to ask about; a new key puts them at the start of the input. */
+  composerSeed?: { key: string; mention: OrgAgentMention } | null;
   initialMessage?: string;
   onClose?: () => void;
   onCompanyInfoClick?: () => void;
@@ -123,6 +135,8 @@ export function OrgAgentChatSurface({
   readOnly?: boolean;
   roleId?: string | null;
   header?: ReactNode;
+  /** The role screen's right column: the To-do shows there as cards instead of the chip above the input. */
+  todoTarget?: HTMLElement | null;
 }) {
   const { locale: responseLocale, c } = useOrgLocale();
   const { bootstrap, currentUser, user, workspace } = useOrgWorkspace();
@@ -439,6 +453,41 @@ export function OrgAgentChatSurface({
     syncScrollState,
   ]);
 
+  const shownTodoShortcuts = todoShortcuts.filter(
+    (shortcut) =>
+      showQuickActions || (shortcut.id === "run_search" && isRunSearchActive)
+  );
+  const composer = (
+    <OrgAgentComposer
+      placeholder={composerPlaceholder}
+      key={initialMessage}
+      initialMessage={initialRoleCreation ? initialMessage : undefined}
+      allowAttachments
+      autoFocus={autoFocus}
+      compactWidth={initialRoleCreation}
+      disabled={readOnly || !workspaceId}
+      isStreaming={chat.isStreaming}
+      model={model}
+      onModelChange={handleModelChange}
+      onSend={({ attachments, mentions, message }) => {
+        setStickToBottom(true);
+        return chat.sendMessage({
+          attachments,
+          draftRoleId:
+            initialRoleCreation && typeof crypto !== "undefined"
+              ? crypto.randomUUID()
+              : null,
+          mentions,
+          message,
+          model,
+        });
+      }}
+      roleId={roleId}
+      seed={composerSeed}
+      suggestions={initialRoleCreation ? roleStartSuggestions : undefined}
+      workspaceId={workspaceId}
+    />
+  );
   const lastHistoryMessage = history.messages.at(-1);
   const showOptimisticDateDivider = Boolean(
     chat.optimisticUserMessage &&
@@ -451,11 +500,14 @@ export function OrgAgentChatSurface({
         "relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg-default",
         className
       )}
+      // The input's height, for the timeline's fade above it.
+      style={{ "--org-chat-composer-height": `${composerOverlayHeight}px` } as CSSProperties}
     >
       {header && header}
 
       <div
         ref={scrollRef}
+        data-org-chat-scroll=""
         className={cn(
           "min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10",
           header ? "pt-12" : "pt-4",
@@ -696,82 +748,34 @@ export function OrgAgentChatSurface({
               roleId={roleId}
             />
           ) : null}
-          {showRoleTodo && roleId && workspaceId ? (
+          {showRoleTodo && roleId && workspaceId && !todoTarget ? (
             <OrgTodoArea
               onApprove={sendTodoMessage}
               roleId={roleId}
-              shortcuts={todoShortcuts.filter(
-                (shortcut) =>
-                  showQuickActions ||
-                  (shortcut.id === "run_search" && isRunSearchActive)
-              )}
+              shortcuts={shownTodoShortcuts}
               workspaceId={workspaceId}
             >
-              <OrgAgentComposer
-                placeholder={composerPlaceholder}
-                key={initialMessage}
-                initialMessage={
-                  initialRoleCreation ? initialMessage : undefined
-                }
-                allowAttachments
-                autoFocus={autoFocus}
-                compactWidth={initialRoleCreation}
-                disabled={readOnly || !workspaceId}
-                isStreaming={chat.isStreaming}
-                model={model}
-                onModelChange={handleModelChange}
-                onSend={({ attachments, mentions, message }) => {
-                  setStickToBottom(true);
-                  return chat.sendMessage({
-                    attachments,
-                    draftRoleId:
-                      initialRoleCreation && typeof crypto !== "undefined"
-                        ? crypto.randomUUID()
-                        : null,
-                    mentions,
-                    message,
-                    model,
-                  });
-                }}
-                roleId={roleId}
-                suggestions={
-                  initialRoleCreation ? roleStartSuggestions : undefined
-                }
-                workspaceId={workspaceId}
-              />
+              {composer}
             </OrgTodoArea>
           ) : (
-            <OrgAgentComposer
-              placeholder={composerPlaceholder}
-              key={initialMessage}
-              initialMessage={initialRoleCreation ? initialMessage : undefined}
-              allowAttachments
-              autoFocus={autoFocus}
-              compactWidth={initialRoleCreation}
-              disabled={readOnly || !workspaceId}
-              isStreaming={chat.isStreaming}
-              model={model}
-              onModelChange={handleModelChange}
-              onSend={({ attachments, mentions, message }) => {
-                setStickToBottom(true);
-                return chat.sendMessage({
-                  attachments,
-                  draftRoleId:
-                    initialRoleCreation && typeof crypto !== "undefined"
-                      ? crypto.randomUUID()
-                      : null,
-                  mentions,
-                  message,
-                  model,
-                });
-              }}
-              roleId={roleId}
-              suggestions={
-                initialRoleCreation ? roleStartSuggestions : undefined
-              }
-              workspaceId={workspaceId}
-            />
+            composer
           )}
+          {showRoleTodo && roleId && workspaceId && todoTarget
+            ? createPortal(
+                <OrgTodoList
+                  columns={ORG_TODO_CARD_COLUMNS}
+                  onApprove={sendTodoMessage}
+                  // Show the latest message, e.g. the proposal "채팅에서 답하기" points to.
+                  onNavigate={() => setStickToBottom(true)}
+                  range="recent"
+                  roleId={roleId}
+                  shortcuts={shownTodoShortcuts}
+                  variant="cards"
+                  workspaceId={workspaceId}
+                />,
+                todoTarget
+              )
+            : null}
         </div>
       </div>
     </section>

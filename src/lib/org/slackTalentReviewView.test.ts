@@ -286,6 +286,10 @@ test("candidate review modal contains profile sections and live decisions", () =
       [HARPER_TALENT_REVIEW_REJECT_ACTION_ID, "reject"],
     ]
   );
+  // The static credit caption follows the buttons, naming 연결하기 (넘기기 has none).
+  const caption = view.blocks[view.blocks.indexOf(decisions!) + 1];
+  assert.equal(caption.type, "context");
+  assert.equal(caption.elements[0].text, "연결하기: 연결 1회 사용");
   assert.deepEqual(decodeSlackTalentReviewViewMetadata(view.private_metadata), {
     candidateIndex: 0,
     sourceMessageId: 42,
@@ -431,6 +435,7 @@ test("viewer candidate review stays read-only", () => {
     new RegExp(HARPER_TALENT_REVIEW_REJECT_ACTION_ID)
   );
   assert.match(rendered, /소유자 또는 관리자/);
+  assert.doesNotMatch(rendered, /연결 1회 사용/);
 });
 
 test("accept submission parses connection method, recipients, and reason", () => {

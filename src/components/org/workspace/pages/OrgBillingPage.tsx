@@ -4,7 +4,6 @@ import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { isSlotPurchase } from "@/lib/org/billing/compat";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, LoaderCircle } from "lucide-react";
 import { OrgPageHeader } from "../OrgPageHeader";
@@ -30,7 +29,7 @@ import {
 import { useOrgBillingPreview } from "@/store/useOrgBillingPreviewStore";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
-import { COMPANY_TERMS, companyTerm, ct } from "@/lib/org/terms";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { billingRequest, useOrgBilling } from "@/hooks/org/useOrgBilling";
 import {
@@ -49,35 +48,21 @@ import {
   type OrgBillingPreview,
 } from "@/lib/org/billing/preview";
 
+/**
+ * One billing page (Chris #95): plan, included intros and slots, intro
+ * history, then payments. Owners and admins see it; the payment method,
+ * invoices and the Stripe portal stay owner-only. `section=slots` (and the
+ * old /org/slots page) scrolls to the slots.
+ */
 export function OrgBillingPage({
   section = "billing",
 }: {
   section?: "slots" | "billing";
 }) {
-  const { workspace, permissions } = useOrgWorkspace();
-  const { locale } = useOrgLocale();
-  if (section === "billing" && permissions.role !== "owner") {
-    return (
-      <div className="max-w-[1100px] space-y-7 pb-12">
-        <OrgPageHeader title={companyTerm(COMPANY_TERMS.nav.billing, locale)} description={workspace.companyName} />
-        <p className="text-[13px] text-neutral-muted">
-          {locale === "ko"
-            ? "결제 정보는 소유자만 확인할 수 있어요."
-            : "Only the Owner can view billing details."}
-        </p>
-        <MuteButton asChild>
-          <Link
-            href={`/org/slots?orgId=${encodeURIComponent(workspace.workspaceId)}`}
-          >
-            Slots
-          </Link>
-        </MuteButton>
-      </div>
-    );
-  }
+  const { workspace } = useOrgWorkspace();
   return (
     <WorkspaceBillingContent
-      key={`${workspace.workspaceId}:${section}`}
+      key={`${workspace.workspaceId}:billing`}
       section={section}
     />
   );
@@ -108,6 +93,13 @@ function WorkspaceBillingContent({
   const queryClient = useQueryClient();
   const addToast = useToastStore((state) => state.add);
   const summary = billing.data?.summary;
+  // Slot links (section=slots, the old /org/slots page) land on the slots.
+  const slotsRef = useRef<HTMLDivElement>(null);
+  const showSlots = section === "slots" || router.query.section === "slots";
+  const slotsShown = Boolean(summary);
+  useEffect(() => {
+    if (showSlots && slotsShown) slotsRef.current?.scrollIntoView?.({ block: "start" });
+  }, [showSlots, slotsShown]);
   const catalog = billing.data?.catalog;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -434,7 +426,7 @@ function WorkspaceBillingContent({
   return (
     <div className="max-w-[1100px] space-y-7 pb-12">
       <OrgPageHeader
-        title={ct(c, section === "slots" ? COMPANY_TERMS.nav.slots : COMPANY_TERMS.nav.billing)}
+        title={ct(c, COMPANY_TERMS.nav.billing)}
         actions={
           canManage &&
           catalog?.testMode && (
@@ -540,47 +532,49 @@ function WorkspaceBillingContent({
               )}
             </div>
           )}
-          {section === "slots" ? (
+          {canManage && (
+            <BillingPlanSummary
+              summary={summary}
+              busy={busy}
+              canManage={canManage}
+              canViewBilling={canViewBilling}
+              onCancel={(slot) => {
+                setError("");
+                setCancelSlot(slot);
+              }}
+              onResume={(slot) =>
+                handle("resume", { slotId: slot.id, revision: slot.revision })
+              }
+              onPortal={() => handle("portal")}
+              onAddSlot={openAddSlot}
+            />
+          )}
+          <div id="slots" ref={slotsRef} className="scroll-mt-6">
+            <BillingSlots
+              summary={summary}
+              busy={busy}
+              canManage={canManage}
+              canViewBilling={canViewBilling}
+              roles={roles}
+              preview={!!billing.preview}
+              onAddSlot={openAddSlot}
+              onCancel={(slot) => {
+                setError("");
+                setCancelSlot(slot);
+              }}
+              onResume={(slot) =>
+                handle("resume", { slotId: slot.id, revision: slot.revision })
+              }
+              onAssign={requestAssignment}
+              onPortal={() => handle("portal")}
+            />
+          </div>
+          <BillingUsageHistory
+            key={`usage:${billing.preview?.history ?? "actual"}:${billing.preview?.slotCount ?? "actual"}`}
+            workspaceId={workspaceId}
+          />
+          {canViewBilling && (
             <>
-              <BillingSlots
-                summary={summary}
-                busy={busy}
-                canManage={canManage}
-                canViewBilling={canViewBilling}
-                roles={roles}
-                preview={!!billing.preview}
-                onAddSlot={openAddSlot}
-                onCancel={(slot) => {
-                  setError("");
-                  setCancelSlot(slot);
-                }}
-                onResume={(slot) =>
-                  handle("resume", { slotId: slot.id, revision: slot.revision })
-                }
-                onAssign={requestAssignment}
-                onPortal={() => handle("portal")}
-              />
-              <BillingUsageHistory
-                key={`usage:${billing.preview?.history ?? "actual"}:${billing.preview?.slotCount ?? "actual"}`}
-                workspaceId={workspaceId}
-              />
-            </>
-          ) : (
-            <>
-              <BillingPlanSummary
-                summary={summary}
-                busy={busy}
-                canManage={canManage}
-                onCancel={(slot) => {
-                  setError("");
-                  setCancelSlot(slot);
-                }}
-                onResume={(slot) =>
-                  handle("resume", { slotId: slot.id, revision: slot.revision })
-                }
-                onPortal={() => handle("portal")}
-                onAddSlot={openAddSlot}
-              />
               <OrgBillingPaymentPreview
                 workspaceId={workspaceId}
                 onOpen={() => handle("portal")}

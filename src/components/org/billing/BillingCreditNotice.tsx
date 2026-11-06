@@ -67,7 +67,7 @@ export function BillingCreditNotice({
   );
   const content = canManage ? (
     <Link
-      href={`/org/slots?orgId=${encodeURIComponent(workspaceId)}`}
+      href={`/org/billing?orgId=${encodeURIComponent(workspaceId)}&section=slots`}
       aria-label={description}
       className={cn(
         className,

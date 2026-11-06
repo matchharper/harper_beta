@@ -244,10 +244,7 @@ function MatchingContent({
                 title={ct(c, COMPANY_TERMS.brief.whoWeAreLookingFor)}
               />
               <div className="mt-1 text-[14px] font-normal leading-5 text-neutral-primary/60">
-                {c(
-                  "Harper가 후보를 찾을 때 쓰는 설명이에요. 후보에게는 보이지 않아요.",
-                  "Harper uses this to search. Candidates don't see it."
-                )}
+                {ct(c, COMPANY_TERMS.caption.whoWeAreLookingFor)}
               </div>
             </div>
           </div>
@@ -278,9 +275,10 @@ function MatchingContent({
           </div>
         ) : null}
 
-        <div className="mt-20 pb-6">
+        <div className="mt-20 scroll-mt-6 pb-6" id="criteria">
           <div className="flex items-start justify-between gap-4">
             <RoleSectionHeading
+              description={ct(c, COMPANY_TERMS.caption.criteria)}
               info={c(
                 "항목마다 이름과 설명을 적어 주세요. 후보 카드에 항목별로 잘 맞는지 표시돼요.",
                 "Name each item and describe it. Cards show a match per item."

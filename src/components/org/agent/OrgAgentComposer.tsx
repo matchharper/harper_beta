@@ -193,6 +193,7 @@ export function OrgAgentComposer({
   onSend,
   onSubmitBlocked,
   roleId,
+  seed = null,
   submitBlocked,
   suggestions,
   workspaceId,
@@ -214,6 +215,8 @@ export function OrgAgentComposer({
   }) => void | Promise<void>;
   onSubmitBlocked?: () => void;
   roleId?: string | null;
+  /** A new key puts this candidate at the start of the input, as a mention, and focuses it. */
+  seed?: { key: string; mention: OrgAgentMention } | null;
   submitBlocked?: boolean;
   /** Example starts shown under the field; a click fills the field to edit or send. */
   suggestions?: Array<{ label: string; message: string }>;
@@ -284,6 +287,31 @@ export function OrgAgentComposer({
     observer.observe(textarea);
     return () => observer.disconnect();
   }, [allowAttachments, syncMentionHighlight]);
+
+  // The candidate the team picked from the role screen's list.
+  const seededKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!seed || seededKey.current === seed.key) return;
+    seededKey.current = seed.key;
+    if (
+      mentionTokens.tokens.some(
+        (token) => token.data.talentId === seed.mention.talentId
+      )
+    ) {
+      textareaRef.current?.focus();
+      return;
+    }
+    const text = seed.mention.displayName;
+    mentionTokens.insertToken({
+      cursor: text.length + 1,
+      data: seed.mention,
+      end: text.length,
+      id: `${seed.mention.talentId}:${crypto.randomUUID()}`,
+      start: 0,
+      text,
+      value: `${text} ${draft}`,
+    });
+  }, [draft, mentionTokens, seed]);
 
   const closeMentionPicker = useCallback(() => setMentionSearch(null), []);
   const handleSelectMention = useCallback(

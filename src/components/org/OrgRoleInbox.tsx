@@ -43,6 +43,9 @@ import {
 } from "./OrgCriteriaRecheck";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { OrgReviewingLine } from "./OrgReviewingLine";
+import { resolveOrgRoleLocation } from "@/lib/org/routes";
+import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
+import { OrgExternalCandidates } from "./OrgExternalCandidates";
 
 const NO_SELECTION: ReadonlySet<string> = new Set();
 
@@ -79,6 +82,14 @@ export function OrgRoleInbox() {
     },
   });
   const savedReview = router.query.review === "saved";
+  // 외부 후보 is the last sub-tab, only where external sourcing is on.
+  const externalQuery = useOrgExternalCandidates({ roleId: activeRole?.roleId, workspaceId });
+  const externalEnabled = Boolean(externalQuery.data?.enabled);
+  const external =
+    resolveOrgRoleLocation(router.query, {
+      externalEnabled: externalQuery.data ? externalEnabled : true,
+      isDraft: false,
+    }).inboxStage === "external";
   const stage =
     router.query.inboxStage === "company_intro" ||
     router.query.inboxStage === "pending_connection"
@@ -201,10 +212,13 @@ export function OrgRoleInbox() {
         "recommendationId",
         "detailRoleId",
         "detailWorkspaceId",
+        "externalCandidateId",
       ])
         delete query[key];
     // Saved stays open across sort and view changes; another tab leaves it.
     if (patch.inboxStage) delete query.review;
+    // Links from when 외부 후보 was its own tab say tab=external.
+    if (patch.inboxStage || patch.review) query.tab = "inbox";
     void router.push({ pathname: router.pathname, query }, undefined, {
       shallow: true,
       scroll: false,
@@ -213,6 +227,7 @@ export function OrgRoleInbox() {
   useEffect(() => {
     if (
       card &&
+      !external &&
       // Resolve the Role's default inbox before selecting its first candidate.
       !(detailTalentId && !detailRecommendationId) &&
       !savedReview &&
@@ -305,7 +320,7 @@ export function OrgRoleInbox() {
       <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2 pt-3 md:pt-4">
         <>
             <Tabs
-              activeValue={savedReview ? "saved" : stage}
+              activeValue={external ? "external" : savedReview ? "saved" : stage}
               variant="borderless"
               size="small"
               className="
@@ -363,6 +378,23 @@ export function OrgRoleInbox() {
                     </span>
                   ),
                 },
+                ...(externalEnabled || external
+                  ? [
+                      {
+                        value: "external",
+                        label: (
+                          <span className="inline-flex items-center gap-2 text-sm">
+                            {ct(c, COMPANY_TERMS.inbox.external)}
+                            {externalQuery.data?.candidates.length ? (
+                              <span className="ml-0.5 flex items-center justify-center text-xs text-neutral-800">
+                                {externalQuery.data.candidates.length}
+                              </span>
+                            ) : null}
+                          </span>
+                        ),
+                      },
+                    ]
+                  : []),
               ]}
               onValueChange={(value) =>
                 value === "saved"
@@ -370,11 +402,13 @@ export function OrgRoleInbox() {
                   : change({ inboxStage: value })
               }
             />
-            {!savedReview && selectedCount >= 2 ? (
+            {!external && !savedReview && selectedCount >= 2 ? (
               <Badge radius="full" size="md" variant="outline">
                 {c("다중 선택 켜짐", "Multi-select on")}
               </Badge>
             ) : null}
+            {/* Sort and view apply to Harper's list, not to 외부 후보. */}
+            {external ? null : <>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <MuteButton
@@ -453,14 +487,17 @@ export function OrgRoleInbox() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            </>}
         </>
         <OrgSearchHistory
           workspaceId={workspaceId}
           roleId={activeRole?.roleId}
         />
       </div>
-      <OrgReviewingLine className="-mt-2 mb-3" count={inboxQuery?.data?.pages[0]?.counts?.reviewing} />
-      {!savedReview && (stage === "pending_connection" || stage === "company_intro") ? (
+      {!external ? (
+        <OrgReviewingLine className="-mt-2 mb-3" count={inboxQuery?.data?.pages[0]?.counts?.reviewing} />
+      ) : null}
+      {!external && !savedReview && (stage === "pending_connection" || stage === "company_intro") ? (
         <p className="-mt-2 mb-3 text-[13px] leading-5 text-neutral-muted">
           {stage === "pending_connection"
             ? c(
@@ -473,7 +510,7 @@ export function OrgRoleInbox() {
               )}
         </p>
       ) : null}
-      {!savedReview && activeRole ? (
+      {!external && !savedReview && activeRole ? (
         <OrgCriteriaReviewPanel
           items={items}
           key={`${activeRole.roleId}:${stage}`}
@@ -483,14 +520,16 @@ export function OrgRoleInbox() {
           workspaceId={workspaceId}
         />
       ) : null}
-      {boardQuery.error &&
+      {!external && boardQuery.error &&
         !isOrgQueryBlockingError(boardQuery.error, boardQuery.data) && (
           <OrgErrorState
             message={boardQuery.error.message}
             onRetry={() => void (inboxQuery?.isFetchNextPageError ? reviewing ? loadNextReviewPage() : inboxQuery.fetchNextPage() : boardQuery.refetch())}
           />
         )}
-      {isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ? (
+      {external && activeRole ? (
+        <OrgExternalCandidates roleId={activeRole.roleId} workspaceId={workspaceId} />
+      ) : isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ? (
         <OrgErrorState
           message={boardQuery.error!.message}
           onRetry={() => void boardQuery.refetch()}
@@ -573,7 +612,7 @@ export function OrgRoleInbox() {
           )}
         </>
       )}
-      {hasNextPage && !pageError && !reviewing && (
+      {!external && hasNextPage && !pageError && !reviewing && (
         <div ref={loadMoreRef} className="flex justify-center py-4">
           <MuteButton
             size="sm"

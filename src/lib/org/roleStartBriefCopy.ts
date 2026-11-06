@@ -1,11 +1,12 @@
 import { OrgHttpError } from "./httpError";
+import { COMPANY_TERMS } from "./terms";
 
 /**
  * A registered role-start Role's Brief text and criteria are copies of its role
  * start Brief; the database refuses any other write to them
  * (company_role_brief_via_role_start, guard_company_role_brief_copy_v1).
  */
-export const ROLE_START_BRIEF_ONLY_MESSAGE = "이 역할의 기준은 확인할 기준 탭의 ‘찾는 사람’에서 고쳐 주세요.";
+export const ROLE_START_BRIEF_ONLY_MESSAGE = `이 역할의 기준은 ${COMPANY_TERMS.tab.roleInfo.ko} 탭의 ‘${COMPANY_TERMS.brief.whoWeAreLookingFor.ko}’에서 고쳐 주세요.`;
 
 export const ROLE_START_BRIEF_ONLY_TOOL_MESSAGE =
   "This Role was started with role start: its brief text and criteria change only through the role start brief. " +

@@ -140,6 +140,7 @@ export function OrgRoleDetailsContent({
       <OrgSection>
         <div className="mb-5">
           <RoleSectionHeading
+            description={ct(c, COMPANY_TERMS.caption.roleDescription)}
             size="large"
             title={ct(c, COMPANY_TERMS.brief.roleDescription)}
           />

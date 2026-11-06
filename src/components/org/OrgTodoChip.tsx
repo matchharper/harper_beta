@@ -40,6 +40,7 @@ import {
   type OrgTodoItem,
 } from "@/lib/org/todo";
 import { cn } from "@/lib/utils";
+import { OrgTodoCards } from "@/components/org/role-screen/OrgTodoCards";
 
 type Copy = (
   ko: string,
@@ -240,7 +241,8 @@ function itemHref(item: OrgTodoItem, roleId: string, workspaceId: string) {
       orgId: workspaceId,
       page: "role",
       roleId,
-      tab: "matching",
+      tab: "role",
+      section: "criteria",
     });
   }
   if (item.talent && item.kind !== "suggestion") {
@@ -430,6 +432,7 @@ export function OrgTodoList({
   range,
   roleId,
   shortcuts = [],
+  variant = "rows",
   workspaceId,
 }: {
   columns: OrgTodoColumn[];
@@ -439,6 +442,8 @@ export function OrgTodoList({
   range: "all" | "recent";
   roleId: string;
   shortcuts?: OrgTodoShortcut[];
+  /** "cards": the role screen's right column, in the candidate side's card style. */
+  variant?: "rows" | "cards";
   workspaceId: string;
 }) {
   const { c, locale } = useOrgLocale();
@@ -677,6 +682,22 @@ export function OrgTodoList({
           {c("다시 시도", "Retry")}
         </button>
       </p>
+    );
+  }
+  if (variant === "cards") {
+    return (
+      <OrgTodoCards
+        columns={columns}
+        decideError={decide.isError}
+        decidePending={decide.isPending}
+        headings={headings}
+        items={items}
+        onMute={(item) => answer(item, "mute")}
+        renderAction={action}
+        shortcuts={shortcuts}
+        suggestionCount={suggestions}
+        title={(item) => itemText(item, c, locale)}
+      />
     );
   }
   return (

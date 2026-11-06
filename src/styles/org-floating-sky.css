@@ -1,0 +1,178 @@
+/* Company workspace on the shared sky theme (career-floating-sky.css, turned on by
+   data-harper-theme="sky"). Only what the company screens need beyond the shared rules:
+   the role screen inside the sidebar shell, its title and one-column layout, the chat
+   fade above the input, To-do and candidate card spacing, and sections as cards. */
+
+/* Role screen: the career frame, sized to the page container next to the sidebar. */
+.org-role-screen.career-workspace {
+  height: 100%;
+}
+.org-role-title {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.org-role-title h1 {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  color: var(--career-ink);
+}
+.org-role-status-label {
+  flex: none;
+  font-size: var(--career-label-size);
+  color: var(--career-ink-secondary);
+}
+.org-role-screen .career-workspace-body[data-panel="detail"] {
+  grid-template-columns: minmax(0, 1fr) minmax(
+      var(--career-panel-width),
+      min(48%, var(--career-detail-width))
+    );
+}
+/* 전체 화면: the right column takes the width, the chat stays mounted behind it. */
+.org-role-screen .career-workspace-body[data-wide="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.org-role-wide {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: var(--career-content-inset-top, 0px);
+}
+.org-role-wide-views {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* The sidebar takes 256px, so the two columns get the compact panel sooner. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .org-role-screen .career-workspace-body {
+    gap: 20px;
+    padding-inline: 16px;
+    grid-template-columns: minmax(0, 1fr) var(--career-panel-width-compact);
+  }
+}
+/* Below 1024px one column; the pill switches between the chat and the right column. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .org-role-screen .career-workspace-body,
+  .org-role-screen .career-workspace-body[data-panel] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+  }
+  .org-role-screen .career-chat-column,
+  .org-role-screen .career-right-column {
+    flex: 1;
+  }
+  .org-role-screen .career-right-column {
+    padding: 0 24px;
+  }
+}
+/* Phone: the title on top, the pill under it, like the candidate side's top bar. */
+@media (max-width: 767px) {
+  .org-role-screen {
+    --career-topbar-height: 100px;
+  }
+  .org-role-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title actions"
+      "pill pill";
+    align-content: start;
+    row-gap: 6px;
+  }
+  .org-role-topbar .org-role-title {
+    grid-area: title;
+    gap: 6px;
+    margin-left: -6px;
+  }
+  .org-role-topbar .career-top-tabs {
+    grid-area: pill;
+  }
+  .org-role-topbar .career-topbar-actions {
+    grid-area: actions;
+    gap: 4px;
+  }
+  .org-role-screen .career-chat-column {
+    padding-top: var(--career-mobile-header-height);
+  }
+}
+
+/* The role chat: text fades out above the floating input. */
+[data-harper-theme="sky"] [data-org-chat-scroll] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--org-chat-composer-height, 0px) - 12px),
+    transparent calc(100% - var(--org-chat-composer-height, 0px) + 8px)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--org-chat-composer-height, 0px) - 12px),
+    transparent calc(100% - var(--org-chat-composer-height, 0px) + 8px)
+  );
+}
+
+/* To-do and role status cards: actions sit on one row, like a follow-up's action line. */
+.org-todo-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 14px;
+}
+.org-role-status-card {
+  margin-bottom: 20px;
+}
+
+/* 후보: sub-tabs and the card list. */
+.org-candidate-tabs > div:first-child {
+  flex: 1 1 0;
+  flex-basis: 0;
+}
+.org-candidate-caption {
+  margin: -6px 2px 14px;
+  font-size: var(--career-label-size);
+  line-height: 1.5;
+  color: var(--career-ink-secondary);
+  word-break: keep-all;
+}
+.org-candidate-list {
+  display: grid;
+  gap: 4px;
+}
+.org-candidate-group + .org-candidate-group {
+  margin-top: 20px;
+}
+
+/* Settings and role sections read as the candidate side's cards. */
+[data-harper-theme="sky"] [data-org-section] {
+  padding: var(--career-space-card) 22px;
+  border: 0;
+  border-radius: var(--career-radius-card);
+  background-image: var(--career-glass-image);
+  box-shadow: var(--career-glass-shadow);
+  -webkit-backdrop-filter: blur(var(--career-glass-blur))
+    saturate(var(--career-glass-saturation));
+  backdrop-filter: blur(var(--career-glass-blur))
+    saturate(var(--career-glass-saturation));
+}
+[data-harper-theme="sky"] [data-org-section] + [data-org-section] {
+  margin-top: 12px;
+}
+[data-harper-theme="sky"] [data-org-section] [data-org-section] {
+  padding: 0;
+  border-radius: 0;
+  background-image: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}

@@ -30,6 +30,9 @@ export type CompanyTerm = {
   readonly formerKo: readonly string[];
 };
 
+/** A fixed caption: copy, not a name, so it has no former names and stays out of Harper's name table. */
+export type CompanyCopy = Pick<CompanyTerm, "ko" | "en">;
+
 const term = (
   ko: string,
   en: string,
@@ -37,12 +40,14 @@ const term = (
   formerKo: readonly string[] = []
 ): CompanyTerm => ({ ko, en, former, formerKo });
 
-export function companyTerm(value: CompanyTerm, locale: CompanyTermLocale) {
+const copy = (ko: string, en: string): CompanyCopy => ({ ko, en });
+
+export function companyTerm(value: CompanyCopy, locale: CompanyTermLocale) {
   return locale === "en" ? value.en : value.ko;
 }
 
 /** For screens: `ct(c, COMPANY_TERMS.action.connect)`. */
-export function ct(c: (ko: string, en: string) => string, value: CompanyTerm) {
+export function ct(c: (ko: string, en: string) => string, value: CompanyCopy) {
   return c(value.ko, value.en);
 }
 
@@ -93,6 +98,8 @@ export const COMPANY_TERMS = {
     pipeline: term("파이프라인", "Pipeline"),
     roleInfo: term("역할 정보", "Role"),
     settings: term("설정", "Settings"),
+    /** A draft role's guided start. */
+    start: term("시작", "Start"),
   },
 
   role: term("역할", "Role", [], ["Role"]),
@@ -218,6 +225,26 @@ export const COMPANY_TERMS = {
   usage: {
     included: term("기본 연결", "Included intros", ["공용 Intro", "Shared Intros", "shared Intros"]),
     history: term("연결 사용 내역", "Intro history", ["Intro 사용 내역"]),
+  },
+
+  /**
+   * Short captions that read the same on the web, in email and in Slack.
+   * Credit captions are static: they never show what is left.
+   */
+  caption: {
+    /** Under 연결 요청. */
+    requestUsesIntro: copy("요청하면 연결 1회를 써요", "Uses 1 intro when you send it"),
+    /** Under 연결하기. 이번엔 넘길게요 has no caption. */
+    connectUsesIntro: copy("연결 1회 사용", "Uses 1 intro"),
+    /** The three parts of 역할 정보: who sees each. */
+    roleDescription: copy("후보에게 보여요", "Candidates see this"),
+    whoWeAreLookingFor: copy("Harper만 봐요", "Only Harper sees this"),
+    criteria: copy("카드에 표시", "Shown on candidate cards"),
+    /** Integrations lists each channel's roles read-only. */
+    channelRoles: copy(
+      "역할마다 설정 탭에서 받을 채널을 정해요.",
+      "Each role picks its channels in its Settings tab."
+    ),
   },
 
   access: {

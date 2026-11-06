@@ -184,7 +184,7 @@ export function OrgWorkspaceDangerZone() {
                 <Link
                   href={buildOrgHref({
                     orgId: workspace.workspaceId,
-                    page: "slots",
+                    page: "billing",
                   })}
                   className="underline underline-offset-4"
                 >

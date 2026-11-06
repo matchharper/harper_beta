@@ -91,6 +91,7 @@ import {
   toOrgStageMoveCandidate,
 } from "@/components/org/OrgStageMoveDialog";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
+import { OrgRoleCandidateCard } from "./role-screen/OrgRoleCandidateCard";
 
 const NO_BOARD_SELECTION: ReadonlySet<string> = new Set();
 
@@ -613,8 +614,8 @@ export function OrgRoleTalentBoardCard({
             {acceptSlot === undefined ? (
               <p className="col-span-2 text-right text-[11px] leading-4 text-neutral-muted">
                 {item.source === "company_intro"
-                  ? c("요청하면 연결 1회를 써요", "Uses 1 intro when you send it")
-                  : c("연결 1회 사용", "Uses 1 intro")}
+                  ? ct(c, COMPANY_TERMS.caption.requestUsesIntro)
+                  : ct(c, COMPANY_TERMS.caption.connectUsesIntro)}
               </p>
             ) : null}
           </div>
@@ -625,17 +626,26 @@ export function OrgRoleTalentBoardCard({
 }
 
 export function OrgRoleTalentBoard({
+  card = "board",
   displayControl,
   layout = "grid",
+  renderLayout,
   section = "pipeline",
   inboxItems,
   onSelectionReplace,
   onToggleSelected,
   selectedIds,
 }: {
+  /** "expandable": cards that open in place, for the role screen's 후보 lists. */
+  card?: "board" | "expandable";
   displayControl?: ReactNode;
   /** "board" places the cards on a free-form board instead of the grid. */
   layout?: "board" | "grid";
+  /** Lays the cards out itself (e.g. grouped by stage) with every decision already wired. */
+  renderLayout?: (
+    items: OrgBoardItem[],
+    renderCard: (item: OrgBoardItem) => ReactNode
+  ) => ReactNode;
   section?: "inbox" | "pipeline";
   inboxItems?: OrgBoardItem[];
   /** Board area selection replaces the whole selection at once. */
@@ -915,8 +925,9 @@ export function OrgRoleTalentBoard({
     );
   }
 
+  const Card = card === "expandable" ? OrgRoleCandidateCard : OrgRoleTalentBoardCard;
   const renderCard = (item: OrgBoardItem) => (
-    <OrgRoleTalentBoardCard
+    <Card
       canManageCandidates={permissions.canManageCandidates}
       // Inbox grid only; the board canvas places cards freely.
       fillHeight={section === "inbox" && layout === "grid"}
@@ -1126,7 +1137,9 @@ export function OrgRoleTalentBoard({
         </section>
       ) : null}
 
-      {layout === "board" && activeRole ? (
+      {renderLayout ? (
+        renderLayout(items, renderCard)
+      ) : layout === "board" && activeRole ? (
         <OrgCandidateBoardCanvas
           board={boardId}
           items={items}

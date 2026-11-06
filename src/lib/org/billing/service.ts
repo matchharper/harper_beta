@@ -322,7 +322,7 @@ export async function createSlotCheckout(
     intent.interval !== interval
   )
     throw new WorkspaceBillingError("billing_conflict");
-  const returnUrl = `${billingSiteUrl()}/org/${intent.onboarding ? "onboarding" : "slots"}?orgId=${encodeURIComponent(workspaceId)}&interval=${interval}&quantity=${quantity}${intent.onboarding ? "&step=plan" : ""}`;
+  const returnUrl = `${billingSiteUrl()}/org/${intent.onboarding ? "onboarding" : "billing"}?orgId=${encodeURIComponent(workspaceId)}&interval=${interval}&quantity=${quantity}${intent.onboarding ? "&step=plan" : "&section=slots"}`;
   const session = await stripe.checkout.sessions.create(
     {
       mode: "subscription",

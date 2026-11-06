@@ -4,7 +4,7 @@ import {
   companyCriterionFitnessLabel,
   type OrgCompanyCriterionFitness,
 } from "@/lib/org/companyCriteriaEvaluations";
-import { COMPANY_TERMS } from "@/lib/org/terms";
+import { COMPANY_TERMS, type CompanyCopy } from "@/lib/org/terms";
 
 /** Candidate mail for one role-matching run: fixed subject and section headings,
  * the Worker's email-surface prose unchanged, and per-recipient action buttons. */
@@ -47,6 +47,12 @@ export const CANDIDATE_DIGEST_ACTION_LABELS: Record<
   pass: [COMPANY_TERMS.action.pass.ko, COMPANY_TERMS.action.pass.en],
   accept_connection: [COMPANY_TERMS.action.connect.ko, COMPANY_TERMS.action.connect.en],
   reject_connection: [COMPANY_TERMS.action.pass.ko, COMPANY_TERMS.action.pass.en],
+};
+
+// The same credit captions as under the web buttons; passing has none.
+const CANDIDATE_DIGEST_ACTION_CAPTIONS: Partial<Record<CandidateDigestAction, CompanyCopy>> = {
+  request_intro: COMPANY_TERMS.caption.requestUsesIntro,
+  accept_connection: COMPANY_TERMS.caption.connectUsesIntro,
 };
 
 const pick = (locale: OrgLocale, pair: readonly [string, string]) =>
@@ -145,6 +151,8 @@ const CARD_DIVIDER = "───────────────────�
 type ActionRow = {
   primary: { label: string; url: string };
   secondary: { label: string; url: string };
+  /** Under the buttons, naming the button it is about. */
+  caption?: string | null;
   criteria: Array<{
     name: string;
     fitness: OrgCompanyCriterionFitness;
@@ -194,10 +202,14 @@ export function candidateDigestActionRowHtml(row: ActionRow) {
         ? "background:#111827;border:1px solid #111827;color:#ffffff"
         : "background:#ffffff;border:1px solid #d1d5db;color:#111827"
     }">${escapeHtml(item.label)}</a></td>`;
-  return `${criteriaHtml(row.criteria)}<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 16px"><tr>${button(
+  return `${criteriaHtml(row.criteria)}<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 ${row.caption ? 4 : 16}px"><tr>${button(
     row.primary,
     true
-  )}${button(row.secondary, false)}</tr></table>`;
+  )}${button(row.secondary, false)}</tr></table>${
+    row.caption
+      ? `<p style="margin:0 0 16px;font-size:12px;line-height:1.4;color:#6b7280">${escapeHtml(row.caption)}</p>`
+      : ""
+  }`;
 }
 
 export function candidateDigestActionRowText(row: ActionRow) {
@@ -207,6 +219,7 @@ export function candidateDigestActionRowText(row: ActionRow) {
     [row.primary, row.secondary]
       .map((item) => `${item.label}: ${item.url}`)
       .join("\n"),
+    ...(row.caption ? [row.caption] : []),
   ].join("\n");
 }
 
@@ -280,10 +293,15 @@ export function buildCandidateDigestEmail(args: {
       // Harper's reply context carries the same ratings as plain lines, without URLs.
       if (criteria.length) replyBlocks.push(criteriaText(criteria).join("\n"));
       blocks.push(ACTION_ROW_MARKER(rows.length));
+      const primaryLabel = pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[primary]);
+      const caption = CANDIDATE_DIGEST_ACTION_CAPTIONS[primary];
       rows.push({
+        caption: caption
+          ? `${primaryLabel}: ${pick(locale, [caption.ko, caption.en])}`
+          : null,
         criteria,
         primary: {
-          label: pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[primary]),
+          label: primaryLabel,
           url: primaryUrl,
         },
         secondary: {

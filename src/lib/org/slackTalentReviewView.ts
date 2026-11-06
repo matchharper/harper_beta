@@ -1069,6 +1069,18 @@ export function buildSlackTalentReviewCandidateView(args: {
         }
   );
 
+  if (args.canManageCandidates) {
+    blocks.push({
+      block_id: "review_candidate_credit_caption",
+      elements: [
+        textObject(
+          `${COMPANY_TERMS.action.connect.ko}: ${COMPANY_TERMS.caption.connectUsesIntro.ko}`
+        ),
+      ],
+      type: "context",
+    });
+  }
+
   blocks.push(
     ...spacedDivider(),
     { text: textObject("*등록 자료*"), type: "section" },
