@@ -12,6 +12,7 @@ import {
   describeOpsCompanyAction,
   getOpsCompanyStageLabelKey,
   isHiddenOpsCompanyProgressActivity,
+  OPS_COMPANY_ACTIVITY_SOURCE,
   OPS_COMPANY_PROGRESS_KINDS,
 } from "@/lib/ops/companyActivityPresentation";
 
@@ -764,7 +765,7 @@ async function fetchTalentProgress(args: {
 }) {
   if (args.roleIds.length === 0) return [] as TalentProgressRow[];
   const { data, error } = await (
-    args.admin.from("talent_progress" as any) as any
+    args.admin.from(OPS_COMPANY_ACTIVITY_SOURCE as any) as any
   )
     .select(
       "id, talent_id, role_id, company_user_id, kind, metadata, text, created_at"

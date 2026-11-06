@@ -156,7 +156,7 @@ async function execute(args: {
   const { link, intro, user } = args;
   const workspaceId = link.company_workspace_id;
   if (link.action === "request_intro" || link.action === "pass") {
-    const common = { introCandidateId: link.intro_candidate_id, user, workspaceId };
+    const common = { channel: "email" as const, introCandidateId: link.intro_candidate_id, user, workspaceId };
     const result: OrgCompanyIntroMutationResponse = link.action === "request_intro"
       ? await requestOrgCompanyIntro({ ...common, companyAppeal: args.appeal, introRecipientEmails: [args.email] })
       : await passOrgCompanyIntro(common);

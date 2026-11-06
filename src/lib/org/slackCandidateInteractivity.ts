@@ -173,6 +173,7 @@ export async function handleSlackCandidateInteraction(
           slackUserId,
         });
       const common = {
+        channel: "slack" as const,
         introCandidateId: candidateId,
         user: actor.user,
         workspaceId: actor.context.workspaceId,

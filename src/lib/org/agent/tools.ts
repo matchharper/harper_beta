@@ -1458,6 +1458,13 @@ Call this once per exact candidate Role change and review the result before anot
             minLength: 1,
             type: "string",
           },
+          reason: {
+            description:
+              "For pass only, optional: why the company is passing, in the user's own words, when they gave a reason in this conversation. It is saved on the company's private decision record that later candidate searches learn from; it is never shown or sent to the candidate. Omit when no reason was given; do not infer or invent one. May be given on the initial call or the confirmation call.",
+            maxLength: 2_000,
+            minLength: 1,
+            type: "string",
+          },
           roleId: {
             description: "Exact Role ID for this company-first proposal.",
             type: "string",

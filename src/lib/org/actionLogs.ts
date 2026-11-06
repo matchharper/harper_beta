@@ -92,90 +92,51 @@ export async function recordOrgAction(args: {
   }
 }
 
-// The decision itself is already durable in company_intro_candidates. Mirror only
-// confirmed decisions into the existing Ops progress feed with one immutable ID.
-export async function recordOrgIntroDecision(args: {
+// Pass and request decisions, with their reason and channel, are recorded in
+// company_decision_events by pass/request_company_intro_v2 in the same
+// transaction as the card change; Ops reads them there. A reason typed on the
+// web Pass button is also shown to the company team as a candidate note, as
+// before. The note is a convenience copy, so a failed write is only logged.
+export async function recordOrgPassReasonNote(args: {
   admin: ReturnType<typeof getSupabaseAdmin>;
   workspaceId: string;
   introCandidateId: string;
-  decision: "request" | "pass";
   reason?: string;
 }) {
+  const reason = args.reason?.trim();
+  if (!reason) return;
   try {
     const { data: intro, error } = await (
       args.admin.from("company_intro_candidates" as any) as any
     )
-      .select(
-        "id, role_id, talent_id, requested_at, requested_by_company_user_id, status, updated_at"
-      )
+      .select("id, role_id, talent_id, requested_by_company_user_id, status")
       .eq("id", args.introCandidateId)
       .eq("company_workspace_id", args.workspaceId)
       .maybeSingle();
     if (error) throw error;
-    if (!intro?.requested_by_company_user_id) return;
-    if (
-      args.decision === "request"
-        ? !intro.requested_at
-        : intro.status !== "passed"
-    )
-      return;
-    const kind =
-      args.decision === "request"
-        ? "org_company_intro_requested"
-        : "org_company_intro_passed";
-    const { error: insertError } = await (
-      args.admin.from("talent_progress") as any
-    ).upsert(
+    if (!intro?.requested_by_company_user_id || intro.status !== "passed") return;
+    const { error: noteError } = await args.admin.from("talent_progress").upsert(
       {
-        id: uuidv5(`${kind}:${intro.id}`, uuidv5.URL),
-        kind,
+        id: uuidv5(`org-company-intro-pass-reason:${intro.id}`, uuidv5.URL),
+        kind: "org_note",
         role_id: intro.role_id,
         talent_id: intro.talent_id,
         company_user_id: intro.requested_by_company_user_id,
-        created_at:
-          args.decision === "request" ? intro.requested_at : intro.updated_at,
-        text:
-          args.decision === "request"
-            ? "회사가 Intro를 요청했습니다."
-            : "회사가 후보자 제안을 패스했습니다.",
+        text: reason,
         metadata: {
+          org: true,
           workspaceId: args.workspaceId,
           introCandidateId: intro.id,
-          ...(args.reason ? { reason: args.reason } : {}),
+          decision: "pass",
         },
         open_to_talent: false,
-        open_to_company: false,
+        open_to_company: true,
       },
       { onConflict: "id", ignoreDuplicates: true }
     );
-    if (insertError) throw insertError;
-    if (args.decision === "pass" && args.reason?.trim()) {
-      const { error: noteError } = await args.admin
-        .from("talent_progress")
-        .upsert(
-          {
-            id: uuidv5(`org-company-intro-pass-reason:${intro.id}`, uuidv5.URL),
-            kind: "org_note",
-            role_id: intro.role_id,
-            talent_id: intro.talent_id,
-            company_user_id: intro.requested_by_company_user_id,
-            text: args.reason.trim(),
-            metadata: {
-              org: true,
-              workspaceId: args.workspaceId,
-              introCandidateId: intro.id,
-              decision: "pass",
-            },
-            open_to_talent: false,
-            open_to_company: true,
-          },
-          { onConflict: "id", ignoreDuplicates: true }
-        );
-      if (noteError) throw noteError;
-    }
+    if (noteError) throw noteError;
   } catch (error) {
-    if (args.reason?.trim()) throw error;
-    console.error("[org/intro-decision-log]", {
+    console.error("[org/pass-reason-note]", {
       introCandidateId: args.introCandidateId,
       error,
     });

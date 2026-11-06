@@ -15,7 +15,7 @@ import { readAutomaticFollowupFeed } from "@/lib/org/automaticFollowupFeed";
 import { isCompanyFeedProgressVisible } from "@/lib/org/companyFeedVisibility";
 import { getCompanyFollowupProgress, type CompanyFollowupProgress } from "@/lib/org/companyFollowupProgress";
 import { isCompanyVisibleRole } from "@/lib/org/roleVisibility";
-import { recordOrgAction, recordOrgIntroDecision } from "@/lib/org/actionLogs";
+import { recordOrgAction, recordOrgPassReasonNote } from "@/lib/org/actionLogs";
 import type { OrgWorkspaceCreateResult, WorkspaceSignupState } from "./signup";
 import { companyHomepageInput, signupRpc } from "./signupServer";
 import { readCandidateDeliveryFacts, type CandidateDeliveryFacts } from "@/lib/companyFirstSearch/candidateDelivery";
@@ -3910,11 +3910,17 @@ async function assertOrgIntroRoleAccess(args: {
   await assertOrgRoleAccess({ ...args, roleId: data.role_id });
 }
 
+/** Where a company made a Pass/request decision (company_decision_events.channel). */
+export type CompanyIntroDecisionChannel = "web" | "chat" | "slack" | "email";
+
 export async function requestOrgCompanyIntro(args: {
+  channel: CompanyIntroDecisionChannel;
   companyAppeal: string;
   introCandidateId: string;
   introRecipientEmails: string[];
   nextStageId?: string | null;
+  /** company_messages.id of the chat/Slack message that confirmed the decision. */
+  sourceMessageId?: number | null;
   user: User;
   workspaceId: string;
 }): Promise<OrgCompanyIntroMutationResponse> {
@@ -3937,13 +3943,17 @@ export async function requestOrgCompanyIntro(args: {
   });
   await upsertOrgCompanyUser(admin, args.user);
   await assertOrgIntroRoleAccess({ admin, user: args.user, workspaceId, introCandidateId });
-  const { data, error } = await (admin.rpc as any)("request_company_intro_v1", {
+  // v2 runs request_company_intro_v1 and, when the card became requested,
+  // records the decision (company_decision_events) in the same transaction.
+  const { data, error } = await (admin.rpc as any)("request_company_intro_v2", {
+    p_channel: args.channel,
     p_company_appeal: companyAppeal,
     p_company_user_id: args.user.id,
     p_company_workspace_id: workspaceId,
     p_intro_candidate_id: introCandidateId,
     p_intro_recipient_emails: introRecipientEmails,
     p_next_stage_id: nextStageId || null,
+    p_source_message_id: args.sourceMessageId ?? null,
   });
   if (error) {
     if (error.message?.includes("workspace_credits_exhausted") || error.message?.includes("workspace_feature_unavailable"))
@@ -3985,7 +3995,6 @@ export async function requestOrgCompanyIntro(args: {
   if (result.status === "role_unavailable") {
     throw new OrgHttpError(409, "현재 이 역할에는 먼저 제안할 수 없습니다.");
   }
-  await recordOrgIntroDecision({ admin, workspaceId, introCandidateId, decision: "request" });
   await notifyIntroRequestForOps({
     admin,
     workspaceId,
@@ -4005,8 +4014,12 @@ export async function requestOrgCompanyIntro(args: {
 }
 
 export async function passOrgCompanyIntro(args: {
+  channel: CompanyIntroDecisionChannel;
+  /** The company's own reason, kept company-side on the decision record. */
   reason?: string;
   introCandidateId: string;
+  /** company_messages.id of the chat/Slack message that confirmed the decision. */
+  sourceMessageId?: number | null;
   user: User;
   workspaceId: string;
 }): Promise<OrgCompanyIntroMutationResponse> {
@@ -4024,16 +4037,23 @@ export async function passOrgCompanyIntro(args: {
   });
   await upsertOrgCompanyUser(admin, args.user);
   await assertOrgIntroRoleAccess({ admin, user: args.user, workspaceId, introCandidateId });
-  const { data, error } = await (admin.rpc as any)("pass_company_intro_v1", {
+  const reason = String(args.reason ?? "").trim().slice(0, 2000) || null;
+  // v2 runs pass_company_intro_v1 and, when the card became passed, records the
+  // decision with its reason (company_decision_events) in the same transaction.
+  const { data, error } = await (admin.rpc as any)("pass_company_intro_v2", {
+    p_channel: args.channel,
     p_company_user_id: args.user.id,
     p_company_workspace_id: workspaceId,
     p_intro_candidate_id: introCandidateId,
+    p_reason_text: reason,
+    p_source_message_id: args.sourceMessageId ?? null,
   });
   if (error) throw error;
   const result = normalizeCompanyIntroRpcResult(data);
-  await recordOrgIntroDecision({
-    admin, workspaceId, introCandidateId, decision: "pass", reason: args.reason,
-  });
+  // Only the web Pass button wrote this candidate note before; other channels
+  // keep their reason on the decision record only.
+  if (args.channel === "web" && reason && result.status === "passed")
+    await recordOrgPassReasonNote({ admin, workspaceId, introCandidateId, reason });
   return {
     introCandidateId: result.introCandidateId || introCandidateId,
     ok: true,

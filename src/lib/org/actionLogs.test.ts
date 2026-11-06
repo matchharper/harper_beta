@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { recordOrgAction, recordOrgIntroDecision } from "./actionLogs";
+import { recordOrgAction, recordOrgPassReasonNote } from "./actionLogs";
 
 function fixture(
   intro: Record<string, unknown> | null,
@@ -44,63 +44,50 @@ const intro = {
   role_id: "role",
   talent_id: "talent",
   requested_by_company_user_id: "actor",
-  requested_at: "2026-10-13T01:00:00Z",
-  updated_at: "2026-10-13T02:00:00Z",
-  status: "awaiting_talent",
+  status: "passed",
 };
-
-test("Intro request logs the persisted actor/time, never delivery completion", async () => {
-  const f = fixture(intro);
-  await recordOrgIntroDecision({
-    admin: f.admin,
-    workspaceId: "workspace",
-    introCandidateId: "intro",
-    decision: "request",
-  });
-  const row = [...f.rows.values()][0];
-  assert.equal(row.company_user_id, "actor");
-  assert.equal(row.created_at, intro.requested_at);
-  assert.equal(row.kind, "org_company_intro_requested");
-  assert.equal(row.open_to_talent, false);
-  assert.equal(row.open_to_company, false);
-  assert.deepEqual(f.filters, {
-    id: "intro",
-    company_workspace_id: "workspace",
-  });
+const passArgs = (admin: unknown, reason?: string) => ({
+  admin: admin as any,
+  workspaceId: "workspace",
+  introCandidateId: "intro",
+  reason,
 });
 
-test("retries preserve the first decision event", async () => {
-  const f = fixture({ ...intro, status: "passed", requested_at: null });
-  const args = {
-    admin: f.admin,
-    workspaceId: "workspace",
-    introCandidateId: "intro",
-    decision: "pass" as const,
-  };
+test("a web Pass reason stays a company-only note on the candidate", async () => {
+  const f = fixture(intro);
+  await recordOrgPassReasonNote(passArgs(f.admin, "  연차가 부족해요  "));
+  assert.equal(f.rows.size, 1);
+  const row = [...f.rows.values()][0];
+  assert.equal(row.kind, "org_note");
+  assert.equal(row.text, "연차가 부족해요");
+  assert.equal(row.company_user_id, "actor");
+  assert.equal(row.open_to_talent, false);
+  assert.equal(row.open_to_company, true);
+  assert.deepEqual(f.filters, { id: "intro", company_workspace_id: "workspace" });
+});
+
+test("the Pass decision itself is no longer copied into talent_progress", async () => {
+  const f = fixture(intro);
+  await recordOrgPassReasonNote(passArgs(f.admin));
+  await recordOrgPassReasonNote(passArgs(f.admin, "   "));
+  assert.equal(f.rows.size, 0);
+});
+
+test("retries keep one note, and only for a confirmed Pass", async () => {
+  const f = fixture(intro);
   await Promise.all([
-    recordOrgIntroDecision(args),
-    recordOrgIntroDecision(args),
+    recordOrgPassReasonNote(passArgs(f.admin, "같은 사유")),
+    recordOrgPassReasonNote(passArgs(f.admin, "같은 사유")),
   ]);
   assert.equal(f.rows.size, 1);
-  assert.equal([...f.rows.values()][0].kind, "org_company_intro_passed");
-});
-
-test("unconfirmed, missing and unrelated decisions do not produce events", async () => {
   for (const row of [
     null,
     { ...intro, requested_by_company_user_id: null },
-    { ...intro, requested_at: null, status: "ready" },
+    { ...intro, status: "ready" },
   ]) {
-    const f = fixture(row);
-    for (const decision of ["request", "pass"] as const) {
-      await recordOrgIntroDecision({
-        admin: f.admin,
-        workspaceId: "workspace",
-        introCandidateId: "intro",
-        decision,
-      });
-    }
-    assert.equal(f.rows.size, 0);
+    const other = fixture(row);
+    await recordOrgPassReasonNote(passArgs(other.admin, "사유"));
+    assert.equal(other.rows.size, 0);
   }
 });
 
@@ -166,11 +153,6 @@ test("logging failures cannot report a completed business action as failed", asy
   }
   const f = fixture(null, new Error("offline"));
   await assert.doesNotReject(
-    recordOrgIntroDecision({
-      admin: f.admin,
-      workspaceId: "workspace",
-      introCandidateId: "intro",
-      decision: "request",
-    })
+    recordOrgPassReasonNote(passArgs(f.admin, "사유"))
   );
 });

@@ -29,6 +29,8 @@ export type OrgAgentCompanyIntroDecision = "request_intro" | "pass";
 export type OrgAgentCompanyIntroDecisionConfirmation = {
   actorId: string;
   companyAppeal: string | null;
+  /** pass only: the company's own reason, kept on the company decision record. */
+  reason?: string | null;
   decision: OrgAgentCompanyIntroDecision;
   introCandidateId: string;
   introRecipientEmails: string[];

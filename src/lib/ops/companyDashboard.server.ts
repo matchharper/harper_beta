@@ -14,6 +14,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { type CompanyDashboard } from "./companyDashboardTypes";
 import {
   describeOpsCompanyProgressActivity,
+  OPS_COMPANY_ACTIVITY_SOURCE,
   OPS_COMPANY_PROGRESS_KINDS,
   OPS_COMPANY_DIRECTORY_PROGRESS_KINDS,
   getOpsCompanyStageLabelKey,
@@ -213,8 +214,7 @@ export async function fetchCompanyDashboard(
           .map((r) => r.role_id);
         const [decisions, invitations] = await Promise.all([
           companyRoleIds.length
-            ? admin
-                .from("talent_progress")
+            ? (admin.from(OPS_COMPANY_ACTIVITY_SOURCE as any) as any)
                 .select("id,role_id,talent_id,kind,metadata,text,created_at")
                 .in("role_id", companyRoleIds)
                 .in("kind", OPS_COMPANY_DIRECTORY_PROGRESS_KINDS)
@@ -263,8 +263,7 @@ export async function fetchCompanyDashboard(
     for (let i = 0; i < roleIds.length; i += 150) {
       progress.push(
         ...(await readRows(() =>
-          admin
-            .from("talent_progress")
+          (admin.from(OPS_COMPANY_ACTIVITY_SOURCE as any) as any)
             .select("id,role_id,talent_id,kind,metadata,text,created_at")
             .in("role_id", roleIds.slice(i, i + 150))
             .in("kind", OPS_COMPANY_PROGRESS_KINDS)
