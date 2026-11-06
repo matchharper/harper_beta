@@ -12,7 +12,7 @@ import {
   type RoleStartLevel,
   type RoleStartProbe,
 } from "./brief";
-import { roleStartSql } from "./db";
+import { roleStartSql, type RoleStartDb } from "./db";
 import { sessionChatWrite, type SessionChatWrite } from "./sessionChat";
 import type { RoleStartPool } from "./fastPath";
 import type { RoleStartLlmUsage } from "./llm";
@@ -431,23 +431,48 @@ type SessionPatch = Partial<
   >
 >;
 
-/**
- * Optimistic write: callers pass the revision they read. A concurrent click or
- * background step that already moved the session makes this return null.
- */
-export async function saveRoleStartSession(args: {
+/** Who and where a Brief change comes from; its Brief version records both. */
+export type RoleStartBriefChange = {
+  /** answer, slack_answer, reference, signals, summary, website, chat, ... */
+  source: string;
+  /** The team member who made it; none for Harper's own background steps. */
+  userId?: string | null;
+};
+
+/** A Brief written by role start with no more specific source. */
+export const ROLE_START_BRIEF_SOURCE = "role_start";
+
+type SessionWrite = {
   roleId: string;
   expectedRevision?: number;
   /** Write only while the session is still in one of these phases (background steps). */
   expectedPhase?: RoleStartPhase | RoleStartPhase[];
   patch: SessionPatch;
   timings?: Record<string, number | string | null>;
-  chat?: SessionChatWrite;
-}) {
-  const sql = roleStartSql();
+};
+
+/**
+ * Sets who and where for the Brief version the same statement writes. The
+ * write waits for it (`(select context from change_context) is not null`), so
+ * the setting is in place before the version trigger reads it, still in one
+ * round trip. Transaction-local: it ends with the statement's transaction.
+ */
+function changeContextCte(sql: RoleStartDb, change: RoleStartBriefChange) {
+  const userId = change.userId || null;
+  return sql`change_context as (
+    select set_config('harper.hiring_brief_change_context', jsonb_build_object(
+      'source', ${change.source}::text,
+      'actorUserId', ${userId}::uuid,
+      'actorLabel', ${userId ? sql`(select u.name from public.company_users u where u.user_id = ${userId}::uuid)` : sql`null::text`}
+    )::text, true) as context
+  ),`;
+}
+
+/** The session update and its chat writes, one statement. `change`: who and where for a Brief it writes. */
+function writeSession(sql: RoleStartDb, args: SessionWrite & { chat?: SessionChatWrite }, change: RoleStartBriefChange | null) {
   const patch = args.patch;
   const json = (value: unknown) => sql.json(wellFormedJson(value));
-  const rows = await sql<Row[]>`with saved_session as (
+  return sql<Row[]>`with ${change ? changeContextCte(sql, change) : sql``} saved_session as (
     update public.company_role_start_sessions set
       phase = ${patch.phase ?? sql`phase`},
       brief = ${patch.brief ? json(normalizeRoleStartBrief(patch.brief)) : sql`brief`},
@@ -462,6 +487,7 @@ export async function saveRoleStartSession(args: {
       revision = revision + 1,
       updated_at = now()
     where role_id = ${args.roleId}
+      ${change ? sql`and (select context from change_context) is not null` : sql``}
       ${args.expectedRevision === undefined ? sql`` : sql`and revision = ${args.expectedRevision}`}
       ${
         args.expectedPhase === undefined
@@ -472,31 +498,58 @@ export async function saveRoleStartSession(args: {
     ) ${args.chat ? sessionChatWrite(sql, args.roleId, args.chat) : sql``}
     select * from saved_session
   `;
-  if (!rows[0]) return null;
-  // The pool lives in its own row; written only when the session write succeeded.
-  if ("pool" in patch) {
-    if (patch.pool) {
-      await sql`
-        insert into public.company_role_start_pools (role_id, pool, updated_at)
-        values (${args.roleId}, ${json(patch.pool)}, now())
-        on conflict (role_id) do update set pool = excluded.pool, updated_at = now()
-      `;
-    } else {
-      await sql`delete from public.company_role_start_pools where role_id = ${args.roleId}`;
-    }
-    return { ...fromRow(rows[0]), pool: patch.pool ?? null };
-  }
-  // The pool is not read back: a caller that needs it loads it withPool.
-  return fromRow(rows[0]);
 }
 
-/** The fixed compensation answer and Role field are one commit and one DB round trip. */
-export async function saveRoleStartCompensation(roleId: string, salary: string) {
+/** The pool lives in its own row; written only after the session write succeeded. */
+async function writePool(roleId: string, patch: SessionPatch, row: Row) {
+  if (!("pool" in patch)) {
+    // The pool is not read back: a caller that needs it loads it withPool.
+    return fromRow(row);
+  }
+  const sql = roleStartSql();
+  if (patch.pool) {
+    await sql`
+      insert into public.company_role_start_pools (role_id, pool, updated_at)
+      values (${roleId}, ${sql.json(wellFormedJson(patch.pool))}, now())
+      on conflict (role_id) do update set pool = excluded.pool, updated_at = now()
+    `;
+  } else {
+    await sql`delete from public.company_role_start_pools where role_id = ${roleId}`;
+  }
+  return { ...fromRow(row), pool: patch.pool ?? null };
+}
+
+/**
+ * Optimistic write: callers pass the revision they read. A concurrent click or
+ * background step that already moved the session makes this return null.
+ * A patch with a Brief records `change` (who and where) on its Brief version.
+ */
+export async function saveRoleStartSession(args: SessionWrite & {
+  chat?: SessionChatWrite;
+  /** Who and where, for the Brief version when the patch writes the Brief. */
+  change?: RoleStartBriefChange;
+}) {
+  const change = args.patch.brief ? (args.change ?? { source: ROLE_START_BRIEF_SOURCE }) : null;
+  const rows = await writeSession(roleStartSql(), args, change);
+  if (!rows[0]) return null;
+  return writePool(args.roleId, args.patch, rows[0]);
+}
+
+/**
+ * The fixed compensation answer and Role field are one commit and one DB round
+ * trip; the salary's Brief version records `change` (who and where).
+ */
+export async function saveRoleStartCompensation(
+  roleId: string,
+  salary: string,
+  change: RoleStartBriefChange = { source: ROLE_START_BRIEF_SOURCE }
+) {
   const sql = roleStartSql();
   const rows = await sql<Array<Row & { salary_range: string | null }>>`
-    with salary_write as (
+    with ${changeContextCte(sql, change)} salary_write as (
       update public.company_roles set salary_range = ${salary}, updated_at = now()
-      where role_id = ${roleId} and ${Boolean(salary)} returning salary_range
+      where role_id = ${roleId} and ${Boolean(salary)} and (select context from change_context) is not null
+      returning salary_range
     ), saved_session as (
       update public.company_role_start_sessions
       set questions = jsonb_set(questions, '{compensation}', ${sql.json(salary ? "answered" : "skipped")}),
@@ -565,9 +618,8 @@ export function onBriefSaved(listener: (roleId: string, brief: RoleStartBrief, c
   afterBriefSaved = listener;
 }
 
-export async function saveRoleStartBrief(args: {
-  roleId: string;
-  brief: RoleStartBrief;
+/** How a role start Brief is saved and whether the Role's copy follows it. */
+export type RoleStartBriefSave = {
   changeSource: string;
   changeSummary: string | null;
   userId: string | null;
@@ -579,57 +631,73 @@ export async function saveRoleStartBrief(args: {
   writeRole: boolean | "criteria";
   historySource?: string;
   requestReview?: boolean;
-}) {
-  const sql = roleStartSql();
-  // Serialize writes from the current session and capture one existing history
-  // item per transaction. Internal draft refinements never create fake history.
-  const { version, historyIds } = await sql.begin(async (tx) => {
-    await tx`select pg_advisory_xact_lock(hashtext(${`role_brief_version:${args.roleId}`}))`;
-    // Published saves use the session, so the Role is written from the
-    // session's Brief as it is now: a slower save of an older Brief cannot land last.
-    const [current] = await tx<Array<{ brief: unknown }>>`
-      select brief from public.company_role_start_sessions where role_id = ${args.roleId}
-    `;
-    const roleBrief = normalizeRoleStartBrief(current?.brief ?? args.brief);
-    // Grade signals stay in the working session, never on the Role's list.
-    const criteria = roleBrief.criteria.map(
-      ({ rule: _rule, kind: _kind, evidenceTerms: _terms, signals: _signals, signalsOf: _of, reference: _reference, ...criterion }) => criterion
-    );
-    const markdown = renderBriefMarkdown(roleBrief);
-    // The structured working draft stays in the session. Saved company-facing
-    // text and criteria use the existing history trigger and search hash.
-    if (args.changeSource === "jd_draft" || args.changeSource === "confirmed") {
-      await tx`update public.company_role_start_sessions set brief_source = 'onboarding'
-        where role_id = ${args.roleId} and phase <> 'superseded'`;
-    }
-    if (args.writeRole) {
-      // One Brief write (write_company_role_brief_v1) in this same transaction:
-      // the version and history record who and where. Background saves without
-      // an author remain explicitly unattributed. A registered Role's text and
-      // list are copies of this Brief, and only role start writes them.
-      const [actor] = args.userId
-        ? await tx<Array<{ name: string | null }>>`select name from public.company_users where user_id = ${args.userId}`
-        : [];
-      await tx`select public.write_company_role_brief_v1(
-        ${args.roleId}::uuid,
-        ${args.writeRole === "criteria" ? null : markdown},
-        ${tx.json(wellFormedJson(criteria))},
-        ${args.historySource ?? args.changeSource},
-        ${args.userId}::uuid,
-        ${actor?.name ?? null},
-        ${args.requestReview === true && args.historySource === "website" && Boolean(args.userId)},
-        true
-      )`;
-    }
-    const history = args.writeRole
-      ? await tx<Array<{ id: string }>>`select id from public.company_role_hiring_brief_history
-          where role_id = ${args.roleId} and transaction_id = txid_current()`
-      : [];
-    const [currentVersion] = await tx<Array<{ version: string }>>`
-      select public.company_role_search_brief_version_v1(${args.roleId}::uuid) as version
-    `;
-    return { version: currentVersion.version, historyIds: history.map(row => row.id) };
-  });
+};
+
+/** Serializes Brief writes of one Role (taken first in each Brief transaction). */
+function lockBrief(tx: RoleStartDb, roleId: string) {
+  return tx`select pg_advisory_xact_lock(hashtext(${`role_brief_version:${roleId}`}))`;
+}
+
+async function actorName(tx: RoleStartDb, userId: string | null) {
+  if (!userId) return null;
+  const [actor] = await tx<Array<{ name: string | null }>>`select name from public.company_users where user_id = ${userId}`;
+  return actor?.name ?? null;
+}
+
+/**
+ * The Role's saved Brief text and criteria from the session's Brief, inside the
+ * caller's transaction, and the search Brief hash after it.
+ */
+async function writeRoleCopy(tx: RoleStartDb, roleId: string, fallback: RoleStartBrief, args: RoleStartBriefSave, actorLabel: string | null) {
+  // Published saves use the session, so the Role is written from the
+  // session's Brief as it is now: a slower save of an older Brief cannot land last.
+  const [current] = await tx<Array<{ brief: unknown }>>`
+    select brief from public.company_role_start_sessions where role_id = ${roleId}
+  `;
+  const roleBrief = normalizeRoleStartBrief(current?.brief ?? fallback);
+  // Grade signals stay in the working session, never on the Role's list.
+  const criteria = roleBrief.criteria.map(
+    ({ rule: _rule, kind: _kind, evidenceTerms: _terms, signals: _signals, signalsOf: _of, reference: _reference, ...criterion }) => criterion
+  );
+  const markdown = renderBriefMarkdown(roleBrief);
+  // The structured working draft stays in the session. Saved company-facing
+  // text and criteria use the existing history trigger and search hash.
+  if (args.changeSource === "jd_draft" || args.changeSource === "confirmed") {
+    await tx`update public.company_role_start_sessions set brief_source = 'onboarding'
+      where role_id = ${roleId} and phase <> 'superseded'`;
+  }
+  if (args.writeRole) {
+    // One Brief write (write_company_role_brief_v1) in this same transaction:
+    // the version and history record who and where. Background saves without
+    // an author remain explicitly unattributed. A registered Role's text and
+    // list are copies of this Brief, and only role start writes them.
+    await tx`select public.write_company_role_brief_v1(
+      ${roleId}::uuid,
+      ${args.writeRole === "criteria" ? null : markdown},
+      ${tx.json(wellFormedJson(criteria))},
+      ${args.historySource ?? args.changeSource},
+      ${args.userId}::uuid,
+      ${actorLabel},
+      ${reviewRequested(args)},
+      true
+    )`;
+  }
+  const history = args.writeRole
+    ? await tx<Array<{ id: string }>>`select id from public.company_role_hiring_brief_history
+        where role_id = ${roleId} and transaction_id = txid_current()`
+    : [];
+  const [currentVersion] = await tx<Array<{ version: string }>>`
+    select public.company_role_search_brief_version_v1(${roleId}::uuid) as version
+  `;
+  return { version: currentVersion.version, historyIds: history.map(row => row.id) };
+}
+
+function reviewRequested(args: RoleStartBriefSave) {
+  return args.requestReview === true && args.historySource === "website" && Boolean(args.userId);
+}
+
+/** History summaries and the background preparation, after the Brief transaction committed. */
+async function afterBriefCommitted(roleId: string, historyIds: string[], brief: RoleStartBrief, changeSource: string) {
   if (historyIds.length) {
     const dispatch = async () => {
       try {
@@ -642,7 +710,49 @@ export async function saveRoleStartBrief(args: {
     };
     try { after(dispatch); } catch { await dispatch(); }
   }
-  afterBriefSaved?.(args.roleId, args.brief, args.changeSource);
+  afterBriefSaved?.(roleId, brief, changeSource);
+}
+
+/**
+ * One Brief save: the session with its Brief and, when asked, the Role's saved
+ * text and criteria list, in one transaction that carries who and where. The
+ * save is then one Brief version, instead of one for the session and another
+ * for the Role's copy (with the copy still old in between). Null, with nothing
+ * written, when the session moved meanwhile.
+ */
+export async function saveRoleStartSessionBrief(
+  args: SessionWrite & { patch: SessionPatch & { brief: RoleStartBrief }; save: RoleStartBriefSave }
+) {
+  const sql = roleStartSql();
+  const outcome = await sql.begin(async (tx) => {
+    await lockBrief(tx, args.roleId);
+    const actorLabel = await actorName(tx, args.save.userId);
+    await tx`select set_config('harper.hiring_brief_change_context', ${JSON.stringify({
+      actorUserId: args.save.userId,
+      actorLabel,
+      source: args.save.historySource ?? args.save.changeSource,
+      requestReview: reviewRequested(args.save),
+    })}, true)`;
+    const [row] = await writeSession(tx, args, null);
+    if (!row) return null;
+    const written = await writeRoleCopy(tx, args.roleId, args.patch.brief, args.save, actorLabel);
+    return { row, ...written };
+  });
+  if (!outcome) return null;
+  const session = await writePool(args.roleId, args.patch, outcome.row);
+  await afterBriefCommitted(args.roleId, outcome.historyIds, args.patch.brief, args.save.changeSource);
+  return { session, version: outcome.version };
+}
+
+export async function saveRoleStartBrief(args: { roleId: string; brief: RoleStartBrief } & RoleStartBriefSave) {
+  const sql = roleStartSql();
+  // Serialize writes from the current session and capture one existing history
+  // item per transaction. Internal draft refinements never create fake history.
+  const { version, historyIds } = await sql.begin(async (tx) => {
+    await lockBrief(tx, args.roleId);
+    return writeRoleCopy(tx, args.roleId, args.brief, args, args.writeRole ? await actorName(tx, args.userId) : null);
+  });
+  await afterBriefCommitted(args.roleId, historyIds, args.brief, args.changeSource);
   return version;
 }
 

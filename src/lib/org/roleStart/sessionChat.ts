@@ -1,7 +1,7 @@
 import "server-only";
 
 import { buildOrgHref } from "@/lib/org/routes";
-import type { roleStartSql } from "./db";
+import type { RoleStartDb } from "./db";
 import type { RoleStartQuestion } from "./session";
 
 export type SessionChatWrite = {
@@ -34,7 +34,7 @@ export function roleStartBriefReadyMessage(roleId: string, workspaceId: string) 
 }
 
 /** CTEs gated by saved_session: the answer, navigation card and session commit together. */
-export function sessionChatWrite(sql: ReturnType<typeof roleStartSql>, roleId: string, chat: SessionChatWrite) {
+export function sessionChatWrite(sql: RoleStartDb, roleId: string, chat: SessionChatWrite) {
   const next = chat.nextQuestion;
   const card = next ? roleStartQuestionMessage(next)
     : chat.briefReady ? roleStartBriefReadyMessage(roleId, chat.workspaceId) : null;

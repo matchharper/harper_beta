@@ -2726,6 +2726,8 @@ export async function fetchOpsMatchingAllRoles(args: {
 
 export async function updateOpsMatchingAllRole(args: {
   eventActorLabel: string;
+  /** The Ops user, recorded on settings versions with "ops". */
+  eventActorUserId?: string | null;
   roleId?: string | null;
   status?: OpportunityStatus;
 }): Promise<OpsMatchingAllRoleUpdateResponse> {
@@ -2747,7 +2749,9 @@ export async function updateOpsMatchingAllRole(args: {
   const status = normalizeAllRoleStatus(args.status);
   await applyWebsiteCompanyDataChanges({
     actorLabel: args.eventActorLabel,
+    actorUserId: args.eventActorUserId ?? undefined,
     admin,
+    changeSource: "ops",
     changes: [{ key: "role_status", roleId, value: status }],
     workspaceId: existingRole.company_workspace_id,
   });

@@ -8358,6 +8358,10 @@ export async function updateOrgRole(args: {
       requestReview:args.requestReview ?? false,
       admin,
       changes,
+      // In the same save, so it is one Brief version with who and where.
+      ...(args.salaryRange !== undefined
+        ? { salaryRange: { roleId, value: normalizeNullableText(args.salaryRange)?.slice(0, 1_000) ?? null } }
+        : {}),
       source: args.source ?? "website",
       workspaceId,
     });
@@ -8374,19 +8378,6 @@ export async function updateOrgRole(args: {
     }
     throw error;
   }
-
-  if (args.salaryRange !== undefined) {
-    const salaryRange =
-      normalizeNullableText(args.salaryRange)?.slice(0, 1_000) ?? null;
-    const { error: salaryError } = await (
-      admin.from("company_roles" as any) as any
-    )
-      .update({ salary_range: salaryRange })
-      .eq("company_workspace_id", workspaceId)
-      .eq("role_id", roleId);
-    if (salaryError) throw salaryError;
-  }
-
 
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(

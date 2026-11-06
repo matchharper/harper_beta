@@ -43,6 +43,7 @@ async function handleSave(req: NextRequest) {
     descriptionSummary: body.descriptionSummary,
     employmentTypes: body.employmentTypes,
     eventActorLabel: getCompanyEventActorLabelFromUser(user),
+    eventActorUserId: user.id,
     expiresAt: body.expiresAt,
     externalJdUrl: body.externalJdUrl,
     locationText: body.locationText,
