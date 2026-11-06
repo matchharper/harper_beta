@@ -703,6 +703,7 @@ export async function loadOrgRoleTodo(args: {
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
     .in("status", ["active", "paused"])
+    .is("target_refs->>introductionRootId", null)
     .order("next_run_at", { ascending: true })
     .limit(20);
   if (schedulesError) throw schedulesError;

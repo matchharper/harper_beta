@@ -158,8 +158,13 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
       "SELECT * FROM public.company_agent_schedules WHERE id=$1::uuid",
       [job.action_context.scheduleId]
     );
-    if (!schedule.target_refs?.introductionRootId) scheduleTier = Number(schedule.effect_tier ?? 0);
-    eventText = `Scheduled company work ${schedule.id}; revision ${schedule.directive_revision}\n${schedule.title}\n${schedule.instruction}${schedule.target_refs?.introductionRootId ? `\nIntroduction ${schedule.target_refs.introductionRootId}` : `\nEffect tier ${scheduleTier} (${schedule.created_by === "user" ? "asked by a company member" : "Harper's own"}): ${scheduleTier >= 2 ? "you may search, contact candidates or publish if still useful" : "look again and message the company only if useful; do not search, contact or publish"}.`}`;
+    const tier = schedule.target_refs?.introductionRootId ? null : Number(schedule.effect_tier ?? 0);
+    scheduleTier = tier;
+    const tierLine =
+      tier === null
+        ? ""
+        : `\nEffect tier ${tier} (${schedule.created_by === "user" ? "asked by a company member" : "Harper's own"}): ${tier >= 2 ? "you may search, contact candidates or publish if still useful" : "look again and message the company only if useful; do not search, contact or publish"}.`;
+    eventText = `Scheduled company work ${schedule.id}; revision ${schedule.revision}\n${schedule.title}\n${schedule.instruction}${schedule.target_refs?.introductionRootId ? `\nIntroduction ${schedule.target_refs.introductionRootId}` : tierLine}`;
   }
   // An earlier execution may have committed its body before a delivery timeout.
   const pending = await db.query(

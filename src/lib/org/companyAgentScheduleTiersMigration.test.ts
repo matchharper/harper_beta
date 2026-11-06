@@ -87,7 +87,12 @@ test("Harper's own schedules carry a tier and limits; cancelling one is a compan
     // At most 5 active per Role (introduction follow-ups not counted); paused ones do not count.
     for (let index = 0; index < 4; index += 1) await add({ effect_tier: 0, created_by: "agent" });
     await assert.rejects(add({ effect_tier: 1, created_by: "agent" }), /company_schedule_role_limit/);
-    await add({ effect_tier: 1, created_by: "agent", status: "paused" });
+    const paused = (await add({ effect_tier: 1, created_by: "agent", status: "paused" })).rows[0];
+    // Resuming a sixth is refused; routine updates of active rows still work at the limit.
+    await assert.rejects(db.query("update company_agent_schedules set status = 'active' where id = $1", [paused.id]),
+      /company_schedule_role_limit/);
+    await db.query(`update company_agent_schedules set next_run_at = now() + interval '1 day', run_count = run_count + 1
+      where status = 'active' and role_id = $1`, [role]);
 
     // A company member cancelling: one decision; an event run cancelling: none.
     const decisions = async () => (await db.query<any>(
@@ -108,6 +113,19 @@ test("Harper's own schedules carry a tier and limits; cancelling one is a compan
     await db.query(`update company_agent_schedules set status = 'cancelled', source = $2::jsonb where id = $1`,
       [third.id, JSON.stringify({ kind: "company", userId: user, messageId: 2, actor: "user", channel: "slack" })]);
     assert.deepEqual((await decisions()).map((row) => row.channel).sort(), ["slack", "todo"]);
+    // A source user that is not a member id still cancels; the decision has no actor.
+    const [fourth] = (await db.query<any>("select id from company_agent_schedules where status = 'active' and not target_refs ? 'introductionRootId' limit 1")).rows;
+    await db.query(`update company_agent_schedules set status = 'cancelled', source = $2::jsonb where id = $1`,
+      [fourth.id, JSON.stringify({ kind: "company", userId: "U0SLACK", channel: "slack" })]);
+    assert.equal((await decisions()).length, 3);
+    // The scheduler closing a schedule leaves its source as it was: not a decision.
+    await db.query(`update company_agent_schedules set source = $2::jsonb where id = $1`,
+      [paused.id, JSON.stringify({ kind: "company", userId: user, messageId: 3, actor: "user", channel: "chat" })]);
+    await db.query("update company_agent_schedules set status = 'cancelled', revision = revision + 1 where id = $1", [paused.id]);
+    // An introduction follow-up is not a company decision either.
+    await db.query(`update company_agent_schedules set status = 'cancelled', source = $1::jsonb
+      where target_refs ? 'introductionRootId'`, [JSON.stringify({ kind: "company", userId: user, messageId: 4, actor: "user", channel: "chat" })]);
+    assert.equal((await decisions()).length, 3);
     // Freed slots can be used again.
     await add({ effect_tier: 0, created_by: "user" });
   } finally { await db.close(); }

@@ -18,7 +18,8 @@
 --   (decision record: subject agent_schedule, action cancel): from the To-do,
 --   or Harper cancelling it in reply to the member's own chat or Slack
 --   message. Harper cancelling during a run started by a button or an event
---   (source.actor = agent) is not.
+--   (source.actor = agent) is not, nor is the scheduler closing a schedule
+--   (its source is left as it was) or an introduction's follow-up.
 
 alter table public.company_agent_schedules
   add column if not exists effect_tier smallint not null default 2
@@ -53,12 +54,18 @@ begin
   if new.interval_days is not null and new.interval_days < 1 then
     raise exception using errcode = '23514', message = 'company_schedule_interval_too_short';
   end if;
-  if new.status = 'active' and (
-    select count(*) from public.company_agent_schedules other
-    where other.role_id = new.role_id and other.id <> new.id and other.status = 'active'
-      and not coalesce(other.target_refs, '{}'::jsonb) ? 'introductionRootId'
-  ) >= 5 then
-    raise exception using errcode = '23514', message = 'company_schedule_role_limit';
+  -- The Role limit is checked when a schedule becomes active, one Role at a
+  -- time, so routine updates of active rows (each run's next time and count)
+  -- never fail on it.
+  if new.status = 'active' and (tg_op = 'INSERT' or old.status is distinct from 'active') then
+    perform pg_advisory_xact_lock(hashtextextended('company_agent_schedule_role:' || new.role_id::text, 0));
+    if (
+      select count(*) from public.company_agent_schedules other
+      where other.role_id = new.role_id and other.id <> new.id and other.status = 'active'
+        and not coalesce(other.target_refs, '{}'::jsonb) ? 'introductionRootId'
+    ) >= 5 then
+      raise exception using errcode = '23514', message = 'company_schedule_role_limit';
+    end if;
   end if;
   return new;
 end;
@@ -97,7 +104,8 @@ begin
     jsonb_build_object('title', new.title, 'effectTier', new.effect_tier, 'createdBy', new.created_by,
       'revision', new.revision),
     case when v_channel in ('web', 'todo', 'chat', 'slack', 'email') then v_channel else 'unknown' end,
-    nullif(new.source ->> 'userId', '')::uuid,
+    case when new.source ->> 'userId' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+      then (new.source ->> 'userId')::uuid end,
     'agent_schedule:' || new.id::text || ':cancel:' || new.revision::text
   )
   on conflict (role_id, idempotency_key) do nothing;
@@ -111,5 +119,7 @@ create trigger company_agent_schedules_cancel_decision
   after update of status on public.company_agent_schedules
   for each row
   when (new.status = 'cancelled' and old.status is distinct from 'cancelled'
+    and not coalesce(new.target_refs, '{}'::jsonb) ? 'introductionRootId'
+    and new.source is distinct from old.source
     and new.source ->> 'kind' = 'company' and coalesce(new.source ->> 'actor', 'user') = 'user')
   execute function public.record_company_schedule_cancel_v1();

@@ -9,7 +9,7 @@ import {
   sendAgentContact,
 } from "./store";
 import { readAgentCorrespondence } from "./read";
-import { manageCompanySchedule } from "./schedules";
+import { manageCompanySchedule, CompanyScheduleInputError } from "./schedules";
 import type { Database } from "@/lib/career/matching/internalScoring/database";
 
 export function companyContactSource(args: {
@@ -64,7 +64,13 @@ export async function executeCompanyCorrespondence(
       throw new Error(
         "A stable operationId is required for creating a schedule; reuse it only for the same request."
       );
-    return manageCompanySchedule(source, input, operationKey, database);
+    return manageCompanySchedule(source, input, operationKey, database).catch(async (error) => {
+      // A refused schedule change goes back to the model to correct; it does
+      // not fail the run (event and schedule runs throw other tool errors).
+      if (!(error instanceof CompanyScheduleInputError)) throw error;
+      const { OrgAgentToolInputError } = await import("@/lib/org/agent/toolAvailability");
+      throw new OrgAgentToolInputError(error.message);
+    });
   }
   if (args.name === "contact_talent") {
     const result = await sendAgentContact(

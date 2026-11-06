@@ -26,16 +26,34 @@ const GENERAL_LIMIT_MESSAGES: Record<string, string> = {
   company_schedule_creator_required: "Schedule creator is unknown.",
 };
 
+/**
+ * A schedule change the server refuses (a limit, a stale revision, an invalid
+ * value). The model can correct it, so the tool returns it to the model
+ * instead of failing the whole run (companyTools maps it to a tool input error).
+ */
+export class CompanyScheduleInputError extends Error {
+  override name = "CompanyScheduleInputError";
+}
+
 function scheduleLimitError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const known = Object.keys(GENERAL_LIMIT_MESSAGES).find((key) => message.includes(key));
-  return known ? new Error(GENERAL_LIMIT_MESSAGES[known]) : error;
+  return known ? new CompanyScheduleInputError(GENERAL_LIMIT_MESSAGES[known]) : error;
+}
+
+/** Next run time; a recurrence or timezone the model got wrong is its input to fix. */
+function occurrence(recurrence: string | null, timezone: string, interval: number | null) {
+  try {
+    return nextScheduleOccurrence(recurrence, timezone, new Date(), interval);
+  } catch (error) {
+    throw new CompanyScheduleInputError(`Invalid schedule recurrence or timezone: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /** Recurring Harper work runs at most once a day. */
 function assertDailyAtMost(recurrence: string | null, timezone: string, interval: number | null) {
   if (interval != null) {
-    if (interval < 1) throw new Error(GENERAL_LIMIT_MESSAGES.company_schedule_interval_too_short);
+    if (interval < 1) throw new CompanyScheduleInputError(GENERAL_LIMIT_MESSAGES.company_schedule_interval_too_short);
     return;
   }
   if (!recurrence) return;
@@ -45,7 +63,7 @@ function assertDailyAtMost(recurrence: string | null, timezone: string, interval
     if (!next) return;
     const nextAt = new Date(next);
     if (index > 0 && nextAt.getTime() - at.getTime() < 23 * 3_600_000)
-      throw new Error(GENERAL_LIMIT_MESSAGES.company_schedule_interval_too_short);
+      throw new CompanyScheduleInputError(GENERAL_LIMIT_MESSAGES.company_schedule_interval_too_short);
     at = nextAt;
   }
 }
@@ -114,7 +132,7 @@ export async function manageCompanySchedule(
         authorizedRoot &&
         previous.target_refs?.introductionRootId !== authorizedRoot
       )
-        throw new Error(
+        throw new CompanyScheduleInputError(
           "This introduction event cannot change another company's scheduled responsibility"
         );
     }
@@ -124,9 +142,13 @@ export async function manageCompanySchedule(
       input.action !== "create" &&
       (!previous || Number(previous.revision) !== input.expectedRevision)
     )
-      throw new Error("Schedule revision changed; reread before modifying");
+      throw new CompanyScheduleInputError("Schedule revision changed; reread before modifying");
     const timezone = input.timezone ?? previous?.timezone ?? "Asia/Seoul";
-    new Intl.DateTimeFormat("en", { timeZone: timezone }).format();
+    try {
+      new Intl.DateTimeFormat("en", { timeZone: timezone }).format();
+    } catch {
+      throw new CompanyScheduleInputError(`Invalid timezone: ${timezone}`);
+    }
     const recurrence =
       input.recurrence === undefined
         ? (previous?.recurrence ?? null)
@@ -138,15 +160,15 @@ export async function manageCompanySchedule(
     const next =
       input.nextRunAt ??
       previous?.next_run_at ??
-      nextScheduleOccurrence(recurrence, timezone, new Date(), interval);
+      occurrence(recurrence, timezone, interval);
     if (
       input.action === "create" &&
       (!input.title?.trim() || !input.instruction?.trim() || !next)
     )
-      throw new Error("Title, instruction and next execution time required");
+      throw new CompanyScheduleInputError("Title, instruction and next execution time required");
     if (next && !Number.isFinite(Date.parse(next)))
-      throw new Error("Invalid schedule timestamp");
-    nextScheduleOccurrence(recurrence, timezone, new Date(), interval);
+      throw new CompanyScheduleInputError("Invalid schedule timestamp");
+    occurrence(recurrence, timezone, interval);
     const rootId =
       input.introductionRootId ?? previous?.target_refs?.introductionRootId;
     // Schedules tied to an introduction keep their #227 behavior; the others
@@ -162,19 +184,19 @@ export async function manageCompanySchedule(
         ? actor
         : actor === "user" ? "user" : previous.created_by;
     const effectTier = general ? Number(input.effectTier ?? previous?.effect_tier ?? 0) : 2;
-    if (general && ![0, 1, 2].includes(effectTier)) throw new Error("effectTier must be 0, 1 or 2");
+    if (general && ![0, 1, 2].includes(effectTier)) throw new CompanyScheduleInputError("effectTier must be 0, 1 or 2");
     if (general && createdBy === "agent" && effectTier > 1)
-      throw new Error(GENERAL_LIMIT_MESSAGES.company_schedule_tier_requires_user);
+      throw new CompanyScheduleInputError(GENERAL_LIMIT_MESSAGES.company_schedule_tier_requires_user);
     if (general && input.action !== "pause" && input.action !== "cancel") assertDailyAtMost(recurrence, timezone, interval);
     const expiresAt = general ? (input.expiresAt ?? previous?.expires_at ?? null) : null;
-    if (expiresAt && !Number.isFinite(Date.parse(expiresAt))) throw new Error("Invalid schedule end time");
+    if (expiresAt && !Number.isFinite(Date.parse(expiresAt))) throw new CompanyScheduleInputError("Invalid schedule end time");
     const maxRuns = general ? (input.maxRuns === undefined ? (previous?.max_runs ?? null) : input.maxRuns) : null;
     if (rootId && !["pause", "cancel"].includes(input.action)) {
       const [root] = await q(
         "SELECT id,talent_id FROM public.agent_contact_messages WHERE id=$1::uuid AND root_id=id AND company_workspace_id=$2::uuid AND role_id=$3::uuid AND cancelled_at IS NULL",
         [rootId, source.workspaceId, input.roleId]
       );
-      if (!root) throw new Error("Schedule introduction unavailable");
+      if (!root) throw new CompanyScheduleInputError("Schedule introduction unavailable");
       await assertAgentContactSource(q, source, input.roleId, root.talent_id);
     }
     const { sourceBudgetAnchor } = await import("./executionBudget");
