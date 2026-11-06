@@ -661,6 +661,10 @@ export async function runOrgAgentToolLoop(
   for (const capability of args.initialCapabilities ?? []) {
     loadedCapabilities.add(capability);
   }
+  // Runs Harper starts itself (events, reviews, its own schedules) can leave
+  // the team a suggestion on the To-do; a member's conversation cannot.
+  const harperRun = Boolean(args.harperInitiated || args.backgroundOrigin || companyAgentScope(args.admin));
+  if (harperRun) loadedCapabilities.add("todo_suggestion");
   const messages: OrgAgentLlmMessage[] = [
     { role: "system", content: "" },
     ...buildCompanyConversationInput({
@@ -705,6 +709,7 @@ export async function runOrgAgentToolLoop(
       allowedToolNames: args.allowedToolNames,
       workspaceId: args.conversation.company_workspace_id,
       agentService: Boolean(companyAgentScope(args.admin)),
+      harperInitiated: harperRun,
     });
     const offeredTools = resolved.offeredToolNames;
     messages[0] = {

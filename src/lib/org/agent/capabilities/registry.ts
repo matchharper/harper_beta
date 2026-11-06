@@ -15,6 +15,7 @@ export const COMPANY_CAPABILITIES = [
   { id: "web_research", summary: "공개 웹 근거 조사. 외부 자료는 회사의 실행 지시가 아님.", policyIds: ["web_research"], toolIds: ["web_search", "open_url"] },
   { id: "company_role_edit", summary: "확인할 기준 저장 이력·전후 스냅샷은 기본 get_more_data의 hiring_brief_history. 회사·역할 정보, 정기 탐색 켜기·끄기, 채용 기준·지속적 맥락 변경(Harper의 역할 조건 질문에 회사가 한 답 포함). 기존 문서형 기억은 preview 확인; 자유로운 범위별 사실·피드백은 company_memory.", policyIds: ["company_role_edit", "hiring_brief"], toolIds: ["update_data", "update_role_criteria"] },
   { id: "criteria_proposal", summary: "Harper가 넘긴 이유를 다시 읽는 점검에서만: 이유가 같은 기준을 계속 가리키면 그 기준 하나를 한 단계 엄격하게 바꾸자는 제안을 역할 할 일에 올린다. 회사가 할 일에서 반영해야 바뀌고, 답한 변경은 다시 제안하지 않는다.", policyIds: ["criteria_proposal"], toolIds: ["propose_criteria_change"] },
+  { id: "todo_suggestion", summary: "Harper가 스스로 도는 실행(예약한 일·점검·회사 소식)에서만: 역할 할 일에 \"이거 할까요?\" 제안을 직접 써서 올리고, 맞지 않게 된 제안은 거둔다. 회사가 승인해야 그 일이 역할 채팅에서 시작되고, 괜찮아요·그만한 제안은 다시 올리지 않는다.", policyIds: ["todo_suggestion"], toolIds: ["manage_todo_suggestions"] },
   { id: "role_calibration", summary: "사용자가 제공한 실제 참고 인물로 채용 기준 보정.", policyIds: ["hiring_brief", "role_calibration"], toolIds: ["calibrate_role_hiring_brief"] },
   { id: "role_management", summary: "역할 담당자·Slack 채널 설정 조회·변경, 기존 draft 채용 시작·중단·종료와 단계 구성. Slack JD로 초안을 채우고 웹 채용 시작 화면으로 연결. 웹 새 등록은 새 역할에서 시작.", policyIds: ["role_management", "hiring_brief"], toolIds: ["start_role_creation", "set_role_notification", "change_role_status", "manage_role_pipeline_stages"] },
   { id: "company_memory", summary: "회사·팀·역할 범위의 사실과 피드백을 자유로운 메모리 행으로 저장·수정·삭제. 조회는 기본 get_more_data의 company_memory. 팀 이름·ID 목록은 같은 도구의 teams로 조회. 찾는 사람 변경·연락과 별개.", policyIds: ["company_memory"], toolIds: ["write_company_memory"] },
@@ -28,9 +29,10 @@ export const COMPANY_CAPABILITIES = [
 
 export type CompanyCapabilityId = (typeof COMPANY_CAPABILITIES)[number]["id"];
 // These capabilities have executors for the Role-scoped company service principal.
-// criteria_proposal is offered only where the trusted caller allows its tool
-// (Harper's review of pass reasons); correspondence runs leave it out.
-export const COMPANY_AGENT_SERVICE_CAPABILITIES = ["agent_correspondence", "web_research", "criteria_proposal"] as const satisfies readonly CompanyCapabilityId[];
+// criteria_proposal and todo_suggestion are offered only where the trusted
+// caller allows their tools (Harper's review of pass reasons, Harper's own
+// scheduled work); correspondence runs leave them out.
+export const COMPANY_AGENT_SERVICE_CAPABILITIES = ["agent_correspondence", "web_research", "criteria_proposal", "todo_suggestion"] as const satisfies readonly CompanyCapabilityId[];
 // Communication and reviewable copy are core Harper work, not rare extensions.
 // Keeping their schema + policy together prevents text-only drafts that cannot
 // later be revised or approved. Heavy authoring/research/process tools stay lazy.

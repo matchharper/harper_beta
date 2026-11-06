@@ -19,11 +19,12 @@ export function scheduleRunMessages(env: Record<string, string | undefined> = pr
 }
 
 /**
- * Tools per effect tier (D15). Tier 2 adds the actions a run can complete: a
- * message to a candidate's agent in an existing introduction and publishing an
- * introduced candidate. The run holds no member permission, so search and the
- * scheduled-selection tool (403 or another path) are not offered. Tier 1 has
- * no proposal tool, so it gets the tier 0 tools.
+ * Tools per effect tier (D15). Tier 1 adds a proposal: a suggestion on the
+ * Role's To-do that waits for the company's answer (manage_todo_suggestions).
+ * Tier 2 adds the actions a run can complete: a message to a candidate's agent
+ * in an existing introduction and publishing an introduced candidate. The run
+ * holds no member permission, so search and the scheduled-selection tool (403
+ * or another path) are not offered.
  */
 export function scheduleRunTools(tier: number, messages: ScheduleRunMessages = "off") {
   return new Set([
@@ -34,6 +35,7 @@ export function scheduleRunTools(tier: number, messages: ScheduleRunMessages = "
     "read_talent",
     "manage_agent_schedule",
     ...(messages === "off" ? [] : ["contact_user"]),
+    ...(tier >= 1 ? ["manage_todo_suggestions"] : []),
     ...(tier >= 2 ? ["contact_talent", "publish_role_recommendations"] : []),
   ]);
 }
@@ -112,6 +114,8 @@ export async function scheduleRunDestination(
 
 const TIER_2 =
   "if still useful, you may message a candidate's agent in an existing introduction or publish an introduced candidate. This run cannot start a new search";
+const TIER_1_PROPOSAL =
+  "a change you propose (a suggestion on the Role's To-do, manage_todo_suggestions) waits for the company's answer";
 
 /** What the woken run reads about its tier and, when it may, where its message goes. */
 export function scheduleRunText(
@@ -121,11 +125,11 @@ export function scheduleRunText(
   const tier = Number(schedule.effect_tier ?? 0);
   const who = schedule.created_by === "user" ? "asked by a company member" : "Harper's own";
   if (!destination)
-    return `Effect tier ${tier} (${who}): ${tier >= 2 ? TIER_2 : "look again and message the company only if useful; do not search, contact or publish"}.`;
+    return `Effect tier ${tier} (${who}): ${tier >= 2 ? TIER_2 : `look again and message the company only if useful${tier === 1 ? `; ${TIER_1_PROPOSAL}` : ""}; do not search, contact or publish`}.`;
   const scope =
     tier >= 2
       ? `look again and message the company; ${TIER_2}; if one would help, ask the company`
-      : `look again and message the company only if useful${tier === 1 ? "; a change you propose waits for the company's answer" : ""}. Do not search, contact candidates or publish`;
+      : `look again and message the company only if useful${tier === 1 ? `; ${TIER_1_PROPOSAL}` : ""}. Do not search, contact candidates or publish`;
   const where = destination.kind === "slack" ? "the Slack thread where this was asked" : "this Role's web chat";
   return `Effect tier ${tier} (${who}): ${scope}.\nA message to the company (contact_user, one per run) goes to ${where}; the company can answer there.`;
 }

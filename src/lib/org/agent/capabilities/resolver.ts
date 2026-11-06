@@ -39,16 +39,18 @@ function loadCapabilitiesTool(ids: string[]) {
 }
 
 // external_sourcing is listed only where it is turned on, so other workspaces keep the same schema as before.
-// criteria_proposal belongs to Harper's own review (a trusted caller), never to a member's conversation.
-const MEMBER_CAPABILITY_IDS = COMPANY_CAPABILITIES.map((c) => c.id).filter((id) => id !== "criteria_proposal");
+// criteria_proposal and todo_suggestion belong to runs Harper starts itself
+// (trusted callers), never to a member's conversation.
+const HARPER_RUN_CAPABILITY_IDS: readonly string[] = ["criteria_proposal", "todo_suggestion"];
+const MEMBER_CAPABILITY_IDS = COMPANY_CAPABILITIES.map((c) => c.id).filter((id) => !HARPER_RUN_CAPABILITY_IDS.includes(id));
 export const LOAD_CAPABILITIES_TOOL = loadCapabilitiesTool(MEMBER_CAPABILITY_IDS.filter((id) => id !== "external_sourcing"));
 const LOAD_CAPABILITIES_TOOL_WITH_EXTERNAL_SOURCING = loadCapabilitiesTool(MEMBER_CAPABILITY_IDS);
 
-export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mode: CompanyCapabilityMode; emailReply?: boolean; loaded: ReadonlySet<CompanyCapabilityId>; allowedToolNames?: ReadonlySet<string>; workspaceId?: string; agentService?: boolean }) {
+export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mode: CompanyCapabilityMode; emailReply?: boolean; loaded: ReadonlySet<CompanyCapabilityId>; allowedToolNames?: ReadonlySet<string>; workspaceId?: string; agentService?: boolean; harperInitiated?: boolean }) {
   // Trusted caller restriction. Loading a capability can never broaden it.
   // External sourcing is offered only to workspaces that have it turned on (it costs money per run).
   const externalSourcing = externalSourcingEnabledFor(args.workspaceId);
-  const enabled = getEnabledOrgAgentTools(args.surface, {scheduledMatching: args.allowedToolNames?.has("recommend_talents"), agentService: args.agentService}).filter(tool =>
+  const enabled = getEnabledOrgAgentTools(args.surface, {scheduledMatching: args.allowedToolNames?.has("recommend_talents"), agentService: args.agentService, harperInitiated: args.harperInitiated}).filter(tool =>
     (!args.allowedToolNames || args.allowedToolNames.has(tool.function.name))
     && (externalSourcing || !(EXTERNAL_SOURCING_TOOL_NAMES as readonly string[]).includes(tool.function.name)));
   const supported = new Set(enabled.map((tool) => tool.function.name));

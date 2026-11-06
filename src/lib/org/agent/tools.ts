@@ -66,6 +66,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "read_conversation_history",
   "update_role_criteria",
   "propose_criteria_change",
+  "manage_todo_suggestions",
   "update_data",
   "change_role_status",
   "set_role_notification",
@@ -837,6 +838,58 @@ export const ORG_AGENT_TOOLS = [
           },
         },
         required: ["criterionId", "decisionIds", "reason"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "manage_todo_suggestions",
+      description:
+        "In runs Harper starts itself only (scheduled work, reviews, company updates), never in a conversation with the team: read, add or withdraw your own suggestions on one Role's To-do. A suggestion is one next step you noticed that needs the company's go-ahead; the team approves it (your plan is then sent to the Role chat as their request), says not now, or asks you to stop suggesting that kind. Approval only starts the work in the Role chat with your normal tools and permissions; it grants nothing else. list shows the open suggestions, those answered in the last 14 days and the muted kinds: read it before you add. The server keeps at most 3 open per Role, refuses a muted kind and a repeat of an open or recently dismissed suggestion, checks that named candidates are on this Role's list, and lets each expire after 1-7 days (3 by default). This does not message anyone, search, contact candidates or change the Role.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          operation: { enum: ["list", "add", "withdraw"], type: "string" },
+          roleId: {
+            description: "The Role. Omit when this run is about one Role.",
+            type: "string",
+          },
+          kind: {
+            description:
+              "add: a short, stable lowercase label for this type of suggestion, with underscores (for example follow_up_candidate, widen_search, decision_waiting). The team can mute a kind.",
+            type: "string",
+          },
+          title: {
+            description:
+              "add: the line the team reads on the To-do, one short question in the workspace language: what you noticed and what you would do. Name candidates as the company sees them; never contact details.",
+            type: "string",
+          },
+          plan: {
+            description:
+              "add: what you will do once the team approves, in the workspace language, as work you can do from the Role chat with your normal tools.",
+            type: "string",
+          },
+          talentIds: {
+            description:
+              "add: candidates on this Role's list that the suggestion is about. It leaves the To-do on its own once one of them moves to another stage.",
+            items: { type: "string" },
+            maxItems: 5,
+            type: "array",
+          },
+          expiresInDays: {
+            description: "add: days it stays open, 1-7. Default 3.",
+            maximum: 7,
+            minimum: 1,
+            type: "integer",
+          },
+          suggestionId: {
+            description: "withdraw: your open suggestion that no longer applies.",
+            type: "string",
+          },
+        },
+        required: ["operation"],
         type: "object",
       },
     },
@@ -1710,12 +1763,14 @@ Call this once per exact candidate Role change and review the result before anot
   },
 ] as const;
 
-export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat", trusted?: {scheduledMatching?: boolean; agentService?: boolean}) {
+export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat", trusted?: {scheduledMatching?: boolean; agentService?: boolean; harperInitiated?: boolean}) {
   const tools = ORG_AGENT_TOOLS.filter(
     (tool) =>
       (tool.function.name !== "recommend_talents" || trusted?.scheduledMatching === true) &&
       // Harper's own review files suggestions; a company member's chat edits criteria directly.
       (tool.function.name !== "propose_criteria_change" || trusted?.agentService === true) &&
+      // Harper writes its own To-do suggestions only in runs it starts itself.
+      (tool.function.name !== "manage_todo_suggestions" || trusted?.agentService === true || trusted?.harperInitiated === true) &&
       (COMPANY_MEETING_SCHEDULING_ENABLED ||
       tool.function.name !== "manage_interview_availability")
   );

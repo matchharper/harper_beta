@@ -7,6 +7,7 @@ import { runOrgAgentToolLoop, type OrgAgentLoopDependencies } from "./chat";
 export const SCHEDULED_MATCHING_TOOLS = new Set([
   "get_more_data", "get_talents", "read_talent", "read_role", "read_contact",
   "read_conversation_history", "request_matching_search", "recommend_talents",
+  "manage_todo_suggestions",
 ]);
 
 export type ScheduledMatchingFacts = {

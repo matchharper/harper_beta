@@ -477,6 +477,7 @@ export function getOrgAgentToolStatusLabel(args: {
     contact_user: ["팀원에게 연락하는 중", "연락 처리 결과 확인", "연락을 완료하지 못했습니다"],
     manage_agent_schedule: ["다음 작업 일정을 확인하는 중", "작업 일정 처리 완료", "작업 일정을 처리하지 못했습니다"],
     propose_criteria_change: ["기준 변경 제안을 올리는 중", "기준 변경 제안 처리 완료", "기준 변경 제안을 올리지 못했습니다"],
+    manage_todo_suggestions: ["할 일 제안을 확인하는 중", "할 일 제안 처리 완료", "할 일 제안을 처리하지 못했습니다"],
     write_company_memory: ["회사 메모리를 저장하는 중", "회사 메모리 저장 완료", "회사 메모리를 저장하지 못했습니다"],
     update_email_preferences: [
       "이메일 수신 설정을 바꾸는 중",
@@ -6670,6 +6671,10 @@ export async function executeOrgAgentTool(args: {
   if (args.name === "propose_criteria_change") {
     const { proposeCriteriaChange } = await import("@/lib/org/criteriaReview.server");
     return proposeCriteriaChange({ admin: args.admin, input });
+  }
+  if (args.name === "manage_todo_suggestions") {
+    const { manageTodoSuggestions } = await import("@/lib/org/todoSuggestionTool.server");
+    return manageTodoSuggestions({ admin: args.admin, user: args.user, workspaceId, conversation: args.conversation, harperInitiated: args.harperInitiated === true, input });
   }
   if (["read_agent_messages", "contact_user", "manage_agent_schedule"].includes(args.name)
     || (args.name === "contact_talent" && input.action === "send_to_agent")

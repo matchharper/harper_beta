@@ -28,8 +28,9 @@ test("a scheduled run may message the company where the work was asked unless th
 });
 
 test("each tier is offered exactly the tools a scheduled run can complete", () => {
+  // As the receiver runs it: Harper's own service principal, in full mode.
   const offered = (tools: ReadonlySet<string>) =>
-    resolveCompanyCapabilities({ surface: "chat", mode: "full", loaded: new Set(), allowedToolNames: tools }).offeredToolNames;
+    resolveCompanyCapabilities({ surface: "chat", mode: "full", loaded: new Set(), allowedToolNames: tools, agentService: true, harperInitiated: true }).offeredToolNames;
   for (const messages of ["off", "chat", "origin"] as const)
     for (const tier of [0, 1, 2]) {
       const tools = scheduleRunTools(tier, messages);
@@ -41,8 +42,10 @@ test("each tier is offered exactly the tools a scheduled run can complete", () =
         assert.equal(tools.has(name), false, name);
       assert.equal(tools.has("contact_talent"), tier >= 2);
       assert.equal(tools.has("publish_role_recommendations"), tier >= 2);
+      // Tier 1 proposes: a suggestion on the Role's To-do.
+      assert.equal(tools.has("manage_todo_suggestions"), tier >= 1);
     }
-  assert.deepEqual([...scheduleRunTools(1)].sort(), [...scheduleRunTools(0)].sort());
+  assert.deepEqual([...scheduleRunTools(1)].sort(), [...scheduleRunTools(0), "manage_todo_suggestions"].sort());
 });
 
 test("the run text keeps today's wording when off and names the destination when on", () => {
@@ -58,7 +61,8 @@ test("the run text keeps today's wording when off and names the destination when
   const thread = { kind: "slack", conversationId: "c", threadId: "t", threadRoleId: null, channelDbId: "d", slackChannelId: "C1" } as const;
   assert.match(scheduleRunText(asked, thread), /goes to the Slack thread where this was asked/);
   assert.match(scheduleRunText(asked, thread), /if one would help, ask the company/);
-  assert.match(scheduleRunText({ effect_tier: 1, created_by: "agent" }, thread), /waits for the company's answer/);
+  assert.match(scheduleRunText({ effect_tier: 1, created_by: "agent" }, thread), /a suggestion on the Role's To-do, manage_todo_suggestions\) waits for the company's answer/);
+  assert.match(scheduleRunText({ effect_tier: 1, created_by: "agent" }, null), /manage_todo_suggestions\) waits for the company's answer; do not search, contact or publish\.$/);
 });
 
 const SETUP = `

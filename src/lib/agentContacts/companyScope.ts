@@ -42,10 +42,12 @@ export function companyAgentServiceTools(): ReadonlySet<string> {
   ]);
 }
 
-/** Agent correspondence runs: every service tool except the review's criteria suggestion. */
+/** Agent correspondence runs: every service tool except Harper's own suggestions
+ * (the review's criteria suggestion and To-do suggestions from its schedules). */
 export function companyAgentCorrespondenceTools(): ReadonlySet<string> {
   const tools = new Set(companyAgentServiceTools());
   tools.delete("propose_criteria_change");
+  tools.delete("manage_todo_suggestions");
   return tools;
 }
 
