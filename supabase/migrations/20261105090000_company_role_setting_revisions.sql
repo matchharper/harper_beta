@@ -85,10 +85,11 @@ begin
   if v_workspace is null then
     return;
   end if;
+  -- Taken before the snapshot so it includes a concurrent change to the same
+  -- Role that committed while this one waited.
+  perform pg_advisory_xact_lock(hashtextextended('company_role_setting_revision:' || p_role_id::text, 0));
   v_snapshot := public.company_role_settings_snapshot_v1(p_role_id);
   v_hash := md5(v_snapshot::text);
-
-  perform pg_advisory_xact_lock(hashtextextended('company_role_setting_revision:' || p_role_id::text, 0));
 
   select revision.revision, revision.content_hash, revision.created_at
     into v_previous_revision, v_previous_hash, v_previous_created_at
