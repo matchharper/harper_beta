@@ -23,7 +23,7 @@ export type OrgInboxPage = OrgBoardResponse & {
 
 /**
  * Whether the decision numbers (waiting, to request) count saved candidates.
- * Decided (Shaun, 11/6): they do not, like the inbox tab. This one value
+ * Decided 11/6: they do not, like the inbox tab. This one value
  * drives Home, the overview, the inbox badges, the To-do, Slack, email and
  * the chat index together.
  */

@@ -49,7 +49,7 @@ import {
 } from "@/lib/org/billing/preview";
 
 /**
- * One billing page (Chris #95): plan, included intros and slots, intro
+ * One billing page (design review #95): plan, included intros and slots, intro
  * history, then payments. Owners and admins see it; the payment method,
  * invoices and the Stripe portal stay owner-only. `section=slots` (and the
  * old /org/slots page) scrolls to the slots.

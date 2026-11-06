@@ -29,7 +29,7 @@ const goProposal: CriteriaProposalPayload = {
   evidence: { count: 4, window: 4, decisionIds: [9, 8, 7, 6] },
 };
 
-test("on since 11/6 (Shaun), read again every 3 passes or 7 days", () => {
+test("on since 11/6, read again every 3 passes or 7 days", () => {
   assert.equal(CRITERIA_PROPOSALS_ENABLED, true);
   assert.deepEqual(
     { every: CRITERIA_PROPOSAL_RULES.everyDecisions, wait: CRITERIA_PROPOSAL_RULES.waitDays, size: CRITERIA_PROPOSAL_RULES.reviewSize },
