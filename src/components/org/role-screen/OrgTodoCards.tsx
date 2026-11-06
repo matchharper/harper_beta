@@ -1,8 +1,28 @@
+import {
+  AlertTriangle,
+  Bell,
+  CalendarClock,
+  Check,
+  Circle,
+  CircleDashed,
+  Clock,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { MuteButton } from "@/components/ui/button";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import type { OrgTodoColumn, OrgTodoItem } from "@/lib/org/todo";
-import type { OrgTodoShortcut } from "@/components/org/OrgTodoChip";
+import type { OrgTodoActionParts } from "@/components/org/OrgTodoChip";
+
+/** Each To-do column's icon, the same on every surface. */
+export const ORG_TODO_COLUMN_ICON: Record<OrgTodoColumn, LucideIcon> = {
+  blocked: AlertTriangle,
+  done: Check,
+  in_progress: Clock,
+  my_turn: Circle,
+  notice: Bell,
+  scheduled: CalendarClock,
+  suggestion: CircleDashed,
+};
 
 /**
  * The role screen's 채팅 column order: what the team decides, what blocks it,
@@ -47,147 +67,202 @@ export function OrgTodoDate() {
 }
 
 /**
- * One To-do line as a card. "content": the candidate side's 볼 만한 것 card,
- * with its small meta line (e.g. role · when · source on Home).
+ * What the team decides, as the candidate side's follow-up card: a sentence
+ * title, who it is about, then the step forward with an arrow and the quiet
+ * answers (괜찮아요, 읽음) at the end of the line.
  */
-export function OrgTodoCard({
-  action,
-  emphasis,
-  footer,
+export function OrgTodoFollowupCard({
+  description,
+  detail,
   meta,
+  parts,
   title,
-  variant = "followup",
 }: {
-  action?: ReactNode;
-  emphasis: boolean;
-  footer?: ReactNode;
+  /** One line the title does not say, e.g. who is waiting. */
+  description?: ReactNode;
+  /** Under the actions: an error, or who set up the work. */
+  detail?: ReactNode;
   /** A line above the title, e.g. the Role on Home. */
   meta?: ReactNode;
+  parts: OrgTodoActionParts;
   title: ReactNode;
-  variant?: "followup" | "content";
 }) {
   return (
     <li className="career-followup-item">
-      <article
-        className={
-          variant === "content"
-            ? "career-followup-card career-glass career-content-card org-todo-card"
-            : "career-followup-card career-glass org-todo-card"
-        }
-      >
-        {meta ? (
-          <span className={variant === "content" ? "career-content-meta" : "org-todo-card-meta"}>
-            {meta}
-          </span>
+      <article className="career-followup-card career-glass org-todo-card">
+        {meta ? <span className="org-todo-card-meta">{meta}</span> : null}
+        <span className="career-followup-title">{title}</span>
+        {description ? (
+          <span className="career-followup-description">{description}</span>
         ) : null}
-        <span className={emphasis ? "career-followup-title" : "career-content-title"}>
-          {title}
-        </span>
-        {action || footer ? (
-          <div className="org-todo-card-actions">
-            {action ? <div className="flex flex-wrap items-center gap-1.5">{action}</div> : null}
-            {footer}
+        {parts.primary || parts.secondary.length ? (
+          <div className="org-todo-followup-actions">
+            {parts.primary ?? <span />}
+            {parts.secondary.length ? (
+              <span className="org-todo-quiet">{parts.secondary}</span>
+            ) : null}
           </div>
         ) : null}
+        {detail ? <div className="org-todo-row-meta">{detail}</div> : null}
       </article>
     </li>
   );
 }
 
 /**
- * The To-do in the candidate side's follow-up style: the decisions as large
- * cards under the date, then the other sections with small headings. Data and
- * actions come from OrgTodoList, so the chip and the cards stay the same.
+ * Everything else as a compact row, like the candidate side's 다음 일정: an
+ * icon, the time when it is the point, the line, a small meta line. A step
+ * forward sits on its own line under it; quiet answers alone sit at the right.
+ */
+export function OrgTodoCompactRow({
+  icon: Icon,
+  meta,
+  parts,
+  title,
+  trailing,
+  when,
+}: {
+  icon: LucideIcon;
+  meta?: ReactNode;
+  parts: OrgTodoActionParts;
+  title: ReactNode;
+  /** At the end of the action line, e.g. a suggestion's 이런 제안 그만. */
+  trailing?: ReactNode;
+  when?: string;
+}) {
+  const below = Boolean(parts.primary);
+  return (
+    <li className="org-todo-row">
+      <Icon aria-hidden className="org-todo-row-icon" strokeWidth={1.5} />
+      <div className="org-todo-row-body">
+        {when ? <span className="org-todo-row-when">{when}</span> : null}
+        <span className="org-todo-row-title">{title}</span>
+        {meta ? <span className="org-todo-row-meta">{meta}</span> : null}
+        {below ? (
+          <div className="org-todo-row-actions">
+            {parts.primary}
+            {parts.secondary}
+            {trailing ? <span className="org-todo-row-trailing">{trailing}</span> : null}
+          </div>
+        ) : null}
+      </div>
+      {!below && (parts.secondary.length || trailing) ? (
+        <div className="org-todo-row-side">
+          {parts.secondary}
+          {trailing}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+/** Harper's suggestions: the first one, then the rest behind "N개 더 보기". */
+export function OrgTodoFoldedRows({
+  children,
+}: {
+  children: ReactNode[];
+}) {
+  const { c } = useOrgLocale();
+  const [open, setOpen] = useState(false);
+  const rest = children.length - 1;
+  return (
+    <>
+      <ul className="org-todo-rows">{open ? children : children.slice(0, 1)}</ul>
+      {rest > 0 ? (
+        <button
+          aria-expanded={open}
+          className="org-todo-more"
+          onClick={() => setOpen((value) => !value)}
+          type="button"
+        >
+          {open
+            ? c("접기", "Show less")
+            : c("{n}개 더 보기", "Show {n} more", { n: rest })}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+/** Columns whose lines are things the team decides: the only large cards. */
+export const ORG_TODO_CARD_DECIDE_COLUMNS: OrgTodoColumn[] = ["my_turn", "blocked"];
+
+/**
+ * The To-do in the candidate side's follow-up style, kept small so the chat
+ * stays the focus: only 결정할 것 and 막힌 것 as large cards under the date;
+ * Harper's work, plans and updates as compact rows; Harper's suggestions
+ * compact, the first one shown. Data and actions come from OrgTodoList.
  */
 export function OrgTodoCards({
   columns,
   decideError,
-  decidePending,
+  detail,
   headings,
   items,
-  onMute,
-  renderAction,
-  shortcuts,
+  parts,
+  people,
   suggestionCount,
+  text,
   title,
+  when,
 }: {
   columns: OrgTodoColumn[];
   decideError: boolean;
-  decidePending: boolean;
+  /** Under a line: who set up Harper's work, a failed cancel. */
+  detail: (item: OrgTodoItem) => ReactNode;
   headings: Record<OrgTodoColumn, string>;
   items: OrgTodoItem[];
-  onMute: (item: OrgTodoItem) => void;
-  renderAction: (item: OrgTodoItem) => ReactNode;
-  shortcuts: OrgTodoShortcut[];
+  parts: (item: OrgTodoItem) => OrgTodoActionParts;
+  people: (item: OrgTodoItem) => string | null;
   suggestionCount: number;
+  /** The line without its time (the row shows the time above it). */
+  text: (item: OrgTodoItem) => string;
+  /** The line with its time, for lines whose time is not shown apart. */
   title: (item: OrgTodoItem) => string;
+  when: (item: OrgTodoItem) => string;
 }) {
-  const { c, locale } = useOrgLocale();
-  const now = useNow();
-  const tag = locale === "ko" ? "ko-KR" : "en-US";
-  const sections = columns.map((column) => {
-    const group = items.filter((item) => item.column === column);
-    const extra = column === "suggestion" ? shortcuts : [];
-    return {
-      column,
-      count: column === "suggestion" ? suggestionCount + extra.length : group.length,
-      extra,
-      group,
-    };
-  });
-  const [first, ...rest] = sections;
-  const card = (item: OrgTodoItem, emphasis: boolean) => (
-    <OrgTodoCard
-      action={renderAction(item)}
-      emphasis={emphasis}
-      footer={
-        item.kind === "suggestion" ? (
-          <button
-            className="career-card-close"
-            disabled={decidePending}
-            onClick={() => onMute(item)}
-            type="button"
-          >
-            {c("이런 제안 그만", "Stop suggesting this")}
-          </button>
-        ) : undefined
-      }
+  const { c } = useOrgLocale();
+  const [first, ...rest] = columns;
+  const group = (column: OrgTodoColumn) =>
+    items.filter((item) => item.column === column);
+  const card = (item: OrgTodoItem) => (
+    <OrgTodoFollowupCard
+      description={people(item)}
+      detail={detail(item)}
       key={item.id}
+      parts={parts(item)}
       title={title(item)}
     />
   );
-  const shortcutCard = (shortcut: OrgTodoShortcut) => (
-    <OrgTodoCard
-      action={
-        <MuteButton
-          aria-busy={shortcut.busy || undefined}
-          disabled={shortcut.busy}
-          onClick={shortcut.onRun}
-          size="sm"
-          type="button"
-          variant="dark"
-        >
-          {shortcut.busy ? shortcut.busyLabel : shortcut.actionLabel}
-        </MuteButton>
-      }
-      emphasis={false}
-      key={shortcut.id}
-      title={shortcut.title}
-    />
+  const row = (item: OrgTodoItem) => {
+    const time = when(item);
+    const lineParts = parts(item);
+    return (
+      <OrgTodoCompactRow
+        icon={ORG_TODO_COLUMN_ICON[item.column]}
+        key={item.id}
+        // A suggestion's own control is its 이런 제안 그만, at the end of its line.
+        meta={item.kind === "suggestion" ? undefined : detail(item)}
+        parts={lineParts}
+        title={time ? text(item) : title(item)}
+        trailing={lineParts.trailing}
+        when={time || undefined}
+      />
+    );
+  };
+  const heading = (column: OrgTodoColumn, count: number) => (
+    <h2 className="career-content-heading">
+      {headings[column]} {count}
+    </h2>
   );
-
   return (
     <div className="career-followups org-todo-cards" data-org-todo-cards>
       {first ? (
-        <section aria-label={headings[first.column]}>
+        <section aria-label={headings[first]}>
           <header className="career-followups-header">
-            <div className="career-followups-date" suppressHydrationWarning>
-              {now
-                ? `${new Intl.DateTimeFormat(tag, { month: "long", day: "numeric", weekday: "long" }).format(now)} · ${new Intl.DateTimeFormat(tag, { hour: "numeric", minute: "2-digit" }).format(now)}`
-                : " "}
-            </div>
+            <OrgTodoDate />
             <h1>
-              {headings[first.column]} {first.count}
+              {headings[first]} {group(first).length}
             </h1>
           </header>
           {decideError ? (
@@ -198,31 +273,45 @@ export function OrgTodoCards({
               )}
             </p>
           ) : null}
-          {first.group.length || first.extra.length ? (
-            <ul className="space-y-3">
-              {first.group.map((item) => card(item, true))}
-              {first.extra.map(shortcutCard)}
-            </ul>
+          {group(first).length ? (
+            <ul className="space-y-3">{group(first).map(card)}</ul>
           ) : null}
         </section>
       ) : null}
-      {rest
-        .filter((section) => section.group.length || section.extra.length)
-        .map((section) => (
+      {rest.map((column) => {
+        const lines = group(column);
+        if (!lines.length) return null;
+        if (ORG_TODO_CARD_DECIDE_COLUMNS.includes(column)) {
+          return (
+            <section aria-label={headings[column]} className="career-content" key={column}>
+              {heading(column, lines.length)}
+              <ul className="space-y-3">{lines.map(card)}</ul>
+            </section>
+          );
+        }
+        if (column === "suggestion") {
+          return (
+            <section
+              aria-label={headings[column]}
+              className="career-content org-todo-compact"
+              key={column}
+            >
+              {heading(column, suggestionCount)}
+              <OrgTodoFoldedRows>{lines.map(row)}</OrgTodoFoldedRows>
+            </section>
+          );
+        }
+        return (
           <section
-            aria-label={headings[section.column]}
-            className="career-content"
-            key={section.column}
+            aria-label={headings[column]}
+            className="career-content org-todo-compact"
+            key={column}
           >
-            <h2 className="career-content-heading">
-              {headings[section.column]} {section.count}
-            </h2>
-            <ul className="space-y-3">
-              {section.group.map((item) => card(item, false))}
-              {section.extra.map(shortcutCard)}
-            </ul>
+            {heading(column, lines.length)}
+            <ul className="org-todo-rows">{lines.map(row)}</ul>
           </section>
-        ))}
+        );
+      })}
     </div>
   );
 }

@@ -31,6 +31,7 @@ import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
 import {
   OrgTodoArea,
   OrgTodoList,
+  OrgTodoShortcutChips,
   useOrgTodoShortcuts,
 } from "@/components/org/OrgTodoChip";
 import { ORG_TODO_CARD_COLUMNS } from "@/components/org/role-screen/OrgTodoCards";
@@ -305,7 +306,7 @@ export function OrgAgentChatSurface({
     setStickToBottom(true);
     void chat.sendMessage({ attachments: [], mentions: [], message, model });
   };
-  // Pipeline summary and Run Search live in the To-do with Harper's suggestions.
+  // Pipeline summary and Run Search: chips above the chat input.
   const todoShortcuts = useOrgTodoShortcuts({
     onRunSearch: () => {
       const submissionKey = currentSearchKey;
@@ -833,7 +834,18 @@ export function OrgAgentChatSurface({
               {composer}
             </OrgTodoArea>
           ) : (
-            composer
+            <>
+              {/* With the To-do in the right column, its requests stay with the chat. */}
+              {showRoleTodo && shownTodoShortcuts.length ? (
+                <div
+                  className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0"
+                  data-org-todo-shortcuts
+                >
+                  <OrgTodoShortcutChips shortcuts={shownTodoShortcuts} />
+                </div>
+              ) : null}
+              {composer}
+            </>
           )}
           {showRoleTodo && roleId && workspaceId && todoTarget
             ? createPortal(
@@ -844,7 +856,6 @@ export function OrgAgentChatSurface({
                   onNavigate={() => setStickToBottom(true)}
                   range="recent"
                   roleId={roleId}
-                  shortcuts={shownTodoShortcuts}
                   variant="cards"
                   workspaceId={workspaceId}
                 />,

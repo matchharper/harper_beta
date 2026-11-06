@@ -59,15 +59,25 @@ test("Home panels: 결정할 것, 볼 만한 것, Harper's work and 역할 현�
       useOrgWorkspaceTodo: () => ({ data: { items, myTurn: 0, suggestions: 1, roles: nowRoles }, isError: false, isLoading: false }),
     };
     if (name === "@/components/org/OrgTodoChip") return {
+      OrgTodoGo: ({ act }: { act: { href?: string; label: string } }) =>
+        act.href ? <a className="org-todo-go" href={act.href}>{act.label}</a> : <button className="org-todo-go" type="button">{act.label}</button>,
+      OrgTodoQuiet: ({ act }: { act: { label: string } }) => <button className="career-card-close" type="button">{act.label}</button>,
       orgTodoHeadings: () => ({
         blocked: "막힌 것", done: "한 일", in_progress: "Harper가 하는 중", my_turn: "결정할 것",
         notice: "알림", scheduled: "예정", suggestion: "Harper가 할 수 있는 일",
       }),
+      orgTodoItemPeople: () => null,
+      orgTodoItemText: (item: OrgTodoItem) => `text:${item.kind}`,
       orgTodoItemTitle: (item: OrgTodoItem) => `text:${item.kind}`,
+      orgTodoItemWhen: () => "",
       useOrgTodoActions: ({ roleId }: { roleId: string }) => ({
-        action: (item: OrgTodoItem) => <button data-action={`${roleId}:${item.kind}`} type="button" />,
+        actionParts: (item: OrgTodoItem) => ({
+          primary: <button data-action={`${roleId}:${item.kind}`} type="button" />,
+          secondary: [],
+        }),
         answer: () => {},
         decide: { isError: false, isPending: false },
+        detail: () => undefined,
       }),
     };
     if (name === "@/components/org/OrgHomeInbox") return {
@@ -98,15 +108,21 @@ test("Home panels: 결정할 것, 볼 만한 것, Harper's work and 역할 현�
   assert.ok(decide.includes('data-action="r1:pending_connection"') && decide.includes('data-action="r2:search_failed"'),
     "each line's buttons are its own role's");
   assert.equal((decide.match(/career-followup-title/g) ?? []).length, 2);
-  // 볼 만한 것 = Harper's offers and the updates, with role · when · source.
+  // 볼 만한 것 = Harper's offers and the updates as compact rows with role · when ·
+  // source; the first is shown, the rest wait behind a toggle so the chat stays the focus.
   const worth = sectionText(html, "볼 만한 것");
   assert.ok(html.includes("볼 만한 것 2"));
-  assert.match(worth, /career-content-meta">Backend Engineer · [^<]+ · Harper</);
-  assert.match(worth, /career-content-meta">Product Designer · [^<]+ · 메일</);
+  assert.match(worth, /org-todo-row-meta">Backend Engineer · [^<]+ · Harper</);
+  assert.ok(!worth.includes("Product Designer"), "the second line waits behind the toggle");
+  assert.ok(worth.includes("개 더 보기"));
   // A suggestion's plan is sent from its role's chat, so it goes on there.
-  assert.ok(worth.includes(`href="/org/role?orgId=${workspaceId}&amp;roleId=r1&amp;tab=chat"`));
+  assert.ok(worth.includes(`class="org-todo-go" href="/org/role?orgId=${workspaceId}&amp;roleId=r1&amp;tab=chat"`));
   assert.ok(worth.includes("괜찮아요") && worth.includes("이런 제안 그만"));
+  // Harper's work and plans: compact rows, never large cards.
   assert.ok(html.includes("Harper가 하는 중 1") && html.includes("예정 1"));
+  const later = sectionText(html, "Harper가 하는 중") + sectionText(html, "예정");
+  assert.ok(!later.includes("career-followup-title"));
+  assert.equal((later.match(/class="org-todo-row"/g) ?? []).length, 2);
   assert.ok(!html.includes("search_done"), "finished work stays on each role");
   // 역할 현황: open roles and their numbers, each opening that role's list.
   const overview = sectionText(html, "역할 현황");

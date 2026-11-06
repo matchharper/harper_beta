@@ -1,14 +1,4 @@
-import {
-  AlertTriangle,
-  Bell,
-  CalendarClock,
-  Check,
-  Circle,
-  CircleDashed,
-  Clock,
-  ListTodo,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowRight, ListTodo, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +30,10 @@ import {
   type OrgTodoItem,
 } from "@/lib/org/todo";
 import { cn } from "@/lib/utils";
-import { OrgTodoCards } from "@/components/org/role-screen/OrgTodoCards";
+import {
+  ORG_TODO_COLUMN_ICON,
+  OrgTodoCards,
+} from "@/components/org/role-screen/OrgTodoCards";
 
 type Copy = (
   ko: string,
@@ -282,26 +275,34 @@ export const ORG_TODO_CHIP_COLUMNS: OrgTodoColumn[] = [
   "scheduled",
 ];
 
-const COLUMN_ICON: Record<OrgTodoColumn, LucideIcon> = {
-  blocked: AlertTriangle,
-  done: Check,
-  in_progress: Clock,
-  my_turn: Circle,
-  notice: Bell,
-  scheduled: CalendarClock,
-  suggestion: CircleDashed,
-};
+
+/** When the time is the point (Harper's scheduled work, an interview): that time. */
+export function orgTodoItemWhen(item: OrgTodoItem, locale: "ko" | "en") {
+  return item.nextAt &&
+    item.scheduleStatus !== "paused" &&
+    (item.column === "scheduled" || item.kind === "meeting_soon")
+    ? formatScheduledDateTime(item.nextAt, locale)
+    : "";
+}
 
 /** Rows whose time is the point: when Harper will do it, when the interview is. */
 function itemTitle(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
   const text = itemText(item, c, locale);
-  const when =
-    item.nextAt &&
-    item.scheduleStatus !== "paused" &&
-    (item.column === "scheduled" || item.kind === "meeting_soon")
-      ? formatScheduledDateTime(item.nextAt, locale)
-      : "";
+  const when = orgTodoItemWhen(item, locale);
   return when ? `${text} · ${when}` : text;
+}
+
+/** Who is behind a count: a few names, then how many more. */
+export function orgTodoItemPeople(item: OrgTodoItem, c: Copy) {
+  const people = item.people ?? [];
+  if (!people.length) return null;
+  const shown = people.slice(0, 3).map((person) => person.name).filter(Boolean);
+  if (!shown.length) return null;
+  const more = Math.max(0, (item.count ?? people.length) - shown.length);
+  const names = shown.join(", ");
+  return more
+    ? c("{p0} 외 {n}명", "{p0} and {n} more", { p0: names, n: more })
+    : names;
 }
 
 /** Under Harper's scheduled work: who set it up. */
@@ -351,11 +352,13 @@ function cancelIssueText(issue: CancelIssue, c: Copy) {
   }
 }
 
-/** A request the team can always ask Harper for, listed with its suggestions. */
+/** A request the team can always ask Harper for: a chip above the Role chat input. */
 export type OrgTodoShortcut = {
   actionLabel: string;
   busy?: boolean;
   busyLabel?: string;
+  /** The chip's words, the team's request (the candidate side's "기회 더 찾아줘"). */
+  chipLabel: string;
   id: string;
   onRun: () => void;
   title: string;
@@ -371,6 +374,7 @@ export function useOrgTodoShortcuts(args: {
   return [
     {
       actionLabel: c("요약 받기", "Summarize"),
+      chipLabel: c("파이프라인 요약해줘", "Summarize the pipeline"),
       id: "pipeline_summary",
       onRun: () =>
         args.onSend(
@@ -385,6 +389,7 @@ export function useOrgTodoShortcuts(args: {
       actionLabel: c("찾아 주세요", "Search"),
       busy: args.searching,
       busyLabel: c("찾는 중", "Searching"),
+      chipLabel: c("후보 더 찾아줘", "Find more candidates"),
       id: "run_search",
       onRun: args.onRunSearch,
       title: c(
@@ -393,6 +398,36 @@ export function useOrgTodoShortcuts(args: {
       ),
     },
   ];
+}
+
+/**
+ * The requests the team can always make, as small chips above the Role chat
+ * input like the candidate side's, so they sit with the chat instead of the
+ * To-do. Shown under the same rule as before (an hour with no team message;
+ * Run Search also while a search runs).
+ */
+export function OrgTodoShortcutChips({
+  shortcuts,
+}: {
+  shortcuts: OrgTodoShortcut[];
+}) {
+  return (
+    <>
+      {shortcuts.map((shortcut) => (
+        <MuteButton
+          aria-busy={shortcut.busy || undefined}
+          data-org-todo-shortcut={shortcut.id}
+          disabled={shortcut.busy}
+          key={shortcut.id}
+          onClick={shortcut.onRun}
+          size="sm"
+          type="button"
+        >
+          {shortcut.busy ? shortcut.busyLabel : shortcut.chipLabel}
+        </MuteButton>
+      ))}
+    </>
+  );
 }
 
 function TodoRow({
@@ -427,6 +462,67 @@ function TodoRow({
         <div className="flex shrink-0 items-center gap-1.5">{action}</div>
       ) : null}
     </li>
+  );
+}
+
+/** One thing a To-do line lets the team do. */
+export type OrgTodoAct = {
+  disabled?: boolean;
+  href?: string;
+  key: string;
+  label: string;
+  onClick?: () => void;
+  /** The step forward; the rest are quiet answers (괜찮아요, 읽음, 취소). */
+  primary?: boolean;
+};
+
+/** A line's controls in the follow-up style: the step forward, then quiet answers. */
+export type OrgTodoActionParts = {
+  primary: ReactNode;
+  secondary: ReactNode[];
+  /** At the end of the line: a suggestion's 이런 제안 그만. */
+  trailing?: ReactNode;
+};
+
+/** The step forward as words with an arrow, like the candidate side's follow-up action. */
+export function OrgTodoGo({ act }: { act: OrgTodoAct }) {
+  const body = (
+    <>
+      {act.label}
+      <ArrowRight aria-hidden />
+    </>
+  );
+  return act.href ? (
+    <Link className="org-todo-go" href={act.href} onClick={act.onClick} shallow>
+      {body}
+    </Link>
+  ) : (
+    <button
+      className="org-todo-go"
+      disabled={act.disabled}
+      onClick={act.onClick}
+      type="button"
+    >
+      {body}
+    </button>
+  );
+}
+
+/** A quiet answer (괜찮아요, 읽음, 취소), like the candidate side's 닫기. */
+export function OrgTodoQuiet({ act }: { act: OrgTodoAct }) {
+  return act.href ? (
+    <Link className="career-card-close" href={act.href} onClick={act.onClick} shallow>
+      {act.label}
+    </Link>
+  ) : (
+    <button
+      className="career-card-close"
+      disabled={act.disabled}
+      onClick={act.onClick}
+      type="button"
+    >
+      {act.label}
+    </button>
   );
 }
 
@@ -492,41 +588,37 @@ export function useOrgTodoActions({
       }
     );
   };
-  // The one button a row needs, worded as what it does.
-  const action = (item: OrgTodoItem) => {
+  // What a line lets the team do, worded as what it does; `primary` is the
+  // step forward (진행하기, 반영하기, 결정하기…), the rest are quiet answers.
+  const acts = (item: OrgTodoItem): OrgTodoAct[] => {
     if (item.kind === "suggestion") {
-      return (
-        <>
-          <MuteButton
-            disabled={decide.isPending}
-            onClick={() => answer(item, "dismiss")}
-            size="sm"
-            type="button"
-            variant="dark"
-          >
-            {c("괜찮아요", "Not now")}
-          </MuteButton>
-          <MuteButton
-            disabled={decide.isPending}
-            onClick={() => answer(item, "approve")}
-            size="sm"
-            type="button"
-            variant="dark"
-          >
-            {c("진행하기", "Go ahead")}
-          </MuteButton>
-        </>
-      );
+      return [
+        {
+          disabled: decide.isPending,
+          key: "dismiss",
+          label: c("괜찮아요", "Not now"),
+          onClick: () => answer(item, "dismiss"),
+        },
+        {
+          disabled: decide.isPending,
+          key: "approve",
+          label: c("진행하기", "Go ahead"),
+          onClick: () => answer(item, "approve"),
+          primary: true,
+        },
+      ];
     }
     // Sent only to someone who may cancel; gone after a 403.
     if (item.kind === "harper_scheduled") {
       const scheduleId = item.scheduleId;
       const issue = scheduleId ? cancelIssues[scheduleId] : undefined;
-      if (!scheduleId || issue === "forbidden") return null;
-      return (
-        <MuteButton
-          disabled={cancelSchedule.isPending || issue === "stale_again"}
-          onClick={() =>
+      if (!scheduleId || issue === "forbidden") return [];
+      return [
+        {
+          disabled: cancelSchedule.isPending || issue === "stale_again",
+          key: "cancel",
+          label: c("취소", "Cancel"),
+          onClick: () =>
             cancelSchedule.mutate(
               {
                 expectedRevision: item.scheduleRevision ?? 0,
@@ -542,69 +634,48 @@ export function useOrgTodoActions({
                 onSuccess: () =>
                   setCancelIssues(({ [scheduleId]: _done, ...rest }) => rest),
               }
-            )
-          }
-          size="sm"
-          type="button"
-          variant="dark"
-        >
-          {c("취소", "Cancel")}
-        </MuteButton>
-      );
+            ),
+        },
+      ];
     }
     if (item.kind === "criteria_proposal") {
       // Applying saves the change to the Brief; dismissing records it.
       const proposalId = item.id.slice("criteria:".length);
       const answerWith = (action: "accept" | "dismiss") => () =>
         answerProposal.mutate({ action, proposalId }, { onSettled: onChanged });
-      return (
-        <>
-          <MuteButton
-            disabled={answerProposal.isPending}
-            onClick={answerWith("dismiss")}
-            size="sm"
-            type="button"
-            variant="dark"
-          >
-            {c("괜찮아요", "Not now")}
-          </MuteButton>
-          <MuteButton
-            disabled={answerProposal.isPending}
-            onClick={answerWith("accept")}
-            size="sm"
-            type="button"
-            variant="dark"
-          >
-            {c("반영하기", "Apply")}
-          </MuteButton>
-        </>
-      );
+      return [
+        {
+          disabled: answerProposal.isPending,
+          key: "dismiss",
+          label: c("괜찮아요", "Not now"),
+          onClick: answerWith("dismiss"),
+        },
+        {
+          disabled: answerProposal.isPending,
+          key: "accept",
+          label: c("반영하기", "Apply"),
+          onClick: answerWith("accept"),
+          primary: true,
+        },
+      ];
     }
     if (item.kind === "memory_proposal") {
-      return (
-        <MuteButton
-          onClick={() => onNavigate?.()}
-          size="sm"
-          type="button"
-          variant="dark"
-        >
-          {c("채팅에서 답하기", "Answer in chat")}
-        </MuteButton>
-      );
+      return [
+        {
+          key: "answer",
+          label: c("채팅에서 답하기", "Answer in chat"),
+          onClick: () => onNavigate?.(),
+          primary: true,
+        },
+      ];
     }
+    const read: OrgTodoAct = {
+      key: "read",
+      label: c("읽음", "Mark read"),
+      onClick: () => markRead.mutate(item.id, { onSettled: onChanged }),
+    };
     const href = itemHref(item, roleId, workspaceId);
-    if (!href) {
-      return item.column === "notice" ? (
-        <MuteButton
-          onClick={() => markRead.mutate(item.id, { onSettled: onChanged })}
-          size="sm"
-          type="button"
-          variant="dark"
-        >
-          {c("읽음", "Mark read")}
-        </MuteButton>
-      ) : null;
-    }
+    if (!href) return item.column === "notice" ? [read] : [];
     const labels: Partial<Record<OrgTodoItem["kind"], string>> = {
       intros_empty: c("연결 추가하기", "Add intros"),
       slack_delivery_error: c("연동 확인", "Check Slack"),
@@ -615,28 +686,66 @@ export function useOrgTodoActions({
       pending_connection: c("결정하기", "Decide"),
       role_start: c("이어 하기", "Continue"),
     };
-    const label = labels[item.kind] ?? c("보기", "View");
-    const view = (
-      <MuteButton asChild size="sm" variant="dark">
-        <Link href={href} onClick={() => onNavigate?.()} shallow>
-          {label}
-        </Link>
-      </MuteButton>
-    );
-    if (item.column !== "notice") return view;
+    const view: OrgTodoAct = {
+      href,
+      key: "view",
+      label: labels[item.kind] ?? c("보기", "View"),
+      onClick: () => onNavigate?.(),
+      primary: true,
+    };
+    return item.column === "notice" ? [view, read] : [view];
+  };
+  // The buttons a row needs, as the small dark pills of the list above the chat.
+  const action = (item: OrgTodoItem) => {
+    const list = acts(item);
+    if (!list.length) return null;
     return (
       <>
-        {view}
-        <MuteButton
-          onClick={() => markRead.mutate(item.id, { onSettled: onChanged })}
-          size="sm"
-          type="button"
-          variant="dark"
-        >
-          {c("읽음", "Mark read")}
-        </MuteButton>
+        {list.map((act) =>
+          act.href ? (
+            <MuteButton asChild key={act.key} size="sm" variant="dark">
+              <Link href={act.href} onClick={act.onClick} shallow>
+                {act.label}
+              </Link>
+            </MuteButton>
+          ) : (
+            <MuteButton
+              disabled={act.disabled}
+              key={act.key}
+              onClick={act.onClick}
+              size="sm"
+              type="button"
+              variant="dark"
+            >
+              {act.label}
+            </MuteButton>
+          )
+        )}
       </>
     );
+  };
+  // The same buttons in the candidate side's follow-up style: the step forward
+  // as words with an arrow, the other answers as small quiet words.
+  const actionParts = (item: OrgTodoItem): OrgTodoActionParts => {
+    const list = acts(item);
+    const forward = list.find((act) => act.primary);
+    return {
+      primary: forward ? <OrgTodoGo act={forward} /> : null,
+      secondary: list
+        .filter((act) => !act.primary)
+        .map((act) => <OrgTodoQuiet act={act} key={act.key} />),
+      trailing:
+        item.kind === "suggestion" ? (
+          <OrgTodoQuiet
+            act={{
+              disabled: decide.isPending,
+              key: "mute",
+              label: c("이런 제안 그만", "Stop suggesting this"),
+              onClick: () => answer(item, "mute"),
+            }}
+          />
+        ) : undefined,
+    };
   };
 
   // The second line: a suggestion's one control, or who set up Harper's
@@ -668,7 +777,7 @@ export function useOrgTodoActions({
       </>
     );
   };
-  return { action, answer, decide, detail };
+  return { action, actionParts, answer, decide, detail };
 }
 
 /**
@@ -682,7 +791,6 @@ export function OrgTodoList({
   onNavigate,
   range,
   roleId,
-  shortcuts = [],
   variant = "rows",
   workspaceId,
 }: {
@@ -692,14 +800,13 @@ export function OrgTodoList({
   onNavigate?: () => void;
   range: "all" | "recent";
   roleId: string;
-  shortcuts?: OrgTodoShortcut[];
   /** "cards": the role screen's right column, in the candidate side's card style. */
   variant?: "rows" | "cards";
   workspaceId: string;
 }) {
   const { c, locale } = useOrgLocale();
   const todo = useOrgRoleTodo({ range, roleId, workspaceId });
-  const { action, answer, decide, detail } = useOrgTodoActions({
+  const { action, actionParts, decide, detail } = useOrgTodoActions({
     onApprove,
     onNavigate,
     roleId,
@@ -734,14 +841,15 @@ export function OrgTodoList({
       <OrgTodoCards
         columns={columns}
         decideError={decide.isError}
-        decidePending={decide.isPending}
+        detail={detail}
         headings={headings}
         items={items}
-        onMute={(item) => answer(item, "mute")}
-        renderAction={action}
-        shortcuts={shortcuts}
+        parts={actionParts}
+        people={(item) => orgTodoItemPeople(item, c)}
         suggestionCount={suggestions}
+        text={(item) => itemText(item, c, locale)}
         title={(item) => itemTitle(item, c, locale)}
+        when={(item) => orgTodoItemWhen(item, locale)}
       />
     );
   }
@@ -759,10 +867,8 @@ export function OrgTodoList({
         const group = items.filter((item) => item.column === column);
         // 막힌 것 shows only while something is blocked; it clears itself.
         if (column === "blocked" && !group.length) return null;
-        const extra = column === "suggestion" ? shortcuts : [];
-        // Harper's suggestions plus the requests it always offers.
-        const count =
-          column === "suggestion" ? suggestions + extra.length : group.length;
+        // Harper's suggestions are counted apart from the lines (see the API).
+        const count = column === "suggestion" ? suggestions : group.length;
         // 할 일, 막힌 것 and 알림 make up the To-do number: blue like it when above 0.
         const counted =
           (column === "my_turn" || column === "blocked" || column === "notice") &&
@@ -784,33 +890,9 @@ export function OrgTodoList({
                 <TodoRow
                   action={action(item)}
                   detail={detail(item)}
-                  icon={COLUMN_ICON[column]}
+                  icon={ORG_TODO_COLUMN_ICON[column]}
                   key={item.id}
                   title={itemTitle(item, c, locale)}
-                />
-              ))}
-              {extra.map((shortcut) => (
-                <TodoRow
-                  action={
-                    <MuteButton
-                      aria-busy={shortcut.busy || undefined}
-                      disabled={shortcut.busy}
-                      onClick={() => {
-                        onNavigate?.();
-                        shortcut.onRun();
-                      }}
-                      size="sm"
-                      type="button"
-                      variant="dark"
-                    >
-                      {shortcut.busy
-                        ? shortcut.busyLabel
-                        : shortcut.actionLabel}
-                    </MuteButton>
-                  }
-                  icon={COLUMN_ICON.suggestion}
-                  key={shortcut.id}
-                  title={shortcut.title}
                 />
               ))}
             </ul>
@@ -823,7 +905,8 @@ export function OrgTodoList({
 
 /**
  * The To-do above the Role chat. The anchor wraps the chip row and the chat
- * input, so the list opens above them as wide as the chat.
+ * input, so the list opens above them as wide as the chat. The requests the
+ * team can always make sit as chips beside it.
  */
 export function OrgTodoArea({
   children,
@@ -834,6 +917,7 @@ export function OrgTodoArea({
 }: {
   /** The chat input, below the chip. */
   children: ReactNode;
+  /** Requests the team can always make, as chips beside the To-do chip. */
   onApprove: (message: string) => void;
   roleId: string;
   shortcuts: OrgTodoShortcut[];
@@ -847,7 +931,10 @@ export function OrgTodoArea({
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverAnchor asChild>
         <div>
-          <div className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0">
+          <div
+            className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0"
+            data-org-todo-shortcuts
+          >
             <PopoverTrigger asChild>
               <MuteButton
                 aria-label={c(
@@ -871,6 +958,7 @@ export function OrgTodoArea({
                 ) : null}
               </MuteButton>
             </PopoverTrigger>
+            <OrgTodoShortcutChips shortcuts={shortcuts} />
           </div>
           {children}
         </div>
@@ -889,7 +977,6 @@ export function OrgTodoArea({
             onNavigate={() => setOpen(false)}
             range="recent"
             roleId={roleId}
-            shortcuts={shortcuts}
             workspaceId={workspaceId}
           />
         </div>

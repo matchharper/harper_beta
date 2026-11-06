@@ -6,12 +6,23 @@ import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { OrgHomeRoleCards } from "@/components/org/OrgHomeInbox";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import {
+  OrgTodoGo,
+  OrgTodoQuiet,
   orgTodoHeadings,
+  orgTodoItemPeople,
+  orgTodoItemText,
   orgTodoItemTitle,
+  orgTodoItemWhen,
   useOrgTodoActions,
+  type OrgTodoActionParts,
 } from "@/components/org/OrgTodoChip";
-import { OrgTodoCard, OrgTodoDate } from "@/components/org/role-screen/OrgTodoCards";
-import { MuteButton } from "@/components/ui/button";
+import {
+  ORG_TODO_COLUMN_ICON,
+  OrgTodoCompactRow,
+  OrgTodoDate,
+  OrgTodoFoldedRows,
+  OrgTodoFollowupCard,
+} from "@/components/org/role-screen/OrgTodoCards";
 import { useOrgJobsBoard } from "@/hooks/org/useOrgJobs";
 import {
   orgWorkspaceTodoKey,
@@ -31,8 +42,9 @@ import type { OrgNowRole, OrgTodoColumn, OrgTodoItem } from "@/lib/org/todo";
 
 /**
  * Home's 채팅 side, the candidate side's panels for every role:
- * 결정할 것 (지금 팔로업) — what the team decides and what stops Harper;
- * 볼 만한 것 — Harper's offers and the updates; then Harper's work and plans;
+ * 결정할 것 (지금 팔로업) — what the team decides and what stops Harper, the
+ * only large cards; 볼 만한 것 — Harper's offers and the updates, compact, the
+ * first one shown; then Harper's work and plans as compact rows;
  * 역할 현황 (지원 현황) — each role's numbers.
  */
 const DECIDE: OrgTodoColumn[] = ["my_turn", "blocked"];
@@ -40,20 +52,21 @@ const WORTH: OrgTodoColumn[] = ["suggestion", "notice"];
 const LATER: OrgTodoColumn[] = ["in_progress", "scheduled"];
 export const ORG_HOME_TODO_COLUMNS: OrgTodoColumn[] = [...DECIDE, ...WORTH, ...LATER];
 
-/** A line as a card with its role's actions (the role screen's, per line). */
-function OrgHomeTodoCard({
-  emphasis,
+/**
+ * One line with its role's actions (the role screen's, per line): a large card
+ * for what the team decides, a compact row for the rest.
+ */
+function OrgHomeTodoLine({
   item,
+  look,
   meta,
   onChanged,
-  variant,
   workspaceId,
 }: {
-  emphasis: boolean;
   item: OrgTodoItem;
+  look: "card" | "row";
   meta: ReactNode;
   onChanged: () => void;
-  variant: "followup" | "content";
   workspaceId: string;
 }) {
   const { c, locale } = useOrgLocale();
@@ -61,67 +74,91 @@ function OrgHomeTodoCard({
   const roleChat = buildOrgHref({ orgId: workspaceId, page: "role", roleId, tab: "chat" });
   // Approving a plan sends it to the role's chat as the team's message, so it
   // happens there; Home never sends one.
-  const { action, answer, decide } = useOrgTodoActions({
+  const { actionParts, answer, decide, detail } = useOrgTodoActions({
     onApprove: () => undefined,
     onChanged,
     roleId,
     workspaceId,
   });
-  let buttons: ReactNode;
-  let footer: ReactNode = null;
+  let parts: OrgTodoActionParts;
+  let trailing: ReactNode = null;
   if (item.kind === "suggestion") {
-    buttons = (
-      <>
-        <MuteButton
-          disabled={decide.isPending}
-          onClick={() => answer(item, "dismiss")}
-          size="sm"
-          type="button"
-          variant="dark"
-        >
-          {c("괜찮아요", "Not now")}
-        </MuteButton>
-        <MuteButton asChild size="sm" variant="dark">
-          <Link href={roleChat}>{c("역할에서 진행하기", "Go ahead in the role")}</Link>
-        </MuteButton>
-      </>
-    );
-    footer = (
-      <button
-        className="career-card-close"
-        disabled={decide.isPending}
-        onClick={() => answer(item, "mute")}
-        type="button"
-      >
-        {c("이런 제안 그만", "Stop suggesting this")}
-      </button>
+    parts = {
+      primary: (
+        <OrgTodoGo
+          act={{ href: roleChat, key: "go", label: c("역할에서 진행하기", "Go ahead in the role") }}
+        />
+      ),
+      secondary: [
+        <OrgTodoQuiet
+          act={{
+            disabled: decide.isPending,
+            key: "dismiss",
+            label: c("괜찮아요", "Not now"),
+            onClick: () => answer(item, "dismiss"),
+          }}
+          key="dismiss"
+        />,
+      ],
+    };
+    trailing = (
+      <OrgTodoQuiet
+        act={{
+          disabled: decide.isPending,
+          key: "mute",
+          label: c("이런 제안 그만", "Stop suggesting this"),
+          onClick: () => answer(item, "mute"),
+        }}
+      />
     );
   } else if (item.kind === "memory_proposal") {
     // Harper asked in the role's conversation; it is answered there.
-    buttons = (
-      <MuteButton asChild size="sm" variant="dark">
-        <Link href={roleChat}>{c("채팅에서 답하기", "Answer in chat")}</Link>
-      </MuteButton>
-    );
+    parts = {
+      primary: (
+        <OrgTodoGo act={{ href: roleChat, key: "answer", label: c("채팅에서 답하기", "Answer in chat") }} />
+      ),
+      secondary: [],
+    };
   } else {
-    buttons = action(item);
+    parts = actionParts(item);
   }
+  const error = decide.isError ? (
+    <span className="text-critical" role="alert">
+      {c("제안에 답하지 못했어요. 다시 눌러 주세요.", "Couldn't answer the suggestion. Try again.")}
+    </span>
+  ) : null;
+  // Who set up Harper's work and a failed cancel; a suggestion's control is above.
+  const below = item.kind === "suggestion" ? error : (error ?? detail(item));
+  if (look === "card") {
+    return (
+      <OrgTodoFollowupCard
+        description={orgTodoItemPeople(item, c)}
+        detail={below}
+        meta={meta}
+        parts={parts}
+        title={orgTodoItemTitle(item, c, locale)}
+      />
+    );
+  }
+  const when = orgTodoItemWhen(item, locale);
   return (
-    <OrgTodoCard
-      action={buttons}
-      emphasis={emphasis}
-      footer={
-        decide.isError ? (
-          <span className="text-[12px] text-critical" role="alert">
-            {c("제안에 답하지 못했어요. 다시 눌러 주세요.", "Couldn't answer the suggestion. Try again.")}
-          </span>
+    <OrgTodoCompactRow
+      icon={ORG_TODO_COLUMN_ICON[item.column]}
+      meta={
+        below ? (
+          <>
+            {meta}
+            {meta ? " · " : null}
+            {below}
+          </>
         ) : (
-          footer
+          meta
         )
       }
-      meta={meta}
-      title={orgTodoItemTitle(item, c, locale)}
-      variant={variant}
+      parts={parts}
+      title={when ? orgTodoItemText(item, c, locale) : orgTodoItemTitle(item, c, locale)}
+      trailing={trailing}
+      when={when || undefined}
     />
   );
 }
@@ -288,14 +325,13 @@ export function OrgHomeTodo() {
     slack: "Slack",
     web: c("웹", "Web"),
   };
-  const card = (item: OrgTodoItem, emphasis: boolean, variant: "followup" | "content", meta: ReactNode) => (
-    <OrgHomeTodoCard
-      emphasis={emphasis}
+  const line = (item: OrgTodoItem, look: "card" | "row", meta: ReactNode) => (
+    <OrgHomeTodoLine
       item={item}
       key={`${item.roleId ?? ""}:${item.id}`}
+      look={look}
       meta={meta}
       onChanged={refresh}
-      variant={variant}
       workspaceId={workspaceId}
     />
   );
@@ -311,21 +347,23 @@ export function OrgHomeTodo() {
         </header>
         {decide.length ? (
           <ul className="space-y-3">
-            {decide.map((item) => card(item, true, "followup", roleName(item)))}
+            {decide.map((item) => line(item, "card", roleName(item)))}
           </ul>
         ) : null}
       </section>
       {worth.length ? (
-        <section aria-label={ct(c, COMPANY_TERMS.home.worthALook)} className="career-content">
+        <section
+          aria-label={ct(c, COMPANY_TERMS.home.worthALook)}
+          className="career-content org-todo-compact"
+        >
           <h2 className="career-content-heading">
             {ct(c, COMPANY_TERMS.home.worthALook)} {worth.length}
           </h2>
-          <ul className="space-y-3">
+          <OrgTodoFoldedRows>
             {worth.map((item) =>
-              card(
+              line(
                 item,
-                false,
-                "content",
+                "row",
                 [
                   roleName(item),
                   item.at ? formatKstRelativeDate(item.at, { locale }) : null,
@@ -335,18 +373,22 @@ export function OrgHomeTodo() {
                   .join(" · ")
               )
             )}
-          </ul>
+          </OrgTodoFoldedRows>
         </section>
       ) : null}
       {LATER.map((column) => {
         const group = items.filter((item) => item.column === column);
         return group.length ? (
-          <section aria-label={headings[column]} className="career-content" key={column}>
+          <section
+            aria-label={headings[column]}
+            className="career-content org-todo-compact"
+            key={column}
+          >
             <h2 className="career-content-heading">
               {headings[column]} {group.length}
             </h2>
-            <ul className="space-y-3">
-              {group.map((item) => card(item, false, "followup", roleName(item)))}
+            <ul className="org-todo-rows">
+              {group.map((item) => line(item, "row", roleName(item)))}
             </ul>
           </section>
         ) : null;
