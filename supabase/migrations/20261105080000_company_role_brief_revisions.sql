@@ -88,12 +88,12 @@ begin
   if v_workspace is null then
     return;
   end if;
+  -- Serialise version numbering per role. Waits only for another transaction
+  -- that is changing the same role's Brief; taken before the snapshot so the
+  -- snapshot includes what that transaction committed.
+  perform pg_advisory_xact_lock(hashtextextended('company_role_brief_revision:' || p_role_id::text, 0));
   v_snapshot := public.company_role_brief_snapshot_v1(p_role_id);
   v_hash := md5(v_snapshot::text);
-
-  -- Serialise version numbering per role. Waits only for another transaction
-  -- that is changing the same role's Brief.
-  perform pg_advisory_xact_lock(hashtextextended('company_role_brief_revision:' || p_role_id::text, 0));
 
   select revision.revision, revision.content_hash, revision.created_at
     into v_previous_revision, v_previous_hash, v_previous_created_at
