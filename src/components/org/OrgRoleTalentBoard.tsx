@@ -587,7 +587,7 @@ export function OrgRoleTalentBoardCard({
                 onClick={onReject}
                 size="md"
                 variant="neutral"
-                className="py-2"
+                className="py-2 whitespace-nowrap"
               >
                 {ct(c, COMPANY_TERMS.action.pass)}
               </MuteButton>

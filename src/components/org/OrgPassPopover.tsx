@@ -72,7 +72,7 @@ export function OrgPassPopover({
           size="md"
           variant="neutral"
           aria-keyshortcuts={shortcut ? "p" : undefined}
-          className="px-3 py-1.5 border-none text-[15px]"
+          className="px-3 py-1.5 border-none text-[15px] whitespace-nowrap"
         >
           {c("이번엔 넘길게요", "Pass for now")}
           {shortcut && (

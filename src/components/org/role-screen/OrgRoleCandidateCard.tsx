@@ -292,7 +292,7 @@ export function OrgRoleCandidateCard({
                 />
               ) : (
                 <MuteButton
-                  className="py-2"
+                  className="py-2 whitespace-nowrap"
                   disabled={pending}
                   onClick={onReject}
                   size="md"

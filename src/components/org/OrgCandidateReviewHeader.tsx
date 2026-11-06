@@ -201,7 +201,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
               ) : (
                 <>
                   <MuteButton
-                    className="px-3 py-1.5 border-none text-[15px]"
+                    className="px-3 py-1.5 border-none text-[15px] whitespace-nowrap"
                     variant="neutral"
                     disabled={pending}
                     onClick={props.onReject}
