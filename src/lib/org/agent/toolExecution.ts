@@ -1,4 +1,5 @@
 import {readHiringBriefHistory} from '../hiringBriefHistory.server';
+import { isRoleStartBriefCopyError, ROLE_START_BRIEF_ONLY_TOOL_MESSAGE } from "@/lib/org/roleStartBriefCopy";
 import { throwBillingDbError } from "@/lib/org/billing/store";
 import { readCompanyMemory, writeCompanyMemory, object as memoryObject } from "./companyMemory";
 import { readCompanyRoleSearch } from "@/lib/companyFirstSearch/agenticSearch";
@@ -1466,7 +1467,9 @@ async function executeProposalAction(args: {
       p_workspace_id: args.workspaceId,
     }
   );
-  if (error) throw error;
+  if (error) {
+    throw isRoleStartBriefCopyError(error) ? new OrgAgentToolInputError(ROLE_START_BRIEF_ONLY_TOOL_MESSAGE) : error;
+  }
   const result = asRpcResult(data);
   const status = text(result.status) || "not_found";
   if (status === "preview" || status === "needs_repreview") {
@@ -2013,7 +2016,9 @@ async function executeUpdateData(args: {
         workspaceId: args.workspaceId,
       })
     : { data: { status: briefChanged ? "updated" : "already_reflected" }, error: null };
-  if (error) throw error;
+  if (error) {
+    throw isRoleStartBriefCopyError(error) ? new OrgAgentToolInputError(ROLE_START_BRIEF_ONLY_TOOL_MESSAGE) : error;
+  }
   const result = asRpcResult(data);
   const status = text(result.status);
   if (status === "conflict") {

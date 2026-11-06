@@ -1,4 +1,5 @@
 import type { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { roleStartBriefCopyHttpError } from "@/lib/org/roleStartBriefCopy";
 import {
   buildCompanyEventContent,
   type CompanyEventChange,
@@ -506,7 +507,7 @@ export async function applyWebsiteCompanyDataChanges(args: {
         p_source: args.source ?? "website",
         p_workspace_id: args.workspaceId,
       });
-  if (error) throw error;
+  if (error) throw roleStartBriefCopyHttpError(error);
   const result = record(data) as WebsiteCompanyDataRpcResult;
   if (result.status === "conflict") {
     throw new WebsiteCompanyDataConflictError(result.key, result.role_id);

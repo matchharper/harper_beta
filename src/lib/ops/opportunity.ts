@@ -1194,16 +1194,18 @@ export async function saveOpsOpportunityRole(args: {
 
   const insertedRole = data as RoleRow;
   if (payload.source_type === "internal") {
-    const { error: internalError } = await admin
-      .from("company_internal_roles")
-      .upsert(
-        {
-          request,
-          role_id: insertedRole.role_id,
-          updated_at: now,
-        },
-        { onConflict: "role_id" }
-      );
+    // The first Brief text goes through the Brief write function, so its
+    // version records that Ops wrote it.
+    const { error: internalError } = await (admin.rpc as any)(
+      "write_company_role_brief_v1",
+      {
+        p_actor_label: args.eventActorLabel,
+        p_criteria: null,
+        p_request: request,
+        p_role_id: insertedRole.role_id,
+        p_source: "ops",
+      }
+    );
     if (internalError) {
       throw new Error(
         internalError.message ?? "Failed to save internal role request"

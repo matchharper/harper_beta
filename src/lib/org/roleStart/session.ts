@@ -603,34 +603,23 @@ export async function saveRoleStartBrief(args: {
         where role_id = ${args.roleId} and phase <> 'superseded'`;
     }
     if (args.writeRole) {
-      // Feed the existing history trigger in this same transaction. Background
-      // saves without an author remain explicitly unattributed.
+      // One Brief write (write_company_role_brief_v1) in this same transaction:
+      // the version and history record who and where. Background saves without
+      // an author remain explicitly unattributed. A registered Role's text and
+      // list are copies of this Brief, and only role start writes them.
       const [actor] = args.userId
         ? await tx<Array<{ name: string | null }>>`select name from public.company_users where user_id = ${args.userId}`
         : [];
-      await tx`select set_config('harper.hiring_brief_change_context', ${JSON.stringify({
-        actorUserId: args.userId,
-        actorLabel: actor?.name ?? null,
-        source: args.historySource ?? args.changeSource,
-        requestReview: args.requestReview === true && args.historySource === "website" && Boolean(args.userId),
-      })}, true)`;
-    }
-    if (args.writeRole === "criteria") {
-      await tx`
-        update public.company_internal_roles
-        set criteria = ${tx.json(wellFormedJson(criteria))}, updated_at = now()
-        where role_id = ${args.roleId}
-      `;
-    } else if (args.writeRole) {
-      await tx`
-        update public.company_internal_roles
-        set criteria = ${tx.json(wellFormedJson(criteria))}, request = ${markdown}, updated_at = now()
-        where role_id = ${args.roleId}
-      `;
-      await tx`
-        update public.company_roles set updated_at = now()
-        where role_id = ${args.roleId}
-      `;
+      await tx`select public.write_company_role_brief_v1(
+        ${args.roleId}::uuid,
+        ${args.writeRole === "criteria" ? null : markdown},
+        ${tx.json(wellFormedJson(criteria))},
+        ${args.historySource ?? args.changeSource},
+        ${args.userId}::uuid,
+        ${actor?.name ?? null},
+        ${args.requestReview === true && args.historySource === "website" && Boolean(args.userId)},
+        true
+      )`;
     }
     const history = args.writeRole
       ? await tx<Array<{ id: string }>>`select id from public.company_role_hiring_brief_history
