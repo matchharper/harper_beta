@@ -103,6 +103,26 @@ export function useSaveOpsOfficialJob() {
   });
 }
 
+/** The posting text still fits after its Role's Brief changed. */
+export function useMarkOpsOfficialJobReviewed() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (jobId: string) =>
+      fetchWithInternalAuth<OpsOfficialJobSaveResponse>(
+        "/api/internal/official-jobs/review",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: jobId }),
+        }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: opsOfficialJobsKey });
+    },
+  });
+}
+
 export function useSyncAshbyOfficialJobs() {
   const queryClient = useQueryClient();
 

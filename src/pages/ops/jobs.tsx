@@ -9,6 +9,7 @@ import { showToast } from "@/components/toast/toast";
 import { MarkdownRichTextEditor } from "@/components/ui/markdown-rich-text-editor";
 import { Switch } from "@/components/ui/switch";
 import {
+  useMarkOpsOfficialJobReviewed,
   useOpsOfficialJobAnalytics,
   useOpsOfficialJobInternalRoleOptions,
   useOpsOfficialJobs,
@@ -354,6 +355,15 @@ function rebaseOfficialJobDraft(
   }, savedDraft);
 }
 
+function draftRoleIdMatches(
+  job: OpsOfficialJobRecord,
+  draftState: { draft: OfficialJobDraft; key: string | null },
+  activeJobId: string | null
+) {
+  if (draftState.key !== activeJobId) return true;
+  return draftState.draft.roleId === (job.roleId ?? "");
+}
+
 function createSlug(value: string) {
   const slug = value
     .trim()
@@ -424,6 +434,15 @@ function matchesQuery(job: OpsOfficialJobRecord, query: string) {
   return haystack.includes(query);
 }
 
+/** A fact the linked Role provides: shown, edited on the Role, not here. */
+function RoleFactHint() {
+  return (
+    <div className="mt-1.5 text-xs text-neutral-muted">
+      역할 값이에요. 바꾸려면 역할에서 고쳐 주세요(역할 사실은 후보 평가에도 쓰여요).
+    </div>
+  );
+}
+
 function Field({ children, label }: { children: ReactNode; label: ReactNode }) {
   return (
     <label className="block">
@@ -477,6 +496,8 @@ export default function OpsOfficialJobsPage() {
     useOpsOfficialJobInternalRoleOptions(canFetchInternal);
   const { isPending: isSavePending, mutateAsync: saveJob } =
     useSaveOpsOfficialJob();
+  const { isPending: isReviewPending, mutateAsync: markReviewed } =
+    useMarkOpsOfficialJobReviewed();
   const jobs = useMemo(
     () => jobsQuery.data?.jobs ?? [],
     [jobsQuery.data?.jobs]
@@ -486,6 +507,11 @@ export default function OpsOfficialJobsPage() {
       ? null
       : (selectedJobId ?? jobs[0]?.id ?? null);
   const selectedJob = jobs.find((job) => job.id === activeJobId) ?? null;
+  // Facts the saved Role link provides (until a changed Role link is saved).
+  const roleFacts =
+    selectedJob && draftRoleIdMatches(selectedJob, draftState, activeJobId)
+      ? selectedJob.roleFacts
+      : null;
   const activeDraftKey =
     selectedJobId === NEW_JOB_ID ? NEW_JOB_ID : activeJobId;
   const currentDraftKey = activeDraftKey ?? NEW_JOB_ID;
@@ -917,6 +943,11 @@ export default function OpsOfficialJobsPage() {
                             On LinkedIn
                           </span>
                         )}
+                        {job.needsReview && (
+                          <span className="rounded-sm bg-info-faded px-1 py-0.5 text-[11px] font-medium text-info">
+                            공고 확인 필요
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-neutral-muted">
@@ -1165,6 +1196,37 @@ export default function OpsOfficialJobsPage() {
               </div>
             </div>
 
+            {selectedJob?.needsReview ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-neutral-1000-a05 bg-info-faded px-4 py-3">
+                <div className="text-sm text-neutral-primary">
+                  <div className="font-semibold">공고 확인 필요</div>
+                  <div className="mt-1 text-xs text-neutral-muted">
+                    이 공고를 마지막으로 고치거나 확인한 뒤 역할 Brief가 바뀌었어요. 제목·설명이 지금 역할과 맞는지 봐 주세요. 글을 고쳐 저장해도 확인한 것으로 남아요.
+                  </div>
+                </div>
+                <MuteButton
+                  size="lg"
+                  disabled={isReviewPending || hasUnsavedChanges}
+                  onClick={async () => {
+                    try {
+                      await markReviewed(selectedJob.id);
+                      showToast({ message: "확인함으로 남겼어요." });
+                    } catch (error) {
+                      showToast({
+                        message:
+                          error instanceof Error
+                            ? error.message
+                            : "확인 상태를 저장하지 못했습니다.",
+                        variant: "error",
+                      });
+                    }
+                  }}
+                >
+                  지금 글이 맞아요
+                </MuteButton>
+              </div>
+            ) : null}
+
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
               <Field label="Job title">
                 <UiInput
@@ -1195,11 +1257,17 @@ export default function OpsOfficialJobsPage() {
                 <UiInput
                   unstyled
                   value={draft.location}
+                  disabled={Boolean(roleFacts?.location)}
                   onChange={(event) =>
                     updateDraft("location", event.target.value)
                   }
-                  className={opsTheme.input}
+                  className={cx(
+                    opsTheme.input,
+                    roleFacts?.location &&
+                      "cursor-not-allowed bg-bg-weak text-neutral-muted"
+                  )}
                 />
+                {roleFacts?.location ? <RoleFactHint /> : null}
               </Field>
               <Field label="Vertical">
                 <UiInput
@@ -1212,6 +1280,19 @@ export default function OpsOfficialJobsPage() {
                 />
               </Field>
               <Field label="Employment type">
+                {roleFacts?.employmentType ? (
+                  <>
+                    <div
+                      className={cx(
+                        opsTheme.input,
+                        "cursor-not-allowed bg-bg-weak text-neutral-muted"
+                      )}
+                    >
+                      {draft.employmentType}
+                    </div>
+                    <RoleFactHint />
+                  </>
+                ) : (
                 <div
                   className="flex items-center gap-2"
                   role="radiogroup"
@@ -1237,6 +1318,7 @@ export default function OpsOfficialJobsPage() {
                     );
                   })}
                 </div>
+                )}
               </Field>
               <Field label="Internal role">
                 <InternalRoleCombobox
@@ -1300,22 +1382,34 @@ export default function OpsOfficialJobsPage() {
                 <UiInput
                   unstyled
                   value={draft.seniority}
+                  disabled={Boolean(roleFacts?.seniority)}
                   onChange={(event) =>
                     updateDraft("seniority", event.target.value)
                   }
-                  className={opsTheme.input}
+                  className={cx(
+                    opsTheme.input,
+                    roleFacts?.seniority &&
+                      "cursor-not-allowed bg-bg-weak text-neutral-muted"
+                  )}
                   placeholder="Senior / Staff"
                 />
+                {roleFacts?.seniority ? <RoleFactHint /> : null}
               </Field>
               <Field label="Compensation">
                 <UiInput
                   unstyled
                   value={draft.compensation}
+                  disabled={Boolean(roleFacts?.compensation)}
                   onChange={(event) =>
                     updateDraft("compensation", event.target.value)
                   }
-                  className={opsTheme.input}
+                  className={cx(
+                    opsTheme.input,
+                    roleFacts?.compensation &&
+                      "cursor-not-allowed bg-bg-weak text-neutral-muted"
+                  )}
                 />
+                {roleFacts?.compensation ? <RoleFactHint /> : null}
               </Field>
             </div>
           </section>
