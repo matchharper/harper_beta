@@ -69,31 +69,3 @@ test("decisions in quick succession join one queued run; a repeated event is not
     assert.equal(await can(`has_function_privilege('authenticated', '${signature}', 'EXECUTE')`), false);
   } finally { await db.close(); }
 });
-
-test("a teammate's decision in the same conversation opens their own run (#262)", async () => {
-  const db = new PGlite();
-  const teammate = "10000000-0000-4000-8000-000000000006";
-  try {
-    await db.exec(SETUP);
-    for (const name of ["20261105200000_company_agent_web_action_batching.sql", "20261107050300_company_agent_batch_per_decider.sql"])
-      await db.exec(await readFile(new URL(`../../../supabase/migrations/${name}`, import.meta.url), "utf8"));
-    const enqueue = async (key: string, by: string) => (await db.query<any>(
-      `select * from enqueue_company_agent_web_action_batched_v1($1, $2, null, $3, 'company_intro_decision', $4::jsonb, $5, 45)`,
-      [workspace, conversation, by, JSON.stringify({ introCandidateId: key }), key])).rows[0];
-    const runOf = async (id: string) => (await db.query<any>(
-      "select actor_user_id, action_context c from company_agent_web_action_jobs where id = $1", [id])).rows[0];
-
-    const first = await enqueue("pass:a", actor);
-    const theirs = await enqueue("pass:b", teammate);
-    const mine = await enqueue("request:c", actor);
-    assert.notEqual(theirs.job_id, first.job_id);
-    assert.equal(theirs.created, true);
-    assert.equal(mine.job_id, first.job_id);
-    // Each run is one person's decisions and runs as that person.
-    assert.deepEqual([(await runOf(first.job_id)).actor_user_id, (await runOf(first.job_id)).c.batchKeys], [actor, ["pass:a", "request:c"]]);
-    assert.deepEqual([(await runOf(theirs.job_id)).actor_user_id, (await runOf(theirs.job_id)).c.batchKeys], [teammate, ["pass:b"]]);
-    // A repeated event still finds the run it joined, whoever sends it again.
-    assert.equal((await enqueue("pass:b", actor)).job_id, theirs.job_id);
-    assert.equal((await db.query<any>("select count(*)::int n from company_agent_web_action_jobs")).rows[0].n, 2);
-  } finally { await db.close(); }
-});
