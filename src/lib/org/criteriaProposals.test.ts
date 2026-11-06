@@ -4,17 +4,18 @@ import {
   applyCriteriaProposal,
   CRITERIA_PROPOSAL_RULES,
   CRITERIA_PROPOSALS_ENABLED,
-  countedPasses,
   criteriaProposalChangeReason,
   criteriaProposalContentKey,
   criteriaProposalStillApplies,
   criteriaProposalText,
-  findCriteriaProposal,
   nextCriterionLevel,
   parseCriteriaProposalPayload,
-  type PassDecision,
+  type CriteriaProposalPayload,
 } from "./criteriaProposals";
 
+// What a suggestion is, with no judgment in it: Harper decides whether to
+// suggest (criteriaReview.server.ts); these are the levels, the stored
+// payload and the To-do text.
 const criteria = [
   { id: "c-go", name: "Go 서비스 운영", criteria: "Go로 서비스를 운영해 봤다", requirement: "preferred", importance: 2 },
   { id: "c-lead", name: "리드 경험", criteria: "팀을 이끌어 봤다", requirement: "preferred", importance: 1 },
@@ -22,96 +23,33 @@ const criteria = [
   { name: "B2B 경험", criteria: "기업 고객 제품" },
 ];
 
-let id = 0;
-const pass = (tags: string[], extra: Partial<PassDecision> = {}): PassDecision => {
-  id += 1;
-  return { id, subjectId: `talent-${id}`, reasonTags: tags, hasReasonText: false, ...extra };
+const goProposal: CriteriaProposalPayload = {
+  version: 1,
+  change: { type: "criterion_level", criterionKey: "c-go", criterionName: "Go 서비스 운영", from: "important", to: "required" },
+  evidence: { count: 4, window: 4, decisionIds: [9, 8, 7, 6] },
 };
 
-test("on since 11/6 (Shaun), with these numbers", () => {
+test("on since 11/6 (Shaun), read again every 3 passes or 7 days", () => {
   assert.equal(CRITERIA_PROPOSALS_ENABLED, true);
   assert.deepEqual(
-    { every: CRITERIA_PROPOSAL_RULES.everyDecisions, wait: CRITERIA_PROPOSAL_RULES.waitDays },
-    { every: 3, wait: 7 }
+    { every: CRITERIA_PROPOSAL_RULES.everyDecisions, wait: CRITERIA_PROPOSAL_RULES.waitDays, size: CRITERIA_PROPOSAL_RULES.reviewSize },
+    { every: 3, wait: 7, size: 20 }
   );
 });
 
-test("7 of the last 10 passes with a reason name a criterion: raise it one level", () => {
-  const decisions = [
-    ...Array.from({ length: 7 }, () => pass(["c-go"])),
-    pass(["experience_skills"]),
-    pass([], { hasReasonText: true }),
-    pass(["c-lead"]),
-  ];
-  const proposal = findCriteriaProposal({ decisions, criteria });
-  assert.ok(proposal);
-  assert.deepEqual(proposal.change, {
-    type: "criterion_level",
-    criterionKey: "c-go",
-    criterionName: "Go 서비스 운영",
-    from: "important",
-    to: "required",
-  });
-  assert.equal(proposal.evidence.count, 7);
-  assert.equal(proposal.evidence.window, 10);
-  assert.equal(proposal.evidence.decisionIds.length, 7);
-  assert.equal(criteriaProposalContentKey(proposal.change), "criterion_level:c-go:important>required");
-});
-
-test("free-text-only reasons count as reasons that name no criterion", () => {
-  // 3 tagged of 7 with a reason: below half, so nothing.
-  const decisions = [
-    ...Array.from({ length: 3 }, () => pass(["c-go"])),
-    ...Array.from({ length: 4 }, () => pass([], { hasReasonText: true })),
-  ];
-  assert.equal(findCriteriaProposal({ decisions, criteria }), null);
-  // Passes with no reason at all are not counted.
-  const silent = [...Array.from({ length: 3 }, () => pass(["c-go"])), ...Array.from({ length: 5 }, () => pass([]))];
-  assert.equal(findCriteriaProposal({ decisions: silent, criteria })?.evidence.window, 3);
-});
-
-test("timing-only reasons, repeats and fixed categories", () => {
-  // Timing is about the candidate's moment: left out of the window.
-  const timing = [...Array.from({ length: 3 }, () => pass(["c-go"])), ...Array.from({ length: 4 }, () => pass(["timing"]))];
-  assert.equal(findCriteriaProposal({ decisions: timing, criteria })?.evidence.window, 3);
-  // A timing tag next to a criterion still counts for the criterion.
-  assert.deepEqual(countedPasses([pass(["timing", "c-go"])], 10)[0].reasonTags, ["c-go"]);
-  // One candidate counts once (the newest decision with a reason).
-  const same = Array.from({ length: 3 }, () => pass(["c-go"], { subjectId: "talent-x" }));
-  assert.equal(findCriteriaProposal({ decisions: same, criteria }), null);
-  // Fixed categories count as reasons but never make a suggestion by themselves.
-  const fixed = Array.from({ length: 6 }, () => pass(["working_conditions"]));
-  assert.equal(findCriteriaProposal({ decisions: fixed, criteria }), null);
-  // Fewer than three counted passes: nothing.
-  assert.equal(findCriteriaProposal({ decisions: [pass(["c-go"]), pass(["c-go"])], criteria }), null);
-});
-
-test("a required criterion, an answered change or a removed criterion is skipped", () => {
-  const k8s = Array.from({ length: 4 }, () => pass(["c-k8s"]));
-  assert.equal(findCriteriaProposal({ decisions: k8s, criteria }), null);
-  // The next criterion that qualifies is taken instead.
-  const mixed = [...Array.from({ length: 5 }, () => pass(["c-k8s", "c-lead"]))];
-  const lead = findCriteriaProposal({ decisions: mixed, criteria });
-  assert.equal(lead?.change.criterionKey, "c-lead");
-  assert.deepEqual([lead?.change.from, lead?.change.to], ["nice", "important"]);
-  assert.equal(
-    findCriteriaProposal({ decisions: mixed, criteria, answeredKeys: ["criterion_level:c-lead:nice>important"] }),
-    null
-  );
-  assert.equal(findCriteriaProposal({ decisions: Array.from({ length: 4 }, () => pass(["c-gone"])), criteria }), null);
-  // Older criteria are tagged by name and read as 중요.
-  const byName = findCriteriaProposal({ decisions: Array.from({ length: 3 }, () => pass(["B2B 경험"])), criteria });
-  assert.deepEqual([byName?.change.criterionKey, byName?.change.from], ["B2B 경험", "important"]);
+test("a suggestion goes one level up, never past required", () => {
+  assert.equal(nextCriterionLevel("nice"), "important");
+  assert.equal(nextCriterionLevel("important"), "required");
+  assert.equal(nextCriterionLevel("required"), null);
   // The highest level is one switch.
   assert.equal(nextCriterionLevel("important", "important"), null);
   assert.equal(nextCriterionLevel("nice", "important"), "important");
-  assert.equal(nextCriterionLevel("required"), null);
+  assert.equal(criteriaProposalContentKey(goProposal.change), "criterion_level:c-go:important>required");
 });
 
 test("the change keeps other criteria and records why", () => {
-  const proposal = findCriteriaProposal({ decisions: Array.from({ length: 4 }, () => pass(["c-go"])), criteria })!;
   const now = new Date("2026-11-07T01:00:00Z");
-  const next = applyCriteriaProposal(criteria, proposal.change, criteriaProposalChangeReason(proposal, "ko"), now);
+  const next = applyCriteriaProposal(criteria, goProposal.change, criteriaProposalChangeReason(goProposal, "ko"), now);
   assert.deepEqual(next[0], {
     id: "c-go",
     name: "Go 서비스 운영",
@@ -122,20 +60,23 @@ test("the change keeps other criteria and records why", () => {
     changedAt: now.toISOString(),
   });
   assert.deepEqual(next.slice(1).map((item) => item.name), ["리드 경험", "쿠버네티스", "B2B 경험"]);
-  assert.equal(criteriaProposalStillApplies(proposal.change, criteria), true);
-  assert.equal(criteriaProposalStillApplies(proposal.change, next), false);
-  assert.equal(criteriaProposalStillApplies(proposal.change, criteria.slice(1)), false);
+  assert.equal(criteriaProposalStillApplies(goProposal.change, criteria), true);
+  assert.equal(criteriaProposalStillApplies(goProposal.change, next), false);
+  assert.equal(criteriaProposalStillApplies(goProposal.change, criteria.slice(1)), false);
+  // Older criteria are keyed by name and read as 중요.
+  const byName = { ...goProposal.change, criterionKey: "B2B 경험", criterionName: "B2B 경험" };
+  assert.equal(criteriaProposalStillApplies(byName, criteria), true);
 });
 
 test("the To-do line, in both languages, fits the summary column", () => {
-  const payload = {
-    version: 1 as const,
+  const payload: CriteriaProposalPayload = {
+    version: 1,
     change: {
-      type: "criterion_level" as const,
+      type: "criterion_level",
       criterionKey: "c-go",
       criterionName: "아주 긴 이름의 확인할 기준이 들어가도 줄이 넘치지 않아야 해요 정말로 아주 길게",
-      from: "nice" as const,
-      to: "important" as const,
+      from: "nice",
+      to: "important",
     },
     evidence: { count: 7, window: 10, decisionIds: [1] },
   };
@@ -150,10 +91,31 @@ test("the To-do line, in both languages, fits the summary column", () => {
   assert.equal(criteriaProposalChangeReason(payload, "en"), "From pass reasons (7 of 10)");
 });
 
+test("Harper's own sentence is shown to readers of its language, with the counts from the evidence", () => {
+  const payload: CriteriaProposalPayload = {
+    ...goProposal,
+    evidence: { count: 4, window: 6, decisionIds: [9, 8, 7, 6] },
+    locale: "ko",
+    rationale: "최근 넘긴 후보들이 공통으로 Go 운영 경험이 없다는 이유였어요.",
+  };
+  assert.equal(
+    criteriaProposalText(payload, "ko").summary,
+    "'Go 서비스 운영' 기준을 중요에서 필수로 올릴까요? 최근 넘긴 후보들이 공통으로 Go 운영 경험이 없다는 이유였어요. (이유를 남긴 6명 중 4명)"
+  );
+  // An English reader gets the fixed sentence, not Korean prose.
+  assert.match(criteriaProposalText(payload, "en").summary, /It was the reason for 4 of your last 6 passes with a reason\.$/);
+  // A long sentence is cut so the line still fits; the counts stay.
+  const long = criteriaProposalText({ ...payload, rationale: "가".repeat(200) }, "ko").summary;
+  assert.ok(Array.from(long).length <= 160, long);
+  assert.match(long, /…\s\(이유를 남긴 6명 중 4명\)$/);
+});
+
 test("stored payloads are read back strictly", () => {
-  const proposal = findCriteriaProposal({ decisions: Array.from({ length: 3 }, () => pass(["c-go"])), criteria })!;
-  assert.deepEqual(parseCriteriaProposalPayload({ ...proposal, locale: "en", claim: { by: "x" } }), { ...proposal, locale: "en" });
+  assert.deepEqual(parseCriteriaProposalPayload({ ...goProposal, locale: "en", claim: { by: "x" } }), { ...goProposal, locale: "en" });
+  assert.deepEqual(parseCriteriaProposalPayload({ ...goProposal, rationale: "  why  " }), { ...goProposal, rationale: "why" });
+  assert.equal(parseCriteriaProposalPayload({ ...goProposal, rationale: "가".repeat(400) })!.rationale!.length, 200);
+  assert.equal("rationale" in parseCriteriaProposalPayload({ ...goProposal, rationale: "   " })!, false);
   assert.equal(parseCriteriaProposalPayload({ changes: [] }), null);
-  assert.equal(parseCriteriaProposalPayload({ ...proposal, change: { ...proposal.change, to: "max" } }), null);
-  assert.equal(parseCriteriaProposalPayload({ ...proposal, evidence: { count: 5, window: 3 } }), null);
+  assert.equal(parseCriteriaProposalPayload({ ...goProposal, change: { ...goProposal.change, to: "max" } }), null);
+  assert.equal(parseCriteriaProposalPayload({ ...goProposal, evidence: { count: 5, window: 3 } }), null);
 });

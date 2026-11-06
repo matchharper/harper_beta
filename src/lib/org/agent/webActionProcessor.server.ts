@@ -154,10 +154,11 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
       if(error) throw error;
       return;
     }
-    // Pass reasons sharpen the criteria (S2 G): counting only, no model run.
+    // Pass reasons sharpen the criteria (S2 G): Harper reviews the Role's
+    // recent pass reasons as a service event; its model calls count in usage.
     if (job.action_name === "consolidate_decisions") {
       const { runQueuedCriteriaConsolidation } = await import("@/lib/org/criteriaProposals.server");
-      await runQueuedCriteriaConsolidation({ admin, job, usage: usage() });
+      await withLlmUsageContext(usageContext, () => runQueuedCriteriaConsolidation({ admin, job, usage }));
       return;
     }
     const [{ data: conversation, error: conversationError }, authResult] =

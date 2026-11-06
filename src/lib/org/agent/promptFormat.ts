@@ -2230,6 +2230,7 @@ export function formatOrgAgentToolResult(
 ) {
   if (value && typeof value === "object" && typeof (value as any).modelOutput === "string") return (value as any).modelOutput;
   if (name === "read_agent_messages" || name === "contact_user" || name === "manage_agent_schedule") return "The operation returned no readable receipt; no delivery is established.";
+  if (name === "propose_criteria_change") return "The operation returned no readable result; it is not established that a suggestion was added.";
   const result = asRecord(projectLlmDateTimes(projectCandidateEmailPrivacy(value)));
   if (name === "start_role_creation") {
     const requiredContinuationLink = String(
