@@ -45,3 +45,32 @@ export function orgAgentReplyAnswersTeamMessage(
   if (record.webActionJobId || record.scheduleId) return false;
   return record.source !== "agent_contact" && record.source !== "org_agent_web_action";
 }
+
+/** The time shown when hovering a message: today, yesterday, or the date, with the clock time. */
+export function formatOrgMessageHoverTime(
+  createdAt: string,
+  locale: "ko" | "en" = "ko",
+  now = new Date()
+) {
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return "";
+  const intlLocale = locale === "en" ? "en-US" : "ko-KR";
+  const clock = new Intl.DateTimeFormat(intlLocale, {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+  }).format(created);
+  const dayDifference = Math.round(
+    (localDayStart(now) - localDayStart(created)) / DAY_IN_MS
+  );
+  if (dayDifference <= 0) return `${locale === "en" ? "Today" : "오늘"} ${clock}`;
+  if (dayDifference === 1) {
+    return `${locale === "en" ? "Yesterday" : "어제"} ${clock}`;
+  }
+  const date = new Intl.DateTimeFormat(intlLocale, {
+    day: "numeric",
+    month: locale === "en" ? "short" : "long",
+    ...(created.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+  }).format(created);
+  return `${date} ${clock}`;
+}

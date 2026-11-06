@@ -42,9 +42,23 @@ import { isOrgQueryAccessError } from "@/lib/org/queryError";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   EMPTY_ORG_AGENT_LIVE_CHAT,
+  EMPTY_ORG_AGENT_QUEUE,
+  EMPTY_ORG_AGENT_RESTORES,
   getOrgAgentLiveChatKey,
   useOrgAgentLiveChatStore,
 } from "@/store/useOrgAgentLiveChatStore";
+import {
+  orgAgentMessageWasSaved,
+  type OrgAgentDraftSnapshot,
+  type OrgAgentQueuedMessage,
+  type OrgAgentTurnResult,
+} from "@/lib/org/agent/chatQueue";
+import {
+  sendOrgAgentQueued,
+  stopOrgAgentTurn,
+  takeBackOrgAgentQueued,
+  type OrgAgentTurnControl,
+} from "@/hooks/org/orgAgentChatQueue";
 
 type OrgAgentMessagesPage = OrgAgentMessagesResponse;
 
@@ -356,6 +370,29 @@ export function useOrgAgentMentionCandidates(args: {
   };
 }
 
+type OrgAgentSendInput = {
+  attachments?: ChatAttachmentPayload[];
+  /** What the input held, so a send that never reached the conversation can go back into it. */
+  draft?: OrgAgentDraftSnapshot | null;
+  draftRoleId?: string | null;
+  mentions?: OrgAgentMention[];
+  message: string;
+  roleCreationView?: "role_details";
+  onComplete?: () => void;
+  model?: OrgAgentModelId | string | null;
+};
+
+function messagesFromHistoryCache(
+  queryClient: QueryClient,
+  queryKey: readonly unknown[]
+) {
+  const data =
+    queryClient.getQueryData<InfiniteData<OrgAgentMessagesPage, number | null>>(
+      queryKey
+    );
+  return (data?.pages ?? []).flatMap((page) => page.messages);
+}
+
 export function useOrgAgentChat(args: {
   appendMessagesToCache: (messages: OrgAgentMessage[]) => void;
   currentUserId?: string | null;
@@ -371,6 +408,9 @@ export function useOrgAgentChat(args: {
   const activeWorkspaceId = args.workspaceId?.trim() ?? "";
   const activeRoleId = args.roleId?.trim() ?? "";
   const mode = args.mode ?? "general";
+  // Role creation moves its live state to the new Role mid-turn and has its own
+  // screens, so it keeps sending one message per turn with the input locked.
+  const queueEnabled = mode !== "role_creation";
   const liveChatKey = getOrgAgentLiveChatKey({
     mode,
     roleId: activeRoleId,
@@ -379,24 +419,38 @@ export function useOrgAgentChat(args: {
   const liveChat = useOrgAgentLiveChatStore(
     (state) => state.chats[liveChatKey] ?? EMPTY_ORG_AGENT_LIVE_CHAT
   );
+  const queued = useOrgAgentLiveChatStore(
+    (state) => state.queues[liveChatKey] ?? EMPTY_ORG_AGENT_QUEUE
+  );
+  const restoreDrafts = useOrgAgentLiveChatStore(
+    (state) => state.restores[liveChatKey] ?? EMPTY_ORG_AGENT_RESTORES
+  );
+  const notice = useOrgAgentLiveChatStore(
+    (state) => state.notices[liveChatKey] ?? null
+  );
   const setError = useCallback(
     (error: string | null) =>
       useOrgAgentLiveChatStore.getState().patch(liveChatKey, { error }),
     [liveChatKey]
   );
 
-  const sendMessage = useCallback(
-    async (input: {
-      attachments?: ChatAttachmentPayload[];
-      draftRoleId?: string | null;
-      mentions?: OrgAgentMention[];
-      message: string;
-      roleCreationView?: "role_details";
-      onComplete?: () => void;
-      model?: OrgAgentModelId | string | null;
-    }) => {
+  /** Runs one turn. Its result says whether the message reached the conversation. */
+  const runTurn = useCallback(
+    async (
+      input: OrgAgentSendInput,
+      control?: OrgAgentTurnControl
+    ): Promise<OrgAgentTurnResult & { doneOk?: boolean }> => {
+      let endedResult: OrgAgentTurnResult | null = null;
+      const endTurn = (result: OrgAgentTurnResult) => {
+        if (endedResult) return endedResult;
+        endedResult = result;
+        control?.onEnded(result);
+        return result;
+      };
       const workspaceId = activeWorkspaceId;
-      if (!workspaceId) return;
+      if (!workspaceId) {
+        return endTurn({ outcome: "failed_unsaved", userMessageSaved: false });
+      }
 
       const creatingRoleId = mode === "role_creation" && !activeRoleId
         ? input.draftRoleId?.trim() || ""
@@ -406,15 +460,22 @@ export function useOrgAgentChat(args: {
         : liveChatKey;
       let streamFinished = false;
       let completed = false;
+      let userMessageSaved = false;
+      let sawErrorEvent = false;
       const finishStream = () => {
         if (streamFinished) return;
         streamFinished = true;
         useOrgAgentLiveChatStore.getState().finish(streamLiveChatKey);
       };
+      const failedOutcome = (): OrgAgentTurnResult => ({
+        outcome: userMessageSaved ? "failed_saved" : "failed_unsaved",
+        userMessageSaved,
+      });
+      const sentAt = new Date().toISOString();
       const optimisticUserMessage: OrgAgentMessage = {
         authorUserId: args.currentUserId?.trim() || null,
         content: input.message,
-        createdAt: new Date().toISOString(),
+        createdAt: sentAt,
         id: -Date.now(),
         mentions: input.mentions ?? [],
         metadata: {
@@ -463,14 +524,21 @@ export function useOrgAgentChat(args: {
           optimisticUserMessage: null,
         });
         if (newRoleMark !== undefined) clearNewRolePending(workspaceId, newRoleMark);
-        return;
+        return endTurn({ outcome: "failed_unsaved", userMessageSaved: false });
       }
 
       let responseRoleId =
         activeRoleId ||
         (mode === "role_creation" ? (input.draftRoleId?.trim() ?? "") : "");
+      const messagesQueryKey = () =>
+        queryKeys.org.agentMessages({
+          mode,
+          roleId: responseRoleId,
+          workspaceId,
+        });
       let queriesInvalidated = false;
       try {
+        control?.signal.throwIfAborted();
         let response = await fetch("/api/org/agent/chat", {
           body: JSON.stringify({
             mentions: input.mentions ?? [],
@@ -490,6 +558,7 @@ export function useOrgAgentChat(args: {
             "Content-Type": "application/json",
           },
           method: "POST",
+          signal: control?.signal,
         });
 
         if (response.status === 401) {
@@ -515,6 +584,7 @@ export function useOrgAgentChat(args: {
                 "Content-Type": "application/json",
               },
               method: "POST",
+              signal: control?.signal,
             });
           }
         }
@@ -538,7 +608,8 @@ export function useOrgAgentChat(args: {
               )
             ),
           });
-          return;
+          // The request was refused before the turn began, so the message was not saved.
+          return endTurn({ outcome: "failed_unsaved", userMessageSaved: false });
         }
 
         const reader = response.body.getReader();
@@ -556,6 +627,7 @@ export function useOrgAgentChat(args: {
             const parsed = parseSseBlock(block);
             if (!parsed) continue;
             if (parsed.event === "user_message") {
+              userMessageSaved = true;
               appendMessagesToCache([parsed.data as OrgAgentMessage]);
               if (responseRoleId !== activeRoleId) {
                 appendOrgAgentMessagesToCache(
@@ -644,6 +716,13 @@ export function useOrgAgentChat(args: {
               completed = (parsed.data as { ok?: boolean }).ok === true;
               // Keep the preparation screen until the saved role is refreshed.
               if (!creatingRoleId) finishStream();
+              // The turn is over: a waiting message may go out now, while the
+              // refreshes below run.
+              endTurn(
+                completed && !sawErrorEvent
+                  ? { outcome: "completed", userMessageSaved }
+                  : failedOutcome()
+              );
             } else if (parsed.event === "tool_status") {
               const log = toThinkingLog(parsed.data);
               if (log) {
@@ -660,6 +739,7 @@ export function useOrgAgentChat(args: {
                 });
               }
             } else if (parsed.event === "error") {
+              sawErrorEvent = true;
               const message = sanitizeVisibleAgentError(
                 (parsed.data as { error?: unknown }).error ??
                   c(
@@ -689,15 +769,11 @@ export function useOrgAgentChat(args: {
         if (creatingRoleId && !completed && !useOrgAgentLiveChatStore.getState().chats[streamLiveChatKey]?.error) {
           throw new Error(c("역할 작성을 완료하지 못했어요. 다시 시도해 주세요.", "Role preparation did not finish. Please try again."));
         }
+        // A stream that closed without "done" ended the turn without a reply.
+        if (!endedResult) endTurn(failedOutcome());
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.org.all }),
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.org.agentMessages({
-              mode,
-              roleId: responseRoleId,
-              workspaceId,
-            }),
-          }),
+          queryClient.invalidateQueries({ queryKey: messagesQueryKey() }),
           ...(responseRoleId
             ? [
                 queryClient.invalidateQueries({
@@ -711,7 +787,39 @@ export function useOrgAgentChat(args: {
         ]);
         queriesInvalidated = true;
       } catch (error) {
-        if (streamFinished) return;
+        if (control?.signal.aborted && !endedResult) {
+          // Stopped by the team. What was streamed but not saved goes away;
+          // what Harper saved before the stop shows after the refresh.
+          finishStream();
+          await queryClient
+            .invalidateQueries({ queryKey: messagesQueryKey() })
+            .catch(() => undefined);
+          const savedMessages = messagesFromHistoryCache(
+            queryClient,
+            messagesQueryKey()
+          );
+          const saved =
+            userMessageSaved ||
+            orgAgentMessageWasSaved({
+              messages: savedMessages,
+              message: input.message,
+              sentAt,
+              userId: args.currentUserId,
+            });
+          const lastMessageId = savedMessages.reduce<number | null>(
+            (last, message) =>
+              message.id > 0 && (last === null || message.id > last)
+                ? message.id
+                : last,
+            null
+          );
+          return endTurn({
+            lastMessageId,
+            outcome: "stopped",
+            userMessageSaved: saved,
+          });
+        }
+        if (streamFinished) return { ...(endedResult ?? failedOutcome()), doneOk: completed };
         useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
           error: localizedOrgErrorMessage(
             new Error(
@@ -727,17 +835,12 @@ export function useOrgAgentChat(args: {
             )
           ),
         });
+        endTurn(failedOutcome());
       } finally {
         if (mode === "role_creation" && !queriesInvalidated) {
           await Promise.allSettled([
             queryClient.invalidateQueries({ queryKey: queryKeys.org.all }),
-            queryClient.invalidateQueries({
-              queryKey: queryKeys.org.agentMessages({
-                mode,
-                roleId: responseRoleId,
-                workspaceId,
-              }),
-            }),
+            queryClient.invalidateQueries({ queryKey: messagesQueryKey() }),
             ...(responseRoleId
               ? [
                   queryClient.invalidateQueries({
@@ -754,7 +857,7 @@ export function useOrgAgentChat(args: {
         if (newRoleMark !== undefined) clearNewRolePending(workspaceId, newRoleMark);
         finishStream();
       }
-      if (completed) input.onComplete?.();
+      return { ...(endedResult ?? failedOutcome()), doneOk: completed };
     },
     [
       activeRoleId,
@@ -770,14 +873,75 @@ export function useOrgAgentChat(args: {
     ]
   );
 
+  const sendMessage = useCallback(
+    async (input: OrgAgentSendInput): Promise<void> => {
+      if (!queueEnabled) {
+        // As before: the screen waits for the turn, and "done" counts as complete.
+        const result = await runTurn(input);
+        if (result.doneOk) input.onComplete?.();
+        return;
+      }
+      if (!activeWorkspaceId) return;
+      const item: OrgAgentQueuedMessage = {
+        attachments: input.attachments ?? [],
+        createdAt: new Date().toISOString(),
+        draft: input.draft ?? null,
+        id: crypto.randomUUID(),
+        mentions: input.mentions ?? [],
+        message: input.message,
+        model: input.model ? String(input.model) : null,
+      };
+      await sendOrgAgentQueued(
+        liveChatKey,
+        item,
+        (next, control) =>
+          runTurn(
+            {
+              attachments: next.attachments,
+              mentions: next.mentions,
+              message: next.message,
+              model: next.model,
+            },
+            control
+          ),
+        { onComplete: input.onComplete }
+      );
+    },
+    [activeWorkspaceId, liveChatKey, queueEnabled, runTurn]
+  );
+
+  const stop = useCallback(() => {
+    stopOrgAgentTurn(liveChatKey);
+  }, [liveChatKey]);
+  const takeBackQueued = useCallback(
+    (id: string) => {
+      takeBackOrgAgentQueued(liveChatKey, id);
+    },
+    [liveChatKey]
+  );
+  /** The input took these drafts back; forget them. */
+  const takeRestoreDrafts = useCallback(
+    () => useOrgAgentLiveChatStore.getState().takeRestores(liveChatKey),
+    [liveChatKey]
+  );
+
   return {
     assistantStatus: liveChat.assistantStatus,
+    canStop: queueEnabled && liveChat.isStreaming,
     error: liveChat.error,
     isStreaming: liveChat.isStreaming,
+    notice,
     optimisticUserMessage: liveChat.optimisticUserMessage,
+    queueEnabled,
+    queued,
+    restoreDrafts,
     sendMessage,
     setError,
+    stop,
+    stopPending: liveChat.stopping,
     streamingText: liveChat.streamingText,
+    takeBackQueued,
+    takeRestoreDrafts,
     thinkingLogs: liveChat.thinkingLogs,
   };
 }

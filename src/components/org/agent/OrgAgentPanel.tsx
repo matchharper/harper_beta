@@ -39,6 +39,7 @@ import {
   OrgAgentDateDivider,
   OrgAgentMessageBubble,
   OrgAgentPendingBubble,
+  OrgAgentQueuedBubble,
   OrgAgentStreamingBubble,
 } from "@/components/org/agent/OrgAgentMessage";
 import { MuteButton } from "@/components/ui/button";
@@ -400,6 +401,8 @@ export function OrgAgentChatSurface({
   }, [
     history.messages.length,
     chat.optimisticUserMessage?.id,
+    chat.queued.length,
+    chat.notice,
     chat.streamingText,
     chat.thinkingLogs.length,
     completionReveal?.revealedSentenceCount,
@@ -510,10 +513,11 @@ export function OrgAgentChatSurface({
       isStreaming={chat.isStreaming}
       model={model}
       onModelChange={handleModelChange}
-      onSend={({ attachments, mentions, message }) => {
+      onSend={({ attachments, draft, mentions, message }) => {
         setStickToBottom(true);
-        return chat.sendMessage({
+        const sent = chat.sendMessage({
           attachments,
+          draft,
           draftRoleId:
             initialRoleCreation && typeof crypto !== "undefined"
               ? crypto.randomUUID()
@@ -522,14 +526,38 @@ export function OrgAgentChatSurface({
           message,
           model,
         });
+        // A message sent while Harper answers waits its turn; the input stays free.
+        return chat.queueEnabled ? undefined : sent;
       }}
+      onStop={chat.canStop ? chat.stop : undefined}
+      onTakeRestoreDrafts={chat.takeRestoreDrafts}
+      queueWhileStreaming={chat.queueEnabled}
+      restoreDrafts={chat.restoreDrafts}
       roleId={roleId}
+      stopPending={chat.stopPending}
       seed={composerSeed}
       suggestions={initialRoleCreation ? roleStartSuggestions : undefined}
       workspaceId={workspaceId}
     />
   );
   const lastHistoryMessage = history.messages.at(-1);
+  // "Stopped" sits right after the last message saved before the stop.
+  const stoppedAfterId =
+    chat.notice?.kind === "stopped"
+      ? (chat.notice.afterMessageId ?? lastHistoryMessage?.id ?? null)
+      : null;
+  const stoppedNote = (
+    <p
+      className="text-[12px] leading-5 text-neutral-muted"
+      data-org-chat-notice="stopped"
+      role="status"
+    >
+      {c(
+        "답변을 멈췄어요. 멈추기 전에 Harper가 한 일은 그대로 남아요.",
+        "Reply stopped. Anything Harper already did stays done."
+      )}
+    </p>
+  );
   const showOptimisticDateDivider = Boolean(
     chat.optimisticUserMessage &&
     getChatMessageDateKey(chat.optimisticUserMessage.createdAt) !==
@@ -690,6 +718,7 @@ export function OrgAgentChatSurface({
                     turnStartedAt={turnStartedAt}
                     workspaceId={workspaceId}
                   />
+                  {message.id === stoppedAfterId ? stoppedNote : null}
                 </div>
               );
             })
@@ -747,6 +776,15 @@ export function OrgAgentChatSurface({
                 )}
             </div>
           )}
+          {chat.queued.map((item) => (
+            <OrgAgentQueuedBubble
+              item={item}
+              key={item.id}
+              onTakeBack={() => chat.takeBackQueued(item.id)}
+              roleId={roleId}
+              workspaceId={workspaceId}
+            />
+          ))}
         </div>
       </div>
 

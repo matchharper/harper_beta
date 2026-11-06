@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { BillingActionNotice } from "@/components/org/billing/BillingActionNotice";
@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarClock,
   Check,
+  Copy,
   FileText,
   LoaderCircle,
 } from "lucide-react";
@@ -32,7 +33,12 @@ import {
   splitOrgTalentReferences,
 } from "@/lib/org/agent/talentReference";
 import { OrgTalentReferenceBadge } from "./OrgTalentReferenceBadge";
-import { formatOrgChatMessageTime } from "@/lib/org/agent/messagePresentation";
+import {
+  formatOrgChatMessageTime,
+  formatOrgMessageHoverTime,
+} from "@/lib/org/agent/messagePresentation";
+import type { OrgAgentQueuedMessage } from "@/lib/org/agent/chatQueue";
+import { useToastStore } from "@/store/useToastStore";
 import { formatChatDateDividerLabel } from "@/lib/chat/dateDivider";
 import { splitOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
 import {
@@ -172,6 +178,114 @@ function MentionText({
         )
       )}
     </>
+  );
+}
+
+/** What a copy puts on the clipboard: names instead of candidate links, no company-info card marker. */
+export function orgMessageCopyText(message: Pick<OrgAgentMessage, "role">, content: string) {
+  if (message.role === "user") {
+    return splitOrgTalentReferences(content)
+      .map((segment) =>
+        segment.reference ? (segment.reference.label ?? segment.text) : segment.text
+      )
+      .join("")
+      .trim();
+  }
+  return splitOrgAgentCompanyInfoMarker(content)
+    .flatMap((segment) => (segment.kind === "text" ? [segment.text] : []))
+    .join("\n\n")
+    .trim();
+}
+
+/** Desktop hover: the message's time and a copy button, like the candidate chat. */
+function OrgMessageActions({
+  align,
+  copyText,
+  createdAt,
+}: {
+  align: "end" | "start";
+  copyText: string;
+  createdAt: string;
+}) {
+  const { locale, c } = useOrgLocale();
+  const addToast = useToastStore((state) => state.add);
+  const [copied, setCopied] = useState(false);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    },
+    []
+  );
+  const time = formatOrgMessageHoverTime(createdAt, locale);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopied(true);
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+      resetTimer.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      addToast({
+        message: c("메시지를 복사하지 못했어요.", "Couldn't copy the message."),
+        variant: "error",
+      });
+    }
+  };
+  return (
+    <div
+      data-org-message-actions=""
+      className={cn(
+        "pointer-events-none hidden min-h-7 w-fit items-center opacity-0 transition-opacity duration-150 motion-reduce:transition-none md:flex",
+        "group-hover/org-message:pointer-events-auto group-hover/org-message:opacity-100 group-focus-within/org-message:pointer-events-auto group-focus-within/org-message:opacity-100",
+        align === "end" ? "ml-auto" : undefined
+      )}
+    >
+      {time ? (
+        <time
+          className={cn(
+            "whitespace-nowrap text-xs tabular-nums text-neutral-soft",
+            align === "end" ? "order-first mr-2" : "order-last ml-2"
+          )}
+          dateTime={createdAt}
+        >
+          {time}
+        </time>
+      ) : null}
+      <MuteButton
+        aria-label={c("메시지 복사", "Copy message")}
+        onClick={() => void copy()}
+        size="sm"
+        title={c("복사", "Copy")}
+        type="button"
+        variant="transparent"
+      >
+        {/* Slide Blur Swap, as in the candidate chat (src/styles/Design.md). */}
+        <span
+          aria-hidden="true"
+          className="relative inline-flex size-3.5 shrink-0 items-center justify-center"
+        >
+          <Copy
+            className={cn(
+              "absolute size-3.5 transition-[translate,opacity,filter] duration-500 ease-in-out motion-reduce:transition-none",
+              copied
+                ? "translate-x-1.5 opacity-0 blur-[3px]"
+                : "translate-x-0 opacity-100 blur-[0px]"
+            )}
+          />
+          <Check
+            className={cn(
+              "absolute size-3.5 transition-[translate,opacity,filter] duration-500 ease-in-out motion-reduce:transition-none",
+              copied
+                ? "translate-x-0 opacity-100 blur-[0px]"
+                : "-translate-x-1.5 opacity-0 blur-[3px]"
+            )}
+          />
+        </span>
+      </MuteButton>
+      <span role="status" className="sr-only">
+        {copied ? c("메시지를 복사했어요.", "Message copied.") : ""}
+      </span>
+    </div>
   );
 }
 
@@ -426,9 +540,23 @@ export function OrgAgentMessageBubble({
   const startQuestion = message.metadata.roleStartQuestion;
   const briefReady = message.metadata.roleStartBriefReady;
   const attachments = message.metadata.attachments ?? [];
+  // Saved messages only: a message still being sent has no time or final text yet.
+  const showActions = message.id > 0 && message.status !== "pending";
+  const copyText = showActions
+    ? orgMessageCopyText(
+        message,
+        isUser
+          ? visibleMessageContent
+          : fromSlack
+            ? parseHarperSlackChoiceMarkers(
+                stripSlackSentUsingAttribution(message.content)
+              ).text
+            : (assistantContentOverride ?? message.content)
+      )
+    : "";
 
   return (
-    <div className="space-y-0">
+    <div className="group/org-message space-y-0">
       {!isUser && (
         <ChatThinkingLogPanel
           active={workActive}
@@ -495,6 +623,7 @@ export function OrgAgentMessageBubble({
           animateEntrance={isOwnUserMessage && message.id < 0}
           className={cn(
             "mb-2",
+            showActions && copyText && "md:mb-0",
             isUser ? "max-w-[min(680px,92%)]" : "max-w-[min(680px,100%)]",
             showUserAttribution &&
               isOwnUserMessage &&
@@ -623,6 +752,13 @@ export function OrgAgentMessageBubble({
             />
           ))}
         </ChatMessageBubbleFrame>
+        {showActions && copyText ? (
+          <OrgMessageActions
+            align={isOwnUserMessage ? "end" : "start"}
+            copyText={copyText}
+            createdAt={message.createdAt}
+          />
+        ) : null}
         {!isUser && <BillingActionNotice metadata={message.metadata} />}
       </OrgMessageLayout>
     </div>
@@ -674,5 +810,59 @@ export function OrgAgentPendingBubble() {
         />
       </ChatMessageBubbleFrame>
     </OrgMessageLayout>
+  );
+}
+
+/**
+ * A message sent while Harper was still answering. It goes out when that reply
+ * ends; until then it can be taken back into the input.
+ */
+export function OrgAgentQueuedBubble({
+  item,
+  onTakeBack,
+  roleId,
+  workspaceId,
+}: {
+  item: OrgAgentQueuedMessage;
+  onTakeBack: () => void;
+  roleId?: string | null;
+  workspaceId: string;
+}) {
+  const { c } = useOrgLocale();
+  return (
+    <div className="flex flex-col" data-org-queued-message="">
+      {item.attachments.length > 0 ? (
+        <ChatMessageAttachmentList
+          align="end"
+          attachments={item.attachments}
+          className="mb-1 opacity-60"
+        />
+      ) : null}
+      <ChatMessageBubbleFrame
+        className="mb-1 max-w-[min(680px,92%)] opacity-60 md:mb-1"
+        isUser
+        typographyClassName="text-sm leading-[1.72] md:leading-[1.75]"
+      >
+        <div className="whitespace-pre-wrap break-words">
+          <MentionText
+            content={item.message}
+            roleId={roleId}
+            workspaceId={workspaceId}
+          />
+        </div>
+      </ChatMessageBubbleFrame>
+      <div className="mb-2 ml-auto flex items-center gap-1 text-[12px] leading-4 text-neutral-soft">
+        <span>{c("답이 끝나면 보내요", "Sends when this reply ends")}</span>
+        <MuteButton
+          className="h-6 px-1.5 text-[12px] text-neutral-muted"
+          onClick={onTakeBack}
+          size="sm"
+          type="button"
+          variant="transparent"
+        >
+          {c("되돌리기", "Take back")}
+        </MuteButton>
+      </div>
+    </div>
   );
 }

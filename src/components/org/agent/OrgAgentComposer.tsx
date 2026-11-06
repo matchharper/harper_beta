@@ -1,6 +1,14 @@
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
-import { ArrowUp, FileText, FileUp, LoaderCircle, Plus, X } from "lucide-react";
+import {
+  ArrowUp,
+  FileText,
+  FileUp,
+  LoaderCircle,
+  Plus,
+  Square,
+  X,
+} from "lucide-react";
 import Image from "next/image";
 import {
   type FormEvent,
@@ -47,6 +55,10 @@ import {
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
 import { serializeOrgAgentDraftMentionTokens } from "@/lib/org/agent/mentionText";
+import {
+  mergeOrgAgentDraftSnapshots,
+  type OrgAgentDraftSnapshot,
+} from "@/lib/org/agent/chatQueue";
 import {
   readRoleCreationAttachments,
   validateRoleCreationDraftAttachments,
@@ -191,9 +203,14 @@ export function OrgAgentComposer({
   model,
   onModelChange,
   onSend,
+  onStop,
   onSubmitBlocked,
+  onTakeRestoreDrafts,
+  queueWhileStreaming = false,
+  restoreDrafts,
   roleId,
   seed = null,
+  stopPending = false,
   submitBlocked,
   suggestions,
   workspaceId,
@@ -210,10 +227,21 @@ export function OrgAgentComposer({
   onModelChange: (model: OrgAgentModelId) => void;
   onSend: (args: {
     attachments: Awaited<ReturnType<typeof readRoleCreationAttachments>>;
+    /** The input as it was, so a send that never reached the conversation can come back. */
+    draft: OrgAgentDraftSnapshot;
     mentions: OrgAgentMention[];
     message: string;
   }) => void | Promise<void>;
+  /** Stops the reply that is running; shown next to Send while Harper answers. */
+  onStop?: () => void;
   onSubmitBlocked?: () => void;
+  /** Returns, and forgets, the drafts waiting to come back into the input. */
+  onTakeRestoreDrafts?: () => OrgAgentDraftSnapshot[];
+  /** While Harper answers, the input stays open and new messages wait their turn. */
+  queueWhileStreaming?: boolean;
+  /** Drafts handed back: a send that never reached the conversation, a message taken back. */
+  restoreDrafts?: OrgAgentDraftSnapshot[];
+  stopPending?: boolean;
   roleId?: string | null;
   /** A new key puts this candidate at the start of the input, as a mention, and focuses it. */
   seed?: { key: string; mention: OrgAgentMention } | null;
@@ -252,6 +280,10 @@ export function OrgAgentComposer({
     value: draft,
   });
   const hasHighlightedMention = mentionTokens.tokens.length > 0;
+  // In the role and workspace chats the input stays open while Harper answers.
+  const lockedWhileStreaming = isStreaming && !queueWhileStreaming;
+  const hasSendableDraft = Boolean(draft.trim()) || attachments.length > 0;
+  const showStop = Boolean(onStop) && isStreaming && queueWhileStreaming;
 
   const syncMentionHighlight = useCallback(
     (textarea: HTMLTextAreaElement | null) => {
@@ -312,6 +344,55 @@ export function OrgAgentComposer({
       value: `${text} ${draft}`,
     });
   }, [draft, mentionTokens, seed]);
+
+  // Drafts handed back go in front of whatever is being written now, oldest first.
+  const latestInput = useRef({ attachments, draft, tokens: mentionTokens.tokens });
+  latestInput.current = { attachments, draft, tokens: mentionTokens.tokens };
+  const replaceMentionTokens = mentionTokens.replaceTokens;
+  useEffect(() => {
+    if (!restoreDrafts?.length || !onTakeRestoreDrafts) return;
+    const drafts = onTakeRestoreDrafts();
+    if (!drafts.length) return;
+    const current = latestInput.current;
+    const merged = mergeOrgAgentDraftSnapshots([
+      ...drafts,
+      {
+        attachments: current.attachments,
+        text: current.draft,
+        tokens: current.tokens,
+      },
+    ]);
+    replaceMentionTokens(merged.tokens);
+    setDraft(merged.text);
+    setMentionSearch(null);
+    if (allowAttachments) {
+      try {
+        validateRoleCreationDraftAttachments(merged.attachments);
+        setAttachments(merged.attachments);
+      } catch (error) {
+        setAttachmentError(
+          localizedOrgErrorMessage(
+            error,
+            locale,
+            c("파일을 첨부하지 못했습니다.", "Failed to attach file.")
+          )
+        );
+      }
+    }
+    window.requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(merged.text.length, merged.text.length);
+    });
+  }, [
+    allowAttachments,
+    c,
+    locale,
+    onTakeRestoreDrafts,
+    replaceMentionTokens,
+    restoreDrafts,
+  ]);
 
   const closeMentionPicker = useCallback(() => setMentionSearch(null), []);
   const handleSelectMention = useCallback(
@@ -502,7 +583,7 @@ export function OrgAgentComposer({
     if (
       (!serialized.text && attachments.length === 0) ||
       disabled ||
-      isStreaming ||
+      lockedWhileStreaming ||
       submissionPendingRef.current
     ) {
       return;
@@ -510,6 +591,11 @@ export function OrgAgentComposer({
     submissionPendingRef.current = true;
     setAttachmentError("");
     setIsPreparingAttachments(true);
+    const sentDraft: OrgAgentDraftSnapshot = {
+      attachments,
+      text: draft,
+      tokens: mentionTokens.tokens,
+    };
     try {
       const preparedAttachments = allowAttachments
         ? await readRoleCreationAttachments({ attachments, workspaceId })
@@ -520,6 +606,7 @@ export function OrgAgentComposer({
       setMentionSearch(null);
       await onSend({
         attachments: preparedAttachments,
+        draft: sentDraft,
         mentions: serialized.mentions,
         message: serialized.text,
       });
@@ -560,7 +647,7 @@ export function OrgAgentComposer({
   };
   const attachmentMenuItems = [
     {
-      disabled: disabled || isPreparingAttachments || isStreaming,
+      disabled: disabled || isPreparingAttachments || lockedWhileStreaming,
       icon: <FileUp />,
       id: "upload-file",
       label: c("파일 업로드", "Upload file"),
@@ -584,7 +671,7 @@ export function OrgAgentComposer({
               aria-label={c("{p0} 제거", "Remove {p0}", {
                 p0: attachment.name,
               })}
-              disabled={isPreparingAttachments || isStreaming}
+              disabled={isPreparingAttachments || lockedWhileStreaming}
               onClick={() =>
                 setAttachments((current) =>
                   current.filter((item) => item.id !== attachment.id)
@@ -630,7 +717,7 @@ export function OrgAgentComposer({
           value={draft}
           rows={allowAttachments ? 2 : 3}
           autoFocus={autoFocus}
-          disabled={disabled || isStreaming || isPreparingAttachments}
+          disabled={disabled || lockedWhileStreaming || isPreparingAttachments}
           aria-activedescendant={mentionActiveDescendantId}
           aria-autocomplete="list"
           aria-controls={mentionSearch ? mentionListId : undefined}
@@ -642,7 +729,7 @@ export function OrgAgentComposer({
           mobileLeadingAction={
             allowAttachments ? (
               <ChatComposerActionMenu
-                disabled={disabled || isPreparingAttachments || isStreaming}
+                disabled={disabled || isPreparingAttachments || lockedWhileStreaming}
                 items={attachmentMenuItems}
                 triggerAriaLabel={c("추가 메뉴 열기", "More actions")}
               />
@@ -687,33 +774,55 @@ export function OrgAgentComposer({
               {allowAttachments ? (
                 <ChatComposerActionMenu
                   className="hidden md:inline-flex"
-                  disabled={disabled || isPreparingAttachments || isStreaming}
+                  disabled={disabled || isPreparingAttachments || lockedWhileStreaming}
                   items={attachmentMenuItems}
                   triggerAriaLabel={c("추가 메뉴 열기", "More actions")}
                 />
               ) : null}
-              <MuteButton
-                type="submit"
-                aria-label={c("메시지 보내기", "Send message")}
-                aria-disabled={submitBlocked || undefined}
-                variant="primary"
-                className={cn(
-                  "rounded-pill",
-                  submitBlocked && "cursor-not-allowed opacity-40"
-                )}
-                disabled={
-                  disabled ||
-                  isStreaming ||
-                  isPreparingAttachments ||
-                  (!submitBlocked && !draft.trim() && attachments.length === 0)
-                }
-              >
-                {isStreaming || isPreparingAttachments ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArrowUp className="h-4 w-4" />
-                )}
-              </MuteButton>
+              <div className="ml-auto flex items-center gap-2">
+                {showStop ? (
+                  <MuteButton
+                    type="button"
+                    aria-label={c("답변 멈추기", "Stop the reply")}
+                    aria-busy={stopPending || undefined}
+                    title={c("답변 멈추기", "Stop the reply")}
+                    variant="primary"
+                    className="rounded-pill"
+                    disabled={stopPending}
+                    onClick={onStop}
+                  >
+                    {stopPending ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Square className="h-3.5 w-3.5" fill="currentColor" />
+                    )}
+                  </MuteButton>
+                ) : null}
+                {!showStop || hasSendableDraft ? (
+                  <MuteButton
+                    type="submit"
+                    aria-label={c("메시지 보내기", "Send message")}
+                    aria-disabled={submitBlocked || undefined}
+                    variant="primary"
+                    className={cn(
+                      "rounded-pill",
+                      submitBlocked && "cursor-not-allowed opacity-40"
+                    )}
+                    disabled={
+                      disabled ||
+                      lockedWhileStreaming ||
+                      isPreparingAttachments ||
+                      (!submitBlocked && !hasSendableDraft)
+                    }
+                  >
+                    {lockedWhileStreaming || isPreparingAttachments ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ArrowUp className="h-4 w-4" />
+                    )}
+                  </MuteButton>
+                ) : null}
+              </div>
             </div>
           }
         />
@@ -726,7 +835,7 @@ export function OrgAgentComposer({
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {suggestions.map((suggestion) => (
               <MuteButton
-                disabled={disabled || isStreaming}
+                disabled={disabled || lockedWhileStreaming}
                 key={suggestion.label}
                 onClick={() => {
                   setDraft(suggestion.message);
