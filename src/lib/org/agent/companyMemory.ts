@@ -46,7 +46,7 @@ export async function readCompanyMemory(args: Args & { input?: Record<string, un
   const input = args.input ?? {};
   const { access, roleId, teamId } = await scopeAccess(args, input, false);
   const offset = nonnegativeInteger(input.offset), limit = positiveInteger(input.limit, 20, 'limit');
-  let query = (args.admin.from('company_memory_entries' as any) as any).select('id,revision,scope,team_id,role_id,label,content,created_at,updated_at', { count: 'exact' }).eq('company_workspace_id', args.workspaceId).is('deleted_at', null);
+  let query = (args.admin.from('company_memory_entries' as any) as any).select('id,revision,scope,team_id,role_id,label,content,created_at,updated_at', { count: 'exact' }).eq('company_workspace_id', args.workspaceId).is('deleted_at', null).is('legacy_ref', null);
   if (input.scope) query = query.eq('scope', input.scope);
   if (roleId) query = query.eq('role_id', roleId);
   if (teamId) query = query.eq('team_id', teamId);
@@ -85,7 +85,7 @@ export async function writeCompanyMemory(args: Args & { input: Record<string, un
     } else if (change.op === 'update' || change.op === 'delete') {
       positiveInteger(change.ref, 0, 'ref'); positiveInteger(change.revision, 0, 'revision');
       if (!change.ref || !change.revision) throw new OrgAgentToolInputError('ref and revision are required');
-      const { data, error } = await (args.admin.from('company_memory_entries' as any) as any).select('scope,team_id,role_id').eq('company_workspace_id', args.workspaceId).eq('id', change.ref).maybeSingle();
+      const { data, error } = await (args.admin.from('company_memory_entries' as any) as any).select('scope,team_id,role_id').eq('company_workspace_id', args.workspaceId).eq('id', change.ref).is('legacy_ref', null).maybeSingle();
       if (error) throw error;
       if (!data) throw new OrgAgentToolInputError('Memory row not found');
       await scopeAccess(args, { scope: data.scope, teamId: data.team_id, roleId: data.role_id }, true);
