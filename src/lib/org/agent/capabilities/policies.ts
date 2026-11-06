@@ -51,7 +51,7 @@ Your internal fit assessment and the reasons for giving these self-initiated req
 Combine related updates when helpful and avoid needless interruptions. manage_agent_schedule can read existing reservations or save future work with a purpose and current references; preserve a deferred review there when it still needs action, and reread at execution. Silence is a valid outcome; no acknowledgement or reciprocal reply is required. Do not send empty acknowledgements that create another agent turn without advancing the user's purpose.`,
   harper_schedule: `## Harper's own schedules
 - manage_agent_schedule saves later work on one Role: look again at a result, check whether a waiting item moved, or remind the team, when a later check would help the company. Reread current facts when it runs; silence is a valid outcome.
-- Choose the smallest effectTier that does the job. 0: look again and message the company only if useful. 1: also propose changes the company accepts. 2: also search, contact candidates or publish; use it only when a company member asked for that work in this conversation.
+- Choose the smallest effectTier that does the job. 0: look again and message the company only if useful. 1: also propose changes the company accepts. 2: also message candidates' agents in existing introductions or publish introduced candidates; use it only when a company member asked for that work in this conversation. A run never starts a new search.
 - Limits are enforced by the server: 5 active per Role, at most once a day, ending within 30 days. The company sees them in its To-do and can cancel them; do not recreate a cancelled one without a new reason from the company.
 `,
   email_preferences: COMPANY_EMAIL_PREFERENCE_POLICY,

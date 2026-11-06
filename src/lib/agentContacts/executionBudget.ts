@@ -11,6 +11,20 @@ export const AGENT_CHAIN_EXECUTION_SECONDS = 25 * 60;
 export class AgentContactBudgetExhaustedError extends Error {}
 export class AgentContactBudgetBusyError extends Error {}
 
+/**
+ * A run outside a causal chain gets 25 minutes across all its attempts: a
+ * retry gets what earlier attempts left (job usage.elapsedMs adds up).
+ */
+export function remainingRunSeconds(usage: unknown) {
+  const elapsedMs = Number((usage as { elapsedMs?: unknown } | null)?.elapsedMs);
+  const seconds = AGENT_CHAIN_EXECUTION_SECONDS - (Number.isFinite(elapsedMs) && elapsedMs > 0 ? elapsedMs / 1000 : 0);
+  if (seconds < 60)
+    throw new AgentContactBudgetExhaustedError(
+      "Run time allowance exhausted by earlier attempts; work remains recorded for an explicit operational resumption or a new user request."
+    );
+  return seconds;
+}
+
 export async function sourceBudgetAnchor(
   q: Query,
   source: AgentContactSource
