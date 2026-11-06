@@ -8,6 +8,7 @@
     "phone:test-call": "tsx --tsconfig scripts/tsconfig.json scripts/clawops-phone.ts --call",
     "test:phone": "tsx --tsconfig scripts/tsconfig.json --test scripts/clawops-phone.test.ts",
     "test:email-runtime": "node --import tsx --test src/lib/email/runtime/*.test.ts",
+    "test:chat-cache": "node --import tsx --test src/lib/career/llm.cache.test.ts",
     "local:company-signup": "node scripts/localE2e/startCompanySignup.mjs",
     "local:e2e": "node scripts/localE2e/stack.mjs",
     "local:e2e:seed": "node scripts/localE2e/seed.mjs",
