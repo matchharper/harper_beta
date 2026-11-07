@@ -161,10 +161,13 @@ test("card review loads another batch only when next is requested at the page bo
         return {
           OrgInboxListTable: ({
             items: listed,
+            toolbar,
           }: {
             items: { recommendationId: string }[];
+            toolbar?: (columnMenu: React.ReactNode) => React.ReactNode;
           }) => (
             <>
+              {toolbar ? toolbar(<span data-column-menu />) : <span data-column-menu />}
               {listed.map((item) => (
                 <article key={item.recommendationId} />
               ))}
@@ -172,7 +175,11 @@ test("card review loads another batch only when next is requested at the page bo
           ),
         };
       if (name === "./OrgCandidateSelectionBar")
-        return { OrgCandidateSelectionBar: empty };
+        return {
+          OrgCandidateSelectionBar: ({ trailing }: { trailing?: React.ReactNode }) => (
+            <div data-selection-bar>{trailing}</div>
+          ),
+        };
       if (name === "./OrgCriteriaRecheck")
         return {
           OrgCriteriaReviewPanel: empty,
@@ -209,6 +216,11 @@ test("card review loads another batch only when next is requested at the page bo
     });
   await render();
   assert.equal(dom.window.document.querySelectorAll("article").length, 10);
+  // The list: one row with 전체 선택 and 열 설정 together, no second bar.
+  const bars = dom.window.document.querySelectorAll("[data-selection-bar]");
+  assert.equal(bars.length, 1);
+  assert.ok(bars[0]!.querySelector("[data-column-menu]"), "열 설정 sits in the 전체 선택 row");
+  assert.equal(dom.window.document.querySelectorAll("[data-column-menu]").length, 1);
   assert.equal(fetches, 0);
   await act(async () => {
     intersect?.();

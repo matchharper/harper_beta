@@ -460,7 +460,9 @@ export function OrgRoleTalentBoardCard({
             <Checkbox
               aria-label={c("{p0} 선택", "Select {p0}", { p0: name })}
               checked={selected}
-              className="pointer-events-auto mt-0.5"
+              // The glass theme draws controls without a border, which hid an
+              // empty box on the card; give it a visible outline.
+              className="pointer-events-auto mt-0.5 border border-neutral-500"
               onChange={(event) => onSelectedChange(event.target.checked)}
             />
           ) : null}

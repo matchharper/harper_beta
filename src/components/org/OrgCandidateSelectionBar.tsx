@@ -1,7 +1,6 @@
-import { useState } from "react";
-import { X } from "lucide-react";
-import { MuteButton } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Square, SquareCheck, SquareMinus, X } from "lucide-react";
+import { MuteButton, muteButtonVariants } from "@/components/ui/button";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgCandidateDecisionRunner } from "@/hooks/org/useOrgCandidateDecisionRunner";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
@@ -19,8 +18,11 @@ import {
 } from "./OrgStageMoveDialog";
 
 /**
- * Select-all row above the inbox list or grid. Once candidates are selected it
- * turns into the toolbar for the actions the inbox already offers per card.
+ * The inbox's selection tools above the list or grid: a small 전체 선택 button
+ * (the same button as 열 설정 beside it in the list), and once candidates are
+ * selected, the actions the inbox already offers per card. No bar across the
+ * page; while something is selected the row stays at the top on the page's
+ * own background.
  */
 export function OrgCandidateSelectionBar({
   canManageCandidates,
@@ -31,6 +33,7 @@ export function OrgCandidateSelectionBar({
   selectedIds,
   stage,
   stages,
+  trailing,
   workspaceId,
 }: {
   canManageCandidates: boolean;
@@ -41,6 +44,8 @@ export function OrgCandidateSelectionBar({
   selectedIds: ReadonlySet<string>;
   stage: "pending_connection" | "company_intro";
   stages: OrgStage[];
+  /** More tools for the same row, e.g. the list's 열 설정. */
+  trailing?: ReactNode;
   workspaceId: string;
 }) {
   const { c, locale } = useOrgLocale();
@@ -59,39 +64,80 @@ export function OrgCandidateSelectionBar({
   const allSelected = count > 0 && count === items.length;
   const pass = stage === "company_intro";
   const clear = () => onSelectedIdsChange(new Set());
+  // While something is selected the row sticks to the top. It gets a glass
+  // backing only once content scrolls under it (the page behind is see-through),
+  // so at rest no bar shows.
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [stuck, setStuck] = useState(false);
+  const selecting = count > 0;
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!selecting || !node || typeof IntersectionObserver === "undefined") {
+      setStuck(false);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) =>
+      setStuck(!entry.isIntersecting)
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [selecting]);
 
   return (
     <>
+      <div aria-hidden className="h-0" ref={sentinelRef} />
       <div
         className={cn(
-          "sticky top-0 z-20 mb-2 flex min-h-10 items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors",
-          count ? "bg-neutral-200" : "bg-bg-floating"
+          "mb-2 flex min-h-8 flex-wrap items-center gap-1.5",
+          selecting ? "sticky top-0 z-20 py-1" : null,
+          stuck
+            ? // The glass also covers the list's top padding above the row.
+              "-mx-2 rounded-b-lg bg-bg-floating px-2 shadow-(--shadow-button) backdrop-blur-md before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-bg-floating before:backdrop-blur-md before:content-['']"
+            : null
         )}
+        data-org-selection-bar={count ? "selected" : "idle"}
+        data-stuck={stuck ? "true" : undefined}
       >
-        <Checkbox
-          aria-label={c("전체 선택", "Select all")}
-          checked={allSelected}
-          indeterminate={count > 0 && !allSelected}
-          onChange={(event) =>
-            onSelectedIdsChange(
-              event.target.checked
-                ? new Set(items.map((item) => item.recommendationId))
-                : new Set()
-            )
-          }
-        />
-        <span
+        {/* The whole button toggles: a label around the real (hidden) checkbox,
+            drawn with the same kind of icon as 열 설정 so it reads clearly. */}
+        <label
           className={cn(
-            "text-[13px]",
-            count ? "font-medium text-neutral-primary" : "text-neutral-muted"
+            muteButtonVariants({ size: "sm", variant: count ? "selected" : "default" }),
+            "cursor-pointer select-none px-2 has-focus-visible:ring-2 has-focus-visible:ring-focus-ring"
           )}
         >
-          {count
-            ? c("{p0}명 선택됨", "{p0} selected", { p0: count })
-            : c("전체 선택", "Select all")}
-        </span>
+          <input
+            aria-checked={count > 0 && !allSelected ? "mixed" : allSelected}
+            aria-label={c("전체 선택", "Select all")}
+            checked={allSelected}
+            className="sr-only"
+            onChange={(event) =>
+              onSelectedIdsChange(
+                event.target.checked
+                  ? new Set(items.map((item) => item.recommendationId))
+                  : new Set()
+              )
+            }
+            ref={(node) => {
+              if (node) node.indeterminate = count > 0 && !allSelected;
+            }}
+            type="checkbox"
+          />
+          {allSelected ? (
+            <SquareCheck aria-hidden className="size-3.5" />
+          ) : count ? (
+            <SquareMinus aria-hidden className="size-3.5" />
+          ) : (
+            <Square aria-hidden className="size-3.5" />
+          )}
+          <span className={count ? "font-medium text-neutral-primary" : undefined}>
+            {count
+              ? c("{p0}명 선택됨", "{p0} selected", { p0: count })
+              : c("전체 선택", "Select all")}
+          </span>
+        </label>
         {count && canManageCandidates ? (
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5">
             <MuteButton
               onClick={() => {
                 decisions.save(selected);
@@ -141,6 +187,7 @@ export function OrgCandidateSelectionBar({
             </MuteButton>
           </div>
         ) : null}
+        {trailing ? <div className="ml-auto flex items-center gap-1.5">{trailing}</div> : null}
       </div>
       <StopCandidateDialog
         key={(closing ?? []).map((item) => item.recommendationId).join(":")}

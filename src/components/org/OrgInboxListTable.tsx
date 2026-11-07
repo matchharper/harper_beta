@@ -168,6 +168,7 @@ export function OrgInboxListTable({
   onToggleSelected,
   roleId,
   selectedIds,
+  toolbar,
   workspaceId,
 }: {
   canManageCandidates: boolean;
@@ -177,6 +178,11 @@ export function OrgInboxListTable({
   onToggleSelected?: (item: OrgBoardItem, selected: boolean) => void;
   roleId: string | null;
   selectedIds: ReadonlySet<string>;
+  /**
+   * The row above the table, given the list's 열 설정 button to place in it
+   * (the inbox puts 전체 선택 beside it). Left out, 열 설정 sits alone.
+   */
+  toolbar?: (columnMenu: ReactNode) => ReactNode;
   workspaceId: string;
 }) {
   const { c, locale } = useOrgLocale();
@@ -494,26 +500,31 @@ export function OrgInboxListTable({
       dropColumn();
     },
   });
+  const columnMenu = (
+    <OrgListColumnMenu
+      addColumn={
+        canManageCandidates && roleId
+          ? { busy: chat.isStreaming, onRequest: requestColumn }
+          : undefined
+      }
+      columns={orderedColumns.map((column) => ({
+        id: column.id,
+        label: column.label,
+        removable: Boolean(column.removable && canManageCandidates),
+      }))}
+      hidden={hidden}
+      onDelete={(id) => remove.mutate(id.replace(/^custom:/, ""))}
+      onHiddenChange={setHidden}
+      removing={remove.isPending}
+    />
+  );
   return (
     <div>
-      <div className="mb-2 flex items-center gap-1.5">
-        <OrgListColumnMenu
-          addColumn={
-            canManageCandidates && roleId
-              ? { busy: chat.isStreaming, onRequest: requestColumn }
-              : undefined
-          }
-          columns={orderedColumns.map((column) => ({
-            id: column.id,
-            label: column.label,
-            removable: Boolean(column.removable && canManageCandidates),
-          }))}
-          hidden={hidden}
-          onDelete={(id) => remove.mutate(id.replace(/^custom:/, ""))}
-          onHiddenChange={setHidden}
-          removing={remove.isPending}
-        />
-      </div>
+      {toolbar ? (
+        toolbar(columnMenu)
+      ) : (
+        <div className="mb-2 flex items-center gap-1.5">{columnMenu}</div>
+      )}
       <div className="relative">
         {overflow.right ? (
           <div
@@ -609,6 +620,7 @@ export function OrgInboxListTable({
                             p0: name,
                           })}
                           checked={selected}
+                          className="border border-neutral-500"
                           onChange={(event) =>
                             onToggleSelected?.(item, event.target.checked)
                           }

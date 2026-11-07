@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/router";
 import { useIsMutating } from "@tanstack/react-query";
@@ -357,6 +357,20 @@ export function OrgRoleInbox({
       <OrgSearchHistory workspaceId={workspaceId} roleId={activeRole?.roleId} />
     </>
   );
+  const selectionBar = (trailing?: ReactNode) => (
+    <OrgCandidateSelectionBar
+      canManageCandidates={permissions.canManageCandidates}
+      items={items}
+      onSelectedIdsChange={setSelectedIds}
+      roleId={activeRole?.roleId ?? null}
+      roleTitle={activeRole?.name ?? ""}
+      selectedIds={selectedIds}
+      stage={stage}
+      stages={board?.stages ?? []}
+      trailing={trailing}
+      workspaceId={workspaceId}
+    />
+  );
   return (
     <section
       ref={scrollRef}
@@ -545,19 +559,8 @@ export function OrgRoleInbox({
         <ReviewEmptyState />
       ) : (
         <>
-          {savedReview ? null : (
-            <OrgCandidateSelectionBar
-              canManageCandidates={permissions.canManageCandidates}
-              items={items}
-              onSelectedIdsChange={setSelectedIds}
-              roleId={activeRole?.roleId ?? null}
-              roleTitle={activeRole?.name ?? ""}
-              selectedIds={selectedIds}
-              stage={stage}
-              stages={board?.stages ?? []}
-              workspaceId={workspaceId}
-            />
-          )}
+          {/* The list puts 전체 선택 in its own row, beside 열 설정. */}
+          {savedReview || view === "list" ? null : selectionBar()}
           {view === "grid" ? (
             <OrgRoleTalentBoard
               section="inbox"
@@ -582,6 +585,7 @@ export function OrgRoleInbox({
               onToggleSelected={savedReview ? undefined : toggleSelected}
               roleId={activeRole?.roleId ?? null}
               selectedIds={selectedIds}
+              toolbar={savedReview ? undefined : (columnMenu) => selectionBar(columnMenu)}
               workspaceId={workspaceId}
             />
           )}
