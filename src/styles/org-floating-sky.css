@@ -384,7 +384,10 @@
   padding-inline: 3px;
 }
 
-/* ◎ ○ △ beside a candidate's name: one row, wraps under the name when narrow. */
+/* ◎ ○ △ on a candidate's name line, filled from the card's right edge so the
+   same criterion sits at the same place on every card. Wraps under the name
+   (still right-aligned) when narrow. The date column keeps one width so the
+   right edge does not move between "오늘" and "3주 전". */
 .org-candidate-card .career-opportunity-company {
   flex-wrap: wrap;
   row-gap: 4px;
@@ -392,9 +395,14 @@
 .org-candidate-marks {
   display: inline-flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 3px;
-  margin-left: 4px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+.org-candidate-card .career-opportunity-type {
+  min-width: 3.5em;
 }
 
 /* Home with nothing to review: the roles as cards instead of a second empty message. */
