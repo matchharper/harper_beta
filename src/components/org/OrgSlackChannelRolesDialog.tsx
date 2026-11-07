@@ -101,7 +101,7 @@ export function OrgSlackChannelRolesDialog({
       addToast({
         variant: "success",
         message: c(
-          "{channel}의 Role 할당을 저장했어요.",
+          "{channel}의 역할 할당을 저장했어요.",
           "Saved role assignments for {channel}.",
           { channel: channelName }
         ),
@@ -111,7 +111,7 @@ export function OrgSlackChannelRolesDialog({
       const reason = localizedOrgErrorMessage(
         cause,
         locale,
-        c("Role 할당을 완료하지 못했어요.", "Couldn't finish assigning roles.")
+        c("역할 할당을 완료하지 못했어요.", "Couldn't finish assigning roles.")
       );
       // Nothing was saved when the first change is refused for leaving a role
       // without any destination, so only that reason is true.
@@ -149,7 +149,7 @@ export function OrgSlackChannelRolesDialog({
       panelClassName="max-w-lg"
       bodyClassName="space-y-4 px-4 sm:px-5"
       title={c(
-        "이 채널에 어떤 Role을 할당할까요?",
+        "이 채널에 어떤 역할을 할당할까요?",
         "Which Roles would you like to assign to this channel?"
       )}
       footer={
@@ -171,7 +171,7 @@ export function OrgSlackChannelRolesDialog({
       {loading ? (
         <div
           role="status"
-          aria-label={c("Role 불러오는 중", "Loading roles")}
+          aria-label={c("역할 불러오는 중", "Loading roles")}
           className="space-y-2"
         >
           <Skeleton className="h-16" />
@@ -182,7 +182,7 @@ export function OrgSlackChannelRolesDialog({
         <div role="alert" className="space-y-3 text-sm text-neutral-muted">
           <p>
             {c(
-              "Role의 채널 설정을 불러오지 못했어요.",
+              "역할의 채널 설정을 불러오지 못했어요.",
               "Couldn't load channel settings for your roles."
             )}
           </p>
@@ -201,11 +201,11 @@ export function OrgSlackChannelRolesDialog({
             className="mx-auto mb-3 size-6 text-neutral-soft"
           />
           <p className="text-sm text-neutral-primary">
-            {c("아직 등록된 Role이 없어요", "No roles yet")}
+            {c("아직 등록된 역할이 없어요", "No roles yet")}
           </p>
           <p className="mt-2 text-[13px] leading-5 text-neutral-muted">
             {c(
-              "채널은 연결됐어요. Role을 만든 뒤 Role 설정에서 알림 채널을 선택할 수 있어요.",
+              "채널은 연결됐어요. 역할을 만든 뒤 역할 설정에서 알림 채널을 선택할 수 있어요.",
               "Your channel is connected. Once you create a role, choose its notification channels in role settings."
             )}
           </p>
@@ -214,12 +214,12 @@ export function OrgSlackChannelRolesDialog({
         <>
           <div>
             <label className="sr-only" htmlFor={searchId}>
-              {c("Role 검색", "Search roles")}
+              {c("역할 검색", "Search roles")}
             </label>
             <Input
               id={searchId}
               type="search"
-              placeholder={c("Role 검색", "Search roles")}
+              placeholder={c("역할 검색", "Search roles")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               disabled={saving}
@@ -256,7 +256,7 @@ export function OrgSlackChannelRolesDialog({
                   {!canAssign ? (
                     <span className="mt-1 block text-xs leading-5 text-neutral-muted">
                       {c(
-                        "채널 참여자의 Role 접근 권한을 확인하지 못해 선택할 수 없어요.",
+                        "채널 참여자의 역할 접근 권한을 확인하지 못해 선택할 수 없어요.",
                         "Unavailable because channel participants' access to this role couldn't be verified."
                       )}
                     </span>

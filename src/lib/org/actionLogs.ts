@@ -27,7 +27,7 @@ export const ORG_ACTION_LABELS = {
   org_resume_opened: "이력서·자료 열기",
   org_invitation_sent: "팀원 초대 발송",
   org_invitation_cancelled: "팀원 초대 취소",
-  org_member_access_saved: "팀원 접근 범위 저장",
+  org_member_access_saved: "팀원이 볼 수 있는 역할 저장",
   org_team_created: "팀 생성",
   org_team_saved: "팀 설정 저장",
   org_team_deleted: "팀 삭제",

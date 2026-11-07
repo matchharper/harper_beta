@@ -7,6 +7,8 @@ import {
   getOrgAgentThinkingLogIcon,
   hasOrgAgentToolWork,
   localizeOrgAgentThinkingLogs,
+  orgAgentLiveStatusLabel,
+  orgAgentToolTarget,
   upsertOrgAgentThinkingLog,
 } from "@/lib/org/agent/thinkingLogs";
 
@@ -171,4 +173,31 @@ test("compacts legacy adjacent running and terminal rows by label", () => {
     compacted.map((log) => log.status),
     ["done", "error"]
   );
+});
+
+test("a running web step names its search words or page host, as on the candidate side", () => {
+  assert.equal(orgAgentToolTarget("web_search", JSON.stringify({ query: "  Acme   frontend\n hiring " })), "Acme frontend hiring");
+  assert.equal(orgAgentToolTarget("web_search", JSON.stringify({ query: "x".repeat(120) }))?.length, 80);
+  assert.equal(orgAgentToolTarget("open_url", JSON.stringify({ url: ["https://www.example.com/a", "https://example.com/b", "not a url"] })), "example.com");
+  assert.equal(orgAgentToolTarget("open_url", "{not json"), undefined);
+  assert.equal(orgAgentToolTarget("read_role", JSON.stringify({ query: "x" })), undefined);
+
+  const at = "2026-11-06T00:00:00.000Z";
+  const logs: OrgAgentThinkingLog[] = [
+    { at, icon: "search", id: "a", label: "웹에서 확인하는 중", status: "running", target: "frontend" },
+    { at, icon: "link", id: "b", label: "링크를 읽는 중", status: "running", target: "example.com" },
+    { at, icon: "search", id: "c", label: "웹 검색 완료", status: "done", target: "frontend" },
+  ];
+  assert.deepEqual(localizeOrgAgentThinkingLogs(logs, "ko").map((log) => log.label),
+    ['"frontend" 검색 중', "example.com 읽는 중", "웹 검색 완료"]);
+  assert.deepEqual(localizeOrgAgentThinkingLogs(logs, "en").map((log) => log.label),
+    ['Searching "frontend"', "Reading example.com", "Looked around"]);
+});
+
+test("the live line says what Harper is doing while no step runs", () => {
+  const c = (ko: string) => ko;
+  assert.equal(orgAgentLiveStatusLabel(c, true, 0), "생각하는 중");
+  assert.equal(orgAgentLiveStatusLabel(c, true, 2), "다음 할 일을 정하는 중");
+  assert.equal(orgAgentLiveStatusLabel(c, false, 0), "Thought");
+  assert.equal(orgAgentLiveStatusLabel(c, false, 2), undefined);
 });

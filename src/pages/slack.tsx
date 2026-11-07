@@ -34,15 +34,15 @@ export default function SlackPage({ locale }: Props) {
           "Sign in to Harper with your work email and open your company Workspace. Complete company onboarding if this is your first visit."
         ),
         c(
-          "Organization → Integrations에서 Slack 연결을 선택해요. 연결할 Slack 워크스페이스와 요청 권한을 확인한 뒤 허용해 주세요.",
-          "In Organization → Integrations, choose Connect Slack. Check the Slack workspace and requested permissions, then authorize the connection."
+          "회사 설정 › 연동에서 Slack 연결을 선택해요. 연결할 Slack 워크스페이스와 요청 권한을 확인한 뒤 허용해 주세요.",
+          "In Company settings → Integrations, choose Connect Slack. Check the Slack workspace and requested permissions, then authorize the connection."
         ),
         c(
           "Harper로 돌아오면 연결 상태를 확인하고 채용에 참여하는 팀원이 있는 채널을 선택해요. 비공개 채널은 먼저 /invite @Harper로 Harper를 초대해 주세요.",
           "Back in Harper, check the connected status and select a channel for the team members involved in hiring. For a private channel, first invite Harper with /invite @Harper."
         ),
         c(
-          "채널에서 @Harper를 멘션해 첫 대화를 시작해요. Role별로 사용할 채널과 담당자도 확인해 주세요.",
+          "채널에서 @Harper를 멘션해 첫 대화를 시작해요. 역할별로 사용할 채널과 담당자도 확인해 주세요.",
           "Mention @Harper in the channel to start a conversation. Check the channel and contact person assigned to each Role."
         ),
       ],
@@ -51,16 +51,16 @@ export default function SlackPage({ locale }: Props) {
       id: "use",
       title: c("채널에서 함께 채용하기", "Work on hiring in your channel"),
       intro: c(
-        "새 요청은 @Harper를 멘션하고, 이어지는 이야기는 같은 스레드에서 나눠요. 후보 소개의 스레드에서 답하면 해당 후보자와 Role 맥락을 이어갈 수 있어요.",
+        "새 요청은 @Harper를 멘션하고, 이어지는 이야기는 같은 스레드에서 나눠요. 후보 소개의 스레드에서 답하면 해당 후보자와 역할 맥락을 이어갈 수 있어요.",
         "Mention @Harper for a new request, then continue in the same thread. Reply under a candidate introduction to keep that candidate and Role in context."
       ),
       items: [
         c(
-          "Role에 필요한 경험과 채용 배경을 설명하고 채용 기준을 정리해요.",
+          "역할에 필요한 경험과 채용 배경을 설명하고 채용 기준을 정리해요.",
           "Describe the experience a Role needs and the reasons you are hiring."
         ),
         c(
-          "후보자 정보를 검토하고, 제공되는 동작으로 Intro를 요청하거나 연결 여부를 결정해요.",
+          "후보자 정보를 검토하고, 제공되는 동작으로 연결을 요청하거나 연결 여부를 결정해요.",
           "Review candidate information and use the available actions to request an Intro or decide whether to connect."
         ),
         c(
@@ -69,8 +69,8 @@ export default function SlackPage({ locale }: Props) {
         ),
       ],
       note: c(
-        "연결 제안할 후보는 아직 회사에 대한 관심이 확인된 상태가 아니에요. 연결 수락한 후보는 후보자가 Role을 수락하고 회사 결정을 기다리는 상태예요. 실제 화면의 상태를 확인해 주세요.",
-        "Suggested candidates have not necessarily expressed interest in your company. Ready to connect means the candidate has accepted the Role and is waiting for the company’s decision. Check the status shown on each candidate."
+        "연결을 요청할 후보는 아직 회사에 대한 관심이 확인된 상태가 아니에요. 연결을 기다리는 후보는 후보자가 역할을 수락하고 회사 결정을 기다리는 상태예요. 실제 화면의 상태를 확인해 주세요.",
+        "Candidates in Ready to reach out have not necessarily expressed interest in your company. Waiting to connect means the candidate has accepted the Role and is waiting for the company’s decision. Check the status shown on each candidate."
       ),
     },
     {
@@ -121,8 +121,8 @@ export default function SlackPage({ locale }: Props) {
       id: "disconnect",
       title: c("알림 설정과 연결 해제", "Notifications and disconnection"),
       intro: c(
-        "Harper의 Integrations에서 연결 채널을 관리하거나 회사 Workspace의 Slack 연결을 해제할 수 있어요. Slack 전체에서 앱을 제거하려면 Slack의 앱 관리에서 Harper를 제거해 주세요.",
-        "Manage connected channels or disconnect your company Workspace in Harper’s Integrations. To remove the app from the entire Slack workspace, uninstall Harper in Slack’s app management settings."
+        "Harper 회사 설정 › 연동에서 연결 채널을 관리하거나 회사 Workspace의 Slack 연결을 해제할 수 있어요. Slack 전체에서 앱을 제거하려면 Slack의 앱 관리에서 Harper를 제거해 주세요.",
+        "Manage connected channels or disconnect your company Workspace in Harper under Company settings → Integrations. To remove the app from the entire Slack workspace, uninstall Harper in Slack’s app management settings."
       ),
       note: c(
         "연결 해제나 앱 제거만으로 이미 저장된 Harper 대화와 회사 기록이 모두 삭제되지는 않아요. 개인정보 열람·이동·삭제 요청은 아래 연락처로 보내 주세요.",
@@ -137,8 +137,8 @@ export default function SlackPage({ locale }: Props) {
         "Installation needs approval or fails"
       ),
       c(
-        "회사 Workspace의 연동 관리 권한과 Slack의 앱 설치 정책을 확인해 주세요. 취소했거나 연결 요청이 만료됐다면 Harper의 Integrations에서 다시 시작해 주세요.",
-        "Check your Harper integration management permission and Slack’s app installation policy. If you cancelled or the connection request expired, start again from Harper’s Integrations."
+        "회사 Workspace의 연동 관리 권한과 Slack의 앱 설치 정책을 확인해 주세요. 취소했거나 연결 요청이 만료됐다면 Harper 회사 설정 › 연동에서 다시 시작해 주세요.",
+        "Check your Harper integration management permission and Slack’s app installation policy. If you cancelled or the connection request expired, start again from Company settings → Integrations in Harper."
       ),
     ],
     [
@@ -151,8 +151,8 @@ export default function SlackPage({ locale }: Props) {
     [
       c("Harper가 답하지 않아요", "Harper is not responding"),
       c(
-        "Harper가 채널에 참여하고 있고, 그 채널이 Harper의 Integrations에 연결되어 있는지 확인해 주세요. 새 요청은 @Harper를 멘션해 주세요. 현재 대화는 연결된 채널과 관련 스레드에서 이용할 수 있어요.",
-        "Check that Harper has joined the channel and that the channel is connected in Harper’s Integrations. Start a new request with @Harper. Recruiting conversations are available in connected channels and their relevant threads."
+        "Harper가 채널에 참여하고 있고, 그 채널이 Harper 회사 설정 › 연동에 연결되어 있는지 확인해 주세요. 새 요청은 @Harper를 멘션해 주세요. 현재 대화는 연결된 채널과 관련 스레드에서 이용할 수 있어요.",
+        "Check that Harper has joined the channel and that the channel is connected in Harper under Company settings → Integrations. Start a new request with @Harper. Recruiting conversations are available in connected channels and their relevant threads."
       ),
     ],
     [

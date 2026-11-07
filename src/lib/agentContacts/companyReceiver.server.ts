@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { buildOrgAgentPromptContext } from "@/lib/org/agent/context";
 import { runOrgAgentToolLoop } from "@/lib/org/agent/chat";
 import { resolveOrgAgentModel } from "@/lib/org/agent/modelConfig";
-import { withCompanyAgentScope, companyAgentServiceTools } from "./companyScope";
+import { withCompanyAgentScope, companyAgentCorrespondenceTools } from "./companyScope";
 import {
   agentContactDatabase,
   assertAgentContactSource,
@@ -12,37 +12,25 @@ import {
   AgentContactSupersededError,
 } from "./store";
 import { readAgentCorrespondence } from "./read";
+import { scheduleRunDestination, scheduleRunMessages, scheduleRunText, scheduleRunTools } from "./scheduleRun";
 import { companyAgentEventPrompt, type AgentContactSource } from "./contracts";
 
 /**
  * Harper's own schedules (not tied to an introduction) get only the tools of
- * their effect tier (D15): 0 look again and message the company, 1 also
- * propose (no proposal tool yet, so the same as 0), 2 also search, contact
- * and publish.
+ * their effect tier (D15), and contact_user only when ORG_AGENT_SCHEDULE_MESSAGES
+ * allows it (scheduleRun.ts).
  */
-const scheduleTierTools = (tier: number) =>
-  new Set([
-    "read_role",
-    "read_conversation_history",
-    "get_more_data",
-    "get_talents",
-    "read_talent",
-    "send_company_message",
-    "manage_agent_schedule",
-    ...(tier >= 2
-      ? ["request_matching_search", "recommend_talents", "publish_role_recommendations", "contact_talent"]
-      : []),
-  ]);
+const scheduleTierTools = (tier: number) => scheduleRunTools(tier, scheduleRunMessages());
 
 /** Executes the original company-side LLM with a lease-bound, single-Role service principal. */
 export async function runCompanyAgentEvent(job: any) {
-  const { reserveAgentExecution, settleAgentExecution } =
+  const { reserveAgentExecution, settleAgentExecution, remainingRunSeconds } =
     await import("./executionBudget");
   const anchor = job.action_context.agentContactBudgetAnchor;
   const key = `company:${job.id}:${job.attempt_count}:${job.locked_by}`;
   const seconds = anchor
     ? await reserveAgentExecution(anchor, key, 25 * 60)
-    : 25 * 60;
+    : remainingRunSeconds(job.usage);
   try {
     return await executeCompanyAgentEvent(job, seconds);
   } finally {
@@ -151,7 +139,7 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     const tierLine =
       tier === null
         ? ""
-        : `\nEffect tier ${tier} (${schedule.created_by === "user" ? "asked by a company member" : "Harper's own"}): ${tier >= 2 ? "you may search, contact candidates or publish if still useful" : "look again and message the company only if useful; do not search, contact or publish"}.`;
+        : `\n${scheduleRunText(schedule, await scheduleRunDestination(db.query, source.workspaceId, schedule, scheduleRunMessages()))}`;
     eventText = `Scheduled company work ${schedule.id}; revision ${schedule.revision}\n${schedule.title}\n${schedule.instruction}${schedule.target_refs?.introductionRootId ? `\nIntroduction ${schedule.target_refs.introductionRootId}` : tierLine}`;
   }
   // An earlier execution may have committed its body before a delivery timeout.
@@ -185,7 +173,7 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
       scheduleTier === null
         ? ["agent_correspondence"]
         : ["company_messaging", "harper_schedule", ...(scheduleTier >= 2 ? (["candidate_search", "candidate_contact"] as const) : [])],
-    allowedToolNames: scheduleTier === null ? companyAgentServiceTools() : scheduleTierTools(scheduleTier),
+    allowedToolNames: scheduleTier === null ? companyAgentCorrespondenceTools() : scheduleTierTools(scheduleTier),
     source: "chat",
     readAudience: "company_safe",
     scopeKey: `agent-event:${job.id}`,

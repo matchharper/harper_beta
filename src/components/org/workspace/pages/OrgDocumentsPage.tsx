@@ -9,6 +9,7 @@ import {
   splitOrgDocumentsMarkdown,
 } from "@/components/org/workspace/OrgDocumentsMarkdown";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import { buildOrgHref } from "@/lib/org/routes";
@@ -235,7 +236,7 @@ export function OrgDocumentsPage({
               variant="transparent"
             >
               <ArrowLeft aria-hidden="true" className="size-4" />
-              {c("Documents", "Documents")}
+              {ct(c, COMPANY_TERMS.nav.help)}
             </MuteButton>
             {activeSection ? (
               <article ref={articleRef} data-documents-copy-source>

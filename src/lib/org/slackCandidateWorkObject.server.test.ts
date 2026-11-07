@@ -9,6 +9,7 @@ import * as companyPresentation from "./companyCriteriaEvaluations";
 import * as slackApiRequest from "./slackApiRequest";
 import * as billingTypes from "./billing/types";
 import * as billingNotice from "./billing/notice";
+import * as terms from "./terms";
 
 // Execute the real server modules with isolated adapters: these tests must never
 // access a production database, Slack token, or candidate-contact capability.
@@ -33,6 +34,8 @@ function loadServer(
     process: { env: {} },
     console: { warn() {}, error() {} },
     require(name: string) {
+      // Shared names are plain data, never an adapter.
+      if (name === "@/lib/org/terms") return terms;
       if (!(name in dependencies))
         throw new Error(`Unexpected dependency: ${name}`);
       return dependencies[name];
@@ -321,13 +324,13 @@ test("the profile panel reads the exact intro through the canonical detail reade
     metadata.entity_payload.custom_fields.find(
       (field: any) => field.key === "reason"
     ).label,
-    "Harper Note"
+    "Harper 메모"
   );
   assert.equal(
     metadata.entity_payload.custom_fields.find(
       (field: any) => field.key === "introduction"
     ).label,
-    "TL;DR"
+    "한 줄 요약"
   );
   assert.ok(!rendered.includes("PRIVATE_"));
   assert.equal(metadata.entity_payload.actions.primary_actions.length, 2);
@@ -1171,7 +1174,7 @@ test("successful decisions are not reoffered when the detail panel refresh fails
   await background[0]();
   assert.equal(commands, 1);
   assert.equal(views.length, 1);
-  assert.equal(views[0].blocks[0].text.text, "Pass");
+  assert.equal(views[0].blocks[0].text.text, "넘김");
   assert.equal(views[0].submit, undefined);
 });
 
@@ -1312,8 +1315,8 @@ test('accepted profile reads the ordinary authorized pipeline and the complete c
   assert.equal(result.candidate.acceptedConnection, true);
   const fields = server.slackCandidateProfileFields(result.detail, 'en');
   assert.equal(fields.find((field: any) => field.key === 'reason').value, safeReport.harperNote);
-  assert.equal(fields.find((field: any) => field.key === 'final_fit').value, 'Excellent fit');
-  assert.equal(server.slackCandidateProfileFields(result.detail, 'ko').find((field: any) => field.key === 'final_fit').value, '매우 잘 맞음');
+  assert.equal(fields.find((field: any) => field.key === 'final_fit').value, 'Strong');
+  assert.equal(server.slackCandidateProfileFields(result.detail, 'ko').find((field: any) => field.key === 'final_fit').value, '아주 잘 맞음');
   assert.ok(fields.find((field: any) => field.key === 'criterion_0').value.includes('Owned service design.'));
   assert.ok(!JSON.stringify(fields).includes('PRIVATE_'));
 });
@@ -1329,7 +1332,7 @@ test('opening an accepted card renders the report instead of a closed suggestion
   await server.presentSlackCandidate({ candidateId, slackTeamId: 'team', slackUserId: 'user', channelId: 'C1', triggerId: 'trigger' });
   const metadata = JSON.parse(calls.find(call => call.method === 'entity.presentDetails').args.metadata);
   assert.equal(metadata.entity_payload.attributes.title.text, 'Candidate');
-  assert.equal(metadata.entity_payload.attributes.display_id, '🟠 수락시 바로 연결');
+  assert.equal(metadata.entity_payload.attributes.display_id, '🟠 연결을 기다리는 후보');
   assert.ok(metadata.entity_payload.custom_fields.some((field: any) => field.value === 'Owned service architecture.'));
   assert.ok(metadata.entity_payload.custom_fields.some((field: any) => field.value === 'Prefers product ownership.'));
   assert.ok(metadata.entity_payload.custom_fields.some((field: any) => field.value.includes('Designed production services.')));
@@ -1351,7 +1354,7 @@ test('accepted card refresh reads the current pipeline status and retains its id
     const attributes = metadata.entities[0].entity_payload.attributes;
     assert.equal(attributes.title.text, 'Candidate');
     assert.equal(attributes.product_icon.url, 'https://matchharper.com/images/squareface_orange.png');
-    assert.equal(attributes.display_id, stage === 'pending_connection' ? '🟠 수락시 바로 연결' : undefined);
+    assert.equal(attributes.display_id, stage === 'pending_connection' ? '🟠 연결을 기다리는 후보' : undefined);
   }
 });
 
@@ -1533,7 +1536,7 @@ test("a replaced company-first proposal follows the canonical pipeline even with
   assert.equal(entity.entity_payload.attributes.title.text, "Candidate");
   assert.equal(
     entity.entity_payload.attributes.display_id,
-    "🟠 수락시 바로 연결"
+    "🟠 연결을 기다리는 후보"
   );
   assert.equal(entity.entity_payload.actions, undefined);
 });

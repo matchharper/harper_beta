@@ -1,12 +1,9 @@
-import { OrgRoleInbox } from "@/components/org/OrgRoleInbox";
 import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
   BriefcaseBusiness,
   ChevronsLeftRight,
   ChevronsRightLeft,
-  Columns3,
   Flag,
-  Globe,
   Inbox,
   LoaderCircle,
   Menu,
@@ -14,21 +11,20 @@ import {
   PanelRight,
   PanelRightClose,
   PanelsTopLeft,
-  Rows3,
-  Scale,
   Settings,
-  X,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
-import { OrgExternalCandidates } from "@/components/org/OrgExternalCandidates";
-import { OrgPipeline } from "@/components/org/OrgPipeline";
-import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
-import { OrgRoleDetailsContent } from "@/components/org/role-overview/OrgRoleDetailsContent";
-import { OrgRoleMatchingHistory } from "@/components/org/role-overview/OrgRoleMatchingHistory";
-import { OrgRoleMatchingContent } from "@/components/org/role-overview/OrgRoleMatchingContent";
+import {
+  OrgRoleCandidatesTab,
+  RoleStartRegisteredNotice,
+  writeRegisteredNotice,
+  type RolePipelineDisplay,
+} from "@/components/org/role-screen/OrgRoleBoardViews";
+import { OrgRoleScreen } from "@/components/org/role-screen/OrgRoleScreen";
+import { OrgRoleInfoContent } from "@/components/org/role-overview/OrgRoleInfoContent";
 import { OrgRoleSettingsContent } from "@/components/org/role-overview/OrgRoleSettingsContent";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { OrgRoleStartPanel } from "@/components/org/role-start/OrgRoleStartPanel";
@@ -45,12 +41,6 @@ import { OrgTeamPage } from "@/components/org/workspace/pages/OrgTeamPage";
 import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
 import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
@@ -63,9 +53,10 @@ import {
 } from "@/lib/org/roleStatus";
 import {
   buildOrgHref,
-  resolveOrgRoleTab,
+  resolveOrgRoleLocation,
   type OrgRoleTab,
 } from "@/lib/org/routes";
+import { COMPANY_TERMS, ct, type CompanyTerm } from "@/lib/org/terms";
 import { queryKeys } from "@/lib/queryKeys";
 import { clearNewRolePending, sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
 import type { OrgRole } from "@/lib/org/server";
@@ -79,7 +70,6 @@ import {
 } from "@/store/useOrgRoleCreationUiStore";
 
 type RoleCreationTab = OrgRoleTab;
-type RolePipelineDisplay = "pipeline" | "board";
 
 // Mount expensive editors/settings on first visit, then preserve their drafts
 // while another tab is visible. The parent key resets this for a different Role.
@@ -98,211 +88,48 @@ function VisitedRolePanel({
 const ORG_ROLE_DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
 const ORG_ROLE_SPLIT_HANDLE_WIDTH_PX = 8;
 
-const DETAIL_TABS = [
-  {
-    icon: <Scale className="size-3.5" strokeWidth={1.65} />,
-    label: "매칭 기준",
-    value: "matching",
-  },
+type RoleTabButton = { icon: ReactNode; label: CompanyTerm; value: OrgRoleTab };
+
+// 역할 정보 holds the role description, who we're looking for and 확인할 기준.
+const DETAIL_TABS: RoleTabButton[] = [
   {
     icon: <BriefcaseBusiness className="size-3.5" strokeWidth={1.65} />,
-    label: "역할 정보",
+    label: COMPANY_TERMS.tab.roleInfo,
     value: "role",
   },
   {
     icon: <Settings className="size-3.5" strokeWidth={1.65} />,
-    label: "설정",
+    label: COMPANY_TERMS.tab.settings,
     value: "settings",
   },
-] as const;
+];
 
-const START_TAB = {
+const START_TAB: RoleTabButton = {
   icon: <Flag className="size-3.5" strokeWidth={1.65} />,
-  label: "시작",
+  label: COMPANY_TERMS.tab.start,
   value: "start",
-} as const;
+};
 
-const PIPELINE_TAB = {
+const PIPELINE_TAB: RoleTabButton = {
   icon: <PanelsTopLeft className="size-3.5" strokeWidth={1.65} />,
-  label: "파이프라인",
+  label: COMPANY_TERMS.tab.pipeline,
   value: "pipeline",
-} as const;
+};
 
-const INBOX_TAB = {
+const INBOX_TAB: RoleTabButton = {
   icon: <Inbox className="size-3.5" strokeWidth={1.65} />,
-  label: "인박스",
+  label: COMPANY_TERMS.tab.inbox,
   value: "inbox",
-} as const;
+};
 
-// Shown only where external sourcing is on.
-const EXTERNAL_TAB = {
-  icon: <Globe className="size-3.5" strokeWidth={1.65} />,
-  label: "외부 후보",
-  labelEn: "Outside Harper",
-  value: "external",
-} as const;
-
-const CHAT_TAB = {
+const CHAT_TAB: RoleTabButton = {
   icon: <MessageSquare className="size-3.5" strokeWidth={1.65} />,
-  label: "채팅",
+  label: COMPANY_TERMS.tab.chat,
   value: "chat",
-} as const;
+};
 
 function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function OrgRolePipelineWorkspace({
-  display,
-  mobile = false,
-  onDisplayChange,
-}: {
-  display: RolePipelineDisplay;
-  mobile?: boolean;
-  onDisplayChange: (display: RolePipelineDisplay) => void;
-}) {
-  const resolvedDisplay = mobile ? "board" : display;
-
-  const displayControl = mobile ? null : (
-    <RolePipelineDisplayMenu
-      display={resolvedDisplay}
-      onDisplayChange={onDisplayChange}
-    />
-  );
-
-  return resolvedDisplay === "pipeline" ? (
-    <OrgPipeline displayControl={displayControl} />
-  ) : (
-    <OrgRoleTalentBoard displayControl={displayControl} />
-  );
-}
-
-function RolePipelineDisplayMenu({
-  display,
-  onDisplayChange,
-}: {
-  display: RolePipelineDisplay;
-  onDisplayChange: (display: RolePipelineDisplay) => void;
-}) {
-  const { c } = useOrgLocale();
-  const DisplayIcon = display === "pipeline" ? Columns3 : Rows3;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <MuteButton size="sm" variant="transparent">
-          <DisplayIcon className="size-4" />
-        </MuteButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40" sideOffset={2}>
-        <DropdownMenuItem
-          onSelect={() => onDisplayChange("pipeline")}
-          selected={display === "pipeline"}
-          variant="sm"
-        >
-          <Columns3 />
-          {c("파이프라인", "Pipeline")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => onDisplayChange("board")}
-          selected={display === "board"}
-          variant="sm"
-        >
-          <Rows3 />
-          {c("보드", "Board")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function OrgRoleCandidatesTab({
-  display,
-  mobile = false,
-  onDisplayChange,
-  tab,
-}: {
-  display: RolePipelineDisplay;
-  mobile?: boolean;
-  onDisplayChange: (display: RolePipelineDisplay) => void;
-  tab: "inbox" | "pipeline";
-}) {
-  return (
-    <OrgJobsProvider routePage="role" inbox={tab === "inbox"}>
-      {tab === "inbox" ? (
-        <OrgRoleInbox />
-      ) : (
-        <OrgRolePipelineWorkspace
-          display={display}
-          mobile={mobile}
-          onDisplayChange={onDisplayChange}
-        />
-      )}
-      {tab !== "inbox" && <TalentDetailSimpleView />}
-    </OrgJobsProvider>
-  );
-}
-
-const registeredNoticeKey = (roleId: string) => `harper:role-start-registered:${roleId}`;
-
-function writeRegisteredNotice(roleId: string, open: boolean) {
-  try {
-    if (open) window.sessionStorage.setItem(registeredNoticeKey(roleId), "1");
-    else window.sessionStorage.removeItem(registeredNoticeKey(roleId));
-  } catch {}
-}
-
-function readRegisteredNotice(roleId: string) {
-  try {
-    return window.sessionStorage.getItem(registeredNoticeKey(roleId)) === "1";
-  } catch {
-    return false;
-  }
-}
-
-/** Right after registration, above the inbox: the Role is on and regular recommendations take over. */
-function RoleStartRegisteredNotice({
-  roleId,
-  workspaceId,
-}: {
-  roleId: string;
-  workspaceId: string;
-}) {
-  const { c } = useOrgLocale();
-  const [shown, setShown] = useState(false);
-  // Cached from the step screens; a reload has no cache and shows nothing.
-  const batch = useRoleStartQuery(roleId, workspaceId, false).data?.session?.batch;
-  const ready = batch?.status === "done" || batch?.status === "failed";
-  // Shown once per registration: this mount keeps it, the flag goes.
-  if (ready && !shown && readRegisteredNotice(roleId)) setShown(true);
-  useEffect(() => {
-    if (shown) writeRegisteredNotice(roleId, false);
-  }, [roleId, shown]);
-  if (!batch || !ready || !shown) return null;
-  const close = () => setShown(false);
-  return (
-    <div
-      className="mb-4 flex items-start gap-3 rounded-md bg-bg-basement px-4 py-3 text-[13px] leading-5"
-      role="status"
-    >
-      <div className="min-w-0 flex-1">
-        <p>
-          {c(
-            "역할을 켰어요. 새 후보는 정기 추천에서 찾아 인박스에 넣어 드릴게요.",
-            "The role is on. Regular recommendations will look for new people and add them to the inbox."
-          )}
-        </p>
-      </div>
-      <MuteButton
-        aria-label={c("안내 닫기", "Close notice")}
-        onClick={close}
-        size="sm"
-        variant="transparent"
-      >
-        <X aria-hidden className="size-3.5" strokeWidth={1.7} />
-      </MuteButton>
-    </div>
-  );
 }
 
 function OrgRoleCreationDetails({
@@ -346,39 +173,27 @@ function OrgRoleCreationDetails({
     roleId: role && !roleCreation ? role.roleId : null,
     workspaceId: workspace.workspaceId,
   });
-  const externalEnabled = Boolean(externalQuery.data?.enabled);
-  const externalCount = externalQuery.data?.candidates.length;
-  // Links made while external candidates lived inside the inbox (`tab=inbox&review=external`) open the tab.
-  const requestedTab = router.isReady
-    ? getQueryText(router.query.review) === "external" ? "external" : getQueryText(router.query.tab)
-    : "";
   const requestedView = router.isReady ? getQueryText(router.query.view) : "";
-  const resolvedTab = resolveOrgRoleTab({
+  const roleLocation = resolveOrgRoleLocation(router.isReady ? router.query : {}, {
+    // Until the list loads, keep a 외부 후보 link on its sub-tab; a workspace
+    // without external sourcing then gets the plain inbox.
+    externalEnabled: externalQuery.data ? Boolean(externalQuery.data.enabled) : true,
+    hash: router.isReady ? router.asPath.split("#")[1] ?? "" : "",
     isDraft: roleCreation,
-    tab: requestedTab,
   });
-  // A workspace without external sourcing has no such tab: its link opens the inbox.
-  const activeTab =
-    resolvedTab === "external" && externalQuery.data && !externalEnabled
-      ? "inbox"
-      : resolvedTab;
+  // The chat sits beside these tabs; `tab=chat` shows the default tab here.
+  const activeTab: RoleCreationTab =
+    roleLocation.tab === "chat" ? (roleCreation ? "start" : "inbox") : roleLocation.tab;
   const pipelineDisplay: RolePipelineDisplay =
     mobile || requestedView === "board" ? "board" : "pipeline";
   const detailTabs = [
     ...(expanded ? [CHAT_TAB] : []),
     ...(roleCreation
       ? [START_TAB, ...DETAIL_TABS]
-      : [
-          INBOX_TAB,
-          PIPELINE_TAB,
-          ...DETAIL_TABS,
-          // Last, after 설정, only where external sourcing is on.
-          ...(externalEnabled || activeTab === "external" ? [EXTERNAL_TAB] : []),
-        ]),
+      : [INBOX_TAB, PIPELINE_TAB, ...DETAIL_TABS]),
   ];
-  // The inbox and the external list scroll inside their own panel.
-  const panelScrolls =
-    !companyInfoOpen && (activeTab === "inbox" || activeTab === "external");
+  // The inbox scrolls inside its own panel.
+  const panelScrolls = !companyInfoOpen && activeTab === "inbox";
   const roleStatus = role ? getOrgRoleStatusPresentation(role.status) : null;
   const setActiveTab = (tab: RoleCreationTab) => {
     const nextQuery = { ...router.query };
@@ -390,6 +205,7 @@ function OrgRoleCreationDetails({
       "externalCandidateId",
       // Opening the inbox from its tab shows the inbox, not Saved.
       "review",
+      "section",
     ])
       delete nextQuery[key];
     if (tab === "pipeline") {
@@ -518,20 +334,13 @@ function OrgRoleCreationDetails({
                   type="button"
                 >
                   {tab.icon}
-                  <span className="truncate">
-                    {"labelEn" in tab ? c(tab.label, tab.labelEn) : sourceT(tab.label)}
-                  </span>
+                  <span className="truncate">{ct(c, tab.label)}</span>
                   {tab.value === "inbox" && inboxCount !== undefined ? (
                     <Badge
                       size="xs"
                       variant="count"
                     >
                       {String(inboxCount)}
-                    </Badge>
-                  ) : null}
-                  {tab.value === "external" && externalCount ? (
-                    <Badge size="xs" variant="count">
-                      {String(externalCount)}
                     </Badge>
                   ) : null}
                 </button>
@@ -634,29 +443,6 @@ function OrgRoleCreationDetails({
             ) : null}
           </div>
           <div
-            aria-label={c("외부 후보 탭 내용", "Outside Harper tab content")}
-            aria-labelledby="role-creation-external-tab"
-            className={activeTab === "external" ? "h-full min-h-0" : undefined}
-            hidden={companyInfoOpen || activeTab !== "external"}
-            id="role-creation-external-panel"
-            role="tabpanel"
-          >
-            {!companyInfoOpen &&
-            activeTab === "external" &&
-            role &&
-            !roleCreation ? (
-              <section
-                className="h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain pt-5 md:pt-6"
-                data-org-review-scroll
-              >
-                <OrgExternalCandidates
-                  roleId={role.roleId}
-                  workspaceId={workspace.workspaceId}
-                />
-              </section>
-            ) : null}
-          </div>
-          <div
             aria-label={c("파이프라인 탭 내용", "Pipeline tab content")}
             aria-labelledby="role-creation-pipeline-tab"
             className={activeTab === "pipeline" ? "h-full min-h-0" : undefined}
@@ -677,54 +463,20 @@ function OrgRoleCreationDetails({
             ) : null}
           </div>
           <div
-            aria-label={c("매칭 기준 탭 내용", "Matching criteria tab content")}
-            aria-labelledby="role-creation-matching-tab"
-            hidden={companyInfoOpen || activeTab !== "matching"}
-            id="role-creation-matching-panel"
-            role="tabpanel"
-          >
-            <VisitedRolePanel
-              active={!companyInfoOpen && activeTab === "matching"}
-            >
-              {role ? (
-                <>
-                  <div className="mb-4 flex justify-end">
-                    {!chatActive && !companyInfoOpen && activeTab === "matching" ? (
-                      <OrgRoleMatchingHistory
-                        key={`matching-history:${role.roleId}`}
-                        roleId={role.roleId}
-                        workspaceId={workspace.workspaceId}
-                      />
-                    ) : null}
-                  </div>
-                  <OrgRoleMatchingContent
-                    key={`matching:${role.roleId}`}
-                    role={role}
-                    workspaceId={workspace.workspaceId}
-                  />
-                </>
-              ) : (
-                <div className="py-12 text-center text-sm text-neutral-muted">
-                  {c(
-                    "역할 정보를 불러오는 중입니다.",
-                    "Loading role information."
-                  )}
-                </div>
-              )}
-            </VisitedRolePanel>
-          </div>
-          <div
             aria-label={c("역할 정보 탭 내용", "Role details tab content")}
             aria-labelledby="role-creation-role-tab"
             hidden={companyInfoOpen || activeTab !== "role"}
             id="role-creation-role-panel"
             role="tabpanel"
           >
+            {/* Both editors stay mounted together, so their drafts and unsaved-changes guards survive tab switches. */}
             <VisitedRolePanel active={!companyInfoOpen && activeTab === "role"}>
               {role ? (
-                <OrgRoleDetailsContent
+                <OrgRoleInfoContent
                   key={`role:${role.roleId}`}
                   role={role}
+                  section={roleLocation.section}
+                  visible={!chatActive && !companyInfoOpen && activeTab === "role"}
                   workspaceId={workspace.workspaceId}
                 />
               ) : (
@@ -968,6 +720,9 @@ export function OrgRoleCreationPage() {
       </div>
     );
   }
+
+  // A registered role opens in the candidate side's frame: chat, 채팅 | 후보 pill, right column.
+  if (role && !roleDraft) return <OrgRoleScreen key={role.roleId} role={role} />;
 
   if (roleStartEnabled && roleStartQuery.isLoading && !role) {
     return (

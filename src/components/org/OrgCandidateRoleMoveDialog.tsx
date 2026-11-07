@@ -165,7 +165,7 @@ export function OrgCandidateRoleMoveDialog({
     id === "connected"
       ? c("연결됨", "Connected")
       : id === "final_offer"
-        ? c("최종 오퍼", "Final offer")
+        ? c("오퍼", "Offer")
         : label;
   return (
     <TalentCareerModal
@@ -175,7 +175,7 @@ export function OrgCandidateRoleMoveDialog({
       }}
       closeOnBackdrop={!pending}
       showCloseButton={!pending}
-      title={c("다른 Role로 이동", "Move to another role")}
+      title={c("다른 역할로 옮기기", "Move to another role")}
       description={
         <span className="block truncate text-[13px] text-neutral-muted">
           {detail.talent.name ?? c("후보자", "Candidate")} · {detail.role.name}
@@ -222,7 +222,7 @@ export function OrgCandidateRoleMoveDialog({
           </div>
           <p className="text-neutral-muted">
             {c(
-              `후보자가 수락하면 ${targetRole?.name}로 이동해요. 답변 전까지 현재 Role을 유지해요.`,
+              `후보자가 수락하면 ${targetRole?.name}로 이동해요. 답변 전까지 현재 역할을 유지해요.`,
               `If the candidate accepts, they’ll move to ${targetRole?.name}. They’ll stay in the current role until then.`
             )}
           </p>
@@ -230,7 +230,7 @@ export function OrgCandidateRoleMoveDialog({
       ) : mode === "waiting" ? (
         <p className="text-[13px] leading-6 text-neutral-muted">
           {c(
-            "제안에 대한 답변을 기다리고 있어요. 답변을 받은 뒤 Role을 옮길 수 있어요.",
+            "제안에 대한 답변을 기다리고 있어요. 답변을 받은 뒤 역할을 옮길 수 있어요.",
             "An intro is awaiting a response. You can move this candidate after they respond."
           )}
         </p>
@@ -246,7 +246,7 @@ export function OrgCandidateRoleMoveDialog({
           <fieldset disabled={formDisabled} className="space-y-4">
             <div className="space-y-2">
               <label id={`${formId}-role`} className="text-[13px] font-medium">
-                {c("이동할 Role", "Destination role")}
+                {c("이동할 역할", "Destination role")}
               </label>
               <Select
                 value={targetRoleId}
@@ -262,7 +262,7 @@ export function OrgCandidateRoleMoveDialog({
                 }))}
               >
                 <SelectTrigger aria-labelledby={`${formId}-role`}>
-                  <SelectValue placeholder={c("Role 선택", "Select a role")} />
+                  <SelectValue placeholder={c("역할 선택", "Select a role")} />
                 </SelectTrigger>
                 <SelectContent>
                   {options.map((role) => (
@@ -325,7 +325,7 @@ export function OrgCandidateRoleMoveDialog({
                     "ask_candidate",
                     c("Harper가 물어보기", "Have Harper ask the candidate"),
                     c(
-                      "후보자가 수락하면 선택한 Role로 바로 옮겨요.",
+                      "후보자가 수락하면 선택한 역할로 바로 옮겨요.",
                       "Move automatically if the candidate accepts."
                     ),
                   ],
@@ -383,19 +383,19 @@ export function OrgCandidateRoleMoveDialog({
           {!options.length && (
             <p className="text-sm text-neutral-muted">
               {c(
-                "이동할 수 있는 다른 Role이 없어요.",
+                "이동할 수 있는 다른 역할이 없어요.",
                 "No other roles are available."
               )}
             </p>
           )}
           {targetRoleId && board.isPending && (
             <p className="text-sm text-neutral-muted">
-              {c("Role을 확인하고 있어요…", "Loading role…")}
+              {c("역할을 확인하고 있어요…", "Loading role…")}
             </p>
           )}
           {targetRoleId && board.isError && (
             <p role="alert" className="text-sm text-critical">
-              {c("Role 정보를 불러오지 못했어요.", "Couldn’t load this role.")}{" "}
+              {c("역할 정보를 불러오지 못했어요.", "Couldn’t load this role.")}{" "}
               <MuteButton
                 variant="transparent"
                 onClick={() => void board.refetch()}
@@ -407,7 +407,7 @@ export function OrgCandidateRoleMoveDialog({
           {alreadyPresent && (
             <p role="alert" className="text-sm text-critical">
               {c(
-                "이 Role에서 이미 진행 중인 후보예요.",
+                "이 역할에서 이미 진행 중인 후보예요.",
                 "This candidate is already in this role."
               )}
             </p>

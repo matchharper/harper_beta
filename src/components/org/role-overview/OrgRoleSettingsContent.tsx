@@ -5,6 +5,7 @@ import {
   resolveOrgRoleAccess,
 } from "@/lib/org/teamAccess.shared";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -78,9 +79,14 @@ function formatChannelName(name: string | null, channelId: string) {
   return value.startsWith("#") ? value : `#${value}`;
 }
 
-function formatHour(hour: number) {
+function formatHour(hour: number, locale: "ko" | "en") {
+  if (locale === "ko") return `${hour < 12 ? "오전" : "오후"} ${hour % 12 || 12}:00`;
   return `${hour % 12 || 12}:00 ${hour < 12 ? "AM" : "PM"}`;
 }
+
+const KOREAN_DAY_NAMES: Record<string, string> = {
+  Mon: "월", Tue: "화", Wed: "수", Thu: "목", Fri: "금", Sat: "토", Sun: "일",
+};
 
 export function OrgRoleSettingsContent({
   layout = "overview",
@@ -232,7 +238,7 @@ export function OrgRoleSettingsContent({
           "아직 채용을 시작하지 않았습니다.",
           "Hiring not started yet."
         ),
-        label: c("작성 중", "In draft"),
+        label: ct(c, COMPANY_TERMS.roleStatus.draft),
       }
     : lifecycleStatus === "active"
       ? {
@@ -240,22 +246,22 @@ export function OrgRoleSettingsContent({
             "현재 후보자를 추천받고 채용을 진행하고 있습니다.",
             "This role is open for hiring and can receive candidate recommendations."
           ),
-          label: c("채용 진행 중", "Hiring in progress"),
+          label: ct(c, COMPANY_TERMS.roleStatus.active),
         }
       : lifecycleStatus === "paused"
         ? {
             description: c(
-              "후보자 추천을 잠시 멈춘 상태입니다.",
-              "Candidate recommendations are paused."
+              "새 후보 찾기를 멈춘 상태예요.",
+              "Not looking for new candidates."
             ),
-            label: c("채용 일시정지", "Hiring paused"),
+            label: ct(c, COMPANY_TERMS.roleStatus.paused),
           }
         : {
             description: c(
               "채용이 종료되어 후보자를 추천받지 않습니다.",
               "Hiring has ended. This role no longer receives new recommendations."
             ),
-            label: c("채용 종료", "Hiring ended"),
+            label: ct(c, COMPANY_TERMS.roleStatus.ended),
           };
   const statusConfirmCopy =
     statusToConfirm === "active"
@@ -277,10 +283,10 @@ export function OrgRoleSettingsContent({
       : statusToConfirm === "paused"
         ? {
             description: c(
-              "후보자 추천을 일시정지합니다. 언제든 다시 진행할 수 있습니다.",
+              "새 후보 찾기를 잠시 멈춰요. 언제든 다시 진행할 수 있어요.",
               "Pause new recommendations. You can resume hiring at any time."
             ),
-            title: c("채용을 일시정지할까요?", "Pause hiring?"),
+            title: c("역할을 잠시 멈출까요?", "Pause this role?"),
           }
         : {
             description: closurePreview.description,
@@ -324,14 +330,14 @@ export function OrgRoleSettingsContent({
       setEmailOverride(null);
       setSettingsEditing(false);
       addToast({
-        message: c("Role 설정을 저장했습니다.", "Role settings saved."),
+        message: c("역할 설정을 저장했습니다.", "Role settings saved."),
         variant: "success",
       });
     } catch (error) {
       setSettingsSaveError(
         getRoleOverviewErrorMessage(
           error,
-          c("Role 설정을 저장하지 못했습니다.", "Failed to save role settings.")
+          c("역할 설정을 저장하지 못했습니다.", "Failed to save role settings.")
         )
       );
     }
@@ -443,9 +449,9 @@ export function OrgRoleSettingsContent({
       }
       addToast({
         message: enabled
-          ? c("정기 후보 검색을 켰습니다.", "Scheduled candidate search is on.")
+          ? c("정기 탐색을 켰습니다.", "Scheduled candidate search is on.")
           : c(
-              "정기 후보 검색을 껐습니다.",
+              "정기 탐색을 껐습니다.",
               "Scheduled candidate search is off."
             ),
         variant: "success",
@@ -455,7 +461,7 @@ export function OrgRoleSettingsContent({
         getRoleOverviewErrorMessage(
           error,
           c(
-            "정기 후보 검색 설정을 저장하지 못했습니다. 다시 시도해 주세요.",
+            "정기 탐색 설정을 저장하지 못했습니다. 다시 시도해 주세요.",
             "We couldn't update scheduled candidate search. Try again."
           )
         )
@@ -578,7 +584,7 @@ export function OrgRoleSettingsContent({
           )}
         >
           <section className="min-w-0 space-y-2">
-            <RoleSectionHeading title={c("Status", "Status")} />
+            <RoleSectionHeading title={c("상태", "Status")} />
             <div className="rounded-md bg-bg-basement px-3 py-3 text-sm">
               {statusMeta.label}
               <p className="mt-2 text-[13px] leading-5 text-neutral-muted">
@@ -598,7 +604,7 @@ export function OrgRoleSettingsContent({
                   variant="default"
                 >
                   <Play className="size-4" />
-                  {c("채용 진행하기", "Start hiring")}
+                  {c("채용 시작하기", "Start hiring")}
                 </MuteButton>
               ) : null
             ) : (
@@ -609,7 +615,7 @@ export function OrgRoleSettingsContent({
                     onClick={() => setStatusToConfirm("paused")}
                   >
                     <Pause className="size-4" />
-                    {c("채용 일시정지", "Hiring paused")}
+                    {ct(c, COMPANY_TERMS.roleStatusAction.pause)}
                   </MuteButton>
                 ) : (
                   <MuteButton
@@ -618,7 +624,7 @@ export function OrgRoleSettingsContent({
                     variant="default"
                   >
                     <Play className="size-4" />
-                    {c("채용 진행하기", "Start hiring")}
+                    {c("다시 진행하기", "Start hiring")}
                   </MuteButton>
                 )}
                 {lifecycleStatus !== "ended" ? (
@@ -628,7 +634,7 @@ export function OrgRoleSettingsContent({
                     variant="warn"
                   >
                     <CircleStop className="size-4" />
-                    {c("채용 종료하기", "End hiring")}
+                    {c("종료하기", "End hiring")}
                   </MuteButton>
                 ) : null}
               </div>
@@ -641,7 +647,7 @@ export function OrgRoleSettingsContent({
                 {getRoleOverviewErrorMessage(
                   settingsQuery.error,
                   c(
-                    "Role 설정을 불러오지 못했습니다.",
+                    "역할 설정을 불러오지 못했습니다.",
                     "Failed to load role settings."
                   )
                 )}
@@ -659,10 +665,10 @@ export function OrgRoleSettingsContent({
               <div className="space-y-2">
                 <RoleSectionHeading
                   description={c(
-                    "이 역할과 관련해 Harper와 소통할 Slack 채널을 선택하세요.",
-                    "Choose a Slack channel to receive updates about this role from Harper."
+                    "이 역할 소식을 받을 채널을 고르세요.",
+                    "Choose the channel for this role's updates."
                   )}
-                  title={c("슬랙 연결", "Connect Slack")}
+                  title={c("Slack 알림 채널", "Slack channel for this role")}
                 />
                 {/* <div className="flex items-center gap-3 py-1">
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-sm bg-neutral-1000-a05 text-neutral-muted">
@@ -790,15 +796,15 @@ export function OrgRoleSettingsContent({
                           "Choose team members to manage notifications and hiring progress for this role."
                         )
                       : c(
-                          "이 역할의 후보자 연결을 함께 담당할 멤버를 선택하세요.",
-                          "Choose teammates to manage candidate intros for this role."
+                          "이 역할의 연결을 함께 맡을 팀원을 고르세요.",
+                          "Choose teammates who share this role's intros."
                         )
                   }
                   info={c(
-                    "담당자로 설정한 멤버는 이 역할의 후보자와 연결될 때 소개 이메일 CC에 자동으로 포함됩니다.",
+                    "맡은 사람은 이 역할의 연결 메일에 참조(CC)로 들어가요.",
                     "Role owners are automatically CC'd on introduction emails for this role."
                   )}
-                  title={c("담당자", "Owners")}
+                  title={c("맡은 사람", "Owners")}
                 />
                 <div className="flex items-start gap-3 pt-1">
                   <div className="flex min-w-0 flex-1 flex-wrap gap-2">
@@ -823,7 +829,7 @@ export function OrgRoleSettingsContent({
                             p0:
                               member.name ||
                               member.email ||
-                              c("담당자", "Owners"),
+                              c("맡은 사람", "Owners"),
                           })}
                           className="ml-0.5 rounded-pill"
                           disabled={!canManage || settingsPending}
@@ -850,8 +856,8 @@ export function OrgRoleSettingsContent({
                         >
                           <Plus className="size-4" />
                           {roleCreation && assignedMembers.length > 0
-                            ? c("담당자 변경", "Change owner")
-                            : c("담당자 추가", "Add owner")}
+                            ? c("맡은 사람 바꾸기", "Change owner")
+                            : c("팀원 추가", "Add teammate")}
                         </MuteButton>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
@@ -913,7 +919,7 @@ export function OrgRoleSettingsContent({
       {/* {layout === "panel" ? (
         <OrgSection>
           <OrgSectionHeader
-            description="후보자 매칭 기준과는 별도로, Harper가 이 역할에 대해 계속 기억해야 할 운영 맥락입니다."
+            description="확인할 기준과는 별도로, Harper가 이 역할에 대해 계속 기억해야 할 운영 맥락입니다."
             title="Context for Harper"
           />
           {role.memory?.trim() ? (
@@ -964,14 +970,14 @@ export function OrgRoleSettingsContent({
           <div className="flex items-start justify-between gap-6 py-5">
             <RoleSectionHeading
               description={c(
-                "Harper가 정기적으로 연락해보실만한 후보자를 찾아 알려드려요. 연락하고 싶은 후보자가 있다면 ‘Send Intro’를 눌러 주세요.",
-                "Harper searches for candidates your team can reach out to on your schedule. Choose Send Intro when you'd like Harper to reach out. Turning this off doesn't stop Harper from recommending eligible roles to candidates and introducing those who want to talk."
+                "정해진 요일에 Harper가 새 후보를 찾아봐요. 잘 맞는 후보가 있으면 ‘연결을 요청할 후보’에 넣어요. 만나고 싶은 후보가 있으면 ‘연결 요청’을 눌러 주세요.",
+                "On these days, Harper looks for new candidates and adds good matches to Ready to reach out."
               )}
               info={c(
-                "켜짐: Harper가 정기적으로 연락해보실만한 후보자를 찾아 알려드려요. ‘Send Intro’를 누르면 Harper가 후보자에게 연락해요. 꺼짐: Harper는 후보자에게 역할을 먼저 추천할 수 있고, 회사에는 수락한 후보자만 보여드려요.",
+                "켜짐: Harper가 정기적으로 연락해보실만한 후보자를 찾아 알려드려요. ‘연결 요청’을 누르면 Harper가 후보자에게 연락해요. 꺼짐: Harper는 후보자에게 역할을 먼저 추천할 수 있고, 회사에는 수락한 후보자만 보여드려요.",
                 "When this is on, Harper searches for candidates your team can approach. Turning it off stops scheduled searches, but eligible roles can still receive introductions from candidates who have expressed interest."
               )}
-              title={c("추천 후보 검색", "Scheduled candidate search")}
+              title={ct(c, COMPANY_TERMS.scheduledSearch)}
             />
             <div className="flex min-h-6 shrink-0 items-center gap-2">
               {updateCompanyFirstSearch.isPending ? (
@@ -984,7 +990,7 @@ export function OrgRoleSettingsContent({
                 {companyFirstSearchEnabled ? c("켜짐", "On") : c("꺼짐", "Off")}
               </span>
               <AppleSwitch
-                aria-label={c("추천 후보 검색", "Scheduled candidate search")}
+                aria-label={c("정기 탐색", "Scheduled candidate search")}
                 checked={companyFirstSearchEnabled}
                 disabled={
                   !canManage ||
@@ -1007,7 +1013,7 @@ export function OrgRoleSettingsContent({
                     : "text-neutral-disabled"
                 )}
               >
-                {c("검색 요일", "Search on")}
+                {c("탐색 요일", "Days")}
               </div>
               <p className="mt-1 text-[13px] text-neutral-muted">
                 {companyFirstSearchEnabled
@@ -1024,7 +1030,7 @@ export function OrgRoleSettingsContent({
             <div
               className="flex flex-wrap gap-2"
               role="group"
-              aria-label={c("검색 요일", "Search on")}
+              aria-label={c("탐색 요일", "Days")}
             >
               {INTRO_SEARCH_DAYS.map((day) => {
                 const selected = scheduleDays.includes(day);
@@ -1045,7 +1051,7 @@ export function OrgRoleSettingsContent({
                     size="sm"
                     variant={selected ? "dark" : "default"}
                   >
-                    {day}
+                    {locale === "ko" ? KOREAN_DAY_NAMES[day] ?? day : day}
                   </MuteButton>
                 );
               })}
@@ -1061,7 +1067,7 @@ export function OrgRoleSettingsContent({
                     : "text-neutral-disabled"
                 )}
               >
-                {c("검색 시간", "Search at")}
+                {c("탐색 시간", "Time")}
               </div>
               <p className="mt-1 text-[13px] text-neutral-muted">
                 <></>
@@ -1071,7 +1077,7 @@ export function OrgRoleSettingsContent({
               <Select
                 disabled={scheduleDisabled}
                 items={Array.from({ length: 24 }, (_, hour) => ({
-                  label: formatHour(hour),
+                  label: formatHour(hour, locale),
                   value: String(hour),
                 }))}
                 value={String(scheduleHour)}
@@ -1079,13 +1085,13 @@ export function OrgRoleSettingsContent({
                   if (value != null) setScheduleHourOverride(Number(value));
                 }}
               >
-                <SelectTrigger aria-label={c("검색 시간", "Search at")}>
+                <SelectTrigger aria-label={c("탐색 시간", "Time")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: 24 }, (_, hour) => (
                     <SelectItem key={hour} value={String(hour)}>
-                      {formatHour(hour)}
+                      {formatHour(hour, locale)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1124,10 +1130,10 @@ export function OrgRoleSettingsContent({
         <div className="rounded-md bg-neutral-100 px-4 py-5">
           <div className="flex items-start justify-between gap-6">
             <RoleSectionHeading
-              title={c("외부 공고 노출", "Public job promotion")}
+              title={c("외부에 역할 알리기", "Share role externally")}
               description={c(
-                "Harper가 이 역할에 더 적합한 인재를 찾기 위해 LinkedIn 등 외부에 채용 정보를 소개할 수 있어요.",
-                "Harper may share this role on LinkedIn and other public channels to find more suitable candidates."
+                "Harper가 LinkedIn 등에 이 역할을 알려 더 많은 후보를 찾아요.",
+                "Harper shares this role on LinkedIn and more."
               )}
             />
             <div className="flex min-h-6 shrink-0 items-center gap-2">
@@ -1141,7 +1147,7 @@ export function OrgRoleSettingsContent({
                 {promotionEnabled ? c("켜짐", "On") : c("꺼짐", "Off")}
               </span>
               <AppleSwitch
-                aria-label={c("외부 공고 노출", "Public job promotion")}
+                aria-label={c("외부에 역할 알리기", "Share role externally")}
                 checked={promotionEnabled}
                 disabled={
                   !canManage ||
@@ -1156,7 +1162,7 @@ export function OrgRoleSettingsContent({
             <div className="mb-3 flex flex-wrap items-start justify-between gap-4 border-t border-neutral-1000-a10 pt-5">
               <div className="max-w-xl">
                 <p className="text-[14px] font-medium text-neutral-primary">
-                  {c("회사명 공개 여부", "Company name visibility")}
+                  {c("회사 이름 보이기", "Show company name")}
                 </p>
               </div>
               <div className="flex min-h-6 shrink-0 items-center gap-2">
@@ -1167,7 +1173,7 @@ export function OrgRoleSettingsContent({
                   />
                 ) : null}
                 <AppleSwitch
-                  aria-label={c("회사명 공개 여부", "Company name visibility")}
+                  aria-label={c("회사 이름 보이기", "Show company name")}
                   checked={anonymousEnabled}
                   disabled={
                     !canManage ||
@@ -1278,10 +1284,10 @@ export function OrgRoleSettingsContent({
                 <CircleStop className="size-4" />
               )}
               {statusToConfirm === "active"
-                ? c("채용 진행하기", "Start hiring")
+                ? c("다시 진행하기", "Start hiring")
                 : statusToConfirm === "paused"
-                  ? c("일시정지", "Pause")
-                  : c("채용 종료하기", "End hiring")}
+                  ? ct(c, COMPANY_TERMS.roleStatusAction.pause)
+                  : c("종료하기", "End hiring")}
             </MuteButton>
           </div>
         }

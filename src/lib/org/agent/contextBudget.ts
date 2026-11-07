@@ -74,7 +74,7 @@ export function formatRecentRecommendations(rows: RecentRecommendationRows) {
     `returned_items=${rows.returnedItems} recent_complete=${rows.recentComplete}`,
     "아래 후보는 이미 회사의 추천·진행 목록에 등록되어 있다. 현재 목록 상태이며, 이 대화에서 소개했거나 외부 메시지를 전달했다는 증거는 아니다. 새로 추가된 인원은 해당 실행의 추가·제외 기록으로 확인한다.",
     table,
-    "개별 경력·평가·진행은 read_talent, 전체 Role 목록은 read_role 또는 get_talents로 조회한다. 최근 목록의 완전성은 recent_complete를 따른다.",
+    "개별 경력·평가·진행은 read_talent, 모든 역할 목록은 read_role 또는 get_talents로 조회한다. 최근 목록의 완전성은 recent_complete를 따른다.",
   ].join("\n");
 }
 

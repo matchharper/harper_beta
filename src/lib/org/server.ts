@@ -16,6 +16,7 @@ import { isCompanyFeedProgressVisible } from "@/lib/org/companyFeedVisibility";
 import { getCompanyFollowupProgress, type CompanyFollowupProgress } from "@/lib/org/companyFollowupProgress";
 import { isCompanyVisibleRole } from "@/lib/org/roleVisibility";
 import { recordOrgAction, recordOrgPassReasonNote } from "@/lib/org/actionLogs";
+import { normalizeReasonTags } from "@/lib/org/reasonTags";
 import type { OrgWorkspaceCreateResult, WorkspaceSignupState } from "./signup";
 import { companyHomepageInput, signupRpc } from "./signupServer";
 import { readCandidateDeliveryFacts, type CandidateDeliveryFacts } from "@/lib/companyFirstSearch/candidateDelivery";
@@ -210,6 +211,8 @@ type TalentProgressRow = Database["public"]["Tables"]["talent_progress"]["Row"] 
 type CareerEmailMessageRow =
   Database["public"]["Tables"]["career_email_messages"]["Row"];
 
+import { companyStageName, withKoreanRo } from "./terms";
+import { companyProgressText } from "./progressText";
 import { assertWorkspaceAvailable } from "./workspaceReview.server";
 import { workspaceSignupReview } from "./signupReview.server";
 import { OrgHttpError } from "./httpError";
@@ -527,6 +530,8 @@ export type OrgBoardResponse = {
     tags: boolean;
   };
   items: OrgBoardItem[];
+  /** Harper가 확인 중 per Role, when asked for (`countReviewing`). Numbers only. */
+  reviewingCountByRoleId?: Record<string, number>;
   roleId: string | null;
   stages: OrgStage[];
   totalCount: number;
@@ -1386,14 +1391,8 @@ function customTagKeyFromStageRow(row: RoleStageRow) {
 }
 
 function buildStageLabel(stage: OrgStageId, customStages: RoleStageRow[]) {
-  if (stage === "accepted") return "수락";
-  if (stage === "archived") return "아카이브";
-  if (stage === "company_intro") return "연결 제안할 후보";
-  if (stage === "intro_requested") return "연결 제안한 후보";
-  if (stage === "pending_connection") return "연결 수락한 후보";
-  if (stage === "connected") return "연결됨";
-  if (stage === "final_offer") return "최종 오퍼";
-  if (stage === "process_stopped") return "프로세스 중단";
+  const builtIn = companyStageName(stage, "ko");
+  if (builtIn) return builtIn;
   const stageId = getCustomStageDbId(stage);
   return customStages.find((item) => item.id === stageId)?.label ?? "단계";
 }
@@ -1403,14 +1402,11 @@ function buildAcceptedTalentStageLabel(
   customStages: RoleStageRow[]
 ) {
   if (!stage) return "단계 확인 필요";
-  if (stage === "accepted") return "수락 후 대기";
-  if (stage === "process_stopped") return "프로세스 종료";
   return buildStageLabel(stage, customStages);
 }
 
 function buildStageDestinationLabel(label: string) {
-  if (label === "연결됨") return "연결됨으로";
-  return `${label}로`;
+  return withKoreanRo(label);
 }
 
 function stageSortOrder(stage: OrgStageId, customStages: RoleStageRow[]) {
@@ -1751,7 +1747,7 @@ export async function leaveOrgWorkspace(args: {
     if ((count ?? 0) <= 1) {
       throw new OrgHttpError(
         409,
-        "마지막 Owner는 Organization에서 나갈 수 없습니다."
+        "마지막 소유자는 Organization에서 나갈 수 없습니다."
       );
     }
   }
@@ -1816,7 +1812,7 @@ export async function removeOrgWorkspaceMember(args: {
       .eq("authority", "owner");
     if (ownerCountError) throw ownerCountError;
     if ((count ?? 0) <= 1) {
-      throw new OrgHttpError(409, "마지막 Owner는 제거할 수 없습니다.");
+      throw new OrgHttpError(409, "마지막 소유자는 제거할 수 없습니다.");
     }
   }
 
@@ -2456,7 +2452,7 @@ export async function updateOrgMembershipAuthority(args: {
       .eq("authority", "owner");
     if (countError) throw countError;
     if ((count ?? 0) <= 1) {
-      throw new OrgHttpError(409, "마지막 Owner의 권한은 변경할 수 없습니다.");
+      throw new OrgHttpError(409, "마지막 소유자의 권한은 변경할 수 없습니다.");
     }
   }
 
@@ -2632,14 +2628,14 @@ function buildBoardStages(args: {
       ? [
           {
             id: "accepted" as const,
-            label: "Harper 내부 · 수락",
+            label: "Harper가 확인 중",
             sortOrder: -1,
           },
         ]
       : []),
-    { id: "company_intro", label: "연결 제안할 후보", sortOrder: -0.5 },
-    { id: "intro_requested", label: "연결 제안한 후보", sortOrder: -0.25 },
-    { id: "pending_connection", label: "연결 수락한 후보", sortOrder: 0 },
+    { id: "company_intro", label: "연결을 요청할 후보", sortOrder: -0.5 },
+    { id: "intro_requested", label: "연결 요청함", sortOrder: -0.25 },
+    { id: "pending_connection", label: "연결을 기다리는 후보", sortOrder: 0 },
     { id: "connected", label: "연결됨", sortOrder: 1 },
     ...args.customStages.map((row) => {
       const roleName = args.roleById.get(row.role_id)?.name ?? null;
@@ -2660,13 +2656,13 @@ function buildBoardStages(args: {
         sortOrder: 100 + (row.sort_order ?? 0),
       };
     }),
-    { id: "final_offer", label: "최종 오퍼", sortOrder: 10_000 },
-    { id: "process_stopped", label: "프로세스 중단", sortOrder: 10_001 },
+    { id: "final_offer", label: "오퍼", sortOrder: 10_000 },
+    { id: "process_stopped", label: "진행 종료", sortOrder: 10_001 },
     ...(args.includeInternalAccepted
       ? [
           {
             id: "archived" as const,
-            label: "아카이브",
+            label: "보관",
             sortOrder: 10_002,
           },
         ]
@@ -3252,8 +3248,15 @@ export async function fetchOrgBoard(args: {
    * Do not use for company-facing Organization routes.
    */
   allowInternalOpsAccess?: boolean;
+  /**
+   * Also count, per Role, the people Harper is reviewing (internal accepted).
+   * Only the numbers leave this function, never those people or their IDs.
+   */
+  countReviewing?: boolean;
   includeInternalStages?: boolean;
   includeProfileLabels?: boolean;
+  /** Count-only reads: skip fit details, meetings, closure notices and profile labels. */
+  lean?: boolean;
   query?: string | null;
   recommendedDate?: string | null;
   recommendedFromDate?: string | null;
@@ -3316,6 +3319,7 @@ export async function fetchOrgBoard(args: {
       },
       talentFirstCapacityBlockedRoleIds: await readTalentFirstCapacityBlockedRoleIds(admin, roleIds),
       items: [],
+      ...(args.countReviewing ? { reviewingCountByRoleId: {} } : {}),
       roleId: selectedRoleId,
       stages: buildBoardStages({
         customStages,
@@ -3459,7 +3463,7 @@ export async function fetchOrgBoard(args: {
   ] = await Promise.all([
     fetchTalentRows(admin, talentIds),
     fetchTagsForBoard({ admin, roleIds, talentIds }),
-    args.includeProfileLabels === false
+    args.includeProfileLabels === false || args.lean
       ? {
           recentCompanies: new Map<string, OrgBoardProfileLabel[]>(),
           recentSchools: new Map<string, OrgBoardProfileLabel[]>(),
@@ -3471,10 +3475,11 @@ export async function fetchOrgBoard(args: {
           recommendationIds: recommendationRows.map((row) => row.id),
         })
       : fetchOrgConnectedRecommendationIds({ admin, roleIds }),
-    fetchFitDetailsForBoard({ admin, recommendationRows: [...recommendationRows,...companyIntroRows] }),
+    // Lean reads pass no rows, so these return empty without a query.
+    fetchFitDetailsForBoard({ admin, recommendationRows: args.lean ? [] : [...recommendationRows,...companyIntroRows] }),
     fetchLatestProcessClosureNoticeAtByRecommendation({
       admin,
-      recommendationIds: recommendationRows.flatMap((row) =>
+      recommendationIds: args.lean ? [] : recommendationRows.flatMap((row) =>
         normalizeText(row.saved_stage).toLowerCase() === "closed"
           ? [row.id]
           : []
@@ -3482,7 +3487,7 @@ export async function fetchOrgBoard(args: {
     }),
     fetchUpcomingMeetingsByRecommendation({
       admin,
-      recommendationIds: recommendationRows.map((row) => row.id),
+      recommendationIds: args.lean ? [] : recommendationRows.map((row) => row.id),
       workspaceId,
     }),
     readTalentFirstCapacityBlockedRoleIds(admin, roleIds),
@@ -3494,6 +3499,8 @@ export async function fetchOrgBoard(args: {
     ])
   );
   const searchQuery = normalizeText(args.query).toLowerCase();
+  // Harper가 확인 중, per Role. Counted here and returned as numbers only.
+  const reviewingCountByRoleId: Record<string, number> = {};
 
   const recommendationItems = recommendationRows.flatMap(
     (row): OrgBoardItem[] => {
@@ -3507,7 +3514,7 @@ export async function fetchOrgBoard(args: {
 
 
       const stageRows = tagsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [];
-      const stageInfo = getVisibleOrgStage({
+      const stageArgs = {
         connectedByOrgAction: connectedRecommendationIds.has(row.id),
         customStageByTagKey,
         feedback: row.feedback,
@@ -3518,7 +3525,19 @@ export async function fetchOrgBoard(args: {
           ).toLowerCase() === "internal",
         savedStage: row.saved_stage,
         tags: stageRows,
-      });
+      };
+      const stageInfo = getVisibleOrgStage(stageArgs);
+      if (
+        args.countReviewing &&
+        (stageInfo
+          ? stageInfo.stage === "accepted"
+          : !includeInternalAccepted &&
+            getVisibleOrgStage({ ...stageArgs, includeInternalAccepted: true })
+              ?.stage === "accepted")
+      ) {
+        reviewingCountByRoleId[row.role_id] =
+          (reviewingCountByRoleId[row.role_id] ?? 0) + 1;
+      }
       if (!stageInfo) return [];
       const currentStageRow = stageInfo.stageTag
         ? stageRows.find(
@@ -3655,6 +3674,7 @@ export async function fetchOrgBoard(args: {
     },
     talentFirstCapacityBlockedRoleIds,
     items,
+    ...(args.countReviewing ? { reviewingCountByRoleId } : {}),
     roleId: selectedRoleId,
     stages,
     totalCount: items.length,
@@ -3895,7 +3915,7 @@ async function assertNoPendingCompanyIntroCompanyAction(args: {
   if (data) {
     throw new OrgHttpError(
       409,
-      "연결 제안할 후보나 연결 제안한 후보에게 추가로 연락하려면 연결이 완료되어야 합니다. 제안 전에는 Send Intro 또는 Pass를 선택하고, 제안을 요청했다면 연결 제안한 후보에서 진행 상태를 확인해 주세요."
+      "연결을 요청할 후보나 연결 요청함 단계의 후보에게 추가로 연락하려면 연결이 완료되어야 합니다. 제안 전에는 ‘연결 요청’이나 ‘이번엔 넘길게요’를 고르고, 제안을 요청했다면 연결 요청함에서 진행 상태를 확인해 주세요."
     );
   }
 }
@@ -3919,6 +3939,8 @@ export async function requestOrgCompanyIntro(args: {
   introCandidateId: string;
   introRecipientEmails: string[];
   nextStageId?: string | null;
+  /** company_presentations.id the decision was made on (the mail with the button). */
+  presentationId?: string | null;
   /** company_messages.id of the chat/Slack message that confirmed the decision. */
   sourceMessageId?: number | null;
   user: User;
@@ -3928,6 +3950,7 @@ export async function requestOrgCompanyIntro(args: {
   const workspaceId = normalizeText(args.workspaceId);
   const introCandidateId = normalizeText(args.introCandidateId);
   const nextStageId = normalizeText(args.nextStageId);
+  const presentationId = normalizeText(args.presentationId);
   const companyAppeal = String(args.companyAppeal ?? "").trim();
   const introRecipientEmails = normalizeLooseEmailList(
     args.introRecipientEmails
@@ -3944,16 +3967,24 @@ export async function requestOrgCompanyIntro(args: {
   await upsertOrgCompanyUser(admin, args.user);
   await assertOrgIntroRoleAccess({ admin, user: args.user, workspaceId, introCandidateId });
   // Commit the recommendation, billing, decision and original Career handoff together.
-  const { data, error } = await (admin.rpc as any)("request_company_intro_for_career_v1", {
-    p_channel: args.channel,
-    p_company_appeal: companyAppeal,
-    p_company_user_id: args.user.id,
-    p_company_workspace_id: workspaceId,
-    p_intro_candidate_id: introCandidateId,
-    p_intro_recipient_emails: introRecipientEmails,
-    p_next_stage_id: nextStageId || null,
-    p_source_message_id: args.sourceMessageId ?? null,
-  });
+  // From a mail button, the _with_presentation version runs the same Career
+  // function and records the mail the request was made in (#253).
+  const { data, error } = await (admin.rpc as any)(
+    presentationId
+      ? "request_company_intro_for_career_with_presentation_v1"
+      : "request_company_intro_for_career_v1",
+    {
+      p_channel: args.channel,
+      p_company_appeal: companyAppeal,
+      p_company_user_id: args.user.id,
+      p_company_workspace_id: workspaceId,
+      p_intro_candidate_id: introCandidateId,
+      p_intro_recipient_emails: introRecipientEmails,
+      p_next_stage_id: nextStageId || null,
+      p_source_message_id: args.sourceMessageId ?? null,
+      ...(presentationId ? { p_presentation_id: presentationId } : {}),
+    }
+  );
   if (error) {
     if (error.message?.includes("workspace_credits_exhausted") || error.message?.includes("workspace_feature_unavailable"))
       throwBillingDbError(error);
@@ -4016,7 +4047,11 @@ export async function passOrgCompanyIntro(args: {
   channel: CompanyIntroDecisionChannel;
   /** The company's own reason, kept company-side on the decision record. */
   reason?: string;
+  /** Reason tags, already checked against the Role (allowedReasonTags). */
+  reasonTags?: string[] | null;
   introCandidateId: string;
+  /** company_presentations.id the decision was made on (the mail with the button). */
+  presentationId?: string | null;
   /** company_messages.id of the chat/Slack message that confirmed the decision. */
   sourceMessageId?: number | null;
   user: User;
@@ -4025,9 +4060,11 @@ export async function passOrgCompanyIntro(args: {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
   const introCandidateId = normalizeText(args.introCandidateId);
+  const presentationId = normalizeText(args.presentationId);
   if (!workspaceId || !introCandidateId) {
     throw new OrgHttpError(400, "제안할 후보자 정보가 누락되었습니다.");
   }
+  const reasonTags = normalizeReasonTags(args.reasonTags);
   await assertOrgWorkspacePermission({
     admin,
     permission: "manage_candidates",
@@ -4037,16 +4074,32 @@ export async function passOrgCompanyIntro(args: {
   await upsertOrgCompanyUser(admin, args.user);
   await assertOrgIntroRoleAccess({ admin, user: args.user, workspaceId, introCandidateId });
   const reason = String(args.reason ?? "").trim().slice(0, 2000) || null;
-  // v2 runs pass_company_intro_v1 and, when the card became passed, records the
-  // decision with its reason (company_decision_events) in the same transaction.
-  const { data, error } = await (admin.rpc as any)("pass_company_intro_v2", {
-    p_channel: args.channel,
-    p_company_user_id: args.user.id,
-    p_company_workspace_id: workspaceId,
-    p_intro_candidate_id: introCandidateId,
-    p_reason_text: reason,
-    p_source_message_id: args.sourceMessageId ?? null,
-  });
+  // v3 runs pass_company_intro_v1 and, when the card became passed, records the
+  // decision with its reason and tags (company_decision_events) in the same
+  // transaction. From a mail button (no reason tags there), the
+  // _with_presentation version also records the mail it was made in.
+  const { data, error } = await (admin.rpc as any)(
+    presentationId ? "pass_company_intro_with_presentation_v1" : "pass_company_intro_v3",
+    presentationId
+      ? {
+          p_channel: args.channel,
+          p_company_user_id: args.user.id,
+          p_company_workspace_id: workspaceId,
+          p_intro_candidate_id: introCandidateId,
+          p_presentation_id: presentationId,
+          p_reason_text: reason,
+          p_source_message_id: args.sourceMessageId ?? null,
+        }
+      : {
+          p_channel: args.channel,
+          p_company_user_id: args.user.id,
+          p_company_workspace_id: workspaceId,
+          p_intro_candidate_id: introCandidateId,
+          p_reason_tags: reasonTags,
+          p_reason_text: reason,
+          p_source_message_id: args.sourceMessageId ?? null,
+        }
+  );
   if (error) throw error;
   const result = normalizeCompanyIntroRpcResult(data);
   // Only the web Pass button wrote this candidate note before; other channels
@@ -4150,7 +4203,7 @@ export async function decideTalentCompanyIntro(args: {
   }
 
   if (!introCandidateId || !workspaceId || !roleId) {
-    throw new OrgHttpError(409, "Intro 연결 정보가 완전하지 않습니다.");
+    throw new OrgHttpError(409, "연결 정보가 완전하지 않습니다.");
   }
   await notifyIntroAcceptanceForOps({
     admin, workspaceId, introCandidateId, decisionChanged,
@@ -4293,7 +4346,7 @@ export async function decideTalentCompanyIntro(args: {
     if (normalizeText(latestIntro?.status) !== "connected") {
       throw new OrgHttpError(
         409,
-        "Intro 연결 상태가 변경되어 완료 여부를 확인할 수 없습니다."
+        "연결 상태가 변경되어 완료 여부를 확인할 수 없습니다."
       );
     }
   }
@@ -5031,12 +5084,19 @@ export async function setOrgCandidateStage(args: {
    * a company decision. system: a move that follows the candidate or billing.
    */
   decisionChannel: "web" | "chat" | "slack" | "email" | "system";
+  /**
+   * The caller's key for this decision. The decision record uses it, so a
+   * retried request finds the decision it already made.
+   */
+  decisionKey?: string | null;
   emailMode?: InternalConnectionConfirmationEmailMode;
   expectedPreviousStage?: OrgStageId;
   introEmailDraft?: unknown;
   /** Reserved by the caller; the intro email carries it. */
   introBookingLink?: OrgIntroBookingLink | null;
   introEmails?: string[] | null;
+  /** Reason tags, already checked against the Role (allowedReasonTags). */
+  reasonTags?: string[] | null;
   recommendationId: string;
   reengagementActionId?: string | null;
   candidateConsentRelayId?: string | null;
@@ -5044,6 +5104,8 @@ export async function setOrgCandidateStage(args: {
   roleId: string;
   scheduleInterview?: boolean;
   skipAutomaticContact?: boolean;
+  /** company_messages.id of the chat/Slack message that asked for this move. */
+  sourceMessageId?: number | null;
   stage: OrgStageId;
   notifyCandidateOnClosure?: boolean;
   stopNote?: string | null;
@@ -5082,6 +5144,12 @@ export async function setOrgCandidateStage(args: {
     throw new OrgHttpError(400, "종료 안내 여부를 확인해 주세요.");
   }
   const stopNote = normalizeText(args.stopNote);
+  const reasonTags = normalizeReasonTags(args.reasonTags);
+  const sourceMessageId =
+    Number.isSafeInteger(args.sourceMessageId) && Number(args.sourceMessageId) > 0
+      ? Number(args.sourceMessageId)
+      : null;
+  const decisionKey = normalizeText(args.decisionKey).slice(0, 280) || null;
 
   if (!workspaceId || !roleId || !talentId || !recommendationId || !stage) {
     throw new OrgHttpError(400, "Missing required fields");
@@ -5114,12 +5182,21 @@ export async function setOrgCandidateStage(args: {
       ...Object.keys(original),
       ...Object.keys(normalized),
     ]);
-    // Where the retry comes from (web, Slack, ...) is not part of what was approved.
+    // Where the retry comes from (web, Slack, ...), which message or request
+    // key asked, and empty versus missing values are not part of what was
+    // approved.
     keys.delete("decisionChannel");
+    keys.delete("decisionKey");
+    keys.delete("sourceMessageId");
+    const approved = (value: unknown) =>
+      JSON.stringify(
+        value === undefined || (Array.isArray(value) && value.length === 0)
+          ? null
+          : value
+      );
     if (
       [...keys].some(
-        (key) =>
-          JSON.stringify(original[key]) !== JSON.stringify(normalized[key])
+        (key) => approved(original[key]) !== approved(normalized[key])
       )
     ) {
       throw new OrgHttpError(
@@ -5550,13 +5627,13 @@ export async function setOrgCandidateStage(args: {
     const nextDestinationLabel = buildStageDestinationLabel(nextLabel);
     const baseText =
       stage === "process_stopped"
-        ? `프로세스 중단으로 옮겼습니다.`
+        ? `${nextDestinationLabel} 옮겼습니다.`
         : isIntroRequested && introDelivery && args.introBookingLink
           ? `${nextDestinationLabel} 옮기고 면접 예약 링크를 넣은 소개 메일을 보냈습니다.`
           : isIntroRequested
           ? previousStage === stage
-            ? `warm intro를 요청했습니다.`
-            : `${nextDestinationLabel} 옮기고 warm intro를 요청했습니다.`
+            ? `소개 메일을 요청했습니다.`
+            : `${nextDestinationLabel} 옮기고 소개 메일을 요청했습니다.`
           : contactDirectly
             ? previousStage === stage
               ? `직접 연락하기로 했습니다.`
@@ -5576,6 +5653,7 @@ export async function setOrgCandidateStage(args: {
       acceptReason: stage !== "process_stopped" ? acceptReason || null : null,
       contactDirectly,
       decisionChannel: args.decisionChannel,
+      decisionKey,
       introEmailCc: introDelivery?.cc ?? [],
       introEmailMessageId: introDelivery?.messageId ?? null,
       introEmailRecipients: introDelivery?.recipients ?? [],
@@ -5592,8 +5670,10 @@ export async function setOrgCandidateStage(args: {
       processClosureNotificationSentChannel:
         processClosureNotification?.sentChannel ?? null,
       reactivation,
+      reasonTags,
       scheduleInterview,
       skipAutomaticContact,
+      sourceMessageId,
       stage,
       notifyCandidateOnClosure: stage === "process_stopped" ? args.notifyCandidateOnClosure !== false : null,
       stopNote: stage === "process_stopped" ? stopNote : null,
@@ -6176,7 +6256,7 @@ function getOrgStageChangeFeedKind(row: TalentProgressRow) {
 }
 
 function getOrgProgressFeedText(row: TalentProgressRow) {
-  return row.open_to_company ? (row.text ?? "") : "";
+  return row.open_to_company ? companyProgressText(row.kind, row.text) : "";
 }
 
 function sortOrgFeedItems(items: OrgFeedItem[]) {
@@ -6344,7 +6424,7 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
     else if (row.kind === "org_candidate_role_move") title = "역할 변경";
     else if (row.kind === "org_stage_change") title = "상태 변경";
     else if (row.kind === "internal_process_stopped_notified") {
-      title = "프로세스 종료 안내";
+      title = "진행 종료 안내";
     } else if (row.kind === "company_request_followup_sent") {
       title = "후보자에게 회사 요청을 다시 안내했어요";
     } else if (row.kind === "org_candidate_activity") {
@@ -7993,7 +8073,7 @@ export async function updateOrgRoleCriteria(args: {
           key: `${normalizeText(role.name) || "Role"}.criteria`,
         },
       ],
-    }) ?? `${getOrgCompanyEventActorLabel(args.user)} · 역할 평가 기준 수정`;
+    }) ?? `${getOrgCompanyEventActorLabel(args.user)} · 확인할 기준 수정`;
 
   const { data, error } = await (admin.rpc as any)(
     "apply_company_data_with_hiring_history_v1",
@@ -8012,7 +8092,7 @@ export async function updateOrgRoleCriteria(args: {
   if (result.status === "conflict") {
     throw new OrgHttpError(
       409,
-      "Role 평가 기준이 방금 변경되었습니다. 새로고침 후 다시 저장해 주세요."
+      "확인할 기준이 방금 변경되었습니다. 새로고침 후 다시 저장해 주세요."
     );
   }
   if (result.status !== "updated" && result.status !== "already_reflected") {
@@ -8062,7 +8142,7 @@ export async function updateOrgRole(args: {
     args.isCompanyFirstSearch !== undefined &&
     typeof args.isCompanyFirstSearch !== "boolean"
   ) {
-    throw new OrgHttpError(400, "정기 후보 검색 설정이 올바르지 않습니다.");
+    throw new OrgHttpError(400, "정기 탐색 설정이 올바르지 않습니다.");
   }
   if (args.isPromote !== undefined && typeof args.isPromote !== "boolean") {
     throw new OrgHttpError(400, "공개 채용 공고 설정이 올바르지 않습니다.");
@@ -8084,7 +8164,7 @@ export async function updateOrgRole(args: {
   ) {
     throw new OrgHttpError(
       400,
-      "정기 후보 검색 요일·시간이 올바르지 않습니다."
+      "정기 탐색 요일·시간이 올바르지 않습니다."
     );
   }
 
@@ -8119,7 +8199,7 @@ export async function updateOrgRole(args: {
       if (requestedStatus !== "active") {
         throw new OrgHttpError(
           409,
-          "작성한 Role에서 채용 시작 또는 삭제를 선택해 주세요."
+          "작성한 역할에서 채용 시작 또는 삭제를 선택해 주세요."
         );
       }
       if (!hasOrgAllWorkspaceAccess(args.user)) {
@@ -8134,7 +8214,7 @@ export async function updateOrgRole(args: {
         if (getRoleCreationMissingFields(state).length) {
           throw new OrgHttpError(
             409,
-            "작성한 내용은 저장되어 있어요. Role 대화에서 채용 정보와 담당자 설정을 먼저 마무리해 주세요."
+            "작성한 내용은 저장되어 있어요. 역할 대화에서 채용 정보와 담당자 설정을 먼저 마무리해 주세요."
           );
         }
       }
@@ -8278,6 +8358,10 @@ export async function updateOrgRole(args: {
       requestReview:args.requestReview ?? false,
       admin,
       changes,
+      // In the same save, so it is one Brief version with who and where.
+      ...(args.salaryRange !== undefined
+        ? { salaryRange: { roleId, value: normalizeNullableText(args.salaryRange)?.slice(0, 1_000) ?? null } }
+        : {}),
       source: args.source ?? "website",
       workspaceId,
     });
@@ -8286,7 +8370,7 @@ export async function updateOrgRole(args: {
     if (error instanceof WebsiteCompanyDataConflictError) {
       throw new OrgHttpError(
         409,
-        "Role 정보가 방금 변경되었습니다. 새로고침 후 다시 저장해 주세요."
+        "역할 정보가 방금 변경되었습니다. 새로고침 후 다시 저장해 주세요."
       );
     }
     if (error && typeof error === "object" && "message" in error) {
@@ -8294,19 +8378,6 @@ export async function updateOrgRole(args: {
     }
     throw error;
   }
-
-  if (args.salaryRange !== undefined) {
-    const salaryRange =
-      normalizeNullableText(args.salaryRange)?.slice(0, 1_000) ?? null;
-    const { error: salaryError } = await (
-      admin.from("company_roles" as any) as any
-    )
-      .update({ salary_range: salaryRange })
-      .eq("company_workspace_id", workspaceId)
-      .eq("role_id", roleId);
-    if (salaryError) throw salaryError;
-  }
-
 
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(

@@ -45,8 +45,8 @@ export function ReferenceCards({
       {onRemove ? (
         <p className="text-[12px] text-neutral-soft">
           {c(
-            "빼도 이미 평가 기준에 들어간 점은 그대로 남아요. 필요하면 Brief에서 지워 주세요.",
-            "Removing a person keeps what was already added to the evaluation criteria. Delete those in the Brief if needed."
+            "빼도 이미 확인할 기준에 들어간 점은 그대로 남아요. 필요하면 찾는 사람에서 지워 주세요.",
+            "Removing a person keeps what was already added to What to check. Remove it there if needed."
           )}
         </p>
       ) : null}
@@ -91,7 +91,7 @@ export function ReferenceCards({
           ) : null}
           {reference.liked.length ? (
             <p className="mt-1 text-neutral-muted">
-              {c("마음에 든 점 → 평가 기준: ", "Liked → evaluation criteria: ")}
+              {c("마음에 든 점 → 확인할 기준: ", "Liked → What to check: ")}
               {reference.liked.join(", ")}
             </p>
           ) : null}
@@ -104,7 +104,7 @@ export function ReferenceCards({
           {reference.waiting.length ? (
             <p className="mt-1 text-neutral-muted">
               {c(
-                "평가 기준이 가득 차서 대기: ",
+                "확인할 기준이 가득 차서 대기: ",
                 "Waiting (criteria are full): "
               )}
               {reference.waiting.join(", ")}
@@ -115,7 +115,7 @@ export function ReferenceCards({
               {c("충돌: ", "Conflict: ")}
               {conflict.question} →{" "}
               {conflict.answer ??
-                c("답 없음 · 지금 기준 유지", "No answer · current Brief kept")}
+                c("답 없음 · 지금 기준 유지", "No answer · criteria kept")}
             </p>
           ))}
         </div>

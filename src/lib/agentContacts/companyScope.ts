@@ -42,6 +42,15 @@ export function companyAgentServiceTools(): ReadonlySet<string> {
   ]);
 }
 
+/** Agent correspondence runs: every service tool except Harper's own suggestions
+ * (the review's criteria suggestion and To-do suggestions from its schedules). */
+export function companyAgentCorrespondenceTools(): ReadonlySet<string> {
+  const tools = new Set(companyAgentServiceTools());
+  tools.delete("propose_criteria_change");
+  tools.delete("manage_todo_suggestions");
+  return tools;
+}
+
 export function formatCompanyAgentServiceScope(scope: Pick<CompanyAgentScope, "roleId">) {
-  return `회사 에이전트의 서비스 실행입니다. 팀원 계정의 지시나 권한 위임을 가장하지 않습니다. 접근은 Role ${scope.roleId}의 승인된 자료와 연락으로 제한됩니다. 채용 결정·결제·팀원 관리 권한은 없습니다.`;
+  return `회사 에이전트의 서비스 실행입니다. 팀원 계정의 지시나 권한 위임을 가장하지 않습니다. 접근은 역할 ${scope.roleId}의 승인된 자료와 연락으로 제한됩니다. 채용 결정·결제·팀원 관리 권한은 없습니다.`;
 }

@@ -285,7 +285,7 @@ test("Work Object actions appear only in details for ready candidates and permit
     passOnly.entity_payload.actions?.primary_actions.map(
       (action) => action.text
     ),
-    ["Pass"]
+    ["이번엔 넘길게요"]
   );
   assert.equal(
     typeof entity.entity_payload.actions?.primary_actions[0].text,
@@ -390,6 +390,25 @@ test("Intro requires an appeal and selected teammates; Pass needs no candidate c
     actorEmail: "reviewer@example.com",
   });
   assert.ok(!pass.blocks.some((block) => block.type === "input"));
+  // The credit caption sits above the 연결 요청 submit; passing has none.
+  assert.ok(!JSON.stringify(pass.blocks).includes("연결 1회"));
+  const request = buildSlackCandidateDecisionView({
+    metadata,
+    candidate: first,
+    members: [],
+    actorEmail: "reviewer@example.com",
+  });
+  const last = request.blocks.at(-1) as { type: string; block_id?: string; elements?: Array<{ text: string }> };
+  assert.equal(last.type, "context");
+  assert.equal(last.block_id, "candidate_credit_caption");
+  assert.equal(last.elements?.[0].text, "요청하면 연결 1회를 써요");
+  const english = buildSlackCandidateDecisionView({
+    metadata: { ...metadata, locale: "en" },
+    candidate: first,
+    members: [],
+    actorEmail: "reviewer@example.com",
+  });
+  assert.match(JSON.stringify(english.blocks.at(-1)), /Uses 1 intro when you send it/);
 });
 
 test("the actor remains a valid default recipient in a workspace with more than 100 teammates", () => {
@@ -448,7 +467,7 @@ test('accepted connection cards show the orange identity and current-action badg
     assert.equal(attributes.product_name, 'Harper');
     assert.equal(attributes.display_type, 'Senior Engineer');
     assert.equal(attributes.product_icon?.url, 'https://matchharper.com/images/squareface_orange.png');
-    assert.equal(attributes.display_id, locale === 'ko' ? '🟠 수락시 바로 연결' : '🟠 Accept to connect');
+    assert.equal(attributes.display_id, locale === 'ko' ? '🟠 연결을 기다리는 후보' : '🟠 Waiting to connect');
   }
   const connected = buildSlackCandidateEntity({ candidate: { ...candidate, status: 'connected' }, locale: 'ko' });
   assert.equal(connected.entity_payload.attributes.display_id, undefined);

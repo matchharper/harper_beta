@@ -27,7 +27,7 @@ export function useOrgExternalCandidates(args: { workspaceId?: string | null; ro
   });
 }
 
-/** Pass and Send Intro for one person outside Harper; the list refreshes after each. */
+/** Pass and Request intro for one person outside Harper; the list refreshes after each. */
 export function useOrgExternalCandidateActions(args: { workspaceId?: string | null; roleId?: string | null }) {
   const queryClient = useQueryClient();
   const workspaceId = args.workspaceId?.trim() ?? "";

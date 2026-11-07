@@ -2,6 +2,7 @@ import { z } from "zod";
 import { OPENROUTER_JEV_MODEL } from "@/lib/llm/modelConfig";
 import { createLlmDebugCall, type LlmDebugCall } from "@/lib/llm/debugUsage";
 import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
+import { addLlmCallToRunUsage } from "@/lib/llm/runUsage";
 
 export type SlackReplyRoutingDecision = "respond" | "ignore";
 
@@ -136,6 +137,8 @@ export async function decideHarperSlackThreadReply(
         ? response.model.trim()
         : OPENROUTER_JEV_MODEL;
     const providerCostUsd = response?.usage?.cost;
+    // Part of the Slack turn's usage (company_agent_usage_v1, slack_turn).
+    await addLlmCallToRunUsage(model, response, { providerCostUsd });
     if (options?.logUsage !== false) {
       logLlmTokenUsage({
         label: "org/slack-router:decision",

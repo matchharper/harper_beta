@@ -48,6 +48,14 @@ export async function GET(req: NextRequest) {
     const agentRecoveryErrors:string[]=[];
     try {agentSchedulesEnqueued=await enqueueDueCompanyAgentSchedules();}
     catch(error) {agentRecoveryErrors.push('schedule');console.error('[agent-contact:schedule-recovery]',error);}
+    // Criteria suggestions from pass reasons (S2 G); nothing while switched off.
+    let criteriaConsolidationsEnqueued = 0;
+    try {
+      const { enqueueDueCriteriaConsolidations } = await import("@/lib/org/criteriaProposals.server");
+      criteriaConsolidationsEnqueued = await enqueueDueCriteriaConsolidations({ admin });
+    } catch (error) {
+      console.error("[org/criteria-consolidation:enqueue]", error);
+    }
     const { data: jobs, error } = await (
       admin.from("company_agent_web_action_jobs" as any) as any
     )
@@ -79,6 +87,7 @@ export async function GET(req: NextRequest) {
       dispatched,
       failedJobIds,
       agentSchedulesEnqueued,agentEmailsRecovered,agentRecoveryErrors,
+      criteriaConsolidationsEnqueued,
       ok: failedJobIds.length === 0 && agentRecoveryErrors.length===0,
     });
   } catch (error) {

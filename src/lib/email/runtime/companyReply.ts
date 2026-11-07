@@ -4,6 +4,7 @@ import { hashReplyToken } from "../security";
 import { buildReplySubject, extractReplyAliasTokens, normalizeEmailAddress } from "../parse";
 import { getDefaultResendFromEmail } from "../send";
 import { ensureOrgAgentConversation, toOrgAgentMessage, type OrgAgentMessageRow } from "@/lib/org/agent/store";
+import { withCompanyTurnUsage, type CompanyTurnUsageRecorder } from "@/lib/org/agent/runRecords.server";
 import { assertEmailLease, readRow, updateEmailJob } from "./store";
 import { deliverEmail, replyHeaders, type EmailDelivery } from "./transport";
 import { renderCompanyReplyEmail } from "./format";
@@ -45,7 +46,11 @@ export async function processCompanyEmailReply(args: {
   admin: EmailAdmin; job: EmailRow; owner: string; inbound: EmailRow;
   received: ReceivedEmail; body: string; subject: string; sender: string;
   recipients: string[]; fullBody: string;
-}, dependencies: { runChat?: typeof import("@/lib/org/agent/chat").runOrgAgentChat } = {}) {
+}, dependencies: {
+  runChat?: typeof import("@/lib/org/agent/chat").runOrgAgentChat;
+  /** Where the reply's model usage is saved (company_agent_usage_v1, email_reply). */
+  recordUsage?: CompanyTurnUsageRecorder;
+} = {}) {
   const { admin, job, owner } = args;
   const alias = await resolveCompanyEmailAlias(admin, args.recipients, args.sender);
   if (!alias) throw new EmailPermanentError("company_email_alias_required");
@@ -82,21 +87,25 @@ export async function processCompanyEmailReply(args: {
     let assistant = saved ? toOrgAgentMessage(saved as OrgAgentMessageRow) : null;
     if (!assistant) {
       const runOrgAgentChat = dependencies.runChat ?? (await import("@/lib/org/agent/chat")).runOrgAgentChat;
-      const result = await runOrgAgentChat({
-        user: account.user, workspaceId: alias.company_workspace_id, message: content,
-        signal: AbortSignal.timeout(420_000),
-        responseLocale: account.locale, messageType: "chat",
-        llmUserMessage: `${content}\n\n<email_reference not_a_new_instruction="true">${JSON.stringify({
-          subject: args.subject, originalEmail: asObject(alias.metadata).originalEmail,
-          quotedThread: args.fullBody === args.body ? undefined : args.fullBody.slice(0, 16_000),
-          attachments,
-        })}</email_reference>`,
-        userMessageMetadata: { emailReplyJobId: job.id, emailAliasId: alias.id },
-        assistantMessageMetadata: { emailReplyJobId: job.id, emailAliasId: alias.id },
-        emailExecution: { conversationId: alias.company_conversation_id,
-          userMessage: toOrgAgentMessage(source as OrgAgentMessageRow),
-          assertCanContinue: async () => { await authorize(); } },
-      });
+      const result = await withCompanyTurnUsage(
+        { kind: "email_reply", sourceId: String(job.id), workspaceId: alias.company_workspace_id },
+        () => runOrgAgentChat({
+          user: account.user, workspaceId: alias.company_workspace_id, message: content,
+          signal: AbortSignal.timeout(420_000),
+          responseLocale: account.locale, messageType: "chat",
+          llmUserMessage: `${content}\n\n<email_reference not_a_new_instruction="true">${JSON.stringify({
+            subject: args.subject, originalEmail: asObject(alias.metadata).originalEmail,
+            quotedThread: args.fullBody === args.body ? undefined : args.fullBody.slice(0, 16_000),
+            attachments,
+          })}</email_reference>`,
+          userMessageMetadata: { emailReplyJobId: job.id, emailAliasId: alias.id },
+          assistantMessageMetadata: { emailReplyJobId: job.id, emailAliasId: alias.id },
+          emailExecution: { conversationId: alias.company_conversation_id,
+            userMessage: toOrgAgentMessage(source as OrgAgentMessageRow),
+            assertCanContinue: async () => { await authorize(); } },
+        }),
+        dependencies.recordUsage
+      );
       if (result.kind !== "message" || result.assistantMessage.status !== "completed")
         throw new Error("Company email turn did not complete");
       assistant = result.assistantMessage;

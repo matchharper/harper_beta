@@ -320,13 +320,15 @@ test("first-three people rated 정보가 부족해요 also stay with the Role, r
 });
 
 test("a registered Role's start links open the inbox", async () => {
-  const { resolveOrgRoleTab } = await import("@/lib/org/routes");
-  assert.equal(resolveOrgRoleTab({ isDraft: false, tab: "start" }), "inbox");
-  assert.equal(resolveOrgRoleTab({ isDraft: true, tab: "start" }), "start");
-  assert.equal(resolveOrgRoleTab({ isDraft: false, tab: "matching" }), "matching");
-  // The 외부 후보 tab sits beside the inbox of a registered Role; a draft has none.
-  assert.equal(resolveOrgRoleTab({ isDraft: false, tab: "external" }), "external");
-  assert.equal(resolveOrgRoleTab({ isDraft: true, tab: "external" }), "start");
+  const { resolveOrgRoleLocation } = await import("@/lib/org/routes");
+  const tab = (value: string, isDraft: boolean) =>
+    resolveOrgRoleLocation({ tab: value }, { externalEnabled: true, isDraft }).tab;
+  assert.equal(tab("start", false), "inbox");
+  assert.equal(tab("start", true), "start");
+  assert.equal(tab("matching", false), "role");
+  // 외부 후보 sits inside a registered Role's inbox; a draft has none.
+  assert.equal(tab("external", false), "inbox");
+  assert.equal(tab("external", true), "start");
 });
 
 test("people rated 잘 맞음 or better stay in the inbox without the pick, and 맞지 않음 does not (local database only)", async (t) => {

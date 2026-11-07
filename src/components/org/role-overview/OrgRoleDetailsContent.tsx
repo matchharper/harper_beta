@@ -1,4 +1,5 @@
 import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useOrgDocumentEditorCopy } from "@/i18n/org/useOrgDocumentEditorCopy";
 import { useState } from "react";
 import { OrgSection } from "@/components/org/workspace/OrgSection";
@@ -24,7 +25,7 @@ type RoleDetailsDraft = {
 
 type RoleDetailsEditingField = keyof RoleDetailsDraft;
 
-const EMPTY_ROLE_DETAIL = "저장된 정보가 없습니다.";
+const EMPTY_ROLE_DETAIL = "아직 없어요";
 
 function toRoleDetailsDraft(role: OrgRole): RoleDetailsDraft {
   return {
@@ -139,8 +140,9 @@ export function OrgRoleDetailsContent({
       <OrgSection>
         <div className="mb-5">
           <RoleSectionHeading
+            description={ct(c, COMPANY_TERMS.caption.roleDescription)}
             size="large"
-            title={c("Description", "Description")}
+            title={ct(c, COMPANY_TERMS.brief.roleDescription)}
           />
         </div>
         <dl className="mb-8 grid grid-cols-2 gap-x-4 gap-y-4">
@@ -167,9 +169,9 @@ export function OrgRoleDetailsContent({
         </dl>
         <DocumentEditor
           {...documentEditorCopy}
-          aria-label={c("Description 수정", "Edit description")}
+          aria-label={c("역할 설명 수정", "Edit role description")}
           disabled={updateRole.isPending}
-          documentTitle="Description"
+          documentTitle={ct(c, COMPANY_TERMS.brief.roleDescription)}
           errorMessage={editingField === "description" ? saveError : ""}
           format="markdown"
           lastChangedAt={role.updatedAt}

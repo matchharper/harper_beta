@@ -138,10 +138,11 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
     );
   }
 
-  // Every model call this run makes adds to its usage (company_agent_web_action_jobs.usage).
+  // Every model call this run makes adds to its usage (company_agent_web_action_jobs.usage),
+  // and searches it starts are linked to it (company_agent_operations.run_id).
   const runUsage = createCompanyRunUsage();
   const runStartedAt = Date.now();
-  const usageContext = { requestId: message.jobId, companyRunUsage: runUsage };
+  const usageContext = { requestId: message.jobId, companyRunId: message.jobId, companyRunUsage: runUsage };
   const usage = () => mergeRunUsage(job.usage, companyRunUsageJson(runUsage, Date.now() - runStartedAt));
   try {
     if (["agent_contact_received","agent_schedule_due"].includes(job.action_name)) {
@@ -151,6 +152,13 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
         progress_message_id:result.progressMessageId,terminal_message_id:result.terminalMessageId,completed_at:new Date().toISOString(),locked_at:null,locked_by:null,last_error:null})
         .eq("id",job.id).eq("status","processing").eq("locked_by",job.locked_by);
       if(error) throw error;
+      return;
+    }
+    // Pass reasons sharpen the criteria (S2 G): Harper reviews the Role's
+    // recent pass reasons as a service event; its model calls count in usage.
+    if (job.action_name === "consolidate_decisions") {
+      const { runQueuedCriteriaConsolidation } = await import("@/lib/org/criteriaProposals.server");
+      await withLlmUsageContext(usageContext, () => runQueuedCriteriaConsolidation({ admin, job, usage }));
       return;
     }
     const [{ data: conversation, error: conversationError }, authResult] =

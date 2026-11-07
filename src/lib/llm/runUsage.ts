@@ -17,8 +17,15 @@ export function createCompanyRunUsage(): CompanyRunUsage {
   };
 }
 
-/** Never fails the model call: usage is best effort. */
-export async function addLlmCallToRunUsage(model: string, response: unknown) {
+/**
+ * Never fails the model call: usage is best effort. A cost the provider
+ * reports itself (OpenRouter usage.cost) is used as it is.
+ */
+export async function addLlmCallToRunUsage(
+  model: string,
+  response: unknown,
+  options: { providerCostUsd?: unknown } = {}
+) {
   const totals = getLlmUsageContext()?.companyRunUsage;
   if (!totals) return;
   try {
@@ -29,8 +36,13 @@ export async function addLlmCallToRunUsage(model: string, response: unknown) {
     totals.cachedInputTokens += usage.cacheReadInputTokens ?? 0;
     totals.cacheWriteTokens += usage.cacheCreationInputTokens ?? 0;
     totals.outputTokens += usage.outputTokens ?? 0;
-    const cost = estimateLlmUsageCost(model, usage);
-    if (cost) totals.costUsd += cost.estimatedCostUsd;
+    const reported = typeof options.providerCostUsd === "number" &&
+      Number.isFinite(options.providerCostUsd) && options.providerCostUsd >= 0
+      ? options.providerCostUsd
+      : null;
+    const cost = reported === null ? estimateLlmUsageCost(model, usage) : null;
+    if (reported !== null) totals.costUsd += reported;
+    else if (cost) totals.costUsd += cost.estimatedCostUsd;
     else totals.unpricedCalls += 1;
     if (!totals.models.includes(model)) totals.models.push(model);
   } catch (error) {

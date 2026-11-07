@@ -3,7 +3,7 @@ import { humanizeOrgCompanyIntroStatus } from "@/lib/org/pipelineStage";
 import { cn } from "@/lib/utils";
 
 /**
- * Where an Intro request stands inside 연결 제안한 후보, in the same words
+ * Where an Intro request stands inside Intro requested, in the same words
  * and colors as the card: preparing, waiting for the candidate, connecting.
  */
 export function OrgIntroProgress({

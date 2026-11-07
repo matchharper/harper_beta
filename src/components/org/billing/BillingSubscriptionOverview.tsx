@@ -81,7 +81,7 @@ export function BillingSubscriptionOverview({
             </p>
             <p className="mt-1 text-neutral-muted">
               {c(
-                "결제를 완료하면 해당 슬롯을 다시 이용할 수 있고 Intro도 제공돼요.",
+                "결제를 완료하면 해당 슬롯을 다시 이용할 수 있고 연결도 제공돼요.",
                 "Complete the payment to restore access to that slot and receive its Intros."
               )}
             </p>
@@ -127,14 +127,14 @@ export function BillingSubscriptionOverview({
               </span>
             </dd>
             <p className="mt-1 text-[12px] text-neutral-soft">
-              {unlimited || legacy ? c("계약에 따른 이용 범위", "Access under your agreement") : c("Free Role 1개 + 슬롯별 Role 1개", "1 free role + 1 role per slot")}
+              {unlimited || legacy ? c("계약에 따른 이용 범위", "Access under your agreement") : c("무료 역할 1개 + 슬롯별 역할 1개", "1 free role + 1 role per slot")}
             </p>
           </div>
           <div className="sm:px-6">
             <dt className="text-[12px] text-neutral-muted">
               {paid.length
-                ? c("슬롯당 월 Intro", "Monthly Intros per slot")
-                : c("월 공용 Intro", "Monthly shared Intros")}
+                ? c("슬롯당 월 연결", "Monthly Intros per slot")
+                : c("월 기본 연결", "Monthly included intros")}
             </dt>
             <dd className="mt-2 text-[22px] font-medium tabular-nums">
               {unlimited ? "∞" : legacy ? "—" : paid.length ? 50 : 3}
@@ -257,7 +257,7 @@ export function BillingSubscriptionOverview({
                   <DropdownMenuContent align="end">
                     {slot.active && canAssign && (
                       <DropdownMenuItem onSelect={() => onAssign(slot)}>
-                        {c("담당 Role 변경", "Change assigned role")}
+                        {c("배정 역할 바꾸기", "Change assigned role")}
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onSelect={onPortal}>
@@ -331,7 +331,7 @@ export function BillingSubscriptionOverview({
             </p>
             <p className="mt-1 text-neutral-muted">
               {c(
-                "Enterprise는 채용 수와 Intro 제한 없이 함께해요.",
+                "Enterprise는 채용 수와 연결 제한 없이 함께해요.",
                 "Enterprise includes unlimited active Roles and Intros."
               )}
             </p>

@@ -36,6 +36,8 @@ type ActionLink = {
   company_workspace_id: string;
   company_user_id: string;
   intro_candidate_id: string;
+  /** This mail's presentation of the candidate (what the buttons were next to). */
+  presentation_id: string | null;
   action: CompanyEmailActionKind;
   expires_at: string;
   used_at: string | null;
@@ -59,7 +61,7 @@ async function findLink(admin: Admin, tokenValue: string) {
   const token = clean(tokenValue).slice(0, 200);
   if (!token) return null;
   const { data, error } = await table(admin, "company_email_action_links")
-    .select("id, email_outbox_id, company_workspace_id, company_user_id, intro_candidate_id, action, expires_at, used_at, result")
+    .select("id, email_outbox_id, company_workspace_id, company_user_id, intro_candidate_id, presentation_id, action, expires_at, used_at, result")
     .eq("token_hash", hashReplyToken(token))
     .maybeSingle();
   if (error) throw error;
@@ -156,7 +158,14 @@ async function execute(args: {
   const { link, intro, user } = args;
   const workspaceId = link.company_workspace_id;
   if (link.action === "request_intro" || link.action === "pass") {
-    const common = { channel: "email" as const, introCandidateId: link.intro_candidate_id, user, workspaceId };
+    // The decision points at this recipient's mail, not another recipient's.
+    const common = {
+      channel: "email" as const,
+      introCandidateId: link.intro_candidate_id,
+      presentationId: link.presentation_id,
+      user,
+      workspaceId,
+    };
     const result: OrgCompanyIntroMutationResponse = link.action === "request_intro"
       ? await requestOrgCompanyIntro({ ...common, companyAppeal: args.appeal, introRecipientEmails: [args.email] })
       : await passOrgCompanyIntro(common);
@@ -182,7 +191,7 @@ async function execute(args: {
     return result.status;
   }
   if (!intro.recommendation_id) throw new Error("Accepted connection has no recommendation");
-  // Same path as the web and Slack decision: Accept Intro sends the intro
+  // Same path as the web and Slack decision: Connect sends the intro
   // email, with the interview booking link when Calendar and open times are set.
   const stage = link.action === "accept_connection" ? "connected" : "process_stopped";
   await setOrgCandidateStageWithIntroBooking({

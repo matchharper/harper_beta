@@ -156,6 +156,8 @@ test("inbox API filters and orders before paging, returns only ten profiles, and
     pending_connection: 22,
     company_intro: 12,
     saved: 1,
+    // Only the number of candidates Harper is still reviewing (none here).
+    reviewing: 0,
   });
   assert.ok(profileReads.every((ids) => ids.length <= 10));
   assert.ok(first.items.every((item: any) => !("recommendationScore" in item)));

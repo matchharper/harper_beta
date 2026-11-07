@@ -319,7 +319,7 @@ export async function ensureOrgAgentConversation(args: {
   });
 
   const access = await readOrgRoleAccess({ admin, user: args.user, workspaceId });
-  if (access.scope === "team" && !access.teamIds.length) throw new OrgHttpError(403, "Owner에게 팀 배정을 요청해 주세요.");
+  if (access.scope === "team" && !access.teamIds.length) throw new OrgHttpError(403, "소유자에게 팀 배정을 요청해 주세요.");
   const teamScope = orgGeneralConversationTeamScope(access);
   const teamId = teamScope.length === 1 ? teamScope[0] : null;
   const { data: existing, error: existingError } = await (

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 
 // Earlier company decisions kept only in talent_progress are copied into the
@@ -77,6 +78,16 @@ const workspace = "10000000-0000-4000-8000-000000000001";
 const role = "10000000-0000-4000-8000-000000000002";
 const actor = "10000000-0000-4000-8000-000000000005";
 const talent = "20000000-0000-4000-8000-000000000001";
+const intro = "30000000-0000-4000-8000-000000000001";
+
+/** The id the web gives the move that follows a candidate's yes (buildOrgIntroProgressId in server.ts). */
+function introProgressId(introCandidateId: string) {
+  const hex = createHash("sha256").update(`org-intro-progress:${introCandidateId}`).digest("hex").slice(0, 32).split("");
+  hex[12] = "4";
+  hex[16] = "8";
+  const h = hex.join("");
+  return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join("-");
+}
 
 test("earlier stage changes, first views and saves are copied once with their time", async () => {
   const db = new PGlite();
@@ -87,6 +98,11 @@ test("earlier stage changes, first views and saves are copied once with their ti
       insert into company_roles(role_id, company_workspace_id, name) values ('${role}', '${workspace}', 'Engineer');
       insert into company_internal_roles(role_id, request, criteria) values ('${role}', 'brief', '[]');
       insert into talent_users(user_id) values ('${talent}');
+      insert into company_intro_candidates(id, company_workspace_id, role_id, talent_id, status)
+        values ('${intro}', '${workspace}', '${role}', '${talent}', 'connected');
+      -- Before decisionChannel existed: the move that followed the candidate's yes, under the requester.
+      insert into talent_progress(id, talent_id, role_id, company_user_id, kind, text, metadata, created_at) values
+        ('${introProgressId(intro)}', '${talent}', '${role}', '${actor}', 'org_stage_change', 's', '{"stage":"connected"}', '2026-09-30T00:00:00Z');
       insert into talent_progress(talent_id, role_id, company_user_id, kind, text, metadata, created_at) values
         ('${talent}', '${role}', '${actor}', 'org_stage_change', 's', '{"stage":"process_stopped","stopNote":"filled"}', '2026-10-01T00:00:00Z'),
         ('${talent}', '${role}', '${actor}', 'org_stage_change', 's', '{"stage":"connected","decisionChannel":"system"}', '2026-10-02T00:00:00Z'),
@@ -102,6 +118,12 @@ test("earlier stage changes, first views and saves are copied once with their ti
 
     const rows = async () => (await db.query<any>(`select action, channel, actor_user_id, reason_text, created_at, detail
       from company_decision_events order by created_at`)).rows;
+    // The backfill alone copies the move that followed the candidate as a company stage change.
+    assert.deepEqual((await rows()).map(r => [r.action, r.channel]), [
+      ["stage_change", "unknown"], ["stop", "unknown"], ["view", "slack"], ["save", "unknown"],
+    ]);
+    // The fix-up, run after it (the backfill may already be deployed), removes only that copy.
+    await migration("20261106100000_company_record_backfill_fixups.sql");
     let copied = await rows();
     assert.deepEqual(copied.map(r => [r.action, r.channel, r.reason_text]), [
       ["stop", "unknown", "filled"], ["view", "slack", null], ["save", "unknown", null],
@@ -113,6 +135,7 @@ test("earlier stage changes, first views and saves are copied once with their ti
     await db.exec(`insert into talent_progress(talent_id, role_id, company_user_id, kind, text, metadata)
       values ('${talent}', '${role}', '${actor}', 'org_stage_change', 's', '{"stage":"interview","decisionChannel":"web"}');`);
     await migration("20261105150000_company_record_backfill.sql");
+    await migration("20261106100000_company_record_backfill_fixups.sql");
     copied = await rows();
     assert.deepEqual(copied.map(r => [r.action, r.channel]), [
       ["stop", "unknown"], ["view", "slack"], ["save", "unknown"], ["stage_change", "web"],

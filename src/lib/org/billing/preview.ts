@@ -110,7 +110,7 @@ export function previewBillingSummary(
   const shared: BillingCreditSlot = {
     id: "free",
     slotId: null,
-    label: "Shared Intros",
+    label: "Shared Intros", // legacy-text: the slot label value other code compares
     roleId: null,
     roleName: null,
     remaining:
@@ -252,7 +252,7 @@ export function previewUsage(preview: OrgBillingPreview): BillingUsage[] {
       index % 2 ? "Demo · Product Designer" : "Demo · Software Engineer",
     slotLabel: preview.slotCount
       ? `Slot ${(index % preview.slotCount) + 1}`
-      : "Shared Intros",
+      : "Shared Intros", // legacy-text: the slot label value other code compares
     delta: -1,
   }));
 }

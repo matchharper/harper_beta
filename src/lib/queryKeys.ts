@@ -236,13 +236,15 @@ export const queryKeys = {
       ["org", "matchingSearchStatus", workspaceId ?? "", roleId ?? ""] as const,
     externalCandidates: (workspaceId?: string | null, roleId?: string | null) =>
       ["org", "externalCandidates", workspaceId ?? "", roleId ?? ""] as const,
+    // "What's happening now" sits under the board, so a board refresh
+    // (["org","board"]) refreshes its numbers too.
     roleTodo: (workspaceId?: string | null, roleId?: string | null) =>
-      ["org", "roleTodo", workspaceId ?? "", roleId ?? ""] as const,
+      ["org", "board", "now", workspaceId ?? "", roleId ?? ""] as const,
     roleTodoRange: (
       workspaceId?: string | null,
       roleId?: string | null,
       range: "all" | "recent" = "recent"
-    ) => ["org", "roleTodo", workspaceId ?? "", roleId ?? "", range] as const,
+    ) => ["org", "board", "now", workspaceId ?? "", roleId ?? "", range] as const,
     roleListColumns: (workspaceId?: string | null, roleId?: string | null) =>
       ["org", "roleListColumns", workspaceId ?? "", roleId ?? ""] as const,
     roleBoardCards: (workspaceId?: string | null, roleId?: string | null) =>

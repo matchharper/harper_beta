@@ -49,6 +49,32 @@ export function useOrgRoleTodo(args: {
   );
 }
 
+/**
+ * Every Role's To-do in one list (Home): the same lines and numbers as each
+ * Role's, with the Role on every line. Under ["org","board","now",workspace],
+ * so a Role's change refreshes it through orgWorkspaceTodoKey.
+ */
+export function useOrgWorkspaceTodo(args: { workspaceId?: string | null }) {
+  const { locale } = useOrgLocale();
+  const workspaceId = args.workspaceId?.trim() ?? "";
+  return useQuery({
+    queryKey: queryKeys.org.roleTodoRange(workspaceId, "", "recent"),
+    queryFn: () =>
+      fetchWithInternalAuth<OrgTodoResponse>(
+        `/api/org/todo?${new URLSearchParams({ locale, range: "recent", workspaceId })}`
+      ),
+    enabled: Boolean(workspaceId),
+    refetchInterval: (query) =>
+      isOrgQueryAccessError(query.state.error) ? false : 60_000,
+    refetchOnWindowFocus: true,
+    staleTime: 15_000,
+  });
+}
+
+/** Every To-do list of a workspace, the Roles' and Home's. */
+export const orgWorkspaceTodoKey = (workspaceId: string) =>
+  queryKeys.org.roleTodo(workspaceId).slice(0, 4);
+
 /** The team's answer to a Harper suggestion on the To-do. */
 export function useDecideOrgTodoSuggestion(args: {
   roleId: string;
@@ -69,6 +95,35 @@ export function useDecideOrgTodoSuggestion(args: {
       client.invalidateQueries({
         queryKey: queryKeys.org.roleTodo(args.workspaceId, args.roleId),
       }),
+  });
+}
+
+/**
+ * The team's answer to Harper's suggested criteria change. Accepting saves a
+ * new Brief version, so the Role's criteria are read again.
+ */
+export function useAnswerOrgCriteriaProposal(args: {
+  roleId: string;
+  workspaceId: string;
+}) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { action: "accept" | "dismiss"; proposalId: string }) =>
+      fetchWithInternalAuth<{ status: string }>("/api/org/todo", {
+        body: JSON.stringify({ ...args, proposal: input }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    onSettled: (_result, _error, input) => {
+      void client.invalidateQueries({
+        queryKey: queryKeys.org.roleTodo(args.workspaceId, args.roleId),
+      });
+      if (input.action !== "accept") return;
+      void client.invalidateQueries({ queryKey: queryKeys.org.bootstrapAll });
+      void client.invalidateQueries({
+        queryKey: queryKeys.org.roleStart(args.workspaceId, args.roleId),
+      });
+    },
   });
 }
 

@@ -20,6 +20,7 @@ import { OrgSection } from "./OrgSection";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgTeamChange } from "@/hooks/org/useOrgTeams";
 import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import type { OrgMember, OrgRole } from "@/lib/org/server";
 import { orgMemberTeamIds, type OrgTeam } from "@/lib/org/teamAccess.shared";
 import {
@@ -41,7 +42,7 @@ export function OrgMemberTeamSelect({ member }: { member: OrgMember }) {
   const allRoles =
     member.authority === "owner" || member.accessScope !== "team";
   const label = allRoles
-    ? c("전체 Role", "All Roles")
+    ? c("모든 역할", "All Roles")
     : teams
         .filter((team) => selectedIds.includes(team.teamId))
         .map((team) => team.name)
@@ -54,7 +55,7 @@ export function OrgMemberTeamSelect({ member }: { member: OrgMember }) {
         size="sm"
         className="max-w-full"
         onClick={() => setOpen(true)}
-        aria-label={c("{name} 접근 범위", "Access for {name}", {
+        aria-label={c("{name}님이 볼 수 있는 역할", "Access for {name}", {
           name: member.name || member.email || "",
         })}
       >
@@ -113,7 +114,7 @@ function OrgMemberAccessEditor({
         if (!pending) onClose();
       }}
       mobileBottomSheet
-      title={c("{name} 접근 범위", "Access for {name}", {
+      title={c("{name}님이 볼 수 있는 역할", "Access for {name}", {
         name: member.name || member.email || "",
       })}
       panelClassName="max-w-[440px]"
@@ -155,7 +156,7 @@ function OrgMemberAccessEditor({
     >
       <div className="space-y-4">
         <Checkbox
-          label={c("전체 Role", "All Roles")}
+          label={c("모든 역할", "All Roles")}
           checked={allRoles}
           disabled={pending}
           onChange={(event) => {
@@ -185,7 +186,7 @@ function OrgMemberAccessEditor({
         {!allRoles && defaultTeam && member.authority === "admin" ? (
           <p className="text-[12px] leading-5 text-neutral-muted">
             {c(
-              "새 Role은 {name}에 자동 배정돼요.",
+              "새 역할은 {name}에 자동 배정돼요.",
               "New Roles are automatically assigned to {name}.",
               {
                 name: defaultTeam.name,
@@ -196,7 +197,7 @@ function OrgMemberAccessEditor({
         {!allRoles && !ids.length ? (
           <p className="text-[12px] text-neutral-muted">
             {c(
-              "팀을 배정하기 전까지 Role에 접근할 수 없어요.",
+              "팀을 배정하기 전까지 역할에 접근할 수 없어요.",
               "No Role access until a team is assigned."
             )}
           </p>
@@ -221,7 +222,7 @@ export function OrgTeamsSection() {
     <OrgSection>
       <p className="mb-6 text-[13px] leading-5 text-neutral-muted">
         {c(
-          "팀에 배정된 팀원은 해당 팀의 Role에 접근할 수 있어요.",
+          "팀에 배정된 팀원은 해당 팀의 역할에 접근할 수 있어요.",
           "Assigned team members can access this team’s Roles."
         )}
       </p>
@@ -229,7 +230,7 @@ export function OrgTeamsSection() {
         <div className="mb-6 flex items-center gap-2 rounded-md bg-info/10 px-3 py-2.5 text-[13px] text-neutral-muted">
           <Info className="size-4 shrink-0" aria-hidden />
           {c(
-            "Owner 권한으로 모든 팀과 Role에 접근할 수 있어요.",
+            "소유자 권한으로 모든 팀과 역할에 접근할 수 있어요.",
             "As an Owner, you can access every team and Role."
           )}
         </div>
@@ -316,7 +317,7 @@ export function OrgTeamsSection() {
           </p>
           <p className="mt-2 text-[13px] text-neutral-muted">
             {c(
-              "Role별 접근을 나눠야 할 때 팀을 만들어 주세요.",
+              "역할별 접근을 나눠야 할 때 팀을 만들어 주세요.",
               "Create a team when you need to separate access to Roles."
             )}
           </p>
@@ -594,7 +595,7 @@ export function OrgTeamEditor({
               "Assignments to other teams are preserved when this team is deleted."
             )
           : c(
-              "팀원과 이 팀에서 관리할 Role을 선택하세요.",
+              "팀원과 이 팀에서 관리할 역할을 선택하세요.",
               "Choose team members and the Roles they can access. Owners can access every Role."
             )
       }
@@ -668,11 +669,11 @@ export function OrgTeamEditor({
         <p className="text-[13px] text-neutral-muted">
           {existingRoles > 0
             ? c(
-                "배정된 Role을 다른 팀 또는 미배정으로 옮긴 뒤 팀을 삭제해 주세요.",
+                "배정된 역할을 다른 팀 또는 미배정으로 옮긴 뒤 팀을 삭제해 주세요.",
                 "Move this team's roles to another team or unassign them before deleting the team."
               )
             : c(
-                "다른 팀에 배정되지 않은 팀원은 새 팀을 배정받기 전까지 Role에 접근할 수 없어요.",
+                "다른 팀에 배정되지 않은 팀원은 새 팀을 배정받기 전까지 역할에 접근할 수 없어요.",
                 "Team members with no other team assignments cannot access Roles until a new team is assigned."
               )}
         </p>
@@ -704,7 +705,7 @@ export function OrgTeamEditor({
             items={members.map((member) => ({
               id: member.userId,
               name: member.name || member.email || member.userId,
-              detail: `${member.accessScope === "team" ? orgMemberTeamIds(member).map(groupLabel).filter(Boolean).join(", ") || c("팀 배정 필요", "Team assignment needed") : c("전체 Role", "All Roles")} · ${member.authority === "admin" ? "Admin" : "Viewer"}`,
+              detail: `${member.accessScope === "team" ? orgMemberTeamIds(member).map(groupLabel).filter(Boolean).join(", ") || c("팀 배정 필요", "Team assignment needed") : ct(c, COMPANY_TERMS.access.allRoles)} · ${ct(c, member.authority === "admin" ? COMPANY_TERMS.access.admin : COMPANY_TERMS.access.viewer)}`,
             }))}
             hint={
               restrictedMembers > 0 || removedMembers > 0 ? (
@@ -712,7 +713,7 @@ export function OrgTeamEditor({
                   {restrictedMembers > 0 ? (
                     <span className="block">
                       {c(
-                        "선택한 팀원 {count}명의 접근 범위가 이 팀으로 변경돼요.",
+                        "선택한 팀원 {count}명이 볼 수 있는 역할이 이 팀으로 바뀌어요.",
                         "Access for {count} selected team members will be limited to this team.",
                         { count: restrictedMembers }
                       )}
@@ -721,7 +722,7 @@ export function OrgTeamEditor({
                   {removedMembers > 0 ? (
                     <span className="block">
                       {c(
-                        "제외한 팀원 {count}명은 새 팀을 배정받기 전까지 Role에 접근할 수 없어요.",
+                        "제외한 팀원 {count}명은 새 팀을 배정받기 전까지 역할에 접근할 수 없어요.",
                         "{count} removed team members cannot access any Roles until they are assigned to a new team.",
                         { count: removedMembers }
                       )}
@@ -751,7 +752,7 @@ export function OrgTeamEditor({
                   {movedRoles > 0 ? (
                     <span className="block">
                       {c(
-                        "다른 팀의 Role {count}개가 이 팀으로 이동해요.",
+                        "다른 팀의 역할 {count}개가 이 팀으로 이동해요.",
                         "{count} Roles from other teams will move to this team.",
                         { count: movedRoles }
                       )}
@@ -760,7 +761,7 @@ export function OrgTeamEditor({
                   {removedRoles > 0 ? (
                     <span className="block">
                       {c(
-                        "제외한 Role {count}개는 전체 Role 접근 권한이 있는 팀원만 볼 수 있어요.",
+                        "제외한 역할 {count}개는 모든 역할 접근 권한이 있는 팀원만 볼 수 있어요.",
                         "{count} removed Roles will only be visible to team members with access to all Roles.",
                         { count: removedRoles }
                       )}

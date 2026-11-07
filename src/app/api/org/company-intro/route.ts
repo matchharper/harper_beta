@@ -3,13 +3,33 @@ import { billingErrorResponse } from "@/lib/org/billing/http";
 import { after, NextRequest, NextResponse } from "next/server";
 import {
   OrgHttpError,
-  passOrgCompanyIntro,
-  requestOrgCompanyIntro,
   type OrgCompanyIntroMutationResponse,
 } from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { enqueueOrgAgentWebActionTurn } from "@/lib/org/agent/webActionTurn";
+import {
+  companyIntroOutcome,
+  decideOrgCandidate,
+  type OrgDecisionItem,
+} from "@/lib/org/candidateDecision.server";
+import type { User } from "@supabase/supabase-js";
+
+/** Pass or intro request through the one decision dispatcher. */
+async function decideIntro(args: {
+  item: Omit<OrgDecisionItem, "target">;
+  introCandidateId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  const outcome = await decideOrgCandidate({
+    actor: args.user,
+    channel: "web",
+    item: { ...args.item, target: { introCandidateId: args.introCandidateId } },
+    workspaceId: args.workspaceId,
+  });
+  return companyIntroOutcome(outcome).payload;
+}
 
 function actionIdentity(value: unknown) {
   return (
@@ -88,13 +108,17 @@ async function handlePost(req: NextRequest) {
       workspaceId: String(body.workspaceId ?? "").trim(),
     };
     if (action === "pass") {
-      const payload = await passOrgCompanyIntro({
+      const payload = await decideIntro({
         ...common,
-        channel: "web",
-        reason:
-          typeof body.reason === "string"
-            ? body.reason.trim().slice(0, 2000)
-            : undefined,
+        item: {
+          to: "passed",
+          reason: {
+            text:
+              typeof body.reason === "string"
+                ? body.reason.trim().slice(0, 2000)
+                : undefined,
+          },
+        },
       });
       let agentJobId: string | null = null;
       let candidateUpdate: OrgCompanyIntroMutationResponse["candidateUpdate"];
@@ -131,14 +155,18 @@ async function handlePost(req: NextRequest) {
       return NextResponse.json({ ...payload, agentJobId, candidateUpdate });
     }
     if (action === "request") {
-      const payload = await requestOrgCompanyIntro({
+      const payload = await decideIntro({
         ...common,
-        channel: "web",
-        companyAppeal: String(body.companyAppeal ?? ""),
-        introRecipientEmails: Array.isArray(body.introRecipientEmails)
-          ? body.introRecipientEmails.map((value) => String(value))
-          : [],
-        nextStageId: String(body.nextStageId ?? "").trim(),
+        item: {
+          to: "intro_requested",
+          appeal: String(body.companyAppeal ?? ""),
+          connection: {
+            introRecipientEmails: Array.isArray(body.introRecipientEmails)
+              ? body.introRecipientEmails.map((value) => String(value))
+              : [],
+            nextStageId: String(body.nextStageId ?? "").trim(),
+          },
+        },
       });
       let agentJobId: string | null = null;
       let candidateUpdate: OrgCompanyIntroMutationResponse["candidateUpdate"];

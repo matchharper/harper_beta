@@ -51,10 +51,10 @@ export function companyPresentationFinalFitLabel(
   locale: "ko" | "en"
 ) {
   const labels = {
-    excellent: { ko: "매우 잘 맞음", en: "Excellent fit" },
-    good: { ko: "잘 맞음", en: "Good fit" },
+    excellent: { ko: "아주 잘 맞음", en: "Strong" },
+    good: { ko: "잘 맞음", en: "Good" },
     borderline: { ko: "일부 맞음", en: "Partial fit" },
-    uncertain: { ko: "확인 필요", en: "More information needed" },
+    uncertain: { ko: "확인 필요", en: "Needs a check" },
     unfit: { ko: "맞지 않음", en: "Not a fit" },
   };
   return labels[fit][locale];

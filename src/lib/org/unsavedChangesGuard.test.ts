@@ -59,6 +59,11 @@ test("multiple dirty panels share one prompt and retain protection when one pane
     assert.equal(prompts, 1);
     assert.equal(pop({ as: "/org/role?orgId=w&roleId=r&tab=settings" }), true);
     assert.equal(prompts, 1);
+    // 역할 정보 holds both editors: its section links and older tab links keep the drafts.
+    assert.equal(pop({ as: "/org/role?orgId=w&roleId=r&tab=role&section=criteria" }), true);
+    assert.equal(pop({ as: "/org/role?orgId=w&roleId=r&tab=matching" }), true);
+    assert.equal(pop({ as: "/org/role?orgId=w&roleId=r&tab=inbox&inboxStage=external" }), true);
+    assert.equal(prompts, 1);
     assert.equal(pop({ as: "/org/role?orgId=w&roleId=other" }), false);
     assert.equal(prompts, 2);
     cleanups.pop()!(); // Saving/unmounting one editor must not remove the other's guard.

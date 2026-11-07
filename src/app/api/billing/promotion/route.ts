@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     const promotion = readPromotion(token);
     if (!promotion) throw new Error("Missing invitation");
-    const response = NextResponse.redirect(new URL("/org/slots?purchase=slot&interval=month&lang=ko", req.url));
+    const response = NextResponse.redirect(new URL("/org/billing?section=slots&purchase=slot&interval=month&lang=ko", req.url));
     response.cookies.set(PROMOTION_COOKIE, token!, {
       httpOnly: true, secure: req.nextUrl.protocol === "https:", sameSite: "lax",
       path: "/", expires: new Date(promotionEnd(promotion.endsOn)),

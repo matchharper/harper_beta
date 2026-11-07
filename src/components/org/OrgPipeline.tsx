@@ -718,7 +718,7 @@ export function OrgPipeline({
           });
           setCompanyIntroRequest(null);
           addToast({
-            message: c("Intro를 요청했어요.", "Intro requested."),
+            message: c("연결을 요청했어요.", "Intro requested."),
             variant: "success",
           });
         }}

@@ -15,6 +15,6 @@ export function projectOrgCandidateDetailForAgent(detail: OrgCandidateProfilePre
     recentProgress: [], requestHistory: [], harperSharedInformation: null,
     meetingHistory: null, scheduledFollowups: null,
     resumeAvailability: { available: false },
-    responseGuide: `이 후보자는 ${detail.role.name}에서 프로필만 확인했다. 이 조회로 추천·Intro·연락·파이프라인 기록은 생성하지 않았다. 평가·추천 여부와 연락 이력은 이 결과로 확정할 수 없다.`,
+    responseGuide: `이 후보자는 ${detail.role.name}에서 프로필만 확인했다. 이 조회로 추천·연결·연락·파이프라인 기록은 생성하지 않았다. 평가·추천 여부와 연락 이력은 이 결과로 확정할 수 없다.`,
   };
 }

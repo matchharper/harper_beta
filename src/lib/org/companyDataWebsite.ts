@@ -457,16 +457,27 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
 export async function applyWebsiteCompanyDataChanges(args: {
   actorLabel: string;
   actorUserId?: string;
+  /** Where, for Brief and settings versions and history, when it is not `source` (Ops edits: "ops"). */
+  changeSource?: "ops";
   criteriaChanges?: Array<{role_id:string;expected:unknown;value:unknown}>;
   requestReview?: boolean;
   admin: AdminClient;
   changes: WebsiteCompanyDataChange[];
+  /**
+   * A role's salary text, written as given in the same transaction, so the
+   * save is one Brief version. draftOnly: only while the role is a draft.
+   */
+  salaryRange?: { draftOnly?: boolean; roleId: string; value: string | null };
   source?: "chat" | "slack" | "website";
   targetCompanyDbId?: number | null;
   workspaceId: string;
 }) {
   const hasTargetCompanyDbId = args.targetCompanyDbId !== undefined;
-  if (args.changes.length === 0 && !args.criteriaChanges?.length && !hasTargetCompanyDbId) {
+  const hasSalaryRange = args.salaryRange !== undefined;
+  if (hasTargetCompanyDbId && hasSalaryRange) {
+    throw new Error("A company link change and a role salary are saved separately");
+  }
+  if (args.changes.length === 0 && !args.criteriaChanges?.length && !hasTargetCompanyDbId && !hasSalaryRange) {
     return { changedCount: 0, status: "already_reflected" as const };
   }
   const snapshotResult = await fetchWebsiteCompanyDataSnapshots(args);
@@ -480,13 +491,13 @@ export async function applyWebsiteCompanyDataChanges(args: {
     : snapshotResult.companyDbId;
   const associationChanged =
     hasTargetCompanyDbId && snapshotResult.companyDbId !== targetCompanyDbId;
-  if (resolved.rpcChanges.length === 0 && !args.criteriaChanges?.length && !associationChanged) {
+  if (resolved.rpcChanges.length === 0 && !args.criteriaChanges?.length && !associationChanged && !hasSalaryRange) {
     return { changedCount: 0, status: "already_reflected" as const };
   }
 
   const eventContent =
     resolved.eventContent ??
-    `${getCompanyEventActorLabel({ name: args.actorLabel })} · ${args.criteriaChanges?.length ? "역할 매칭 기준 수정" : "회사 데이터 연결 변경"}`;
+    `${getCompanyEventActorLabel({ name: args.actorLabel })} · ${args.criteriaChanges?.length ? "역할 확인할 기준 수정" : "회사 데이터 연결 변경"}`;
 
   const { data, error } = hasTargetCompanyDbId
     ? await (args.admin.rpc as any)("reassociate_company_workspace_db_v1", {
@@ -496,14 +507,22 @@ export async function applyWebsiteCompanyDataChanges(args: {
         p_target_company_db_id: targetCompanyDbId,
         p_workspace_id: args.workspaceId,
       })
-    : await (args.admin.rpc as any)(args.criteriaChanges?.length || resolved.rpcChanges.some(change => change.key === "role_request")
-        ? "apply_company_data_with_hiring_history_v1" : "apply_company_data_changes_v1", {
-        ...(args.criteriaChanges?.length || resolved.rpcChanges.some(change => change.key === "role_request") ? {
-          p_criteria_changes:args.criteriaChanges ?? [],p_actor_user_id:args.actorUserId ?? null,
-          p_actor_label:args.actorLabel,p_request_review:args.requestReview ?? false,
-        } : {}),
+    : // Every save, role facts alone included, records who and where on its versions.
+      await (args.admin.rpc as any)("apply_company_data_with_hiring_history_v2", {
+        p_actor_label: args.actorLabel,
+        p_actor_user_id: args.actorUserId ?? null,
+        p_change_source: args.changeSource ?? null,
         p_changes: resolved.rpcChanges,
+        p_criteria_changes: args.criteriaChanges ?? [],
         p_event_content: eventContent,
+        p_request_review: args.requestReview ?? false,
+        p_salary_range: args.salaryRange
+          ? {
+              draft_only: args.salaryRange.draftOnly === true,
+              role_id: args.salaryRange.roleId,
+              value: args.salaryRange.value,
+            }
+          : null,
         p_source: args.source ?? "website",
         p_workspace_id: args.workspaceId,
       });

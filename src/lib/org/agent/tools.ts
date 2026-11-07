@@ -2,6 +2,7 @@ import { COMPANY_EMAIL_PREFERENCE_TOOL } from "@/lib/email/companyPreferencesCon
 import { READ_AGENT_MESSAGES_TOOL, CONTACT_USER_TOOL, COMPANY_SCHEDULE_TOOL } from "@/lib/agentContacts/toolContracts";
 import { AGENT_CONTACT_DESCRIPTION, AGENT_MESSAGE_DESCRIPTION, AGENT_PRESENTATION_DESCRIPTION, COMPANY_AGENT_CONTACT_TOOL, COMPANY_AGENT_PRESENTATION_TOOL } from "@/lib/agentContacts/companyToolDefinitions";
 import { COMPANY_LANGUAGE_SETTING_TOOL } from "@/lib/org/agent/languageSettingContract";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 /**
  * Tool contracts exposed to the organization-wide Harper agent.
  *
@@ -17,6 +18,20 @@ import {
 import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 import { COMPANY_SIDE_LLM_DATA_KEYS } from "@/lib/org/agent/companyDataCatalog";
 import { AUTHORIZED_MESSAGE_CONTENT_CONTRACT } from "@/lib/companyTalentRequests/relayContract";
+import { CRITERIA_PROPOSALS_ENABLED } from "@/lib/org/criteriaProposals";
+// Tags stay on the company's private decision record. Only while criteria
+// suggestions are on does anything read them back.
+const REASON_TAGS_EFFECT = CRITERIA_PROPOSALS_ENABLED
+  ? " Harper later reads recent pass reasons on this Role, these labels with the user's own words, and when they keep pointing at the same criterion Harper suggests making it stricter in the Role's To-do; nothing changes until the company accepts."
+  : "";
+const REASON_TAGS_INPUT = (when: string) =>
+  ({
+    description: `${when} Optional labels for the reason the user actually gave, never inferred: this Role's criterion ids from read_role, or experience_skills, role_fit, working_conditions, timing. Omit when no reason was given.${REASON_TAGS_EFFECT}`,
+    items: { maxLength: 200, minLength: 1, type: "string" },
+    maxItems: 20,
+    type: "array",
+  }) as const;
+
 function nullableText(description: string, maxLength: number) {
   return {
     description,
@@ -50,6 +65,8 @@ export const ORG_AGENT_TOOL_NAMES = [
   "get_more_data",
   "read_conversation_history",
   "update_role_criteria",
+  "propose_criteria_change",
+  "manage_todo_suggestions",
   "update_data",
   "change_role_status",
   "set_role_notification",
@@ -540,7 +557,7 @@ export const ORG_AGENT_TOOLS = [
     type: "function",
     function: {
       name: "request_matching_search",
-      description: "Queue evaluation for one saved Role. Explicit company searches save stage-1/2 evidence without changing the recommendation list or contacting anyone. After completion, read matching.view=selection for current statistics, Top candidates and the entire untouched recommendation pool; choose exact IDs with publish_role_recommendations if warranted. scope=unassessed/new_members limits discovery, all reevaluates including existing untouched cards, evaluated reuses saved scores. startStage=1 reevaluates hard conditions; 2 reuses prior stage-1 eligibility for changed comparison criteria. Do not rescore an unchanged Brief without a reason. A trusted scheduled assignment retains its separately authorized directions. A queued result does not prove completed evaluation or publication.",
+      description: "Queue evaluation for one saved Role. Explicit company searches save stage-1/2 evidence without changing the recommendation list or contacting anyone. After completion, read matching.view=selection for current statistics, Top candidates and the entire untouched recommendation pool; choose exact IDs with publish_role_recommendations if warranted. scope=unassessed/new_members limits discovery, all reevaluates including existing untouched cards, evaluated reuses saved scores. startStage=1 reevaluates hard conditions; 2 reuses prior stage-1 eligibility for changed comparison criteria. Do not rescore an unchanged Brief without a reason. A trusted scheduled assignment retains its separately authorized directions. A queued result does not prove completed evaluation or publication. When it finishes you are woken again with the result, so do not create a schedule to check it.",
       parameters: {
         type: "object", additionalProperties: false, required: ["roleId"], properties: {
           roleId: { type: "string" },
@@ -791,9 +808,98 @@ export const ORG_AGENT_TOOLS = [
   {
     type: "function",
     function: {
+      name: "propose_criteria_change",
+      description:
+        "In Harper's review of pass reasons only: add one suggestion to the Role's To-do to make one existing criterion one level stricter (nice to have → important → required), backed by the passes in this review whose stated reasons support it. Nothing changes until a company member applies it in the To-do; the company can dismiss it, and an applied or dismissed change is never suggested again. One suggestion per Role is open at a time and one per review. This does not edit the Role, add or rewrite a criterion, contact anyone or start a search. The result says whether the suggestion was added.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          criterionId: {
+            description: "The criterion's id exactly as the review lists it.",
+            minLength: 1,
+            type: "string",
+          },
+          decisionIds: {
+            description:
+              "The listed pass decisions whose stated reasons support this change, including at least one passed since the last review. A suggestion backed by one candidate is refused.",
+            items: { type: "integer" },
+            minItems: 1,
+            type: "array",
+          },
+          reason: {
+            description:
+              "One short sentence shown on the To-do card, in the workspace language (Korean in the friendly 해요체 the rest of the To-do uses): what these passes had in common, in the company's terms. No candidate names and no number or share such as many or most; the card adds the counts. A long sentence is shortened to fit the card.",
+            minLength: 1,
+            type: "string",
+          },
+          roleId: {
+            description: "The reviewed Role. Omit to use it.",
+            type: "string",
+          },
+        },
+        required: ["criterionId", "decisionIds", "reason"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "manage_todo_suggestions",
+      description:
+        "In runs Harper starts itself only (scheduled work, reviews, company updates), never in a conversation with the team: read, add or withdraw your own suggestions on one Role's To-do. A suggestion is one next step you noticed that needs the company's go-ahead; the team approves it (your plan is then sent to the Role chat as their request), says not now, or asks you to stop suggesting that kind. Approval only starts the work in the Role chat with your normal tools and permissions; it grants nothing else. list shows the open suggestions, those answered in the last 14 days and the muted kinds: read it before you add. The server keeps at most 3 open per Role, refuses a muted kind and a repeat of an open or recently dismissed suggestion, checks that named candidates are on this Role's list, and lets each expire after 1-7 days (3 by default). This does not message anyone, search, contact candidates or change the Role.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          operation: { enum: ["list", "add", "withdraw"], type: "string" },
+          roleId: {
+            description: "The Role. Omit when this run is about one Role.",
+            type: "string",
+          },
+          kind: {
+            description:
+              "add: a short, stable lowercase label for this type of suggestion, with underscores (for example follow_up_candidate, widen_search, decision_waiting). The team can mute a kind.",
+            type: "string",
+          },
+          title: {
+            description:
+              "add: the line the team reads on the To-do, one short question in the workspace language: what you noticed and what you would do. Name candidates as the company sees them; never contact details.",
+            type: "string",
+          },
+          plan: {
+            description:
+              "add: what you will do once the team approves, in the workspace language, as work you can do from the Role chat with your normal tools.",
+            type: "string",
+          },
+          talentIds: {
+            description:
+              "add: candidates on this Role's list that the suggestion is about. It leaves the To-do on its own once one of them moves to another stage.",
+            items: { type: "string" },
+            maxItems: 5,
+            type: "array",
+          },
+          expiresInDays: {
+            description: "add: days it stays open, 1-7. Default 3.",
+            maximum: 7,
+            minimum: 1,
+            type: "integer",
+          },
+          suggestionId: {
+            description: "withdraw: your open suggestion that no longer applies.",
+            type: "string",
+          },
+        },
+        required: ["operation"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "update_data",
       description:
-        "Apply one atomic batch of explicitly requested company/role information changes, or resolve a stored confirmation. Role lifecycle status is intentionally excluded; use change_role_status for 진행, 중단, or 종료. Hiring Brief (role_request) changes are applied directly when authorized in the conversation. A Role's 필수 조건 (hard constraints) live in its Hiring Brief, never in the JD: add one with a role_request append to the Hard constraints section, and change or remove one by replacing its exact line (not a whole rewrite); 평가 기준 (evaluation criteria) are changed with update_role_criteria; never use role_description for either. Memory changes use a stored proposal and confirmation. Read and write Role compensation only through salaryRange as one free-form text value; keep minimum, maximum, currency, equity, bonus, and basis details together rather than creating split compensation fields. Submit salaryRange separately from confirmation-required memory fields, though it may share an atomic batch with ordinary direct changes. For confirmation, send proposalId and proposalAction; if changes or summary are accidentally repeated with both confirmation fields, the stored proposal takes precedence and the repeated draft fields are ignored. Put changes that should succeed or fail together in one atomic batch; use a later call only when a previous result changes what should happen next.",
+        "Apply one atomic batch of explicitly requested company/role information changes, or resolve a stored confirmation. Role lifecycle status is intentionally excluded; use change_role_status for 진행, 중단, or 종료. Hiring Brief (role_request) changes are applied directly when authorized in the conversation. A Role's 필수 조건 (hard constraints) live in its Hiring Brief, never in the JD: add one with a role_request append to the Hard constraints section, and change or remove one by replacing its exact line (not a whole rewrite); 확인할 기준 (evaluation criteria) are changed with update_role_criteria; never use role_description for either. Memory changes use a stored proposal and confirmation. Read and write Role compensation only through salaryRange as one free-form text value; keep minimum, maximum, currency, equity, bonus, and basis details together rather than creating split compensation fields. Submit salaryRange separately from confirmation-required memory fields, though it may share an atomic batch with ordinary direct changes. For confirmation, send proposalId and proposalAction; if changes or summary are accidentally repeated with both confirmation fields, the stored proposal takes precedence and the repeated draft fields are ignored. Put changes that should succeed or fail together in one atomic batch; use a later call only when a previous result changes what should happen next.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -896,9 +1002,9 @@ export const ORG_AGENT_TOOLS = [
 Call this once per exact Role. After its result, continue any other explicit, independent work from the user when it is still safe and relevant.
 When an exact existing Role is still draft and the user explicitly asks to start hiring or register it, call this with status=active instead of start_role_creation. The server reuses the saved draft and checks every role-creation requirement. If information is missing, no activation occurs: use the returned missing fields and available notification choices to ask only for what is needed, then complete the still-authorized activation after the user answers. If the user explicitly selects notification channels, email or an assignee, include those optional exact values in the activation call; they are saved before readiness is checked again. Never invent or silently default these targets.
 Status meanings and effects:
-• active (진행): keep hiring in progress and periodically receive suitable candidate connections from Harper.
-• paused (중단): keep the Role open, but stop receiving additional candidate recommendations. Candidate processes and connections already in progress remain open.
-• ended (종료): mark the Role ended and stop additional recommendations. This change is immediate, but candidate closure is not atomic: after the grace period, Harper's final delivery closes accepted candidate Positions across company-controlled stages except final_offer and records the notice.
+• active (${COMPANY_TERMS.roleStatus.active.ko}): keep hiring in progress and periodically receive suitable candidate connections from Harper.
+• paused (${COMPANY_TERMS.roleStatus.paused.ko}): keep the Role open, but stop receiving additional candidate recommendations. Candidate processes and connections already in progress remain open.
+• ended (${COMPANY_TERMS.roleStatus.ended.ko}): mark the Role ended and stop additional recommendations. This change is immediate, but candidate closure is not atomic: after the grace period, Harper's final delivery closes accepted candidate Positions across company-controlled stages except final_offer and records the notice.
 • deleted (삭제): apply the same internal-Role deletion as the web product by atomically setting status=deleted and is_expired=true. It uses the same deferred candidate-closure rule as ended, including the final_offer exception.
 Use deleted only for an explicit request to delete the exact Role. Do not reinterpret 종료 as deletion. Use the exact roleId from current context or a fresh read. Do not claim a candidate was already notified or closed until current progress shows that the closure notice was committed.`,
       parameters: {
@@ -930,7 +1036,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
           },
           status: {
             description:
-              "active=진행 (periodic suitable candidate connections continue); paused=중단 (Role stays open but additional recommendations stop, while existing processes stay open); ended=종료 or deleted=삭제 stops recommendations and adds affected accepted processes to the next candidate daily review at every stage except final_offer. deleted also sets is_expired=true.",
+              `active=${COMPANY_TERMS.roleStatus.active.ko} (periodic suitable candidate connections continue); paused=${COMPANY_TERMS.roleStatus.paused.ko} (Role stays open but additional recommendations stop, while existing processes stay open); ended=${COMPANY_TERMS.roleStatus.ended.ko} or deleted=삭제 stops recommendations and adds affected accepted processes to the next candidate daily review at every stage except final_offer. deleted also sets is_expired=true.`,
             enum: ["active", "paused", "ended", "deleted"],
             type: "string",
           },
@@ -1171,6 +1277,7 @@ Meeting scheduling is available from any company-visible active stage: pending_c
             minLength: 1,
             type: "string",
           },
+          reasonTags: REASON_TAGS_INPUT("For archived or process_stopped only."),
           roleId: {
             description: "Exact internal Role ID.",
             type: "string",
@@ -1462,11 +1569,12 @@ Call this once per exact candidate Role change and review the result before anot
           },
           reason: {
             description:
-              "For pass only, optional: why the company is passing, in the user's own words, when they gave a reason in this conversation. It is saved on the company's private decision record that later candidate searches learn from; it is never shown or sent to the candidate. Omit when no reason was given; do not infer or invent one. May be given on the initial call or the confirmation call.",
+              "For pass only, optional: why the company is passing, in the user's own words, when they gave a reason in this conversation. It is saved on the company's private decision record; it is never shown or sent to the candidate. Omit when no reason was given; do not infer or invent one. May be given on the initial call or the confirmation call.",
             maxLength: 2_000,
             minLength: 1,
             type: "string",
           },
+          reasonTags: REASON_TAGS_INPUT("For pass only."),
           roleId: {
             description: "Exact Role ID for this company-first proposal.",
             type: "string",
@@ -1595,6 +1703,7 @@ Call this once per exact candidate Role change and review the result before anot
             "Optional reason genuinely provided by the user. Preserve its meaning accurately and never invent one.",
             2_000
           ),
+          reasonTags: REASON_TAGS_INPUT("For decline only."),
           roleId: {
             description: "Exact role ID for the candidate decision.",
             type: "string",
@@ -1654,10 +1763,14 @@ Call this once per exact candidate Role change and review the result before anot
   },
 ] as const;
 
-export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat", trusted?: {scheduledMatching?: boolean; agentService?: boolean}) {
+export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat", trusted?: {scheduledMatching?: boolean; agentService?: boolean; harperInitiated?: boolean}) {
   const tools = ORG_AGENT_TOOLS.filter(
     (tool) =>
       (tool.function.name !== "recommend_talents" || trusted?.scheduledMatching === true) &&
+      // Harper's own review files suggestions; a company member's chat edits criteria directly.
+      (tool.function.name !== "propose_criteria_change" || trusted?.agentService === true) &&
+      // Harper writes its own To-do suggestions only in runs it starts itself.
+      (tool.function.name !== "manage_todo_suggestions" || trusted?.agentService === true || trusted?.harperInitiated === true) &&
       (COMPANY_MEETING_SCHEDULING_ENABLED ||
       tool.function.name !== "manage_interview_availability")
   );

@@ -317,6 +317,8 @@ export type ExternalCandidateView = {
   /** intro_requested | passed; null while the company has not decided. */
   companyDecision: string | null;
   shownAt: string;
+  /** Harper's order within the search that found the person (1 = best); absent on older data. */
+  rank?: number | null;
 };
 
 export type ExternalCandidatesResponse = {
@@ -371,6 +373,7 @@ export function externalCandidatesForCompany(rows: (ExternalCandidateRow & { cre
         replyType: row.intro.reply_type ?? null } : null,
       companyDecision: row.company_decision,
       shownAt: row.created_at,
+      rank: typeof row.rank === "number" && Number.isFinite(row.rank) ? row.rank : null,
     };
   });
 }

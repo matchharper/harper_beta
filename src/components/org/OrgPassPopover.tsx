@@ -72,9 +72,9 @@ export function OrgPassPopover({
           size="md"
           variant="neutral"
           aria-keyshortcuts={shortcut ? "p" : undefined}
-          className="px-3 py-1.5 border-none text-[15px]"
+          className="px-3 py-1.5 border-none text-[15px] whitespace-nowrap"
         >
-          {c("Pass", "Pass")}
+          {c("이번엔 넘길게요", "Pass for now")}
           {shortcut && (
             <kbd
               aria-hidden
@@ -90,7 +90,7 @@ export function OrgPassPopover({
           align="end"
           sideOffset={8}
           className="z-[100] max-h-[var(--radix-popover-content-available-height)] w-72 overflow-y-auto rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-(--shadow-lg)"
-          aria-label={c("Pass 이유", "Reason for passing")}
+          aria-label={c("넘기는 이유", "Reason for passing")}
         >
           <form
             onSubmit={async (event) => {
@@ -150,7 +150,7 @@ export function OrgPassPopover({
               className="mt-0 w-full"
               disabled={pending || !reason.trim()}
             >
-              {c("Pass", "Pass")}
+              {c("이번엔 넘길게요", "Pass for now")}
             </MuteButton>
           </form>
         </Popover.Content>

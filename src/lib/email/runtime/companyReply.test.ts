@@ -54,6 +54,7 @@ function fixture() {
   account = { id: "company-user", email: "team@example.test", email_confirmed_at: "2026-01-01" };
   tables = {
     company_users: [{ user_id: account.id, email: account.email, locale: "ko" }],
+    company_workspace: [{ company_workspace_id: "workspace", is_reviewing: false }],
     company_user_workspace: [{ company_user_id: account.id, company_workspace_id: "workspace", authority: "owner", access_scope: "organization" }],
     email_reply_aliases: [{ id: "alias", token_hash: hashReplyToken(token), company_user_id: account.id,
       company_workspace_id: "workspace", company_conversation_id: "conversation", metadata: { recipient: account.email, originalEmail: { subject: "채용", body: "현재 역할을 검토해보세요." } } }],
@@ -142,4 +143,26 @@ test("outbound retries retain the same route and reject changed message identity
   assert.deepEqual(await outbound.createCompanyEmailReplyAlias(args), first);
   assert.equal(tables.email_reply_aliases.length, 2);
   await assert.rejects(outbound.createCompanyEmailReplyAlias({ ...args, body: "바뀐 메일" }), /identity_changed/);
+});
+
+test("the reply's model usage is saved once for its job, and a saved reply is not counted again", async () => {
+  const { addLlmCallToRunUsage } = await import("@/lib/llm/runUsage");
+  const args = fixture();
+  const saved: any[] = [];
+  const recordUsage = async (target: any, usage: any) => { saved.push({ target, usage }); };
+  const countedChat = async (turn: any) => {
+    await addLlmCallToRunUsage("gpt-6-luna", { usage: { prompt_tokens: 1200, completion_tokens: 300 } });
+    return runChat(turn);
+  };
+  failSend = true;
+  await assert.rejects(runtime.processCompanyEmailReply(args, { runChat: countedChat, recordUsage }), /temporary provider failure/);
+  assert.equal(saved.length, 1);
+  assert.deepEqual(saved[0].target, { kind: "email_reply", sourceId: "job", workspaceId: "workspace" });
+  assert.equal(saved[0].usage.calls, 1);
+  assert.equal(saved[0].usage.inputTokens, 1200);
+  // The retry sends the saved reply without another model call, so nothing more is counted.
+  failSend = false;
+  await runtime.processCompanyEmailReply(args, { runChat: countedChat, recordUsage });
+  assert.equal(saved.length, 1);
+  assert.equal(args.job.status, "sent");
 });

@@ -217,7 +217,7 @@ async function deliverRunNotice(args: {
           parseIntroSearchHour(internalRole?.intro_search_time) ??
           DEFAULT_INTRO_SEARCH_HOUR,
         id: text(row.role_id, 100),
-        name: text(row.name, 300) || "이름 없는 Role",
+        name: text(row.name, 300) || "이름 없는 역할",
         request: text(internalRole?.request, 2_000) || null,
         salary: roleSalary(row),
       };

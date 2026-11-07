@@ -2726,6 +2726,8 @@ export async function fetchOpsMatchingAllRoles(args: {
 
 export async function updateOpsMatchingAllRole(args: {
   eventActorLabel: string;
+  /** The Ops user, recorded on settings versions with "ops". */
+  eventActorUserId?: string | null;
   roleId?: string | null;
   status?: OpportunityStatus;
 }): Promise<OpsMatchingAllRoleUpdateResponse> {
@@ -2747,7 +2749,9 @@ export async function updateOpsMatchingAllRole(args: {
   const status = normalizeAllRoleStatus(args.status);
   await applyWebsiteCompanyDataChanges({
     actorLabel: args.eventActorLabel,
+    actorUserId: args.eventActorUserId ?? undefined,
     admin,
+    changeSource: "ops",
     changes: [{ key: "role_status", roleId, value: status }],
     workspaceId: existingRole.company_workspace_id,
   });
@@ -5349,6 +5353,21 @@ export async function deleteOpsMatchingProgress(args: {
     throw new Error("회사 결정 기록은 지울 수 없습니다.");
 
   const admin = getSupabaseAdmin();
+  // A company note is deleted at its home, as on the company screen: it keeps
+  // its history and a trigger removes this timeline copy (same id).
+  let noteQuery = (admin.from("company_candidate_notes" as any) as any)
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", progressId)
+    .eq("talent_id", talentId)
+    .is("deleted_at", null);
+  if (roleId) noteQuery = noteQuery.eq("role_id", roleId);
+  const { data: notes, error: noteError } = await noteQuery.select("id, role_id, talent_id");
+  if (noteError) throw new Error(noteError.message ?? "Failed to delete company note");
+  const note = (notes ?? [])[0] as { id: string; role_id: string; talent_id: string } | undefined;
+  if (note) {
+    return { ok: true, progressId: note.id, roleId: note.role_id, talentId: note.talent_id };
+  }
+
   let query = fromOpsMatchingTable(admin, "talent_progress")
     .delete()
     .eq("id", progressId)
