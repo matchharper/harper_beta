@@ -74,6 +74,8 @@ import { cn } from "@/lib/utils";
 const ORG_AGENT_COMPOSER_DEFAULT_HEIGHT_PX = 148;
 const ORG_AGENT_TIMELINE_BOTTOM_GAP_PX = 48;
 const ORG_AGENT_BOTTOM_THRESHOLD_PX = 120;
+/** How long after the reader's own wheel, touch, key or pointer input a scroll counts as theirs. */
+const ORG_AGENT_USER_SCROLL_MS = 1200;
 const ROLE_CREATION_COMPLETION_SENTENCE_INTERVAL_MS = 240;
 
 function OrgAgentInfo() {
@@ -366,12 +368,40 @@ export function OrgAgentChatSurface({
   // for a render to learn that the reader scrolled away from the bottom.
   const stickToBottomRef = useRef(true);
   stickToBottomRef.current = stickToBottom;
+  // When the reader last moved the chat themselves. Only their own scrolling
+  // may leave the bottom; a jump nobody asked for (the live status line or
+  // the history changing under the view) is put back instead.
+  const lastUserScrollAtRef = useRef(0);
+  // A held pointer (dragging the scrollbar) counts for as long as it is held.
+  const pointerHeldRef = useRef(false);
+  const markUserScroll = useCallback(() => {
+    lastUserScrollAtRef.current = Date.now();
+  }, []);
+  const holdPointer = useCallback(() => {
+    pointerHeldRef.current = true;
+    lastUserScrollAtRef.current = Date.now();
+    const release = () => {
+      pointerHeldRef.current = false;
+      lastUserScrollAtRef.current = Date.now();
+    };
+    window.addEventListener("pointerup", release, { once: true });
+    window.addEventListener("pointercancel", release, { once: true });
+  }, []);
   const syncScrollState = useCallback(() => {
     const node = scrollRef.current;
     if (!node) return;
     const distanceToBottom =
       node.scrollHeight - node.scrollTop - node.clientHeight;
     const atBottom = distanceToBottom <= ORG_AGENT_BOTTOM_THRESHOLD_PX;
+    if (
+      !atBottom &&
+      stickToBottomRef.current &&
+      !pointerHeldRef.current &&
+      Date.now() - lastUserScrollAtRef.current > ORG_AGENT_USER_SCROLL_MS
+    ) {
+      node.scrollTop = node.scrollHeight;
+      return;
+    }
     stickToBottomRef.current = atBottom;
     setStickToBottom(atBottom);
   }, []);
@@ -379,16 +409,18 @@ export function OrgAgentChatSurface({
   /** Loads older messages and keeps what the reader was looking at in place. */
   const loadOlderMessagesInPlace = useCallback(async () => {
     if (!history.hasOlderMessages || history.loadingOlderMessages) return;
+    markUserScroll();
     const node = scrollRef.current;
     const previousScrollHeight = node?.scrollHeight ?? null;
     const previousScrollTop = node?.scrollTop ?? 0;
     await history.loadOlderMessages();
     if (!node || previousScrollHeight === null) return;
     window.requestAnimationFrame(() => {
+      markUserScroll();
       node.scrollTop = previousScrollTop + (node.scrollHeight - previousScrollHeight);
       syncScrollState();
     });
-  }, [history, syncScrollState]);
+  }, [history, markUserScroll, syncScrollState]);
 
   useEffect(() => {
     if (!stickToBottom) return;
@@ -597,6 +629,10 @@ export function OrgAgentChatSurface({
         // messages load from the button, never because a layout shift (a reply
         // finishing, the composer resizing) left the view near the top.
         onScroll={syncScrollState}
+        onKeyDown={markUserScroll}
+        onPointerDown={holdPointer}
+        onTouchMove={markUserScroll}
+        onWheel={markUserScroll}
       >
         <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
           {history.hasOlderMessages && (
