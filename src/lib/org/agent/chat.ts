@@ -661,6 +661,8 @@ export async function runOrgAgentToolLoop(
   for (const capability of args.initialCapabilities ?? []) {
     loadedCapabilities.add(capability);
   }
+  // A run cancelled before it starts touches nothing, not even the client.
+  args.signal?.throwIfAborted();
   // Runs Harper starts itself (events, reviews, its own schedules) can leave
   // the team a suggestion on the To-do; a member's conversation cannot.
   const harperRun = Boolean(args.harperInitiated || args.backgroundOrigin || companyAgentScope(args.admin));
