@@ -120,8 +120,8 @@ export function OrgRoleInbox({
   const card = view === "card";
   const sort: OrgCandidateSort =
     router.query.sort === "recommended" ? "recommended" : "latest";
-  // 외부 후보 has no stages to place on a board and no one-by-one review.
-  const externalView = view === "list" ? "list" : "grid";
+  // 외부 후보 has no one-by-one review; its board keeps its own card spots.
+  const externalView = view === "list" || view === "board" ? view : "grid";
   const gridOption: OrgCandidateViewOption<InboxView> = {
     value: "grid",
     label: c("그리드", "Grid"),
@@ -132,13 +132,18 @@ export function OrgRoleInbox({
     label: c("리스트", "List"),
     icon: List,
   };
+  const boardOption: OrgCandidateViewOption<InboxView> = {
+    value: "board",
+    label: c("포스트잇", "Board"),
+    icon: StickyNote,
+  };
   const viewOptions: OrgCandidateViewOption<InboxView>[] = external
-    ? [gridOption, listOption]
+    ? [gridOption, listOption, boardOption]
     : [
         gridOption,
         listOption,
         { value: "card", label: c("카드", "Card"), icon: LayoutPanelLeft },
-        { value: "board", label: c("포스트잇", "Board"), icon: StickyNote },
+        boardOption,
       ];
   const stageCounts = useMemo(() => {
     const serverCounts = inboxQuery?.data?.pages[0]?.counts;

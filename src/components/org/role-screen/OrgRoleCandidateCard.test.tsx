@@ -158,4 +158,36 @@ test("a candidate card opens in place in the profile's order, then decisions wit
   const connected = render(item({ stage: "connected" }), true);
   assert.ok(!connected.includes("연결하기") && !connected.includes(">저장<"));
   assert.ok(connected.includes('data-part="stage-menu"'));
+
+  // Someone outside Harper (외부 후보): the summary comes from the given detail with no profile
+  // read, the same decisions, and no 저장 or Harper에게 묻기 (nothing to save or mention).
+  detail = { companyPresentation: { tldr: "읽어 온 요약", harperNote: "", finalFit: null, criteriaEvaluations: [] } };
+  const outsideItem = item({
+    companyIntro: {
+      candidateSentAt: null, companyAppeal: null, id: "external:p1", nextStageId: null, requestedAt: null,
+      selectionReason: "", status: "ready",
+    },
+    recommendationId: "external:p1",
+    source: "company_intro",
+    stage: "company_intro",
+    talentId: "external:p1",
+  });
+  const outside = renderToStaticMarkup(
+    <OrgCandidateListContext.Provider value={{ expandedId: "external:p1", onToggle: () => {} }}>
+      <OrgRoleCandidateCard
+        canManageCandidates
+        item={outsideItem}
+        onAccept={() => {}}
+        onOpen={() => {}}
+        onPass={async () => {}}
+        profileDetail={{
+          companyPresentation: { tldr: "공개 정보로 본 이유", harperNote: "", finalFit: null, criteriaEvaluations: [] },
+          criteriaEvaluations: [{ name: "React Native", fitness: "excellent", content: "앱 세 개를 냈어요." }],
+        }}
+        stages={[]}
+      />
+    </OrgCandidateListContext.Provider>
+  );
+  order(outside, ["한 줄 요약", "공개 정보로 본 이유", "확인할 기준", "React Native", "이번엔 넘길게요", "연결 요청", "전체 프로필"]);
+  assert.ok(!outside.includes("읽어 온 요약") && !outside.includes(">저장<") && !outside.includes("Harper에게 묻기"));
 });

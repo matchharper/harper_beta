@@ -437,7 +437,11 @@ export function OrgRoleCandidatesPanel({
         </p>
       ) : null}
       {tab === "external" ? (
-        <OrgExternalCandidates roleId={role.roleId} workspaceId={workspace.workspaceId} />
+        <OrgExternalCandidates
+          roleId={role.roleId}
+          view="rows"
+          workspaceId={workspace.workspaceId}
+        />
       ) : inbox ? (
         <OrgJobsProvider inbox routePage="role">
           <InboxList onAskHarper={onAskHarper} />

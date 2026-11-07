@@ -308,7 +308,7 @@ test("외부 후보 is an inbox sub-tab where external sourcing is on, and older
       useOrgDeferredActionStore: (select: (state: { deferredStages: Set<string> }) => unknown) => select({ deferredStages: new Set() }),
     };
     if (name === "@/hooks/org/useOrgExternalCandidates") return { useOrgExternalCandidates: () => ({ data: external }) };
-    if (name === "./OrgExternalCandidates") return { OrgExternalCandidates: () => <div data-external-list /> };
+    if (name === "./OrgExternalCandidates") return { OrgExternalCandidates: ({ view }: { view?: string }) => <div data-external-list data-view={view} /> };
     if (name === "@/components/ui/tabs") return {
       Tabs: ({ activeValue, items, onValueChange }: { activeValue: string; items: Array<{ value: string; label: React.ReactNode }>; onValueChange: (value: string) => void }) => {
         onTab = onValueChange;
@@ -357,11 +357,15 @@ test("외부 후보 is an inbox sub-tab where external sourcing is on, and older
     const html = render(legacy);
     assert.equal(active(html), "external", JSON.stringify(legacy));
     assert.ok(html.includes("data-external-list") && !html.includes("data-empty-inbox"));
-    // 외부 후보 has the same toolbar: sort, and a grid or a list (no board, no one-by-one card).
+    // 외부 후보 has the same toolbar: sort, and a grid, a list or the board (no one-by-one card).
     assert.ok(html.includes("최신순") && html.includes("추천순"));
-    assert.ok(html.includes("그리드") && html.includes("리스트"));
-    assert.ok(!html.includes("포스트잇") && !html.includes("카드"));
+    assert.ok(html.includes("그리드") && html.includes("리스트") && html.includes("포스트잇"));
+    assert.ok(!html.includes("카드"));
   }
+  // The board opens on 외부 후보 too; the one-by-one card falls back to the grid there.
+  assert.match(render({ tab: "inbox", inboxStage: "external", inboxView: "board" }), /data-view="board"/);
+  assert.match(render({ tab: "inbox", inboxStage: "external", inboxView: "list" }), /data-view="list"/);
+  assert.match(render({ tab: "inbox", inboxStage: "external", inboxView: "card" }), /data-view="grid"/);
 
   // Leaving 외부 후보 from an older link writes the inbox's own address.
   render({ tab: "external", externalCandidateId: "x", orgId: "w", roleId: "role" });

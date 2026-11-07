@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {
   ArrowLeft,
@@ -29,7 +29,12 @@ import { CompanyIntroRequestDialog } from "./CompanyIntroDecisionDialogs";
 import { OrgListFitCell, OrgListProfileLabelCell } from "./OrgInboxListTable";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { OrgCandidateReviewContent } from "./OrgCandidateReviewContent";
+import { OrgCandidateBoardCanvas } from "./OrgCandidateBoardCanvas";
 import { OrgRoleTalentBoardCard } from "./OrgRoleTalentBoard";
+import {
+  OrgCandidateListContext,
+  OrgRoleCandidateCard,
+} from "./role-screen/OrgRoleCandidateCard";
 import { ReviewEmptyState } from "./OrgHomeInbox";
 import { OrgErrorState } from "./workspace/OrgErrorState";
 import {
@@ -295,11 +300,21 @@ export type ExternalCandidateActions = {
  * The Role's "외부 후보" tab: the shared candidate card, decision buttons and profile body for people outside
  * Harper. The selected person is kept in the URL (externalCandidateId).
  */
-export function OrgExternalCandidatesView({ data, roleId, actions, sort, view = "grid" }: {
+/**
+ * grid · list · board (포스트잇) are the wide view's; rows is the split view's
+ * list of folded cards, the same as its other candidate tabs.
+ */
+export type OrgExternalCandidatesLayout = "grid" | "list" | "board" | "rows";
+
+const NO_BOARD_SELECTION: ReadonlySet<string> = new Set();
+
+export function OrgExternalCandidatesView({ data, roleId, workspaceId, actions, sort, view = "grid" }: {
   data: ExternalCandidatesResponse; roleId: string; actions?: ExternalCandidateActions;
+  /** Needed for the board, which keeps the team's card spots for the Role. */
+  workspaceId?: string;
   /** Left out, the server's order (newest search first) stays. */
   sort?: OrgCandidateSort;
-  view?: "grid" | "list";
+  view?: OrgExternalCandidatesLayout;
 }) {
   const router = useRouter();
   const { c, locale } = useOrgLocale();
@@ -308,6 +323,16 @@ export function OrgExternalCandidatesView({ data, roleId, actions, sort, view = 
   const listScrollTop = useRef(0);
   const [introFor, setIntroFor] = useState<ExternalCandidateView | null>(null);
   const [passOpen, setPassOpen] = useState(false);
+  // rows: one card open at a time, like the other tabs. No "Harper에게 묻기":
+  // people outside Harper have no profile Harper can be asked about by mention.
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const rowList = useMemo(
+    () => ({
+      expandedId: openRowId,
+      onToggle: (id: string) => setOpenRowId((current) => (current === id ? null : id)),
+    }),
+    [openRowId]
+  );
   const selectedId = typeof router.query.externalCandidateId === "string" ? router.query.externalCandidateId : null;
   const candidates = sort ? sortExternalCandidates(data.candidates, sort) : data.candidates;
   const selected = selectedId ? candidates.find((person) => person.id === selectedId) ?? null : null;
@@ -419,6 +444,20 @@ export function OrgExternalCandidatesView({ data, roleId, actions, sort, view = 
   }
 
   const searching = isExternalSearchRunning(data);
+  // The same decision card in every layout: Pass always, Request intro only
+  // when an invitation can go out (the LinkedIn link otherwise).
+  const cardProps = (person: ExternalCandidateView) => ({
+    acceptSlot: externalCandidateCanSendIntro(person) ? undefined : <ExternalSendIntroSlot person={person} className="w-full py-2" />,
+    canManageCandidates: canManage,
+    footer: canManage ? null : <ExternalStatusBadge person={person} />,
+    item: externalBoardItem(person, roleId),
+    onAccept: () => setIntroFor(person),
+    onOpen: () => select(person.id),
+    onPass: async (reason: string) => { await pass(person, reason); },
+    pending,
+    stages: [],
+  });
+  const byBoardId = new Map(candidates.map((person) => [externalBoardItem(person, roleId).recommendationId, person]));
   return (
     <div ref={rootRef} className="space-y-4 pb-6">
       {searching ? (
@@ -436,23 +475,36 @@ export function OrgExternalCandidatesView({ data, roleId, actions, sort, view = 
       ) : null}
       {candidates.length && view === "list" ? (
         <OrgExternalCandidateList candidates={candidates} onOpen={(person) => select(person.id)} roleId={roleId} />
+      ) : candidates.length && view === "rows" ? (
+        <OrgCandidateListContext.Provider value={rowList}>
+          <div className="org-candidate-list">
+            {candidates.map((person) => (
+              <OrgRoleCandidateCard
+                {...cardProps(person)}
+                key={person.id}
+                profileDetail={externalProfileDetail(person)}
+              />
+            ))}
+          </div>
+        </OrgCandidateListContext.Provider>
+      ) : candidates.length && view === "board" && workspaceId ? (
+        <OrgCandidateBoardCanvas
+          board="external"
+          items={candidates.map((person) => externalBoardItem(person, roleId))}
+          key={`${roleId}:external`}
+          renderCard={(item) => {
+            const person = byBoardId.get(item.recommendationId);
+            return person ? <OrgRoleTalentBoardCard {...cardProps(person)} key={person.id} /> : null;
+          }}
+          roleId={roleId}
+          selectedIds={NO_BOARD_SELECTION}
+          workspaceId={workspaceId}
+        />
       ) : candidates.length ? (
         <section className="@container/talent-board min-w-0">
           <div className="relative isolate grid auto-rows-fr grid-cols-1 items-stretch gap-4 @min-[640px]/talent-board:grid-cols-2">
             {candidates.map((person) => (
-              <OrgRoleTalentBoardCard
-                acceptSlot={externalCandidateCanSendIntro(person) ? undefined : <ExternalSendIntroSlot person={person} className="w-full py-2" />}
-                canManageCandidates={canManage}
-                fillHeight
-                key={person.id}
-                item={externalBoardItem(person, roleId)}
-                onAccept={() => setIntroFor(person)}
-                onOpen={() => select(person.id)}
-                onPass={async (reason) => { await pass(person, reason); }}
-                pending={pending}
-                stages={[]}
-                footer={canManage ? null : <ExternalStatusBadge person={person} />}
-              />
+              <OrgRoleTalentBoardCard {...cardProps(person)} fillHeight key={person.id} />
             ))}
           </div>
         </section>
@@ -472,7 +524,7 @@ export function OrgExternalCandidatesView({ data, roleId, actions, sort, view = 
 
 /** Data container for the Role's "외부 후보" tab. */
 export function OrgExternalCandidates({ workspaceId, roleId, sort, view }: {
-  workspaceId: string; roleId: string; sort?: OrgCandidateSort; view?: "grid" | "list";
+  workspaceId: string; roleId: string; sort?: OrgCandidateSort; view?: OrgExternalCandidatesLayout;
 }) {
   const query = useOrgExternalCandidates({ workspaceId, roleId });
   const { bootstrap, currentUserEmail, permissions } = useOrgWorkspace();
@@ -487,6 +539,7 @@ export function OrgExternalCandidates({ workspaceId, roleId, sort, view }: {
       roleId={roleId}
       sort={sort}
       view={view}
+      workspaceId={workspaceId}
       actions={{
         canManage: permissions.canManageCandidates,
         members: bootstrap.members,

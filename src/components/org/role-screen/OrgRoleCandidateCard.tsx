@@ -75,7 +75,15 @@ function CandidateCriteriaMarks({
   );
 }
 
-type OrgRoleCandidateCardProps = ComponentProps<typeof OrgRoleTalentBoardCard>;
+type CandidateSummaryDetail = Parameters<typeof orgCandidateSummary>[0];
+
+type OrgRoleCandidateCardProps = ComponentProps<typeof OrgRoleTalentBoardCard> & {
+  /**
+   * Given for people outside Harper: their summary comes from it instead of a
+   * profile read, and they cannot be saved (no recommendation to save).
+   */
+  profileDetail?: CandidateSummaryDetail;
+};
 
 /** One open card per list, and the way to ask Harper about a candidate. */
 export const OrgCandidateListContext = createContext<{
@@ -97,7 +105,6 @@ function experienceTitle(item: OrgBoardItem) {
 
 /** 한 줄 요약, Harper 메모, 확인할 기준: the same order as the full profile. */
 function CandidateSummary({ item }: { item: OrgBoardItem }) {
-  const { c } = useOrgLocale();
   const { workspace } = useOrgWorkspace();
   const detailQuery = useOrgTalentDetail({
     recommendationId: item.recommendationId,
@@ -119,13 +126,25 @@ function CandidateSummary({ item }: { item: OrgBoardItem }) {
     );
   }
   // Without the detail, the list item still has the proposal text and criteria.
-  const { criteriaEvaluations, harperNote, tldr } = detail
-    ? orgCandidateSummary(detail)
-    : {
-        criteriaEvaluations: item.criteriaEvaluations,
-        harperNote: item.companyIntro?.harperNote?.trim() ?? "",
-        tldr: item.companyIntro?.tldr?.trim() ?? "",
-      };
+  return (
+    <CandidateSummaryBody
+      {...(detail
+        ? orgCandidateSummary(detail)
+        : {
+            criteriaEvaluations: item.criteriaEvaluations,
+            harperNote: item.companyIntro?.harperNote?.trim() ?? "",
+            tldr: item.companyIntro?.tldr?.trim() ?? "",
+          })}
+    />
+  );
+}
+
+function CandidateSummaryBody({
+  criteriaEvaluations,
+  harperNote,
+  tldr,
+}: ReturnType<typeof orgCandidateSummary>) {
+  const { c } = useOrgLocale();
   return (
     <>
       {tldr ? (
@@ -181,6 +200,7 @@ export function OrgRoleCandidateCard({
   onPass,
   onReject,
   pending = false,
+  profileDetail,
   stages,
 }: OrgRoleCandidateCardProps) {
   const { c, locale } = useOrgLocale();
@@ -213,7 +233,7 @@ export function OrgRoleCandidateCard({
       : null,
     introStatus || null,
   ].filter(Boolean);
-  const canSave = canManageCandidates && isOrgInboxStage(item.stage);
+  const canSave = canManageCandidates && isOrgInboxStage(item.stage) && !profileDetail;
   const criteriaSummary = (item.criteriaEvaluations ?? [])
     .map((evaluation) => `${evaluation.name} ${companyCriterionFitnessLabel(evaluation.fitness, locale)}`)
     .join(", ");
@@ -276,7 +296,11 @@ export function OrgRoleCandidateCard({
       </ClickablePanel>
       <CareerAnimatedRegion open={expanded}>
         <div className="career-opportunity-content space-y-6" id={contentId}>
-          <CandidateSummary item={item} />
+          {profileDetail ? (
+            <CandidateSummaryBody {...orgCandidateSummary(profileDetail)} />
+          ) : (
+            <CandidateSummary item={item} />
+          )}
           {footer ? <div>{footer}</div> : null}
           {canManageCandidates && isDecisionStage ? (
             <div className="grid grid-cols-[minmax(108px,auto)_minmax(0,1fr)] gap-2">
