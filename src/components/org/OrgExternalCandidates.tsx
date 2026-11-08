@@ -37,6 +37,7 @@ import {
 } from "./role-screen/OrgRoleCandidateCard";
 import { ReviewEmptyState } from "./OrgHomeInbox";
 import { OrgErrorState } from "./workspace/OrgErrorState";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import {
   externalBoardItem,
   externalCandidateCanSendIntro,
@@ -366,10 +367,15 @@ export function OrgExternalCandidatesView({ data, roleId, workspaceId, actions, 
       defaultEmail={actions.defaultEmail}
       members={actions.members}
       note={data.inviteSending
-        ? c(
-            "Harper가 이 분께 위 관심 이유와 역할을 담은 초대 메일을 한 통 보내요. 이 분이 메일에서 연결을 확인하면, Harper가 이 분과 요청하신 분, 위에서 고른 이메일을 한 메일로 연결해요. 답장이 오면 알려드릴게요.",
-            "Harper emails this person one invitation with the reason above and the Role. If they confirm the connection from that email, Harper introduces them to you and the emails chosen above in one email. You’ll hear when they reply."
-          )
+        ? (
+          <>
+            {c(
+              "Harper가 이 분께 위 관심 이유와 역할을 담은 초대 메일을 한 통 보내요. 이 분이 메일에서 연결을 확인하면, Harper가 이 분과 요청하신 분, 위에서 고른 이메일을 한 메일로 연결해요. 답장이 오면 알려드릴게요.",
+              "Harper emails this person one invitation with the reason above and the Role. If they confirm the connection from that email, Harper introduces them to you and the emails chosen above in one email. You’ll hear when they reply."
+            )}
+            <p className="mt-1">{ct(c, COMPANY_TERMS.caption.externalRequestUsesIntro)}</p>
+          </>
+        )
         : c(
             "지금은 연결 요청만 기록되고, 이 분께 메일은 나가지 않아요.",
             "For now the request is only recorded; no email goes to this person."

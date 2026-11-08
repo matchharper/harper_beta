@@ -38,6 +38,18 @@ test("default limits: five runs a day per Role, twenty per company", () => {
   assert.deepEqual(externalSourcingLimits({}), { roleDaily: 5, workspaceDaily: 20 });
 });
 
+test("a free workspace gets one run a day per Role; paid, scale and legacy keep the limits", () => {
+  assert.deepEqual(externalSourcingLimits({}, "free"), { roleDaily: 1, workspaceDaily: 20 });
+  for (const plan of ["slot", "scale", "legacy", null]) assert.deepEqual(externalSourcingLimits({}, plan), { roleDaily: 5, workspaceDaily: 20 });
+  // A Role limit switched off stays off on the free plan.
+  assert.equal(externalSourcingLimits({ ORG_EXTERNAL_SOURCING_DAILY_LIMIT: "0" }, "free").roleDaily, 0);
+  const free = (roleRunsLast24h: number) => decideExternalSourcing({ enabled: true, trigger: "company_request",
+    history: { ...quiet, roleRunsLast24h }, now: NOW, limits: externalSourcingLimits({}, "free"), plan: "free" });
+  assert.deepEqual(free(0), { allowed: true });
+  assert.deepEqual(free(1), { allowed: false, status: "not_queued", reason: "free_plan_daily_limit" });
+  assert.match(formatExternalSearchRequestResult({ status: "not_queued", reason: "free_plan_daily_limit" }), /On the free plan each Role can start one external search per 24 hours/);
+});
+
 test("one active run per Role, daily limits per Role and per company, and Harper never starts one on its own", () => {
   const decide = (trigger: "company_request" | "agent_initiative", history = quiet, enabled = true) =>
     decideExternalSourcing({ enabled, trigger, history, now: NOW, limits });
@@ -282,7 +294,7 @@ test("an external search asked inside a company Harper run carries that run; one
       return (...args: unknown[]) => { if (key === "insert") inserted.push(args[0] as Record<string, unknown>); return builder; };
     } });
     return builder;
-  } } as never;
+  }, rpc: () => Promise.resolve({ data: { model: "slot", creditSlots: [] }, error: null }) } as never;
   const ask = () => requestExternalSourcing({ admin, workspaceId: "w1", roleId: "r1", roleName: "Engineer",
     userId: "u1", trigger: "company_request", reason: "few strong candidates", now: NOW });
   const run = "20000000-0000-4000-8000-000000000001";
@@ -293,4 +305,74 @@ test("an external search asked inside a company Harper run carries that run; one
   assert.equal(queued.modelOutput.includes(run), false);
   await ask();
   assert.deepEqual(inserted[1]!.input, { reason: "few strong candidates" });
+});
+
+/** Admin for the plan and request checks: runs counted as `roleRuns`, the plan summary and Role access from `billing`. */
+function billingAdmin(billing: { model: string; creditSlots?: Array<Record<string, unknown>>; slotType?: string }, roleRuns = 0) {
+  const inserts: string[] = [];
+  const rpcs: string[] = [];
+  const admin = {
+    rpc: (name: string) => {
+      rpcs.push(name);
+      if (name === "workspace_billing_summary_v2") return Promise.resolve({ data: { model: billing.model, creditSlots: billing.creditSlots ?? [] }, error: null });
+      if (name === "role_matching_slot_type_v1") return Promise.resolve({ data: billing.slotType ?? "free", error: null });
+      return Promise.resolve({ data: true, error: null });
+    },
+    from: (table: string) => {
+      const builder: object = new Proxy({}, { get(_t, key) {
+        if (key === "then") return (resolve: (v: unknown) => unknown) =>
+          Promise.resolve({ data: [], error: null, count: table === "external_sourcing_runs" ? roleRuns : 0 }).then(resolve);
+        if (key === "single" || key === "maybeSingle") return () => Promise.resolve({ data: { id: "new", status: "requested" }, error: null });
+        return (...args: unknown[]) => { if (key === "insert") inserts.push(table); void args; return builder; };
+      } });
+      return builder;
+    },
+  };
+  return { admin: admin as never, inserts, rpcs };
+}
+
+test("a free workspace that used today's search for a Role is told so; a paid one is not held to it", async (t) => {
+  serverModules(t, { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" });
+  const { requestExternalSourcing } = await import("./externalSourcing.server");
+  const ask = (model: string) => {
+    const fake = billingAdmin({ model }, 1);
+    return requestExternalSourcing({ admin: fake.admin, workspaceId: "w1", roleId: "r1", roleName: "Engineer",
+      userId: "u1", trigger: "company_request", reason: "", now: NOW }).then((result) => ({ result, fake }));
+  };
+  const free = await ask("free");
+  assert.equal(free.result.status, "not_queued");
+  assert.equal((free.result as { reason?: string }).reason, "free_plan_daily_limit");
+  assert.deepEqual(free.fake.inserts, []);
+  for (const model of ["slot", "scale", "legacy"]) assert.equal((await ask(model)).result.status, "queued", model);
+});
+
+test("an outside connection request needs a connection left, like a member Intro request", async (t) => {
+  serverModules(t, { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" });
+  const { requestExternalIntro } = await import("./externalSourcing.server");
+  const { WorkspaceBillingError, billingErrorCopy } = await import("@/lib/org/billing/types");
+  const shared = (remaining: number) => ({ id: "free", slotId: null, roleId: null, remaining });
+  const candidate = { id: "c1", name: "Ada", role_id: "r1", contact: { status: "found" }, intro: null } as never;
+  const ask = (fake: ReturnType<typeof billingAdmin>, person = candidate) => requestExternalIntro({ admin: fake.admin, workspaceId: "w1",
+    roleId: "r1", userId: "u1", candidate: person, companyAppeal: "Agent infra", introRecipientEmails: ["me@acme.example"], channel: "web" });
+
+  const empty = billingAdmin({ model: "free", creditSlots: [shared(0)] });
+  await assert.rejects(ask(empty), (error: unknown) => error instanceof WorkspaceBillingError && error.code === "credits_exhausted");
+  assert.deepEqual(empty.inserts, []);
+  // The same message as a member Intro request.
+  assert.match(billingErrorCopy("credits_exhausted", "ko"), /연결이 모두 소진됐어요/);
+
+  for (const [label, fake] of [
+    ["one left", billingAdmin({ model: "free", creditSlots: [shared(1)] })],
+    ["own slot credits", billingAdmin({ model: "slot", creditSlots: [shared(0), { id: "s1", slotId: "s1", roleId: "r1", remaining: 12 }] })],
+    ["Harper-tailored Role", billingAdmin({ model: "free", creditSlots: [shared(0)], slotType: "paid" })],
+    ["legacy", billingAdmin({ model: "legacy" })],
+    ["scale", billingAdmin({ model: "scale" })],
+  ] as const) {
+    assert.equal((await ask(fake)).status, "requested", label);
+    assert.deepEqual(fake.inserts, ["external_intro_requests"], label);
+  }
+  // An existing request is answered as before, without a credit check.
+  const repeat = billingAdmin({ model: "free", creditSlots: [shared(0)] });
+  await ask(repeat, { ...(candidate as object), intro: { status: "invited" } } as never);
+  assert.equal(repeat.rpcs.includes("workspace_billing_summary_v2"), false);
 });

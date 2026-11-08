@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin, requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
+import { billingErrorResponse } from "@/lib/org/billing/http";
 import { externalSourcingEnabledFor } from "@/lib/org/agent/externalSourcing";
 import { loadShownExternalCandidate, requestExternalIntro } from "@/lib/org/agent/externalSourcing.server";
 
@@ -33,6 +34,9 @@ export async function POST(req: NextRequest) {
     if (result.status === "no_email") throw new OrgHttpError(409, "No email address was found for this person.");
     return NextResponse.json({ ok: true, status: result.status });
   } catch (error) {
+    // No connection left: the same message and code as a member Intro request.
+    const billing = billingErrorResponse(error);
+    if (billing) return billing;
     if (error instanceof OrgHttpError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof Error && error.message === "Unauthorized") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     console.error("[org/external-candidates/intro]", error);

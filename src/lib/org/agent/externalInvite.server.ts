@@ -8,6 +8,8 @@ import { parseGtmResendDeliveryEvent, type ResendDeliveryEventPayload } from "@/
 import { parseResendEmailOpenedEvent, type ResendEmailOpenedEventPayload } from "@/lib/email/openTracking";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import type { Json } from "@/types/database.types";
+import { throwBillingDbError } from "@/lib/org/billing/store";
+import { billingErrorCode } from "@/lib/org/billing/types";
 import type { OrgAgentAdminClient } from "./data";
 import { enqueueCompanyUpdate } from "./companyUpdate.server";
 import { externalSourcingEnabledFor } from "./externalSourcing";
@@ -91,8 +93,8 @@ async function release(admin: Admin, row: ClaimedRequest, patch: { status: strin
 }
 
 async function notifyOutcome(args: { row: ClaimedRequest; roleName: string; person: { ref: string; name: string | null };
-  outcome: "not_sendable" | "failed" | "bounced" | "unsubscribed" | "connect_failed"; reason: string }) {
-  await enqueueCompanyUpdate({
+  outcome: "not_sendable" | "failed" | "bounced" | "unsubscribed" | "connect_failed"; reason: string }, notify: Notify = enqueueCompanyUpdate) {
+  await notify({
     workspaceId: args.row.company_workspace_id, roleId: args.row.role_id,
     eventKey: `external_invite:${args.row.id}:${args.outcome}`,
     purpose: args.outcome === "connect_failed"
@@ -482,6 +484,16 @@ async function connectAccepted(admin: Admin, id: string, now: Date, send: SendEm
   return sendConnection(admin, claimed as ConnectRow, now, send, notify);
 }
 
+/** The connection credit for one outside person: the same debit as a member Intro request, keyed by the person. */
+async function chargeConnection(admin: Admin, row: ConnectRow) {
+  const { error } = await admin.rpc("workspace_billing_debit_v1" as never, {
+    p_workspace: row.company_workspace_id, p_action: "intro_request", p_key: `external:${row.external_candidate_id}`,
+    p_role: row.role_id, p_talent: row.external_candidate_id, p_actor: row.requested_by,
+    p_payload: { externalIntroRequestId: row.id }, p_complete: true,
+  } as never);
+  throwBillingDbError(error);
+}
+
 /** One email To the person, CC the requesting member and the company recipients; replies reach all of them. */
 async function sendConnection(admin: Admin, row: ConnectRow, now: Date, send: SendEmail, notify: Notify) {
   const ctx = await loadContext(admin, row);
@@ -511,6 +523,18 @@ async function sendConnection(admin: Admin, row: ConnectRow, now: Date, send: Se
   // Test mode covers the person's address here too.
   if (!externalInviteRecipientAllowed(to)) {
     await releaseConnect(admin, row, { status: "failed", error_code: "connect_test_recipients_only" });
+    return "failed";
+  }
+  // One connection credit, used when the introduction goes out: charged before the send, once per person,
+  // so a retry reuses the same receipt. Without a credit nothing is sent; the person's confirmation stays.
+  try {
+    await chargeConnection(admin, row);
+  } catch (error) {
+    const code = billingErrorCode(error);
+    if (code !== "credits_exhausted" && code !== "role_slot_required") throw error;
+    const reason = code === "credits_exhausted" ? "credits_exhausted" : "role_not_active";
+    await releaseConnect(admin, row, { status: "failed", error_code: `connect_${reason}` });
+    await notifyOutcome({ row, roleName, person, outcome: "connect_failed", reason }, notify);
     return "failed";
   }
   const rendered = renderExternalConnectEmail({

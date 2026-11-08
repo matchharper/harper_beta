@@ -1,3 +1,5 @@
+import { throwBillingDbError } from "@/lib/org/billing/store";
+import { WorkspaceBillingError, type BillingSummary } from "@/lib/org/billing/types";
 import type { OrgAgentAdminClient } from "./data";
 import {
   decideExternalSourcing,
@@ -66,16 +68,49 @@ async function loadHistory(admin: OrgAgentAdminClient, workspaceId: string, role
   };
 }
 
+type CreditSummary = Pick<BillingSummary, "model" | "creditSlots">;
+
+/** The workspace's plan and connections left, from the same summary the billing page reads. */
+async function loadCreditSummary(admin: OrgAgentAdminClient, workspaceId: string) {
+  const { data, error } = await admin.rpc("workspace_billing_summary_v2" as never, { p_workspace: workspaceId } as never);
+  throwBillingDbError(error);
+  return data as unknown as CreditSummary | null;
+}
+
+/**
+ * Same rule as a member Intro request: a Role with no connection left cannot ask. The connection itself is
+ * used only when the introduction goes out (externalInvite.server). Legacy, scale and Harper-tailored Roles
+ * are not charged.
+ */
+async function assertExternalIntroCredit(admin: OrgAgentAdminClient, workspaceId: string, roleId: string) {
+  const summary = await loadCreditSummary(admin, workspaceId);
+  if (!summary || summary.model === "legacy" || summary.model === "scale") return;
+  const slots = summary.creditSlots ?? [];
+  const own = slots.filter((slot) => slot.roleId === roleId);
+  const left = [...own, ...slots.filter((slot) => slot.slotId === null)]
+    .reduce((sum, slot) => sum + Math.max(0, Number(slot.remaining) || 0), 0);
+  if (left >= 1) return;
+  if (!own.length) {
+    // A Role without its own slot draws on the shared connections unless it is Harper-tailored (paid access).
+    const { data: slotType, error } = await admin.rpc("role_matching_slot_type_v1" as never, { p_role_id: roleId } as never);
+    if (error) throw error;
+    if (slotType !== "free") return;
+  }
+  throw new WorkspaceBillingError("credits_exhausted");
+}
+
 export async function requestExternalSourcing(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; roleName: string; userId: string;
   trigger: ExternalSourcingTrigger; reason: string; now?: Date;
 }) {
   const now = args.now ?? new Date();
   const enabled = externalSourcingEnabledFor(args.workspaceId);
-  const history = enabled
-    ? await loadHistory(args.admin, args.workspaceId, args.roleId, now)
-    : { activeRunId: null, roleRunsLast24h: 0, workspaceRunsLast24h: 0 };
-  const decision = decideExternalSourcing({ enabled, trigger: args.trigger, history, now, limits: externalSourcingLimits() });
+  const [history, plan] = enabled
+    ? await Promise.all([loadHistory(args.admin, args.workspaceId, args.roleId, now),
+      loadCreditSummary(args.admin, args.workspaceId).then((summary) => summary?.model ?? null)])
+    : [{ activeRunId: null, roleRunsLast24h: 0, workspaceRunsLast24h: 0 }, null];
+  const decision = decideExternalSourcing({ enabled, trigger: args.trigger, history, now, plan,
+    limits: externalSourcingLimits(process.env, plan) });
   const base = { roleName: args.roleName, trigger: args.trigger };
   if (!decision.allowed) {
     const result = decision.status === "already_running"
@@ -204,6 +239,8 @@ export async function requestExternalIntro(args: {
   if (args.candidate.contact?.status === "not_found") {
     return { status: "no_email" as const, intro: null, emailLookup: undefined };
   }
+  // An existing request is returned as is; a new one needs a connection left (used later, when the intro goes out).
+  if (!args.candidate.intro) await assertExternalIntroCredit(args.admin, args.workspaceId, args.roleId);
   const recorded = await recordExternalIntroRequest({ admin: args.admin, workspaceId: args.workspaceId, roleId: args.roleId,
     userId: args.userId, candidateRef: args.candidate.id, companyAppeal: args.companyAppeal,
     introRecipientEmails: args.introRecipientEmails, channel: args.channel });
