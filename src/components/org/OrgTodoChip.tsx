@@ -29,7 +29,7 @@ import {
   type OrgTodoColumn,
   type OrgTodoItem,
 } from "@/lib/org/todo";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 import {
   ORG_TODO_COLUMN_ICON,
   OrgTodoCards,
@@ -55,10 +55,12 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
   const name = item.talent?.name || c("후보자", "Candidate");
   const n = item.count ?? 0;
   if (item.id.startsWith("activity:") && item.detail) {
-    return orgHomeActivityTitle(
+    const title = orgHomeActivityTitle(
       { kind: item.detail as OrgHomeActivityKind, talentName: name },
       locale
     );
+    const answered = answeredText(item, c);
+    return answered ? `${title} · ${answered}` : title;
   }
   const request =
     item.detail === "resume"
@@ -93,6 +95,12 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
       return c("하퍼가 바꿀 내용 확인", "Confirm Harper's change");
     case "criteria_proposal":
       return item.detail || c("하퍼가 제안한 기준 변경", "Harper's suggested criteria change");
+    case "unanswered_message":
+      return c(
+        "{name}님 메시지에 아직 답하지 않았어요",
+        "{name}'s message has no reply yet",
+        { name }
+      );
     case "interview_missing":
       return c(
         "{name}님 면접 일정이 아직 없어요",
@@ -221,7 +229,24 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
   }
 }
 
+/**
+ * On a candidate's message: who answered it, so the team sees when Harper
+ * answered and no one on the team did.
+ */
+function answeredText(item: OrgTodoItem, c: Copy) {
+  const who = item.answeredBy;
+  if (!who) return null;
+  if (who.by === "harper") return c("Harper가 답했어요", "Harper replied");
+  return who.name
+    ? c("{name}님이 답했어요", "{name} replied", { name: who.name })
+    : c("팀이 답했어요", "Your team replied");
+}
+
 function itemHref(item: OrgTodoItem, roleId: string, workspaceId: string) {
+  // The candidate's messages are answered in the Role's conversation.
+  if (item.kind === "unanswered_message" || item.answeredBy) {
+    return buildOrgHref({ orgId: workspaceId, page: "role", roleId, tab: "chat" });
+  }
   if (item.kind === "slack_delivery_error") {
     return buildOrgHref({ orgId: workspaceId, page: "settings" });
   }
@@ -309,6 +334,19 @@ export function orgTodoItemPeople(item: OrgTodoItem, c: Copy) {
   return more
     ? c("{p0} 외 {n}명", "{p0} and {n} more", { p0: names, n: more })
     : names;
+}
+
+/**
+ * The card's line under its title: a candidate's message as a short quote and
+ * how long ago it came; otherwise who is behind a count.
+ */
+export function orgTodoItemDescription(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
+  if (item.kind !== "unanswered_message") return orgTodoItemPeople(item, c);
+  return (
+    [item.detail ? `“${item.detail}”` : null, formatRelativeTime(item.at, locale)]
+      .filter(Boolean)
+      .join(" · ") || null
+  );
 }
 
 /** Under Harper's scheduled work: who set it up. */
@@ -681,6 +719,20 @@ export function useOrgTodoActions({
       onClick: () => markRead.mutate(item.id, { onSettled: onChanged }),
     };
     const href = itemHref(item, roleId, workspaceId);
+    if (item.kind === "unanswered_message" && href) {
+      // Set aside, the message goes back to its 알림 line until the candidate
+      // writes again.
+      return [
+        {
+          href,
+          key: "reply",
+          label: c("답하기", "Reply"),
+          onClick: () => onNavigate?.(),
+          primary: true,
+        },
+        { ...read, key: "dismiss", label: c("답 안 해도 돼요", "No reply needed") },
+      ];
+    }
     if (!href) return item.column === "notice" ? [read] : [];
     const labels: Partial<Record<OrgTodoItem["kind"], string>> = {
       intros_empty: c("연결 추가하기", "Add intros"),
@@ -695,7 +747,9 @@ export function useOrgTodoActions({
     const view: OrgTodoAct = {
       href,
       key: "view",
-      label: labels[item.kind] ?? c("보기", "View"),
+      label: item.answeredBy
+        ? c("대화 열기", "Open chat")
+        : (labels[item.kind] ?? c("보기", "View")),
       onClick: () => onNavigate?.(),
       primary: true,
     };
@@ -851,7 +905,7 @@ export function OrgTodoList({
         headings={headings}
         items={items}
         parts={actionParts}
-        people={(item) => orgTodoItemPeople(item, c)}
+        people={(item) => orgTodoItemDescription(item, c, locale)}
         suggestionCount={suggestions}
         text={(item) => itemText(item, c, locale)}
         title={(item) => itemTitle(item, c, locale)}
@@ -895,7 +949,12 @@ export function OrgTodoList({
               {group.map((item) => (
                 <TodoRow
                   action={action(item)}
-                  detail={detail(item)}
+                  detail={
+                    detail(item) ??
+                    (item.kind === "unanswered_message"
+                      ? orgTodoItemDescription(item, c, locale)
+                      : undefined)
+                  }
                   icon={ORG_TODO_COLUMN_ICON[column]}
                   key={item.id}
                   title={itemTitle(item, c, locale)}

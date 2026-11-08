@@ -9,7 +9,7 @@ import {
   OrgTodoGo,
   OrgTodoQuiet,
   orgTodoHeadings,
-  orgTodoItemPeople,
+  orgTodoItemDescription,
   orgTodoItemText,
   orgTodoItemTitle,
   orgTodoItemWhen,
@@ -133,7 +133,7 @@ function OrgHomeTodoLine({
   if (look === "card") {
     return (
       <OrgTodoFollowupCard
-        description={orgTodoItemPeople(item, c)}
+        description={orgTodoItemDescription(item, c, locale)}
         detail={below}
         meta={meta}
         parts={parts}

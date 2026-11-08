@@ -66,7 +66,7 @@ test("Home panels: 결정할 것, Harper가 할 수 있는 일 · 알림, Harper
         blocked: "막힌 것", done: "한 일", in_progress: "Harper가 하는 중", my_turn: "결정할 것",
         notice: "알림", scheduled: "예정", suggestion: "Harper가 할 수 있는 일",
       }),
-      orgTodoItemPeople: () => null,
+      orgTodoItemDescription: () => null,
       orgTodoItemText: (item: OrgTodoItem) => `text:${item.kind}`,
       orgTodoItemTitle: (item: OrgTodoItem) => `text:${item.kind}`,
       orgTodoItemWhen: () => "",

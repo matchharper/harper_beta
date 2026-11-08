@@ -34,6 +34,8 @@ export type OrgTodoKind =
   | "role_start"
   | "memory_proposal"
   | "interview_missing"
+  /** A candidate's message nobody on the company side has answered yet. */
+  | "unanswered_message"
   // blocked: each clears itself once the cause is gone
   | "search_failed"
   | "slack_delivery_error"
@@ -112,6 +114,11 @@ export type OrgTodoItem = {
   scheduleStatus?: "active" | "paused";
   /** Who set up Harper's scheduled work: Harper on its own, or the team. */
   scheduledBy?: "harper" | "team" | null;
+  /**
+   * On a candidate's message (알림): who on the company side answered it,
+   * Harper on its own or a team member (name when known).
+   */
+  answeredBy?: { by: "harper" } | { by: "team"; name: string | null } | null;
 };
 
 /** Each Role's numbers, the same ones the inbox and Home show. */

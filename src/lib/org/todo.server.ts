@@ -17,6 +17,15 @@ import { getOrgRoleStatusFilterValue } from "./roleStatus";
 import { fetchOrgBoard, fetchRoleRowsForWorkspace } from "./server";
 import { readSearchRunNotes } from "./searchRunNote";
 import {
+  answeredByOf,
+  applyCandidateConversations,
+  candidateMessageExcerpt,
+  CONVERSATION_EVENTS,
+  readCandidateConversations,
+  type AnsweredBy,
+  type ConversationRow,
+} from "./candidateConversationTodo";
+import {
   ORG_TODO_RECENT_DAYS,
   ORG_TODO_SUGGESTIONS_SHOWN,
   orgTodoMyTurn,
@@ -366,6 +375,7 @@ async function loadRoleTodoItems(args: {
     connectedTags,
     reads,
     declined,
+    conversationRows,
   ] = await Promise.all([
     untypedTable(admin, "company_intro_candidates")
       .select(
@@ -471,6 +481,17 @@ async function loadRoleTodoItems(args: {
       .gte("talent_decision_at", since)
       .order("talent_decision_at", { ascending: false })
       .limit(limit),
+    // Each candidate's conversation with the company, newest first: who
+    // wrote last decides whether the company still has to answer.
+    untypedTable(admin, "talent_progress")
+      .select("id,talent_id,created_at,metadata")
+      .eq("role_id", roleId)
+      .eq("kind", "org_candidate_activity")
+      .eq("open_to_company", true)
+      .in("metadata->>eventType", CONVERSATION_EVENTS)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(ALL_LIMIT),
   ]);
 
   const introRows = rows<IntroRow>(intros);
@@ -481,6 +502,11 @@ async function loadRoleTodoItems(args: {
   const meetingRows = rows<MeetingRow>(meetings);
   const runRows = rows<RunRow>(runs);
   const declinedRows = rows<DeclinedRow>(declined);
+  // Candidates' messages of the last days nobody on the company side answered.
+  const waitingOnCompany = readCandidateConversations(
+    optionalRows<ConversationRow>("candidate_conversations", conversationRows),
+    { now, days: ORG_TODO_RECENT_DAYS }
+  );
 
   // The few names shown under a grouped item: who has waited longest for
   // the company's decision, and the newest suggested candidates. Both come
@@ -517,6 +543,7 @@ async function loadRoleTodoItems(args: {
         ...pendingPeople.slice(0, PEOPLE_SHOWN).map((row) => row.talentId),
         ...readyPeople.slice(0, PEOPLE_SHOWN).map((row) => row.talentId),
         ...[...connectedSince.keys()].filter((id) => !withMeeting.has(id)),
+        ...waitingOnCompany.unanswered.map((row) => row.talentId),
       ].filter(Boolean)
     )
   );
@@ -1021,11 +1048,106 @@ async function loadRoleTodoItems(args: {
     }
   }
 
+  // A candidate waiting for the company's answer: a card instead of its
+  // 알림 lines, and on answered ones, who answered.
+  const shown = new Set(items.map((item) => item.id));
+  const details = await readConversationDetails({
+    admin,
+    workspaceId,
+    relayIds: waitingOnCompany.unanswered
+      .filter((row) => talents.has(row.talentId) && !reads.has(row.id))
+      .map((row) => row.relayId)
+      .filter((id): id is string => Boolean(id)),
+    requestIds: [...waitingOnCompany.answers]
+      .filter(([messageId]) => shown.has(`activity:${messageId}`))
+      .map(([, requestId]) => requestId)
+      .filter((id): id is string => Boolean(id)),
+  });
+  const withConversations = applyCandidateConversations({
+    items,
+    unanswered: waitingOnCompany.unanswered,
+    answers: waitingOnCompany.answers,
+    answeredBy: details.answeredBy,
+    dismissed: reads,
+    talents,
+    excerpts: details.excerpts,
+  });
+
   // Updates this person marked as read leave their To-do.
-  const visible = items
+  const visible = withConversations
     .filter((item) => item.column !== "notice" || !reads.has(item.id))
     .map((item) => ({ ...item, roleId }));
   return { items: visible, suggestions: openSuggestions };
+}
+
+/**
+ * What the conversation lines show: a short line of each waiting candidate's
+ * message, and who sent each company message that answered one. A read that
+ * fails leaves those words out, not the To-do.
+ */
+async function readConversationDetails(args: {
+  admin: Admin;
+  workspaceId: string;
+  relayIds: string[];
+  requestIds: string[];
+}) {
+  const none = { data: [], error: null };
+  const [relays, requests] = await Promise.all([
+    args.relayIds.length
+      ? untypedTable(args.admin, "company_talent_relays")
+          .select("id,relay_content")
+          .in("id", [...new Set(args.relayIds)])
+      : none,
+    args.requestIds.length
+      ? untypedTable(args.admin, "company_talent_requests")
+          .select(
+            "id,source:company_messages!company_talent_requests_source_company_message_id_fkey(message_type,company_user_id)"
+          )
+          .eq("company_workspace_id", args.workspaceId)
+          .in("id", [...new Set(args.requestIds)])
+      : none,
+  ]);
+  const excerpts = new Map<string, string>();
+  for (const relay of optionalRows<{ id: string; relay_content: string | null }>(
+    "candidate_relays",
+    relays
+  )) {
+    const excerpt = candidateMessageExcerpt(relay.relay_content);
+    if (excerpt) excerpts.set(String(relay.id), excerpt);
+  }
+  type Source = { message_type: string | null; company_user_id: string | null };
+  const sources = optionalRows<{ id: string; source: Source | Source[] | null }>(
+    "company_replies",
+    requests
+  ).map((row) => ({
+    id: String(row.id),
+    source: Array.isArray(row.source) ? (row.source[0] ?? null) : row.source,
+  }));
+  const memberIds = [
+    ...new Set(
+      sources
+        .filter((row) => row.source?.message_type !== "web_action")
+        .map((row) => row.source?.company_user_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const names = new Map<string, string>();
+  if (memberIds.length) {
+    for (const member of optionalRows<{ user_id: string; name: string | null }>(
+      "company_reply_members",
+      await untypedTable(args.admin, "company_users")
+        .select("user_id,name")
+        .in("user_id", memberIds)
+    )) {
+      if (member.name) names.set(String(member.user_id), member.name);
+    }
+  }
+  const answeredBy = new Map<string, AnsweredBy>();
+  for (const row of sources) {
+    const who = answeredByOf(row.source, names);
+    if (who) answeredBy.set(row.id, who);
+  }
+  return { answeredBy, excerpts };
 }
 
 async function readWorkspaceFacts(
