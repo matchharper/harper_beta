@@ -82,3 +82,14 @@ test("no intros left is blocked only while someone waits to connect", () => {
   assert.deepEqual(kinds(roleSearchAndBlockedItems({ ...base, introsLeft: 0, pendingCount: 0 })), []);
   assert.deepEqual(kinds(roleSearchAndBlockedItems({ ...base, introsLeft: null })), []);
 });
+
+test("no intros left is blocked too while only people to request wait, since requesting uses an intro", () => {
+  const onlyToRequest = roleSearchAndBlockedItems({ ...base, introsLeft: 0, pendingCount: 0, toRequestCount: 4 });
+  assert.deepEqual(kinds(onlyToRequest), ["blocked:intros_empty:company_intro"]);
+  assert.equal(onlyToRequest[0].count, 4);
+  // Waiting to connect comes first: its number, as before.
+  const both = roleSearchAndBlockedItems({ ...base, introsLeft: 0, toRequestCount: 4 });
+  assert.deepEqual(kinds(both), ["blocked:intros_empty"]);
+  assert.equal(both[0].count, 2);
+  assert.deepEqual(kinds(roleSearchAndBlockedItems({ ...base, introsLeft: 1, pendingCount: 0, toRequestCount: 4 })), []);
+});

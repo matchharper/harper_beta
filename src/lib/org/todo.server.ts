@@ -236,6 +236,8 @@ export function roleSearchAndBlockedItems(args: {
   workspace: Pick<WorkspaceFacts, "slackChannels" | "activeSlackTeams">;
   introsLeft: number | null;
   pendingCount: number;
+  /** People to request a connection with: requesting uses an intro too. */
+  toRequestCount?: number;
 }): OrgTodoItem[] {
   const found: OrgTodoItem[] = [];
   // Member and external searches: running external search, and the latest
@@ -296,14 +298,17 @@ export function roleSearchAndBlockedItems(args: {
       detail: disconnected ? "integration" : "send",
     });
   }
-  // No intros left while candidates wait for a decision.
-  if (args.introsLeft === 0 && args.pendingCount > 0) {
+  // No intros left while candidates wait for a decision: waiting to connect
+  // first, else people to request (both use an intro).
+  const toRequest = args.pendingCount > 0 ? 0 : (args.toRequestCount ?? 0);
+  if (args.introsLeft === 0 && (args.pendingCount > 0 || toRequest > 0)) {
     found.push({
       id: "intros-empty",
       column: "blocked",
       kind: "intros_empty",
       at: null,
-      count: args.pendingCount,
+      count: args.pendingCount || toRequest,
+      ...(toRequest ? { detail: "company_intro" } : {}),
     });
   }
   return found;
@@ -787,6 +792,7 @@ async function loadRoleTodoItems(args: {
       workspace: args.workspace,
       introsLeft: args.introsLeft,
       pendingCount,
+      toRequestCount: decision.counts.company_intro,
     })
   );
   // Harper's own scheduled work on this Role (not tied to an introduction):
@@ -1106,6 +1112,18 @@ export async function readOrgNow(args: {
   const roleIds = workspaceWide
     ? [...visible]
     : [...new Set(args.roleIds as string[])].filter((id) => visible.has(id));
+  // Harper-tailored Roles without their own slot are never charged.
+  const uncharged = new Set(
+    roleRows
+      .filter((row) => {
+        const internal = Array.isArray(row.company_internal_roles)
+          ? row.company_internal_roles[0]
+          : row.company_internal_roles;
+        return (internal as { is_harper_tailored_role?: boolean | null } | null | undefined)
+          ?.is_harper_tailored_role === true;
+      })
+      .map((row) => row.role_id)
+  );
   // Home (every Role): To-do lines only for Roles still being worked on.
   // Numbers still come for every Role, from the one board read above.
   const todoRoleIds = new Set(
@@ -1132,6 +1150,9 @@ export async function readOrgNow(args: {
       roleId,
       decision,
       introsLeft: slot ? slot.remaining : null,
+      charged:
+        !uncharged.has(roleId) ||
+        Boolean(creditSlots?.some((row) => row.slotId !== null && row.roleId === roleId)),
       nextScheduledSearchAt: nextSearches.get(roleId),
     };
   });
@@ -1149,7 +1170,8 @@ export async function readOrgNow(args: {
         now,
         decision: role.decision,
         nextScheduledSearchAt: role.nextScheduledSearchAt,
-        introsLeft: role.introsLeft,
+        // No "intros left" line for a Role that is never charged.
+        introsLeft: role.charged ? role.introsLeft : null,
         workspace,
         canManage: args.canManage === true,
       });

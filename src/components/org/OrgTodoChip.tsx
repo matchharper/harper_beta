@@ -167,7 +167,12 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
         "No intros left · {p1} ({n})",
         {
           p0: ct(c, COMPANY_TERMS.connection),
-          p1: ct(c, COMPANY_TERMS.stage.pending_connection),
+          p1: ct(
+            c,
+            item.detail === "company_intro"
+              ? COMPANY_TERMS.stage.company_intro
+              : COMPANY_TERMS.stage.pending_connection
+          ),
           n,
         }
       );

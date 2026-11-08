@@ -447,3 +447,19 @@ test("a workspace with no owner reads its numbers as an admin, not as zeros", as
   const none = await readOrgDecisionCounts({ admin, user: null, workspaceId: WS, roleIds: [ROLE_A] });
   assert.equal(none.get(ROLE_A)!.counts.pending_connection, 0);
 });
+
+test("a Harper-tailored Role without its own slot is never charged: no 'no intros left' line", async () => {
+  const tables = fixture();
+  const roleA = tables.company_roles.find((row) => row.role_id === ROLE_A)!;
+  roleA.company_internal_roles = { ...roleA.company_internal_roles, is_harper_tailored_role: true };
+  const shared = { id: "shared", slotId: null as string | null, label: "", roleId: null as string | null,
+    roleName: null, remaining: 0, allowance: 3, renewsAt: null, cancelAt: null };
+  let slots = [shared];
+  const admin = fakeAdmin(tables, { users: [OWNER], rpc: { read_company_candidate_delivery_v1: () => [] } });
+  const blocked = async () => (await readOrgNow({ admin, user: OWNER as any, workspaceId: WS, roleIds: [ROLE_A],
+    locale: "ko", readCreditSlots: async () => slots as any })).items.find((item) => item.kind === "intros_empty");
+  assert.equal(await blocked(), undefined);
+  // With a slot of its own it is charged, so the line shows when that runs out.
+  slots = [shared, { ...shared, id: "s", slotId: "slot-a", roleId: ROLE_A }];
+  assert.equal((await blocked())?.count, 1);
+});
