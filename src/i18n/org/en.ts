@@ -196,7 +196,7 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.reject.question":
     "What happens if we decline an introduction?",
   "faq.reject.answer":
-    "Declining means your company won't move forward with this candidate for this role. It isn't a temporary hold. Harper doesn't send an introduction email, and the candidate can see that the process has ended. With \"Have Harper send a closing note\" on (the default), Harper also lets them know. Messages already seen or received can't be recalled. If you need more information first, ask Harper to request details or an updated resume. Any reason you leave is used to improve future recommendations and isn't shared with the candidate.",
+    "Passing for now means your company won't move forward with this candidate for this role. It isn't a temporary hold. Harper doesn't send an introduction email, and the candidate can see that the process has ended. With \"Have Harper send a closing note\" on (the default), Harper also lets them know. Messages already seen or received can't be recalled. If you need more information first, ask Harper to request details or an updated resume. Any reason you leave isn't shared with the candidate; Harper reads it when refining your criteria.",
   "faq.intro-email.question":
     "Who receives the introduction email?",
   "faq.intro-email.answer":

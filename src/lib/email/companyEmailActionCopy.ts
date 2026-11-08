@@ -104,7 +104,7 @@ export function companyEmailActionText(
 ) {
   if (action === "request_intro")
     return {
-      title: c(locale, `${name}님에게 먼저 제안할까요?`, `Request an intro to ${name}?`),
+      title: c(locale, `${name}님에게 연결을 요청할까요?`, `Request an intro to ${name}?`),
       description: c(
         locale,
         "Harper가 회사의 관심 이유를 담아 제안해요. 수락하면 아래 메일로 바로 소개해 드려요.",
@@ -124,7 +124,7 @@ export function companyEmailActionText(
       // The request is recorded now; Harper delivers it to the candidate afterwards.
       doneTitle: c(
         locale,
-        "먼저 제안을 요청했어요. 지금 후보에게 전달할 준비를 하고 있어요.",
+        "연결을 요청했어요. 지금 후보에게 전달할 준비를 하고 있어요.",
         "Intro requested. Harper is getting it ready to send to the candidate."
       ),
       doneDescription: c(
@@ -135,7 +135,7 @@ export function companyEmailActionText(
     };
   if (action === "pass")
     return {
-      title: c(locale, `${name}님에게 제안하지 않을까요?`, `Pass on ${name}?`),
+      title: c(locale, `${name}님은 이번엔 넘길까요?`, `Pass on ${name} for now?`),
       description: c(
         locale,
         `이 역할의 후보 목록에서 빠져요. ${name}님에게는 아무 연락도 가지 않아요.`,
@@ -163,11 +163,11 @@ export function companyEmailActionText(
       ),
     };
   return {
-    title: c(locale, `${name}님과 연결하지 않을까요?`, `Decline connecting with ${name}?`),
+    title: c(locale, `${name}님과의 연결은 이번엔 넘길까요?`, `Pass on connecting with ${name} for now?`),
     description: c(
       locale,
-      `${name}님과의 연결을 거절해요. 되돌릴 수 없어요.`,
-      `You'll decline connecting with ${name}. This can't be undone.`
+      `${name}님과의 연결을 이번엔 넘겨요. 되돌릴 수 없어요.`,
+      `You'll pass on connecting with ${name} for now. This can't be undone.`
     ),
     // Same choice as the web Reject dialog.
     closingNoteLabel: c(

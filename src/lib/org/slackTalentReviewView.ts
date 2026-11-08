@@ -645,7 +645,7 @@ export function parseSlackTalentReviewDecisionSubmission(args: {
       return {
         errors: {
           review_reject_note:
-            "선택한 이유를 포함해 거절 이유는 2,000자 이내로 입력해 주세요.",
+            "선택한 이유를 포함해 넘기는 이유는 2,000자 이내로 입력해 주세요.",
         },
       };
     }
@@ -813,7 +813,7 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
     blocks: [
       {
         text: textObject(
-          `*${escapeMrkdwn(args.candidate.name)}님과의 연결을 이번에는 진행하지 않을까요?*\n연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시돼요. 아래를 선택해 두면 Harper가 후보자에게 배려 있게 종료 안내도 보내요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.\n\n선택하신 이유는 후보자에게 그대로 전하지 않고 다음 추천을 더 정확하게 하는 데 참고할게요.`
+          `*${escapeMrkdwn(args.candidate.name)}님과의 연결을 이번에는 진행하지 않을까요?*\n이번엔 넘기면 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시돼요. 아래를 선택해 두면 Harper가 후보자에게 배려 있게 종료 안내도 보내요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.\n\n선택하신 이유는 후보자에게 그대로 전하지 않고, Harper가 기준을 다듬을 때 읽어요.`
         ),
         type: "section",
       },
@@ -922,7 +922,7 @@ export function buildSlackTalentReviewDecisionResultView(args: {
           args.notifyCandidateOnClosure === false
             ? "종료 결정은 후보자에게 표시되고, Harper가 따로 종료 안내를 보내지는 않아요."
             : "Harper가 후보자에게 회사가 이번 연결을 더 진행하지 않기로 했다고 배려 있게 안내해요."
-        } 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 회사가 남긴 이유는 후보자에게 그대로 전달하지 않고 다음 추천 기준에 참고할게요.`
+        } 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 회사가 남긴 이유는 후보자에게 그대로 전달하지 않고, Harper가 기준을 다듬을 때 읽어요.`
       : args.connectionMode === "cc_intro"
         ? args.bookingLinkIncluded
           ? "선택한 회사 담당자와 후보자에게 소개 이메일을 보냈어요. 메일 끝에 면접 예약 링크를 넣어서 후보자가 바로 시간을 고를 수 있어요. 보낸 이메일은 회수할 수 없어요.\n\n서로에게 좋은 기회가 되길 바랄게요 :)"
@@ -932,8 +932,8 @@ export function buildSlackTalentReviewDecisionResultView(args: {
     blocks: [
       {
         text: textObject(
-          `:white_check_mark: *${escapeMrkdwn(candidateName)}과 ${
-            args.decision === "accept" ? "연결해드렸어요" : "연결을 거절했어요"
+          `:white_check_mark: *${escapeMrkdwn(candidateName)}${
+            args.decision === "accept" ? "과 연결해드렸어요" : "은 이번엔 넘겼어요"
           }.*\n${detail}`
         ),
         type: "section",

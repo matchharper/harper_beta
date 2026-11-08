@@ -191,8 +191,8 @@ export function OrgDocsModal({
             id="decision"
             title={c("‘연결하기’와 ‘이번엔 넘길게요’", "Connect or pass for now")}
             description={c(
-              "연결하기를 누르면 Harper가 후보자와 팀원을 소개 이메일로 연결합니다. Google Calendar와 인터뷰 가능 시간을 설정해 두었다면 메일 끝에 면접 예약 링크가 함께 들어갑니다. ‘이번엔 넘길게요’는 이번 역할의 진행을 끝내는 결정입니다. 이유는 선택 사항이며 다음 추천에 참고합니다.",
-              "Choose Connect to have Harper introduce the candidate and your teammates by email. If you've connected Google Calendar and set your interview availability, the email ends with a booking link. Pass for now ends consideration for this role. A reason is optional and helps improve future recommendations."
+              "연결하기를 누르면 Harper가 후보자와 팀원을 소개 이메일로 연결합니다. Google Calendar와 인터뷰 가능 시간을 설정해 두었다면 메일 끝에 면접 예약 링크가 함께 들어갑니다. ‘이번엔 넘길게요’는 이번 역할의 진행을 끝내는 결정입니다. 이유는 선택 사항이며 Harper가 기준을 다듬을 때 읽어요.",
+              "Choose Connect to have Harper introduce the candidate and your teammates by email. If you've connected Google Calendar and set your interview availability, the email ends with a booking link. Pass for now ends consideration for this role. A reason is optional; Harper reads it when refining your criteria."
             )}
           >
             <div className="flex flex-col gap-2 sm:flex-row">

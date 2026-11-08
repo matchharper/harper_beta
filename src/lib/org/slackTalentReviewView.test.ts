@@ -409,11 +409,11 @@ test("reject confirmation preserves reason presets and explains the irreversible
       decision: "reject",
     })
   );
-  assert.match(result, /김하퍼님과 연결을 거절했어요/);
+  assert.match(result, /김하퍼님은 이번엔 넘겼어요/);
   assert.doesNotMatch(result, /Connect|Reject/);
   assert.match(result, /후보자에게 .*배려 있게 안내/);
   assert.match(result, /연결 과정에서 더 이상 진행되지 않으며/);
-  assert.match(result, /다음 추천 기준에 참고/);
+  assert.match(result, /Harper가 기준을 다듬을 때 읽어요/);
 });
 
 test("viewer candidate review stays read-only", () => {

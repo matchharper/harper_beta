@@ -77,7 +77,8 @@ function countPhrase(
     locale,
     kind === "accepted_connection" ? COPY.acceptedName : COPY.companyFirstName
   );
-  return locale === "ko" ? `${name} ${count}명` : `${count} new in ${name}`;
+  // Subject only: each count is of new people, in both languages.
+  return locale === "ko" ? `새로 온 ${name} ${count}명` : `${count} new in ${name}`;
 }
 
 /** Under a section heading: how many are on that list now, new ones included. */
@@ -111,9 +112,7 @@ export function candidateDigestSubject(args: {
         ? `${first} 외 ${others}개 역할`
         : `${first} and ${others} more ${others === 1 ? "role" : "roles"}`;
   // The subject counts only the people this mail brings.
-  return args.locale === "ko"
-    ? `${prefix}: 새로 온 ${counts}`
-    : `${prefix}: ${counts}`;
+  return `${prefix}: ${counts}`;
 }
 
 function escapeMarkdownText(value: string) {

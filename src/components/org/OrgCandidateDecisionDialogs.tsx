@@ -260,8 +260,8 @@ export function StopCandidateDialog({
             <span className="text-neutral-soft">
               {" · "}
               {c(
-                "선택 · 다음 추천에만 쓰고 후보자에게는 공유하지 않아요",
-                "Optional · used for future recommendations, never shared with the candidate"
+                "선택 · Harper가 기준을 다듬을 때 읽어요. 후보자에게는 공유하지 않아요",
+                "Optional · Harper reads it when refining your criteria. Never shared with the candidate"
               )}
             </span>
           </div>

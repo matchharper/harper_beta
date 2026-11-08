@@ -64,9 +64,9 @@ test("Ready to connect stays open only until another stage is recorded", () => {
 
 test("confirm copy follows the copy document and has an English counterpart", () => {
   const request = companyEmailActionText("ko", "request_intro", "김민준", "jisoo@example.com");
-  assert.equal(request.title, "김민준님에게 먼저 제안할까요?");
+  assert.equal(request.title, "김민준님에게 연결을 요청할까요?");
   assert.equal(request.confirm, "연결 요청");
-  assert.equal(request.doneTitle, "먼저 제안을 요청했어요. 지금 후보에게 전달할 준비를 하고 있어요.");
+  assert.equal(request.doneTitle, "연결을 요청했어요. 지금 후보에게 전달할 준비를 하고 있어요.");
   assert.equal(request.doneDescription, "김민준님이 수락하면 jisoo@example.com로 소개 메일이 가요.");
   assert.equal(companyEmailActionText("ko", "pass", "김민준", "").confirm, "이번엔 넘길게요");
   assert.equal(companyEmailActionText("ko", "accept_connection", "김민준", "").title, "김민준님과 연결할까요?");

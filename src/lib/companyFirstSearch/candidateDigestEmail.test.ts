@@ -74,16 +74,16 @@ test("subjects use the fixed templates for each candidate mix and multiple roles
       acceptedCount,
       companyFirstCount,
     });
-  // The subject counts only the people this mail brings: 「새로 온 … N명」.
+  // The subject counts only the people this mail brings: 「새로 온 … N명」 for each list.
   assert.equal(subject(1, 0), "ML Engineer: 새로 온 연결을 기다리는 후보 1명");
   assert.equal(subject(0, 2), "ML Engineer: 새로 온 연결을 요청할 후보 2명");
   assert.equal(
     subject(1, 2),
-    "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
+    "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 새로 온 연결을 요청할 후보 2명"
   );
   assert.equal(
     subject(1, 2, ["ML Engineer", "Data Engineer", "PM"]),
-    "ML Engineer 외 2개 역할: 새로 온 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
+    "ML Engineer 외 2개 역할: 새로 온 연결을 기다리는 후보 1명 · 새로 온 연결을 요청할 후보 2명"
   );
   assert.equal(
     subject(1, 2, ["ML Engineer"], "en"),
@@ -99,7 +99,7 @@ test("mail greets the recipient, puts Ready to connect first and keeps the Worke
   const email = build();
   assert.equal(
     email.subject,
-    "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명"
+    "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 새로 온 연결을 요청할 후보 2명"
   );
   assert.match(email.text, /^김지수님, Harper가 찾은 후보예요\./);
   const acceptedAt = email.text.indexOf(
@@ -160,7 +160,7 @@ test("each list says how many are on it now, under its heading", () => {
   assert.ok(requestAt < requestTotal && requestTotal < email.text.indexOf("김민준"));
   assert.match(email.replyContext, /지금 모두 12명/);
   // The subject still counts only the new ones; no line when unknown.
-  assert.equal(email.subject, "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 연결을 요청할 후보 2명");
+  assert.equal(email.subject, "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 새로 온 연결을 요청할 후보 2명");
   assert.doesNotMatch(build().text, /지금 모두/);
   assert.match(build({ locale: "en", totals: { company_first: 3 } }).text, /3 in total now/);
 });

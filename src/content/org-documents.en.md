@@ -253,7 +253,7 @@ If information is missing, ask for [questions or materials](#ask-harper) before 
 ```callout
 Decision reasons
 
-Connection note and Reject reason are optional and are not sent verbatim to the candidate. Leave the actual reason so it can inform future recommendations.
+Connection note and pass reason are optional and are not sent verbatim to the candidate. Harper reads pass reasons when refining your criteria. Leave the actual reason.
 ```
 
 ## Candidate communication <!-- id: ask-harper -->
