@@ -12,6 +12,7 @@ import { upsertOrgAgentThinkingLog } from "./thinkingLogs";
 import type { OrgAgentThinkingLog } from "./types";
 import type { OrgAgentConversationRow } from "./store";
 import { enqueueOrgAgentWebActionTurn } from "./webActionTurn";
+import { loadRoleDecisionEvidence } from "./decisionEvidence.server";
 
 type ProactiveReviewSchedule = { daysOfWeek: number[]; startTimeKst: string; windowMinutes: number };
 
@@ -99,7 +100,9 @@ export async function enqueueDueCompanyProactiveReviews(now = new Date(), depend
 export async function loadCompanyProactiveAwareness(args: {
   admin: any; workspaceId: string; channelDbId: string; roles: Array<{ roleId: string; status?: string | null; promotionDemand?: unknown }>;
   anchor: number; now?: Date;
-}) {
+  /** The reader of the decision counts; null reads as the workspace owner. */
+  user?: User | null;
+}, dependencies = { evidence: loadRoleDecisionEvidence }) {
   const now = args.now ?? new Date();
   const roles = args.roles.filter(r => r.status === "active");
   const roleIds = roles.map(r => r.roleId);
@@ -122,10 +125,13 @@ export async function loadCompanyProactiveAwareness(args: {
     .not("metadata->companyMessageReceipt", "is", null).gte("created_at", new Date(now.getTime() - 14 * 86400000).toISOString())
     .order("id", { ascending: false }).limit(24);
   if (sentError) throw sentError;
+  const roleEvidence = await dependencies.evidence({ admin: args.admin, workspaceId: args.workspaceId,
+    roleIds, user: args.user ?? null, now });
   return { asOf: now.toISOString(), origin: "Harper-initiated recruiting outreach", recipientScope: "Approved organization Slack audience; the execution actor is not an addressee",
     referenceCoverage: "Bounded recent Role excerpts and delivered proactive messages, not exhaustive history; retrieve more with read_conversation_history(roleId=...).",
     recentRoleConversations, recentDeliveredProactiveMessages: (sent ?? []).map((m: any) => ({ ...m, content: m.content.slice(0, 3000) })),
     acquisitionRequests: roles.filter(r => r.promotionDemand).map(r => ({ roleId: r.roleId, request: r.promotionDemand })),
+    roleEvidence,
   };
 }
 
@@ -162,7 +168,7 @@ export async function runCompanyProactiveReview(args: {
     beforeMessageId: args.anchorMessageId, currentUserMessageId: args.anchorMessageId, includeSharedConversation: true,
     readAudience: "company_safe", scopeKey: `proactive:${channel.id}` });
   const awareness = await loadCompanyProactiveAwareness({ admin, workspaceId, channelDbId: channel.id,
-    roles: context.roles, anchor: args.anchorMessageId });
+    roles: context.roles, anchor: args.anchorMessageId, user: args.user });
   const audience: CompanyMessageAudience = { channelDbId: channel.id, channelId: channel.slack_channel_id, jobId: args.jobId };
   let thinkingLogs: OrgAgentThinkingLog[] = [];
   const result = await runOrgAgentToolLoop({ admin, user: args.user, conversation: args.conversation, context,

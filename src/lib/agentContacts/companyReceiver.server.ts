@@ -14,6 +14,14 @@ import {
 import { readAgentCorrespondence } from "./read";
 import { scheduleRunDestination, scheduleRunMessages, scheduleRunText, scheduleRunTools, scheduleThreadRecentText } from "./scheduleRun";
 import { companyAgentEventPrompt, type AgentContactSource } from "./contracts";
+import { loadRoleDecisionEvidence } from "@/lib/org/agent/decisionEvidence.server";
+
+/** This Role's decision facts for Harper's own scheduled run; omitted when unreadable. */
+async function scheduleRunEvidenceText(admin: any, workspaceId: string, roleId: string) {
+  const [evidence] = await loadRoleDecisionEvidence({ admin, workspaceId, roleIds: [roleId], user: null })
+    .catch(() => []);
+  return evidence ? `\nRole evidence (facts to judge from, not a reason to message by themselves): ${JSON.stringify(evidence)}` : "";
+}
 
 /**
  * Harper's own schedules (not tied to an introduction) get only the tools of
@@ -139,7 +147,7 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     let tierLine = "";
     if (tier !== null) {
       const destination = await scheduleRunDestination(db.query, source.workspaceId, schedule, scheduleRunMessages());
-      tierLine = `\n${scheduleRunText(schedule, destination)}${await scheduleThreadRecentText(db.query, source.workspaceId, destination)}`;
+      tierLine = `\n${scheduleRunText(schedule, destination)}${await scheduleThreadRecentText(db.query, source.workspaceId, destination)}${await scheduleRunEvidenceText(admin, source.workspaceId, source.roleId)}`;
     }
     eventText = `Scheduled company work ${schedule.id}; revision ${schedule.revision}\n${schedule.title}\n${schedule.instruction}${schedule.target_refs?.introductionRootId ? `\nIntroduction ${schedule.target_refs.introductionRootId}` : tierLine}`;
   }
