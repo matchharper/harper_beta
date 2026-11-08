@@ -153,7 +153,7 @@ test("the role screen: 채팅 | 후보 pill, right column per link, 역할 정�
   assert.equal(candidateProps?.tab, "pending_connection", "no external sourcing: the plain inbox");
   externalEnabled = true;
 
-  // One column: the pill shows either the chat or the right column; no 전체 화면.
+  // One column: the pill shows either the chat or the right column; 전체 화면 stays reachable.
   split = false;
   go({ tab: "chat" });
   html = render();
@@ -163,5 +163,5 @@ test("the role screen: 채팅 | 후보 pill, right column per link, 역할 정�
   go({});
   html = render();
   assert.match(html, /class="career-chat-column" hidden=""/);
-  assert.equal(candidateProps?.wideAvailable, false);
+  assert.equal(candidateProps?.wideAvailable, true);
 });

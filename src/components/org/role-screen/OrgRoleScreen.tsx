@@ -96,7 +96,9 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
     mention: OrgAgentMention;
   } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const wideActive = split && wide && pane === "candidates" && !companyInfoOpen;
+  // 전체 화면 works in one column too: below 1024px it is the only way to sort,
+  // filter, decide on several people and see the boards.
+  const wideActive = wide && pane === "candidates" && !companyInfoOpen;
   const pill: Pill = pane === "candidates" && !companyInfoOpen ? "candidates" : "chat";
   const detail = companyInfoOpen
     ? ct(c, COMPANY_TERMS.nav.company)
@@ -320,7 +322,7 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
                   role={role}
                   tab={candidateTab}
                   wide={false}
-                  wideAvailable={split}
+                  wideAvailable
                 />
               ) : null}
               <VisitedPanel active={pane === "role" && !companyInfoOpen}>

@@ -46,6 +46,12 @@
   min-height: 0;
   padding-top: var(--career-content-inset-top, 0px);
 }
+@media (max-width: 767px) {
+  /* One column: clear the phone header, like .career-right-scroll. */
+  .org-role-wide {
+    padding-top: calc(var(--career-mobile-header-height) + 12px);
+  }
+}
 .org-role-wide-views {
   display: flex;
   flex-direction: column;
