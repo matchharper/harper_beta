@@ -107,6 +107,21 @@ test("only in runs Harper starts itself, and only on a Role of this company", as
   await assert.rejects(call({ operation: "delete" }), /operation must be list, add or withdraw/);
 });
 
+test("a run answering a candidate's agent cannot add To-do suggestions, even if the tool were offered", async () => {
+  const scope = (jobId: string) => withCompanyAgentScope(admin, {
+    kind: "company_event", workspaceId, roleId, jobId, leaseOwner: "worker-1", assertCurrent: async () => {},
+  });
+  tables.company_agent_web_action_jobs = [
+    { id: "job-reply", action_name: "agent_contact_received" },
+    { id: "job-schedule", action_name: "agent_schedule_due" },
+  ];
+  await assert.rejects(call({ operation: "list" }, { admin: scope("job-reply") }), /not added while answering a candidate's agent/);
+  assert.equal(rows().length, 0);
+  // Harper's own schedule run still can.
+  assert.equal((await call({ operation: "add", kind: "follow_up_candidate", title: "박도현 님에게 다시 물어볼까요?",
+    plan: "박도현 님에게 다시 물어볼게요.", talentIds: [A] }, { admin: scope("job-schedule") })).status, "created");
+});
+
 test("add: Harper's sentence and plan on the To-do, with the candidate's current stage and an expiry", async () => {
   const result = await add();
   assert.equal(result.status, "created");

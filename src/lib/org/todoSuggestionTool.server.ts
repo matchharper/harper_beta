@@ -67,6 +67,17 @@ export async function manageTodoSuggestions(args: {
     refuse(
       "To-do suggestions are added only in runs Harper starts itself (scheduled work, reviews, company updates). In a conversation with the team, ask them directly. Nothing changed."
     );
+  // A run answering a candidate's agent is not Harper's own work (it also lacks
+  // this tool in its list; this holds if the list ever changes).
+  const { companyAgentScope } = await import("@/lib/agentContacts/companyScope");
+  const scope = companyAgentScope(args.admin);
+  if (scope) {
+    const { data: job, error: jobError } = await (args.admin.from as any)("company_agent_web_action_jobs")
+      .select("action_name").eq("id", scope.jobId).maybeSingle();
+    if (jobError) throw jobError;
+    if (job?.action_name === "agent_contact_received")
+      refuse("To-do suggestions are not added while answering a candidate's agent. Nothing changed.");
+  }
   const roleId = String(args.input.roleId ?? args.conversation.role_id ?? "").trim();
   if (!roleId) return refuse("Name the Role (roleId): this conversation is not about one Role. Nothing changed.");
   const operation = String(args.input.operation ?? "").trim();
