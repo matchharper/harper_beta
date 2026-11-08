@@ -153,8 +153,8 @@ export const COMPANY_TERMS = {
   },
 
   detail: {
-    summary: term("한 줄 요약", "Summary", ["TL;DR", "Harper의 추천 이유"]),
-    harperNote: term("Harper 메모", "Harper's note", ["Harper Note"]),
+    summary: term("한 줄 요약", "Summary", ["TL;DR"]),
+    harperNote: term("Harper 메모", "Harper's note", ["Harper Note", "Harper의 추천 이유"]),
   },
 
   brief: {

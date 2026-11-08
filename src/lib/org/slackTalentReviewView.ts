@@ -1027,11 +1027,12 @@ export function buildSlackTalentReviewCandidateView(args: {
   blocks.push(
     {
       block_id: "review_reason_heading",
-      elements: [textObject("*한 줄 요약*")],
+      // The same paragraph the web and the Work Object call Harper 메모.
+      elements: [textObject("*Harper 메모*")],
       type: "context",
     },
     ...markdownContextBlocks(
-      markdownToSlackMrkdwn(candidate.reason || "등록된 추천 이유가 없습니다."),
+      markdownToSlackMrkdwn(candidate.reason || "등록된 Harper 메모가 없습니다."),
       "review_reason"
     )
   );

@@ -262,7 +262,8 @@ test("candidate review modal contains profile sections and live decisions", () =
   assert.equal(view.title.text, "연결 검토 1/3");
   const rendered = JSON.stringify(view.blocks);
   assert.match(rendered, /김하퍼/);
-  assert.match(rendered, /한 줄 요약/);
+  assert.match(rendered, /\*Harper 메모\*/, "the fit reason has the web's name");
+  assert.doesNotMatch(rendered, /한 줄 요약/);
   assert.match(rendered, /등록 자료/);
   assert.match(rendered, /경력/);
   assert.match(rendered, /학력/);
