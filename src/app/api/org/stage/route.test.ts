@@ -67,6 +67,8 @@ before(async () => {
         assert.equal(args.webRequestKey, "initial-connection");
         return { scheduleId: "meeting" };
       },
+      // The booking helper first looks for an earlier unsent draft.
+      findUnsentWebMeetingDraft: async () => null,
       fetchMeetingScheduleDetail: async () => ({
         schedule: { status: scheduleStatus, version: 1, round: {} },
       }),
@@ -243,6 +245,80 @@ test("rejects incompatible stage or contact choices before side effects", async 
   }
 });
 
+
+// What the route passed to setOrgCandidateStage before the dispatcher (S2).
+// Empty and missing values count the same, as for a saved approval.
+function previousStageInput(body: Record<string, any>) {
+  return {
+    acceptReason: body.acceptReason ?? null,
+    contactDirectly: body.contactDirectly === true,
+    decisionChannel: "web",
+    emailMode: body.emailMode ?? "schedule",
+    expectedPreviousStage: body.sourceStage,
+    introEmailDraft: body.introEmailDraft ?? null,
+    introEmails: body.introEmails ?? null,
+    recommendationId: body.recommendationId,
+    reengagementActionId: null,
+    reengagementResolution: null,
+    roleId: body.roleId,
+    scheduleInterview: body.scheduleInterview === true,
+    stage: body.stage,
+    notifyCandidateOnClosure: body.notifyCandidateOnClosure,
+    stopNote: body.stopNote ?? null,
+    talentId: body.talentId,
+    workspaceId: body.workspaceId,
+  };
+}
+function comparable(input: Record<string, unknown>) {
+  const { user: _user, ...rest } = input;
+  return Object.fromEntries(
+    Object.entries(JSON.parse(JSON.stringify(rest))).filter(
+      ([, value]) => value !== null
+    )
+  );
+}
+const base = {
+  workspaceId: "workspace",
+  roleId: "role",
+  recommendationId: "recommendation",
+  talentId: "talent",
+  sourceStage: "pending_connection",
+};
+
+test("connect, stop and other moves reach setOrgCandidateStage with the same input as before", async () => {
+  for (const body of [
+    { ...base, stage: "connected", introEmails: ["team@example.invalid"], acceptReason: "좋은 경험", scheduleInterview: false },
+    { ...base, stage: "connected", contactDirectly: true, scheduleInterview: false },
+    { ...base, stage: "process_stopped", stopNote: "다른 후보로 결정", notifyCandidateOnClosure: false, scheduleInterview: false },
+    { ...base, stage: "process_stopped", scheduleInterview: false },
+    { ...base, sourceStage: "connected", stage: "custom:interview", emailMode: "skip", scheduleInterview: false },
+  ]) {
+    reset();
+    assert.equal((await submit(body)).status, 200);
+    assert.deepEqual(comparable(stageArgs), comparable(previousStageInput(body)));
+    assert.equal(stageArgs.user.id, "member");
+    // No reason tags, message or decision key from the web route.
+    assert.equal(stageArgs.reasonTags, undefined);
+    assert.equal(stageArgs.sourceMessageId, undefined);
+    assert.equal(stageArgs.decisionKey, undefined);
+  }
+});
+
+test("a closure notice choice reaches the move unchanged", async () => {
+  for (const notify of [true, false, undefined]) {
+    reset();
+    await submit({ ...base, stage: "process_stopped", scheduleInterview: false, notifyCandidateOnClosure: notify });
+    assert.equal(stageArgs.notifyCandidateOnClosure, notify);
+  }
+});
+
+test("Pass, save and unsave are not stage moves", async () => {
+  for (const stage of ["passed", "saved", "unsaved"]) {
+    reset();
+    assert.equal((await submit({ ...base, stage, scheduleInterview: false })).status, 400);
+    assert.deepEqual(calls, []);
+  }
+});
 
 test("a durable company decision event is returned without queuing a duplicate turn", async () => {
   companyUpdateJobId = "decision-event";

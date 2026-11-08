@@ -4,14 +4,14 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { MuteButton } from "@/components/ui/button";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { cn } from "@/lib/utils";
-import { CANDIDATE_DECISION_LABELS } from "@/lib/org/candidateDecision";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 
 const DOCS_SECTIONS = [
   { id: "review", label: "후보자 검토" },
   { id: "decision", label: "연결 결정" },
   { id: "feedback", label: "메모" },
   { id: "pipeline", label: "파이프라인" },
-  { id: "settings", label: "회사와 Role" },
+  { id: "settings", label: "회사와 역할" },
 ] as const;
 
 type DocsSectionId = (typeof DOCS_SECTIONS)[number]["id"];
@@ -152,7 +152,7 @@ export function OrgDocsModal({
             id="review"
             title={c("후보자 검토", "Candidate review")}
             description={c(
-              "Role 탭에서 후보자 카드를 누르세요. 상세 화면에서 추천 이유, 경력, 이력서와 링크, 이전 피드를 확인할 수 있습니다.",
+              "역할 탭에서 후보자 카드를 누르세요. 상세 화면에서 추천 이유, 경력, 이력서와 링크, 이전 피드를 확인할 수 있습니다.",
               "Open a candidate card in the Role tab to review Harper's notes, experience, resume, links, and activity history."
             )}
           >
@@ -189,10 +189,10 @@ export function OrgDocsModal({
 
           <DocsSection
             id="decision"
-            title={c("연결 수락과 연결 거절", "Accept or decline an introduction")}
+            title={c("‘연결하기’와 ‘이번엔 넘길게요’", "Connect or pass for now")}
             description={c(
-              "Accept Intro를 누르면 Harper가 후보자와 팀원을 소개 이메일로 연결합니다. Google Calendar와 인터뷰 가능 시간을 설정해 두었다면 메일 끝에 면접 예약 링크가 함께 들어갑니다. Reject는 이번 역할의 진행을 끝내는 결정입니다. 이유는 선택 사항이며 다음 추천에 참고합니다.",
-              "Choose Accept Intro to have Harper introduce the candidate and your teammates by email. If you've connected Google Calendar and set your interview availability, the email ends with a booking link. Reject ends consideration for this role. A reason is optional and helps improve future recommendations."
+              "연결하기를 누르면 Harper가 후보자와 팀원을 소개 이메일로 연결합니다. Google Calendar와 인터뷰 가능 시간을 설정해 두었다면 메일 끝에 면접 예약 링크가 함께 들어갑니다. ‘이번엔 넘길게요’는 이번 역할의 진행을 끝내는 결정입니다. 이유는 선택 사항이며 Harper가 기준을 다듬을 때 읽어요.",
+              "Choose Connect to have Harper introduce the candidate and your teammates by email. If you've connected Google Calendar and set your interview availability, the email ends with a booking link. Pass for now ends consideration for this role. A reason is optional; Harper reads it when refining your criteria."
             )}
           >
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -202,7 +202,7 @@ export function OrgDocsModal({
                 tabIndex={-1}
                 className="pointer-events-none w-full bg-primary text-on-inverse sm:w-auto"
               >
-                {CANDIDATE_DECISION_LABELS.connect}
+                {ct(c, COMPANY_TERMS.action.connect)}
               </MuteButton>
               <MuteButton
                 type="button"
@@ -210,13 +210,13 @@ export function OrgDocsModal({
                 tabIndex={-1}
                 className="pointer-events-none w-full border-red-500 sm:w-auto"
               >
-                {c("Reject", "Reject")}
+                {ct(c, COMPANY_TERMS.action.pass)}
               </MuteButton>
             </div>
             <p className="mt-3 text-xs font-normal leading-5 text-neutral-muted">
               {c(
-                "연결 거절은 임시 보류가 아니에요. 후보자에게 회사의 종료 결정이 안내되며 이미 보이거나 전달된 안내는 회수할 수 없어요.",
-                "Rejecting a connection is not a temporary hold. The candidate is notified that the company has ended consideration and any notices already visible or sent cannot be retracted."
+                "‘이번엔 넘길게요’는 임시 보류가 아니에요. 후보자에게 회사의 종료 결정이 안내되며 이미 보이거나 전달된 안내는 회수할 수 없어요.",
+                "Passing is not a temporary hold. The candidate is notified that the company has ended consideration and any notices already visible or sent cannot be retracted."
               )}
             </p>
           </DocsSection>
@@ -239,7 +239,7 @@ export function OrgDocsModal({
               <div className="flex justify-end border-t border-neutral-1000-a05 px-2 py-2">
                 <span className="inline-flex h-8 items-center gap-1 rounded-sm bg-neutral-1000 px-2.5 text-xs font-medium text-neutral-00">
                   <Plus className="h-3.5 w-3.5" />
-                  {c("메모 추가", "Add note")}
+                  {c("메모 저장", "Save note")}
                 </span>
               </div>
             </div>
@@ -249,26 +249,26 @@ export function OrgDocsModal({
             id="pipeline"
             title={c("파이프라인", "Pipeline")}
             description={c(
-              "후보자 카드를 실제 진행 상태에 맞게 옮기세요. Role별 인터뷰 단계가 더 필요하면 + 버튼으로 추가할 수 있습니다.",
+              "후보자 카드를 실제 진행 상태에 맞게 옮기세요. 역할별 인터뷰 단계가 더 필요하면 + 버튼으로 추가할 수 있습니다.",
               "Move candidate cards to match actual progress. Add interview stages per role with the + button if needed."
             )}
           >
             <div className="overflow-x-auto text-[12px] font-normal text-neutral-primary">
               <div className="flex min-w-max items-center gap-3">
-                <span>{c("연결 수락한 후보", "Ready to connect")}</span>
+                <span>{c("연결을 기다리는 후보", "Waiting to connect")}</span>
                 <span className="text-neutral-soft">→</span>
                 <span>{c("연결됨", "Connected")}</span>
                 <span className="text-neutral-soft">→</span>
-                <span>{c("최종 오퍼", "Final offer")}</span>
+                <span>{c("오퍼", "Offer")}</span>
                 <span className="text-neutral-soft">/</span>
-                <span>{c("프로세스 중단", "Process ended")}</span>
+                <span>{c("진행 종료", "Closed")}</span>
               </div>
             </div>
           </DocsSection>
 
           <DocsSection
             id="settings"
-            title={c("회사와 Role", "Company and role")}
+            title={c("회사와 역할", "Company and role")}
             description={c(
               "회사 정보와 채용 기준이 바뀌면 바로 수정하세요. Harper는 최신 내용을 추천과 후보자 안내에 사용합니다.",
               "Update company info and hiring criteria whenever they change. Harper uses the latest information for recommendations and candidate communications."
@@ -296,7 +296,7 @@ export function OrgDocsModal({
             </div>
             <p className="mt-3 text-xs font-normal leading-5 text-neutral-muted">
               {c(
-                "Pitch에는 후보자에게 어필할 내용을, Role에는 원하는 인재의 조건을 적습니다.",
+                "Pitch에는 후보자에게 어필할 내용을, 역할에는 원하는 인재의 조건을 적습니다.",
                 "Use Pitch to explain why candidates might be interested. Use Role to define who you're looking for."
               )}
             </p>

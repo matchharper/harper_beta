@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 import { Tooltips } from "@/components/ui/tooltip";
 import { Ticket } from "@/components/ui/ticket";
 import {
@@ -27,13 +28,13 @@ export function BillingCreditNotice({
   if (isError || !slot || !isLowCreditBalance(slot.remaining)) return null;
   const label =
     locale === "ko"
-      ? `${formatIntroCount(slot.remaining, locale)} 남음`
+      ? `남은 ${formatIntroCount(slot.remaining, locale)}`
       : `${formatIntroCount(slot.remaining, locale)} left`;
   const poolLabel =
     slot.slotId === null
       ? locale === "ko"
-        ? "공용 Intro"
-        : "Shared Intros"
+        ? COMPANY_TERMS.usage.included.ko
+        : COMPANY_TERMS.usage.included.en
       : slot.label;
   const description = `${slot.roleName ?? poolLabel} · ${label}`;
   const className = cn(
@@ -66,7 +67,7 @@ export function BillingCreditNotice({
   );
   const content = canManage ? (
     <Link
-      href={`/org/slots?orgId=${encodeURIComponent(workspaceId)}`}
+      href={`/org/billing?orgId=${encodeURIComponent(workspaceId)}&section=slots`}
       aria-label={description}
       className={cn(
         className,

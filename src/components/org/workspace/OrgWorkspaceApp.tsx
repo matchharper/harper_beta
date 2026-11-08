@@ -29,6 +29,7 @@ import {
 } from "@/hooks/org/useOrgWorkspace";
 import type { OrgWorkspacePageId } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
+import { orgWorkspaceThemeProps } from "@/lib/org/theme";
 import {
   isAdditionalOrgCreator,
   isOrgOnboardingComplete,
@@ -153,6 +154,7 @@ export function OrgWorkspaceApp({
     return <OrgLoginScreen authenticatedEmail={user.email} />;
   }
 
+  const theme = orgWorkspaceThemeProps();
   const pageTitle = !emptyRoleHome && isRoleWorkspacePage
     ? `${workspace.companyName} · ${page === "new-role" ? c("새 역할 등록", "Create new role") : c("역할", "Role")}`
     : `${workspace.companyName} · ${page === "personal-settings" ? c("개인 설정", "Personal settings") : `${page[0].toUpperCase()}${page.slice(1)}`}`;
@@ -189,8 +191,12 @@ export function OrgWorkspaceApp({
       <OrgMobileNavigationProvider>
         <Page
           as="main"
-          background="neutral"
-          className="overflow-x-clip overflow-y-auto overscroll-y-none font-sans text-neutral-primary"
+          background={theme.className ? "none" : "neutral"}
+          className={cn(
+            "overflow-x-clip overflow-y-auto overscroll-y-none font-sans text-neutral-primary",
+            theme.className
+          )}
+          data-harper-theme={theme["data-harper-theme"]}
           minHeight="fillScreen"
         >
           <OrgWorkspaceSidebar
@@ -200,25 +206,20 @@ export function OrgWorkspaceApp({
           <div
             className={cn(
               page === "role" || page === "home" ? "md:pt-0" : "pt-12 md:pt-0",
-              isRoleCreationStarted
-                ? "md:pl-[72px]"
-                : layoutPage === "home"
-                  ? "md:pl-[244px]"
-                  : "md:pl-[256px]"
+              isRoleCreationStarted ? "md:pl-[72px]" : "md:pl-[256px]"
             )}
           >
             <PageContainer
               key={workspace.workspaceId}
               className={cn(
-                layoutPage === "role" || emptyRoleHome
+                // Home and a role share the candidate side's full-height frame.
+                layoutPage === "role" || layoutPage === "home" || emptyRoleHome
                   ? "h-svh min-h-[520px] md:h-screen md:min-h-0"
                   : layoutPage === "new-role"
                     ? "h-[calc(100svh-3rem)] min-h-[472px] md:h-screen md:min-h-0"
-                    : layoutPage === "home"
-                      ? "px-1 py-0 md:px-1 lg:py-3 lg:pl-4 lg:pr-8"
-                      : "py-6 sm:py-9 lg:py-10"
+                    : "py-6 sm:py-9 lg:py-10"
               )}
-              padding={isRoleWorkspacePage ? "none" : "default"}
+              padding={isRoleWorkspacePage || layoutPage === "home" ? "none" : "default"}
               size={
                 isRoleWorkspacePage || page === "home"
                   ? "full"

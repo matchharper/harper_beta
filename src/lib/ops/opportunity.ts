@@ -1032,6 +1032,8 @@ export async function saveOpsOpportunityRole(args: {
   descriptionSummary?: string | null;
   employmentTypes?: OpportunityEmploymentType[];
   eventActorLabel: string;
+  /** The Ops user, recorded on Brief versions and history with "ops". */
+  eventActorUserId?: string | null;
   expiresAt?: string | null;
   externalJdUrl?: string | null;
   locationText?: string | null;
@@ -1110,7 +1112,10 @@ export async function saveOpsOpportunityRole(args: {
   if (beforeRole) {
     await applyWebsiteCompanyDataChanges({
       actorLabel: args.eventActorLabel,
+      actorUserId: args.eventActorUserId ?? undefined,
       admin,
+      // Ops edits are recorded as Ops on Brief versions and history.
+      changeSource: "ops",
       changes: [
         {
           key: "role_source_type",
@@ -1200,6 +1205,7 @@ export async function saveOpsOpportunityRole(args: {
       "write_company_role_brief_v1",
       {
         p_actor_label: args.eventActorLabel,
+        p_actor_user_id: args.eventActorUserId ?? null,
         p_criteria: null,
         p_request: request,
         p_role_id: insertedRole.role_id,

@@ -1638,6 +1638,8 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   requireAllDeliveries?: boolean;
   /** Non-public company events also validate recipients for workspace-wide posts. */
   enforceAudiencePermission?: boolean;
+  /** The Role the audience is checked for when it differs from roleId (a Role's message in a thread without one). */
+  audienceRoleId?: string | null;
   roleId?: string | null;
   text: string;
   unfurlLinks?: boolean;
@@ -1683,7 +1685,7 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   if (channels.length === 0) return false;
   if (roleId || args.enforceAudiencePermission) {
     const allowed = await traceStageStep("sendHarperWorkspaceSlackMessage:1684", async () => (Promise.all(channels.map(async (channel: any) =>
-      await traceStageStep("sendHarperWorkspaceSlackMessage:1685", async () => (isHarperSlackAudienceAllowed({ workspaceId: args.workspaceId, roleId, channelId: channel.slack_channel_id }))) ? channel : null))));
+      await traceStageStep("sendHarperWorkspaceSlackMessage:1685", async () => (isHarperSlackAudienceAllowed({ workspaceId: args.workspaceId, roleId: text(args.audienceRoleId) || roleId, channelId: channel.slack_channel_id }))) ? channel : null))));
     channels = allowed.filter(Boolean);
     if (channels.length === 0) return false;
   }

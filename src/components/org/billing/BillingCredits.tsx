@@ -1,5 +1,6 @@
 import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { ProgressBar } from "@/components/ui/progress";
 import { OrgSection, OrgSectionHeader } from "../workspace/OrgSection";
 import { type BillingSummary } from "@/lib/org/billing/types";
@@ -12,7 +13,7 @@ export function BillingCredits({ summary }: { summary: BillingSummary }) {
   const now = useBillingClock();
   return (
     <OrgSection>
-      <OrgSectionHeader title={c("Intro", "Intros")} />
+      <OrgSectionHeader title={c("연결", "Intros")} />
       {summary.model === "scale" || summary.model === "legacy" ? (
         <p className="text-[20px] font-medium">
           {summary.model === "scale" ? c("무제한", "Unlimited") : "—"}
@@ -26,7 +27,7 @@ export function BillingCredits({ summary }: { summary: BillingSummary }) {
           {summary.creditSlots.map((slot) => {
             const label =
               slot.slotId === null
-                ? c("공용 Intro", "Shared Intros")
+                ? ct(c, COMPANY_TERMS.usage.included)
                 : slot.label;
             const ending =
               !!slot.cancelAt &&
@@ -45,9 +46,9 @@ export function BillingCredits({ summary }: { summary: BillingSummary }) {
                     title={slot.roleName ?? undefined}
                   >
                     {slot.slotId === null
-                      ? c("전체 Role 공용", "Shared across all roles")
+                      ? c("모든 역할 공용", "Shared across all roles")
                       : (slot.roleName ??
-                        c("담당 Role 없음", "No role assigned"))}
+                        c("배정된 역할 없음", "No role assigned"))}
                   </p>
                 </div>
                 <div>
@@ -60,7 +61,7 @@ export function BillingCredits({ summary }: { summary: BillingSummary }) {
                   </p>
                   <div
                     role="meter"
-                    aria-label={`${label} · ${c("남은 Intro", "Remaining Intros")}`}
+                    aria-label={`${label} · ${c("남은 연결", "Remaining Intros")}`}
                     aria-valuemin={0}
                     aria-valuemax={slot.allowance}
                     aria-valuenow={slot.remaining}
@@ -82,7 +83,7 @@ export function BillingCredits({ summary }: { summary: BillingSummary }) {
                     <p>
                       {ending
                         ? c("이용 종료", "Access ends")
-                        : c("Intro 갱신", "Intros reset")}
+                        : c("연결 갱신", "Intros reset")}
                     </p>
                   </div>
                 )}

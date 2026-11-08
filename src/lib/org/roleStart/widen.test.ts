@@ -50,6 +50,6 @@ test("each loosening changes one condition one step; a required criterion become
   const figma = byId.c_figma!.apply(brief).criteria.find((item) => item.id === "c_figma");
   assert.equal(figma?.requirement, "preferred");
   assert.equal(figma?.importance, 2, "필수 → 중요");
-  assert.equal(byId.c_figma!.widen, "필수 조건에서 평가 기준(중요)으로 옮기기");
+  assert.equal(byId.c_figma!.widen, "필수 조건에서 확인할 기준(중요)으로 옮기기");
   assert.equal(byId.c_test, undefined, "criteria that are not required are not offered");
 });

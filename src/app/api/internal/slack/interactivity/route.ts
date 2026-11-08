@@ -329,7 +329,7 @@ async function hydrateDecisionReviewModal(args: {
       await updateReviewModalSafely({
         token: args.token,
         view: buildSlackTalentReviewDecisionErrorView(
-          "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. Owner 또는 Admin에게 요청해 주세요."
+          "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. 소유자 또는 관리자에게 요청해 주세요."
         ),
         viewId: args.viewId,
       });
@@ -384,7 +384,7 @@ async function hydrateDecisionReviewModal(args: {
 function decisionErrorMessage(error: unknown) {
   if (error instanceof OrgHttpError) {
     if (error.status === 403) {
-      return "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. Owner 또는 Admin에게 요청해 주세요.";
+      return "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. 소유자 또는 관리자에게 요청해 주세요.";
     }
     if (error.status === 409) {
       return "이미 다른 멤버가 결정했거나 후보자 상태가 바뀌었어요. 이번 요청으로 추가 변경이나 안내는 발생하지 않았어요.";

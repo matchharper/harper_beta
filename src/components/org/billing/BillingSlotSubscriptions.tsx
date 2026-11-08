@@ -17,12 +17,15 @@ export function BillingSlotSubscriptions({
   now,
   busy,
   canManage,
+  canViewBilling = true,
   ...actions
 }: BillingSlotActions & {
   slots: BillingSlot[];
   now: number;
   busy: boolean;
   canManage: boolean;
+  /** Owner only: the payment portal. */
+  canViewBilling?: boolean;
 }) {
   const { c } = useOrgLocale();
   const { formatBillingMoney, date, formatBillingDaysUntil } =
@@ -127,7 +130,7 @@ export function BillingSlotSubscriptions({
                     now={now}
                     busy={busy}
                     canManage={canManage}
-                    canViewBilling
+                    canViewBilling={canViewBilling}
                     {...actions}
                   />
                 </OrgTableCell>

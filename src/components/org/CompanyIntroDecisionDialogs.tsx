@@ -204,7 +204,7 @@ export function CompanyIntroRequestDialog({
             {pending ? <LoaderCircle className="size-4 animate-spin" /> : null}
             {count > 1
               ? c("{p0}명에게 보내기", "Send to {p0}", { p0: count })
-              : c("Send Intro", "Send Intro")}
+              : c("연결 요청", "Request intro")}
             {/* <Ticket /> */}
           </MuteButton>
         </div>
@@ -218,10 +218,10 @@ export function CompanyIntroRequestDialog({
       showCloseButton={!pending}
       title={
         count > 1
-          ? c("Send Intro · {p0}명", "Send Intro · {p0} candidates", {
+          ? c("연결 요청 · {p0}명", "Request intro · {p0} candidates", {
               p0: count,
             })
-          : c("Send Intro · {p0}", "Send Intro · {p0}", {
+          : c("연결 요청 · {p0}", "Request intro · {p0}", {
               p0: names[0] || c("후보자", "candidate"),
             })
       }
@@ -361,13 +361,13 @@ function IntroUsage({
   const slot = creditSlotForRole(entitlements.data?.creditSlots, roleId);
   return (
     <p className="tabular-nums text-neutral-muted">
-      {c("Intro {p0}개 사용", "Uses {p0}", {
+      {c("연결 {p0}회 사용", "Uses {p0}", {
         p0: locale === "en" ? formatIntroCount(count, locale) : count,
       })}
       {slot ? (
         <>
           {" · "}
-          {c("이번 달 {p0} 남음", "{p0} left this month", {
+          {c("이번 달 남은 {p0}", "{p0} left this month", {
             p0: formatIntroCount(slot.remaining, locale),
           })}
         </>

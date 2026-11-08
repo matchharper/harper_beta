@@ -5,25 +5,25 @@
 2026-09-25 [자체 리뷰와 보완](company-side-agent-self-review-2026-09-25-ko.md): 연락 재시도·공유 경계와 입력 출처를 보강했다.
 그 자체 리뷰 당시에는 시나리오 평가 전이었다. 이후 사용자 승인으로 실행한 평가와 구조 개선은
 [최신 계약·실행 보고서](evaluation/company-side-conversational-qa/reports/2026-09-25-contract-v8.md)에 구분한다.
-앱은 미배포이며 이번 평가를 위해 운영 migration이나 테스트 Role을 추가하지 않는다.
+앱은 미배포이며 이번 평가를 위해 운영 migration이나 테스트 역할을 추가하지 않는다.
 
 ## Tool result 입력 계약
 
 모든 LLM tool result는 [도구 정보 설계 가이드의 텍스트화 계약](company-side-tool-information-guide-ko.md#모든-llm-tool-result의-텍스트화--필수)을 따른다. executor 원본을 그대로 직렬화하지 않고 목적별 최소 사실·참조를 텍스트화한다. 후보 목록의 기준 정의는 한 번만 제공하고, 경력·학력·관계는 짧은 문자열로 표현한다. 변경 검증에는 실제 provider 입력의 렌더링을 포함한다. DB·UI 원본과 모델 입력은 분리하며 실행 코드가 모델용 문자열을 재파싱하지 않는다.
 
-## 2026-10-25 로컬 변경: Slack의 새 Role 등록
+## 2026-10-25 로컬 변경: Slack의 새 역할 등록
 
-기존 company-side LLM이 받은 업무·JD·조건으로 초안을 만들 수 있는지 판단한다. 충분하면 `start_role_creation`의 `draft`에 확인된 공개 업무·자격과 비공개 Hiring Brief, 근무·고용·보상 정보를 구분해 작성한다. 정보가 부족하면 핵심만 묻고, 미정 조건을 채워 넣지 않는다. 글자 수·키워드·조건 개수로 정보 충분성을 분류하지 않는다.
+기존 company-side LLM이 받은 업무·JD·조건으로 초안을 만들 수 있는지 판단한다. 충분하면 `start_role_creation`의 `draft`에 확인된 공개 업무·자격과 비공개 찾는 사람, 근무·고용·보상 정보를 구분해 작성한다. 정보가 부족하면 핵심만 묻고, 미정 조건을 채워 넣지 않는다. 글자 수·키워드·조건 개수로 정보 충분성을 분류하지 않는다.
 
-서버는 Role 초안과 선택한 Slack 원문·파일을 저장하고 웹 채용 시작 session을 만든 뒤 `/org/role?orgId=...&roleId=...`를 반환한다. 원본 회사 LLM이 짧은 설명과 이 링크를 안내하며, 이후 기준 정리와 등록은 웹 온보딩에서 이어간다. 별도 Slack 등록 스레드나 고정 성공 문장은 만들지 않는다. 초안 생성은 활성화·정기 매칭 접수가 아니다. 같은 요청의 재시도는 초안을 재사용하고 이후 웹에서 수정한 내용을 덮어쓰지 않는다.
+서버는 역할 초안과 선택한 Slack 원문·파일을 저장하고 웹 채용 시작 session을 만든 뒤 `/org/role?orgId=...&roleId=...`를 반환한다. 원본 회사 LLM이 짧은 설명과 이 링크를 안내하며, 이후 기준 정리와 등록은 웹 온보딩에서 이어간다. 별도 Slack 등록 스레드나 고정 성공 문장은 만들지 않는다. 초안 생성은 활성화·정기 매칭 접수가 아니다. 같은 요청의 재시도는 초안을 재사용하고 이후 웹에서 수정한 내용을 덮어쓰지 않는다.
 
-웹·Worker·migration은 미배포다. 새 Role 활성화 후 첫 정기 실행 계약은 [정기 추천 구현 문서](company/company-scheduled-agentic-role-search-implementation-ko.md), 합성 원본 LLM 검증은 [v38](evaluation/company-side-conversational-qa/gold-v38.md)을 따른다.
+웹·Worker·migration은 미배포다. 새 역할 활성화 후 첫 정기 실행 계약은 [Scheduled search 구현 문서](company/company-scheduled-agentic-role-search-implementation-ko.md), 합성 원본 LLM 검증은 [v38](evaluation/company-side-conversational-qa/gold-v38.md)을 따른다.
 
 ## 목적과 변경 절차
 
 Harper는 회사의 채용 파트너다. 대화를 이해하고, 근거를 확인하고, 권한 안에서 일을 이어간다.
 
-Organization Team은 선택적 Role 접근 그룹이다. 현재 팀원의 권한·팀·접근 범위를 일반 및 Role 작성 입력에 제공하되, 허용 Role의 목록·참고 자료·연락·이력은 서버 조회 단계부터 제한한다. 일반 대화는 접근 가능한 팀 조합별로 분리하고 실행 전에 현재 접근 권한을 다시 확인한다. 복수 팀에 배정된 팀원은 배정된 팀들의 Role에 접근한다. Owner가 팀과 배정을 관리하며 Slots·Intro·결제는 Organization 범위다. 구체적인 로컬 구현/운영 배포 경계는 [Team 접근 계약](company/organization-team-role-access-ko.md)을 따른다.
+Organization Team은 선택적 역할 접근 그룹이다. 현재 팀원의 권한·팀·볼 수 있는 역할을 일반 및 역할 작성 입력에 제공하되, 허용 역할의 목록·참고 자료·연락·이력은 서버 조회 단계부터 제한한다. 일반 대화는 접근 가능한 팀 조합별로 분리하고 실행 전에 현재 접근 권한을 다시 확인한다. 복수 팀에 배정된 팀원은 배정된 팀들의 역할에 접근한다. 소유자가 팀과 배정을 관리하며 슬롯·연결·결제는 Organization 범위다. 구체적인 로컬 구현/운영 배포 경계는 [Team 접근 계약](company/organization-team-role-access-ko.md)을 따른다.
 기능이 늘 때마다 system prompt 끝에 새 예외를 붙이지 않는다. 변경 전에 이 문서와 해당 제품 계약을 읽는다.
 
 1. 부족한 것이 문체인지, 사실 context인지, 도구 계약인지, 실제 외부 능력인지 먼저 구분한다.
@@ -48,17 +48,17 @@ Organization Team은 선택적 Role 접근 그룹이다. 현재 팀원의 권한
 | 기존 executor/RPC | 권한·동의·revision·idempotency·공유 범위 | 정성 판단과 문장 교정 |
 | `service_answer_examples` | 사람이 편집하는 서비스 답변 예시 | 현재 후보자 사실·행동 승인 |
 
-Hiring Brief는 [작성 정본](company/company-role-hiring-brief-authoring-guide-ko.md), 문체는
+Hiring 찾는 사람은 [작성 정본](company/company-role-hiring-brief-authoring-guide-ko.md), 문체는
 [UX writing 정본](company-side-ux-writing-guide-ko.md)을 따른다. 상세 구조의 배경은
 [입력·지연 로딩 계획](company-side-agent-input-and-capability-refactor-plan-ko.md)을 참고한다.
 
 ## 입력과 지연 로딩
 
-2026-10-21 로컬 개인정보 경계: 연결 대기(`pending_connection`), 먼저 제안 가능한 후보(`company_intro`),
-Intro 응답 대기(`intro_requested`)의 후보자 이메일 주소는 company-side LLM 입력에서 제외한다.
+2026-10-21 로컬 개인정보 경계: 연결 대기(`pending_connection`), 연결을 요청할 후보(`company_intro`),
+연결 응답 대기(`intro_requested`)의 후보자 이메일 주소는 company-side LLM 입력에서 제외한다.
 프로필 열람 여부는 이 주소 공개의 근거가 아니다. 도구 결과는 형식화·길이 제한 전에 주소를 제거하고,
 일반 대화·연락 원문·이전 답변·회사 사건·오류 진단은 모델 전송 직전에 현재 조직의 후보자 단계와
-등록 주소를 대조해 제외한다. 같은 후보자가 여러 Role에 있으면 제한 대상 Role의 주소가 다른 Role을
+등록 주소를 대조해 제외한다. 같은 후보자가 여러 역할에 있으면 제한 대상 역할의 주소가 다른 역할을
 통해 유입되지 않게 한다. 판단에는 기존 단계 계산을 재사용하고, 확인 조회가 실패하거나 불완전하면
 모델에 보내지 않는다. 실제 발송 주소와 저장된 원문은 수정하지 않으며, 연결된 후보자·회사 팀원 주소는
 이 제한만으로 제거하지 않는다. [검증과 한계](evaluation/company-side-conversational-qa/reports/2026-10-21-candidate-email-privacy.md).
@@ -75,7 +75,7 @@ Intro 응답 대기(`intro_requested`)의 후보자 이메일 주소는 company-
 가용성은 실행 승인이 아니며 최신 수정·철회와 권한은 별도로 판단한다. `full` 모드는 같은 새 core에 전체 기능을 제공하는
 호환 모드이며 이전 지침이나 허술한 권한 검사로 돌아가는 옵션이 아니다.
 
-2026-10-15 로컬 선제 점검은 실행별 `capabilityMode`와 `backgroundOrigin=scheduled_review`를 공통 loop에 연결한다. silent 허용 자체를 제품 사건의 증거로 사용하지 않는다. 기존 5분 dispatcher가 활성 Slack 채널이 연결된 모든 Workspace를 자동 조회하고 Owner·채널 공유 권한을 확인한 뒤 채널별로 평일 17–19시 KST에 하루 한 번 enqueue하며, 최근 30분 회사 대화가 있으면 미룬다. 새 회사 발화·당일 실행 기한은 미확정 작업을 중단한다. 같은 company-side LLM을 Sol/high와 전체 도구로 실행하고, 역할 대화·실제 전달 이력으로 반복 여부를 판단한다. `job_posting_promote`는 기존 홍보 허용 안에서 한정된 공고 운영에 유입 수요를 기록한다. `send_company_message`는 회사 메시지·역할별 스레드·답글을 원자적으로 확정하고 기존 Slack 경로가 영수증으로 복구한다. 무의미한 연락은 침묵한다. 시장 근거 조회는 설계만이며, 운영 DB·발송·배포는 미반영이다. [구현 계획](company/company-side-proactive-recruiting-implementation-plan-ko.md)과 [완료 기록](evaluation/company-side-conversational-qa/reports/2026-10-15-proactive-completion.md)을 따른다.
+2026-10-15 로컬 선제 점검은 실행별 `capabilityMode`와 `backgroundOrigin=scheduled_review`를 공통 loop에 연결한다. silent 허용 자체를 제품 사건의 증거로 사용하지 않는다. 기존 5분 dispatcher가 활성 Slack 채널이 연결된 모든 Workspace를 자동 조회하고 소유자·채널 공유 권한을 확인한 뒤 채널별로 평일 17–19시 KST에 하루 한 번 enqueue하며, 최근 30분 회사 대화가 있으면 미룬다. 새 회사 발화·당일 실행 기한은 미확정 작업을 중단한다. 같은 company-side LLM을 Sol/high와 전체 도구로 실행하고, 역할 대화·실제 전달 이력으로 반복 여부를 판단한다. `job_posting_promote`는 기존 홍보 허용 안에서 한정된 공고 운영에 유입 수요를 기록한다. `send_company_message`는 회사 메시지·역할별 스레드·답글을 원자적으로 확정하고 기존 Slack 경로가 영수증으로 복구한다. 무의미한 연락은 침묵한다. 시장 근거 조회는 설계만이며, 운영 DB·발송·배포는 미반영이다. [구현 계획](company/company-side-proactive-recruiting-implementation-plan-ko.md)과 [완료 기록](evaluation/company-side-conversational-qa/reports/2026-10-15-proactive-completion.md)을 따른다.
 
 선제 점검 시간은 로컬 후속 구현에서 `COMPANY_PROACTIVE_REVIEW_SCHEDULE` 환경변수로 분리했다. `daysOfWeek`, `startTimeKst`, `windowMinutes`를 받으며 기본값은 평일 17–19시 KST다. 기존 5분 dispatcher·최근 발화 연기·중복 방지는 유지한다. 별도 대상 환경변수는 사용하지 않고 활성 Slack 채널에서 대상을 조회한다. 자정에 걸친 창의 날짜는 시작한 KST 날짜이며 이미 접수한 작업은 기존 마감을 유지한다. 실행 프로세스에 환경변수가 반영되어야 적용된다. 운영 설정 변경·배포는 하지 않았다. 구체적인 설정은 위 구현 계획의 외부 설정 절을 따른다.
 
@@ -84,10 +84,19 @@ Intro 응답 대기(`intro_requested`)의 후보자 이메일 주소는 company-
 draft revision, 첨부파일 출처, 현재 시간과 불완전함을 보존한다.
 초안의 본문을 서버가 표시한다는 이유로 모델의 도구 결과에서 본문을 제거하지 않는다. 단일·일괄 초안 모두
 실제 저장본을 모델이 읽을 수 있어야 요청과의 차이를 알아차리고 일반 수정 도구를 사용할 수 있다.
-Role의 최초 작성과 후속 편집은 구분한다. 후속 수정은 영향받는 필드/문구만 변경하고 저장본을 확인한다.
+역할의 최초 작성과 후속 편집은 구분한다. 후속 수정은 영향받는 필드/문구만 변경하고 저장본을 확인한다.
 일반 작성은 공통 source 계약, 전문 인물 calibration은 그 계약과 확장 지침을 함께 사용한다.
 
 ## 모델과 목소리
+
+### 회사 쪽 이름
+
+- 회사가 보는 이름(단계, 버튼, 메뉴, 섹션, 사용 단위)은 `src/lib/org/terms.ts` 한 곳에만 둔다. 화면은 `ct(c, COMPANY_TERMS.…)`, 서버 문구는 `companyTerm(…, locale)`로 읽는다.
+- 저장 값(단계·상태·태그·결정 값, 도구 이름, 표·열 이름)은 이름이 바뀌어도 그대로다. 바뀌는 것은 화면·메일·Slack 문구, Harper 프롬프트, 새로 쓰는 글뿐이다.
+- 이름을 바꿀 때는 `ko`/`en`을 고치고 이전 이름을 같은 줄의 `former`(한국어 화면에서만 바뀐 영어 이름은 `formerKo`)로 옮긴다. Harper 프롬프트의 이름표(`companyTermsPrompt`)는 여기서 자동으로 만들어지므로 프롬프트를 따로 고치지 않는다. 이름표는 지난 대화·요약·메모리의 예전 이름을 같은 것으로 읽게 한다.
+- 저장된 글은 고치지 않는다. 회사 소식 기록은 읽을 때 지금 이름으로 보여 준다(`progressText.ts`). 사람이 쓴 메모와 활동은 그대로 보여 준다.
+- `terms.test.ts`는 회사 쪽 코드·문서에 예전 이름이 남으면 실패한다. 저장 값과 비교하는 줄처럼 예전 글자가 필요한 줄에는 `legacy-text`를 적는다.
+- 회사가 읽는 글(역할 설명, 찾는 사람, 확인할 기준, 후보 소개)에는 내부 문서 이름(예전 이름표의 영어 작업 이름)을 쓰지 않는다. 지시문은 작업 이름을 써도 되지만, 결과 글은 뜻으로 말한다.
 
 ### 연락의 단일 계약
 
@@ -106,7 +115,7 @@ Role의 최초 작성과 후속 편집은 구분한다. 후속 수정은 영향�
 속한 회신을 배치 조회한다. 회사가 답장한 이전 회신을 새 연락의 후보자 회신으로 취급하지 않는다.
 목록에는 본문을 읽지 않고, 상세도 기존 공유 경계를 지킨다. 이 경계는 실제 DB read smoke와
 조회 회귀 테스트로 확인하며 합성 도구를 쓰는 모델 평가만으로 검증됐다고 보지 않는다.
-같은 원본 메시지·Role·후보자의 재시도는 저장된 연락 결과를 먼저 돌려준다. queued/failed 연락을 draft로 재표시하지 않는다.
+같은 원본 메시지·역할·후보자의 재시도는 저장된 연락 결과를 먼저 돌려준다. queued/failed 연락을 draft로 재표시하지 않는다.
 후보자 수락이나 종료 상태만으로 회사 공유를 추정하지 않는다. 기존 전달·회사 공유의 durable 사실을 검증한다.
 아직 전달하지 않은 먼저 제안 후보의 최초 접근은 기존 의사 확인 계약을 유지한다.
 즉시 발송은 기존 전달 경로에 즉시 접수한다는 뜻이며 메일 수신·열람·답변은 확인 없이 주장하지 않는다.
@@ -121,7 +130,7 @@ Role의 최초 작성과 후속 편집은 구분한다. 후속 수정은 영향�
 
 ### 대화 모델
 
-2026-10-15 로컬 Slack 답장 참여 판단은 OpenRouter `typesafe/jev-1.13`의 native Decisions API를 사용한다. 최근 대화와 단일 Choice 질문으로 `respond|ignore`를 반환하며 답장 본문은 기존 company-side LLM이 작성한다. 최신 발화의 수신자·진행 중인 요청을 문맥으로 판단하고 일정 키워드 우회는 두지 않는다. 직접 멘션·Role 작성·진행 중 후보자 workflow의 기존 우회는 유지한다. 오류 시 응답 경로로 진행하되 다른 판단 모델을 호출하지 않으며, 최신 메시지로 취소된 요청은 그대로 취소한다. 호출 비용·시간은 공통 usage 기록에 남긴다. [고정 입력 검증](evaluation/slack-reply-routing/README.md)은 로컬 검증이며 운영 배포 완료를 뜻하지 않는다.
+2026-10-15 로컬 Slack 답장 참여 판단은 OpenRouter `typesafe/jev-1.13`의 native Decisions API를 사용한다. 최근 대화와 단일 Choice 질문으로 `respond|ignore`를 반환하며 답장 본문은 기존 company-side LLM이 작성한다. 최신 발화의 수신자·진행 중인 요청을 문맥으로 판단하고 일정 키워드 우회는 두지 않는다. 직접 멘션·역할 작성·진행 중 후보자 workflow의 기존 우회는 유지한다. 오류 시 응답 경로로 진행하되 다른 판단 모델을 호출하지 않으며, 최신 메시지로 취소된 요청은 그대로 취소한다. 호출 비용·시간은 공통 usage 기록에 남긴다. [고정 입력 검증](evaluation/slack-reply-routing/README.md)은 로컬 검증이며 운영 배포 완료를 뜻하지 않는다.
 
 요청된 기본 모델은 OpenRouter `google/gemini-3.8-flash`, temperature `0.5`다.
 조용히 다른 모델로 바꿔 평가를 통과시키지 않는다. 상세 분석을 수행하는 별도 기존 업무 모델과 사용자와
@@ -135,7 +144,7 @@ Role의 최초 작성과 후속 편집은 구분한다. 후속 수정은 영향�
 Haiku의 sampling 옵션은 API 계약에 따라 생략하고 다른 모델로 조용히 fallback하지 않는다.
 검증 계약과 결과는 [온보딩 Pitch 평가](evaluation/company-onboarding-pitch/README.md)에 기록한다.
 
-온보딩 Pitch 입력은 후보자에게 회사를 어필할 강점과 근거다. `onboardingPrompt.ts`가 이 입력의 목적과 수정 범위를 제공하며, 같은 일반 read/update 도구로 기존 Pitch에 반영한다. 이 제출의 수정 범위는 Pitch이며 다른 회사 필드나 Role을 자동으로 채우는 요청으로 확대하지 않는다. 제품·성과·문화·혜택의 실제 조건을 보존하는지와 완료 답변을 [v2 평가](evaluation/company-onboarding-pitch/gold-v2.md)에서 실제 저장본과 함께 확인한다.
+온보딩 Pitch 입력은 후보자에게 회사를 어필할 강점과 근거다. `onboardingPrompt.ts`가 이 입력의 목적과 수정 범위를 제공하며, 같은 일반 read/update 도구로 기존 Pitch에 반영한다. 이 제출의 수정 범위는 Pitch이며 다른 회사 필드나 역할을 자동으로 채우는 요청으로 확대하지 않는다. 제품·성과·문화·혜택의 실제 조건을 보존하는지와 완료 답변을 [v2 평가](evaluation/company-onboarding-pitch/gold-v2.md)에서 실제 저장본과 함께 확인한다.
 
 한국어는 해요체 중심. `네~`, `넵`, `ㅎㅎ`도 문맥에 맞으면 자연스럽게 쓸 수 있다. 모든 답에 웃음·감탄을
 붙이라는 뜻이 아니다. 친근함 때문에 없는 관심도·발송·약속을 만들지 않는다. 사용자 예시는 사실/승인 계약이 아니다.
@@ -143,22 +152,22 @@ Haiku의 sampling 옵션은 API 계약에 따라 생략하고 다른 모델로 �
 간결한 채용 파트너의 문체를 쓰고, UI를 직접 가리킬 때만 해당 언어의 실제 label을 쓴다. `/org`는
 감지하거나 수동 선택한 언어를 팀원의 `company_users.locale`에 저장한다. Slack은 인증된 팀원과
 연결된 같은 값을 읽고, 값이 아직 없을 때 현재 회사 대화의 언어를 따른다. 명시적인 회사 사용자 언어 요청은 기본
-언어보다 우선한다. 답변 언어는 후보자 연락과 저장할 Role 문서의 언어를 자동으로 결정하지 않는다.
+언어보다 우선한다. 답변 언어는 후보자 연락과 저장할 역할 문서의 언어를 자동으로 결정하지 않는다.
 
 알림 채널·담당자의 선택과 동의는 회사와 대화하는 원본 company-side LLM이 전체 대화에서 판단한다. 서버는 발화의 정규식·키워드 재판정을 하지 않고 현재 권한, 조직 소속과 정확한 대상 ID를 검증한다. 별도 classifier나 숨은 LLM은 추가하지 않는다.
 
-2026-10-15 로컬 변경: 일반 회사 대화도 `read_role`의 `notification` 조회로 실제 설정과 가능한 대상·현재 팀원/채널을 읽고, 기존 `set_role_notification` 저장 능력으로 채용 상태와 독립적으로 설정한다. 같은 대화의 복수 Role 설정·채용 시작 제안에 대한 동의는 원본 LLM이 해석하며, 승인된 활성화는 기존 `change_role_status` 완료 검사를 따른다. Role 작성 입력에도 실제 현재 Slack 채널을 전달한다. 팀원 온보딩 첫인사는 접근 가능한 draft의 확인된 설정 사실만 받아 유용한 제안을 판단하고, 가입 사건 자체로 설정·채용을 실행하지 않는다. 새 테이블·동의 classifier·시나리오 router는 없다. v27 및 member-welcome-v2 검증은 로컬·합성이며 운영 배포 완료를 뜻하지 않는다.
+2026-10-15 로컬 변경: 일반 회사 대화도 `read_role`의 `notification` 조회로 실제 설정과 가능한 대상·현재 팀원/채널을 읽고, 기존 `set_role_notification` 저장 능력으로 채용 상태와 독립적으로 설정한다. 같은 대화의 복수 역할 설정·채용 시작 제안에 대한 동의는 원본 LLM이 해석하며, 승인된 활성화는 기존 `change_role_status` 완료 검사를 따른다. 역할 작성 입력에도 실제 현재 Slack 채널을 전달한다. 팀원 온보딩 첫인사는 접근 가능한 draft의 확인된 설정 사실만 받아 유용한 제안을 판단하고, 가입 사건 자체로 설정·채용을 실행하지 않는다. 새 테이블·동의 classifier·시나리오 router는 없다. v27 및 member-welcome-v2 검증은 로컬·합성이며 운영 배포 완료를 뜻하지 않는다.
 
-2026-10-25 로컬 웹 Setup: `/org/new` 첫 입력과 역할 정보 편집은 `ROLE_SETUP_SYSTEM_PROMPT` 하나로 공개 역할 정보와 JD를 작성·저장한다. 회사 자료·같은 회사 공고·웹 참고 자료로 내용을 구체화하며, 공개 필드 저장과 자료 조회 네 도구만 제공한다. Brief·질문·보상 확인·Align은 후속 채용 시작 화면에서 처리한다. 알림과 담당자는 Finalize의 기존 설정/기본값을 사용한다. `descriptionSourceResearch` 기록과 역할 작성 loop의 호출·출력 토큰 상한은 제거했다. provider의 모델/context 한도와 요청 취소 처리는 유지한다. 검증 범위는 evaluation registry의 `role-setup-v1`이며 로컬 미배포다.
+2026-10-25 로컬 웹 `setup` 단계: `/org/new` 첫 입력과 역할 정보 편집은 `ROLE_SETUP_SYSTEM_PROMPT` 하나로 공개 역할 정보와 JD를 작성·저장한다. 회사 자료·같은 회사 공고·웹 참고 자료로 내용을 구체화하며, 공개 필드 저장과 자료 조회 네 도구만 제공한다. Brief·질문·보상 확인·`align` 단계는 후속 채용 시작 화면에서 처리한다. 알림과 담당자는 `finalize` 단계의 기존 설정/기본값을 사용한다. `descriptionSourceResearch` 기록과 역할 작성 loop의 호출·출력 토큰 상한은 제거했다. provider의 모델/context 한도와 요청 취소 처리는 유지한다. 검증 범위는 evaluation registry의 `role-setup-v1`이며 로컬 미배포다.
 
-별도 웹 Setup을 사용하지 않는 기존 Role 작성 경로는 간결한 discovery 계약을 사용한다. 반복된 진행 예문·설정 설명을 추가하지 않는다.
+별도 웹 `setup` 단계를 사용하지 않는 기존 역할 작성 경로는 간결한 discovery 계약을 사용한다. 반복된 진행 예문·설정 설명을 추가하지 않는다.
 등록 완료도 별도 장문 템플릿이 아니라 동일 voice/outcome 계약을 사용하며, 역할 활성화와 Slack 전달 결과만 제공한다.
 활성화를 worker 실행·후보 발견 증거로 확대하지 않는다. 채용 자격 문구는 source clause로 보존한다.
-새 Role은 LLM이 등록 확인 전에 Description, Brief와 Criteria를 작성·저장하도록 지침을 따른다.
+새 역할은 LLM이 등록 확인 전에 역할 설명, 찾는 사람과 확인할 기준을 작성·저장하도록 지침을 따른다.
 Criteria의 제목·근거·독립적 비교 의미는 공통 작성 정본을 따른다. 원본 company-side LLM이 알려진
 사실로 먼저 작성·저장해 알리고 대화를 이어가며, 기준 선택 질문이나 별도 Criteria 승인 단계는 필수가 아니다.
 Criteria 선작성은 LLM의 책임이며 DB·코드의 유무·개수 완료 조건은 두지 않는다.
-초안 편집 중 빈 목록과 기존 등록 Role의 편집은 허용하며, 기존 Criteria의 무단 삭제는 하지 않는다.
+초안 편집 중 빈 목록과 기존 등록 역할의 편집은 허용하며, 기존 Criteria의 무단 삭제는 하지 않는다.
 이 2026-10-15 변경은 로컬 구현이며 배포 완료를 뜻하지 않는다.
 
 후보자에게 연락 완료를 알리는 답변도 현재 요청과 실제 도구 결과가 우선이다. 전달할 문장에 담긴
@@ -229,15 +238,15 @@ Gemini는 reasoning `medium`, 최소 output budget 8192(추론 포함)이다. Op
 
 새 Harper 회사 안내는 `companyUpdate.server.ts`의 `enqueueCompanyUpdate`에 사건 목적과 회사 공유 가능 사실만 전달한다. 원본 company-side turn이 기존 대화·권한·일반 도구로 메시지를 작성한다. 결과가 빈 경우 성공 문구를 만들지 않고 실패·재시도로 남긴다. 채용 시작·채널 진입 같은 명시적 시스템 알림과 승인된 원문 전달은 예외다.
 
-2026-10-15 로컬 구현: 팀원 온보딩의 환영 안내는 같은 `enqueueCompanyUpdate`의 명시적 Slack 전달 대상 옵션을 사용한다. 완료 요청 안에서 채널의 팀원 멘션으로 실제 스레드를 만든 뒤, 기존 company_update 사건 실행 경로와 company-side 도구 loop가 목적·사실·실제 대화를 읽어 안내한다. 일반 대화처럼 기능을 필요할 때 로딩하며, 평범한 답변은 환영 스레드에 보내고 send_company_message를 선택하면 여러 메시지·스레드를 기존 batch 전달 경로로 보낸다. 별도 환영 큐를 만들지 않고 기존 사건 job의 숨은 anchor와 재시도를 재사용한다. 가입은 회사 입사가 아니라 Harper Workspace 진입이다. 저장된 Calendar 연결과 일정 조율 준비 완료를 구분하며, 링크와 채널에서 공유 가능한 Role 이름·상태만 제공한다. 이 짧은 동기 안내는 기존 Slack 대화·발송 기록을 사용하고 별도 welcome queue·table·의미 판정 상태를 만들지 않는다. 아직 운영 배포를 뜻하지 않는다.
+2026-10-15 로컬 구현: 팀원 온보딩의 환영 안내는 같은 `enqueueCompanyUpdate`의 명시적 Slack 전달 대상 옵션을 사용한다. 완료 요청 안에서 채널의 팀원 멘션으로 실제 스레드를 만든 뒤, 기존 company_update 사건 실행 경로와 company-side 도구 loop가 목적·사실·실제 대화를 읽어 안내한다. 일반 대화처럼 기능을 필요할 때 로딩하며, 평범한 답변은 환영 스레드에 보내고 send_company_message를 선택하면 여러 메시지·스레드를 기존 batch 전달 경로로 보낸다. 별도 환영 큐를 만들지 않고 기존 사건 job의 숨은 anchor와 재시도를 재사용한다. 가입은 회사 입사가 아니라 Harper Workspace 진입이다. 저장된 Calendar 연결과 일정 조율 준비 완료를 구분하며, 링크와 채널에서 공유 가능한 역할 이름·상태만 제공한다. 이 짧은 동기 안내는 기존 Slack 대화·발송 기록을 사용하고 별도 welcome queue·table·의미 판정 상태를 만들지 않는다. 아직 운영 배포를 뜻하지 않는다.
 
 `composeCompanyUpdate`는 동일 company-side 모델·system prompt·event contract를 사용하는 기존 카드 작성 adapter로 보존한다. 아래 정기 회사 선추천·연결 대기 소개 경로에서는 호출하지 않는다. 이 adapter는 최근 회사 대화와 검증된 카드 사실만 읽어 작성하고 별도 action은 실행하지 않는다. 카드 renderer용 ID/링크/coverage만 코드가 처리하며 prose를 다시 쓰지 않는다. 발송은 기존 outbox의 책임이다. 다른 업무 LLM에 회사용 문구를 작성하게 하거나 업무별 문체 prompt를 복제하지 않는다.
 
-설정 변경은 역할별 거절과 다르다. 기존 회사 추천·프로필·Intro의 조회를 유지하고 공유 가능한 변경/결정 이력을 read tool에 제공한다. 전체 연락 중단 뒤 남은 내부 제안의 처리 의도는 후보자와 대화 중인 원본 LLM이 확인한다. 자동 종료와 별도 동의 classifier는 두지 않는다.
+설정 변경은 역할별 거절과 다르다. 기존 회사 추천·프로필·연결의 조회를 유지하고 공유 가능한 변경/결정 이력을 read tool에 제공한다. 전체 연락 중단 뒤 남은 내부 제안의 처리 의도는 후보자와 대화 중인 원본 LLM이 확인한다. 자동 종료와 별도 동의 classifier는 두지 않는다.
 
 ## 2026-10-15: 정기 후보 소개 작성 예외 (로컬·미배포)
 
-정기 회사 선추천·연결 대기 소개는 운영 기준의 Worker 작성 모델과 두 전용 프롬프트를 유지해 완성된 소개를 먼저 전달한다. 공통 company-side LLM은 소개 뒤에만 `messageAlreadyDelivered=true` 이벤트를 받아 필요한 후속 행동이나 발언을 판단한다. 소개 본문을 정형 TL;DR/Note 조립이나 공통 작성기 호출로 대체하지 않는다. 가입일은 소개 작성 전용 조회에서 날짜만 제공하고, 최근 여부와 자연스러운 언급은 이 작성 LLM이 판단한다. [검증 기록](evaluation/company-candidate-writing-playground/reports/2026-10-15-signup-date.md).
+정기 회사 선추천·연결 대기 소개는 운영 기준의 Worker 작성 모델과 두 전용 프롬프트를 유지해 완성된 소개를 먼저 전달한다. 공통 company-side LLM은 소개 뒤에만 `messageAlreadyDelivered=true` 이벤트를 받아 필요한 후속 행동이나 발언을 판단한다. 소개 본문을 정형 한 줄 요약/Note 조립이나 공통 작성기 호출로 대체하지 않는다. 가입일은 소개 작성 전용 조회에서 날짜만 제공하고, 최근 여부와 자연스러운 언급은 이 작성 LLM이 판단한다. [검증 기록](evaluation/company-candidate-writing-playground/reports/2026-10-15-signup-date.md).
 
 ## 2026-10-15: 공통 사건 실행과 원문 보존 (로컬·미배포)
 
@@ -249,7 +258,7 @@ Gemini는 reasoning `medium`, 최소 output budget 8192(추론 포함)이다. Op
 
 [검증과 운영 적용 전 남은 작업](evaluation/company-side-conversational-qa/reports/2026-10-15-company-events.md).
 
-후속 로컬 점검: 공유 Role 대화는 실제 팀 소속을 바꾸지 않고 read 범위를 수신 팀으로 제한한다. 비공개 General에서 시작한 사건은 관련 Role 문맥을 읽고 같은 작성본을 원래 대화와 Role 기록에 보존한다. 채널별 실제 전송 응답을 기존 메시지에 저장해 성공 채널을 재발송하지 않으며, native Slack 동기화본은 정확한 응답 근거에 한해 UI 중복만 제외한다. 실행 전·전달 직전 현재 권한을 확인하고, 만료된 큐 lease는 같은 job/작성본으로 복구한다. 새 판단 테이블·제약은 없다. [점검·검증 기록](evaluation/company-side-conversational-qa/reports/2026-10-15-company-events-review.md).
+후속 로컬 점검: 공유 역할 대화는 실제 팀 소속을 바꾸지 않고 read 범위를 수신 팀으로 제한한다. 비공개 General에서 시작한 사건은 관련 역할 문맥을 읽고 같은 작성본을 원래 대화와 역할 기록에 보존한다. 채널별 실제 전송 응답을 기존 메시지에 저장해 성공 채널을 재발송하지 않으며, native Slack 동기화본은 정확한 응답 근거에 한해 UI 중복만 제외한다. 실행 전·전달 직전 현재 권한을 확인하고, 만료된 큐 lease는 같은 job/작성본으로 복구한다. 새 판단 테이블·제약은 없다. [점검·검증 기록](evaluation/company-side-conversational-qa/reports/2026-10-15-company-events-review.md).
 
 
 ## 2026-10-15: 자동 예시 프로필 calibration 종료
@@ -261,20 +270,20 @@ Gemini는 reasoning `medium`, 최소 output budget 8192(추론 포함)이다. Op
 삭제한다. 구체적인 반영 경계는 [작업 지도](scheduled/codex-work.md)에 기록한다.
 ## 2026-10-15 수동 인재상 조사 미리보기
 
-`roleSearchResearch.server.ts`는 기존 company-side loop·일반 조회·웹 도구로 조사 결과와 Brief·회사 설명의 초안을 반환하는 수동 진입점이다. 제품 route·queue·Role 활성화에는 연결하지 않는다. `allowedToolNames`는 trusted caller가 도구 노출과 실행을 줄이는 공통 경계이며 capability 로딩으로 넓힐 수 없다. 일반 대화에서 생략하면 기존 도구 제공이 그대로 유지된다. 공개 웹 cache는 세션 메모리에만 보존하고 실제 Brief 수정·후보 연락·회사 발송은 제공하지 않는다.
+`roleSearchResearch.server.ts`는 기존 company-side loop·일반 조회·웹 도구로 조사 결과와 찾는 사람·회사 설명의 초안을 반환하는 수동 진입점이다. 제품 route·queue·역할 활성화에는 연결하지 않는다. `allowedToolNames`는 trusted caller가 도구 노출과 실행을 줄이는 공통 경계이며 capability 로딩으로 넓힐 수 없다. 일반 대화에서 생략하면 기존 도구 제공이 그대로 유지된다. 공개 웹 cache는 세션 메모리에만 보존하고 실제 찾는 사람 수정·후보 연락·회사 발송은 제공하지 않는다.
 
 공통 authoring prompt를 재사용하며 새 업무 목적은 `roleSearchResearch.ts`에 둔다. 모델의 결과는 하나의 Markdown 초안으로 유지하고 인재상 점수·판단 상태·별도 저장 테이블을 만들지 않는다. [수동 평가 계약](evaluation/company-side-conversational-qa/README.md#수동-인재상-조사-미리보기-research-preview-v1-2026-10-15)은 내부 근거의 frozen adapter와 실제 공개 웹을 구분한다. 로컬 구현·미배포이며 실제 회사 데이터 조회·권한·전달 전체 E2E를 뜻하지 않는다.
 
-후속 수동 작성 계약은 조사 근거, 기존 조건을 보존한 Brief 블록과 구분된 탐색 제안, 회사의 부모 메시지·설명 답글 초안을 제공한다. 문서 구분을 파싱하는 새 executor는 없다. 현재 모델의 조사 해석·메시지 품질은 [후속 평가](evaluation/company-side-conversational-qa/reports/2026-10-15-role-search-research-refinement.md)에서 gate 미통과로 기록했으며, 일반 Role authoring·저장 권한과 회사 메시지 발송 경로를 변경하지 않았다.
+후속 수동 작성 계약은 조사 근거, 기존 조건을 보존한 찾는 사람 블록과 구분된 탐색 제안, 회사의 부모 메시지·설명 답글 초안을 제공한다. 문서 구분을 파싱하는 새 executor는 없다. 현재 모델의 조사 해석·메시지 품질은 [후속 평가](evaluation/company-side-conversational-qa/reports/2026-10-15-role-search-research-refinement.md)에서 gate 미통과로 기록했으며, 일반 역할 작성·저장 권한과 회사 메시지 발송 경로를 변경하지 않았다.
 
-이후 사용자 정정으로 공통 authoring 계약에서 일반 자격 편집과 위임받은 조사·calibration을 구분했다. 후자는 관련 전문 경력에서 회사·팀·학업 배경의 수준, 가산 강도와 실제 우선순위 효과를 직접 도출해 Brief에 제안한다. 단순 탐색 경로로 약화하지 않으며 회사 확정 기준·Harper의 soft bonus를 구분한다. 독립적인 탈락 기준·저장 권한은 추가하지 않는다. 책임 원본은 `hiringBriefAuthoringPrompt.ts`와 Hiring Brief 정본이며, 수동 업무 지시는 결과물 범위를 지정한다. [research-preview-v2](evaluation/company-side-conversational-qa/research-preview-gold-v2.md)에서 미리 주어진 우대가 없는 다른 직무와 근거 부족 경계를 함께 확인한다.
+이후 사용자 정정으로 공통 authoring 계약에서 일반 자격 편집과 위임받은 조사·calibration을 구분했다. 후자는 관련 전문 경력에서 회사·팀·학업 배경의 수준, 가산 강도와 실제 우선순위 효과를 직접 도출해 찾는 사람에 제안한다. 단순 탐색 경로로 약화하지 않으며 회사 확정 기준·Harper의 soft bonus를 구분한다. 독립적인 탈락 기준·저장 권한은 추가하지 않는다. 책임 원본은 `hiringBriefAuthoringPrompt.ts`와 찾는 사람 정본이며, 수동 업무 지시는 결과물 범위를 지정한다. [research-preview-v2](evaluation/company-side-conversational-qa/research-preview-gold-v2.md)에서 미리 주어진 우대가 없는 다른 직무와 근거 부족 경계를 함께 확인한다.
 
 후속 사용자 요청으로 이 조사 진입점만 `gpt-6.1-sol` / reasoning `medium`으로 고정했다. 공통 loop의 trusted caller별 reasoning override를 사용하며, 일반 회사 대화의 Gemini 기본값과 다른 Sol 호출의 high 기본값은 유지한다. 조사 도구·Brief/설명 초안 작성은 같은 Sol 세션에서 수행한다. 품질 계약도 전이 가능한 경험 수준을 먼저 쓰고 회사·팀·학교를 예시로 설명하도록 보완했다. 특정 출신의 추가 가산과 일반 caliber를 구분하며, 일부 프로필을 전체 팀원 대다수라고 일반화하지 않는다. 새 [v3 의미 기준](evaluation/company-side-conversational-qa/research-preview-gold-v3.md)은 사용자가 v2의 좁은 peer group을 정정한 기록이며 기존 결과를 덮어쓰지 않는다.
 
 
-2026-10-15 로컬 Hiring Brief 편집: `role_request`는 공통 변경 도구에서 별도 승인 대기 없이 저장한다.
+2026-10-15 로컬 찾는 사람 편집: `role_request`는 공통 변경 도구에서 별도 승인 대기 없이 저장한다.
 수정 요청·동의·정정이 무엇을 가리키는지는 원본 company-side LLM이 전체 대화로 판단하며,
-직전 질문에 대한 응답만 유효하다는 지침은 두지 않는다. 기존 대기 Brief도 현재 저장본을 읽어
+직전 질문에 대한 응답만 유효하다는 지침은 두지 않는다. 기존 대기 찾는 사람도 현재 저장본을 읽어
 일반 변경 입력으로 처리한다. 권한·대상·원문 부분 수정·동시 수정 검사는 유지한다.
 Memory와 후보자 연결·채용 등록 등 다른 작업의 승인 계약은 이 변경 범위가 아니다. 미배포다.
 
@@ -294,13 +303,13 @@ Memory와 후보자 연결·채용 등록 등 다른 작업의 승인 계약은 
 
 `email_preferences` 기능은 일반 대화에서는 한 줄 catalog와 지연 로딩, 이메일 답장에서는 첫 completion부터 schema와 정책을 제공한다. 기존 executor가 인증된 본인의 수신 설정만 변경하며 Slack·채용 상태는 변경하지 않는다. 설정 저장용 migration은 로컬 파일만 작성했고 적용하지 않았다. [동결 입력·실행 계약](evaluation/company-email-connection/README.md)을 따른다. 운영 발송·배포 완료를 뜻하지 않는다.
 
-### 2026-10-15 Intro 수락 뒤 연결 결과 안내 (로컬·미배포)
+### 2026-10-15 연결하기 뒤 연결 결과 안내 (로컬·미배포)
 
-후보자 수락 이력과 내부 알림은 즉시 남기고, 회사용 사건은 기존 Intro의 연결 완료 전이에서 생성한다. 이전 제안의 대상·역할·시점, 실제 연결 결과와 소개 이메일 영수증 사실을 같은 company-side LLM에 제공한다. 사건 목적에 미팅·채용 면책이나 고정 답변을 넣지 않는다. 회사가 직접 결정한 시스템 알림은 후보자가 회사 Intro를 수락한 경로에서는 제외한다. 웹과 새 trigger migration은 함께 반영해야 하며 기존 사건 재발송은 별도 판단이다. [검증과 적용 경계](evaluation/company-side-conversational-qa/reports/2026-10-15-intro-connection-notice.md).
+후보자 수락 이력과 내부 알림은 즉시 남기고, 회사용 사건은 기존 연결의 연결 완료 전이에서 생성한다. 이전 제안의 대상·역할·시점, 실제 연결 결과와 소개 이메일 영수증 사실을 같은 company-side LLM에 제공한다. 사건 목적에 미팅·채용 면책이나 고정 답변을 넣지 않는다. 회사가 직접 결정한 시스템 알림은 후보자가 회사 연결을 수락한 경로에서는 제외한다. 웹과 새 trigger migration은 함께 반영해야 하며 기존 사건 재발송은 별도 판단이다. [검증과 적용 경계](evaluation/company-side-conversational-qa/reports/2026-10-15-intro-connection-notice.md).
 
 
 2026-10-16 후속 로컬 구현은 `enqueueCompanyUpdate`의 이메일 분기와 수신자별 outbox, 월수금 10–18시 KST dispatcher, 저장된 연결 설정·후보 집계 조회, 발송 직전 권한/수신 거부/현황 재검사, 고정 payload 재시도 및 영수증 기록을 연결했다. 여러 Workspace가 있는 수신자는 전역 횟수·간격을 공유하지만 답장 맥락 격리를 위해 회차당 한 Workspace를 순환 안내한다. 로컬 PostgreSQL 및 가상 transport로 검사했으며 운영 DB 적용·배포·실제 발송은 하지 않았다. 상세 검증과 적용 전제는 위 company-email-connection 평가 계약을 따른다.
 
 ## 2026-10-16 명시적 수동 서치 준비의 저장·회사 전달 (로컬·미배포)
 
-`enqueueCompanyUpdate`의 researchKickoff 요청은 기존 회사 작업 큐와 같은 company-side loop에 조사·대상 Brief 보완·새 Slack 스레드 설명을 맡긴다. 일반 read/web 도구와 대상 Brief 수정·회사 메시지 확정만 허용하며, 모델은 Sol/medium, completion 최대40,000토큰이다. 확정된 메시지 batch와 실제 전달 영수증을 재사용해 부분 실패를 복구한 뒤 기존 검색에 한 번 접수한다. 접수 영수증은 기존 job JSON에 원자적으로 기록하며 새 판단 테이블을 만들지 않는다. 결과 작성에는 같은 run/Role에서 이미 전달한 설명을 제공한다. 채용 시작·정기 자동 호출과 기존 후보 카드 작성 경로는 그대로다. [구현·전달 계약](company/role-search-kickoff-implementation-plan-ko.md), [격리 평가](evaluation/company-side-conversational-qa/README.md#수동-조사-저장전달-research-delivery-v1-2026-10-16).
+`enqueueCompanyUpdate`의 researchKickoff 요청은 기존 회사 작업 큐와 같은 company-side loop에 조사·대상 찾는 사람 보완·새 Slack 스레드 설명을 맡긴다. 일반 read/web 도구와 대상 찾는 사람 수정·회사 메시지 확정만 허용하며, 모델은 Sol/medium, completion 최대40,000토큰이다. 확정된 메시지 batch와 실제 전달 영수증을 재사용해 부분 실패를 복구한 뒤 기존 검색에 한 번 접수한다. 접수 영수증은 기존 job JSON에 원자적으로 기록하며 새 판단 테이블을 만들지 않는다. 결과 작성에는 같은 run/역할에서 이미 전달한 설명을 제공한다. 채용 시작·정기 자동 호출과 기존 후보 카드 작성 경로는 그대로다. [구현·전달 계약](company/role-search-kickoff-implementation-plan-ko.md), [격리 평가](evaluation/company-side-conversational-qa/README.md#수동-조사-저장전달-research-delivery-v1-2026-10-16).

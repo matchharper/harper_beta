@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin, requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
+import { billingErrorResponse } from "@/lib/org/billing/http";
 import { externalSourcingEnabledFor } from "@/lib/org/agent/externalSourcing";
 import { loadShownExternalCandidate, requestExternalIntro } from "@/lib/org/agent/externalSourcing.server";
 
@@ -12,7 +13,7 @@ const body = z.object({
 });
 
 /**
- * Role page Send Intro for a person outside Harper: the same inputs as a member Intro request.
+ * Role page Request intro for a person outside Harper: the same inputs as a member Intro request.
  * Only for a person with a found address. Records the request; with invitations on, Harper emails one invitation.
  */
 export async function POST(req: NextRequest) {
@@ -26,13 +27,16 @@ export async function POST(req: NextRequest) {
     await assertOrgRoleAccess({ workspaceId, roleId, admin, user, permission: "manage_candidates" });
     const candidate = await loadShownExternalCandidate({ admin, workspaceId, roleId, candidateRef: candidateId });
     if (!candidate) throw new OrgHttpError(404, "Candidate not found");
-    // The inbox offers Send Intro only once an address is found (Harper's tool may still queue a lookup).
+    // The inbox offers Request intro only once an address is found (Harper's tool may still queue a lookup).
     if (candidate.contact?.status !== "found") throw new OrgHttpError(409, "No email address was found for this person.");
     const result = await requestExternalIntro({ admin, workspaceId, roleId, userId: user.id, candidate, companyAppeal,
       introRecipientEmails: [...new Set(introRecipientEmails)], channel: "web" });
     if (result.status === "no_email") throw new OrgHttpError(409, "No email address was found for this person.");
     return NextResponse.json({ ok: true, status: result.status });
   } catch (error) {
+    // No connection left: the same message and code as a member Intro request.
+    const billing = billingErrorResponse(error);
+    if (billing) return billing;
     if (error instanceof OrgHttpError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof Error && error.message === "Unauthorized") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     console.error("[org/external-candidates/intro]", error);

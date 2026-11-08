@@ -564,10 +564,10 @@ export function buildOrgRoleMatchingHealthToolResult(
     `적합도 판단 기록이 있는 고유 후보자: ${fits.length}명`,
     `가장 최근 적합도 판단 시각: ${latestEvaluationAt(fits)}`,
     ...(fitsAfterRoleUpdate === null
-      ? ["Role 수정 시각과 적합도 판단 시각의 선후 관계: 비교할 수 없음"]
+      ? ["역할 수정 시각과 적합도 판단 시각의 선후 관계: 비교할 수 없음"]
       : [
-          `Role 최종 수정 시각과 같거나 그 이후에 판단된 후보자: ${fitsAfterRoleUpdate.length}명`,
-          `Role 최종 수정 시각보다 앞서 판단된 후보자: ${fits.length - fitsAfterRoleUpdate.length}명`,
+          `역할 최종 수정 시각과 같거나 그 이후에 판단된 후보자: ${fitsAfterRoleUpdate.length}명`,
+          `역할 최종 수정 시각보다 앞서 판단된 후보자: ${fits.length - fitsAfterRoleUpdate.length}명`,
         ]),
   ];
 
@@ -581,7 +581,7 @@ export function buildOrgRoleMatchingHealthToolResult(
       ...groupSections,
       "[해석 및 회사 답변 지침]",
       "- 이 결과의 정확한 인원 수와 내부 평가 구분은 회사에 말하지 않는다.",
-      "- 회사가 조정할 수 있는 조건이 여러 근접 후보에게 반복될 때만 Role의 주요 병목으로 설명한다.",
+      "- 회사가 조정할 수 있는 조건이 여러 근접 후보에게 반복될 때만 역할의 주요 병목으로 설명한다.",
       "- 일부 근거 예시에서만 보이는 조건은 전체 후보군의 가장 큰 탈락 사유라고 단정하지 않는다.",
       "- 회사에 도움이 되지 않는 개인적 사유와 단순한 후보자 약점은 언급하지 않는다.",
       "- 후보자의 이름·연락처·정확한 희망 보상은 말하지 않는다. 경력 정보는 설명에 꼭 도움이 될 때만 가볍게 사용한다.",
@@ -594,17 +594,17 @@ export function buildOrgRoleMatchingHealthToolResult(
     return [
       "[매칭 판단 범위와 최신성]",
       ...roleSummary,
-      `Role 최종 수정 시각: ${args.role.updatedAt}`,
+      `역할 최종 수정 시각: ${args.role.updatedAt}`,
       "",
       ...coverageFacts,
       "전체 후보 Pool 규모: 이 데이터 소스에서는 확인할 수 없음",
-      "현재 Role의 평가 대상이지만 아직 판단되지 않은 후보자 수: 이 데이터 소스에서는 확인할 수 없음",
+      "현재 역할의 평가 대상이지만 아직 판단되지 않은 후보자 수: 이 데이터 소스에서는 확인할 수 없음",
       "",
       "[해석 및 회사 답변 지침]",
       "- 적합도 판단 기록 수는 전체 후보 Pool 크기나 전체 검토 완료를 뜻하지 않는다.",
       "- 전체 Pool 분모가 확인되지 않으므로 이 결과만으로 'Pool에 사람이 없다'고 말하지 않는다.",
-      "- Role 수정 전 판단은 현재 조건을 반영했다고 단정하지 않는다. 수정 이후 판단 범위가 충분한지 먼저 본다.",
-      "- Role이 비활성·만료·자동 매칭 꺼짐 상태라면 후보 부족보다 운영 상태를 먼저 설명한다.",
+      "- 역할 수정 전 판단은 현재 조건을 반영했다고 단정하지 않는다. 수정 이후 판단 범위가 충분한지 먼저 본다.",
+      "- 역할이 비활성·만료·자동 매칭 꺼짐 상태라면 후보 부족보다 운영 상태를 먼저 설명한다.",
       "- 판단 범위가 작거나 최신 판단이 부족하면 기준이 과도한지와 Pool이 부족한지를 구분할 수 없다고 답한다.",
       "- 정확한 인원 수와 시각을 회사에 나열하지 말고, 근거의 충분성만 자연스럽게 설명한다.",
     ].join("\n");
@@ -619,7 +619,7 @@ export function buildOrgRoleMatchingHealthToolResult(
       ...roleSummary,
       `결과 생성 시각: ${args.generatedAt}`,
       "같은 후보자의 추천 기록이 여러 개면 가장 최근 공식 추천 기록 하나만 사용함.",
-      `이 Role의 공식 추천 기록이 있는 고유 후보자: ${recommendations.length}명`,
+      `이 역할의 공식 추천 기록이 있는 고유 후보자: ${recommendations.length}명`,
       `후보자 거절 반응이 기록된 고유 후보자: ${negativeResponses.length}명`,
       `거절 이유까지 기록된 고유 후보자: ${recordedDeclineReasonCount}명`,
       "",
@@ -635,7 +635,7 @@ export function buildOrgRoleMatchingHealthToolResult(
   }
 
   return [
-    "[Role 및 운영 상태]",
+    "[역할 및 운영 상태]",
     `Role: ${text(args.role.name) || "이름 없음"}`,
     `저장된 상태: ${valueOrMissing(args.role.status)}`,
     `만료 표시: ${args.role.isExpired ? "만료됨" : "만료되지 않음"}`,
@@ -648,27 +648,27 @@ export function buildOrgRoleMatchingHealthToolResult(
         : "등록 정보 없음"
     }`,
     `회사에 등록된 보상 범위: ${companySalary(args.role)}`,
-    `Role 최종 수정 시각: ${args.role.updatedAt}`,
+    `역할 최종 수정 시각: ${args.role.updatedAt}`,
     "",
     "[조회 기준]",
     `결과 생성 시각: ${args.generatedAt}`,
     "같은 후보자의 기록이 여러 개면 가장 최근 판단과 가장 최근 공식 추천 기록 하나만 사용함.",
     `가장 최근 적합도 판단 시각: ${latestEvaluationAt(fits)}`,
     ...(fitsAfterRoleUpdate === null
-      ? ["Role 수정 시각과 적합도 판단 시각의 선후 관계: 비교할 수 없음"]
+      ? ["역할 수정 시각과 적합도 판단 시각의 선후 관계: 비교할 수 없음"]
       : [
-          `Role 최종 수정 시각과 같거나 그 이후에 판단된 후보자: ${fitsAfterRoleUpdate.length}명`,
-          `Role 최종 수정 시각보다 앞서 판단된 후보자: ${fits.length - fitsAfterRoleUpdate.length}명`,
+          `역할 최종 수정 시각과 같거나 그 이후에 판단된 후보자: ${fitsAfterRoleUpdate.length}명`,
+          `역할 최종 수정 시각보다 앞서 판단된 후보자: ${fits.length - fitsAfterRoleUpdate.length}명`,
         ]),
     "",
     "[현재 매칭 현황 — 회사 답변용 내부 근거]",
     `적합도 판단 기록이 있는 고유 후보자: ${fits.length}명`,
     `현재 추천 대상으로 저장된 고유 후보자: ${selectedFits.length}명`,
-    `이 Role의 공식 추천 기록이 있는 고유 후보자: ${recommendations.length}명`,
+    `이 역할의 공식 추천 기록이 있는 고유 후보자: ${recommendations.length}명`,
     `공식 추천 기록 중 후보자 긍정 반응: ${positiveResponses.length}명`,
     `공식 추천 기록 중 후보자 거절 반응: ${negativeResponses.length}명`,
     `공식 추천 기록 중 후보자 반응 기록 없음: ${noRecordedResponses.length}명`,
-    `현재 추천 대상으로 저장됐지만 이 Role의 공식 추천 기록은 없는 후보자: ${selectedWithoutRecommendation.length}명`,
+    `현재 추천 대상으로 저장됐지만 이 역할의 공식 추천 기록은 없는 후보자: ${selectedWithoutRecommendation.length}명`,
     "",
     "[최근 공식 추천 기록 예시]",
     formatRecommendationExamples({
@@ -680,21 +680,21 @@ export function buildOrgRoleMatchingHealthToolResult(
     ...groupSections,
     ...(declineReasons ? ["[후보자 거절 이유]", declineReasons, ""] : []),
     "[정확성 경계]",
-    "- 적합도 판단 기록은 후보자에게 연락했거나 Role을 보여줬다는 뜻이 아니다.",
+    "- 적합도 판단 기록은 후보자에게 연락했거나 역할을 보여줬다는 뜻이 아니다.",
     "- 현재 추천 대상으로 저장됐다는 것은 평가 단계의 선택 기록이다. 추천 발송 예약이나 전달 완료를 뜻하지 않으며, 공식 추천 기록이 없다고 해서 처리 실패라고 단정하지 않는다.",
-    "- 공식 추천 기록은 Role 추천이 생성됐다는 사실만 뜻한다. 별도의 발송 성공 기록이 없으므로 이메일·메시지가 실제 전달됐다고 단정하지 않는다.",
+    "- 공식 추천 기록은 역할 추천이 생성됐다는 사실만 뜻한다. 별도의 발송 성공 기록이 없으므로 이메일·메시지가 실제 전달됐다고 단정하지 않는다.",
     "- 후보자 반응 기록이 없다는 것은 거절이 아니다.",
     "- 후보자의 긍정 반응은 후보자 측 의사만 뜻한다. 회사에 후보자 정보가 공유됐거나 연결이 시작됐다는 뜻이 아니다.",
     "- 상호 적합 판단 후 미선택 후보의 판단 근거는 비추천 사유가 아닐 수 있다. 별도 근거 없이 미선택 원인을 추정하지 않는다.",
-    "- Role 수정 전의 판단 기록은 현재 Role 조건을 반영했다고 단정하지 않는다. 수정 이후 판단 기록의 범위를 함께 확인한다.",
-    "- 표본이 적거나 근거가 서로 다르면 Role 전체의 반복 패턴이라고 일반화하지 않는다.",
+    "- 역할 수정 전의 판단 기록은 현재 역할 조건을 반영했다고 단정하지 않는다. 수정 이후 판단 기록의 범위를 함께 확인한다.",
+    "- 표본이 적거나 근거가 서로 다르면 역할 전체의 반복 패턴이라고 일반화하지 않는다.",
     "",
     "[회사 답변 작성 지침]",
     "- 회사의 실제 질문에 답하는 데 필요한 사실만 골라 사용한다. 이 결과를 항목별로 낭독하지 않는다.",
     "- 정확한 인원 수, 비율, 내부 평가명, 점수, 식별자, 데이터 필드명을 회사에 말하지 않는다. 규모와 흐름은 정성적으로 설명한다.",
     "- 회사가 채용 조건을 조정하거나 판단하는 데 도움이 되는 반복적이고 조정 가능한 이유를 우선한다. 도움이 되지 않는 개인적 사유나 단순한 후보자 약점은 언급하지 않는다.",
     "- 후보자의 이름·연락처·정확한 희망 보상·사적인 조건은 말하지 않는다. 꼭 도움이 될 때만 최근 등록 경력이나 프로필 소개를 가볍게 언급하고, 현재 재직 중이라고 단정하지 않는다.",
-    "- 회사가 직접 등록한 Role 조건과 보상 범위는 정확히 말해도 되지만, 후보자 금액은 비공개 상태로 유지하고 차이의 방향이나 조정 가능성만 자연스럽게 설명한다.",
+    "- 회사가 직접 등록한 역할 조건과 보상 범위는 정확히 말해도 되지만, 후보자 금액은 비공개 상태로 유지하고 차이의 방향이나 조정 가능성만 자연스럽게 설명한다.",
     "- 기록된 판단 근거와 거절 이유를 후보자의 직접 발언처럼 인용하지 말고, 회사에 유용한 의미만 신중하게 요약한다.",
     "- 공식 추천 생성, 전달, 후보자 반응, 회사 공유와 연결 진행을 서로 구분한다. 근거가 없는 단계는 일어났다고 말하지 않는다.",
     "- 데이터가 없거나 충분하지 않으면 원인을 만들어내지 말고, 현재 확인 가능한 범위가 제한적이라고 솔직하게 말한다.",

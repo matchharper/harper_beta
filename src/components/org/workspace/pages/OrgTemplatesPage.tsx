@@ -13,6 +13,7 @@ import {
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgMessageTemplates } from "@/hooks/org/useOrgMessageTemplates";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import {
   findUnknownOrgIntroFields,
@@ -59,7 +60,7 @@ export function OrgTemplatesPage() {
   return (
     <div className="max-w-[1100px] space-y-7 pb-12">
       <OrgPageHeader
-        title="Templates"
+        title={ct(c, COMPANY_TERMS.nav.templates)}
         description={c(
           "팀이 함께 쓰는 템플릿이에요. 연결 창에서 불러와 쓰고, {p0}개까지 저장할 수 있어요.",
           "Templates your team shares. Load them in the connect dialog; you can keep up to {p0}.",
@@ -69,11 +70,11 @@ export function OrgTemplatesPage() {
       <TemplateSection
         canManage={canManage}
         description={c(
-          "소개 메일을 직접 쓸 때 불러와요. 면접 예약 링크의 주제와 길이도 함께 불러와요.",
+          "연결 메일을 직접 쓸 때 불러와요. 면접 예약 링크의 주제와 길이도 함께 불러와요.",
           "Load these when you write your own intro email, with the booking link's topic and length."
         )}
         kind="intro_email"
-        title={c("소개 메일", "Intro email")}
+        title={c("연결 메일", "Intro email")}
         workspaceId={workspace.workspaceId}
       />
     </div>

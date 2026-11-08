@@ -135,7 +135,8 @@ export function formatIntroCount(
   count: number | null | undefined,
   locale: "ko" | "en"
 ) {
-  return `${count ?? "—"} ${locale === "en" && count !== 1 ? "Intros" : "Intro"}`;
+  if (locale === "ko") return `연결 ${count ?? "—"}회`;
+  return `${count ?? "—"} ${count === 1 ? "intro" : "intros"}`;
 }
 
 export function isEndedBillingSlot(slot: BillingSlot, now = Date.now()) {
@@ -201,15 +202,15 @@ export function billingErrorCopy(code: BillingErrorCode, locale: "ko" | "en") {
       "This request is currently unavailable. Contact Harper for help.",
     ],
     credits_exhausted: [
-      "이 Role에서 사용할 수 있는 슬롯 Intro와 공용 Intro가 모두 소진됐어요. Harper 팀에 문의해 주세요.",
-      "There are no slot or shared Intros available for this Role. Contact the Harper team.",
+      "이 역할에서 사용할 수 있는 슬롯 연결과 기본 연결이 모두 소진됐어요. Harper 팀에 문의해 주세요.",
+      "There are no slot or included intros left for this role. Contact the Harper team.",
     ],
     role_slot_required: [
-      "이 Role의 채용을 시작한 뒤 다시 시도해 주세요.",
+      "이 역할의 채용을 시작한 뒤 다시 시도해 주세요.",
       "Start hiring for this Role before trying again.",
     ],
     role_capacity_exceeded: [
-      "Free Role은 한 번에 1개까지 채용을 진행할 수 있어요. 다른 Role을 시작하려면 현재 Free Role을 일시 중지하거나 사용 가능한 유료 슬롯이 필요해요.",
+      "무료 플랜에선 한 번에 역할 1개를 진행해요. 다른 역할을 시작하려면 지금 역할을 잠시 멈추거나 사용할 수 있는 유료 슬롯이 필요해요.",
       "Only one Free Role can be active at a time. Starting another Role requires pausing the current Free Role or having an available paid slot.",
     ],
     billing_promotion_invalid: [
@@ -225,11 +226,11 @@ export function billingErrorCopy(code: BillingErrorCode, locale: "ko" | "en") {
       "Your subscription has changed. Refresh the page and review the latest details.",
     ],
     billing_forbidden: [
-      "구독은 Organization의 Owner 또는 Admin이 관리할 수 있어요.",
+      "구독은 Organization의 소유자 또는 관리자가 관리할 수 있어요.",
       "An Organization Owner or Admin can manage subscriptions.",
     ],
     billing_owner_required: [
-      "결제 내역과 결제 수단은 Organization의 Owner만 확인하고 관리할 수 있어요.",
+      "결제 내역과 결제 수단은 Organization의 소유자만 확인하고 관리할 수 있어요.",
       "Only an Organization Owner can view billing history and manage payment details.",
     ],
   };

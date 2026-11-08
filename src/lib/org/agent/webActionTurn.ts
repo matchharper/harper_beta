@@ -19,10 +19,12 @@ function clean(value: unknown) {
 
 /**
  * Events that join one company Harper run when they come in quick succession
- * (D12): the run collects them for this many seconds, then starts once.
+ * (D12): the run collects them for this many seconds, then starts once. Stage
+ * moves join too, so a bulk decision wakes Harper once.
  */
-const BATCHED_WEB_ACTIONS: Record<string, number> = {
+export const BATCHED_WEB_ACTIONS: Readonly<Record<string, number>> = {
   company_intro_decision: 45,
+  candidate_stage_changed: 45,
 };
 
 /** The normal dispatcher resumes interrupted work under its original job ID. */

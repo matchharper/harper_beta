@@ -302,7 +302,9 @@ export function externalInviteOutcomeFacts(args: {
     externalInvitation: { requestId: args.requestId, role: args.roleName, person: args.person, outcome: args.outcome, reason: args.reason },
     candidateState: {
       harperMember: false, invitationDelivered: args.outcome === "unsubscribed" || args.outcome === "connect_failed",
-      meaning: args.outcome === "connect_failed"
+      meaning: args.outcome === "connect_failed" && args.reason === "credits_exhausted"
+        ? "The person confirmed the connection from Harper's invitation, but the company has no connections left for this Role, so Harper did not send the introduction email; nobody received it and the company does not have the person's address. Each introduction uses one connection."
+        : args.outcome === "connect_failed"
         ? "The person confirmed the connection from Harper's invitation, but the introduction email could not be sent; nobody received it and the company does not have the person's address."
         : args.outcome === "not_sendable"
         ? "No invitation was sent to this person."

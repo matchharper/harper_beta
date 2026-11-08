@@ -28,7 +28,7 @@ test("an unpurchased company-first profile renders its real identity and origina
       const body = dom.window.document.body;
       assert.ok(body.textContent?.includes("Visible Candidate"));
       assert.ok(body.textContent?.includes("Visible Employer"));
-      assert.ok(body.textContent?.includes(locale === "ko" ? "Send Intro" : "Send Intro"));
+      assert.ok(body.textContent?.includes(locale === "ko" ? "연결 요청" : "Request intro"));
       assert.equal(body.querySelector('[class*="blur"]'), null);
       assert.ok(!body.textContent?.includes("프로필 열람"));
     } finally { dom.window.close(); }
@@ -44,8 +44,8 @@ test("the Free plan displays one active Role and three monthly Intros in both la
     ));
     try {
       const text = dom.window.document.body.textContent ?? "";
-      assert.ok(text.includes(locale === "ko" ? "활성 Role 1개" : "1 active role"));
-      assert.ok(text.includes(locale === "ko" ? "월 3개의 Intro" : "3 Intros every month"));
+      assert.ok(text.includes(locale === "ko" ? "활성 역할 1개" : "1 active role"));
+      assert.ok(text.includes(locale === "ko" ? "매월 기본 연결 3회" : "3 included intros every month"));
     } finally { dom.window.close(); }
   }
 });

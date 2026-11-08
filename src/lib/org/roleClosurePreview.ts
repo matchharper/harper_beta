@@ -62,8 +62,8 @@ export function countRoleClosureRecipients(args: {
       const stop = events.find(event => {
         const matches = eventStage(event) === currentStage ||
           (currentStage === "process_stopped" &&
-            ["프로세스 중단", "진행을 중단"].some(value => text(event.text).includes(value))) ||
-          (currentStage === "archived" && text(event.text).includes("아카이브"));
+            ["프로세스 중단", "진행 종료", "진행을 중단"].some(value => text(event.text).includes(value))) || // legacy-text: older events
+          (currentStage === "archived" && ["아카이브", "보관"].some(value => text(event.text).includes(value))); // legacy-text
         return matches && (!changedAt || Math.abs(Date.parse(event.created_at) - Date.parse(changedAt)) <= 300_000);
       });
       if (record(stop?.metadata).notifyCandidateOnClosure === false) continue;

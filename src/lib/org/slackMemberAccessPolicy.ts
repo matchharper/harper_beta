@@ -68,8 +68,8 @@ export function buildHarperSlackAccessDeniedMessage(
   if (args.reason === "insufficient_role") {
     return [
       "🔒 *Harper를 호출할 권한이 없습니다.*",
-      `현재 계정${email ? ` (\`${email}\`)` : ""}은 “${workspaceName}” Harper Workspace의 Viewer입니다.`,
-      "Workspace Owner 또는 Admin에게 권한 변경을 요청한 뒤 다시 시도해 주세요.",
+      `현재 계정${email ? ` (\`${email}\`)` : ""}은 “${workspaceName}” Harper Workspace의 조회자입니다.`,
+      "Workspace 소유자 또는 관리자에게 권한 변경을 요청한 뒤 다시 시도해 주세요.",
     ].join("\n");
   }
 

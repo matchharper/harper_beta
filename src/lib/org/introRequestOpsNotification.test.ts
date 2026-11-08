@@ -28,7 +28,7 @@ test("new Intro emits only compact internal facts and a stable message identity"
   const f = fixture();
   await notifyIntroRequestForOps(f.args);
   assert.equal(f.posts.length, 1);
-  assert.match(f.posts[0].text, /^Intro 요청 · /);
+  assert.match(f.posts[0].text, /^연결 요청 · /);
   assert.match(f.posts[0].text, /Company &amp; Co : Engineer/);
   assert.match(f.posts[0].text, /→ &lt;@someone&gt;$/);
   assert.doesNotMatch(f.posts[0].text, /발송|연결 완료|수락/);
@@ -72,7 +72,7 @@ test("candidate acceptance has a separate internal identity and does not claim e
   await notifyIntroRequestForOps(f.args);
   await notifyIntroAcceptanceForOps({ ...f.args, decisionChanged: true });
   assert.equal(f.posts.length, 2);
-  assert.match(f.posts[1].text, /^후보자 Intro 수락 · /);
+  assert.match(f.posts[1].text, /^후보자 연결 수락 · /);
   assert.match(f.posts[1].text, /Company &amp; Co : Engineer/);
   assert.match(f.posts[1].text, /→ &lt;@someone&gt;$/);
   assert.doesNotMatch(f.posts[1].text, /발송|연결 완료/);

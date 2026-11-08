@@ -1,7 +1,7 @@
 import "server-only";
 
 import { buildOrgHref } from "@/lib/org/routes";
-import type { roleStartSql } from "./db";
+import type { RoleStartDb } from "./db";
 import type { RoleStartQuestion } from "./session";
 
 export type SessionChatWrite = {
@@ -26,7 +26,7 @@ export function roleStartQuestionMessage(question: RoleStartQuestion) {
 
 export function roleStartBriefReadyMessage(roleId: string, workspaceId: string) {
   return {
-    content: "질문을 마쳤어요. Brief를 확인하고 확정하면 첫 후보를 보여 드려요.",
+    content: "질문을 마쳤어요. 기준을 확인하면 첫 후보를 보여 드릴게요.",
     metadata: { roleStartBriefReady: {
       href: buildOrgHref({ orgId: workspaceId, page: "role", roleId, tab: "start" }),
     } },
@@ -34,7 +34,7 @@ export function roleStartBriefReadyMessage(roleId: string, workspaceId: string) 
 }
 
 /** CTEs gated by saved_session: the answer, navigation card and session commit together. */
-export function sessionChatWrite(sql: ReturnType<typeof roleStartSql>, roleId: string, chat: SessionChatWrite) {
+export function sessionChatWrite(sql: RoleStartDb, roleId: string, chat: SessionChatWrite) {
   const next = chat.nextQuestion;
   const card = next ? roleStartQuestionMessage(next)
     : chat.briefReady ? roleStartBriefReadyMessage(roleId, chat.workspaceId) : null;

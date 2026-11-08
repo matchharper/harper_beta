@@ -5,6 +5,8 @@ import type { User } from "@supabase/supabase-js";
 import { readOrgRoleAccess } from "@/lib/org/teamAccess";
 import { readMatchingRunHistory } from "@/lib/companyFirstSearch/history";
 import { getLlmErrorMessage } from "@/lib/llm/llm";
+import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
+import { readNextScheduledSearches } from "@/lib/org/decisionCounts.server";
 import {
   fetchOrgAgentPipelineSnapshot,
   fetchOrgAgentRoles,
@@ -140,13 +142,24 @@ async function optionalContext<T>(args: {
   }
 }
 
+/** The next scheduled search in KST, "none" when there is none, or unknown. */
+function nextSearch(
+  nextSearchByRoleId: ReadonlyMap<string, string | null> | null,
+  roleId: string
+) {
+  if (!nextSearchByRoleId?.has(roleId)) return "unavailable";
+  const at = nextSearchByRoleId.get(roleId);
+  return at ? formatLlmDateTime(at) : "none";
+}
+
 function formatRoles(
   roles: OrgAgentPromptContext["roles"],
   countsByRoleId:
     | Awaited<
         ReturnType<typeof fetchOrgAgentPipelineSnapshot>
       >["countsByRoleId"]
-    | null
+    | null,
+  nextSearchByRoleId: ReadonlyMap<string, string | null> | null = null
 ) {
   if (roles.length === 0) {
     return {
@@ -168,6 +181,8 @@ function formatRoles(
         "salaryRange",
         "intro_requests",
         "waiting",
+        "saved",
+        "reviewing",
         "active",
         "ended",
         "counts_complete",
@@ -180,6 +195,7 @@ function formatRoles(
         "periodic_search",
         "search_days_kst",
         "search_hour_kst",
+        "next_search_kst",
       ],
       candidate.map((item) => {
         const counts = countsByRoleId?.get(item.roleId);
@@ -192,6 +208,8 @@ function formatRoles(
           item.salaryRange,
           counts?.intro ?? "unavailable",
           counts?.waiting ?? "unavailable",
+          counts?.saved ?? "unavailable",
+          counts?.reviewing ?? "unavailable",
           counts?.active ?? "unavailable",
           counts?.ended ?? "unavailable",
           counts?.complete ?? false,
@@ -204,9 +222,10 @@ function formatRoles(
           item.isCompanyFirstSearch === true,
           item.introSearchDate?.join(",") ?? "Mon,Wed,Fri",
           item.introSearchTime ?? 9,
+          nextSearch(nextSearchByRoleId, item.roleId),
         ];
       }),
-      [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 8, 8, 8, 8, 8, 8, 8, 8, 30, 3]
+      [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 12, 12, 8, 8, 8, 8, 8, 8, 8, 8, 30, 3, 20]
     );
     if (table.length > DEFAULT_ROLE_INDEX_MAX_CHARS) break;
     selected.push(role);
@@ -221,6 +240,8 @@ function formatRoles(
       "salaryRange",
       "intro_requests",
       "waiting",
+      "saved",
+      "reviewing",
       "active",
       "ended",
       "counts_complete",
@@ -233,6 +254,7 @@ function formatRoles(
       "periodic_search",
       "search_days_kst",
       "search_hour_kst",
+      "next_search_kst",
     ],
     selected.map((role) => {
       const counts = countsByRoleId?.get(role.roleId);
@@ -245,6 +267,8 @@ function formatRoles(
         role.salaryRange,
         counts?.intro ?? "unavailable",
         counts?.waiting ?? "unavailable",
+        counts?.saved ?? "unavailable",
+        counts?.reviewing ?? "unavailable",
         counts?.active ?? "unavailable",
         counts?.ended ?? "unavailable",
         counts?.complete ?? false,
@@ -257,9 +281,10 @@ function formatRoles(
         role.isCompanyFirstSearch === true,
         role.introSearchDate?.join(",") ?? "Mon,Wed,Fri",
         role.introSearchTime ?? 9,
+        nextSearch(nextSearchByRoleId, role.roleId),
       ];
     }),
-    [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 8, 8, 8, 8, 8, 8, 8, 8, 30, 3]
+    [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 12, 12, 8, 8, 8, 8, 8, 8, 8, 8, 30, 3, 20]
   );
   return {
     completeRoleRequestIds: selected
@@ -700,7 +725,7 @@ export async function buildOrgAgentPromptContext(args: {
       onError:()=>notes.push("범위별 회사 메모리 조회 불가. 저장된 기억이 없다고 해석하지 말고 필요하면 company_memory를 다시 조회한다."),
       task:()=>readCompanyMemory({admin:args.admin,user:args.user,workspaceId,input:{limit:8,...(args.conversation.role_id ? {forRoleId:args.conversation.role_id} : {})}})}),
     args.conversation.role_id ? optionalContext({fallback:null,label:'hiring_brief_history',
-      onError:()=>notes.push('매칭 기준 변경 이력 조회 불가. 이력이 없다고 단정하지 말고 hiring_brief_history로 조회한다.'),
+      onError:()=>notes.push('확인할 기준 변경 이력 조회 불가. 이력이 없다고 단정하지 말고 hiring_brief_history로 조회한다.'),
       task:()=>readHiringBriefHistory({admin:args.admin,user:args.user,workspaceId,roleId:args.conversation.role_id!,limit:3})}) : Promise.resolve(null),
     // Role-page decisions on external people leave no chat message; this keeps them in every turn.
     args.conversation.role_id && externalSourcingEnabledFor(workspaceId) ? optionalContext({fallback:null,label:"external_candidates",
@@ -784,7 +809,7 @@ export async function buildOrgAgentPromptContext(args: {
           kinds: [...new Set([
             ...activations.map((activation) => activation.kind),
             ...(args.initialDataKinds ?? []),
-          ])].filter(kind => access.scope !== "team" || kind !== "workspace_memory"),
+          ])].filter(kind => access.scope !== "team" || service?.companyMemory === true || kind !== "workspace_memory"),
           workspaceId,
         });
       }
@@ -799,7 +824,23 @@ export async function buildOrgAgentPromptContext(args: {
     }
   }
 
-  const formattedRoles = formatRoles(roles, pipeline?.countsByRoleId ?? null);
+  // The same next search the To-do and the chat chip show.
+  const nextSearchByRoleId = await readNextScheduledSearches({
+    admin: args.admin as any,
+    roleIds: roles.map((role) => role.roleId),
+    now: new Date(),
+  }).catch((error) => {
+    console.warn("[org/agent/context]", {
+      error: getLlmErrorMessage(error) || String(error),
+      label: "next_search",
+    });
+    return null;
+  });
+  const formattedRoles = formatRoles(
+    roles,
+    pipeline?.countsByRoleId ?? null,
+    nextSearchByRoleId
+  );
   // Only for a Role this member can see (team-scoped access filters `roles`).
   const externalCandidatesText = externalCandidates && roles.some((role) => role.roleId === args.conversation.role_id)
     ? formatExternalCandidateStatuses(externalCandidates)
@@ -825,13 +866,13 @@ export async function buildOrgAgentPromptContext(args: {
       `권한: ${access.authority}`,
       `배정 팀: ${access.teamNames.join(", ") || "없음"}`,
       access.audienceRestricted
-        ? "이 공유 대화의 팀 범위로 Role 조회와 설명을 제한한다. 이는 작성자 계정의 팀 배정을 바꾸지 않는다."
+        ? "이 공유 대화의 팀 범위로 역할 조회와 설명을 제한한다. 이는 작성자 계정의 팀 배정을 바꾸지 않는다."
         : access.scope === "organization"
-        ? "접근 범위: Organization의 모든 팀과 Role."
-        : "접근 범위: 배정된 팀의 Role만. 아래 Role 목록과 조회 도구는 이 범위로 제한된다. 목록 밖 Role의 존재나 내용을 추측하지 않는다.",
-      "팀은 Role 접근 범위만 정한다. 슬롯·Intro·결제는 Organization에서 함께 관리한다.",
-      "팀 생성·이름 변경·삭제와 팀원·Role 배정, 접근 범위 변경은 Owner만 관리한다. Admin은 허용된 Role을 관리하고 Viewer는 조회한다.",
-      ...(access.scope === "team" ? ["Organization 공용 메모에는 다른 Role의 맥락이 섞일 수 있어 제공하지 않는다. 배정된 Role의 메모를 사용한다."] : []),
+        ? "볼 수 있는 역할: Organization의 모든 팀과 역할."
+        : "볼 수 있는 역할: 배정된 팀의 역할만. 아래 역할 목록과 조회 도구는 이 범위로 제한된다. 목록 밖 역할의 존재나 내용을 추측하지 않는다.",
+      "팀은 볼 수 있는 역할만 정한다. 슬롯·연결·결제는 회사 설정에서 함께 관리한다.",
+      "팀 생성·이름 변경·삭제와 팀원·역할 배정, 볼 수 있는 역할 변경은 소유자만 관리한다. 관리자는 허용된 역할을 관리하고 조회자는 조회한다.",
+      ...(access.scope === "team" ? ["Organization 공용 메모에는 다른 역할의 맥락이 섞일 수 있어 제공하지 않는다. 배정된 역할의 메모를 사용한다."] : []),
     ].join("\n"),
     companyText: formatOrgAgentCompanyContext({
       companyDetailsAvailable: availability.companyDetailsAvailable,

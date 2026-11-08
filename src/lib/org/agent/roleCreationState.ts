@@ -255,7 +255,7 @@ export async function createOrResumeDraftRole(args: {
         : {},
     });
     if (insertError) {
-      if (insertError.message === "org_team_role_forbidden") throw new OrgHttpError(403, "Owner에게 팀과 Role 접근 범위 배정을 요청해 주세요.");
+      if (insertError.message === "org_team_role_forbidden") throw new OrgHttpError(403, "소유자에게 팀과 볼 수 있는 역할 배정을 요청해 주세요.");
       if (insertError.code !== "23505") throw insertError;
       const { data: raced, error: racedError } = await admin
         .from("company_roles")
@@ -465,32 +465,26 @@ export async function updateRoleCreationDraft(args: {
       value: args.externalJdUrl,
     });
   }
-  if (changes.length > 0 || args.criteria !== undefined) {
+  if (changes.length > 0 || args.criteria !== undefined || args.salaryRange !== undefined) {
     await applyWebsiteCompanyDataChanges({
       actorLabel: args.actorLabel,
       actorUserId:args.user.id,
       criteriaChanges:args.criteria === undefined ? [] : [{role_id:args.roleId,expected:previousState.role.criteria,value:args.criteria}],
       admin: getSupabaseAdmin(),
       changes,
+      // In the same save, so it is one Brief version with who and where.
+      ...(args.salaryRange !== undefined
+        ? {
+            salaryRange: {
+              draftOnly: !args.allowCompletedRole,
+              roleId: args.roleId,
+              value: text(args.salaryRange).slice(0, 1_000) || null,
+            },
+          }
+        : {}),
       source: args.source ?? "chat",
       workspaceId: args.workspaceId,
     });
-  }
-
-  if (args.salaryRange !== undefined) {
-    let query = getSupabaseAdmin()
-      .from("company_roles")
-      .update({
-        salary_range: text(args.salaryRange).slice(0, 1_000) || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("company_workspace_id", args.workspaceId)
-      .eq("role_id", args.roleId);
-    if (!args.allowCompletedRole) {
-      query = query.eq("status", "draft");
-    }
-    const { error } = await query;
-    if (error) throw error;
   }
 
 

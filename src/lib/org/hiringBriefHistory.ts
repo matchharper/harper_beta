@@ -32,14 +32,14 @@ export function hiringBriefSummaryInput(before: HiringBriefSnapshot, after: Hiri
 
 export function formatHiringBriefHistory(value: HiringBriefHistoryRead) {
   return [
-    `매칭 기준(Hiring Brief + Criteria) 변경 이력 ${value.total}건; 이번 조회 ${value.items.length}건. 요약은 변경 설명이며 전후 스냅샷이 원본이다.`,
+    `확인할 기준(찾는 사람 + Criteria) 변경 이력 ${value.total}건; 이번 조회 ${value.items.length}건. 요약은 변경 설명이며 전후 스냅샷이 원본이다.`,
     ...value.items.map(item => [
       `${item.id} · ${formatLlmDateTime(item.createdAt)} · 수정자: ${item.actorLabel ?? '기록 없음'} · 경로: ${item.source ?? '기록 없음'}`,
       item.summary ?? `변경 요약 ${item.summaryStatus}; 상세 스냅샷은 hiringBriefHistory.historyId로 조회 가능.`,
       ...(item.before && item.after ? [
-        `이전 Brief:\n${item.before.request ?? '(없음)'}`,
+        `이전 찾는 사람:\n${item.before.request ?? '(없음)'}`,
         `이전 Criteria:\n${item.before.criteria.map(c => JSON.stringify(c)).join('\n') || '(없음)'}`,
-        `이후 Brief:\n${item.after.request ?? '(없음)'}`,
+        `이후 찾는 사람:\n${item.after.request ?? '(없음)'}`,
         `이후 Criteria:\n${item.after.criteria.map(c => JSON.stringify(c)).join('\n') || '(없음)'}`,
       ] : []),
     ].join('\n')),

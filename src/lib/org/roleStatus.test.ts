@@ -85,7 +85,7 @@ test("presents every role lifecycle status with its sidebar label and tone", () 
     tone: "positive",
   });
   assert.deepEqual(getOrgRoleStatusPresentation("paused"), {
-    label: "중단",
+    label: "잠시 멈춤",
     status: "paused",
     tone: "primary",
   });

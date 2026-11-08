@@ -72,8 +72,8 @@ export async function postRoleStartRegisteredMessage(args: { roleId: string; wor
   return insertOrgAgentMessage({
     admin: target.admin,
     content: parts.length
-      ? `온보딩을 마쳤어요. ${parts.join("과 ")}을 인박스에 넣었어요.`
-      : "온보딩을 마쳤어요. 지금 인박스에 넣은 후보는 없고, 정기 추천에서 이어서 찾아볼게요.",
+      ? `역할 준비를 마쳤어요. ${parts.join("과 ")}을 인박스에 넣었어요.`
+      : "역할 준비를 마쳤어요. 정기 탐색으로 이어서 찾아볼게요.",
     conversation: target.conversation,
     metadata: { roleStartRegistered: { kept: args.kept, picked: args.picked } },
     role: "assistant",

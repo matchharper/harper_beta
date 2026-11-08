@@ -130,7 +130,7 @@ export async function notifyRoleStartSlack(args: {
     const list = [
       required.length ? `*필수 조건*\n${required.map((label) => `• ${escape(label)}`).join("\n")}` : "",
       brief.criteria.some((item) => !isRequired(item))
-        ? `*평가 기준*\n${brief.criteria
+        ? `*확인할 기준*\n${brief.criteria
             .filter((item) => !isRequired(item))
             .map((item) => `• ${escape(item.name)} (${levelLabel(levelOf(item))})`)
             .join("\n")}`

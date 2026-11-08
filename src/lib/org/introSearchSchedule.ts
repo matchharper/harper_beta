@@ -21,3 +21,77 @@ export function parseIntroSearchHour(value: unknown): number | null {
     ? value
     : null;
 }
+
+const KST_MS = 9 * 60 * 60 * 1000;
+
+/**
+ * The next scheduled search for a Role, in KST, from its saved days and hour.
+ * Unset days or hour fall back to the worker's defaults (Mon/Wed/Fri, 9);
+ * an empty day list means no scheduled search, as in the worker.
+ */
+export function nextScheduledSearchAt(args: {
+  days: unknown;
+  hour: unknown;
+  now: Date;
+}) {
+  if (Array.isArray(args.days) && args.days.length === 0) return null;
+  const days = parseIntroSearchDays(args.days) ?? DEFAULT_INTRO_SEARCH_DAYS;
+  const hour = parseIntroSearchHour(args.hour) ?? DEFAULT_INTRO_SEARCH_HOUR;
+  const kstNow = new Date(args.now.getTime() + KST_MS);
+  for (let offset = 0; offset <= 7; offset += 1) {
+    const day = new Date(
+      Date.UTC(
+        kstNow.getUTCFullYear(),
+        kstNow.getUTCMonth(),
+        kstNow.getUTCDate() + offset,
+        hour
+      ) - KST_MS
+    );
+    // INTRO_SEARCH_DAYS starts on Monday; getUTCDay starts on Sunday.
+    const weekday =
+      INTRO_SEARCH_DAYS[(new Date(day.getTime() + KST_MS).getUTCDay() + 6) % 7];
+    if (
+      weekday &&
+      days.includes(weekday) &&
+      day.getTime() > args.now.getTime()
+    ) {
+      return day.toISOString();
+    }
+  }
+  return null;
+}
+
+const KO_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const EN_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A dated time in KST for To-do rows: 「11월 9일(월) 오전 9:00」 / 「Mon, Nov 9, 9:00 AM」. */
+export function formatScheduledDateTime(
+  value: string | null | undefined,
+  locale: "ko" | "en"
+) {
+  const time = Date.parse(String(value ?? ""));
+  if (!Number.isFinite(time)) return "";
+  const kst = new Date(time + KST_MS);
+  const hour = kst.getUTCHours();
+  const clock = `${hour % 12 || 12}:${String(kst.getUTCMinutes()).padStart(2, "0")}`;
+  return locale === "en"
+    ? `${EN_WEEKDAYS[kst.getUTCDay()]}, ${EN_MONTHS[kst.getUTCMonth()]} ${kst.getUTCDate()}, ${clock} ${hour < 12 ? "AM" : "PM"}`
+    : `${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일(${KO_WEEKDAYS[kst.getUTCDay()]}) ${hour < 12 ? "오전" : "오후"} ${clock}`;
+}
+
+/** A scheduled time in KST: 「수 오전 9:00」 / 「Wed 9:00 AM」. */
+export function formatScheduledSearchTime(
+  value: string | null | undefined,
+  locale: "ko" | "en"
+) {
+  const time = Date.parse(String(value ?? ""));
+  if (!Number.isFinite(time)) return "";
+  const kst = new Date(time + KST_MS);
+  const hour = kst.getUTCHours();
+  const clock = `${hour % 12 || 12}:${String(kst.getUTCMinutes()).padStart(2, "0")}`;
+  return locale === "en"
+    ? `${EN_WEEKDAYS[kst.getUTCDay()]} ${clock} ${hour < 12 ? "AM" : "PM"}`
+    : `${KO_WEEKDAYS[kst.getUTCDay()]} ${hour < 12 ? "오전" : "오후"} ${clock}`;
+}

@@ -275,9 +275,9 @@ function toolLabel(
   }
   if (name === "calibrate_role_hiring_brief") {
     return statusLabel(status, {
-      done: "Hiring Brief 기준 정리 완료",
-      error: "Hiring Brief 기준 정리 실패",
-      running: "참고 인물을 바탕으로 Hiring Brief를 정리하는 중",
+      done: "찾는 사람 기준 정리 완료",
+      error: "찾는 사람 기준 정리 실패",
+      running: "참고 인물을 바탕으로 찾는 사람을 정리하는 중",
     });
   }
   if (name === "set_role_notification") {
