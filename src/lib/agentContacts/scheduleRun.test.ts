@@ -11,6 +11,7 @@ import {
   scheduleRunMessages,
   scheduleRunText,
   scheduleRunTools,
+  scheduleThreadRecentText,
 } from "./scheduleRun";
 
 // A run woken by one of Harper's own schedules: its tools, its text, and where
@@ -263,4 +264,21 @@ test("chat mode and web-chat schedules save the message in the Role's web chat",
     assert.equal(message.role_id, role);
     assert.equal(f.checks.length + f.deliveries.length, 0, mode);
   }
+});
+
+test("the next run reads the latest messages of the Slack thread it replies in", async (t) => {
+  const f = await fixture(t, "origin");
+  const threadRow = await f.thread();
+  const origin = await f.said(threadRow.id);
+  const destination = await scheduleReplyDestination(f.db.query, workspace, await f.schedule(origin.id));
+  // An earlier run's delivered message and the company's answer, both in the general thread.
+  await f.db.query(`insert into company_messages(company_workspace_id, conversation_id, role, content, message_type, status,
+    metadata, slack_thread_id) values ($1, $2, 'assistant', 'Checked again: nothing new yet.', 'slack', 'completed', '{}', $3),
+    ($1, $2, 'user', 'Thanks, look again Friday', 'slack', 'completed', '{}', $3),
+    ($1, $2, 'user', 'Another thread', 'slack', 'completed', '{}', null)`, [workspace, f.general.id, threadRow.id]);
+  const text = await scheduleThreadRecentText(f.db.query, workspace, destination);
+  assert.equal(text, "\nLatest messages in that Slack thread (oldest first):\nCompany: Check this again tomorrow\n"
+    + "Harper: Checked again: nothing new yet.\nCompany: Thanks, look again Friday");
+  assert.equal(await scheduleThreadRecentText(f.db.query, workspace, { kind: "chat" }), "");
+  assert.equal(await scheduleThreadRecentText(f.db.query, workspace, null), "");
 });

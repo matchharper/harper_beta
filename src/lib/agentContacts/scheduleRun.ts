@@ -112,6 +112,33 @@ export async function scheduleRunDestination(
   return messages === "origin" ? scheduleReplyDestination(q, workspaceId, schedule) : { kind: "chat" };
 }
 
+/**
+ * The latest messages of the Slack thread a run replies in. A thread without a
+ * Role keeps them in the workspace conversation, which the run's Role context
+ * does not read, so the run gets them here: what an earlier run said and the
+ * company's answer.
+ */
+export async function scheduleThreadRecentText(
+  q: Query,
+  workspaceId: string,
+  destination: ScheduleReplyDestination | null,
+  limit = 8
+) {
+  if (destination?.kind !== "slack") return "";
+  const rows = await q(
+    `SELECT role,content FROM public.company_messages
+    WHERE company_workspace_id=$1::uuid AND conversation_id=$2::uuid AND slack_thread_id=$3::uuid
+      AND message_type='slack' AND role IN ('user','assistant')
+    ORDER BY id DESC LIMIT $4`,
+    [workspaceId, destination.conversationId, destination.threadId, limit]
+  );
+  if (!rows.length) return "";
+  const lines = rows
+    .reverse()
+    .map((row: any) => `${row.role === "user" ? "Company" : "Harper"}: ${String(row.content ?? "").slice(0, 1500)}`);
+  return `\nLatest messages in that Slack thread (oldest first):\n${lines.join("\n")}`;
+}
+
 const TIER_2 =
   "if still useful, you may message a candidate's agent in an existing introduction or publish an introduced candidate. This run cannot start a new search";
 const TIER_1_PROPOSAL =

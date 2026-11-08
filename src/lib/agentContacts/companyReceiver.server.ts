@@ -12,7 +12,7 @@ import {
   AgentContactSupersededError,
 } from "./store";
 import { readAgentCorrespondence } from "./read";
-import { scheduleRunDestination, scheduleRunMessages, scheduleRunText, scheduleRunTools } from "./scheduleRun";
+import { scheduleRunDestination, scheduleRunMessages, scheduleRunText, scheduleRunTools, scheduleThreadRecentText } from "./scheduleRun";
 import { companyAgentEventPrompt, type AgentContactSource } from "./contracts";
 
 /**
@@ -136,10 +136,11 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     );
     const tier = schedule.target_refs?.introductionRootId ? null : Number(schedule.effect_tier ?? 0);
     scheduleTier = tier;
-    const tierLine =
-      tier === null
-        ? ""
-        : `\n${scheduleRunText(schedule, await scheduleRunDestination(db.query, source.workspaceId, schedule, scheduleRunMessages()))}`;
+    let tierLine = "";
+    if (tier !== null) {
+      const destination = await scheduleRunDestination(db.query, source.workspaceId, schedule, scheduleRunMessages());
+      tierLine = `\n${scheduleRunText(schedule, destination)}${await scheduleThreadRecentText(db.query, source.workspaceId, destination)}`;
+    }
     eventText = `Scheduled company work ${schedule.id}; revision ${schedule.revision}\n${schedule.title}\n${schedule.instruction}${schedule.target_refs?.introductionRootId ? `\nIntroduction ${schedule.target_refs.introductionRootId}` : tierLine}`;
   }
   // An earlier execution may have committed its body before a delivery timeout.
