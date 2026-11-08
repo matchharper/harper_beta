@@ -384,3 +384,42 @@ test("panel sections: scheduled and blocked appear and clear themselves", async 
   ({ line } = await read());
   assert.equal(line("slack_delivery_error"), undefined);
 });
+test("Home: an ended Role keeps its numbers but has no To-do lines read", async () => {
+  const tables = fixture();
+  tables.company_roles.find((row) => row.role_id === ROLE_A)!.status = "ended";
+  const admin = fakeAdmin(tables, { users: [OWNER], rpc: { read_company_candidate_delivery_v1: () => [] } });
+  const home = await readOrgNow({ admin, user: OWNER as any, workspaceId: WS, roleIds: "all", locale: "ko",
+    readCreditSlots: async () => [] });
+  assert.ok(!home.items.some((item) => item.roleId === ROLE_A));
+  assert.ok(home.items.some((item) => item.roleId === ROLE_B));
+  assert.deepEqual(home.roles.find((role) => role.roleId === ROLE_A)?.counts, EXPECTED[ROLE_A]);
+  // The Role screen still reads its own To-do.
+  const own = await readOrgNow({ admin, user: OWNER as any, workspaceId: WS, roleIds: [ROLE_A], locale: "ko",
+    readCreditSlots: async () => [] });
+  assert.equal(own.items.find((item) => item.kind === "pending_connection")?.count, EXPECTED[ROLE_A].pending_connection);
+});
+
+test("Home: one Role that cannot be read leaves the others' To-do", async (t) => {
+  const admin = fakeAdmin(fixture(), { users: [OWNER], rpc: { read_company_candidate_delivery_v1: () => [] } });
+  const from = admin.from;
+  admin.from = (table: string) => {
+    const query = from(table);
+    if (table !== "company_role_start_sessions") return query;
+    let failing = false;
+    const eq = query.eq.bind(query);
+    query.eq = (column: string, value: unknown) => { if (value === ROLE_B) failing = true; eq(column, value); return query; };
+    const then = query.then.bind(query);
+    query.then = (resolve: any, reject: any) =>
+      failing ? Promise.resolve({ data: null, error: { message: "timeout" } }).then(resolve, reject) : then(resolve, reject);
+    return query;
+  };
+  const logged = t.mock.method(console, "error", () => {});
+  const home = await readOrgNow({ admin, user: OWNER as any, workspaceId: WS, roleIds: "all", locale: "ko",
+    readCreditSlots: async () => [] });
+  assert.ok(home.items.some((item) => item.roleId === ROLE_A));
+  assert.ok(!home.items.some((item) => item.roleId === ROLE_B));
+  assert.equal(logged.mock.callCount(), 1);
+  // The Role screen still says it could not load.
+  await assert.rejects(readOrgNow({ admin, user: OWNER as any, workspaceId: WS, roleIds: [ROLE_B], locale: "ko",
+    readCreditSlots: async () => [] }));
+});

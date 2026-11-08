@@ -13,6 +13,7 @@ import {
   readRoleTodoSuggestions,
   readTodoReads,
 } from "./todoSuggestions.server";
+import { getOrgRoleStatusFilterValue } from "./roleStatus";
 import { fetchOrgBoard, fetchRoleRowsForWorkspace } from "./server";
 import {
   ORG_TODO_RECENT_DAYS,
@@ -1042,6 +1043,34 @@ async function readCreditSlots(workspaceId: string) {
   return (await getBillingSummary(workspaceId)).creditSlots;
 }
 
+/** Roles read at once for Home, so a big workspace does not flood the database. */
+const ROLE_TODO_CONCURRENCY = 4;
+
+/** Home reads To-do lines for Roles in progress, paused or being set up, not ended ones. */
+export function isHomeTodoRole(status: unknown) {
+  return ["active", "paused", "draft"].includes(getOrgRoleStatusFilterValue(status));
+}
+
+/** Like Promise.all, with at most `limit` calls running at once; results keep input order. */
+export async function mapWithConcurrency<T, R>(
+  values: T[],
+  limit: number,
+  run: (value: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < values.length) {
+      const index = next++;
+      results[index] = await run(values[index]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, values.length) }, worker)
+  );
+  return results;
+}
+
 /**
  * "What's happening now" for one Role, several, or every Role this person
  * can see ("all"): the To-do lines of each, plus each Role's numbers. Roles
@@ -1071,15 +1100,19 @@ export async function readOrgNow(args: {
   const { admin, user, workspaceId } = args;
   const now = args.now ?? new Date();
   const range = args.range ?? "recent";
-  const visible = new Set(
-    (await fetchRoleRowsForWorkspace(admin, workspaceId, user)).map(
-      (row) => row.role_id
-    )
+  const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId, user);
+  const visible = new Set(roleRows.map((row) => row.role_id));
+  const workspaceWide = args.roleIds === "all";
+  const roleIds = workspaceWide
+    ? [...visible]
+    : [...new Set(args.roleIds as string[])].filter((id) => visible.has(id));
+  // Home (every Role): To-do lines only for Roles still being worked on.
+  // Numbers still come for every Role, from the one board read above.
+  const todoRoleIds = new Set(
+    workspaceWide
+      ? roleRows.filter((row) => isHomeTodoRole(row.status)).map((row) => row.role_id)
+      : roleIds
   );
-  const roleIds =
-    args.roleIds === "all"
-      ? [...visible]
-      : [...new Set(args.roleIds)].filter((id) => visible.has(id));
   const [decisions, nextSearches, creditSlots, workspace] = await Promise.all([
     readOrgDecisionCounts({ admin, user, workspaceId, roleIds }),
     readNextScheduledSearches({ admin, roleIds, now }),
@@ -1102,9 +1135,11 @@ export async function readOrgNow(args: {
       nextScheduledSearchAt: nextSearches.get(roleId),
     };
   });
-  const perRole = await Promise.all(
-    roles.map((role) =>
-      loadRoleTodoItems({
+  const perRole = await mapWithConcurrency(
+    roles.filter((role) => todoRoleIds.has(role.roleId)),
+    ROLE_TODO_CONCURRENCY,
+    (role) => {
+      const loaded = loadRoleTodoItems({
         admin,
         user,
         workspaceId,
@@ -1117,8 +1152,17 @@ export async function readOrgNow(args: {
         introsLeft: role.introsLeft,
         workspace,
         canManage: args.canManage === true,
-      })
-    )
+      });
+      if (!workspaceWide) return loaded;
+      // On Home one Role that cannot be read leaves the others' To-do.
+      return loaded.catch((error) => {
+        console.error("[org/todo] role To-do unavailable", {
+          roleId: role.roleId,
+          error,
+        });
+        return { items: [] as OrgTodoItem[], suggestions: 0 };
+      });
+    }
   );
   const items = perRole.flatMap((role) => role.items);
   // Counts and schedules (no time of their own) first, then newest first.

@@ -64,8 +64,8 @@ export function useOrgWorkspaceTodo(args: { workspaceId?: string | null }) {
         `/api/org/todo?${new URLSearchParams({ locale, range: "recent", workspaceId })}`
       ),
     enabled: Boolean(workspaceId),
-    refetchInterval: (query) =>
-      isOrgQueryAccessError(query.state.error) ? false : 60_000,
+    // Every Role at once is a heavy read: no timed refresh. It reads again on
+    // focus and after the team's actions, which refresh the org queries.
     refetchOnWindowFocus: true,
     staleTime: 15_000,
   });
