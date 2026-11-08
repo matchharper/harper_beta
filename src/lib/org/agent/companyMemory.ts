@@ -100,7 +100,7 @@ export async function writeCompanyMemory(args: Args & { input: Record<string, un
 }
 export function formatCompanyMemory(value: CompanyMemoryRead, preview = false) {
   return [
-    `저장된 회사 메모리 ${value.total}행; 이번 조회 ${value.items.length}행. 사실·피드백이며 찾는 사람을 자동 변경하지 않음.`,
+    `저장된 회사 메모리 ${value.total}행; 이번 조회 ${value.items.length}행. 사실·피드백이며 후보를 찾고 평가할 때 함께 쓰임. Hiring Brief와 기준을 자동으로 바꾸지는 않음.`,
     ...value.items.map(row => `#${row.ref} r${row.revision} · ${row.scope}${row.roleId ? ` role=${row.roleId}` : ''}${row.teamId ? ` team=${row.teamId}` : ''} · ${row.label} · 작성 ${formatLlmDateTime(row.createdAt)}; 수정 ${formatLlmDateTime(row.updatedAt)}\n${preview && row.content.length > 450 ? row.content.slice(0, 450) + '… (미리보기; 원문은 company_memory 조회)' : row.content}`),
     value.nextOffset === null ? '이 조회 범위의 마지막 페이지.' : `다음: get_more_data kinds=[company_memory], memory.offset=${value.nextOffset}.`,
   ].join('\n').replaceAll('<', '‹').replaceAll('>', '›');
