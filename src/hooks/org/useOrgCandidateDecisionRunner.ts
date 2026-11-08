@@ -28,6 +28,15 @@ import {
   orgRoleDecisionListTab,
 } from "@/lib/org/roleScreen";
 
+/** The API's billing code on a failed decision (see localizedOrgErrorMessage). */
+function isCreditsExhausted(error: unknown) {
+  return (
+    Boolean(error) &&
+    typeof error === "object" &&
+    (error as { billingCode?: unknown }).billingCode === "credits_exhausted"
+  );
+}
+
 // "연결됨으로", "1차 인터뷰로": picks the particle from the label's last syllable.
 function withDirectionParticle(label: string) {
   const code = label.trim().charCodeAt(label.trim().length - 1) - 0xac00;
@@ -114,8 +123,23 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
       });
       return;
     }
-    const failed = failures.flatMap(({ item }) => itemOf(item) ?? []);
+    // Intros running out is not something to check and retry: say so apart.
+    const creditsOut = failures.filter(({ error }) => isCreditsExhausted(error));
+    const outOfCredits = creditsOut.flatMap(({ item }) => itemOf(item) ?? []);
+    const failed = failures
+      .filter((failure) => !creditsOut.includes(failure))
+      .flatMap(({ item }) => itemOf(item) ?? []);
     const skipped = unchanged.flatMap((target) => itemOf(target) ?? []);
+    if (outOfCredits.length) {
+      addToast({
+        message: c(
+          "연결 횟수가 다해서 {p0}명은 보내지 못했어요: {p1}.",
+          "Out of intros, so {p0} weren't sent: {p1}.",
+          { p0: outOfCredits.length, p1: names(outOfCredits) }
+        ),
+        variant: "error",
+      });
+    }
     if (failed.length) {
       addToast({
         message: c(
