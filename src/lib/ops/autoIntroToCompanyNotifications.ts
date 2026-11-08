@@ -702,11 +702,12 @@ function meetingAttendeeNames(value: Json) {
 /**
  * Waiting to connect per Role, by the inbox rule (readOrgDecisionCounts), so
  * Slack shows the web's number. Read as the workspace owner; a workspace that
- * cannot be read counts 0 and is logged.
+ * cannot be read keeps the waiting count it had before (`fallback`) and is logged.
  */
 async function readRoleSummaryWaitingCounts(
   admin: AdminClient,
-  roles: RoleSummaryRow[]
+  roles: RoleSummaryRow[],
+  fallback: Map<string, number>
 ) {
   const roleIdsByWorkspace = new Map<string, string[]>();
   for (const role of roles) {
@@ -735,6 +736,8 @@ async function readRoleSummaryWaitingCounts(
             workspaceId,
             error: formatError(error),
           });
+          for (const roleId of roleIds)
+            waitingByRoleId.set(roleId, fallback.get(roleId) ?? 0);
         }
       })
     );
@@ -775,11 +778,13 @@ export async function fetchCurrentRoleSummaries(
   const roleIds = uniqueTexts(currentRoles.map((role) => role.role_id));
   const capacityBlockedRoleIds = new Set(await readTalentFirstCapacityBlockedRoleIds(admin, roleIds, now));
   // Reply reminders follow every waiting pair, saved or not.
-  const { pairs: pendingPairs } = await readPendingConnections(admin, roleIds);
+  const { countByRoleId: pairCountByRoleId, pairs: pendingPairs } =
+    await readPendingConnections(admin, roleIds);
   // The table's number is the web's (inbox rule).
   const pendingCountByRoleId = await readRoleSummaryWaitingCounts(
     admin,
-    currentRoles
+    currentRoles,
+    pairCountByRoleId
   );
 
   const [candidateReplyRows, upcomingMeetingRows] = await Promise.all([
@@ -891,7 +896,14 @@ export async function fetchCurrentRoleSummaries(
       );
       const upcomingMeetingCount =
         summary.reminders?.upcomingMeetings.length ?? 0;
-      return pendingDecisionCount > 0 || upcomingMeetingCount > 0;
+      // Saved candidates leave the inbox count but still get reply reminders.
+      const candidateReplyCount =
+        summary.reminders?.candidateReplies.length ?? 0;
+      return (
+        pendingDecisionCount > 0 ||
+        upcomingMeetingCount > 0 ||
+        candidateReplyCount > 0
+      );
     })
     .sort((left, right) => left.workspaceId.localeCompare(right.workspaceId));
 }

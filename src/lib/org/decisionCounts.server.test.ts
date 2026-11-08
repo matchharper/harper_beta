@@ -462,4 +462,25 @@ test("a Harper-tailored Role without its own slot is never charged: no 'no intro
   // With a slot of its own it is charged, so the line shows when that runs out.
   slots = [shared, { ...shared, id: "s", slotId: "slot-a", roleId: ROLE_A }];
   assert.equal((await blocked())?.count, 1);
+test("Slack summary: saved-only waiting still reminds of replies, and a failed count read keeps the waiting count", async () => {
+  // Only the saved T2 waits on Role A, and that candidate replied.
+  const tables = fixture();
+  tables.talent_opportunity_tag = tables.talent_opportunity_tag.filter((row) => row.talent_id !== talent(1) && row.opportunity_id === ROLE_A);
+  tables.company_talent_requests = [{ company_workspace_id: WS, role_id: ROLE_A, talent_id: talent(2), recommendation_id: "r2",
+    expects_document: false, updated_at: at(5), workflow_status: "delivered", talent_source_message_id: "m1" }];
+  const admin = fakeAdmin(tables, { users: [OWNER], rpc: { read_company_candidate_delivery_v1: () => [] } });
+  const filters = { limit: 10, roleId: null, workspaceId: WS };
+  const [summary] = await fetchCurrentRoleSummaries(admin, filters, new Date());
+  assert.equal(summary?.roles.find((role) => role.roleId === ROLE_A)?.pendingDecisionCount, 0);
+  assert.deepEqual(summary?.reminders?.candidateReplies.map((reply) => reply.talentId), [talent(2)]);
+
+  // The inbox count cannot be read: the waiting pairs' count stands in, not 0.
+  const failing: any = { ...admin, from: (table: string) => {
+    if (table !== "company_intro_candidates") return admin.from(table);
+    const broken: any = new Proxy({}, { get: (_, key) => key === "then"
+      ? (resolve: any) => resolve({ data: null, error: { message: "down" } }) : () => broken });
+    return broken;
+  } };
+  const [fallback] = await fetchCurrentRoleSummaries(failing, filters, new Date());
+  assert.equal(fallback?.roles.find((role) => role.roleId === ROLE_A)?.pendingDecisionCount, 1);
 });
