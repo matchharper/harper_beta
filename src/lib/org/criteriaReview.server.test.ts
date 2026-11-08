@@ -4,7 +4,8 @@ import { runQueuedCriteriaConsolidation } from "./criteriaProposals.server";
 import { CRITERIA_REVIEW_TOOLS, proposeCriteriaChange, runCriteriaReviewAgent } from "./criteriaReview.server";
 import { getEnabledOrgAgentTools } from "./agent/tools";
 import { resolveCompanyCapabilities } from "./agent/capabilities/resolver";
-import { companyAgentCorrespondenceTools, companyAgentServiceTools, withCompanyAgentScope } from "@/lib/agentContacts/companyScope";
+import { companyAgentCorrespondenceTools, companyAgentScope, companyAgentServiceTools, withCompanyAgentScope } from "@/lib/agentContacts/companyScope";
+import { formatCompanyMemory } from "./agent/companyMemory";
 
 // Harper's review of pass reasons, end to end with the database and the model
 // replaced: the consolidation job, the shared tool loop, the real tool
@@ -129,7 +130,7 @@ beforeEach(() => {
   proposals = [];
 });
 
-type Completion = { tools: string[]; system: string; review: string; last: string };
+type Completion = { tools: string[]; system: string; review: string; last: string; all: string };
 type Reply = { tool?: { name?: string; args: Row } } | null;
 
 /** A stand-in model: sees what Harper would see and answers with `next`. */
@@ -144,6 +145,7 @@ function model(next: (seen: Completion, index: number) => Reply) {
       system: contents[0],
       review: contents.find((content: string) => content.includes('<company_agent_event kind="criteria_review">')) ?? "",
       last: contents.at(-1),
+      all: contents.join("\n"),
     };
     seen.push(entry);
     const reply = next(entry, seen.length - 1);
@@ -516,4 +518,24 @@ test("reasons about a lasting company preference: Harper suggests one company me
     type: "memory_note", note: "최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.", scope: "team", teamId: "team-1",
   });
   assert.match(called("create_company_brief_proposal_v1")[0].args.p_summary, /내용을 팀 기억에 남길까요\?/);
+});
+
+test("the review's context carries company memory, so Harper does not suggest what it already says", async () => {
+  seed(RN_PATTERN);
+  const built: Row[] = [];
+  const memory = formatCompanyMemory({ items: [{ ref: 9, revision: 1, scope: "company", teamId: null, roleId: null, label: "채용 규칙",
+    content: "React Native 앱 출시 경험이 있는 분만 봐요.", createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z" }], total: 1, nextOffset: null }, true);
+  const stand = model(() => null);
+  await runQueuedCriteriaConsolidation({
+    admin, job: job(), enabled: true, now: new Date("2026-11-07T00:00:00Z"), usage: () => ({ calls: stand.seen.length }),
+    review: (prepared) => runCriteriaReviewAgent({ admin, job: job(), prepared, dependencies: {
+      buildContext: async (args: any) => (built.push(args), { ...(await context()), contextNotesText: memory }),
+      locale: async () => "ko", model: MODEL, loop: { complete: stand.complete },
+    } }),
+  });
+  // Built as the Role-bound run (which reads company memory, see companyMemory.test.ts), with the company memo.
+  assert.equal(companyAgentScope(built[0].admin)?.roleId, roleId);
+  assert.deepEqual(built[0].initialDataKinds, ["workspace_memory"]);
+  assert.match(stand.seen[0].all, /<context_notes>\n저장된 회사 메모리 1행; .*후보를 찾고 평가할 때 함께 쓰임.*\n#9 r1 · company · 채용 규칙 .*\nReact Native 앱 출시 경험이 있는 분만 봐요\./);
+  assert.match(stand.seen[0].system, /Do not suggest a new criterion or a memory note for what it already says\./);
 });

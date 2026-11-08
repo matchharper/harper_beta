@@ -174,6 +174,8 @@ export async function runCriteriaReviewAgent(args: {
     beforeMessageId: job.anchor_message_id,
     currentUserMessageId: job.anchor_message_id,
     includeSharedConversation: true,
+    // The company memo too: what company memory already says is not suggested again.
+    initialDataKinds: ["workspace_memory"],
     readAudience: "company_safe",
     scopeKey: `agent-event:${lease.id}`,
   });

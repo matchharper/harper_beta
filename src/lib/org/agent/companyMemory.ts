@@ -2,6 +2,7 @@ import { formatLlmDateTime } from '@/lib/llm/promptDateTime';
 import type { User } from '@supabase/supabase-js';
 import type { OrgAgentAdminClient } from './data';
 import { assertOrgTeamRoleAccess, readOrgRoleAccess } from '../teamAccess';
+import { companyAgentScope } from '@/lib/agentContacts/companyScope';
 import { OrgAgentToolInputError } from './toolAvailability';
 
 type Args = { admin: OrgAgentAdminClient; user: User; workspaceId: string };
@@ -31,7 +32,9 @@ async function scopeAccess(args: Args, input: Record<string, unknown>, write: bo
   const roleId = textId(input.roleId), teamId = textId(input.teamId);
   const scope = input.scope;
   if (scope !== undefined && !['company', 'team', 'role'].includes(String(scope))) throw new OrgAgentToolInputError('scope must identify company, team or role');
-  if (scope === 'company' && (teamId || roleId || access.scope !== 'organization')) throw new OrgAgentToolInputError('Company memory is unavailable in this audience');
+  // Harper's Role-bound runs read company memory for judgment; only Organization access writes it.
+  const companyVisible = access.scope === 'organization' || (!write && Boolean(companyAgentScope(args.admin)));
+  if (scope === 'company' && (teamId || roleId || !companyVisible)) throw new OrgAgentToolInputError('Company memory is unavailable in this audience');
   if (roleId) await assertOrgTeamRoleAccess({ ...args, roleId });
   if (teamId) {
     if (access.scope !== 'organization' && !access.teamIds.includes(teamId)) throw new OrgAgentToolInputError('Team memory is outside this audience');
@@ -40,11 +43,11 @@ async function scopeAccess(args: Args, input: Record<string, unknown>, write: bo
     if (!data) throw new OrgAgentToolInputError('Team does not exist in this workspace');
   }
   if (write && ((scope === 'role' && (!roleId || teamId)) || (scope === 'team' && (!teamId || roleId)) || !scope)) throw new OrgAgentToolInputError('Memory needs its exact scope and target');
-  return { access, roleId, teamId };
+  return { access, roleId, teamId, companyVisible };
 }
 export async function readCompanyMemory(args: Args & { input?: Record<string, unknown> }): Promise<CompanyMemoryRead> {
   const input = args.input ?? {};
-  const { access, roleId, teamId } = await scopeAccess(args, input, false);
+  const { access, roleId, teamId, companyVisible } = await scopeAccess(args, input, false);
   const offset = nonnegativeInteger(input.offset), limit = positiveInteger(input.limit, 20, 'limit');
   let query = (args.admin.from('company_memory_entries' as any) as any).select('id,revision,scope,team_id,role_id,label,content,created_at,updated_at', { count: 'exact' }).eq('company_workspace_id', args.workspaceId).is('deleted_at', null).is('legacy_ref', null);
   if (input.scope) query = query.eq('scope', input.scope);
@@ -55,14 +58,14 @@ export async function readCompanyMemory(args: Args & { input?: Record<string, un
     await assertOrgTeamRoleAccess({...args,roleId:forRoleId});
     const {data:role,error:roleError} = await (args.admin.from('company_internal_roles') as any).select('team_id').eq('role_id',forRoleId).single();
     if (roleError) throw roleError;
-    const clauses = [`and(scope.eq.role,role_id.eq.${forRoleId})`, ...(role.team_id ? [`and(scope.eq.team,team_id.eq.${role.team_id})`] : []), ...(access.scope === 'organization' ? ['scope.eq.company'] : [])];
+    const clauses = [`and(scope.eq.role,role_id.eq.${forRoleId})`, ...(role.team_id ? [`and(scope.eq.team,team_id.eq.${role.team_id})`] : []), ...(companyVisible ? ['scope.eq.company'] : [])];
     query = query.or(clauses.join(','));
   }
   if (access.scope !== 'organization' && !forRoleId) {
     const { data, error } = await (args.admin.from('company_roles') as any).select('role_id,company_internal_roles!inner(team_id)').eq('company_workspace_id', args.workspaceId).eq('source_type', 'internal').in('company_internal_roles.team_id', access.teamIds);
     if (error) throw error;
     const roleIds = (data ?? []).map((r: any) => r.role_id);
-    const clauses = [access.teamIds.length ? `and(scope.eq.team,team_id.in.(${access.teamIds.join(',')}))` : '', roleIds.length ? `and(scope.eq.role,role_id.in.(${roleIds.join(',')}))` : ''].filter(Boolean);
+    const clauses = [access.teamIds.length ? `and(scope.eq.team,team_id.in.(${access.teamIds.join(',')}))` : '', roleIds.length ? `and(scope.eq.role,role_id.in.(${roleIds.join(',')}))` : '', companyVisible ? 'scope.eq.company' : ''].filter(Boolean);
     if (!clauses.length) return { items: [], total: 0, nextOffset: null };
     query = query.or(clauses.join(','));
   }

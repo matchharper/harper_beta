@@ -809,7 +809,7 @@ export async function buildOrgAgentPromptContext(args: {
           kinds: [...new Set([
             ...activations.map((activation) => activation.kind),
             ...(args.initialDataKinds ?? []),
-          ])].filter(kind => access.scope !== "team" || kind !== "workspace_memory"),
+          ])].filter(kind => access.scope !== "team" || service || kind !== "workspace_memory"),
           workspaceId,
         });
       }
