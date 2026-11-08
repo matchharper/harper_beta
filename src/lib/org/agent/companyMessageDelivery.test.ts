@@ -153,5 +153,7 @@ test("a reply in an existing thread is checked for the Role it is about", async 
   assert.equal(sent.length, 1);
   assert.equal(sent[0].threadTs, "ts-1");
   assert.equal(sent[0].roleId, null);
+  // The send re-checks the audience for the same Role, not the thread's none.
+  assert.equal(sent[0].audienceRoleId, "role");
   assert.equal(rows[0].metadata.companyMessageReceipt.threadId, "thread-1");
 });

@@ -69,7 +69,7 @@ export async function deliverCompanyMessageBatch(args: {
       continue;
     }
     const delivered = await dependencies.send({ workspaceId: args.workspaceId, channelId: channel.slack_channel_id,
-      roleId: message.role_id, text, blocks: buildHarperSlackChoiceBlocks({ text, choices: [], sourceJobId: args.batchId }),
+      roleId: message.role_id, audienceRoleId: part.audienceRoleId, text, blocks: buildHarperSlackChoiceBlocks({ text, choices: [], sourceJobId: args.batchId }),
       threadTs, idempotencyKey, recordConversationMessage: false,
       enforceAudiencePermission: true, requireAllDeliveries: true, unfurlLinks: false,
       onPosted: async receipt => {
