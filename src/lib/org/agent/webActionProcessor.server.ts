@@ -2,7 +2,6 @@ import { runCompanyScheduledMatching } from "./scheduledMatching.server";
 import "server-only";
 import { AgentContactSupersededError } from "@/lib/agentContacts/store";
 import { AgentContactBudgetBusyError, AgentContactBudgetExhaustedError } from "@/lib/agentContacts/executionBudget";
-import { sendProactiveHiringOverview } from "@/lib/ops/autoIntroToCompanyNotifications";
 import { deliverCompanyContactEventMessages } from "./contactEvent.server";
 import { assertOrgRoleAccess, assertOrgWorkspacePermission } from "@/lib/org/server";
 import { OrgAgentWebActionSupersededError, runOrgAgentWebActionTurn } from "./chat";
@@ -234,15 +233,7 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
         if (error) throw error;
         if (newer?.length) throw new OrgAgentWebActionSupersededError();
       };
-      // Independent of the model's message/silent decision; always precedes its batch.
-      if (isProactive) {
-        await assertProactiveDeliveryCurrent();
-        const { data: channel, error } = await admin.from("company_slack_channels")
-          .select("slack_channel_id").eq("id", job.action_context?.channelDbId)
-          .eq("company_workspace_id", job.company_workspace_id).eq("is_enabled", true).single();
-        if (error) throw error;
-        await sendProactiveHiringOverview({ workspaceId: job.company_workspace_id, channelId: channel.slack_channel_id });
-      }
+      // The hiring status table is material in the review's input; Harper decides whether its message includes it.
       if ("batchId" in result && typeof result.batchId === "string") {
         await deliverCompanyMessageBatch({ batchId: result.batchId, workspaceId: job.company_workspace_id,
           assertCanStart: assertProactiveDeliveryCurrent });

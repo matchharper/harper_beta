@@ -136,3 +136,16 @@ test("proactive awareness carries the evidence for active Roles and the prompt l
   assert.match(prompt, /roleEvidence/);
   assert.match(prompt, /not triggers/);
 });
+
+test("the status table is material Harper may include, present only when offered", async () => {
+  const admin = fakeAdmin({});
+  const evidence = async () => [] as any;
+  const base = { admin, workspaceId: "w", channelDbId: "c", anchor: 10, now, roles: [] };
+  const without = await loadCompanyProactiveAwareness(base, { evidence });
+  assert.equal("hiringOverview" in without, false);
+  const withTable = await loadCompanyProactiveAwareness({ ...base, hiringOverview: { text: "*현재 채용 현황*", complete: true } }, { evidence });
+  assert.equal((withTable as any).hiringOverview.text, "*현재 채용 현황*");
+  const prompt = buildCompanyProactiveReviewPrompt(withTable);
+  assert.match(prompt, /Nothing sends it automatically/);
+  assert.match(prompt, /When you stay quiet, no table goes out/);
+});

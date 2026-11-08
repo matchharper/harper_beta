@@ -25,7 +25,6 @@ import {
 import {
   attachAutoIntroSlackReviewAction,
   buildAutoIntroCandidateNameLink,
-  buildAutoIntroRoleSummarySlackBlocks,
   buildAutoIntroRoleSummaryText,
   buildAutoIntroWorkspaceActionGuidance,
   escapeAutoIntroSlackHeading,
@@ -2028,59 +2027,6 @@ async function sendWorkspaceMessage(args: {
   };
 }
 
-async function sendRoleSummaryOnly(args: {
-  dateKey: string;
-  channelId: string;
-  locale: OrgLocale;
-  slackConnected: boolean;
-  summary: AutoIntroRoleSummary;
-}): Promise<DeliveryOutcome> {
-  const idempotencyKey = roleSummaryIdempotencyKey(
-    args.summary.workspaceId,
-    args.dateKey
-  );
-  let slackSent = false;
-  let slackError: string | null = null;
-  if (args.slackConnected) {
-    try {
-      slackSent = await sendHarperWorkspaceSlackMessage({
-        blocks: buildAutoIntroRoleSummarySlackBlocks({
-          locale: args.locale,
-          summary: args.summary,
-        }),
-        idempotencyKey,
-        channelId: args.channelId,
-        enforceAudiencePermission: true,
-        requireAllDeliveries: true,
-        messageMetadata: {
-          model: "application",
-          roleSummaryDeliveryKey: `${idempotencyKey}:${args.channelId}`,
-          source: "codex_scheduled_auto_intro_role_summary",
-        },
-        roleId: null,
-        text: buildAutoIntroRoleSummaryText({
-          locale: args.locale,
-          summary: args.summary,
-        }),
-        unfurlLinks: false,
-        unfurlMedia: false,
-        workspaceId: args.summary.workspaceId,
-      });
-      if (!slackSent) {
-        slackError = "No eligible Slack channel accepted delivery";
-      }
-    } catch (error) {
-      slackError = formatError(error).slice(0, 500);
-    }
-  }
-  return {
-    idempotencyKey,
-    slackConnected: args.slackConnected,
-    slackError,
-    slackSent,
-  };
-}
-
 function defaultCompanyPromptContext(group: WorkspaceNotificationGroup) {
   return {
     companyInformation: null,
@@ -2408,8 +2354,15 @@ function filterAuthoredMessageToCandidates(
   };
 }
 
-/** Called after the proactive decision, including silent completion, before its Slack batch. */
-export async function sendProactiveHiringOverview(args: {
+/** Longest status table handed to the proactive review. */
+const PROACTIVE_OVERVIEW_MAX_CHARS = 4000;
+
+/**
+ * The hiring status table for the proactive review, on Mon/Wed/Fri (KST)
+ * only, and not when one already went to this channel today. Nothing sends
+ * it: Harper decides whether to include it in its own message.
+ */
+export async function readProactiveHiringOverview(args: {
   workspaceId: string;
   channelId: string;
   now?: Date;
@@ -2417,10 +2370,9 @@ export async function sendProactiveHiringOverview(args: {
   admin: getSupabaseAdmin,
   summaries: fetchCurrentRoleSummaries,
   locale: getOrgWorkspaceLocale,
-  send: sendRoleSummaryOnly,
-}) {
+}): Promise<{ text: string; complete: boolean } | null> {
   const now = args.now ?? new Date();
-  if (!isAutoIntroRoleSummaryDay(now)) return;
+  if (!isAutoIntroRoleSummaryDay(now)) return null;
   const admin = dependencies.admin();
   const dateKey = getAutoIntroRoleSummaryDateKey(now);
   const deliveryKey = `${roleSummaryIdempotencyKey(args.workspaceId, dateKey)}:${args.channelId}`;
@@ -2429,15 +2381,15 @@ export async function sendProactiveHiringOverview(args: {
     .contains("metadata", { roleSummaryDeliveryKey: deliveryKey })
     .not("slack_message_ts", "is", null).limit(1);
   if (error) throw error;
-  if (delivered?.length) return;
+  if (delivered?.length) return null;
   const summaries = await dependencies.summaries(admin, autoIntroFilters(args), now);
   const summary = summaries.find(item => item.workspaceId === args.workspaceId);
-  if (!summary) return;
-  const delivery = await dependencies.send({
-    dateKey, channelId: args.channelId, summary, slackConnected: true,
+  if (!summary) return null;
+  const text = buildAutoIntroRoleSummaryText({
     locale: await dependencies.locale(args.workspaceId, admin),
+    summary,
   });
-  if (!delivery.slackSent) throw new Error(delivery.slackError ?? "Hiring overview delivery failed");
+  return { text: text.slice(0, PROACTIVE_OVERVIEW_MAX_CHARS), complete: text.length <= PROACTIVE_OVERVIEW_MAX_CHARS };
 }
 
 export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
@@ -2452,7 +2404,7 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
   }
   const admin = getSupabaseAdmin();
   const filters = autoIntroFilters(args);
-  // Hiring overviews are delivered by the proactive review, immediately before its messages.
+  // Hiring overviews are material for the proactive review, which decides whether to send one.
   const roleSummaryDue = false;
   const eligibility = await buildEligibleCandidates(admin, filters);
   const availableGroups = groupCandidatesByWorkspace(

@@ -13,6 +13,7 @@ import type { OrgAgentThinkingLog } from "./types";
 import type { OrgAgentConversationRow } from "./store";
 import { enqueueOrgAgentWebActionTurn } from "./webActionTurn";
 import { loadRoleDecisionEvidence } from "./decisionEvidence.server";
+import { readProactiveHiringOverview } from "@/lib/ops/autoIntroToCompanyNotifications";
 
 type ProactiveReviewSchedule = { daysOfWeek: number[]; startTimeKst: string; windowMinutes: number };
 
@@ -102,6 +103,8 @@ export async function loadCompanyProactiveAwareness(args: {
   anchor: number; now?: Date;
   /** The reader of the decision counts; null reads as the workspace owner. */
   user?: User | null;
+  /** The status table, on the days it is due; Harper decides whether it goes out. */
+  hiringOverview?: { text: string; complete: boolean } | null;
 }, dependencies = { evidence: loadRoleDecisionEvidence }) {
   const now = args.now ?? new Date();
   const roles = args.roles.filter(r => r.status === "active");
@@ -132,6 +135,8 @@ export async function loadCompanyProactiveAwareness(args: {
     recentRoleConversations, recentDeliveredProactiveMessages: (sent ?? []).map((m: any) => ({ ...m, content: m.content.slice(0, 3000) })),
     acquisitionRequests: roles.filter(r => r.promotionDemand).map(r => ({ roleId: r.roleId, request: r.promotionDemand })),
     roleEvidence,
+    ...(args.hiringOverview ? { hiringOverview: { ...args.hiringOverview,
+      note: "Today's status table, formatted for Slack. Nothing sends it automatically; include it, part of it, or none, in your own message." } } : {}),
   };
 }
 
@@ -167,8 +172,11 @@ export async function runCompanyProactiveReview(args: {
   const context = await buildOrgAgentPromptContext({ admin, user: args.user, conversation: args.conversation,
     beforeMessageId: args.anchorMessageId, currentUserMessageId: args.anchorMessageId, includeSharedConversation: true,
     readAudience: "company_safe", scopeKey: `proactive:${channel.id}` });
+  // Material only: when it cannot be read, the review goes on without it.
+  const hiringOverview = await readProactiveHiringOverview({ workspaceId, channelId: channel.slack_channel_id })
+    .catch((overviewError) => { console.warn("[org/proactive-review] hiring overview unavailable", { error: String(overviewError?.message ?? overviewError) }); return null; });
   const awareness = await loadCompanyProactiveAwareness({ admin, workspaceId, channelDbId: channel.id,
-    roles: context.roles, anchor: args.anchorMessageId, user: args.user });
+    roles: context.roles, anchor: args.anchorMessageId, user: args.user, hiringOverview });
   const audience: CompanyMessageAudience = { channelDbId: channel.id, channelId: channel.slack_channel_id, jobId: args.jobId };
   let thinkingLogs: OrgAgentThinkingLog[] = [];
   const result = await runOrgAgentToolLoop({ admin, user: args.user, conversation: args.conversation, context,
