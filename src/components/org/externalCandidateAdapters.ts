@@ -21,8 +21,49 @@ function period(start: string | null, end: string | null) {
   return to ? `- ${to}` : null;
 }
 
-function criteriaEvaluations(person: ExternalCandidateView) {
-  return person.criteria.map((item) => ({ name: item.name, fitness: item.fitness, content: item.content }));
+/** The outside judge names a criterion "name: what to check"; the name is the text before the first ":". */
+export function externalCriterionName(text: string) {
+  return text.split(":")[0]?.trim() || text.trim();
+}
+
+const criterionKey = (text: string) => externalCriterionName(text).toLowerCase();
+
+/**
+ * The criteria outside people are shown against, by short name: the Role's
+ * current ones in its order, or, without them, every shown person's in the
+ * order they appear.
+ */
+export function externalCriteriaOrder(
+  people: readonly ExternalCandidateView[],
+  roleCriteria?: readonly string[] | null
+) {
+  const source = roleCriteria?.length
+    ? roleCriteria
+    : people.flatMap((person) => person.criteria.map((item) => item.name));
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const text of source) {
+    const name = externalCriterionName(text);
+    if (!name || seen.has(criterionKey(name))) continue;
+    seen.add(criterionKey(name));
+    names.push(name);
+  }
+  return names;
+}
+
+/**
+ * One evaluation per criterion in `order` the person was judged on, under its
+ * short name; criteria the judge added that are not in `order` (work
+ * location, years) are left out. The full text stays as the content when the
+ * judge gave no quote.
+ */
+function criteriaEvaluations(person: ExternalCandidateView, order: readonly string[]) {
+  return order.flatMap((name) => {
+    const item = person.criteria.find((criterion) => criterionKey(criterion.name) === criterionKey(name));
+    if (!item) return [];
+    const description = item.name.includes(":") ? item.name.slice(item.name.indexOf(":") + 1).trim() : "";
+    return [{ name, fitness: item.fitness, content: item.content || description }];
+  });
 }
 
 /** Request intro: an address was found and nothing was requested yet. Pass applies to every shown person. */
@@ -35,7 +76,11 @@ export function externalCandidateWithoutEmail(person: ExternalCandidateView) {
   return !person.intro && person.contact !== "found";
 }
 
-export function externalBoardItem(person: ExternalCandidateView, roleId: string): OrgBoardItem {
+export function externalBoardItem(
+  person: ExternalCandidateView,
+  roleId: string,
+  criteriaOrder: readonly string[] = externalCriteriaOrder([person])
+): OrgBoardItem {
   const id = `external:${person.id}`;
   // Every shown person uses the decision card of a suggested member: Pass always, Request intro only when
   // externalCandidateCanSendIntro (the card hides it otherwise).
@@ -48,7 +93,7 @@ export function externalBoardItem(person: ExternalCandidateView, roleId: string)
   return {
     capabilities: { contactCandidate: false, moveStage: false, pass: false, requestIntro: false, scheduleInterview: false, viewResume: false },
     companyIntro: { id, status: "ready", candidateSentAt: null, companyAppeal: null, nextStageId: null, requestedAt: null, selectionReason: "" },
-    criteriaEvaluations: criteriaEvaluations(person),
+    criteriaEvaluations: criteriaEvaluations(person, criteriaOrder),
     createdAt: person.shownAt,
     fitReasons: [],
     fitSummary: null,
@@ -70,8 +115,11 @@ export function externalBoardItem(person: ExternalCandidateView, roleId: string)
   };
 }
 
-export function externalProfileDetail(person: ExternalCandidateView): OrgTalentProfileContentProps["detail"] {
-  const evaluations = criteriaEvaluations(person);
+export function externalProfileDetail(
+  person: ExternalCandidateView,
+  criteriaOrder: readonly string[] = externalCriteriaOrder([person])
+): OrgTalentProfileContentProps["detail"] {
+  const evaluations = criteriaEvaluations(person, criteriaOrder);
   const links = [...new Set([person.linkedinUrl, ...person.evidence.map((item) => item.url)].filter((link): link is string => Boolean(link)))];
   return {
     talent: {

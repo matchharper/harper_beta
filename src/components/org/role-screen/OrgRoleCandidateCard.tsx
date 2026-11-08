@@ -56,21 +56,40 @@ import {
  */
 function CandidateCriteriaMarks({
   evaluations,
+  order,
 }: {
   evaluations: OrgCompanyCriteriaEvaluation[] | null | undefined;
+  /**
+   * Criterion names to follow, one mark each; a criterion the person was not
+   * judged on is a neutral "·" of the same width, so marks line up.
+   */
+  order?: readonly string[];
 }) {
-  const { locale } = useOrgLocale();
-  if (!evaluations?.length) return null;
+  const { c, locale } = useOrgLocale();
+  const slots: (OrgCompanyCriteriaEvaluation | string)[] = order
+    ? order.map((name) => evaluations?.find((evaluation) => evaluation.name === name) ?? name)
+    : (evaluations ?? []);
+  if (!slots.length) return null;
   return (
     <span aria-hidden="true" className="org-candidate-marks">
-      {evaluations.map((evaluation, index) => (
-        <span
-          key={`${evaluation.name}:${index}`}
-          title={`${evaluation.name} · ${companyCriterionFitnessLabel(evaluation.fitness, locale)}`}
-        >
-          <OrgCriterionFitIcon className="size-3.5" fitness={evaluation.fitness} />
-        </span>
-      ))}
+      {slots.map((slot, index) =>
+        typeof slot === "string" ? (
+          <span
+            className="org-candidate-mark-empty"
+            key={`${slot}:${index}`}
+            title={`${slot} · ${c("평가 없음", "Not judged")}`}
+          >
+            ·
+          </span>
+        ) : (
+          <span
+            key={`${slot.name}:${index}`}
+            title={`${slot.name} · ${companyCriterionFitnessLabel(slot.fitness, locale)}`}
+          >
+            <OrgCriterionFitIcon className="size-3.5" fitness={slot.fitness} />
+          </span>
+        )
+      )}
     </span>
   );
 }
@@ -83,6 +102,8 @@ type OrgRoleCandidateCardProps = ComponentProps<typeof OrgRoleTalentBoardCard> &
    * profile read, and they cannot be saved (no recommendation to save).
    */
   profileDetail?: CandidateSummaryDetail;
+  /** People outside Harper: marks follow the Role's criteria, with "·" where not judged. */
+  criteriaOrder?: readonly string[];
 };
 
 /** One open card per list, and the way to ask Harper about a candidate. */
@@ -191,6 +212,7 @@ function CandidateSummaryBody({
 export function OrgRoleCandidateCard({
   acceptSlot,
   canManageCandidates = false,
+  criteriaOrder,
   footer,
   internalOpsAccess = false,
   item,
@@ -266,7 +288,7 @@ export function OrgRoleCandidateCard({
                 {name.slice(0, 1).toUpperCase()}
               </span>
               <span className="min-w-0 wrap-break-word">{name}</span>
-              <CandidateCriteriaMarks evaluations={item.criteriaEvaluations} />
+              <CandidateCriteriaMarks evaluations={item.criteriaEvaluations} order={criteriaOrder} />
             </div>
             <time
               className="career-opportunity-type"

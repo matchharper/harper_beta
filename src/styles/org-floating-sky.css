@@ -407,6 +407,14 @@
   margin-left: auto;
   padding-left: 8px;
 }
+/* A criterion the person was not judged on: a quiet dot as wide as a mark. */
+.org-candidate-mark-empty {
+  display: inline-flex;
+  justify-content: center;
+  width: 14px;
+  line-height: 14px;
+  color: var(--career-ink-secondary);
+}
 .org-candidate-card .career-opportunity-type {
   min-width: 3.5em;
 }

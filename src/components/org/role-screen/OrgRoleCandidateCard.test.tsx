@@ -167,6 +167,7 @@ test("a candidate card opens in place in the profile's order, then decisions wit
       candidateSentAt: null, companyAppeal: null, id: "external:p1", nextStageId: null, requestedAt: null,
       selectionReason: "", status: "ready",
     },
+    criteriaEvaluations: [{ name: "React Native", fitness: "excellent", content: "앱 세 개를 냈어요." }],
     recommendationId: "external:p1",
     source: "company_intro",
     stage: "company_intro",
@@ -176,6 +177,7 @@ test("a candidate card opens in place in the profile's order, then decisions wit
     <OrgCandidateListContext.Provider value={{ expandedId: "external:p1", onToggle: () => {} }}>
       <OrgRoleCandidateCard
         canManageCandidates
+        criteriaOrder={["React Native", "TypeScript"]}
         item={outsideItem}
         onAccept={() => {}}
         onOpen={() => {}}
@@ -190,4 +192,7 @@ test("a candidate card opens in place in the profile's order, then decisions wit
   );
   order(outside, ["한 줄 요약", "공개 정보로 본 이유", "확인할 기준", "React Native", "이번엔 넘길게요", "연결 요청", "전체 프로필"]);
   assert.ok(!outside.includes("읽어 온 요약") && !outside.includes(">저장<") && !outside.includes("Harper에게 묻기"));
+  // Marks follow the Role's criteria: a mark for the judged one, then a "·" where not judged.
+  const outsideMarks = marks(outside);
+  order(outsideMarks, ['title="React Native · ', 'class="org-candidate-mark-empty" title="TypeScript · 평가 없음">·<']);
 });

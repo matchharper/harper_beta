@@ -40,6 +40,7 @@ import { OrgErrorState } from "./workspace/OrgErrorState";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import {
   externalBoardItem,
+  externalCriteriaOrder,
   externalCandidateCanSendIntro,
   externalCandidateWithoutEmail,
   externalProfileDetail,
@@ -154,23 +155,6 @@ function openLink(link?: string | null) {
   if (link) window.open(link, "_blank", "noopener,noreferrer");
 }
 
-/** A criterion reads "name: what to check"; the column shows the name, the full text on hover. */
-function criterionHeading(criterion: string) {
-  const name = criterion.split(":")[0]?.trim();
-  return name || criterion;
-}
-
-/** Criteria in the order the shown people's evaluations list them. */
-function externalCriteriaNames(candidates: readonly ExternalCandidateView[]) {
-  const names: string[] = [];
-  for (const person of candidates) {
-    for (const criterion of person.criteria) {
-      if (!names.includes(criterion.name)) names.push(criterion.name);
-    }
-  }
-  return names;
-}
-
 /**
  * 외부 후보 as a list, drawn like the inbox list: one row per person, a column
  * per criterion, the latest job and school, the connection state and when
@@ -178,15 +162,17 @@ function externalCriteriaNames(candidates: readonly ExternalCandidateView[]) {
  */
 export function OrgExternalCandidateList({
   candidates,
+  criteria,
   onOpen,
   roleId,
 }: {
   candidates: readonly ExternalCandidateView[];
+  /** Short criterion names, one column each (externalCriteriaOrder). */
+  criteria: readonly string[];
   onOpen: (person: ExternalCandidateView) => void;
   roleId: string;
 }) {
   const { c, locale } = useOrgLocale();
-  const criteria = externalCriteriaNames(candidates);
   const rowCell = "border-b border-neutral-1000-a05 bg-bg-default align-middle group-hover/row:bg-bg-weak";
   return (
     <div
@@ -205,7 +191,7 @@ export function OrgExternalCandidateList({
                 key={name}
                 title={name}
               >
-                {criterionHeading(name)}
+                {name}
               </th>
             ))}
             <th className="min-w-52 border-b border-neutral-1000-a05 px-3 py-2.5 font-normal">
@@ -224,7 +210,7 @@ export function OrgExternalCandidateList({
         </thead>
         <tbody>
           {candidates.map((person) => {
-            const item = externalBoardItem(person, roleId);
+            const item = externalBoardItem(person, roleId, criteria);
             const status = externalStatus(person, c);
             return (
               <tr className="group/row cursor-pointer" key={person.id} onClick={() => onOpen(person)}>
@@ -309,8 +295,10 @@ export type OrgExternalCandidatesLayout = "grid" | "list" | "board" | "rows";
 
 const NO_BOARD_SELECTION: ReadonlySet<string> = new Set();
 
-export function OrgExternalCandidatesView({ data, roleId, workspaceId, actions, sort, view = "grid" }: {
+export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspaceId, actions, sort, view = "grid" }: {
   data: ExternalCandidatesResponse; roleId: string; actions?: ExternalCandidateActions;
+  /** The Role's current criteria names: marks follow them, and criteria outside them are left out. */
+  roleCriteria?: readonly string[] | null;
   /** Needed for the board, which keeps the team's card spots for the Role. */
   workspaceId?: string;
   /** Left out, the server's order (newest search first) stays. */
@@ -336,6 +324,10 @@ export function OrgExternalCandidatesView({ data, roleId, workspaceId, actions, 
   );
   const selectedId = typeof router.query.externalCandidateId === "string" ? router.query.externalCandidateId : null;
   const candidates = sort ? sortExternalCandidates(data.candidates, sort) : data.candidates;
+  const criteriaOrder = useMemo(
+    () => externalCriteriaOrder(data.candidates, roleCriteria),
+    [data.candidates, roleCriteria]
+  );
   const selected = selectedId ? candidates.find((person) => person.id === selectedId) ?? null : null;
   const selectedKey = selected?.id ?? null;
   const canManage = Boolean(actions?.canManage);
@@ -433,7 +425,7 @@ export function OrgExternalCandidatesView({ data, roleId, workspaceId, actions, 
           ) : null}
         </header>
         <OrgCandidateReviewContent
-          detail={externalProfileDetail(selected)}
+          detail={externalProfileDetail(selected, criteriaOrder)}
           onResumeClick={(_kind, link) => openLink(link)}
           footer={
             <p className="text-[13px] text-neutral-muted">
@@ -456,14 +448,14 @@ export function OrgExternalCandidatesView({ data, roleId, workspaceId, actions, 
     acceptSlot: externalCandidateCanSendIntro(person) ? undefined : <ExternalSendIntroSlot person={person} className="w-full py-2" />,
     canManageCandidates: canManage,
     footer: canManage ? null : <ExternalStatusBadge person={person} />,
-    item: externalBoardItem(person, roleId),
+    item: externalBoardItem(person, roleId, criteriaOrder),
     onAccept: () => setIntroFor(person),
     onOpen: () => select(person.id),
     onPass: async (reason: string) => { await pass(person, reason); },
     pending,
     stages: [],
   });
-  const byBoardId = new Map(candidates.map((person) => [externalBoardItem(person, roleId).recommendationId, person]));
+  const byBoardId = new Map(candidates.map((person) => [externalBoardItem(person, roleId, criteriaOrder).recommendationId, person]));
   return (
     <div ref={rootRef} className="space-y-4 pb-6">
       {searching ? (
@@ -480,15 +472,21 @@ export function OrgExternalCandidatesView({ data, roleId, workspaceId, actions, 
         </p>
       ) : null}
       {candidates.length && view === "list" ? (
-        <OrgExternalCandidateList candidates={candidates} onOpen={(person) => select(person.id)} roleId={roleId} />
+        <OrgExternalCandidateList
+          candidates={candidates}
+          criteria={criteriaOrder}
+          onOpen={(person) => select(person.id)}
+          roleId={roleId}
+        />
       ) : candidates.length && view === "rows" ? (
         <OrgCandidateListContext.Provider value={rowList}>
           <div className="org-candidate-list">
             {candidates.map((person) => (
               <OrgRoleCandidateCard
                 {...cardProps(person)}
+                criteriaOrder={criteriaOrder}
                 key={person.id}
-                profileDetail={externalProfileDetail(person)}
+                profileDetail={externalProfileDetail(person, criteriaOrder)}
               />
             ))}
           </div>
@@ -496,7 +494,7 @@ export function OrgExternalCandidatesView({ data, roleId, workspaceId, actions, 
       ) : candidates.length && view === "board" && workspaceId ? (
         <OrgCandidateBoardCanvas
           board="external"
-          items={candidates.map((person) => externalBoardItem(person, roleId))}
+          items={candidates.map((person) => externalBoardItem(person, roleId, criteriaOrder))}
           key={`${roleId}:external`}
           renderCard={(item) => {
             const person = byBoardId.get(item.recommendationId);
@@ -533,8 +531,13 @@ export function OrgExternalCandidates({ workspaceId, roleId, sort, view }: {
   workspaceId: string; roleId: string; sort?: OrgCandidateSort; view?: OrgExternalCandidatesLayout;
 }) {
   const query = useOrgExternalCandidates({ workspaceId, roleId });
-  const { bootstrap, currentUserEmail, permissions } = useOrgWorkspace();
+  const { bootstrap, currentUserEmail, permissions, roles } = useOrgWorkspace();
   const { pass, requestIntro } = useOrgExternalCandidateActions({ workspaceId, roleId });
+  const role = roles.find((item) => item.roleId === roleId);
+  const roleCriteria = useMemo(
+    () => role?.criteria.map((criterion) => criterion.name || criterion.criteria) ?? null,
+    [role?.criteria]
+  );
   if (query.isLoading) return <ReviewEmptyState loading />;
   if (isOrgQueryBlockingError(query.error, query.data)) {
     return <OrgErrorState message={query.error?.message ?? ""} onRetry={() => void query.refetch()} />;
@@ -542,6 +545,7 @@ export function OrgExternalCandidates({ workspaceId, roleId, sort, view }: {
   return (
     <OrgExternalCandidatesView
       data={query.data ?? { enabled: false, search: null, candidates: [] }}
+      roleCriteria={roleCriteria}
       roleId={roleId}
       sort={sort}
       view={view}
