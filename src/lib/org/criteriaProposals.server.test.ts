@@ -435,3 +435,38 @@ test("the queue consumer runs Harper's review as a service event within the run'
   const dispatch = source("../../app/api/internal/org-agent/web-action-dispatch/route.ts");
   assert.match(dispatch, /try \{\s*const \{ enqueueDueCriteriaConsolidations \}[\s\S]*?\} catch \(error\) \{/);
 });
+
+test("accepting a new criterion appends it through the Brief; one added meanwhile closes the suggestion", async () => {
+  const saved: Array<Record<string, any>> = [];
+  const save = async (args: Record<string, any>) => {
+    saved.push(args);
+  };
+  const payload = {
+    version: 1,
+    change: { type: "criterion_add", criterionName: "결제 도메인", description: "결제 시스템을 만들어 봤다", to: "nice" },
+    evidence: { count: 3, window: 5, decisionIds: [1, 2, 3] },
+    locale: "ko",
+  };
+  tables.company_internal_roles = [{ role_id: roleId, criteria }];
+  tables.company_role_brief_revisions = [{ role_id: roleId, revision: 5 }];
+  const statuses: Record<string, unknown> = { claim: { status: "claimed", payload }, apply: { status: "applied", decisionId: 57 } };
+  rpcResults.resolve_company_brief_proposal_v1 = (args) => statuses[args.p_action] ?? { status: "pending" };
+  assert.deepEqual(
+    await server.answerCriteriaProposal({ admin, user, workspaceId, roleId, proposalId: "p-1", action: "accept", now, saveCriteria: save as any }),
+    { status: "applied", briefRevision: 5, decisionId: 57 }
+  );
+  assert.deepEqual(saved[0].criteria.slice(0, criteria.length), criteria);
+  assert.deepEqual(saved[0].criteria.at(-1), {
+    name: "결제 도메인", criteria: "결제 시스템을 만들어 봤다", requirement: "preferred", importance: 1,
+    changeReason: "넘긴 이유 반영 (5명 중 3명)", changedAt: now.toISOString(),
+  });
+
+  rpcs.length = 0;
+  tables.company_internal_roles = [{ role_id: roleId, criteria: [...criteria, { name: "결제 도메인", criteria: "직접 넣음" }] }];
+  await assert.rejects(
+    server.answerCriteriaProposal({ admin, user, workspaceId, roleId, proposalId: "p-1", action: "accept", now, saveCriteria: save as any }),
+    (error: any) => error.status === 409
+  );
+  assert.deepEqual(called("resolve_company_brief_proposal_v1").map((call) => call.args.p_action), ["claim", "stale"]);
+  assert.equal(saved.length, 1);
+});

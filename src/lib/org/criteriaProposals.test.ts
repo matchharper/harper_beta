@@ -86,7 +86,7 @@ test("the To-do line, in both languages, fits the summary column", () => {
   assert.match(en.summary, /from Nice to have to Important\? It was the reason for 7 of your last 10 passes with a reason\.$/);
   for (const text of [ko.summary, en.summary]) assert.ok(Array.from(text).length <= 160, text);
   assert.match(ko.preview, /: 있으면 좋음 → 중요$/);
-  const required = criteriaProposalText({ ...payload, change: { ...payload.change, criterionName: "Go", from: "important", to: "required" } }, "ko");
+  const required = criteriaProposalText({ ...payload, change: { type: "criterion_level", criterionKey: "c-go", criterionName: "Go", from: "important", to: "required" } }, "ko");
   assert.equal(required.summary.startsWith("'Go' 기준을 중요에서 필수로 올릴까요?"), true);
   assert.equal(criteriaProposalChangeReason(payload, "en"), "From pass reasons (7 of 10)");
 });
@@ -118,4 +118,41 @@ test("stored payloads are read back strictly", () => {
   assert.equal(parseCriteriaProposalPayload({ changes: [] }), null);
   assert.equal(parseCriteriaProposalPayload({ ...goProposal, change: { ...goProposal.change, to: "max" } }), null);
   assert.equal(parseCriteriaProposalPayload({ ...goProposal, evidence: { count: 5, window: 3 } }), null);
+});
+
+// B18: when the reasons point outside the current criteria, a new criterion.
+const newProposal: CriteriaProposalPayload = {
+  version: 1,
+  change: { type: "criterion_add", criterionName: "결제 도메인", description: "결제 시스템을 만들어 봤다", to: "important" },
+  evidence: { count: 3, window: 5, decisionIds: [9, 8, 7] },
+};
+
+test("a new criterion is added at its level, once, and only while the Role lacks it", () => {
+  const now = new Date("2026-11-08T01:00:00Z");
+  assert.equal(criteriaProposalContentKey(newProposal.change), "criterion_add:결제 도메인");
+  // Same name in other spacing or case: the same change, never suggested twice.
+  assert.equal(
+    criteriaProposalContentKey({ ...newProposal.change, criterionName: "  결제   도메인 " } as typeof newProposal.change),
+    criteriaProposalContentKey(newProposal.change)
+  );
+  assert.equal(criteriaProposalStillApplies(newProposal.change, criteria), true);
+  const next = applyCriteriaProposal(criteria, newProposal.change, criteriaProposalChangeReason(newProposal, "ko"), now);
+  assert.deepEqual(next.slice(0, criteria.length).map((item) => item.name), criteria.map((item) => item.name));
+  assert.deepEqual(next.at(-1), {
+    name: "결제 도메인",
+    criteria: "결제 시스템을 만들어 봤다",
+    requirement: "preferred",
+    importance: 2,
+    changeReason: "넘긴 이유 반영 (5명 중 3명)",
+    changedAt: now.toISOString(),
+  });
+  assert.equal(criteriaProposalStillApplies(newProposal.change, next), false);
+  const ko = criteriaProposalText(newProposal, "ko");
+  assert.match(ko.summary, /^'결제 도메인' 기준을 중요로 새로 넣을까요\? 최근 이유를 남기고 넘긴 후보 5명 중 3명이 이 이유 때문이었어요\.$/);
+  assert.match(criteriaProposalText(newProposal, "en").summary, /^Add '결제 도메인' as a new criterion \(Important\)\?/);
+  assert.equal(ko.preview, "새 기준 결제 도메인 (중요): 결제 시스템을 만들어 봤다");
+  assert.deepEqual(parseCriteriaProposalPayload(newProposal), newProposal);
+  // Never stored at required, and never without what it checks.
+  assert.equal(parseCriteriaProposalPayload({ ...newProposal, change: { ...newProposal.change, to: "required" } }), null);
+  assert.equal(parseCriteriaProposalPayload({ ...newProposal, change: { ...newProposal.change, description: " " } }), null);
 });

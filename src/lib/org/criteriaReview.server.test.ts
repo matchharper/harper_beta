@@ -347,3 +347,50 @@ test("the tool exists only in Harper's review: not in member chats, not in agent
   await assert.rejects(proposeCriteriaChange({ admin: elsewhere, input: { criterionId: "c-rn" } }), /only in Harper's review of pass reasons/);
   assert.equal(called("create_company_brief_proposal_v1").length, 0);
 });
+
+const PAYMENT_PATTERN = [
+  "결제 시스템을 다뤄 본 적이 없어요",
+  "PG 연동 경험이 없음",
+  "연봉이 안 맞아요",
+  "결제 도메인 경험 부족",
+  "정산·결제 쪽 경험이 없대요",
+  "이직 생각 없음",
+];
+
+test("reasons outside the current criteria: Harper suggests one new criterion through the same path", async () => {
+  seed(PAYMENT_PATTERN);
+  const args = {
+    newCriterion: { name: "결제 도메인 경험", description: "결제·PG 연동을 실무로 다뤄 봤다", level: "important" },
+    decisionIds: [106, 105, 103, 102],
+    reason: "넘긴 후보 대부분이 결제 쪽 경험이 없었어요.",
+  };
+  const stand = model((_, index) => (index === 0 ? { tool: { args } } : null));
+  assert.deepEqual(await run(stand), { proposalId: "proposal-1", status: "proposed", throughDecisionId: 106 });
+  const [create] = called("create_company_brief_proposal_v1");
+  assert.equal(create.args.p_kind, "criteria_refinement");
+  assert.equal(create.args.p_content_key, "criterion_add:결제 도메인 경험");
+  assert.deepEqual(create.args.p_payload.change, {
+    type: "criterion_add", criterionName: "결제 도메인 경험", description: "결제·PG 연동을 실무로 다뤄 봤다", to: "important",
+  });
+  assert.equal(create.args.p_summary, "'결제 도메인 경험' 기준을 중요로 새로 넣을까요? 넘긴 후보 대부분이 결제 쪽 경험이 없었어요. (이유를 남긴 6명 중 4명)");
+  assert.match(stand.seen[1].last, /Suggestion proposal-1 added to the Role's To-do: new criterion 결제 도메인 경험 \(important\), from 4 of the 6 candidates/);
+
+  // Answered before: never again. Required or one candidate: refused in code.
+  rpcs = [];
+  proposals = [];
+  seed(PAYMENT_PATTERN, { answeredKeys: ["criterion_add:결제 도메인 경험"] });
+  const attempts: Row[] = [
+    { ...args, newCriterion: { ...args.newCriterion, level: "required" } },
+    { ...args, decisionIds: [106] },
+    { ...args, criterionId: "c-rn" },
+    { ...args, newCriterion: { ...args.newCriterion, name: "  결제 도메인  경험 " } },
+  ];
+  const again = model((_, index) => (index < attempts.length ? { tool: { args: attempts[index] } } : null));
+  assert.equal((await run(again)).status, "nothing");
+  const results = again.seen.slice(1).map((entry) => entry.last);
+  assert.match(results[0], /A new criterion starts at nice to have \(있으면 좋음\) or important \(중요\)/);
+  assert.match(results[1], /at least two different candidates/);
+  assert.match(results[2], /either criterionId .* or newCriterion/);
+  assert.match(results[3], /Not added: the company already applied or dismissed new criterion 결제 도메인 경험 \(important\)\. Nothing changed\./);
+  assert.equal(proposals.length, 0);
+});

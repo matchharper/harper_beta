@@ -29,9 +29,10 @@ import type { getSupabaseAdmin } from "@/lib/server/candidateAccess";
  * service principal, the Role conversation's context, the shared tool loop),
  * with the passes to read and three tools: read_role, read_talent and
  * propose_criteria_change. Harper decides whether the reasons call for a
- * stricter criterion; the tool keeps the suggestion to one existing criterion
- * one level up, backed by passes in this review, and files it through the
- * same To-do path as before. Silence is a valid outcome.
+ * stricter or a new criterion; the tool keeps the suggestion to one existing
+ * criterion one level up or one new criterion below required, backed by
+ * passes in this review, and files it through the same To-do path as before.
+ * Silence is a valid outcome.
  */
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
@@ -258,6 +259,7 @@ export async function proposeCriteriaChange(args: {
     payload = criteriaProposalFromReview({
       criteria: current.criteria,
       criterionId: args.input.criterionId,
+      newCriterion: args.input.newCriterion,
       decisionIds: args.input.decisionIds,
       rationale: args.input.reason,
       snapshot,
@@ -274,7 +276,10 @@ export async function proposeCriteriaChange(args: {
     roleId: scope.roleId,
     workspaceId: scope.workspaceId,
   });
-  const change = `${payload.change.criterionName}: ${payload.change.from} → ${payload.change.to}`;
+  const change =
+    payload.change.type === "criterion_add"
+      ? `new criterion ${payload.change.criterionName} (${payload.change.to})`
+      : `${payload.change.criterionName}: ${payload.change.from} → ${payload.change.to}`;
   if (filed.status === "created" && filed.proposalId) {
     await saveOnJob(args.admin, { id: scope.jobId, locked_by: scope.leaseOwner }, {
       criteriaReview: { ...snapshot, proposalId: filed.proposalId },

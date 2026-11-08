@@ -162,3 +162,32 @@ test("the evidence must be real: listed passes, two candidates, one of them new"
   refused({ decisionIds: [20, 19] }, /at least one pass since the last review/);
   refused({ rationale: "   " }, /reason is required/);
 });
+
+test("a new criterion: a name the Role lacks, below required, with the same evidence rules", () => {
+  const newCriterion = { name: " 결제 도메인 ", description: "결제 시스템을 만들어 봤다", level: "important" };
+  const payload = criteriaProposalFromReview({
+    criteria, snapshot, criterionId: undefined, newCriterion, decisionIds: [30, 29], rationale: "결제 경험이 없었어요.",
+  });
+  assert.deepEqual(payload.change, { type: "criterion_add", criterionName: "결제 도메인", description: "결제 시스템을 만들어 봤다", to: "important" });
+  assert.deepEqual(payload.evidence, { count: 2, window: 5, decisionIds: [30, 29] });
+  const refused = (input: Record<string, unknown>, pattern: RegExp) =>
+    assert.throws(
+      () => criteriaProposalFromReview({ criteria, snapshot, criterionId: undefined, newCriterion, decisionIds: [30, 29], rationale: "결제", ...input }),
+      (error: unknown) => error instanceof CriteriaReviewInputError && pattern.test(error.message)
+    );
+  refused({ criterionId: "c-rn" }, /either criterionId .* or newCriterion/);
+  refused({ newCriterion: undefined }, /either criterionId .* or newCriterion/);
+  refused({ newCriterion: { ...newCriterion, level: "required" } }, /starts at nice to have \(있으면 좋음\) or important \(중요\)/);
+  refused({ newCriterion: { ...newCriterion, description: " " } }, /needs a name and a description/);
+  // An existing criterion (any case or spacing) is raised, not added again.
+  refused({ newCriterion: { ...newCriterion, name: "b2b  경험" } }, /B2B 경험 is already one of this Role's criteria \(id B2B 경험\); suggest raising it instead/);
+  refused({ decisionIds: [20, 18] }, /at least two different candidates/);
+  refused({ decisionIds: [20, 19] }, /at least one pass since the last review/);
+  // An answered new criterion is listed as never suggested again.
+  const text = formatCriteriaReview({
+    roleId: "role-1", criteria, review: { passes: [], silent: { newCount: 0, earlierCount: 0 } },
+    answeredKeys: ["criterion_add:결제 도메인"], locale: "ko",
+  });
+  assert.match(text, /never suggested again\):\n- new criterion 결제 도메인$/);
+  assert.match(text, /whether the Role needs a new criterion/);
+});

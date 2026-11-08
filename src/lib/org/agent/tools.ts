@@ -810,14 +810,25 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "propose_criteria_change",
       description:
-        "In Harper's review of pass reasons only: add one suggestion to the Role's To-do to make one existing criterion one level stricter (nice to have → important → required), backed by the passes in this review whose stated reasons support it. Nothing changes until a company member applies it in the To-do; the company can dismiss it, and an applied or dismissed change is never suggested again. One suggestion per Role is open at a time and one per review. This does not edit the Role, add or rewrite a criterion, contact anyone or start a search. The result says whether the suggestion was added.",
+        "In Harper's review of pass reasons only: add one suggestion to the Role's To-do, backed by the passes in this review whose stated reasons support it: make one existing criterion one level stricter (criterionId; nice to have → important → required), or add one new criterion when the reasons point at something no current criterion checks (newCriterion; nice to have or important). Give exactly one of the two. Nothing changes until a company member applies it in the To-do; the company can dismiss it, and an applied or dismissed change is never suggested again. One suggestion per Role is open at a time and one per review. This does not edit the Role, remove or rewrite a criterion, contact anyone or start a search. The result says whether the suggestion was added.",
       parameters: {
         additionalProperties: false,
         properties: {
           criterionId: {
-            description: "The criterion's id exactly as the review lists it.",
+            description: "To raise an existing criterion: its id exactly as the review lists it. Omit with newCriterion.",
             minLength: 1,
             type: "string",
+          },
+          newCriterion: {
+            additionalProperties: false,
+            description: "To add a criterion the Role does not have. Omit with criterionId.",
+            properties: {
+              name: { description: "A short name in the workspace language, like the Role's other criteria.", minLength: 1, type: "string" },
+              description: { description: "What the criterion checks, in the workspace language, in the company's terms.", minLength: 1, type: "string" },
+              level: { enum: ["nice", "important"], type: "string" },
+            },
+            required: ["name", "description", "level"],
+            type: "object",
           },
           decisionIds: {
             description:
@@ -837,7 +848,7 @@ export const ORG_AGENT_TOOLS = [
             type: "string",
           },
         },
-        required: ["criterionId", "decisionIds", "reason"],
+        required: ["decisionIds", "reason"],
         type: "object",
       },
     },

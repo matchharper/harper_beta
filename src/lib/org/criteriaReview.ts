@@ -2,7 +2,12 @@ import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import {
   CRITERIA_PROPOSAL_RATIONALE_MAX,
   CRITERIA_PROPOSAL_RULES,
+  criterionNameKey,
+  NEW_CRITERION_DESCRIPTION_MAX,
+  NEW_CRITERION_LEVELS,
+  NEW_CRITERION_NAME_MAX,
   nextCriterionLevel,
+  type CriteriaProposalChange,
   type CriteriaProposalPayload,
   type PassDecision,
 } from "@/lib/org/criteriaProposals";
@@ -19,7 +24,8 @@ import { COMPANY_TERMS, type CompanyTermLocale } from "@/lib/org/terms";
  * Harper's review of pass reasons (S2 G): what Harper reads and how the
  * evidence it cites is checked. Harper decides whether a suggestion is
  * warranted; this file only gathers the facts and keeps the suggestion
- * honest (real passes, real reasons, one existing criterion one level up).
+ * honest (real passes, real reasons, one existing criterion one level up or
+ * one new criterion below required).
  */
 
 /** What the review reads about one pass decision besides the consolidation input. */
@@ -190,32 +196,63 @@ function levelLabel(level: OrgRoleCriterionLevel) {
 
 /**
  * The suggestion Harper asked for, checked against the Role and the review:
- * one existing criterion one level up, cited passes that are in the review
- * with a stated reason, at least one of them new, at least two candidates.
+ * one existing criterion one level up, or one new criterion (a name the Role
+ * does not have, below required); cited passes that are in the review with a
+ * stated reason, at least one of them new, at least two candidates.
  * Throws the reason in words the model can act on.
  */
 export function criteriaProposalFromReview(args: {
   criteria: unknown;
   snapshot: CriteriaReviewSnapshot;
   criterionId: unknown;
+  newCriterion?: unknown;
   decisionIds: unknown;
   rationale: unknown;
 }): CriteriaProposalPayload {
   const criteria = normalizeOrgRoleCriteria(args.criteria);
   const key = clean(args.criterionId);
-  const criterion = criteria.find((item) => criterionReasonTag(item) === key);
-  if (!criterion) {
-    const ids = criteria.map(criterionReasonTag).filter(Boolean);
+  const added = args.newCriterion && typeof args.newCriterion === "object" && !Array.isArray(args.newCriterion)
+    ? (args.newCriterion as Record<string, unknown>)
+    : null;
+  if (Boolean(key) === Boolean(added))
     throw new CriteriaReviewInputError(
-      `criterionId ${key || "(empty)"} is not one of this Role's criteria${ids.length ? `: ${ids.join(", ")}` : ""}. No suggestion was added.`
+      "Give either criterionId (raise an existing criterion) or newCriterion (add one), not both. No suggestion was added."
     );
+  let change: CriteriaProposalChange;
+  if (added) {
+    const name = shorten(clean(added.name), NEW_CRITERION_NAME_MAX);
+    const description = shorten(clean(added.description), NEW_CRITERION_DESCRIPTION_MAX);
+    const level = clean(added.level) as OrgRoleCriterionLevel;
+    if (!name || !description)
+      throw new CriteriaReviewInputError(
+        "newCriterion needs a name and a description of what it checks. No suggestion was added."
+      );
+    if (!NEW_CRITERION_LEVELS.includes(level))
+      throw new CriteriaReviewInputError(
+        `A new criterion starts at ${NEW_CRITERION_LEVELS.map(levelLabel).join(" or ")}. No suggestion was added.`
+      );
+    const existing = criteria.find((item) => criterionNameKey(item.name) === criterionNameKey(name));
+    if (existing)
+      throw new CriteriaReviewInputError(
+        `${existing.name} is already one of this Role's criteria (id ${criterionReasonTag(existing)}); suggest raising it instead. No suggestion was added.`
+      );
+    change = { type: "criterion_add", criterionName: name, description, to: level };
+  } else {
+    const criterion = criteria.find((item) => criterionReasonTag(item) === key);
+    if (!criterion) {
+      const ids = criteria.map(criterionReasonTag).filter(Boolean);
+      throw new CriteriaReviewInputError(
+        `criterionId ${key} is not one of this Role's criteria${ids.length ? `: ${ids.join(", ")}` : ""}. No suggestion was added.`
+      );
+    }
+    const from = criterionLevel(criterion);
+    const to = nextCriterionLevel(from);
+    if (!to)
+      throw new CriteriaReviewInputError(
+        `${criterion.name} is already ${levelLabel(from)}, the strictest level Harper suggests. No suggestion was added.`
+      );
+    change = { type: "criterion_level", criterionKey: key, criterionName: criterion.name, from, to };
   }
-  const from = criterionLevel(criterion);
-  const to = nextCriterionLevel(from);
-  if (!to)
-    throw new CriteriaReviewInputError(
-      `${criterion.name} is already ${levelLabel(from)}, the strictest level Harper suggests. No suggestion was added.`
-    );
   const cited = Array.isArray(args.decisionIds) ? [...new Set(args.decisionIds.map(Number))] : [];
   const reviewed = new Map(args.snapshot.passes.map((pass) => [pass.id, pass]));
   const unknown = cited.filter((id) => !reviewed.has(id));
@@ -237,7 +274,7 @@ export function criteriaProposalFromReview(args: {
     throw new CriteriaReviewInputError("reason is required: one short sentence for the To-do card. No suggestion was added.");
   return {
     version: 1,
-    change: { type: "criterion_level", criterionKey: key, criterionName: criterion.name, from, to },
+    change,
     evidence: {
       count: candidates.size,
       window: Math.max(args.snapshot.withReason, candidates.size),
@@ -302,6 +339,7 @@ export function formatCriteriaReview(args: {
   const fresh = args.review.passes.filter((pass) => pass.isNew);
   const earlier = args.review.passes.filter((pass) => !pass.isNew);
   const answered = (args.answeredKeys ?? []).flatMap((key) => {
+    if (key.startsWith("criterion_add:")) return [`- new criterion ${key.slice("criterion_add:".length)}`];
     const match = /^criterion_level:(.+):(nice|important|required)>(nice|important|required)$/.exec(key);
     if (!match) return [];
     const [, criterionKey, from, to] = match;
@@ -310,7 +348,7 @@ export function formatCriteriaReview(args: {
   const { newCount, earlierCount } = args.review.silent;
   return [
     `Review of pass reasons for Role ${args.roleId}${args.roleTitle ? ` (${clean(args.roleTitle)})` : ""}. time_zone=Asia/Seoul. Workspace language: ${args.locale === "en" ? "English" : "Korean"}.`,
-    "Purpose: read why the company passed on these candidates and decide whether one current criterion should be one level stricter. If so, add one suggestion with propose_criteria_change; otherwise end without a tool call.",
+    "Purpose: read why the company passed on these candidates and decide whether one current criterion should be one level stricter, or, when the reasons point at something no current criterion checks, whether the Role needs a new criterion. If so, add one suggestion with propose_criteria_change; otherwise end without a tool call.",
     "",
     "Current criteria (id | name | level | possible change | what it checks):",
     ...criteriaLines,
