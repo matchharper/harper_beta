@@ -384,6 +384,7 @@ test("panel sections: scheduled and blocked appear and clear themselves", async 
   ({ line } = await read());
   assert.equal(line("slack_delivery_error"), undefined);
 });
+
 test("Home: an ended Role keeps its numbers but has no To-do lines read", async () => {
   const tables = fixture();
   tables.company_roles.find((row) => row.role_id === ROLE_A)!.status = "ended";
@@ -422,4 +423,27 @@ test("Home: one Role that cannot be read leaves the others' To-do", async (t) =>
   // The Role screen still says it could not load.
   await assert.rejects(readOrgNow({ admin, user: OWNER as any, workspaceId: WS, roleIds: [ROLE_B], locale: "ko",
     readCreditSlots: async () => [] }));
+});
+
+test("a workspace with no owner reads its numbers as an admin, not as zeros", async () => {
+  const ADMIN = { id: "30000000-0000-4000-8000-000000000003", email: "admin@acme.test" };
+  const TEAM_ADMIN = { id: "30000000-0000-4000-8000-000000000004", email: "team@acme.test" };
+  const tables = fixture();
+  const member = (id: string, userId: string, authority: string, scope: string, day: number) => ({
+    id, company_user_id: userId, company_workspace_id: WS, authority, access_scope: scope, team_id: null,
+    company_workspace_team_members: [], created_at: at(day) });
+  // The earliest is a viewer and a team-only admin; the reader is the admin who sees every team.
+  tables.company_user_workspace = [
+    member("m0", STAFF.id, "viewer", "organization", 1),
+    member("m1", TEAM_ADMIN.id, "admin", "team", 1),
+    member("m2", ADMIN.id, "admin", "organization", 2),
+  ];
+  const admin = fakeAdmin(tables, { users: [ADMIN, TEAM_ADMIN], rpc: { read_company_candidate_delivery_v1: () => [] } });
+  const decisions = await readOrgDecisionCounts({ admin, user: null, workspaceId: WS, roleIds: [ROLE_A, ROLE_B] });
+  for (const roleId of [ROLE_A, ROLE_B])
+    assert.deepEqual(decisions.get(roleId)!.counts, EXPECTED[roleId], `decision counts ${roleId}`);
+  // Nobody who may act for the company: zeros, as before.
+  tables.company_user_workspace = [member("m0", STAFF.id, "viewer", "organization", 1)];
+  const none = await readOrgDecisionCounts({ admin, user: null, workspaceId: WS, roleIds: [ROLE_A] });
+  assert.equal(none.get(ROLE_A)!.counts.pending_connection, 0);
 });

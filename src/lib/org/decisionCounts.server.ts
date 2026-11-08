@@ -34,25 +34,31 @@ function emptyRead(): OrgRoleDecisionRead {
 
 /**
  * The workspace owner, for readers that act for the company with no person
- * (Slack summaries, email). Same choice as the proactive review.
+ * (Slack summaries, email). A workspace with no owner reads as its earliest
+ * admin, preferring one who sees every team, so its numbers are not zeros.
  */
 export async function readWorkspaceOwnerUser(
   admin: Admin,
   workspaceId: string
 ): Promise<User | null> {
-  const { data: owner, error } = await (
-    admin.from("company_user_workspace") as any
-  )
-    .select("company_user_id,authority")
+  const { data, error } = await (admin.from("company_user_workspace") as any)
+    .select("company_user_id,authority,access_scope")
     .eq("company_workspace_id", workspaceId)
-    .eq("authority", "owner")
+    .in("authority", ["owner", "admin", "member"])
     .order("created_at")
-    .order("id")
-    .limit(1)
-    .maybeSingle();
+    .order("id");
   if (error) throw error;
-  if (owner?.authority !== "owner") return null;
-  const auth = await admin.auth.admin.getUserById(owner.company_user_id);
+  const rows = (data ?? []) as Array<{
+    company_user_id: string;
+    authority: string;
+    access_scope?: string | null;
+  }>;
+  const reader =
+    rows.find((row) => row.authority === "owner") ??
+    rows.find((row) => row.access_scope !== "team") ??
+    rows[0];
+  if (!reader) return null;
+  const auth = await admin.auth.admin.getUserById(reader.company_user_id);
   if (auth.error) throw auth.error;
   return auth.data.user ?? null;
 }
@@ -61,8 +67,9 @@ export async function readWorkspaceOwnerUser(
  * Waiting, to request, saved and reviewing for each Role, read through the
  * board so every surface counts the same people: team access, deleted
  * profiles, test-only Roles and saved candidates are handled once, there.
- * With no user, the workspace owner reads. Roles the reader cannot see, or
- * a workspace with no owner, come back as zeros.
+ * With no user, the workspace owner (or, with none, an admin) reads. Roles
+ * the reader cannot see, or a workspace with no owner or admin, come back as
+ * zeros.
  */
 export async function readOrgDecisionCounts(args: {
   admin: Admin;
