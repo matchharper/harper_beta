@@ -611,8 +611,8 @@ function WorkspaceBillingContent({
             setPreviewCheckout(null);
             setNotice(
               c(
-                "미리보기 결제를 완료했어요. 추가된 슬롯을 회사 설정 › 슬롯에서 확인할 수 있어요. 실제 청구는 없어요.",
-                "Preview payment completed. View the added slots in Slots. No payment was taken."
+                "미리보기 결제를 완료했어요. 추가된 슬롯은 이 화면의 슬롯에서 확인할 수 있어요. 실제 청구는 없어요.",
+                "Preview payment completed. View the added slots under Slots on this page. No payment was taken."
               )
             );
           }}

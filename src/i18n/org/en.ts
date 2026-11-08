@@ -165,11 +165,11 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.pricing-overview.question":
     "How much does Harper cost? Is there a monthly subscription or hiring fee?",
   "faq.pricing-overview.answer":
-    "Free includes one active role, unlimited drafts, and 3 monthly Intros shared across your roles. Each paid slot adds one active role and 50 monthly Intros for that role. You keep your included intros when you add slots. Free and standard subscriptions have no placement fee; Enterprise and existing agreements follow their own terms. New companies can't currently create a workspace themselves, and self-service payments are temporarily paused for most workspaces. If you have access to Slots and Billing, you can review your assignments, subscriptions, and invoices there. Otherwise, choose Contact Harper to check your terms. Public pricing doesn't replace your company's agreement or show its actual balance.",
+    "Free includes one active role, unlimited drafts, and 3 monthly Intros shared across your roles. Each paid slot adds one active role and 50 monthly Intros for that role. You keep your included intros when you add slots. Free and standard subscriptions have no placement fee; Enterprise and existing agreements follow their own terms. New companies can't currently create a workspace themselves, and self-service payments are temporarily paused for most workspaces. If you have access to Billing, you can review your slot assignments, subscriptions, and invoices there. Otherwise, choose Contact Harper to check your terms. Public pricing doesn't replace your company's agreement or show its actual balance.",
   "faq.pricing-subscription.question":
     "Is there a monthly subscription or usage fee? Is the service free?",
   "faq.pricing-subscription.answer":
-    "Harper offers Free, monthly, and annual slot plans. Annual plans are paid upfront for the year, but Intros renew monthly. Self-service payments are temporarily paused for most workspaces. If you have access to Slots and Billing, check your subscription there. Otherwise, contact the Harper team to confirm your plan and what it includes.",
+    "Harper offers Free, monthly, and annual slot plans. Annual plans are paid upfront for the year, but Intros renew monthly. Self-service payments are temporarily paused for most workspaces. If you have access to Billing, check your subscription there. Otherwise, contact the Harper team to confirm your plan and what it includes.",
   "faq.pricing-success-fee.question":
     "Is there a fee when we hire someone?",
   "faq.pricing-success-fee.answer":
@@ -637,7 +637,7 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.slot-management.question":
     "Does changing or canceling a slot pause its Role?",
   "faq.slot-management.answer":
-    "If you have access to Slots, manage assignments there. Each slot has its own subscription and access end date. When a slot expires, Harper can assign another valid slot, but it does not pause roles that are already active for exceeding capacity. Existing active Free roles stay active. The limit of one Free role plus available paid slots is checked only when starting or reactivating a role. Existing candidates, Intros, and hiring history are preserved. Separate agreements keep their own terms. Reassigning a slot changes which role can use its slot Intros. Self-service payments are temporarily paused for most workspaces, so contact Harper if these menus aren't available.",
+    "If you have access to Billing, manage slot assignments in its Slots section. Each slot has its own subscription and access end date. When a slot expires, Harper can assign another valid slot, but it does not pause roles that are already active for exceeding capacity. Existing active Free roles stay active. The limit of one Free role plus available paid slots is checked only when starting or reactivating a role. Existing candidates, Intros, and hiring history are preserved. Separate agreements keep their own terms. Reassigning a slot changes which role can use its slot Intros. Self-service payments are temporarily paused for most workspaces, so contact Harper if these menus aren't available.",
   "faq.role-public-promotion.question":
     "What do public job promotion and company name visibility do?",
   "faq.role-public-promotion.answer":

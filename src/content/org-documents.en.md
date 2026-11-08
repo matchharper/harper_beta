@@ -342,7 +342,7 @@ When a slot expires, its Intro allowance and additional active-role capacity end
 ```callout
 Current billing access
 
-Self-serve signup for new companies and billing for ordinary workspaces are temporarily paused. Where Slots and Billing are available, they show assignments, subscriptions, and invoices. If those menus are absent or your agreement is unclear, contact the Harper team through Contact us. Public offers do not establish your company's actual contract or balance.
+Self-serve signup for new companies and billing for ordinary workspaces are temporarily paused. Where Billing is available, it shows slot assignments, subscriptions, and invoices. If that menu is absent or your agreement is unclear, contact the Harper team through Contact us. Public offers do not establish your company's actual contract or balance.
 ```
 
 ## External jobs and company-name disclosure <!-- id: public-job-visibility -->

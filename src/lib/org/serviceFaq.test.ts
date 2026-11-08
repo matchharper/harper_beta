@@ -179,3 +179,13 @@ test("Company scheduling FAQ reflects Calendar-assisted coordination", () => {
   );
   assert.doesNotMatch(pipeline?.answer ?? "", /회사가 별도로 연락한 뒤/);
 });
+
+// Slots live inside 결제 since the role screen change; there is no 슬롯 menu.
+test("Service answers point slot questions to 결제, not a 슬롯 menu", async () => {
+  const { COMPANY_SERVICE_CORE_PROMPT } = await import("@/lib/org/agent/serviceKnowledgePrompt");
+  for (const item of COMPANY_SERVICE_FAQ_ITEMS) {
+    assert.doesNotMatch(item.answer, /회사 설정 › 슬롯|슬롯·결제 메뉴|설정의 슬롯과 결제/, item.question);
+  }
+  assert.doesNotMatch(COMPANY_SERVICE_CORE_PROMPT, /Company settings → Slots/);
+  assert.match(COMPANY_SERVICE_CORE_PROMPT, /Company settings → Billing/);
+});
