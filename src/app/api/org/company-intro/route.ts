@@ -133,6 +133,7 @@ async function handlePost(req: NextRequest) {
             decision: "pass",
             introCandidateId: payload.introCandidateId,
             status: payload.status,
+            channel: "web", ...(typeof body.reason === "string" && body.reason.trim() ? { reasonText: body.reason.trim().slice(0, 2000) } : {}),
           },
           actionName: "company_intro_decision",
           idempotencyKey: [
@@ -185,6 +186,7 @@ async function handlePost(req: NextRequest) {
             introCandidateId: payload.introCandidateId,
             nextStageId: String(body.nextStageId ?? "").trim(),
             status: payload.status,
+            channel: "web",
           },
           actionName: "company_intro_decision",
           idempotencyKey: [

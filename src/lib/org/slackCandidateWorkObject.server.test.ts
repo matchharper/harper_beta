@@ -1110,6 +1110,7 @@ test("only Harper intro URLs and correctly typed UUID references resolve to a ca
 test("successful decisions are not reoffered when the detail panel refresh fails", async () => {
   const background: Array<() => Promise<void>> = [];
   const views: any[] = [];
+  const wakes: any[] = [];
   let commands = 0;
   const actor = {
     context: { token: "test-token", workspaceId: "workspace" },
@@ -1123,7 +1124,9 @@ test("successful decisions are not reoffered when the detail panel refresh fails
     "@/lib/org/billing/notice": billingNotice,
     "next/server": { after: (fn: () => Promise<void>) => background.push(fn) },
     "@/lib/org/agent/webActionTurn": {
-      enqueueOrgAgentWebActionTurn: async () => {},
+      enqueueOrgAgentWebActionTurn: async (args: any) => {
+        wakes.push(args);
+      },
     },
     "@/lib/org/server": {
       passOrgCompanyIntro: async () => {
@@ -1173,6 +1176,9 @@ test("successful decisions are not reoffered when the detail panel refresh fails
   assert.equal(response.response_action, "update");
   await background[0]();
   assert.equal(commands, 1);
+  // Harper's wake says the decision came from Slack (the modal has no reason field).
+  assert.equal(wakes[0].actionContext.channel, "slack");
+  assert.equal("reasonText" in wakes[0].actionContext, false);
   assert.equal(views.length, 1);
   assert.equal(views[0].blocks[0].text.text, "넘김");
   assert.equal(views[0].submit, undefined);

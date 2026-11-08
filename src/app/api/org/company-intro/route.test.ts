@@ -153,13 +153,15 @@ test("Pass keeps its input, response and Harper wake-up", async () => {
   assert.equal(wakes.length, 1);
   assert.equal(wakes[0].actionName, "company_intro_decision");
   assert.equal(wakes[0].idempotencyKey, "org-web:workspace:member:company-intro:card:pass:a1");
-  assert.deepEqual(wakes[0].actionContext, { decision: "pass", introCandidateId: "card", status: "passed" });
+  // Harper's wake says where the decision came from and the reason it already has.
+  assert.deepEqual(wakes[0].actionContext, { decision: "pass", introCandidateId: "card", status: "passed", channel: "web", reasonText: "연봉 기대가 높아요" });
 });
 
 test("a Pass without a reason sends none", async () => {
   reset();
   assert.equal((await submit({ action: "pass" })).status, 200);
   assert.equal(calls[0][1].reason, undefined);
+  assert.deepEqual(wakes[0].actionContext, { decision: "pass", introCandidateId: "card", status: "passed", channel: "web" });
 });
 
 test("an intro request keeps its input (the appeal goes as given) and response", async () => {
@@ -190,6 +192,7 @@ test("an intro request keeps its input (the appeal goes as given) and response",
   });
   assert.equal(wakes[0].idempotencyKey, "org-web:workspace:member:company-intro:card:request:a2");
   assert.equal((wakes[0].actionContext as Record<string, unknown>).nextStageId, "stage");
+  assert.equal((wakes[0].actionContext as Record<string, unknown>).channel, "web");
 });
 
 test("errors keep their status and message", async () => {

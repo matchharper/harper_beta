@@ -102,11 +102,13 @@ async function wakeHarper(args: {
                 introCandidateId: payload.introCandidateId,
                 nextStageId: clean(item.connection?.nextStageId),
                 status: payload.status,
+                channel: "web",
               }
             : {
                 decision: "pass",
                 introCandidateId: payload.introCandidateId,
                 status: payload.status,
+                channel: "web", ...(clean(item.reason?.text) ? { reasonText: clean(item.reason?.text) } : {}), ...(item.reason?.tags?.length ? { reasonTags: item.reason.tags } : {}),
               },
           actionName: "company_intro_decision",
           idempotencyKey: [

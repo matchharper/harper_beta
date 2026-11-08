@@ -7,6 +7,7 @@ import { before, test } from "node:test";
 // dependencies; no database, mail or Harper run.
 let link: Record<string, unknown> = {};
 const decided: Array<{ kind: string; args: Record<string, unknown> }> = [];
+const wakes: Array<Record<string, any>> = [];
 const rows: Record<string, unknown> = {
   company_intro_candidates: { id: "card", role_id: "role", talent_id: "talent", status: "ready", recommendation_id: null,
     candidate_sent_at: null, presentation: { name: "김민준" } },
@@ -46,7 +47,7 @@ before(async () => {
       },
     },
     "@/lib/siteUrl": { getConfiguredPublicSiteUrl: () => "https://example.invalid" },
-    "@/lib/org/agent/webActionTurn": { enqueueOrgAgentWebActionTurn: async () => ({ jobId: "job" }) },
+    "@/lib/org/agent/webActionTurn": { enqueueOrgAgentWebActionTurn: async (args: Record<string, any>) => (wakes.push(args), { jobId: "job" }) },
     "@/lib/org/slackCandidateWorkObject.server": { loadSlackCandidateCards: async () => [] },
     "@/lib/org/workspaceLocale.server": { getOrgWorkspaceLocale: async () => "ko" },
   };
@@ -78,6 +79,11 @@ test("mail buttons decide on the mail's own presentation", async () => {
   ]);
   assert.equal(decided[1].args.companyAppeal, "결제 경험");
   assert.deepEqual(decided[1].args.introRecipientEmails, ["jisoo@example.com"]);
+  // Harper's wake says the decision came from email (the mail page has no reason field).
+  assert.deepEqual(wakes.map((wake) => [wake.actionContext.decision, wake.actionContext.channel, "reasonText" in wake.actionContext]), [
+    ["pass", "email", false],
+    ["request_intro", "email", false],
+  ]);
 
   // A link saved before presentations existed has none; the decision then falls back as before.
   decided.length = 0;

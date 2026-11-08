@@ -196,6 +196,7 @@ export async function handleSlackCandidateInteraction(
             newIntroCreated: result.newIntroCreated,
             candidateAcceptedAt: result.candidateAcceptedAt,
             currentStageTag: result.stageTag,
+            channel: common.channel,
           },
           roleId: actor.row.role_id,
           user: actor.user,

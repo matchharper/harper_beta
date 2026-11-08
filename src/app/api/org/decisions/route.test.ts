@@ -161,6 +161,11 @@ test("one request decides many candidates, each with its own result", async () =
       ["candidate_stage_changed", "role-a"],
     ]
   );
+  // The Pass wake carries its channel and the reason it already has.
+  assert.deepEqual(
+    [wakes[0].actionContext.channel, wakes[0].actionContext.reasonText, wakes[0].actionContext.reasonTags, wakes[1].actionContext.channel],
+    ["web", "연차 부족", ["c1"], "web"]
+  );
   assert.equal(wakes[2].actionContext.meetingScheduleId, "schedule");
   assert.equal(wakes[3].idempotencyKey, "org-web:workspace:member:candidate-stage:role-a:talent-2:process_stopped:k5");
   assert.deepEqual(json.agentJobIds.sort(), ["job:candidate_stage_changed", "job:company_intro_decision"]);

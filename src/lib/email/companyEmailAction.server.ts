@@ -179,6 +179,7 @@ async function execute(args: {
           newIntroCreated: result.newIntroCreated,
           candidateAcceptedAt: result.candidateAcceptedAt,
           currentStageTag: result.stageTag,
+          channel: common.channel,
         },
         roleId: intro.role_id,
         user,
