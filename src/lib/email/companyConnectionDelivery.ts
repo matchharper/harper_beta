@@ -56,10 +56,14 @@ export async function deliverCompanyConnectionJob(args: {
   if (!payload) {
     const selected = selectReminderWorkspace(args.job.snapshot, args.job.ordinal, args.baseUrl);
     const workspace = selected.workspaces[0]!;
-    const recipient = deps.counts
-      ? withCurrentCandidateCounts(selected, await deps.counts(workspace.id,
-        workspace.roles.flatMap(role => role.id ? [role.id] : [])))
-      : selected;
+    // A failed read keeps the queued snapshot's numbers rather than failing the email.
+    let counts: CurrentCandidateCounts | undefined;
+    try {
+      counts = await deps.counts?.(workspace.id, workspace.roles.flatMap(role => role.id ? [role.id] : []));
+    } catch (error) {
+      console.warn("[company-connection/email] counts unavailable", { workspaceId: workspace.id, error });
+    }
+    const recipient = counts ? withCurrentCandidateCounts(selected, counts) : selected;
     const plan = planSlackConnectionReminder(recipient, args.history, args.now);
     if (!plan) return "ineligible";
     const workspaceId = recipient.workspaces[0]!.id;

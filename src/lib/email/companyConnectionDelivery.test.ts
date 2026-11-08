@@ -64,3 +64,10 @@ test("writing the email saves its model usage for the outbox row and workspace; 
  assert.equal(await deliverCompanyConnectionJob({...args,job:{...job,draft:{subject:"Saved",body:"Saved body"}}},deps),"sent");
  assert.equal(saved.length,1);
 });
+test("a failed count read sends with the queued snapshot's numbers",async()=>{
+ const {calls,deps}=dependencies();let facts:any;
+ deps.counts=async()=>{throw Error("count read failed");};
+ deps.compose=async(input)=>{facts=input.facts;return {subject:"Synthetic",body:"Synthetic body",model:"test",usage:{},messages:[]};};
+ assert.equal(await deliverCompanyConnectionJob(args,deps),"sent");
+ assert(calls.includes("send"));assert(facts);
+});
