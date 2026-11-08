@@ -26,6 +26,11 @@ const EMAIL = /[^\s@<>()]+@[^\s@<>()]+\.[a-z]{2,}/i;
 const PHONE =
   /\b01[016789][\s.-]?\d{3,4}[\s.-]?\d{4}\b|\b0\d{1,2}[\s.-]\d{3,4}[\s.-]\d{4}\b|\+\d{1,3}[\s.-]?\d{1,4}[\s.-]?\d{3,4}[\s.-]?\d{4}\b|\(\d{3}\)\s?\d{3}[\s.-]\d{4}\b/;
 
+/** Whether the text holds an email address or a phone number. */
+export function containsContactDetails(value: string) {
+  return EMAIL.test(value) || PHONE.test(value);
+}
+
 export type TodoSuggestionAdd = {
   kind: string;
   title: string;
@@ -40,7 +45,7 @@ function text(value: unknown, field: string, max: number) {
   const cleaned = value.replace(/\s+/g, " ").trim();
   if (cleaned.length > max)
     throw new TodoSuggestionInputError(`${field} is ${cleaned.length} characters; keep it under ${max}.`);
-  if (EMAIL.test(cleaned) || PHONE.test(cleaned))
+  if (containsContactDetails(cleaned))
     throw new TodoSuggestionInputError(
       `${field} must not contain an email address or phone number. The To-do names candidates only as the company sees them.`
     );

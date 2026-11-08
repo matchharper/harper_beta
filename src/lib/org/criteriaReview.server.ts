@@ -18,7 +18,7 @@ import {
   readConsolidationInput,
   type PreparedCriteriaReview,
 } from "@/lib/org/criteriaProposals.server";
-import { criteriaProposalText } from "@/lib/org/criteriaProposals";
+import { criteriaProposalText, type CriteriaProposalChange } from "@/lib/org/criteriaProposals";
 import type { CompanyTermLocale } from "@/lib/org/terms";
 import { scheduleRunMessages, type ScheduleRunMessages } from "@/lib/agentContacts/scheduleRun";
 import { untypedTable } from "@/lib/org/untypedTable";
@@ -30,10 +30,10 @@ import type { getSupabaseAdmin } from "@/lib/server/candidateAccess";
  * service principal, the Role conversation's context, the shared tool loop),
  * with the passes to read and three tools: read_role, read_talent and
  * propose_criteria_change. Harper decides whether the reasons call for a
- * stricter or a new criterion; the tool keeps the suggestion to one existing
- * criterion one level up or one new criterion below required, backed by
- * passes in this review, and files it through the same To-do path as before.
- * Silence is a valid outcome.
+ * stricter or a new criterion, or for a company memory note; the tool keeps
+ * the suggestion to one existing criterion one level up, one new criterion
+ * below required or one short note, backed by passes in this review, and
+ * files it through the same To-do path as before. Silence is a valid outcome.
  */
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
@@ -285,6 +285,35 @@ async function tellCompanyOnce(args: {
 }
 
 /**
+ * What a memory note is checked against: the reviewed candidates' names (a
+ * note never names them; the names are not shown to Harper) and the Role's
+ * team (for a team note).
+ */
+async function readMemoryNoteContext(admin: Admin, roleId: string, snapshot: CriteriaReviewSnapshot) {
+  const talentIds = [...new Set(snapshot.passes.map((pass) => pass.talentId).filter(Boolean))] as string[];
+  const [people, role] = await Promise.all([
+    talentIds.length
+      ? untypedTable(admin, "talent_users").select("user_id,name").in("user_id", talentIds)
+      : { data: [], error: null },
+    untypedTable(admin, "company_internal_roles").select("team_id").eq("role_id", roleId).maybeSingle(),
+  ]);
+  if (people.error) throw people.error;
+  if (role.error) throw role.error;
+  return {
+    candidateNames: ((people.data ?? []) as Json[]).flatMap((row) =>
+      typeof row.name === "string" && row.name.trim() ? [row.name.trim()] : []
+    ),
+    roleTeamId: String((role.data as Json | null)?.team_id ?? "").trim() || null,
+  };
+}
+
+function describeChange(change: CriteriaProposalChange) {
+  if (change.type === "memory_note") return `${change.scope} memory note "${change.note}"`;
+  if (change.type === "criterion_add") return `new criterion ${change.criterionName} (${change.to})`;
+  return `${change.criterionName}: ${change.from} → ${change.to}`;
+}
+
+/**
  * propose_criteria_change: one suggestion in the Role's To-do, from the
  * review this job is running. The result tells Harper what actually happened.
  */
@@ -317,12 +346,17 @@ export async function proposeCriteriaChange(args: {
 
   const current = await readConsolidationInput(args.admin, scope.roleId, 1);
   if (!current || current.workspaceId !== scope.workspaceId) return refuse("This Role is not available to this review.");
+  const memoryNote = args.input.memoryNote;
+  const noteContext =
+    memoryNote && typeof memoryNote === "object" ? await readMemoryNoteContext(args.admin, scope.roleId, snapshot) : {};
   let payload;
   try {
     payload = criteriaProposalFromReview({
+      ...noteContext,
       criteria: current.criteria,
       criterionId: args.input.criterionId,
       newCriterion: args.input.newCriterion,
+      memoryNote,
       decisionIds: args.input.decisionIds,
       rationale: args.input.reason,
       snapshot,
@@ -339,10 +373,7 @@ export async function proposeCriteriaChange(args: {
     roleId: scope.roleId,
     workspaceId: scope.workspaceId,
   });
-  const change =
-    payload.change.type === "criterion_add"
-      ? `new criterion ${payload.change.criterionName} (${payload.change.to})`
-      : `${payload.change.criterionName}: ${payload.change.from} → ${payload.change.to}`;
+  const change = describeChange(payload.change);
   if (filed.status === "created" && filed.proposalId) {
     await saveOnJob(args.admin, { id: scope.jobId, locked_by: scope.leaseOwner }, {
       criteriaReview: { ...snapshot, proposalId: filed.proposalId },
@@ -353,7 +384,7 @@ export async function proposeCriteriaChange(args: {
       modelOutput: [
         `Suggestion ${filed.proposalId} added to the Role's To-do: ${change}, from ${payload.evidence.count} of the ${payload.evidence.window} candidates passed with a stated reason in this review.`,
         `The company sees: ${criteriaProposalText(payload, payload.locale ?? "ko").summary}`,
-        "Nothing changed yet: a company member applies or dismisses it in the To-do. No further suggestion can be added in this review.",
+        `Nothing changed yet: a company member applies or dismisses it in the To-do${payload.change.type === "memory_note" ? " (applying saves the note to company memory as written)" : ""}. No further suggestion can be added in this review.`,
       ].join("\n"),
     };
   }

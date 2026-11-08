@@ -3,6 +3,8 @@ import {
   CRITERIA_PROPOSAL_RATIONALE_MAX,
   CRITERIA_PROPOSAL_RULES,
   criterionNameKey,
+  MEMORY_NOTE_MAX,
+  memoryNoteKey,
   NEW_CRITERION_DESCRIPTION_MAX,
   NEW_CRITERION_LEVELS,
   NEW_CRITERION_NAME_MAX,
@@ -19,13 +21,14 @@ import {
   type OrgRoleCriterionLevel,
 } from "@/lib/org/roleCriteria";
 import { COMPANY_TERMS, type CompanyTermLocale } from "@/lib/org/terms";
+import { containsContactDetails } from "@/lib/org/todoSuggestionTool";
 
 /**
  * Harper's review of pass reasons (S2 G): what Harper reads and how the
  * evidence it cites is checked. Harper decides whether a suggestion is
  * warranted; this file only gathers the facts and keeps the suggestion
- * honest (real passes, real reasons, one existing criterion one level up or
- * one new criterion below required).
+ * honest (real passes, real reasons, one existing criterion one level up,
+ * one new criterion below required, or one company memory note).
  */
 
 /** What the review reads about one pass decision besides the consolidation input. */
@@ -65,7 +68,8 @@ export type CriteriaReview = {
 
 /** What the review saved on its job: what Harper may cite, and what it filed. */
 export type CriteriaReviewSnapshot = {
-  passes: Array<{ id: number; talentId: string | null; isNew: boolean }>;
+  /** written: the company wrote a reason or note (not only reason tags). */
+  passes: Array<{ id: number; talentId: string | null; isNew: boolean; written: boolean }>;
   /** Candidates with a stated reason in the review (the evidence window). */
   withReason: number;
   locale: CompanyTermLocale;
@@ -164,7 +168,12 @@ export function criteriaReviewSnapshot(
   locale: CompanyTermLocale
 ): CriteriaReviewSnapshot {
   return {
-    passes: review.passes.map((pass) => ({ id: pass.decisionId, talentId: pass.talentId, isNew: pass.isNew })),
+    passes: review.passes.map((pass) => ({
+      id: pass.decisionId,
+      talentId: pass.talentId,
+      isNew: pass.isNew,
+      written: pass.reasons.length > 0,
+    })),
     withReason: review.passes.length,
     locale,
   };
@@ -182,6 +191,7 @@ export function parseCriteriaReviewSnapshot(value: unknown): CriteriaReviewSnaps
         id: Number(pass.id),
         talentId: typeof pass.talentId === "string" ? pass.talentId : null,
         isNew: pass.isNew === true,
+        written: pass.written === true,
       })),
     withReason: raw.withReason,
     locale: raw.locale === "en" ? "en" : "ko",
@@ -194,11 +204,60 @@ function levelLabel(level: OrgRoleCriterionLevel) {
   return `${found.en.toLowerCase()} (${found.ko})`;
 }
 
+function inputObject(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+/** Compared without spacing or case, so a name written another way is still found. */
+function compact(value: string) {
+  return value.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+}
+
+/**
+ * A memory note as Harper wrote it, checked: one short note the To-do card
+ * shows whole, never a candidate's name, ID or contact details.
+ */
+function memoryNoteChange(
+  input: Record<string, unknown>,
+  context: { candidateNames?: string[]; roleTeamId?: string | null }
+): CriteriaProposalChange {
+  const note = clean(input.text);
+  const length = Array.from(note).length;
+  if (!memoryNoteKey(note))
+    throw new CriteriaReviewInputError("memoryNote needs text: the note to save, in the workspace language. No suggestion was added.");
+  if (length > MEMORY_NOTE_MAX)
+    throw new CriteriaReviewInputError(
+      `memoryNote.text is ${length} characters; keep it within ${MEMORY_NOTE_MAX} so the To-do card shows the whole note. No suggestion was added.`
+    );
+  if (containsContactDetails(note) || UUID.test(note))
+    throw new CriteriaReviewInputError(
+      "memoryNote.text must not contain an email address, phone number or ID. Write the company's preference itself. No suggestion was added."
+    );
+  const text = compact(note);
+  if ((context.candidateNames ?? []).some((name) => Array.from(compact(name)).length >= 2 && text.includes(compact(name))))
+    throw new CriteriaReviewInputError(
+      "memoryNote.text names a candidate from this review. Write the company's preference itself, without candidate names. No suggestion was added."
+    );
+  const scope = clean(input.scope);
+  if (scope !== "company" && scope !== "team")
+    throw new CriteriaReviewInputError(
+      "memoryNote.scope is company (every Role) or team (this Role's team). No suggestion was added."
+    );
+  if (scope === "company") return { type: "memory_note", note, scope };
+  const teamId = clean(context.roleTeamId);
+  if (!teamId)
+    throw new CriteriaReviewInputError("This Role has no team; use scope company, or make no suggestion. No suggestion was added.");
+  return { type: "memory_note", note, scope, teamId };
+}
+
 /**
  * The suggestion Harper asked for, checked against the Role and the review:
- * one existing criterion one level up, or one new criterion (a name the Role
- * does not have, below required); cited passes that are in the review with a
- * stated reason, at least one of them new, at least two candidates.
+ * one existing criterion one level up, one new criterion (a name the Role
+ * does not have, below required), or one company memory note; cited passes
+ * that are in the review with a stated reason (a written one for a note), at
+ * least one of them new, at least two candidates.
  * Throws the reason in words the model can act on.
  */
 export function criteriaProposalFromReview(args: {
@@ -206,20 +265,26 @@ export function criteriaProposalFromReview(args: {
   snapshot: CriteriaReviewSnapshot;
   criterionId: unknown;
   newCriterion?: unknown;
+  memoryNote?: unknown;
+  /** For a memory note: the reviewed candidates' names, which a note must not contain. */
+  candidateNames?: string[];
+  /** For a team memory note: the Role's team. */
+  roleTeamId?: string | null;
   decisionIds: unknown;
   rationale: unknown;
 }): CriteriaProposalPayload {
   const criteria = normalizeOrgRoleCriteria(args.criteria);
   const key = clean(args.criterionId);
-  const added = args.newCriterion && typeof args.newCriterion === "object" && !Array.isArray(args.newCriterion)
-    ? (args.newCriterion as Record<string, unknown>)
-    : null;
-  if (Boolean(key) === Boolean(added))
+  const added = inputObject(args.newCriterion);
+  const memory = inputObject(args.memoryNote);
+  if ([key, added, memory].filter(Boolean).length !== 1)
     throw new CriteriaReviewInputError(
-      "Give either criterionId (raise an existing criterion) or newCriterion (add one), not both. No suggestion was added."
+      "Give exactly one of criterionId (raise an existing criterion), newCriterion (add one) or memoryNote (save a company memory note). No suggestion was added."
     );
   let change: CriteriaProposalChange;
-  if (added) {
+  if (memory) {
+    change = memoryNoteChange(memory, args);
+  } else if (added) {
     const name = shorten(clean(added.name), NEW_CRITERION_NAME_MAX);
     const description = shorten(clean(added.description), NEW_CRITERION_DESCRIPTION_MAX);
     const level = clean(added.level) as OrgRoleCriterionLevel;
@@ -268,6 +333,11 @@ export function criteriaProposalFromReview(args: {
   if (!cited.some((id) => reviewed.get(id)!.isNew))
     throw new CriteriaReviewInputError(
       "Cite at least one pass since the last review; earlier passes alone were already reviewed. No suggestion was added."
+    );
+  const tagsOnly = change.type === "memory_note" ? cited.filter((id) => !reviewed.get(id)!.written) : [];
+  if (tagsOnly.length)
+    throw new CriteriaReviewInputError(
+      `Decision ${tagsOnly.join(", ")} has reason tags but no written reason; a memory note rests on the company's own words. No suggestion was added.`
     );
   const rationale = clean(args.rationale);
   if (!rationale)
@@ -340,6 +410,7 @@ export function formatCriteriaReview(args: {
   const earlier = args.review.passes.filter((pass) => !pass.isNew);
   const answered = (args.answeredKeys ?? []).flatMap((key) => {
     if (key.startsWith("criterion_add:")) return [`- new criterion ${key.slice("criterion_add:".length)}`];
+    if (key.startsWith("memory_note:")) return [`- memory note ${quote(key.slice("memory_note:".length))}`];
     const match = /^criterion_level:(.+):(nice|important|required)>(nice|important|required)$/.exec(key);
     if (!match) return [];
     const [, criterionKey, from, to] = match;
@@ -348,7 +419,7 @@ export function formatCriteriaReview(args: {
   const { newCount, earlierCount } = args.review.silent;
   return [
     `Review of pass reasons for Role ${args.roleId}${args.roleTitle ? ` (${clean(args.roleTitle)})` : ""}. time_zone=Asia/Seoul. Workspace language: ${args.locale === "en" ? "English" : "Korean"}.`,
-    "Purpose: read why the company passed on these candidates and decide whether one current criterion should be one level stricter, or, when the reasons point at something no current criterion checks, whether the Role needs a new criterion. If so, add one suggestion with propose_criteria_change; otherwise end without a tool call.",
+    "Purpose: read why the company passed on these candidates and decide whether one current criterion should be one level stricter, or, when the reasons point at something no current criterion checks, whether the Role needs a new criterion, or, when they point at a lasting company preference or fact rather than something to check for this Role, whether to save one company memory note. If so, add one suggestion with propose_criteria_change; otherwise end without a tool call.",
     "",
     "Current criteria (id | name | level | possible change | what it checks):",
     ...criteriaLines,

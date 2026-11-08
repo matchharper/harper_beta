@@ -39,6 +39,7 @@ function query(table: string) {
     eq: (column: string, value: unknown) => (filters.push(["eq", column, value]), builder),
     gt: (column: string, value: unknown) => (filters.push(["gt", column, value]), builder),
     in: (column: string, value: unknown[]) => (filters.push(["in", column, value]), builder),
+    is: (column: string, value: unknown) => (filters.push(["eq", column, value]), builder),
     order: (column: string, options?: { ascending?: boolean }) => ((order = { column, ascending: options?.ascending !== false }), builder),
     limit: (count: number) => ((limit = count), builder),
     maybeSingle: async () => {
@@ -469,4 +470,123 @@ test("accepting a new criterion appends it through the Brief; one added meanwhil
   );
   assert.deepEqual(called("resolve_company_brief_proposal_v1").map((call) => call.args.p_action), ["claim", "stale"]);
   assert.equal(saved.length, 1);
+});
+
+// A company memory note (when the reasons point at a lasting preference, not a criterion).
+const notePayload = {
+  version: 1,
+  change: { type: "memory_note", note: "최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.", scope: "company" },
+  evidence: { count: 4, window: 6, decisionIds: [106, 104, 103, 101] },
+  locale: "ko",
+  rationale: "짧은 재직이 반복해서 넘긴 이유였어요.",
+};
+
+test("the To-do shows a memory note whole, in the reader's language", async () => {
+  tables.company_agent_update_proposals = [
+    { id: "p-9", workspace_id: workspaceId, scope_key: `brief:${roleId}`, status: "pending",
+      expires_at: "2026-11-20T00:00:00Z", created_at: "2026-11-06T00:00:00Z", payload: notePayload },
+  ];
+  const [item] = await server.readRoleCriteriaProposalItems({ admin, workspaceId, roleId, locale: "en", now });
+  assert.deepEqual(item, {
+    id: "criteria:p-9", column: "suggestion", kind: "criteria_proposal", at: "2026-11-06T00:00:00Z", source: "harper",
+    detail: "Save '최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.' to company memory? (4 of 6 passes with a reason)",
+  });
+});
+
+test("accepting a memory note saves it to company memory as the member and records it; dismissing saves nothing", async () => {
+  const saved: Array<Record<string, any>> = [];
+  const saveMemory = async (args: Record<string, any>) => {
+    saved.push(args);
+    return { ref: 12, revision: 1 };
+  };
+  const statuses: Record<string, unknown> = { claim: { status: "claimed", payload: notePayload }, apply: { status: "applied", decisionId: 58 } };
+  rpcResults.resolve_company_brief_proposal_v1 = (args) => statuses[args.p_action] ?? { status: "pending" };
+  const noCriteriaSave = async () => {
+    throw new Error("a memory note never touches the criteria");
+  };
+  assert.deepEqual(
+    await server.answerCriteriaProposal({
+      admin, user, workspaceId, roleId, proposalId: "p-9", action: "accept", now,
+      saveCriteria: noCriteriaSave as any, saveMemory: saveMemory as any,
+    }),
+    { status: "applied", briefRevision: null, decisionId: 58, memoryRef: 12 }
+  );
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].user, user);
+  assert.deepEqual(
+    { ...saved[0], admin: undefined, user: undefined },
+    {
+      admin: undefined, user: undefined, workspaceId,
+      operationId: "criteria-proposal:p-9",
+      change: notePayload.change,
+      label: "넘긴 이유 반영 (6명 중 4명)",
+    }
+  );
+  const resolves = () => called("resolve_company_brief_proposal_v1");
+  assert.deepEqual(resolves().map((call) => [call.args.p_action, call.args.p_actor_user_id]), [["claim", "kim"], ["apply", "kim"]]);
+  assert.deepEqual(resolves()[1].args.p_detail, { memoryRef: 12, memoryRevision: 1 });
+
+  // A failed save releases the claim and reports the failure.
+  rpcs.length = 0;
+  await assert.rejects(
+    server.answerCriteriaProposal({
+      admin, user, workspaceId, roleId, proposalId: "p-9", action: "accept", now,
+      saveMemory: async () => { throw Object.assign(new Error("회사 전체 기억은 회사 전체를 맡은 관리자만 반영할 수 있어요."), { status: 403 }); },
+    }),
+    /회사 전체 기억/
+  );
+  assert.deepEqual(resolves().map((call) => call.args.p_action), ["claim", "release"]);
+
+  // Dismissing records it and saves nothing.
+  rpcs.length = 0;
+  statuses.reject = { status: "rejected", decisionId: 59 };
+  assert.deepEqual(
+    await server.answerCriteriaProposal({ admin, user, workspaceId, roleId, proposalId: "p-9", action: "dismiss", now, saveMemory: saveMemory as any }),
+    { status: "rejected", decisionId: 59 }
+  );
+  assert.deepEqual(resolves().map((call) => call.args.p_action), ["reject"]);
+  assert.equal(saved.length, 1);
+});
+
+const TEAM = "5b0c1d2e-3f40-4a5b-8c6d-7e8f9a0b1c2d";
+test("the memory note goes through the company memory save, with the member's access to its scope", async () => {
+  tables.company_workspace = [{ company_workspace_id: workspaceId, is_reviewing: false }];
+  tables.company_user_workspace = [{
+    company_user_id: "kim", company_workspace_id: workspaceId, authority: "admin", access_scope: "organization",
+    team_id: null, company_workspace_team_members: [],
+  }];
+  const statuses: Record<string, unknown> = { claim: { status: "claimed", payload: notePayload }, apply: { status: "applied", decisionId: 60 } };
+  rpcResults.resolve_company_brief_proposal_v1 = (args) => statuses[args.p_action] ?? { status: "pending" };
+  rpcResults.write_company_memory_v1 = () => ({ applied: [{ ref: 31, revision: 1, op: "add" }] });
+  const accepted = await server.answerCriteriaProposal({ admin, user, workspaceId, roleId, proposalId: "p-9", action: "accept", now });
+  assert.deepEqual(accepted, { status: "applied", briefRevision: null, decisionId: 60, memoryRef: 31 });
+  assert.deepEqual(called("write_company_memory_v1").map((call) => call.args), [{
+    p_workspace: workspaceId,
+    p_user: "kim",
+    p_operation_id: "criteria-proposal:p-9",
+    p_changes: [{ op: "add", scope: "company", label: "넘긴 이유 반영 (6명 중 4명)", content: notePayload.change.note }],
+  }]);
+  assert.deepEqual(called("resolve_company_brief_proposal_v1")[1].args.p_detail, { memoryRef: 31, memoryRevision: 1 });
+
+  // Someone whose access is one team cannot save a company-wide note: nothing is written.
+  rpcs.length = 0;
+  tables.company_user_workspace = [{
+    company_user_id: "lee", company_workspace_id: workspaceId, authority: "admin", access_scope: "team",
+    team_id: TEAM, company_workspace_team_members: [{ team_id: TEAM }],
+  }];
+  tables.company_workspace_teams = [{ id: TEAM, company_workspace_id: workspaceId, name: "Mobile", deleted_at: null }];
+  await assert.rejects(
+    server.answerCriteriaProposal({ admin, user: { id: "lee" } as any, workspaceId, roleId, proposalId: "p-9", action: "accept", now }),
+    (error: any) => error.status === 403 && /회사 전체 기억/.test(error.message)
+  );
+  assert.equal(called("write_company_memory_v1").length, 0);
+  assert.deepEqual(called("resolve_company_brief_proposal_v1").map((call) => call.args.p_action), ["claim", "release"]);
+
+  // A team note goes to that team, for its members.
+  rpcs.length = 0;
+  statuses.claim = { status: "claimed", payload: { ...notePayload, change: { ...notePayload.change, scope: "team", teamId: TEAM } } };
+  await server.answerCriteriaProposal({ admin, user: { id: "lee" } as any, workspaceId, roleId, proposalId: "p-9", action: "accept", now });
+  assert.deepEqual(called("write_company_memory_v1")[0].args.p_changes, [
+    { op: "add", scope: "team", teamId: TEAM, label: "넘긴 이유 반영 (6명 중 4명)", content: notePayload.change.note },
+  ]);
 });

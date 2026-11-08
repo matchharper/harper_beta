@@ -810,18 +810,18 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "propose_criteria_change",
       description:
-        "In Harper's review of pass reasons only: add one suggestion to the Role's To-do, backed by the passes in this review whose stated reasons support it: make one existing criterion one level stricter (criterionId; nice to have → important → required), or add one new criterion when the reasons point at something no current criterion checks (newCriterion; nice to have or important). Give exactly one of the two. Nothing changes until a company member applies it in the To-do; the company can dismiss it, and an applied or dismissed change is never suggested again. One suggestion per Role is open at a time and one per review. This does not edit the Role, remove or rewrite a criterion, contact anyone or start a search. The result says whether the suggestion was added.",
+        "In Harper's review of pass reasons only: add one suggestion to the Role's To-do, backed by the passes in this review whose stated reasons support it: make one existing criterion one level stricter (criterionId; nice to have → important → required), add one new criterion when the reasons point at something no current criterion checks (newCriterion; nice to have or important), or save one company memory note when they point at a lasting company preference or fact rather than something to check for this Role (memoryNote). Give exactly one of the three. Nothing changes until a company member applies it in the To-do; the company can dismiss it, and an applied or dismissed change is never suggested again. One suggestion per Role is open at a time and one per review. This does not edit the Role, remove or rewrite a criterion or a memory, contact anyone or start a search. The result says whether the suggestion was added.",
       parameters: {
         additionalProperties: false,
         properties: {
           criterionId: {
-            description: "To raise an existing criterion: its id exactly as the review lists it. Omit with newCriterion.",
+            description: "To raise an existing criterion: its id exactly as the review lists it. Omit with newCriterion or memoryNote.",
             minLength: 1,
             type: "string",
           },
           newCriterion: {
             additionalProperties: false,
-            description: "To add a criterion the Role does not have. Omit with criterionId.",
+            description: "To add a criterion the Role does not have. Omit with criterionId or memoryNote.",
             properties: {
               name: { description: "A short name in the workspace language, like the Role's other criteria.", minLength: 1, type: "string" },
               description: { description: "What the criterion checks, in the workspace language, in the company's terms.", minLength: 1, type: "string" },
@@ -830,9 +830,29 @@ export const ORG_AGENT_TOOLS = [
             required: ["name", "description", "level"],
             type: "object",
           },
+          memoryNote: {
+            additionalProperties: false,
+            description:
+              "To save a lasting company preference or fact to company memory, for example a hiring rule the company applies across Roles or a fact about the team. Omit with criterionId or newCriterion.",
+            properties: {
+              text: {
+                description:
+                  "The note exactly as it would be saved: one short sentence in the workspace language, in the company's terms, at most 100 characters. No candidate names, IDs or contact details.",
+                minLength: 1,
+                type: "string",
+              },
+              scope: {
+                description: "company: applies to every Role. team: applies to this Role's team only, when the Role has a team.",
+                enum: ["company", "team"],
+                type: "string",
+              },
+            },
+            required: ["text", "scope"],
+            type: "object",
+          },
           decisionIds: {
             description:
-              "The listed pass decisions whose stated reasons support this change, including at least one passed since the last review. A suggestion backed by one candidate is refused.",
+              "The listed pass decisions whose stated reasons support this change, including at least one passed since the last review. A suggestion backed by one candidate is refused; a memory note cites only passes with a written reason.",
             items: { type: "integer" },
             minItems: 1,
             type: "array",

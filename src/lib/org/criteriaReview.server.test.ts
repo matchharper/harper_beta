@@ -396,7 +396,7 @@ test("reasons outside the current criteria: Harper suggests one new criterion th
   const results = again.seen.slice(1).map((entry) => entry.last);
   assert.match(results[0], /A new criterion starts at nice to have \(있으면 좋음\) or important \(중요\)/);
   assert.match(results[1], /at least two different candidates/);
-  assert.match(results[2], /either criterionId .* or newCriterion/);
+  assert.match(results[2], /exactly one of criterionId .* newCriterion .* or memoryNote/);
   assert.match(results[3], /Not added: the company already applied or dismissed new criterion 결제 도메인 경험 \(important\)\. Nothing changed\./);
   assert.equal(proposals.length, 0);
 });
@@ -438,4 +438,82 @@ test("a new suggestion is also told once in the Role's web chat, in the card's w
   const quiet = model((_, index) => (index === 0 ? { tool: { args } } : null));
   assert.equal((await run(quiet, "off")).status, "proposed");
   assert.equal((tables.company_messages ?? []).length, 0);
+});
+
+const TENURE_PATTERN = [
+  "최근 두 회사 모두 6개월 안에 그만뒀어요",
+  "연봉이 안 맞아요",
+  "이전 두 직장을 다 반년도 안 다님",
+  "짧게 옮겨 다닌 이력이라 어려워요",
+  "React Native 경험 부족",
+  "직전 두 곳 모두 몇 달 만에 퇴사",
+];
+
+test("reasons about a lasting company preference: Harper suggests one company memory note through the same path, told once in the chat", async () => {
+  seed(TENURE_PATTERN);
+  tables.talent_users[0].name = "김하나";
+  tables.company_internal_roles = [{ role_id: roleId, team_id: "team-1" }];
+  const args = {
+    memoryNote: { text: "최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.", scope: "company" },
+    decisionIds: [106, 104, 103, 101],
+    reason: "짧은 재직이 반복해서 넘긴 이유였어요.",
+  };
+  const stand = model((_, index) => (index === 0 ? { tool: { args } } : null));
+  assert.deepEqual(await run(stand, "chat"), { proposalId: "proposal-1", status: "proposed", throughDecisionId: 106 });
+  assert.match(stand.seen[0].review, /whether to save one company memory note/);
+  // Harper chooses among raising, adding or a note, or nothing; the tool takes a note.
+  assert.match(stand.seen[0].system, /Choose at most one: raise one existing criterion by one level; add one new criterion .*; or save one company memory note .* Or suggest nothing\./);
+  assert.match(stand.seen[0].system, /A memory note holds what lasts beyond this Role's checks/);
+  const tool = getEnabledOrgAgentTools("chat", { agentService: true }).find((item) => item.function.name === "propose_criteria_change")!;
+  const note = (tool.function.parameters as any).properties.memoryNote;
+  assert.deepEqual([note.required, note.properties.scope.enum], [["text", "scope"], ["company", "team"]]);
+  assert.match(tool.function.description, /Give exactly one of the three/);
+  const [create] = called("create_company_brief_proposal_v1");
+  assert.equal(create.args.p_kind, "criteria_refinement");
+  assert.equal(create.args.p_content_key, "memory_note:최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요");
+  assert.deepEqual(create.args.p_payload, {
+    version: 1,
+    change: { type: "memory_note", note: "최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.", scope: "company" },
+    evidence: { count: 4, window: 6, decisionIds: [106, 104, 103, 101] },
+    locale: "ko",
+    rationale: "짧은 재직이 반복해서 넘긴 이유였어요.",
+  });
+  const summary =
+    "'최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.' 내용을 회사 기억에 남길까요? 짧은 재직이 반복해서 넘긴 이유였어요. (이유를 남긴 6명 중 4명)";
+  assert.equal(create.args.p_summary, summary);
+  assert.equal(create.args.p_preview, "회사 기억: 최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.");
+  assert.match(stand.seen[1].last, /Suggestion proposal-1 added to the Role's To-do: company memory note "최근 두 회사에서/);
+  assert.match(stand.seen[1].last, /applying saves the note to company memory as written/);
+  // The Role's web chat hears it once, in the card's words.
+  const sent = (tables.company_messages ?? []).filter((row) => row.metadata?.criteriaProposalId === "proposal-1");
+  assert.deepEqual(sent.map((row) => row.content), [summary]);
+
+  // A team note goes to the Role's team. Names, answered notes and missing teams are refused in code.
+  rpcs = [];
+  proposals = [];
+  seed(TENURE_PATTERN, { answeredKeys: ["memory_note:최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요"] });
+  tables.talent_users[0].name = "김하나";
+  const attempts: Row[] = [
+    { ...args, memoryNote: { text: "김하나님처럼 짧게 다닌 분은 뽑지 않아요.", scope: "company" } },
+    { ...args, memoryNote: { ...args.memoryNote, scope: "team" } },
+    { ...args, memoryNote: { text: "최근 두 회사에서 모두, 6개월 안에 나온 분은 뽑지 않아요!", scope: "company" } },
+  ];
+  const again = model((_, index) => (index < attempts.length ? { tool: { args: attempts[index] } } : null));
+  assert.equal((await run(again)).status, "nothing");
+  const results = again.seen.slice(1).map((entry) => entry.last);
+  assert.match(results[0], /names a candidate from this review/);
+  assert.doesNotMatch(results[0], /김하나/);
+  assert.match(results[1], /This Role has no team; use scope company/);
+  assert.match(results[2], /Not added: the company already applied or dismissed company memory note/);
+  assert.equal(proposals.length, 0);
+
+  rpcs = [];
+  seed(TENURE_PATTERN);
+  tables.company_internal_roles = [{ role_id: roleId, team_id: "team-1" }];
+  const team = model((_, index) => (index === 0 ? { tool: { args: { ...args, memoryNote: { ...args.memoryNote, scope: "team" } } } } : null));
+  assert.equal((await run(team, "off")).status, "proposed");
+  assert.deepEqual(called("create_company_brief_proposal_v1")[0].args.p_payload.change, {
+    type: "memory_note", note: "최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.", scope: "team", teamId: "team-1",
+  });
+  assert.match(called("create_company_brief_proposal_v1")[0].args.p_summary, /내용을 팀 기억에 남길까요\?/);
 });

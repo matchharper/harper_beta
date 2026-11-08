@@ -140,7 +140,7 @@ test("a suggestion is one existing criterion one level up, backed by passes in t
   });
   // Older criteria are named by their name.
   assert.equal(
-    criteriaProposalFromReview({ criteria, snapshot, criterionId: "B2B 경험", decisionIds: [30, 29], rationale: "B2B" }).change.to,
+    (criteriaProposalFromReview({ criteria, snapshot, criterionId: "B2B 경험", decisionIds: [30, 29], rationale: "B2B" }).change as { to: string }).to,
     "required"
   );
 });
@@ -175,8 +175,8 @@ test("a new criterion: a name the Role lacks, below required, with the same evid
       () => criteriaProposalFromReview({ criteria, snapshot, criterionId: undefined, newCriterion, decisionIds: [30, 29], rationale: "결제", ...input }),
       (error: unknown) => error instanceof CriteriaReviewInputError && pattern.test(error.message)
     );
-  refused({ criterionId: "c-rn" }, /either criterionId .* or newCriterion/);
-  refused({ newCriterion: undefined }, /either criterionId .* or newCriterion/);
+  refused({ criterionId: "c-rn" }, /exactly one of criterionId .* newCriterion .* or memoryNote/);
+  refused({ newCriterion: undefined }, /exactly one of criterionId .* newCriterion .* or memoryNote/);
   refused({ newCriterion: { ...newCriterion, level: "required" } }, /starts at nice to have \(있으면 좋음\) or important \(중요\)/);
   refused({ newCriterion: { ...newCriterion, description: " " } }, /needs a name and a description/);
   // An existing criterion (any case or spacing) is raised, not added again.
@@ -190,4 +190,70 @@ test("a new criterion: a name the Role lacks, below required, with the same evid
   });
   assert.match(text, /never suggested again\):\n- new criterion 결제 도메인$/);
   assert.match(text, /whether the Role needs a new criterion/);
+});
+
+// A lasting company preference rather than a check for this Role: a memory note.
+const noteSnapshot = criteriaReviewSnapshot(
+  {
+    passes: [
+      { decisionId: 30, talentId: "t-a", isNew: true, at: null, action: "pass", reasons: ["두 회사 연속 6개월 안에 퇴사"], tags: [], headline: null },
+      { decisionId: 29, talentId: "t-b", isNew: true, at: null, action: "pass", reasons: [], tags: ["role_fit"], headline: null },
+      { decisionId: 20, talentId: "t-c", isNew: false, at: null, action: "pass", reasons: ["이전 두 직장 모두 짧게 다님"], tags: [], headline: null },
+    ],
+    silent: { newCount: 0, earlierCount: 0 },
+  },
+  "ko"
+);
+
+test("a memory note: one short note in the company's words, backed by written reasons of two candidates", () => {
+  assert.deepEqual(noteSnapshot.passes.map((pass) => pass.written), [true, false, true]);
+  assert.deepEqual(parseCriteriaReviewSnapshot(JSON.parse(JSON.stringify(noteSnapshot))), { ...noteSnapshot, proposalId: null });
+  // A snapshot saved before notes existed counts no pass as written.
+  assert.equal(parseCriteriaReviewSnapshot({ passes: [{ id: 30, talentId: "t-a", isNew: true }], withReason: 1 })!.passes[0].written, false);
+  const memoryNote = { text: "  최근 두 회사에서 모두 6개월 안에 나온 분은   뽑지 않아요. ", scope: "company" };
+  const base = {
+    criteria, snapshot: noteSnapshot, criterionId: undefined, memoryNote, decisionIds: [30, 20],
+    rationale: "짧은 재직이 반복해서 이유였어요.", candidateNames: ["김하나", "Jane Doe"], roleTeamId: "team-1",
+  };
+  const payload = criteriaProposalFromReview(base);
+  assert.deepEqual(payload, {
+    version: 1,
+    change: { type: "memory_note", note: "최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.", scope: "company" },
+    evidence: { count: 2, window: 3, decisionIds: [30, 20] },
+    locale: "ko",
+    rationale: "짧은 재직이 반복해서 이유였어요.",
+  });
+  assert.deepEqual(criteriaProposalFromReview({ ...base, memoryNote: { ...memoryNote, scope: "team" } }).change, {
+    type: "memory_note", note: "최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.", scope: "team", teamId: "team-1",
+  });
+
+  const refused = (input: Record<string, unknown>, pattern: RegExp) =>
+    assert.throws(
+      () => criteriaProposalFromReview({ ...base, ...input }),
+      (error: unknown) => error instanceof CriteriaReviewInputError && pattern.test(error.message)
+    );
+  refused({ criterionId: "c-rn" }, /exactly one of criterionId .* newCriterion .* or memoryNote/);
+  refused({ newCriterion: { name: "재직", description: "오래 다녔다", level: "nice" } }, /exactly one of/);
+  refused({ memoryNote: { ...memoryNote, text: " ... " } }, /memoryNote needs text/);
+  refused({ memoryNote: { ...memoryNote, text: "가".repeat(101) } }, /memoryNote\.text is 101 characters; keep it within 100/);
+  // Never a candidate's contact details, ID or name (in any spacing or case).
+  refused({ memoryNote: { ...memoryNote, text: "연락은 hire@example.com 으로" } }, /must not contain an email address, phone number or ID/);
+  refused({ memoryNote: { ...memoryNote, text: "010-1234-5678 후보처럼 짧게 다닌 분은 안 돼요" } }, /must not contain an email address/);
+  refused({ memoryNote: { ...memoryNote, text: "0b8e1a3c-1d2e-4f50-9a6b-7c8d9e0f1a2b 같은 분은 안 돼요" } }, /or ID/);
+  refused({ memoryNote: { ...memoryNote, text: "김 하나님처럼 짧게 다닌 분은 뽑지 않아요" } }, /names a candidate from this review/);
+  refused({ memoryNote: { ...memoryNote, text: "Like jane doe, short stays are a no." } }, /names a candidate/);
+  refused({ memoryNote: { ...memoryNote, scope: "role" } }, /memoryNote\.scope is company \(every Role\) or team/);
+  refused({ memoryNote: { ...memoryNote, scope: "team" }, roleTeamId: null }, /This Role has no team; use scope company/);
+  // The same evidence rules, and a note rests on written reasons, not tags alone.
+  refused({ decisionIds: [30] }, /at least two different candidates/);
+  refused({ decisionIds: [30, 29] }, /Decision 29 has reason tags but no written reason/);
+  refused({ decisionIds: [30, 99] }, /Decision 99 is not a pass with a stated reason/);
+
+  // An answered note is listed as never suggested again, and the purpose names notes.
+  const text = formatCriteriaReview({
+    roleId: "role-1", criteria, review: { passes: [], silent: { newCount: 0, earlierCount: 0 } },
+    answeredKeys: ["memory_note:최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요"], locale: "ko",
+  });
+  assert.match(text, /never suggested again\):\n- memory note "최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요"$/);
+  assert.match(text, /lasting company preference or fact rather than something to check for this Role, whether to save one company memory note/);
 });

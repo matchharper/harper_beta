@@ -10,6 +10,7 @@ import {
   criteriaProposalStillApplies,
   criteriaProposalText,
   parseCriteriaProposalPayload,
+  type CriteriaProposalMemoryNote,
   type CriteriaProposalPayload,
   type PassDecision,
 } from "@/lib/org/criteriaProposals";
@@ -31,7 +32,8 @@ import type { getSupabaseAdmin } from "@/lib/server/candidateAccess";
  * queues a consolidate_decisions job for each due Role, the job gathers the
  * Role's recent pass reasons and Harper reviews them (criteriaReview.server.ts)
  * and may add one suggestion, the To-do lists it, and a company user's answer
- * either saves the change through the Brief's write path or dismisses it.
+ * either saves the change (criteria through the Brief's write path, a memory
+ * note through the company memory save) or dismisses it.
  */
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
@@ -405,6 +407,61 @@ const saveThroughBrief: SaveProposedCriteria = async (args) => {
   });
 };
 
+export type SaveProposedMemory = (args: {
+  admin: Admin;
+  user: User;
+  workspaceId: string;
+  /** One save per suggestion: a retry returns the first save. */
+  operationId: string;
+  change: CriteriaProposalMemoryNote;
+  /** Where the note came from, kept as its label. */
+  label: string;
+}) => Promise<{ ref: number | null; revision: number | null }>;
+
+/**
+ * The company memory save Harper's memory tool uses, as the member who
+ * applied the note: it checks their access to the scope and keeps a memory
+ * version with who saved it.
+ */
+const saveThroughMemory: SaveProposedMemory = async (args) => {
+  const [{ writeCompanyMemory }, { OrgAgentToolInputError }] = await Promise.all([
+    import("@/lib/org/agent/companyMemory"),
+    import("@/lib/org/agent/toolAvailability"),
+  ]);
+  const { change } = args;
+  try {
+    const saved = await writeCompanyMemory({
+      admin: args.admin,
+      user: args.user,
+      workspaceId: args.workspaceId,
+      input: {
+        operationId: args.operationId,
+        changes: [
+          {
+            op: "add",
+            scope: change.scope,
+            ...(change.scope === "team" ? { teamId: change.teamId } : {}),
+            label: args.label,
+            content: change.note,
+          },
+        ],
+      },
+    });
+    const { applied: rows } = saved as Json;
+    const applied = Array.isArray(rows) ? (rows[0] as Json | undefined) : undefined;
+    return { ref: Number(applied?.ref) || null, revision: Number(applied?.revision) || null };
+  } catch (error) {
+    if (error instanceof OrgAgentToolInputError || (error as { code?: string } | null)?.code === "42501")
+      throw new OrgHttpError(
+        403,
+        change.scope === "team"
+          ? "이 팀의 기억을 바꿀 수 있는 팀원만 반영할 수 있어요."
+          : "회사 전체 기억은 회사 전체를 맡은 관리자만 반영할 수 있어요."
+      );
+    throw error;
+  }
+};
+
 function answeredError(status: string) {
   if (status === "not_found") return new OrgHttpError(404, "제안을 찾지 못했어요.");
   if (status === "busy") return new OrgHttpError(409, "다른 팀원이 이 제안을 반영하고 있어요.");
@@ -416,7 +473,7 @@ function answeredError(status: string) {
 /**
  * A company user's answer to a criteria suggestion. accept saves the change
  * and records it; dismiss records it. Either way Harper never suggests the
- * same change again.
+ * same change again. A memory note is saved to company memory as this user.
  */
 export async function answerCriteriaProposal(args: {
   admin: Admin;
@@ -427,6 +484,7 @@ export async function answerCriteriaProposal(args: {
   action: "accept" | "dismiss";
   now?: Date;
   saveCriteria?: SaveProposedCriteria;
+  saveMemory?: SaveProposedMemory;
 }) {
   const { admin, roleId, workspaceId } = args;
   const resolve = async (action: string, detail: Json = {}) =>
@@ -448,6 +506,34 @@ export async function answerCriteriaProposal(args: {
   const claimed = await resolve("claim");
   if (claimed?.status !== "claimed") throw answeredError(clean(claimed?.status));
   const payload = parseCriteriaProposalPayload(claimed.payload);
+  if (payload?.change.type === "memory_note") {
+    let saved: Awaited<ReturnType<SaveProposedMemory>>;
+    try {
+      saved = await (args.saveMemory ?? saveThroughMemory)({
+        admin,
+        change: payload.change,
+        label: criteriaProposalChangeReason(payload, payload.locale ?? "ko"),
+        operationId: `criteria-proposal:${args.proposalId}`,
+        user: args.user,
+        workspaceId,
+      });
+    } catch (saveError) {
+      await resolve("release").catch(() => undefined);
+      throw saveError;
+    }
+    const applied = await resolve(
+      "apply",
+      saved.ref ? { memoryRef: saved.ref, ...(saved.revision ? { memoryRevision: saved.revision } : {}) } : {}
+    );
+    if (applied?.status !== "applied")
+      console.error("[org/criteria-proposal:apply]", { proposalId: args.proposalId, status: applied?.status });
+    return {
+      status: "applied" as const,
+      briefRevision: null,
+      decisionId: Number(applied?.decisionId) || null,
+      memoryRef: saved.ref,
+    };
+  }
   const { data: internal, error } = await untypedTable(admin, "company_internal_roles")
     .select("criteria")
     .eq("role_id", roleId)

@@ -17,7 +17,9 @@ import { withKoreanRo, type CompanyTermLocale } from "@/lib/org/terms";
  * words, its reason tags and who the candidates were. When the reasons keep
  * pointing at the same criterion, Harper may suggest making that criterion
  * one level stricter; when they point at something no criterion checks, it
- * may suggest a new criterion (criteriaReview.server.ts). A suggestion changes
+ * may suggest a new criterion; when they point at a lasting company
+ * preference or fact rather than a check for this Role, it may suggest a
+ * company memory note (criteriaReview.server.ts). A suggestion changes
  * nothing until a company user accepts it.
  *
  * This file holds the parts that are not a judgment: when a Role is read
@@ -74,13 +76,33 @@ export type CriteriaProposalNewCriterion = {
   to: OrgRoleCriterionLevel;
 };
 
-export type CriteriaProposalChange = CriteriaProposalLevelChange | CriteriaProposalNewCriterion;
+/**
+ * A lasting company preference or fact for company memory, not a criterion:
+ * for example a hiring rule the company applies across Roles, or a fact
+ * about the team. Saved as written, through the company memory save.
+ */
+export type CriteriaProposalMemoryNote = {
+  type: "memory_note";
+  /** The note as it is saved, in the workspace language. */
+  note: string;
+  /** company: every Role; team: the reviewed Role's team. */
+  scope: "company" | "team";
+  /** The team, when scope is team. */
+  teamId?: string;
+};
+
+export type CriteriaProposalChange =
+  | CriteriaProposalLevelChange
+  | CriteriaProposalNewCriterion
+  | CriteriaProposalMemoryNote;
 
 /** Levels a new criterion may start at: 필수 would keep people out of searches at once. */
 export const NEW_CRITERION_LEVELS: readonly OrgRoleCriterionLevel[] = ["nice", "important"];
 /** Longest stored name and description of a new criterion. */
 export const NEW_CRITERION_NAME_MAX = 60;
 export const NEW_CRITERION_DESCRIPTION_MAX = 300;
+/** Longest memory note: the whole note fits on the To-do card a member applies. */
+export const MEMORY_NOTE_MAX = 100;
 
 /** company_agent_update_proposals.payload of a criteria_refinement proposal. */
 export type CriteriaProposalPayload = {
@@ -119,17 +141,36 @@ export function criterionNameKey(name: string) {
   return name.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+/** A memory note as compared for a repeat (case, spacing and punctuation ignored). */
+export function memoryNoteKey(note: string) {
+  return note
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\p{P}+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** The stored key's limit (company_agent_update_proposals.content_key). */
+const CONTENT_KEY_MAX = 300;
+
 /** What a proposal changes, as one stable key (never suggested twice). */
 export function criteriaProposalContentKey(change: CriteriaProposalChange) {
+  if (change.type === "memory_note")
+    return Array.from(`memory_note:${memoryNoteKey(change.note)}`).slice(0, CONTENT_KEY_MAX).join("");
   if (change.type === "criterion_add") return `criterion_add:${criterionNameKey(change.criterionName)}`;
   return `criterion_level:${change.criterionKey}:${change.from}>${change.to}`;
 }
 
-/** Whether the criterion is still where the proposal found it (a new one: still missing). */
+/**
+ * Whether the criterion is still where the proposal found it (a new one:
+ * still missing). A memory note does not depend on the criteria.
+ */
 export function criteriaProposalStillApplies(
   change: CriteriaProposalChange,
   criteria: unknown
 ) {
+  if (change.type === "memory_note") return true;
   if (change.type === "criterion_add") {
     const key = criterionNameKey(change.criterionName);
     return !normalizeOrgRoleCriteria(criteria).some((item) => criterionNameKey(item.name) === key);
@@ -147,6 +188,8 @@ export function applyCriteriaProposal(
   changeReason: string,
   now: Date
 ): OrgRoleCriterion[] {
+  // A memory note is saved to company memory, never to the criteria.
+  if (change.type === "memory_note") return normalizeOrgRoleCriteria(criteria);
   if (change.type === "criterion_add")
     return [
       ...normalizeOrgRoleCriteria(criteria),
@@ -189,8 +232,9 @@ export const CRITERIA_PROPOSAL_SUMMARY_MAX = 160;
 export function criteriaProposalText(
   payload: CriteriaProposalPayload,
   locale: CompanyTermLocale
-) {
+): { summary: string; preview: string } {
   const { change, evidence } = payload;
+  if (change.type === "memory_note") return memoryNoteText(payload, change, locale);
   const name = shorten(change.criterionName, 40);
   const to = levelName(change.to, locale);
   let preview: string;
@@ -214,10 +258,7 @@ export function criteriaProposalText(
   }
   const rationale = payload.rationale?.trim();
   if (rationale && (payload.locale ?? "ko") === locale) {
-    const count =
-      locale === "en"
-        ? `(${evidence.count} of ${evidence.window} passes with a reason)`
-        : `(이유를 남긴 ${evidence.window}명 중 ${evidence.count}명)`;
+    const count = evidenceCount(evidence, locale);
     const room = CRITERIA_PROPOSAL_SUMMARY_MAX - Array.from(`${question}  ${count}`).length;
     if (room >= 20)
       return { summary: `${question} ${shorten(rationale, room)} ${count}`, preview };
@@ -234,7 +275,43 @@ export function criteriaProposalText(
   };
 }
 
-/** Kept on the criterion when the change is accepted (shown with the Brief). */
+function evidenceCount(evidence: CriteriaProposalPayload["evidence"], locale: CompanyTermLocale) {
+  return locale === "en"
+    ? `(${evidence.count} of ${evidence.window} passes with a reason)`
+    : `(이유를 남긴 ${evidence.window}명 중 ${evidence.count}명)`;
+}
+
+/**
+ * A memory note's card: the whole note (it is saved as written), then
+ * Harper's sentence when it fits, then the counts.
+ */
+function memoryNoteText(
+  payload: CriteriaProposalPayload,
+  change: CriteriaProposalMemoryNote,
+  locale: CompanyTermLocale
+) {
+  const team = change.scope === "team";
+  const where = locale === "en" ? (team ? "team memory" : "company memory") : team ? "팀 기억" : "회사 기억";
+  const count = evidenceCount(payload.evidence, locale);
+  const ask = (note: string) =>
+    locale === "en" ? `Save '${note}' to ${where}?` : `'${note}' 내용을 ${where}에 남길까요?`;
+  const fixed = Array.from(`${ask("")} ${count}`).length;
+  const question = ask(shorten(change.note, Math.max(20, CRITERIA_PROPOSAL_SUMMARY_MAX - fixed)));
+  const preview =
+    locale === "en"
+      ? `${team ? "Team" : "Company"} memory: ${change.note}`
+      : `${where}: ${change.note}`;
+  const rationale = payload.rationale?.trim();
+  const room = CRITERIA_PROPOSAL_SUMMARY_MAX - Array.from(`${question}  ${count}`).length;
+  if (rationale && (payload.locale ?? "ko") === locale && room >= 20)
+    return { summary: `${question} ${shorten(rationale, room)} ${count}`, preview };
+  return { summary: `${question} ${count}`, preview };
+}
+
+/**
+ * Kept on the criterion when the change is accepted (shown with the Brief);
+ * a memory note's label in company memory.
+ */
 export function criteriaProposalChangeReason(
   payload: CriteriaProposalPayload,
   locale: CompanyTermLocale
@@ -247,54 +324,64 @@ export function criteriaProposalChangeReason(
 
 const LEVELS = new Set<string>(LEVEL_ORDER);
 
+function parseChange(change: Record<string, unknown> | undefined): CriteriaProposalChange | null {
+  if (!change) return null;
+  if (change.type === "memory_note") {
+    // Saved as written: a note that does not fit is not read back shortened.
+    const note = typeof change.note === "string" ? change.note.trim() : "";
+    const teamId = typeof change.teamId === "string" ? change.teamId.trim() : "";
+    if (!note || Array.from(note).length > MEMORY_NOTE_MAX) return null;
+    if (change.scope === "company" && !teamId) return { type: "memory_note", note, scope: "company" };
+    if (change.scope === "team" && teamId) return { type: "memory_note", note, scope: "team", teamId };
+    return null;
+  }
+  if (change.type === "criterion_add")
+    return typeof change.criterionName === "string" &&
+      change.criterionName.trim() &&
+      typeof change.description === "string" &&
+      change.description.trim() &&
+      NEW_CRITERION_LEVELS.includes(change.to as OrgRoleCriterionLevel)
+      ? {
+          type: "criterion_add",
+          criterionName: shorten(change.criterionName, NEW_CRITERION_NAME_MAX),
+          description: shorten(change.description, NEW_CRITERION_DESCRIPTION_MAX),
+          to: change.to as OrgRoleCriterionLevel,
+        }
+      : null;
+  if (
+    change.type !== "criterion_level" ||
+    typeof change.criterionKey !== "string" ||
+    !change.criterionKey ||
+    typeof change.criterionName !== "string" ||
+    !LEVELS.has(String(change.from)) ||
+    !LEVELS.has(String(change.to))
+  )
+    return null;
+  return {
+    type: "criterion_level",
+    criterionKey: change.criterionKey,
+    criterionName: change.criterionName,
+    from: change.from as OrgRoleCriterionLevel,
+    to: change.to as OrgRoleCriterionLevel,
+  };
+}
+
 /** Reads a stored payload; null when it is not a criteria proposal. */
 export function parseCriteriaProposalPayload(
   value: unknown
 ): CriteriaProposalPayload | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const raw = value as Record<string, any>;
-  const change = raw.change as Record<string, unknown> | undefined;
+  const change = parseChange(raw.change as Record<string, unknown> | undefined);
   const evidence = raw.evidence as Record<string, unknown> | undefined;
-  const added =
-    change?.type === "criterion_add" &&
-    typeof change.criterionName === "string" &&
-    Boolean(change.criterionName.trim()) &&
-    typeof change.description === "string" &&
-    Boolean(change.description.trim()) &&
-    NEW_CRITERION_LEVELS.includes(change.to as OrgRoleCriterionLevel);
-  if (
-    raw.version !== 1 ||
-    !change ||
-    !evidence ||
-    (!added &&
-      (change.type !== "criterion_level" ||
-        typeof change.criterionKey !== "string" ||
-        !change.criterionKey ||
-        typeof change.criterionName !== "string" ||
-        !LEVELS.has(String(change.from)) ||
-        !LEVELS.has(String(change.to))))
-  )
-    return null;
+  if (raw.version !== 1 || !change || !evidence) return null;
   const count = Number(evidence.count);
   const window = Number(evidence.window);
   if (!Number.isInteger(count) || !Number.isInteger(window) || count < 1 || window < count)
     return null;
   return {
     version: 1,
-    change: added
-      ? {
-          type: "criterion_add",
-          criterionName: shorten(String(change.criterionName), NEW_CRITERION_NAME_MAX),
-          description: shorten(String(change.description), NEW_CRITERION_DESCRIPTION_MAX),
-          to: change.to as OrgRoleCriterionLevel,
-        }
-      : {
-          type: "criterion_level",
-          criterionKey: String(change.criterionKey),
-          criterionName: String(change.criterionName),
-          from: change.from as OrgRoleCriterionLevel,
-          to: change.to as OrgRoleCriterionLevel,
-        },
+    change,
     evidence: {
       count,
       window,
