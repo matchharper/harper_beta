@@ -6,6 +6,10 @@ export type CompanyAgentScope = Extract<
   { kind: "company_event" }
 > & {
   assertCurrent: () => Promise<void>;
+  /** Company-wide memory is read for judgment only in runs that answer to the
+   * company (criteria review, schedules), never in correspondence with a
+   * candidate's agent. */
+  companyMemory?: boolean;
 };
 // The receiver and dynamically loaded tools can load separate module instances
 // (ESM/CJS or server chunks). Carry the capability on the client, not in a
@@ -27,6 +31,10 @@ export function withCompanyAgentScope<T extends object>(
 }
 export function companyAgentScope(admin: object) {
   return (admin as { [scopeKey]?: CompanyAgentScope })[scopeKey];
+}
+/** True only for a service run that was given company-wide memory reads. */
+export function companyAgentReadsCompanyMemory(admin: object) {
+  return companyAgentScope(admin)?.companyMemory === true;
 }
 
 /** Service principals can inspect their Role, research public evidence and act on
@@ -51,6 +59,9 @@ export function companyAgentCorrespondenceTools(): ReadonlySet<string> {
   return tools;
 }
 
-export function formatCompanyAgentServiceScope(scope: Pick<CompanyAgentScope, "roleId">) {
-  return `회사 에이전트의 서비스 실행입니다. 팀원 계정의 지시나 권한 위임을 가장하지 않습니다. 접근은 역할 ${scope.roleId}의 승인된 자료와 연락으로 제한됩니다. 채용 결정·결제·팀원 관리 권한은 없습니다.\n회사 전체(scope=company) 메모리와 회사 공용 메모는 판단에만 씁니다. 이 실행의 글을 받는 사람은 그 내용을 볼 수 없을 수 있으니 그대로 인용하거나 옮겨 적지 않습니다.`;
+export function formatCompanyAgentServiceScope(scope: Pick<CompanyAgentScope, "roleId" | "companyMemory">) {
+  const base = `회사 에이전트의 서비스 실행입니다. 팀원 계정의 지시나 권한 위임을 가장하지 않습니다. 접근은 역할 ${scope.roleId}의 승인된 자료와 연락으로 제한됩니다. 채용 결정·결제·팀원 관리 권한은 없습니다.`;
+  return scope.companyMemory === true
+    ? `${base}\n회사 전체(scope=company) 메모리와 회사 공용 메모는 판단에만 씁니다. 이 실행의 글을 받는 사람은 그 내용을 볼 수 없을 수 있으니 그대로 인용하거나 옮겨 적지 않습니다.`
+    : base;
 }

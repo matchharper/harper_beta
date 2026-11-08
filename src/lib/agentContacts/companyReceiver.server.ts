@@ -99,6 +99,8 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
   const admin = withCompanyAgentScope(getSupabaseAdmin(), {
     ...source,
     assertCurrent,
+    // Company-wide memory stays out of correspondence with a candidate's agent.
+    companyMemory: job.action_name !== "agent_contact_received",
   });
   const { getOrgWorkspaceLocale } =
     await import("@/lib/org/workspaceLocale.server");

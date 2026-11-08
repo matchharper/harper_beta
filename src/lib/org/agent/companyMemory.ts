@@ -2,7 +2,7 @@ import { formatLlmDateTime } from '@/lib/llm/promptDateTime';
 import type { User } from '@supabase/supabase-js';
 import type { OrgAgentAdminClient } from './data';
 import { assertOrgTeamRoleAccess, readOrgRoleAccess } from '../teamAccess';
-import { companyAgentScope } from '@/lib/agentContacts/companyScope';
+import { companyAgentReadsCompanyMemory } from '@/lib/agentContacts/companyScope';
 import { OrgAgentToolInputError } from './toolAvailability';
 
 type Args = { admin: OrgAgentAdminClient; user: User; workspaceId: string };
@@ -33,7 +33,7 @@ async function scopeAccess(args: Args, input: Record<string, unknown>, write: bo
   const scope = input.scope;
   if (scope !== undefined && !['company', 'team', 'role'].includes(String(scope))) throw new OrgAgentToolInputError('scope must identify company, team or role');
   // Harper's Role-bound runs read company memory for judgment; only Organization access writes it.
-  const companyVisible = access.scope === 'organization' || (!write && Boolean(companyAgentScope(args.admin)));
+  const companyVisible = access.scope === 'organization' || (!write && companyAgentReadsCompanyMemory(args.admin));
   if (scope === 'company' && (teamId || roleId || !companyVisible)) throw new OrgAgentToolInputError('Company memory is unavailable in this audience');
   if (roleId) await assertOrgTeamRoleAccess({ ...args, roleId });
   if (teamId) {

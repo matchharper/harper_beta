@@ -149,6 +149,7 @@ export async function runCriteriaReviewAgent(args: {
     jobId: lease.id,
     leaseOwner: lease.locked_by,
     assertCurrent,
+    companyMemory: true,
   });
   // This value carries no membership. All access comes from the server-created scope.
   const user = {

@@ -33,9 +33,9 @@ function client(member?: Record<string, unknown>) {
 }
 
 const serviceUser = { id: "job", app_metadata: {}, user_metadata: {}, aud: "service", created_at: "2026-11-08T00:00:00Z" } as User;
-function service() {
+function service(companyMemory = true) {
   const fake = client();
-  const admin = withCompanyAgentScope(fake.admin, { kind: "company_event", workspaceId, roleId, jobId: "job", leaseOwner: "lease", assertCurrent: async () => {} } as any);
+  const admin = withCompanyAgentScope(fake.admin, { kind: "company_event", workspaceId, roleId, jobId: "job", leaseOwner: "lease", assertCurrent: async () => {}, companyMemory } as any);
   return { ...fake, args: { admin: admin as any, user: serviceUser, workspaceId } };
 }
 function teamMember() {
@@ -51,6 +51,13 @@ test("Harper's Role-bound run reads company memory with the Role's own", async (
   // An explicit company read is allowed too.
   await readCompanyMemory({ ...run.args, input: { scope: "company" } });
   assert.match(run.memoryQuery()!, /scope\.eq\.company/);
+});
+
+test("correspondence with a candidate's agent does not read company memory", async () => {
+  const run = service(false);
+  await readCompanyMemory({ ...run.args, input: { limit: 8, forRoleId: roleId } });
+  assert.doesNotMatch(run.memoryQuery()!, /scope\.eq\.company/);
+  await assert.rejects(readCompanyMemory({ ...run.args, input: { scope: "company" } }), /Company memory is unavailable in this audience/);
 });
 
 test("a team-scoped member still does not see company memory", async () => {

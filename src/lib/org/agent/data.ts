@@ -9,7 +9,7 @@ import { readOpsCompatibleContacts } from "@/lib/companyTalentRequests/readOpsCo
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import type { User } from "@supabase/supabase-js";
 import { readOrgRoleAccess, scopeOrgRoleQuery, assertOrgTeamRoleAccess, visibleOrgRoleIds } from "@/lib/org/teamAccess";
-import { companyAgentScope } from "@/lib/agentContacts/companyScope";
+import { companyAgentReadsCompanyMemory } from "@/lib/agentContacts/companyScope";
 import {
   fetchOrgBoard,
   fetchOrgTalentDetail,
@@ -2638,7 +2638,7 @@ export async function getOrgAgentMoreData(args: {
   if (args.user && requestedKinds.includes("workspace_memory")) {
     const access = await readOrgRoleAccess({ admin: args.admin, user: args.user, workspaceId: args.workspaceId });
     // Harper's Role-bound runs read it for judgment, as they read company memory.
-    if (access.scope === "team" && !companyAgentScope(args.admin)) throw new OrgHttpError(403, "Organization 공용 메모는 전체 접근 권한이 필요합니다. 배정된 역할의 메모를 확인해 주세요.");
+    if (access.scope === "team" && !companyAgentReadsCompanyMemory(args.admin)) throw new OrgHttpError(403, "Organization 공용 메모는 전체 접근 권한이 필요합니다. 배정된 역할의 메모를 확인해 주세요.");
   }
   if (requestedKinds.length === 0) {
     throw new OrgHttpError(400, "At least one data kind is required");
