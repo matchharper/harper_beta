@@ -92,6 +92,11 @@ export type OrgTodoItem = {
    * contact), the Role start step, a Brief change summary, a message kind.
    */
   detail?: string | null;
+  /**
+   * Harper's own words for it, when Harper wrote them: a finished search's
+   * result line. Shown instead of the fixed wording.
+   */
+  note?: string | null;
   /** The next thing on the clock: a follow-up, a meeting, the next search. */
   nextAt?: string | null;
   source?: OrgTodoSource | null;

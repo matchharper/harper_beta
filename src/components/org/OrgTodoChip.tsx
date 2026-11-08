@@ -208,6 +208,7 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
     // Harper sends to candidates directly are counted per run, not per Role,
     // so they are not in it and "none" is never claimed.
     case "search_done":
+      if (item.note) return item.note;
       return n
         ? c(
             "후보 검색 · 연결을 요청할 후보 {n}명 추가",

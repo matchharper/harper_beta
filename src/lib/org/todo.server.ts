@@ -15,6 +15,7 @@ import {
 } from "./todoSuggestions.server";
 import { getOrgRoleStatusFilterValue } from "./roleStatus";
 import { fetchOrgBoard, fetchRoleRowsForWorkspace } from "./server";
+import { readSearchRunNotes } from "./searchRunNote";
 import {
   ORG_TODO_RECENT_DAYS,
   ORG_TODO_SUGGESTIONS_SHOWN,
@@ -158,6 +159,7 @@ type MeetingRow = {
   talent_id: string;
 };
 type RunRow = {
+  continuation_job_id: string | null;
   finished_at: string | null;
   id: string;
   status: string;
@@ -439,7 +441,9 @@ async function loadRoleTodoItems(args: {
       .order("created_at", { ascending: false })
       .limit(limit),
     untypedTable(admin, "company_first_search_runs")
-      .select("id,status,trigger_reason,finished_at")
+      .select(
+        "id,status,trigger_reason,finished_at,continuation_job_id:result->scheduledContinuation->>jobId"
+      )
       .eq("company_workspace_id", workspaceId)
       .or(
         `role_id.eq.${roleId},scheduled_role_ids.cs.{${roleId}},requested_role_ids.cs.{${roleId}}`
@@ -989,16 +993,18 @@ async function loadRoleTodoItems(args: {
     });
   }
   if (runRows.length) {
-    const selected = rows<SelectedRow>(
-      await untypedTable(admin, "company_intro_candidates")
+    const [selectedResponse, notes] = await Promise.all([
+      untypedTable(admin, "company_intro_candidates")
         .select("selection_run_id")
         .eq("company_workspace_id", workspaceId)
         .eq("role_id", roleId)
         .in(
           "selection_run_id",
           runRows.map((run) => run.id)
-        )
-    );
+        ),
+      readSearchRunNotes(admin, runRows),
+    ]);
+    const selected = rows<SelectedRow>(selectedResponse);
     for (const run of runRows) {
       items.push({
         id: `search:${run.id}`,
@@ -1007,6 +1013,7 @@ async function loadRoleTodoItems(args: {
         at: run.finished_at,
         count: selected.filter((row) => row.selection_run_id === run.id).length,
         detail: run.trigger_reason ?? null,
+        note: notes.get(run.id) ?? null,
         source: run.trigger_reason === "company_requested" ? null : "harper",
       });
     }
