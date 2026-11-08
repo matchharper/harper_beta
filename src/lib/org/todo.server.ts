@@ -85,6 +85,8 @@ async function readActivity(args: {
       kind: "all",
       search: "",
       locale: args.locale,
+      // The To-do has its own lines for Harper's work.
+      includeHarper: false,
     });
     events.push(...page.items);
     cursor = page.nextCursor ?? undefined;

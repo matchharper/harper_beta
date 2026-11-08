@@ -147,3 +147,28 @@ test("cursor survives insertions ahead of the current position and preserves mic
     -1
   );
 });
+
+test("Harper's work reads in Harper's words, falls back to fixed wording, and has its own filter", async () => {
+  const { orgHomeActivityTitle } = await import("./homeActivity");
+  const { matchesActivity } = await import("./homeActivityPagination");
+  const search = fixture(1, { kind: "search_done", talentId: "", talentName: "", text: "", count: 0 });
+  assert.equal(orgHomeActivityTitle(search, "ko"), "후보 검색을 마쳤어요");
+  assert.equal(
+    orgHomeActivityTitle({ ...search, count: 4 }, "ko"),
+    "후보 검색 · 연결을 요청할 후보 4명 추가"
+  );
+  assert.equal(
+    orgHomeActivityTitle({ ...search, text: "맞는 분이 없어 내일 다시 찾아볼게요." }, "ko"),
+    "맞는 분이 없어 내일 다시 찾아볼게요."
+  );
+  const brief = fixture(2, { kind: "brief_changed", talentId: "", talentName: "", text: "경력 5년 이상" });
+  assert.equal(orgHomeActivityTitle(brief, "ko"), "찾는 사람 변경: 경력 5년 이상");
+  const proposal = fixture(3, { kind: "harper_proposal", talentId: "", talentName: "", text: "다시 연락하기" });
+  assert.equal(orgHomeActivityTitle(proposal, "en"), "Harper suggests: 다시 연락하기");
+  for (const item of [search, brief, proposal]) {
+    assert.ok(matchesActivity(item, "", "harper", "ko"));
+    assert.ok(matchesActivity(item, "", "all", "ko"));
+    assert.ok(!matchesActivity(item, "", "intros", "ko"));
+  }
+  assert.ok(matchesActivity(brief, "5년", "all", "ko"), "search finds Harper's words");
+});

@@ -27,7 +27,7 @@ const positionSchema = z.object({
   id: z
     .string()
     .regex(
-      /^(?:(?:intro-sent|intro-accepted|meeting-confirmed|meeting-requested):)?[0-9a-f-]{36}$/
+      /^(?:(?:intro-sent|intro-accepted|meeting-confirmed|meeting-requested|search-done|brief-changed|harper-suggestion|criteria-proposal):)?[0-9a-f-]{36}$/
     ),
 });
 const cursorSchema = z.object({
@@ -46,6 +46,8 @@ export async function fetchOrgHomeActivityPage(args: {
   search: string;
   kind: OrgHomeActivityFilter;
   locale: "ko" | "en";
+  /** false: candidate events only (the To-do reads them this way). */
+  includeHarper?: boolean;
 }): Promise<OrgHomeActivityPage> {
   const admin = args.admin ?? getSupabaseAdmin();
   const scope = createHash("sha256")
@@ -56,6 +58,7 @@ export async function fetchOrgHomeActivityPage(args: {
         args.search,
         args.kind,
         args.locale,
+        args.includeHarper !== false,
       ])
     )
     .digest("hex");
@@ -108,10 +111,13 @@ export async function fetchOrgHomeActivityPage(args: {
         snapshot,
         after: position,
         kind: args.kind,
+        includeHarper: args.includeHarper,
+        locale: args.locale,
       }),
     project: async (events) => {
       const missing = new Map<string, Set<string>>();
       for (const item of events) {
+        if (!item.talentId) continue;
         const key = `${item.roleId}:${item.talentId}`;
         if (candidates.has(key)) continue;
         candidates.set(key, null);
@@ -141,7 +147,21 @@ export async function fetchOrgHomeActivityPage(args: {
         );
       }
       const projected = new Map<string, OrgHomeActivity>();
+      // Harper's work has no candidate; its Role was checked above.
+      const roleNames = new Map(
+        roles.map((role) => [String(role.role_id), String(role.name ?? "")])
+      );
       for (const item of events) {
+        if (!item.talentId) {
+          if (roleNames.has(item.roleId))
+            projected.set(item.id, {
+              ...item,
+              roleName: roleNames.get(item.roleId) ?? "",
+              talentName: "",
+              recommendationId: "",
+            });
+          continue;
+        }
         const candidate = candidates.get(`${item.roleId}:${item.talentId}`);
         if (candidate)
           projected.set(item.id, {

@@ -9,7 +9,7 @@ const scope = z.object({
   roleId: z.string().uuid().optional(),
   cursor: z.string().max(2048).optional(),
   search: z.string().trim().max(500).default(""),
-  kind: z.enum(["all", "intros", "messages", "interviews"]).default("all"),
+  kind: z.enum(["all", "intros", "messages", "interviews", "harper"]).default("all"),
   locale: z.enum(["ko", "en"]).default("ko"),
 });
 

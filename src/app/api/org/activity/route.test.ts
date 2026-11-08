@@ -132,8 +132,14 @@ const admin = {
           );
         return query;
       },
-      not: (column: string) => {
-        selected = selected.filter((row) => field(row, column) != null);
+      not: (column: string, operator = "is", value = "null") => {
+        const excluded =
+          operator === "in" ? value.replace(/[()]/g, "").split(",") : [];
+        selected = selected.filter(
+          (row) =>
+            field(row, column) != null &&
+            !excluded.includes(String(field(row, column)))
+        );
         return query;
       },
       order: () => query,
@@ -141,6 +147,9 @@ const admin = {
         data: selected.slice(0, limit),
         error: null,
       }),
+      // Reads that end without a limit (counts, Harper's messages).
+      then: (resolve: (value: unknown) => void) =>
+        resolve({ data: selected, error: null }),
     };
     return query;
   },
@@ -158,7 +167,10 @@ before(async () => {
       OrgHttpError: HttpError,
       fetchRoleRowsForWorkspace: async () => {
         if (!allowed) throw new HttpError(403, "Forbidden");
-        return [{ role_id: roleId }, { role_id: secondRoleId }];
+        return [
+          { role_id: roleId, name: "Backend Engineer" },
+          { role_id: secondRoleId, name: "Research Engineer" },
+        ];
       },
       fetchOrgBoard: async (args: {
         roleId?: string;
@@ -406,6 +418,80 @@ test("server applies search and type filters and rejects malformed queries", asy
   assert.equal((await run("&cursor=not-a-cursor")).status, 400);
   assert.equal((await run("&kind=unknown")).status, 400);
   assert.equal((await run(`&roleId=${hiddenRoleId}`)).status, 404);
+});
+
+// What Harper did, from records it already keeps: finished searches (with
+// how many people were added and Harper's own result line), Brief changes
+// made through Harper, and Harper's proposals. No candidate behind them.
+test("feed shows Harper's finished searches, Brief changes and proposals", async () => {
+  const uuid = (n: number) => `40000000-0000-4000-8000-00000000000${n}`;
+  const harperRows: Record<string, unknown[]> = {
+    company_first_search_runs: [
+      { id: uuid(1), role_id: roleId, status: "succeeded", finished_at: createdAt, continuation_job_id: "job-1" },
+      { id: uuid(2), role_id: roleId, status: "succeeded", finished_at: createdAt, continuation_job_id: null },
+      { id: uuid(3), role_id: hiddenRoleId, status: "succeeded", finished_at: createdAt, continuation_job_id: null },
+    ],
+    company_agent_web_action_jobs: [
+      { id: "job-1", action_name: "scheduled_matching_review", status: "completed_message", terminal_message_id: 7 },
+    ],
+    company_messages: [
+      { id: 7, role: "assistant", content: "*기준에 맞는 분이 없었어요.* 내일 조건을 넓혀 다시 찾아볼게요.\n자세한 내용" },
+    ],
+    company_role_hiring_brief_history: [
+      { id: uuid(4), role_id: roleId, created_at: createdAt, source: "chat", summary: "경력 5년 이상으로" },
+      { id: uuid(5), role_id: roleId, created_at: createdAt, source: "website", summary: "직접 고친 것" },
+    ],
+    company_todo_suggestions: [
+      { id: uuid(6), role_id: roleId, title: "답이 없는 후보에게 다시 연락하기", created_at: createdAt },
+    ],
+    company_agent_update_proposals: [
+      { id: uuid(7), workspace_id: workspaceId, scope_key: `brief:${roleId}`, kind: "criteria_refinement", payload: null, created_at: createdAt },
+    ],
+  };
+  const originals = Object.fromEntries(Object.keys(harperRows).map((table) => [table, rows[table]]));
+  const intros = rows.company_intro_candidates;
+  Object.assign(rows, harperRows);
+  rows.company_intro_candidates = [
+    ...intros,
+    { id: "picked", role_id: roleId, talent_id: talentId, status: "ready", selection_run_id: uuid(2) },
+  ];
+  try {
+    const response = await request();
+    assert.equal(response.status, 200);
+    const { items }: { items: import("@/lib/org/homeActivity").OrgHomeActivity[] } =
+      await response.json();
+    const byId = new Map(items.map((item) => [item.id, item]));
+    assert.equal(byId.get(`search-done:${uuid(1)}`)?.text, "기준에 맞는 분이 없었어요. 내일 조건을 넓혀 다시 찾아볼게요.");
+    assert.equal(byId.get(`search-done:${uuid(1)}`)?.roleName, "Backend Engineer");
+    assert.equal(byId.get(`search-done:${uuid(2)}`)?.count, 1);
+    assert.equal(byId.get(`search-done:${uuid(2)}`)?.text, "");
+    assert.ok(!byId.has(`search-done:${uuid(3)}`), "a Role the person cannot see stays out");
+    assert.equal(byId.get(`brief-changed:${uuid(4)}`)?.text, "경력 5년 이상으로");
+    assert.ok(!byId.has(`brief-changed:${uuid(5)}`), "a change made by hand on the website is not Harper's");
+    assert.equal(byId.get(`harper-suggestion:${uuid(6)}`)?.kind, "harper_proposal");
+    assert.equal(byId.get(`criteria-proposal:${uuid(7)}`)?.roleId, roleId);
+    assert.ok(items.filter((item) => item.kind === "search_done").every((item) => item.talentId === ""));
+
+    // The Harper filter shows Harper's work alone.
+    const harper = await (await GET({ nextUrl: new URL(
+      `https://example.test/api/org/activity?workspaceId=${workspaceId}&roleId=${roleId}&kind=harper`
+    ) } as NextRequest)).json();
+    assert.equal(harper.items.length, 5);
+    assert.ok(harper.items.every((item: any) => ["search_done", "brief_changed", "harper_proposal"].includes(item.kind)));
+
+    // The To-do reads candidate events only; it has its own lines for these.
+    const { fetchOrgHomeActivityPage } = await import("@/lib/org/homeActivity.server");
+    const before = scopes.length;
+    const todoPage = await fetchOrgHomeActivityPage({
+      admin: admin as any, user: { id: "reviewer" } as any, workspaceId, roleId,
+      kind: "all", search: "", locale: "ko", includeHarper: false,
+    });
+    assert.ok(todoPage.items.every((item) => item.talentId === talentId));
+    assert.ok(!scopes.slice(before).some(([table]) => table in harperRows));
+  } finally {
+    Object.assign(rows, originals);
+    rows.company_intro_candidates = intros;
+  }
 });
 
 test("role feed denies access before querying progress", async () => {
