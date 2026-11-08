@@ -43,9 +43,14 @@ function from(table: string) {
     return { data: structuredClone(rows.slice(0, limit)), error: null };
   };
   const builder: any = {
+    insert: async (row: Row) => ((tables[table] ??= []).push({ id: `${table}-${tables[table].length + 1}`, ...structuredClone(row) }), { data: null, error: null }),
     select: () => ((returning = Boolean(patch)), builder),
     update: (values: Row) => ((patch = values), builder),
-    eq: (column: string, value: unknown) => (filters.push((row) => row[column] === value), builder),
+    eq: (column: string, value: unknown) => {
+      const [field, key] = column.split("->>");
+      filters.push((row) => (key ? row[field]?.[key] : row[field]) === value);
+      return builder;
+    },
     in: (column: string, values: unknown[]) => (filters.push((row) => values.includes(row[column])), builder),
     order: (column: string, options?: { ascending?: boolean }) => ((order = { column, ascending: options?.ascending !== false }), builder),
     limit: (count: number) => ((limit = count), builder),
@@ -69,6 +74,7 @@ const RPC: Record<string, (args: Row) => unknown> = {
     if ((input.answeredKeys as string[]).includes(args.p_content_key)) return { status: "answered_before" };
     const id = `proposal-${proposals.length + 1}`;
     proposals.push({ id, status: "pending", ...args });
+    (tables.company_agent_update_proposals ??= []).push({ id, workspace_id: args.p_workspace_id, status: "pending", summary: args.p_summary });
     return { status: "created", proposalId: id };
   },
 };
@@ -166,7 +172,7 @@ const context = async () => ({
   conversationMessages: [], contextNotesText: "-", defaultLongTextObservations: [],
 }) as any;
 
-function run(stand: ReturnType<typeof model>) {
+function run(stand: ReturnType<typeof model>, messages?: "off" | "chat" | "origin") {
   return runQueuedCriteriaConsolidation({
     admin,
     job: job(),
@@ -176,7 +182,7 @@ function run(stand: ReturnType<typeof model>) {
     review: (prepared) =>
       runCriteriaReviewAgent({
         admin, job: job(), prepared,
-        dependencies: { buildContext: context, locale: async () => "ko", model: MODEL, loop: { complete: stand.complete } },
+        dependencies: { buildContext: context, locale: async () => "ko", model: MODEL, loop: { complete: stand.complete }, messages },
       }),
   });
 }
@@ -393,4 +399,43 @@ test("reasons outside the current criteria: Harper suggests one new criterion th
   assert.match(results[2], /either criterionId .* or newCriterion/);
   assert.match(results[3], /Not added: the company already applied or dismissed new criterion 결제 도메인 경험 \(important\)\. Nothing changed\./);
   assert.equal(proposals.length, 0);
+});
+
+test("a new suggestion is also told once in the Role's web chat, in the card's words; off keeps it quiet", async () => {
+  seed(RN_PATTERN);
+  const args = { criterionId: "c-rn", decisionIds: [106, 105, 103, 101], reason: "넘긴 후보 대부분이 React Native 실무 경험이 없었어요." };
+  const first = model((_, index) => (index === 0 ? { tool: { args } } : null));
+  assert.equal((await run(first, "origin")).status, "proposed");
+  const sent = () => (tables.company_messages ?? []).filter((row) => row.metadata?.criteriaProposalId === "proposal-1");
+  assert.equal(sent().length, 1);
+  assert.deepEqual(
+    { ...sent()[0], id: undefined },
+    {
+      id: undefined, company_workspace_id: workspaceId, conversation_id: "conversation-1", role_id: roleId, role: "assistant",
+      content: "'React Native 실무 경험' 기준을 있으면 좋음에서 중요로 올릴까요? 넘긴 후보 대부분이 React Native 실무 경험이 없었어요. (이유를 남긴 6명 중 4명)",
+      message_type: "chat", status: "completed", model: MODEL,
+      metadata: { source: "criteria_review", criteriaProposalId: "proposal-1", webActionJobId: jobId },
+    }
+  );
+
+  // Harper calling again in that review, or the next review while it waits: no second message.
+  rpcs = [];
+  const keep = { messages: tables.company_messages, proposals: tables.company_agent_update_proposals };
+  seed(RN_PATTERN, { pending: { id: "proposal-1", expiresAt: "2026-11-20T00:00:00Z", payload: proposals[0].p_payload } });
+  Object.assign(tables, { company_messages: keep.messages, company_agent_update_proposals: keep.proposals });
+  assert.equal((await run(model(() => null), "chat")).status, "pending");
+  assert.equal(sent().length, 1);
+  proposals = [];
+  seed(RN_PATTERN);
+  const twice = model((_, index) => (index < 2 ? { tool: { args } } : null));
+  assert.equal((await run(twice, "chat")).status, "proposed");
+  assert.equal(tables.company_messages.length, 1);
+
+  // With messages off, the suggestion is only on the To-do.
+  rpcs = [];
+  proposals = [];
+  seed(RN_PATTERN);
+  const quiet = model((_, index) => (index === 0 ? { tool: { args } } : null));
+  assert.equal((await run(quiet, "off")).status, "proposed");
+  assert.equal((tables.company_messages ?? []).length, 0);
 });

@@ -20,6 +20,7 @@ import {
 } from "@/lib/org/criteriaProposals.server";
 import { criteriaProposalText } from "@/lib/org/criteriaProposals";
 import type { CompanyTermLocale } from "@/lib/org/terms";
+import { scheduleRunMessages, type ScheduleRunMessages } from "@/lib/agentContacts/scheduleRun";
 import { untypedTable } from "@/lib/org/untypedTable";
 import type { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
@@ -55,6 +56,8 @@ export type CriteriaReviewDependencies = {
   loop?: OrgAgentLoopDependencies;
   locale?: (workspaceId: string, admin: Admin) => Promise<CompanyTermLocale>;
   model?: OrgAgentModelId;
+  /** ORG_AGENT_SCHEDULE_MESSAGES (tests pass it). */
+  messages?: ScheduleRunMessages;
 };
 
 async function superseded(message: string): Promise<never> {
@@ -215,10 +218,70 @@ export async function runCriteriaReviewAgent(args: {
   );
   await assertCurrent();
   const after = parseCriteriaReviewSnapshot((await readJob(admin, lease.id))?.action_context?.criteriaReview);
+  if (after?.proposalId)
+    await tellCompanyOnce({
+      admin,
+      conversationId: String(conversation.id),
+      messages: dependencies.messages ?? scheduleRunMessages(),
+      model: result.model ?? model,
+      proposalId: after.proposalId,
+      roleId,
+      workspaceId,
+      jobId: lease.id,
+    });
   await saveOnJob(admin, lease, {
     agentExecution: { completed: true, model: result.model ?? model, usage: result.usage },
   });
   return { proposalId: after?.proposalId ?? null };
+}
+
+/**
+ * B17: the company also hears about a new suggestion once, in the Role's web
+ * chat, with the card's sentence (Harper's own words and the counts). The
+ * review has no Slack thread it was asked in, so like Harper's scheduled runs
+ * it writes to the Role's web chat, and not at all when
+ * ORG_AGENT_SCHEDULE_MESSAGES is off. One message per suggestion: a retry
+ * finds the earlier one.
+ */
+async function tellCompanyOnce(args: {
+  admin: Admin;
+  workspaceId: string;
+  roleId: string;
+  conversationId: string;
+  proposalId: string;
+  jobId: string;
+  model: string;
+  messages: ScheduleRunMessages;
+}) {
+  if (args.messages === "off") return;
+  const { data: proposal, error } = await untypedTable(args.admin, "company_agent_update_proposals")
+    .select("id,status,summary")
+    .eq("id", args.proposalId)
+    .eq("workspace_id", args.workspaceId)
+    .maybeSingle();
+  if (error) throw error;
+  const summary = String((proposal as Json | null)?.summary ?? "").trim();
+  if ((proposal as Json | null)?.status !== "pending" || !summary) return;
+  const { data: sent, error: sentError } = await untypedTable(args.admin, "company_messages")
+    .select("id")
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("conversation_id", args.conversationId)
+    .eq("metadata->>criteriaProposalId", args.proposalId)
+    .limit(1);
+  if (sentError) throw sentError;
+  if ((sent as unknown[] | null)?.length) return;
+  const { error: insertError } = await untypedTable(args.admin, "company_messages").insert({
+    company_workspace_id: args.workspaceId,
+    conversation_id: args.conversationId,
+    role_id: args.roleId,
+    role: "assistant",
+    content: summary,
+    message_type: "chat",
+    status: "completed",
+    model: args.model,
+    metadata: { source: "criteria_review", criteriaProposalId: args.proposalId, webActionJobId: args.jobId },
+  });
+  if (insertError) throw insertError;
 }
 
 /**
