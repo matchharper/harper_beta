@@ -462,6 +462,8 @@ test("a Harper-tailored Role without its own slot is never charged: no 'no intro
   // With a slot of its own it is charged, so the line shows when that runs out.
   slots = [shared, { ...shared, id: "s", slotId: "slot-a", roleId: ROLE_A }];
   assert.equal((await blocked())?.count, 1);
+});
+
 test("Slack summary: saved-only waiting still reminds of replies, and a failed count read keeps the waiting count", async () => {
   // Only the saved T2 waits on Role A, and that candidate replied.
   const tables = fixture();
