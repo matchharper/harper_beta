@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { OrgTodoItem } from "@/lib/org/todo";
 
 // Home's 채팅 side as the candidate side's panels, from two roles' To-do and numbers.
-test("Home panels: 결정할 것, 볼 만한 것, Harper's work and 역할 현황, each line with its role", async () => {
+test("Home panels: 결정할 것, Harper가 할 수 있는 일 · 알림, Harper's work and 역할 현황, each line with its role", async () => {
   const workspaceId = "synthetic-workspace";
   const roles = [
     { roleId: "r1", name: "Backend Engineer", status: "active" },
@@ -108,13 +108,14 @@ test("Home panels: 결정할 것, 볼 만한 것, Harper's work and 역할 현�
   assert.ok(decide.includes('data-action="r1:pending_connection"') && decide.includes('data-action="r2:search_failed"'),
     "each line's buttons are its own role's");
   assert.equal((decide.match(/career-followup-title/g) ?? []).length, 2);
-  // 볼 만한 것 = Harper's offers and the updates as compact rows with role · when ·
-  // source; the first is shown, the rest wait behind a toggle so the chat stays the focus.
-  const worth = sectionText(html, "볼 만한 것");
-  assert.ok(html.includes("볼 만한 것 2"));
+  // Harper's offers and the updates under the role screen's names (one name for
+  // one thing), as compact rows with role · when · source.
+  assert.ok(!html.includes("볼 만한 것"));
+  const worth = sectionText(html, "Harper가 할 수 있는 일");
+  assert.ok(html.includes("Harper가 할 수 있는 일 1") && html.includes("알림 1"));
   assert.match(worth, /org-todo-row-meta">Backend Engineer · [^<]+ · Harper</);
-  assert.ok(!worth.includes("Product Designer"), "the second line waits behind the toggle");
-  assert.ok(worth.includes("개 더 보기"));
+  assert.ok(!worth.includes("Product Designer"), "the update has its own section");
+  assert.match(sectionText(html, "알림"), /org-todo-row-meta">Product Designer · [^<]+ · 메일</);
   // A suggestion's plan is sent from its role's chat, so it goes on there.
   assert.ok(worth.includes(`class="org-todo-go" href="/org/role?orgId=${workspaceId}&amp;roleId=r1&amp;tab=chat"`));
   assert.ok(worth.includes("괜찮아요") && worth.includes("이런 제안 그만"));
@@ -145,5 +146,5 @@ test("Home panels: 결정할 것, 볼 만한 것, Harper's work and 역할 현�
   html = render();
   assert.match(html, /<h1>결정할 것 0<\/h1>/);
   assert.ok(html.includes("data-role-cards"));
-  assert.ok(!html.includes("역할 현황") && !html.includes("볼 만한 것"));
+  assert.ok(!html.includes("역할 현황") && !html.includes("Harper가 할 수 있는 일"));
 });

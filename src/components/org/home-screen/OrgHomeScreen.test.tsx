@@ -29,7 +29,11 @@ test("Home: 채팅 | 후보 pill, right column per link, old Home links, one col
     if (name === "next/router") return { useRouter: () => router };
     if (name === "lucide-react") return empty;
     if (name === "@/i18n/org/OrgLocaleProvider") return {
-      useOrgLocale: () => ({ c: (ko: string) => ko, locale: "ko" }),
+      useOrgLocale: () => ({
+        c: (ko: string, _en?: string, values?: Record<string, unknown>) =>
+          ko.replace(/\{(\w+)\}/g, (_, key) => String(values?.[key] ?? "")),
+        locale: "ko",
+      }),
       useOrgSourceT: () => (text: string) => text,
     };
     if (name === "@/hooks/org/useOrgWorkspace") return {
@@ -40,8 +44,13 @@ test("Home: 채팅 | 후보 pill, right column per link, old Home links, one col
     if (name === "@/hooks/org/useOrgRoleTodo") return {
       useOrgWorkspaceTodo: () => ({
         data: {
-          items: [],
-          myTurn: 0,
+          // Two things to decide or read, one Harper is doing: the phone's 할 일 shows 2.
+          items: [
+            { id: "a", roleId: "r1", column: "my_turn", kind: "pending_connection", at: null },
+            { id: "b", roleId: "r2", column: "notice", kind: "intro_accepted", at: null },
+            { id: "c", roleId: "r1", column: "in_progress", kind: "search_running", at: null },
+          ],
+          myTurn: 1,
           suggestions: 0,
           roles: [
             { roleId: "r1", counts: { pending_connection: 3, company_intro: 0, saved: 1, reviewing: 2 } },
@@ -114,7 +123,7 @@ test("Home: 채팅 | 후보 pill, right column per link, old Home links, one col
   assert.equal(chatProps?.roleId, undefined);
   assert.equal(hidden(html, "org-home-chat-panel"), false, "two columns: the chat stays");
   assert.ok(!html.includes("data-talent-detail"));
-  assert.ok(!html.includes('aria-label="할 일"'), "two columns: no 할 일 button, it is the 채팅 side");
+  assert.ok(!html.includes('aria-label="할 일,'), "two columns: no 할 일 button, it is the 채팅 side");
 
   // 채팅: every role's To-do as cards.
   go({ tab: "chat" });
@@ -160,7 +169,9 @@ test("Home: 채팅 | 후보 pill, right column per link, old Home links, one col
   html = render();
   assert.equal(hidden(html, "org-home-chat-panel"), true);
   assert.equal(hidden(html, "org-home-right-panel"), false);
-  assert.ok(html.includes('aria-label="할 일"'));
+  assert.ok(html.includes('aria-label="할 일, 결정할 것·막힌 것·알림 2개"'));
+  const todoButton = html.slice(html.indexOf('career-settings-label">할 일'));
+  assert.match(todoButton.slice(0, todoButton.indexOf("</button>")), />2</, "the 할 일 button carries its number");
   go({ tab: "chat" });
   html = render();
   assert.equal(hidden(html, "org-home-chat-panel"), false);

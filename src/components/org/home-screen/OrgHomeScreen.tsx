@@ -8,6 +8,8 @@ import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavi
 import { OrgTeamPage } from "@/components/org/workspace/pages/OrgTeamPage";
 import { MuteButton } from "@/components/ui/button";
 import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
+import { Badge } from "@/components/ui/badge";
+import { orgTodoBadge } from "@/lib/org/todo";
 import { useOrgWorkspaceTodo } from "@/hooks/org/useOrgRoleTodo";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -68,6 +70,7 @@ export function OrgHomeScreen() {
     { company_intro: 0, pending_connection: 0, reviewing: 0 }
   );
   const candidateCount = counts.pending_connection + counts.company_intro;
+  const todoBadge = orgTodoBadge(todo.data?.items ?? []);
   const [companyInfoOpen, setCompanyInfoOpen] = useState(false);
   const [composerSeed, setComposerSeed] = useState<{
     key: string;
@@ -190,11 +193,21 @@ export function OrgHomeScreen() {
           {!split ? (
             <MuteButton
               aria-current={pane === "todo" && !companyInfoOpen ? "page" : undefined}
-              aria-label={ct(c, COMPANY_TERMS.todo.button)}
+              aria-label={c(
+                "할 일, 결정할 것·막힌 것·알림 {n}개",
+                "To-do, {n} to decide, blocked or new",
+                { n: todoBadge }
+              )}
               onClick={() => showPane("todo")}
             >
               <ListTodo aria-hidden className="size-4" strokeWidth={1.6} />
               <span className="career-settings-label">{ct(c, COMPANY_TERMS.todo.button)}</span>
+              {todoBadge ? (
+                // The same number as the role chat's 할 일 button.
+                <Badge size="xs" variant="count">
+                  {String(todoBadge)}
+                </Badge>
+              ) : null}
             </MuteButton>
           ) : null}
         </div>

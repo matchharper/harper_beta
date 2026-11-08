@@ -14,16 +14,16 @@ export function RoleSearchActivityLabel({ activity }: { activity: RoleMatchingAc
   const { c } = useOrgLocale();
   let label: string;
   if (activity.phase === "reviewing") label = c("검색 결과 확인 중", "Reviewing search results");
-  else if (activity.phase === "preparing") label = c("후보자 추천 준비 중", "Preparing recommendations");
-  else if (activity.phase === "delivering") label = c("후보자 추천 전달 중", "Delivering recommendations");
+  else if (activity.phase === "preparing") label = c("후보 추천 준비 중", "Preparing recommendations");
+  else if (activity.phase === "delivering") label = c("후보 추천 전달 중", "Delivering recommendations");
   else if (activity.trigger === "role_activated") label = activity.phase === "queued"
-    ? c("첫 후보자 검색 대기 중", "First candidate search queued")
-    : c("첫 후보자 검색 중", "Finding the first candidates");
+    ? c("첫 후보 찾기 대기 중", "First candidate search queued")
+    : c("첫 후보 찾는 중", "Finding the first candidates");
   else if (activity.trigger === "scheduled") label = activity.phase === "queued"
     ? c("정기 탐색 대기 중", "Scheduled search queued")
     : c("정기 탐색 중", "Scheduled search in progress");
-  else label = activity.phase === "queued" ? c("후보자 검색 대기 중", "Candidate search queued")
-    : c("후보자 검색 중", "Searching for candidates");
+  else label = activity.phase === "queued" ? c("후보 찾기 대기 중", "Candidate search queued")
+    : c("후보 찾는 중", "Searching for candidates");
   return <Loading className="text-neutral-muted motion-reduce:[&>span:first-child]:animate-none" label={label} size="sm" />;
 }
 

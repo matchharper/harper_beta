@@ -60,9 +60,10 @@ export function OrgHomeCandidateTabs({
       <TabBoxes<OrgHomeCandidateTab>
         activeValue={tab}
         aria-label={ct(c, COMPANY_TERMS.candidate)}
-        className="min-w-0 flex-1"
+        // One line that scrolls sideways, like the candidate side's tabs, so 소식
+        // never drops to a line of its own on a phone.
+        className="min-w-0 flex-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         items={items}
-        listClassName="min-w-0 flex-wrap"
         onValueChange={onTabChange}
         size="lg"
         variant="neutral"

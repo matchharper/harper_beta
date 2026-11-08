@@ -43,8 +43,9 @@ import type { OrgNowRole, OrgTodoColumn, OrgTodoItem } from "@/lib/org/todo";
 /**
  * Home's 채팅 side, the candidate side's panels for every role:
  * 결정할 것 (지금 팔로업) — what the team decides and what stops Harper, the
- * only large cards; 볼 만한 것 — Harper's offers and the updates, compact, the
- * first one shown; then Harper's work and plans as compact rows;
+ * only large cards; Harper가 할 수 있는 일 and 알림 — Harper's offers (the
+ * first one shown) and the updates, compact, under the role screen's names;
+ * then Harper's work and plans as compact rows;
  * 역할 현황 (지원 현황) — each role's numbers.
  */
 const DECIDE: OrgTodoColumn[] = ["my_turn", "blocked"];
@@ -315,7 +316,6 @@ export function OrgHomeTodo() {
   const inColumns = (columns: OrgTodoColumn[]) =>
     columns.flatMap((column) => items.filter((item) => item.column === column));
   const decide = inColumns(DECIDE);
-  const worth = inColumns(WORTH);
   const headings = orgTodoHeadings(c);
   const roleName = (item: OrgTodoItem) =>
     (item.roleId && roleNames.get(item.roleId)) || ct(c, COMPANY_TERMS.role);
@@ -351,31 +351,40 @@ export function OrgHomeTodo() {
           </ul>
         ) : null}
       </section>
-      {worth.length ? (
-        <section
-          aria-label={ct(c, COMPANY_TERMS.home.worthALook)}
-          className="career-content org-todo-compact"
-        >
-          <h2 className="career-content-heading">
-            {ct(c, COMPANY_TERMS.home.worthALook)} {worth.length}
-          </h2>
-          <OrgTodoFoldedRows>
-            {worth.map((item) =>
-              line(
-                item,
-                "row",
-                [
-                  roleName(item),
-                  item.at ? formatKstRelativeDate(item.at, { locale }) : null,
-                  item.source ? sources[item.source] : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")
-              )
+      {/* Harper's suggestions and the updates under the role screen's names; suggestions fold after the first. */}
+      {WORTH.map((column) => {
+        const group = items.filter((item) => item.column === column);
+        if (!group.length) return null;
+        const rows = group.map((item) =>
+          line(
+            item,
+            "row",
+            [
+              roleName(item),
+              item.at ? formatKstRelativeDate(item.at, { locale }) : null,
+              item.source ? sources[item.source] : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          )
+        );
+        return (
+          <section
+            aria-label={headings[column]}
+            className="career-content org-todo-compact"
+            key={column}
+          >
+            <h2 className="career-content-heading">
+              {headings[column]} {group.length}
+            </h2>
+            {column === "suggestion" ? (
+              <OrgTodoFoldedRows>{rows}</OrgTodoFoldedRows>
+            ) : (
+              <ul className="org-todo-rows">{rows}</ul>
             )}
-          </OrgTodoFoldedRows>
-        </section>
-      ) : null}
+          </section>
+        );
+      })}
       {LATER.map((column) => {
         const group = items.filter((item) => item.column === column);
         return group.length ? (
