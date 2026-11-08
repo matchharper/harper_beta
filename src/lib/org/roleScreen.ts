@@ -68,6 +68,16 @@ export function orgRoleCandidateTabQuery(
   }
 }
 
+/**
+ * Where a decision's 보기 goes: 진행 종료 for a pass or an end, 저장 for a
+ * save (no stage), 파이프라인 for every other move.
+ */
+export function orgRoleDecisionListTab(stage: string | null | undefined): OrgRoleCandidateTab {
+  if (stage === "process_stopped") return "closed";
+  if (!stage) return "saved";
+  return "pipeline";
+}
+
 /** Pipeline stages a company follows under 파이프라인; the rest are inbox, closed or internal. */
 export function isOrgRoleOpenPipelineStage(stage: string, internalOpsAccess = false) {
   if (stage === "pending_connection" || stage === "company_intro") return false;

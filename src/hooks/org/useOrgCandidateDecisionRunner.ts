@@ -23,6 +23,10 @@ import {
   type OrgDecisionOutcome,
 } from "@/lib/org/decisionRun";
 import { buildOrgHref } from "@/lib/org/routes";
+import {
+  orgRoleCandidateTabQuery,
+  orgRoleDecisionListTab,
+} from "@/lib/org/roleScreen";
 
 // "연결됨으로", "1차 인터뷰로": picks the particle from the label's last syllable.
 function withDirectionParticle(label: string) {
@@ -48,17 +52,28 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
   const saveCandidate = useOrgCandidateSave();
   const router = useRouter();
 
-  /** Opens this Role's pipeline with the moved candidates marked. */
-  const showInPipeline = (roleId: string, recommendationIds: string[]) => {
-    const href = buildOrgHref({
-      orgId: workspaceId,
-      page: "role",
-      roleId,
-      tab: "pipeline",
-      view: "pipeline",
-    });
+  /**
+   * Opens the list the candidates moved to: 진행 종료 after a pass or an end,
+   * 저장 after a save, otherwise 파이프라인. `highlight` marks them on the
+   * 전체 화면 pipeline board.
+   */
+  const decisionListQuery = (roleId: string, stage: string | null | undefined) => ({
+    orgId: workspaceId,
+    roleId,
+    ...orgRoleCandidateTabQuery(orgRoleDecisionListTab(stage)),
+  });
+  const showInList = (
+    roleId: string,
+    stage: string | null | undefined,
+    recommendationIds: string[]
+  ) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(decisionListQuery(roleId, stage))) {
+      if (value !== undefined) params.set(key, value);
+    }
+    params.set("highlight", recommendationIds.join(","));
     void router.push(
-      `${href}&highlight=${encodeURIComponent(recommendationIds.join(","))}`,
+      `${buildOrgHref({ page: "role" })}?${params}`,
       undefined,
       { shallow: true }
     );
@@ -132,14 +147,18 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
   }: {
     message: string;
     recommendationIds: string[];
-    /** With a Role, the toast can open its pipeline at the moved cards. */
+    /** With a Role, the toast can open the list the cards moved to. */
     roleId?: string | null;
     run: () => Promise<unknown>;
     stage?: string | null;
   }) => {
     const id = schedule({ recommendationIds, run, stage });
-    const inPipeline =
-      router?.query.tab === "pipeline" && router?.query.roleId === roleId;
+    // No 보기 when that list is already on screen.
+    const onList =
+      Boolean(roleId) &&
+      Object.entries(decisionListQuery(roleId ?? "", stage)).every(
+        ([key, value]) => (router?.query[key] ?? undefined) === value
+      );
     addToast({
       actions: [
         {
@@ -148,11 +167,11 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
             if (cancel(id)) addToast({ message: c("되돌렸어요.", "Undone.") });
           },
         },
-        ...(roleId && !inPipeline
+        ...(roleId && !onList
           ? [
               {
                 label: c("보기", "View"),
-                onClick: () => showInPipeline(roleId, recommendationIds),
+                onClick: () => showInList(roleId, stage, recommendationIds),
               },
             ]
           : []),

@@ -149,6 +149,20 @@ function stageLabel(stage: OrgStage, roleName: string | null) {
     : stage.label;
 }
 
+/**
+ * A decision in its undo window already shows in the stage it goes to, as the
+ * old pipeline board did, so the toast's 보기 finds the person. A decision
+ * that only takes the person off the list hides them until it runs.
+ */
+function withDeferredStage(
+  item: OrgBoardItem,
+  deferredStages: ReadonlyMap<string, string | null>
+): OrgBoardItem[] {
+  if (!deferredStages.has(item.recommendationId)) return [item];
+  const stage = deferredStages.get(item.recommendationId);
+  return stage ? [{ ...item, stage: stage as OrgBoardItem["stage"] }] : [];
+}
+
 /** 파이프라인 (open stages, grouped) and 진행 종료, from the role's full board. */
 function PipelineList({ closed, onAskHarper }: ListProps & { closed: boolean }) {
   const sourceT = useOrgSourceT();
@@ -159,10 +173,10 @@ function PipelineList({ closed, onAskHarper }: ListProps & { closed: boolean }) 
   const items = useMemo(
     () =>
       (board?.items ?? [])
+        .flatMap((item) => withDeferredStage(item, deferredStages))
         .filter(
           (item) =>
             !item.savedAt &&
-            !deferredStages.has(item.recommendationId) &&
             (closed
               ? item.stage === "process_stopped"
               : isOrgRoleOpenPipelineStage(item.stage, internalOpsAccess))
@@ -222,12 +236,8 @@ function ClosedGrid({ toolbarTarget }: { toolbarTarget: HTMLElement | null }) {
   const items = useMemo(
     () =>
       (board?.items ?? [])
-        .filter(
-          (item) =>
-            !item.savedAt &&
-            !deferredStages.has(item.recommendationId) &&
-            item.stage === "process_stopped"
-        )
+        .flatMap((item) => withDeferredStage(item, deferredStages))
+        .filter((item) => !item.savedAt && item.stage === "process_stopped")
         .sort((left, right) => compareOrgCandidates(left, right, sort)),
     [board?.items, deferredStages, sort]
   );

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isOrgRoleOpenPipelineStage,
+  orgRoleDecisionListTab,
   orgRoleCandidateTab,
   orgRoleCandidateTabQuery,
   orgRolePane,
@@ -89,4 +90,11 @@ test("파이프라인 holds the open stages; inbox, closed and internal stages s
   for (const stage of ["pending_connection", "company_intro", "process_stopped", "archived", "accepted"])
     assert.equal(isOrgRoleOpenPipelineStage(stage), false, stage);
   assert.equal(isOrgRoleOpenPipelineStage("accepted", true), true);
+});
+
+test("a decision's 보기 opens the list the person moved to", () => {
+  assert.equal(orgRoleDecisionListTab("process_stopped"), "closed");
+  assert.equal(orgRoleDecisionListTab("intro_requested"), "pipeline");
+  assert.equal(orgRoleDecisionListTab("custom:interview"), "pipeline");
+  assert.equal(orgRoleDecisionListTab(null), "saved");
 });

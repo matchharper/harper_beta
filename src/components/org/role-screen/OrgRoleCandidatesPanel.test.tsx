@@ -33,7 +33,12 @@ test("전체 화면 has the split view's tabs and one toolbar row for every list
     { recommendationId: "closed-old", stage: "process_stopped", savedAt: null, companyPresentedAt: "2026-10-01T00:00:00Z" },
     { recommendationId: "closed-new", stage: "process_stopped", savedAt: null, companyPresentedAt: "2026-11-01T00:00:00Z" },
     { recommendationId: "closed-saved", stage: "process_stopped", savedAt: "2026-11-02T00:00:00Z" },
+    // Passed a moment ago, still in the undo window: already shown under 진행 종료.
+    { recommendationId: "passing", stage: "company_intro", savedAt: null, companyPresentedAt: "2026-09-01T00:00:00Z" },
+    // Decided with no new stage: off every list until it runs.
+    { recommendationId: "leaving", stage: "process_stopped", savedAt: null, companyPresentedAt: "2026-11-06T00:00:00Z" },
   ];
+  const deferredStages = new Map<string, string | null>([["passing", "process_stopped"], ["leaving", null]]);
   const empty = () => null;
   const passthrough = ({ children }: { children?: ReactNode }) => <>{children}</>;
   const nodeModule = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown };
@@ -53,8 +58,8 @@ test("전체 화면 has the split view's tabs and one toolbar row for every list
       useOrgJobsNavigation: () => ({ activeRole: { roleId: "role" }, workspaceId: "workspace", selectTalent: empty }),
     };
     if (name === "@/store/useOrgDeferredActionStore") return {
-      useOrgDeferredActionStore: (select: (state: { deferredStages: Set<string> }) => unknown) =>
-        select({ deferredStages: new Set() }),
+      useOrgDeferredActionStore: (select: (state: { deferredStages: ReadonlyMap<string, string | null> }) => unknown) =>
+        select({ deferredStages }),
     };
     if (name === "@/components/ui/tab-boxes") return {
       TabBoxes: ({ items: tabs, onValueChange }: { items: Array<{ value: string }>; onValueChange: (value: string) => void }) => {
@@ -142,6 +147,6 @@ test("전체 화면 has the split view's tabs and one toolbar row for every list
   boardViews.length = 0;
   await render("closed");
   assert.equal(boardViews.length, 0, "진행 종료 is its own list, not the pipeline board");
-  assert.deepEqual(talentBoards.at(-1)?.ids, ["closed-new", "closed-old"], "closed people only, newest first, saved ones left out");
+  assert.deepEqual(talentBoards.at(-1)?.ids, ["closed-new", "closed-old", "passing"], "closed people only (a pass in its undo window included), newest first, saved ones left out");
   assert.ok(slot.querySelector("[data-sort='latest']") && slot.querySelector("[data-history]"));
 });
