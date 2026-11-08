@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { useState } from "react";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { useOrgRoleActions } from "@/hooks/org/useOrgRoleActions";
@@ -25,6 +27,7 @@ export function OrgRoleStatusCard({ role }: { role: OrgRole }) {
   const status = getOrgRoleStatusPresentation(role.status).status;
   const paused = status === "paused";
   const ended = status === "ended";
+  const [confirmResume, setConfirmResume] = useState(false);
   const entitlements = useOrgEntitlements(paused || ended ? workspace.workspaceId : "");
   const { resumeRole, roleActionPending } = useOrgRoleActions({
     canManageCandidates: permissions.canManageCandidates,
@@ -107,7 +110,7 @@ export function OrgRoleStatusCard({ role }: { role: OrgRole }) {
         <div className="org-todo-card-actions">
           <MuteButton
             disabled={roleActionPending || entitlements.isLoading}
-            onClick={() => resumeRole(role)}
+            onClick={() => setConfirmResume(true)}
             size="sm"
             variant="dark"
           >
@@ -115,6 +118,47 @@ export function OrgRoleStatusCard({ role }: { role: OrgRole }) {
           </MuteButton>
         </div>
       ) : null}
+      {/* Same question the role menu asks before resuming (M4). */}
+      <TalentCareerModal
+        open={confirmResume}
+        onClose={() => setConfirmResume(false)}
+        mobileBottomSheet
+        title={c("역할 {action}", "{action} role", {
+          action: ct(c, COMPANY_TERMS.roleStatusAction.resume),
+        })}
+        description={c(
+          "“{p0}” 역할의 후보자 연결을 다시 시작할까요?",
+          'Resume recommendations for "{p0}"?',
+          { p0: role.name }
+        )}
+        panelClassName="max-w-sm"
+        bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <MuteButton
+              onClick={() => setConfirmResume(false)}
+              size="md"
+              type="button"
+            >
+              {c("취소", "Cancel")}
+            </MuteButton>
+            <MuteButton
+              disabled={roleActionPending}
+              onClick={() => {
+                setConfirmResume(false);
+                resumeRole(role);
+              }}
+              size="md"
+              type="button"
+              variant="dark"
+            >
+              {ct(c, COMPANY_TERMS.roleStatusAction.resume)}
+            </MuteButton>
+          </div>
+        }
+      >
+        {null}
+      </TalentCareerModal>
     </article>
   );
 }
