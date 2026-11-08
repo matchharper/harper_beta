@@ -22,7 +22,8 @@ export function scheduleRunMessages(env: Record<string, string | undefined> = pr
  * Tools per effect tier (D15). Tier 1 adds a proposal: a suggestion on the
  * Role's To-do that waits for the company's answer (manage_todo_suggestions).
  * Tier 2 adds the actions a run can complete: a message to a candidate's agent
- * in an existing introduction and publishing an introduced candidate. The run
+ * in an existing introduction and publishing an introduced candidate, and reading
+ * this Role's existing correspondence first (read-only, Role-scoped). The run
  * holds no member permission, so search and the scheduled-selection tool (403
  * or another path) are not offered.
  */
@@ -36,7 +37,7 @@ export function scheduleRunTools(tier: number, messages: ScheduleRunMessages = "
     "manage_agent_schedule",
     ...(messages === "off" ? [] : ["contact_user"]),
     ...(tier >= 1 ? ["manage_todo_suggestions"] : []),
-    ...(tier >= 2 ? ["contact_talent", "publish_role_recommendations"] : []),
+    ...(tier >= 2 ? ["read_agent_messages", "contact_talent", "publish_role_recommendations"] : []),
   ]);
 }
 
@@ -140,7 +141,7 @@ export async function scheduleThreadRecentText(
 }
 
 const TIER_2 =
-  "if still useful, you may message a candidate's agent in an existing introduction or publish an introduced candidate. This run cannot start a new search";
+  "read this Role's existing correspondence with candidates' agents (read_agent_messages) before acting; if still useful, you may message a candidate's agent in an existing introduction or publish an introduced candidate. This run cannot start a new search";
 const TIER_1_PROPOSAL =
   "a change you propose (a suggestion on the Role's To-do, manage_todo_suggestions) waits for the company's answer";
 

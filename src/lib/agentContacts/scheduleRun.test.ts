@@ -43,6 +43,8 @@ test("each tier is offered exactly the tools a scheduled run can complete", () =
         assert.equal(tools.has(name), false, name);
       assert.equal(tools.has("contact_talent"), tier >= 2);
       assert.equal(tools.has("publish_role_recommendations"), tier >= 2);
+      // Tier 2 reads this Role's existing correspondence first (read-only).
+      assert.equal(tools.has("read_agent_messages"), tier >= 2);
       // Tier 1 proposes: a suggestion on the Role's To-do.
       assert.equal(tools.has("manage_todo_suggestions"), tier >= 1);
     }
@@ -57,6 +59,8 @@ test("the run text keeps today's wording when off and names the destination when
   );
   const asked = { effect_tier: 2, created_by: "user" };
   assert.match(scheduleRunText(asked, null), /cannot start a new search/);
+  assert.match(scheduleRunText(asked, null), /read this Role's existing correspondence with candidates' agents \(read_agent_messages\)/);
+  assert.doesNotMatch(scheduleRunText(own, null), /read_agent_messages/);
   assert.doesNotMatch(scheduleRunText(asked, null), /you may search/);
   assert.match(scheduleRunText(own, { kind: "chat" }), /contact_user, one per run\) goes to this Role's web chat/);
   const thread = { kind: "slack", conversationId: "c", threadId: "t", threadRoleId: null, channelDbId: "d", slackChannelId: "C1" } as const;
