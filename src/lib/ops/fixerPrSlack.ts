@@ -28,6 +28,18 @@ export const FIXER_PR_REPOS = {
 export const FIXER_PR_BRANCH_PREFIX = "fix/incident-";
 export const FIXER_PR_MERGE_ACTION_ID = "harper_fixer_pr_merge";
 export const FIXER_PR_CLOSE_ACTION_ID = "harper_fixer_pr_close";
+export const FIXER_PR_DEPLOY_ACTION_ID = "harper_fixer_pr_deploy";
+/**
+ * Who may pick 배포까지 하기 on a PR card and answer an incident choice card
+ * (harper_incidents FIXER.md 13-1): one person, narrower than the merge buttons.
+ */
+export const FIXER_DEPLOY_ALLOWED_SLACK_USER_IDS = ["U0C8E9KPMSA"] as const;
+/**
+ * A fixer PR that also changes a prod DB function ends its title with this
+ * (FIXER.md 13-3). Merging it alone would leave the DB behind, so its card has
+ * no [머지]: 배포까지 하기 merges and applies the DB change together.
+ */
+export const FIXER_PR_DB_TITLE_SUFFIX = "(DB 적용 포함)";
 /** Supabase Vault secret names. */
 export const FIXER_PR_GITHUB_TOKEN_SECRET = "fixer_github_token";
 export const FIXER_PR_WEBHOOK_SECRET = "fixer_github_webhook_secret";
@@ -35,11 +47,17 @@ export const FIXER_PR_SECRETS_TTL_MS = 5 * 60 * 1000;
 
 export const FIXER_PR_NOT_ALLOWED_TEXT =
   "이 버튼은 지정된 두 분만 누를 수 있어요.";
+export const FIXER_DEPLOY_NOT_ALLOWED_TEXT = `${FIXER_DEPLOY_ALLOWED_SLACK_USER_IDS.map(
+  (id) => `<@${id}>`
+).join(", ")}님만 고를 수 있어요.`;
 export const FIXER_PR_UNAVAILABLE_TEXT =
   "지금은 GitHub 연결 설정이 없어 버튼이 동작하지 않아요. GitHub에서 처리해 주세요.";
 
-const INCIDENTS_URL = `https://github.com/${FIXER_PR_GITHUB_OWNER}/harper_incidents/issues`;
+export const FIXER_INCIDENTS_URL = `https://github.com/${FIXER_PR_GITHUB_OWNER}/harper_incidents/issues`;
+const INCIDENTS_URL = FIXER_INCIDENTS_URL;
 const CARD_BLOCK_ID = "harper_fixer_pr_card";
+/** An open card on which 배포까지 하기 was picked: no buttons, kept until the PR changes. */
+const DEPLOY_BLOCK_ID = "harper_fixer_pr_deploy";
 /** Cards for a merged or closed PR, one kind per outcome. */
 const FINAL_BLOCK_IDS = {
   closed: "harper_fixer_pr_closed",
@@ -47,7 +65,7 @@ const FINAL_BLOCK_IDS = {
 } as const;
 /** First block of every card: `<kind>:<repo>:<pr>:<head sha>`, how a card is found again. */
 const CARD_KEY_PATTERN =
-  /^harper_fixer_pr_(card|merged|closed):([a-z_]+):([1-9]\d*):([0-9a-f]{40})?$/;
+  /^harper_fixer_pr_(card|deploy|merged|closed):([a-z_]+):([1-9]\d*):([0-9a-f]{40})?$/;
 const ACTIONS_BLOCK_ID = "harper_fixer_pr_actions";
 const CARD_LOOKUP_DAYS = 30;
 const CARD_LOOKUP_LIMIT = 200;
@@ -57,7 +75,7 @@ const GITHUB_API_URL = "https://api.github.com";
 const GITHUB_TIMEOUT_MS = 15_000;
 
 export type FixerPrRepo = keyof typeof FIXER_PR_REPOS;
-export type FixerPrButtonAction = "merge" | "close";
+export type FixerPrButtonAction = "merge" | "close" | "deploy";
 export type FixerPrButtonValue = {
   base: string;
   pr: number;
@@ -70,6 +88,7 @@ export type FixerPrDecision =
   | "already_closed"
   | "stale_head"
   | "base_changed"
+  | "db_needs_deploy"
   | "not_eligible";
 export type FixerPrIneligibility =
   | "unknown_repo"
@@ -102,15 +121,15 @@ export type FixerPrCard = {
   text: string;
 };
 
-const clean = (value: unknown) => String(value ?? "").trim();
+export const clean = (value: unknown) => String(value ?? "").trim();
 
-function asRecord(value: unknown): Record<string, unknown> {
+export function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
 }
 
-function escapeMrkdwn(value: string) {
+export function escapeMrkdwn(value: string) {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -120,7 +139,7 @@ function escapeMrkdwn(value: string) {
 const shortSha = (value: unknown) => clean(value).slice(0, 7);
 
 /** 을/를 after a number read in Korean: #230을, #232를. */
-function objectParticle(value: number) {
+export function objectParticle(value: number) {
   return [2, 4, 5, 9].includes(value % 10) ? "를" : "을";
 }
 
@@ -132,6 +151,17 @@ export function isFixerPrAllowedUser(value: unknown) {
   return (FIXER_PR_ALLOWED_SLACK_USER_IDS as readonly string[]).includes(
     clean(value)
   );
+}
+
+export function isFixerDeployAllowedUser(value: unknown) {
+  return (FIXER_DEPLOY_ALLOWED_SLACK_USER_IDS as readonly string[]).includes(
+    clean(value)
+  );
+}
+
+/** A fixer PR that also changes a prod DB function (title suffix, FIXER.md 13-3). */
+export function isFixerPrDbPull(pull: Pick<FixerPrPull, "title">) {
+  return clean(pull.title).endsWith(FIXER_PR_DB_TITLE_SUFFIX);
 }
 
 export function fixerPrRepoFromFullName(value: unknown): FixerPrRepo | null {
@@ -250,7 +280,7 @@ export function formatFixerPrSeoulTime(value: unknown) {
 const MARKDOWN_LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
 
 /** GitHub markdown in a TL;DR line to Slack mrkdwn (links and bold). */
-function markdownLineToMrkdwn(value: string) {
+export function markdownLineToMrkdwn(value: string) {
   let result = "";
   let last = 0;
   for (const match of value.matchAll(MARKDOWN_LINK)) {
@@ -268,8 +298,8 @@ function markdownLineToMrkdwn(value: string) {
 
 const fixerPrUrl = (repo: FixerPrRepo, pr: number) =>
   `https://github.com/${FIXER_PR_GITHUB_OWNER}/${repo}/pull/${pr}`;
-const plainText = (text: string) => ({ type: "plain_text", text, emoji: true });
-const section = (blockId: string, text: string): HarperSlackBlock => ({
+export const plainText = (text: string) => ({ type: "plain_text", text, emoji: true });
+export const section = (blockId: string, text: string): HarperSlackBlock => ({
   type: "section",
   block_id: blockId,
   text: { type: "mrkdwn", text },
@@ -296,7 +326,10 @@ function fallbackText(label: string, repo: FixerPrRepo, pull: FixerPrPull) {
 }
 
 function cardKey(
-  kind: typeof CARD_BLOCK_ID | (typeof FINAL_BLOCK_IDS)[keyof typeof FINAL_BLOCK_IDS],
+  kind:
+    | typeof CARD_BLOCK_ID
+    | typeof DEPLOY_BLOCK_ID
+    | (typeof FINAL_BLOCK_IDS)[keyof typeof FINAL_BLOCK_IDS],
   repo: FixerPrRepo,
   pull: FixerPrPull
 ) {
@@ -328,46 +361,80 @@ export function parseFixerPrButtonValue(value: unknown): FixerPrButtonValue | nu
   return { base: FIXER_PR_REPOS[repo].base, pr, repo, sha };
 }
 
-function actionsBlock(repo: FixerPrRepo, pull: FixerPrPull): HarperSlackBlock {
+/** What 배포까지 하기 does for this PR, in the confirm dialog. */
+function deployConfirmText(repo: FixerPrRepo, pull: FixerPrPull) {
+  const steps =
+    repo === "harper_worker"
+      ? "머지하고 서버 반영까지 수정 에이전트가 이어서 해요. 맥에서 승인 한 번이 필요해요."
+      : isFixerPrDbPull(pull)
+        ? "머지, DB 적용, 운영 배포까지 수정 에이전트가 이어서 해요."
+        : "머지하고 운영 배포까지 수정 에이전트가 이어서 해요.";
+  return `${repo} #${pull.number}${objectParticle(pull.number)} ${steps} 시작할까요?`;
+}
+
+/**
+ * [머지] / [배포까지 하기] / [머지 안 함]. A PR that changes a prod DB function
+ * has no [머지]: merging it alone would leave the DB behind.
+ */
+/** [머지] / [배포까지 하기] / [머지 안 함]; a DB PR has no [머지]. `deploy: false` once 배포까지 하기 is picked. */
+function actionsBlock(
+  repo: FixerPrRepo,
+  pull: FixerPrPull,
+  options: { deploy?: boolean } = {}
+): HarperSlackBlock {
   const base = FIXER_PR_REPOS[repo].base;
+  const db = isFixerPrDbPull(pull);
   const value = encodeFixerPrButtonValue({
     base,
     pr: pull.number,
     repo,
     sha: clean(pull.head?.sha),
   });
+  const merge = {
+    type: "button",
+    action_id: FIXER_PR_MERGE_ACTION_ID,
+    style: "primary",
+    text: plainText("머지"),
+    value,
+    confirm: {
+      title: plainText("수정 PR 머지"),
+      text: plainText(
+        `${repo} #${pull.number}${objectParticle(pull.number)} ${base}에 머지할까요?`
+      ),
+      confirm: plainText("머지"),
+      deny: plainText("취소"),
+    },
+  };
+  const deploy = {
+    type: "button",
+    action_id: FIXER_PR_DEPLOY_ACTION_ID,
+    ...(db ? { style: "primary" } : {}),
+    text: plainText("배포까지 하기"),
+    value,
+    confirm: {
+      title: plainText("배포까지 하기"),
+      text: plainText(deployConfirmText(repo, pull)),
+      confirm: plainText("시작"),
+      deny: plainText("취소"),
+    },
+  };
+  const close = {
+    type: "button",
+    action_id: FIXER_PR_CLOSE_ACTION_ID,
+    text: plainText("머지 안 함"),
+    value,
+    confirm: {
+      title: plainText("수정 PR 닫기"),
+      text: plainText("PR을 닫을까요? 머지하지 않아요."),
+      confirm: plainText("닫기"),
+      deny: plainText("취소"),
+    },
+  };
+  const withDeploy = options.deploy ?? true;
   return {
     type: "actions",
     block_id: ACTIONS_BLOCK_ID,
-    elements: [
-      {
-        type: "button",
-        action_id: FIXER_PR_MERGE_ACTION_ID,
-        style: "primary",
-        text: plainText("머지"),
-        value,
-        confirm: {
-          title: plainText("수정 PR 머지"),
-          text: plainText(
-            `${repo} #${pull.number}${objectParticle(pull.number)} ${base}에 머지할까요?`
-          ),
-          confirm: plainText("머지"),
-          deny: plainText("취소"),
-        },
-      },
-      {
-        type: "button",
-        action_id: FIXER_PR_CLOSE_ACTION_ID,
-        text: plainText("머지 안 함"),
-        value,
-        confirm: {
-          title: plainText("수정 PR 닫기"),
-          text: plainText("PR을 닫을까요? 머지하지 않아요."),
-          confirm: plainText("닫기"),
-          deny: plainText("취소"),
-        },
-      },
-    ],
+    elements: [...(db ? [] : [merge]), ...(withDeploy ? [deploy] : []), close],
   };
 }
 
@@ -392,7 +459,11 @@ export function buildFixerPrOpenCard(args: {
     ...(previousSha && previousSha !== sha
       ? [`커밋이 바뀌었어요: \`${shortSha(previousSha)}\` → \`${shortSha(sha)}\``]
       : []),
-    `대상 \`${config.base}\` · 커밋 \`${shortSha(sha)}\` · ${config.afterMerge}`,
+    `대상 \`${config.base}\` · 커밋 \`${shortSha(sha)}\` · ${
+      isFixerPrDbPull(pull)
+        ? "DB를 바꾸는 PR이라 머지는 [배포까지 하기]로만 해요."
+        : config.afterMerge
+    }`,
     ...(clean(args.notice) ? [clean(args.notice)] : []),
   ];
   return {
@@ -436,6 +507,78 @@ export function buildFixerPrFinalCard(args: {
       repo,
       pull
     ),
+  };
+}
+
+/** What a picked card says about when the fixer starts. */
+export type FixerWakeResult = "woken" | "not_configured" | "failed";
+export const FIXER_NEXT_RUN_TEXT = "다음 정기 실행(05:40·17:40)에 이어서 해요.";
+export function fixerWakeLine(result: FixerWakeResult | "pending", soon: string) {
+  if (result === "woken" || result === "pending") return soon;
+  return result === "failed"
+    ? `수정 에이전트를 바로 깨우지 못했어요. ${FIXER_NEXT_RUN_TEXT}`
+    : FIXER_NEXT_RUN_TEXT;
+}
+
+/**
+ * The record line the fixer agent reads back (FIXER.md): only the Harper bot
+ * can write it, after checking who pressed.
+ */
+export function fixerPickRecordLine(fields: Array<string | number>) {
+  return `선택 기록 · ${fields.map((field) => clean(field)).join(" · ")}`;
+}
+
+/**
+ * 배포까지 하기 was picked on this commit: the record, with [머지 안 함] (and
+ * [머지] unless the PR changes the DB) left so the PR can still be stopped or
+ * merged by hand. A new commit brings the open card back.
+ */
+export function buildFixerPrDeployPickedCard(args: {
+  at: unknown;
+  by: string;
+  pull: FixerPrPull;
+  repo: FixerPrRepo;
+  wake: FixerWakeResult | "pending";
+}): FixerPrCard {
+  const { pull, repo } = args;
+  const sha = clean(pull.head?.sha);
+  const incident = parseFixerPrIncidentNumber({ body: pull.body, branch: pull.head?.ref });
+  const soon =
+    repo === "harper_worker"
+      ? "수정 에이전트가 곧 머지하고 서버 반영까지 해요. 맥에서 승인 한 번이 필요해요."
+      : "수정 에이전트가 곧 머지하고 운영 배포까지 해요.";
+  const at = args.at instanceof Date ? args.at : new Date(String(args.at));
+  return {
+    blocks: [
+      section(
+        cardKey(DEPLOY_BLOCK_ID, repo, pull),
+        [
+          [`🚀 <@${clean(args.by)}>님이 *배포까지 하기*를 골랐어요`, formatFixerPrSeoulTime(at)]
+            .filter(Boolean)
+            .join(" · "),
+          pullLine(repo, pull),
+          `대상 \`${FIXER_PR_REPOS[repo].base}\` · 커밋 \`${shortSha(sha)}\` · ${fixerWakeLine(args.wake, soon)}`,
+        ].join("\n")
+      ),
+      actionsBlock(repo, pull, { deploy: false }),
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: fixerPickRecordLine([
+              `사건 ${incident ?? "?"}`,
+              "deploy",
+              clean(args.by),
+              `${repo} #${pull.number}`,
+              shortSha(sha),
+              Number.isFinite(at.getTime()) ? at.toISOString() : "",
+            ]),
+          },
+        ],
+      },
+    ],
+    text: fallbackText("🚀 배포까지 하기를 골랐어요", repo, pull),
   };
 }
 
@@ -512,8 +655,10 @@ export function decideFixerPrAction(args: {
     return plan.outcome === "merged" ? "already_merged" : "already_closed";
   if (plan.kind === "base_changed") return "base_changed";
   if (plan.kind === "disabled") return "not_eligible";
-  // The person decided on the commit the card showed, for either button.
+  // The person decided on the commit the card showed, for any button.
   if (clean(pull.head?.sha) !== value.sha) return "stale_head";
+  // A card drawn before the title said so may still show [머지].
+  if (action === "merge" && isFixerPrDbPull(pull)) return "db_needs_deploy";
   return action;
 }
 
@@ -648,6 +793,8 @@ export type FixerPrSlackCall = (
 ) => Promise<FixerPrSlackResponse>;
 
 export type FixerPrFoundCard = {
+  /** 배포까지 하기 was picked on `sha`; the card waits for the fixer. */
+  deployPicked: boolean;
   /** What a final card shows; null for a card still asking for a decision. */
   outcome: "merged" | "closed" | null;
   pr: number;
@@ -671,6 +818,7 @@ export function readFixerPrCard(
   const ts = clean(record.ts);
   if (!match || !isFixerPrRepo(match[2]) || !ts) return null;
   return {
+    deployPicked: match[1] === "deploy",
     outcome: match[1] === "merged" || match[1] === "closed" ? match[1] : null,
     pr: Number(match[3]),
     repo: match[2],
@@ -680,17 +828,15 @@ export function readFixerPrCard(
 }
 
 /**
- * Newest card for this PR among the channel's latest messages of the last 30
- * days, in one read. Slack may allow an app outside its Marketplace one history
- * read a minute and 15 messages a read; a second page would then fail.
+ * The channel's latest messages of the last 30 days, in one read. Slack may
+ * allow an app outside its Marketplace one history read a minute and 15
+ * messages a read; a second page would then fail. Replies sent to the channel
+ * too (reply_broadcast) are in this list, so cards posted in a thread are found.
  */
-export async function findFixerPrCard(args: {
-  botUserId: string;
+export async function readFixerQaHistory(args: {
   now: Date;
-  pr: number;
-  repo: FixerPrRepo;
   slack: FixerPrSlackCall;
-}) {
+}): Promise<unknown[]> {
   const result = await args.slack("conversations.history", {
     channel: FIXER_PR_SLACK_CHANNEL_ID,
     limit: CARD_LOOKUP_LIMIT,
@@ -698,11 +844,79 @@ export async function findFixerPrCard(args: {
       Math.floor(args.now.getTime() / 1000) - CARD_LOOKUP_DAYS * 24 * 60 * 60
     ),
   });
-  for (const message of result.messages ?? []) {
+  return result.messages ?? [];
+}
+
+/** Newest card for this PR among messages from `readFixerQaHistory`. */
+export function findFixerPrCardIn(args: {
+  botUserId: string;
+  messages: unknown[];
+  pr: number;
+  repo: FixerPrRepo;
+}) {
+  for (const message of args.messages) {
     const card = readFixerPrCard(message, args.botUserId);
     if (card?.repo === args.repo && card.pr === args.pr) return card;
   }
   return null;
+}
+
+/** First block id of a Slack message, where every fixer post keeps its key. */
+export function firstBlockId(message: unknown) {
+  const record = asRecord(message);
+  return clean(Array.isArray(record.blocks) ? asRecord(record.blocks[0]).block_id : "");
+}
+
+/** Fixer choice cards and notices: `<kind>:<incident>:<GitHub comment id>[:<choice>]`. */
+const INCIDENT_POST_KEY_PATTERN =
+  /^harper_fixer_(choice|choice_picked|notice):([1-9]\d*):([1-9]\d*)(?::[a-z_]+)?$/;
+
+export function readFixerIncidentPostKey(message: unknown) {
+  const match = INCIDENT_POST_KEY_PATTERN.exec(firstBlockId(message));
+  return match
+    ? { commentId: Number(match[3]), incident: Number(match[2]), kind: match[1] }
+    : null;
+}
+
+/** Everything Slack shows of a message, for finding links in it. */
+function messageText(record: Record<string, unknown>) {
+  return `${clean(record.text)}\n${JSON.stringify(record.blocks ?? [])}`;
+}
+
+function linksIncident(record: Record<string, unknown>, incident: number) {
+  return new RegExp(`harper_incidents/issues/${incident}(?!\\d)`).test(messageText(record));
+}
+
+/**
+ * Where the incident's #qa posts go (FIXER.md, 11/9 decision): the thread of the
+ * bot's newest fixer post for it, else of the newest Harper post that links it
+ * (the incidents digest). Null: no such post, so the first one starts at the top.
+ */
+export function findFixerIncidentThread(args: {
+  botUserId: string;
+  incident: number;
+  messages: unknown[];
+}): string | null {
+  const bot = clean(args.botUserId);
+  if (!bot) return null;
+  const own = args.messages
+    .map(asRecord)
+    .filter((record) => clean(record.user) === bot && clean(record.ts));
+  const threadOf = (record: Record<string, unknown>) =>
+    clean(record.thread_ts) || clean(record.ts);
+  const fixerPost = own.find((record) => {
+    const key = readFixerIncidentPostKey(record);
+    if (key) return key.incident === args.incident;
+    return Boolean(readFixerPrCard(record, bot)) && linksIncident(record, args.incident);
+  });
+  if (fixerPost) return threadOf(fixerPost);
+  const digest = own.find((record) => linksIncident(record, args.incident));
+  return digest ? threadOf(digest) : null;
+}
+
+/** chat.postMessage fields that put a post in the incident's thread and in the channel. */
+export function fixerThreadFields(threadTs: string | null) {
+  return threadTs ? { reply_broadcast: true, thread_ts: threadTs } : {};
 }
 
 function cardBody(card: FixerPrCard) {
@@ -727,28 +941,49 @@ export async function syncFixerPrCard(args: {
 }): Promise<Record<string, unknown>> {
   const { pull, repo, slack } = args;
   const plan = planFixerPrCard(pull, repo);
-  const card = await findFixerPrCard({
+  const messages = await readFixerQaHistory({ now: args.now, slack });
+  const card = findFixerPrCardIn({
     botUserId: args.botUserId,
-    now: args.now,
+    messages,
     pr: pull.number,
     repo,
-    slack,
   });
   if (plan.kind !== "open" && !card) return { reason: "no_card", result: "skipped" };
   // A press may have written this outcome with who pressed; keep it.
   if (plan.kind === "final" && card?.outcome === plan.outcome)
     return { reason: "final_card", result: "skipped" };
-  const next = drawFixerPrCard(pull, repo, card?.sha);
+  // 배포까지 하기 was picked on this commit: the fixer is on it, keep the record.
+  if (plan.kind === "open" && card?.deployPicked && card.sha === clean(pull.head?.sha))
+    return { reason: "deploy_picked", result: "skipped" };
+  const next =
+    plan.kind === "open" && card?.deployPicked
+      ? buildFixerPrOpenCard({
+          notice: "새 커밋이라 배포까지 하기를 다시 골라 주세요.",
+          previousSha: card.sha,
+          pull,
+          repo,
+        })
+      : drawFixerPrCard(pull, repo, card?.sha);
   if (card) {
     await slack("chat.update", { ...cardBody(next), ts: card.ts });
     return { result: "updated", ts: card.ts };
   }
+  // A new card goes under the incident's #qa post and shows in the channel too.
+  const incident = parseFixerPrIncidentNumber({ body: pull.body, branch: pull.head?.ref });
+  const threadTs = incident
+    ? findFixerIncidentThread({ botUserId: args.botUserId, incident, messages })
+    : null;
   const posted = await slack("chat.postMessage", {
     ...cardBody(next),
+    ...fixerThreadFields(threadTs),
     unfurl_links: false,
     unfurl_media: false,
   });
-  return { result: "posted", ts: clean(posted.ts) || null };
+  return {
+    result: "posted",
+    ts: clean(posted.ts) || null,
+    ...(threadTs ? { thread_ts: threadTs } : {}),
+  };
 }
 
 /** `pull_request` actions that can change what the card shows. */
@@ -800,6 +1035,8 @@ export type FixerPrWebhookDeps = {
   /** The Harper bot's Slack user id: only its messages are cards. */
   botUserId: () => Promise<string>;
   github: (token: string) => FixerPrGitHub;
+  /** harper_incidents `issue_comment`, after the signature check (fixerIncidentSlack). */
+  incidentComment?: (payload: unknown) => Promise<FixerPrWebhookResult>;
   loadSecrets: () => Promise<FixerPrSecrets | null>;
   now?: () => Date;
   slack: FixerPrSlackCall;
@@ -830,7 +1067,8 @@ export async function runFixerPrWebhook(
   if (!verified) return { body: { error: "invalid_signature" }, status: 401 };
   const event = clean(input.event);
   if (event === "ping") return { body: { ok: true, status: "pong" }, status: 200 };
-  if (event !== "pull_request")
+  const incidentComment = event === "issue_comment" ? deps.incidentComment : undefined;
+  if (event !== "pull_request" && !incidentComment)
     return { body: { event, ignored: true, ok: true }, status: 200 };
   let payload: unknown;
   try {
@@ -838,6 +1076,7 @@ export async function runFixerPrWebhook(
   } catch {
     return { body: { error: "invalid_json" }, status: 400 };
   }
+  if (incidentComment) return incidentComment(payload);
   const action = clean(asRecord(payload).action);
   const target = fixerPrWebhookTarget(payload);
   if ("ignore" in target)
@@ -887,7 +1126,7 @@ export type FixerPrSlackActionPayload = {
   actions?: Array<{ action_id?: string; value?: string }>;
   channel?: { id?: string };
   container?: { channel_id?: string; message_ts?: string };
-  message?: { ts?: string };
+  message?: { blocks?: unknown; ts?: string };
   response_url?: string;
   team?: { id?: string };
   type?: string;
@@ -902,6 +1141,8 @@ export type FixerPrClickDeps = {
   /** Work after Slack has its acknowledgement (`after` on the server). */
   schedule: (task: () => Promise<void>) => void;
   slack: FixerPrSlackCall;
+  /** Starts the fixer agent's run now; absent when that is not set up. */
+  wake?: (text: string) => Promise<FixerWakeResult>;
 };
 
 const ephemeral = (text: string) => ({
@@ -925,6 +1166,8 @@ function decisionNotice(
       return `대상 브랜치가 바뀌어(\`${FIXER_PR_REPOS[value.repo].base}\` → \`${clean(pull.base?.ref)}\`) 아무것도 하지 않았어요. GitHub에서 확인해 주세요.`;
     case "not_eligible":
       return "초안이거나 수정 에이전트 PR이 아니라 아무것도 하지 않았어요. GitHub에서 확인해 주세요.";
+    case "db_needs_deploy":
+      return "DB를 바꾸는 PR이라 머지만 하지 않았어요. [배포까지 하기]를 눌러 주세요.";
     case "stale_head":
       return `카드를 올린 뒤 새 커밋이 생겨(\`${shortSha(value.sha)}\` → \`${shortSha(pull.head?.sha)}\`) 아무것도 하지 않았어요. 카드가 새 커밋으로 바뀌면 확인하고 다시 눌러 주세요. 안 바뀌면 GitHub에서 처리해 주세요.`;
   }
@@ -965,7 +1208,7 @@ function unchangedPress(
 
 /** Merge or close on GitHub. Only a press that changed the PR writes its final card. */
 async function applyFixerPrPress(args: {
-  action: FixerPrButtonAction;
+  action: "merge" | "close";
   github: FixerPrGitHub;
   now: () => Date;
   pull: FixerPrPull;
@@ -999,10 +1242,60 @@ async function applyFixerPrPress(args: {
     // Read the PR again: a race (another press, a push, GitHub) explains most refusals.
     const latest = await github.getPull(value.repo, value.pr).catch(() => null);
     const latestDecision = latest ? decideFixerPrAction({ action, pull: latest, value }) : action;
-    if (latestDecision !== "merge" && latestDecision !== "close")
+    if (latestDecision !== "merge" && latestDecision !== "close" && latestDecision !== "deploy")
       return unchangedPress(latestDecision, latest ?? pull, value);
     return { notice: refusalNotice(error) };
   }
+}
+
+/**
+ * 배포까지 하기: GitHub is not touched here. The card becomes the record the
+ * fixer agent reads (who, when, which commit), then the agent is woken.
+ * Without the record there is nothing to act on, so a failed update wakes no one.
+ */
+async function runFixerPrDeployPick(args: {
+  deps: FixerPrClickDeps;
+  messageTs: string;
+  notify: (text: string) => Promise<void>;
+  pull: FixerPrPull;
+  userId: string;
+  value: FixerPrButtonValue;
+}) {
+  const { deps, pull, userId, value } = args;
+  const at = (deps.now ?? (() => new Date()))();
+  const draw = (wake: FixerWakeResult | "pending") =>
+    buildFixerPrDeployPickedCard({ at, by: userId, pull, repo: value.repo, wake });
+  try {
+    await deps.slack("chat.update", {
+      ...cardBody(draw(deps.wake ? "pending" : "not_configured")),
+      ts: args.messageTs,
+    });
+  } catch (error) {
+    console.warn("[fixer-pr/click] deploy pick not recorded", error);
+    return args.notify("카드에 기록하지 못해 아무것도 하지 않았어요. 잠시 후 다시 눌러 주세요.");
+  }
+  if (!deps.wake) return;
+  const incident = parseFixerPrIncidentNumber({ body: pull.body, branch: pull.head?.ref });
+  const result = await deps
+    .wake(
+      [
+        `#qa PR 카드에서 배포까지 하기를 골랐어요: 사건 #${incident ?? "?"}`,
+        `${value.repo} #${value.pr}`,
+        `커밋 ${value.sha}`,
+        `카드 ts ${args.messageTs}`,
+        `누른 사람 ${userId}`,
+        at.toISOString(),
+      ].join(" · ") +
+        ". 이 글은 깨우는 신호예요. 선택은 #qa의 Harper 카드(선택 기록 줄)에서 직접 확인하세요."
+    )
+    .catch((error): FixerWakeResult => {
+      console.warn("[fixer-pr/click] wake failed", error);
+      return "failed";
+    });
+  if (result === "woken") return;
+  await deps
+    .slack("chat.update", { ...cardBody(draw(result)), ts: args.messageTs })
+    .catch((error) => console.warn("[fixer-pr/click] wake line not updated", error));
 }
 
 async function runFixerPrClick(args: {
@@ -1029,6 +1322,15 @@ async function runFixerPrClick(args: {
     );
   }
   const decision = decideFixerPrAction({ action, pull, value });
+  if (decision === "deploy")
+    return runFixerPrDeployPick({
+      deps,
+      messageTs: args.messageTs,
+      notify,
+      pull,
+      userId,
+      value,
+    });
   const outcome =
     decision === "merge" || decision === "close"
       ? await applyFixerPrPress({
@@ -1068,7 +1370,9 @@ export async function routeFixerPrSlackAction(
       ? "merge"
       : actionId === FIXER_PR_CLOSE_ACTION_ID
         ? "close"
-        : null;
+        : actionId === FIXER_PR_DEPLOY_ACTION_ID
+          ? "deploy"
+          : null;
   if (!kind) return null;
   const channelId = clean(payload.container?.channel_id || payload.channel?.id);
   if (
@@ -1078,11 +1382,16 @@ export async function routeFixerPrSlackAction(
     return { ignored: true, ok: true, status: "fixer_pr_other_channel" };
   const responseUrl = clean(payload.response_url);
   const userId = clean(payload.user?.id);
-  if (!isFixerPrAllowedUser(userId)) {
+  const allowed =
+    kind === "deploy" ? isFixerDeployAllowedUser(userId) : isFixerPrAllowedUser(userId);
+  if (!allowed) {
     if (responseUrl)
       deps.schedule(() =>
         deps
-          .respond(responseUrl, ephemeral(FIXER_PR_NOT_ALLOWED_TEXT))
+          .respond(
+            responseUrl,
+            ephemeral(kind === "deploy" ? FIXER_DEPLOY_NOT_ALLOWED_TEXT : FIXER_PR_NOT_ALLOWED_TEXT)
+          )
           .catch((error) => console.warn("[fixer-pr/click] notice", error))
       );
     return { ok: true, status: "fixer_pr_not_allowed" };
