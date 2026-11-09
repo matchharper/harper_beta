@@ -818,7 +818,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "propose_criteria_change",
       description:
-        "In Harper's review of pass reasons only: add one suggestion to the Role's To-do, backed by the passes in this review whose stated reasons support it: make one existing criterion one level stricter (criterionId; nice to have → important → required), add one new criterion when the reasons point at something no current criterion checks (newCriterion; nice to have or important), or save one company memory note when they point at a lasting company preference or fact rather than something to check for this Role (memoryNote). Give exactly one of the three. Nothing changes until a company member applies it in the To-do; the company can dismiss it, and an applied or dismissed change is never suggested again. One suggestion per review, up to 5 waiting per Role. A suggestion on the same criterion or memory note replaces the one waiting; name any other it makes out of date with replacesProposalId. This does not edit the Role, remove or rewrite a criterion or a memory, contact anyone or start a search. The result says whether the suggestion was added.",
+        "In Harper's review of pass reasons only: add one suggestion to the Role's To-do, backed by the passes in this review whose stated reasons support it or the company's messages in it: make one existing criterion one level stricter (criterionId; nice to have → important → required), add one new criterion when the reasons point at something no current criterion checks (newCriterion; nice to have or important), or save one company memory note when they point at a lasting company preference or fact rather than something to check for this Role (memoryNote). Give exactly one of the three. Nothing changes until a company member applies it in the To-do; the company can dismiss it, and an applied or dismissed change is never suggested again. One suggestion per review, up to 5 waiting per Role. A suggestion on the same criterion or memory note replaces the one waiting; name any other it makes out of date with replacesProposalId. This does not edit the Role, remove or rewrite a criterion or a memory, contact anyone or start a search. The result says whether the suggestion was added.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -865,14 +865,18 @@ export const ORG_AGENT_TOOLS = [
           },
           decisionIds: {
             description:
-              "The listed pass decisions whose stated reasons support this change, including at least one passed since the last review. A suggestion backed by one candidate is refused; a memory note cites only passes with a written reason.",
+              "The listed pass decisions whose stated reasons support this change, including at least one passed since the last review. Without messageIds, a suggestion backed by one candidate is refused; a memory note cites only passes with a written reason.",
             items: { type: "integer" },
-            minItems: 1,
+            type: "array",
+          },
+          messageIds: {
+            description: "The listed messages in which the company said this. One is enough. Give decisionIds, messageIds or both.",
+            items: { type: "integer" },
             type: "array",
           },
           reason: {
             description:
-              "One short sentence shown on the To-do card, in the workspace language (Korean in the friendly 해요체 the rest of the To-do uses): what these passes had in common, in the company's terms. No candidate names and no number or share such as many or most; the card adds the counts. A long sentence is shortened to fit the card.",
+              "One short sentence shown on the To-do card, in the workspace language (Korean in the friendly 해요체 the rest of the To-do uses): what these passes or messages had in common, in the company's terms. No candidate names and no number or share such as many or most; the card adds the counts. A long sentence is shortened to fit the card.",
             minLength: 1,
             type: "string",
           },
@@ -881,7 +885,7 @@ export const ORG_AGENT_TOOLS = [
             type: "string",
           },
         },
-        required: ["decisionIds", "reason"],
+        required: ["reason"],
         type: "object",
       },
     },

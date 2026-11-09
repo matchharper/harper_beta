@@ -244,3 +244,16 @@ test("two suggestions overlap on the same criterion or the same memory note", ()
   assert.equal(criteriaProposalsOverlap(note("짧은 재직은 어려워요."), note("짧은 재직은 어려워요")), true);
   assert.equal(criteriaProposalsOverlap(note("Go"), level("c-a", "Go")), false);
 });
+
+test("a suggestion from the conversation says so instead of counting passes", () => {
+  const payload: CriteriaProposalPayload = {
+    version: 1,
+    change: { type: "memory_note", note: "인턴 경험만 있는 사람은 보지 않아요", scope: "company" },
+    evidence: { count: 1, window: 1, decisionIds: [], messageIds: [501] },
+    locale: "ko",
+  };
+  assert.match(criteriaProposalText(payload, "ko").summary, /\(대화에서 말씀하신 내용\)$/);
+  assert.match(criteriaProposalText(payload, "en").summary, /\(from what your team said\)$/);
+  assert.equal(criteriaProposalChangeReason(payload, "ko"), "대화에서 말씀하신 내용 반영");
+  assert.deepEqual(parseCriteriaProposalPayload(JSON.parse(JSON.stringify(payload)))?.evidence.messageIds, [501]);
+});

@@ -128,7 +128,7 @@ test("the dispatcher queues nothing while suggestions are off", async () => {
   assert.equal(rpcs.length, 0);
   rpcResults.enqueue_due_company_decision_consolidations_v1 = () => 2;
   assert.equal(await server.enqueueDueCriteriaConsolidations({ admin, enabled: true }), 2);
-  assert.deepEqual(rpcs[0].args, { p_every: 3, p_limit: 20, p_wait_days: 7 });
+  assert.deepEqual(rpcs[0].args, { p_every: 3, p_limit: 20, p_message_every_hours: 24, p_wait_days: 7 });
   // The job itself does nothing while off either.
   assert.deepEqual(await server.runCriteriaConsolidation({ admin, roleId, workspaceId, enabled: false, review: noReview }), {
     status: "off",

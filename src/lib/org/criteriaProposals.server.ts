@@ -64,6 +64,7 @@ export async function enqueueDueCriteriaConsolidations(args: {
       p_every: CRITERIA_PROPOSAL_RULES.everyDecisions,
       p_wait_days: CRITERIA_PROPOSAL_RULES.waitDays,
       p_limit: args.limit ?? 20,
+      p_message_every_hours: CRITERIA_PROPOSAL_RULES.messageEveryHours,
     })) ?? 0
   );
 }
@@ -76,8 +77,14 @@ type ConsolidationInput = {
   cursor: number | null;
   briefRevision: number | null;
   decisions: PassDecision[];
+  /** The criteria of the Brief versions those decisions were made under. */
+  briefCriteriaAt?: Record<string, unknown>;
+  /** What the company said in the Role's conversation since the last review. */
+  messages?: CompanyMessageInput[];
   answeredKeys: string[];
 };
+
+type CompanyMessageInput = { id: number; channel: string; text: string; createdAt?: string | null };
 
 /** A suggestion of this Role still waiting for the company's answer. */
 export type OpenCriteriaProposal = {
@@ -153,6 +160,9 @@ async function readCriteriaReview(args: {
   roleId: string;
   decisions: PassDecision[];
   cursor: number | null;
+  criteria: unknown;
+  briefCriteriaAt?: Record<string, unknown>;
+  messages: CompanyMessageInput[];
 }): Promise<CriteriaReview> {
   const ids = args.decisions.map((decision) => decision.id);
   const talentIds = [...new Set(args.decisions.map((decision) => decision.subjectId).filter(Boolean))] as string[];
@@ -202,6 +212,9 @@ async function readCriteriaReview(args: {
     details,
     headlines,
     notes: candidateNotes,
+    criteria: args.criteria,
+    briefCriteriaAt: args.briefCriteriaAt,
+    messages: args.messages,
   });
 }
 
@@ -230,10 +243,16 @@ export async function runCriteriaConsolidation(args: {
     ...decision,
     id: Number(decision.id),
     reasonTags: Array.isArray(decision.reasonTags) ? decision.reasonTags.map(String) : [],
+    briefRevision: Number(decision.briefRevision) || null,
   }));
+  const messages = (input.messages ?? [])
+    .map((message) => ({ ...message, id: Number(message.id) }))
+    .filter((message) => Number.isSafeInteger(message.id) && clean(message.text));
   const through = Math.max(Number(args.throughDecisionId) || 0, decisions[0]?.id ?? 0) || null;
+  const throughMessage = messages.length ? Math.max(...messages.map((message) => message.id)) : null;
   const consume = async () => {
     if (through) await rpc(admin, "consume_company_decisions_v1", { p_role_id: roleId, p_through_id: through });
+    if (throughMessage) await rpc(admin, "consume_company_messages_v1", { p_role_id: roleId, p_through_id: throughMessage });
   };
   if (!input.open) {
     await consume();
@@ -257,9 +276,17 @@ export async function runCriteriaConsolidation(args: {
     openProposals.push(proposal);
   }
 
-  const review = await readCriteriaReview({ admin, roleId, decisions, cursor: input.cursor });
-  // Nothing new to read (no new pass gave a reason): no run.
-  if (!review.passes.some((pass) => pass.isNew)) {
+  const review = await readCriteriaReview({
+    admin,
+    roleId,
+    decisions,
+    cursor: input.cursor,
+    criteria: input.criteria,
+    briefCriteriaAt: input.briefCriteriaAt,
+    messages,
+  });
+  // Nothing new to read (no new pass gave a reason and the company said nothing): no run.
+  if (!review.passes.some((pass) => pass.isNew) && !review.companyMessages.length) {
     await consume();
     return { status: "nothing", throughDecisionId: through };
   }

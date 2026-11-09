@@ -412,3 +412,68 @@ test("the open-suggestions migration stops rather than break an upsert on the on
     await db.close();
   }
 });
+
+test("company information has versions, decisions note them, and new company words make a Role due once a day", async () => {
+  const INFO = "20261109020000_company_info_versions_and_review_inputs.sql";
+  const db = await setup();
+  try {
+    await db.exec(`
+      alter table company_workspace add column published_name text, add column homepage_url text, add column linkedin_url text,
+        add column career_url text, add column company_description text, add column pitch text, add column brief text, add column request text;
+      alter table company_decision_events add column if not exists brief_revision integer;
+      create table company_users(user_id uuid primary key, email text);
+      create table company_memory_revisions(id bigint primary key, company_workspace_id uuid, created_at timestamptz);
+      create function company_memory_for_role_v1(p_role uuid, p_version bigint) returns table(entry_id bigint)
+        language sql stable as 'select null::bigint where false';
+    `);
+    await db.exec(await sql(INFO));
+    const revisions = async () => Number((await db.query<any>("select max(revision) n from company_info_revisions where company_workspace_id = $1", [workspace])).rows[0].n);
+    assert.equal(await revisions(), 1);
+    await db.query("update company_workspace set company_description = 'New' where company_workspace_id = $1", [workspace]);
+    assert.equal(await revisions(), 2);
+    await db.query("update company_workspace set company_description = 'New' where company_workspace_id = $1", [workspace]);
+    assert.equal(await revisions(), 2);
+
+    const decided = await decide(db, { action: "pass" });
+    assert.equal((await db.query<any>("select company_info_revision r from company_decision_events where id = $1", [decided])).rows[0].r, 2);
+    const state = (await db.query<any>("select company_role_state_as_of_v1($1, now()) s", [role])).rows[0].s;
+    assert.equal(state.companyInfo.revision, 2);
+    assert.equal(state.companyInfo.snapshot.description, "New");
+
+    await db.query("insert into company_users values ($1, 'kim@customer.test'), ($2, 'staff@matchharper.com')", [kim, lee]);
+    const say = async (content: string, author: string | null, type = "chat", metadata = "{}") => Number((await db.query<any>(
+      `insert into company_messages(conversation_id, company_workspace_id, role_id, role, message_type, content, company_user_id, metadata, created_at)
+       values ($1, $2, $3, 'user', $4, $5, $6, $7::jsonb, now()) returning id`,
+      [conversationOf(role), workspace, role, type, content, author, metadata])).rows[0].id);
+    const member = await say("앞으로 인턴만 한 분은 안 봐요", kim);
+    const slack = await say("서울 근무만 봐요", null, "slack");
+    await say("내부 테스트", lee);
+    await say("anchor", kim, "web_action");
+    await say("form", kim, "chat", '{"onboardingSubmissionId":"x"}');
+    const input = (await db.query<any>("select company_decision_consolidation_input_v1($1) i", [role])).rows[0].i;
+    assert.deepEqual(input.messages.map((message: any) => message.id), [slack, member]);
+
+    const enqueue = async () => Number((await db.query<any>("select enqueue_due_company_decision_consolidations_v1(3, 7, 20, 24) n")).rows[0].n);
+    assert.equal(await enqueue(), 1);
+    assert.equal(await enqueue(), 0, "one waits already");
+    await db.query("update company_agent_web_action_jobs set status = 'completed_silent' where action_name = 'consolidate_decisions'");
+    await say("하나 더요", kim);
+    assert.equal(await enqueue(), 0, "at most once in 24 hours");
+    await db.query("update company_agent_web_action_jobs set created_at = now() - interval '25 hours' where action_name = 'consolidate_decisions'");
+    assert.equal(await enqueue(), 1, "new words after a day");
+
+    const settings = async () => Number((await db.query<any>("select count(*) n from company_role_setting_revisions where role_id = $1", [role])).rows[0].n);
+    const before = await settings();
+    await db.query("update company_agent_web_action_jobs set status = 'completed_silent', created_at = now() - interval '25 hours' where action_name = 'consolidate_decisions'");
+    await db.query("select consume_company_decisions_v1($1, $2)", [role, decided]);
+    const newest = Number((await db.query<any>("select max(id) n from company_messages where role = 'user'")).rows[0].n);
+    await db.query("select consume_company_messages_v1($1, $2)", [role, newest]);
+    assert.equal(await settings(), before, "the place in the messages is not a Role setting");
+    assert.equal(await enqueue(), 0, "nothing new was said");
+    const can = async (who: string) => (await db.query<any>(`select has_function_privilege('${who}', 'enqueue_due_company_decision_consolidations_v1(integer,integer,integer,integer)', 'EXECUTE') ok`)).rows[0].ok;
+    assert.equal(await can("service_role"), true);
+    assert.equal(await can("authenticated"), false);
+  } finally {
+    await db.close();
+  }
+});

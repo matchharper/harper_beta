@@ -38,6 +38,8 @@ export const CRITERIA_PROPOSAL_RULES = {
   everyDecisions: 3,
   /** ...or this many days after the oldest one not read yet. */
   waitDays: 7,
+  /** ...or when the company said something new, at most this often. */
+  messageEveryHours: 24,
   /** Candidates Harper reads per review: every new pass, then earlier ones up to this many. */
   reviewSize: 20,
   /** The strictest level Harper suggests (필수 keeps people out of searches). */
@@ -57,6 +59,8 @@ export type PassDecision = {
   subjectId: string | null;
   reasonTags: string[];
   hasReasonText: boolean;
+  /** The Brief version in force when the company decided. */
+  briefRevision?: number | null;
   createdAt?: string | null;
 };
 
@@ -114,7 +118,13 @@ export type CriteriaProposalPayload = {
    * Harper found that count of the window candidates it read with a stated
    * reason were passed for this criterion; decisionIds are those passes.
    */
-  evidence: { count: number; window: number; decisionIds: number[] };
+  evidence: {
+    count: number;
+    window: number;
+    decisionIds: number[];
+    /** Messages of the company's that support it; alone, count is how many. */
+    messageIds?: number[];
+  };
   /** The workspace language the suggestion was made in. */
   locale?: CompanyTermLocale;
   /** Harper's one sentence for the To-do card, in locale. */
@@ -276,6 +286,7 @@ export function criteriaProposalText(
     if (room >= 20)
       return { summary: `${question} ${shorten(rationale, room)} ${count}`, preview };
   }
+  if (fromConversationOnly(evidence)) return { summary: `${question} ${evidenceCount(evidence, locale)}`, preview };
   if (locale === "en") {
     return {
       summary: `${question} It was the reason for ${evidence.count} of your last ${evidence.window} passes with a reason.`,
@@ -288,7 +299,12 @@ export function criteriaProposalText(
   };
 }
 
+function fromConversationOnly(evidence: CriteriaProposalPayload["evidence"]) {
+  return !evidence.decisionIds.length && Boolean(evidence.messageIds?.length);
+}
+
 function evidenceCount(evidence: CriteriaProposalPayload["evidence"], locale: CompanyTermLocale) {
+  if (fromConversationOnly(evidence)) return locale === "en" ? "(from what your team said)" : "(대화에서 말씀하신 내용)";
   return locale === "en"
     ? `(${evidence.count} of ${evidence.window} passes with a reason)`
     : `(이유를 남긴 ${evidence.window}명 중 ${evidence.count}명)`;
@@ -330,6 +346,7 @@ export function criteriaProposalChangeReason(
   locale: CompanyTermLocale
 ) {
   const { count, window } = payload.evidence;
+  if (fromConversationOnly(payload.evidence)) return locale === "en" ? "From what your team said" : "대화에서 말씀하신 내용 반영";
   return locale === "en"
     ? `From pass reasons (${count} of ${window})`
     : `넘긴 이유 반영 (${window}명 중 ${count}명)`;
@@ -401,6 +418,9 @@ export function parseCriteriaProposalPayload(
       decisionIds: Array.isArray(evidence.decisionIds)
         ? evidence.decisionIds.map(Number).filter(Number.isFinite)
         : [],
+      ...(Array.isArray(evidence.messageIds) && evidence.messageIds.length
+        ? { messageIds: evidence.messageIds.map(Number).filter(Number.isFinite) }
+        : {}),
     },
     ...(raw.locale === "en" || raw.locale === "ko" ? { locale: raw.locale } : {}),
     ...(typeof raw.rationale === "string" && raw.rationale.trim()

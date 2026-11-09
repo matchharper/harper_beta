@@ -364,6 +364,7 @@ export async function proposeCriteriaChange(args: {
       newCriterion: args.input.newCriterion,
       memoryNote,
       decisionIds: args.input.decisionIds,
+      messageIds: args.input.messageIds,
       rationale: args.input.reason,
       snapshot,
     });
