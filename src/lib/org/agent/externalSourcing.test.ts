@@ -12,6 +12,7 @@ import {
   externalSearchNoticeFacts,
   externalSourcingEnabledFor,
   externalSourcingLimits,
+  NO_ROLE_LIMIT_WORKSPACE_IDS,
   formatExternalCandidatesResult,
   formatExternalCandidateStatuses,
   formatExternalSearchRequestResult,
@@ -50,16 +51,18 @@ test("a free workspace gets one run a day per Role; paid, scale and legacy keep 
   assert.match(formatExternalSearchRequestResult({ status: "not_queued", reason: "free_plan_daily_limit" }), /On the free plan each Role can start one external search per 24 hours/);
 });
 
-test("a workspace listed as having no Role limit keeps only the company limit, free or paid", () => {
-  const env = { ORG_EXTERNAL_SOURCING_NO_ROLE_LIMIT_WORKSPACE_IDS: " ws-harper , ws-other" };
+test("only Harper's own workspace skips the Role limit; the company limit still applies", () => {
+  const harper = "720254d7-aeb7-4709-a56f-7b822f89eac5";
+  assert.deepEqual([...NO_ROLE_LIMIT_WORKSPACE_IDS], [harper]);
   for (const plan of ["free", "slot", null]) {
-    assert.deepEqual(externalSourcingLimits(env, plan, "ws-harper"), { roleDaily: Number.POSITIVE_INFINITY, workspaceDaily: 20 });
+    assert.deepEqual(externalSourcingLimits({}, plan, harper), { roleDaily: Number.POSITIVE_INFINITY, workspaceDaily: 20 });
   }
-  assert.deepEqual(externalSourcingLimits(env, "free", "ws-customer"), { roleDaily: 1, workspaceDaily: 20 });
-  assert.deepEqual(externalSourcingLimits({}, "free", "ws-harper"), { roleDaily: 1, workspaceDaily: 20 });
+  assert.deepEqual(externalSourcingLimits({}, "free", "ws-customer"), { roleDaily: 1, workspaceDaily: 20 });
+  assert.deepEqual(externalSourcingLimits({}, "free", null), { roleDaily: 1, workspaceDaily: 20 });
+  assert.deepEqual(externalSourcingLimits({}, "free"), { roleDaily: 1, workspaceDaily: 20 });
   const decide = (roleRunsLast24h: number, workspaceRunsLast24h: number) => decideExternalSourcing({ enabled: true,
     trigger: "company_request", history: { ...quiet, roleRunsLast24h, workspaceRunsLast24h }, now: NOW, plan: "free",
-    limits: externalSourcingLimits(env, "free", "ws-harper") });
+    limits: externalSourcingLimits({}, "free", harper) });
   assert.deepEqual(decide(5, 5), { allowed: true });
   assert.deepEqual(decide(20, 20), { allowed: false, status: "not_queued", reason: "workspace_daily_limit" });
 });

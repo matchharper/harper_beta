@@ -10,15 +10,12 @@ import { externalInviteSendingEnabled } from "./externalInvite";
 export const EXTERNAL_SOURCING_TOOL_NAMES = ["request_external_search", "read_external_candidates", "contact_external_candidate"] as const;
 export type ExternalSourcingTrigger = "company_request" | "harper_suggestion" | "agent_initiative";
 
-function listedWorkspace(raw: string | undefined, workspaceId: string | null | undefined) {
-  if (!workspaceId) return false;
-  const ids = (raw ?? "").split(",").map((id) => id.trim()).filter(Boolean);
-  return ids.includes("*") || ids.includes(workspaceId);
-}
-
 /** Workspaces where the capability is offered: ORG_EXTERNAL_SOURCING_WORKSPACE_IDS (comma list, or *). Empty = off. */
 export function externalSourcingEnabledFor(workspaceId: string | null | undefined, env: Record<string, string | undefined> = process.env) {
-  return listedWorkspace(env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS, workspaceId);
+  const raw = (env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS ?? "").trim();
+  if (!raw || !workspaceId) return false;
+  const ids = raw.split(",").map((id) => id.trim()).filter(Boolean);
+  return ids.includes("*") || ids.includes(workspaceId);
 }
 
 function intEnv(env: Record<string, string | undefined>, name: string, fallback: number) {
@@ -26,15 +23,18 @@ function intEnv(env: Record<string, string | undefined>, name: string, fallback:
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
+/** Harper's own company workspace (internal testing): no per-Role limit, the company limit still applies. */
+export const NO_ROLE_LIMIT_WORKSPACE_IDS: readonly string[] = ["720254d7-aeb7-4709-a56f-7b822f89eac5"];
+
 /** Each run costs about $1 to $4. These limits are enforced in code, whatever the model asks for. */
 export function externalSourcingLimits(env: Record<string, string | undefined> = process.env, plan?: string | null,
   workspaceId?: string | null) {
   const roleDaily = intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 5);
   // runs one workspace may start in 24 hours across all its Roles: the cost ceiling per company
   const workspaceDaily = intEnv(env, "ORG_EXTERNAL_SOURCING_WORKSPACE_DAILY_LIMIT", 20);
-  // Workspaces in ORG_EXTERNAL_SOURCING_NO_ROLE_LIMIT_WORKSPACE_IDS (our own test company) keep only the company ceiling;
-  // the Role check never fires, so hitting the ceiling reads as workspace_daily_limit.
-  if (listedWorkspace(env.ORG_EXTERNAL_SOURCING_NO_ROLE_LIMIT_WORKSPACE_IDS, workspaceId)) {
+  // Harper's own company workspace keeps only the company ceiling; the Role check never fires, so hitting
+  // the ceiling reads as workspace_daily_limit.
+  if (workspaceId && NO_ROLE_LIMIT_WORKSPACE_IDS.includes(workspaceId)) {
     return { roleDaily: Number.POSITIVE_INFINITY, workspaceDaily };
   }
   return {
