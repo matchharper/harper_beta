@@ -2,6 +2,7 @@ import {readHiringBriefHistory} from '../hiringBriefHistory.server';
 import { isRoleStartBriefCopyError, ROLE_START_BRIEF_ONLY_TOOL_MESSAGE } from "@/lib/org/roleStartBriefCopy";
 import { throwBillingDbError } from "@/lib/org/billing/store";
 import { readCompanyMemory, writeCompanyMemory, object as memoryObject } from "./companyMemory";
+import { readCompanyDecisions } from "./companyDecisions";
 import { readCompanyRoleSearch } from "@/lib/companyFirstSearch/agenticSearch";
 import { slackCandidateProfileUrl } from "@/lib/org/slackCandidateWorkObject.server";
 import { assertReviewOnboardingTool } from "@/lib/org/workspaceReview.server";
@@ -1270,6 +1271,7 @@ function moreDataKinds(value: unknown) {
     "company_memory",
     "hiring_brief_history",
     "teams",
+    "decisions",
   ] as const;
   const kinds = Array.from(new Set(value.map(text).filter(Boolean)));
   if (
@@ -1310,7 +1312,7 @@ async function executeGetMoreData(args: {
   workspaceId: string;
 }) {
   const kinds = moreDataKinds(args.input.kinds);
-  const retainedKinds = kinds.filter((kind) => kind !== "matching_runs" && kind !== "company_memory" && kind !== "hiring_brief_history" && kind !== "teams");
+  const retainedKinds = kinds.filter((kind) => kind !== "matching_runs" && kind !== "company_memory" && kind !== "hiring_brief_history" && kind !== "teams" && kind !== "decisions");
   const readsHistory = kinds.includes("matching_runs");
   const offset = args.input.offset ?? 0;
   if (
@@ -1342,11 +1344,12 @@ async function executeGetMoreData(args: {
     await import("@/lib/companyFirstSearch/history");
   if (args.input.matching && !readsHistory) throw new OrgAgentToolInputError("matching requires matching_runs");
   if (args.input.memory && !kinds.includes("company_memory")) throw new OrgAgentToolInputError("memory requires company_memory");
+  if (args.input.decisions && !kinds.includes("decisions")) throw new OrgAgentToolInputError("decisions requires kinds=[decisions]");
   if (args.input.hiringBriefHistory && !kinds.includes('hiring_brief_history')) throw new OrgAgentToolInputError('hiringBriefHistory requires hiring_brief_history');
   const briefHistoryInput=memoryObject(args.input.hiringBriefHistory);
   const briefRoleId=kinds.includes('hiring_brief_history') ? roleOrThrow(args.state,briefHistoryInput.roleId).roleId : null;
   const {readCompanyTeams}=await import('./teamIndex');
-  const [retained, matchingRuns, roleSearch, companyMemory, hiringBriefHistory, teams] = await Promise.all([
+  const [retained, matchingRuns, roleSearch, companyMemory, hiringBriefHistory, teams, decisions] = await Promise.all([
     retainedKinds.length
       ? getOrgAgentMoreData({
           admin: args.admin,
@@ -1371,6 +1374,7 @@ async function executeGetMoreData(args: {
       historyId:typeof briefHistoryInput.historyId==='string' ? briefHistoryInput.historyId : undefined,
       offset:briefHistoryInput.offset as number|undefined,limit:briefHistoryInput.limit as number|undefined}) : Promise.resolve(undefined),
     kinds.includes('teams') ? readCompanyTeams({admin:args.admin,user:args.user,workspaceId:args.workspaceId}) : Promise.resolve(undefined),
+    kinds.includes("decisions") ? readCompanyDecisions({admin:args.admin,user:args.user,workspaceId:args.workspaceId,input:memoryObject(args.input.decisions)}) : Promise.resolve(undefined),
   ]);
   if (matchingRuns && retainedKinds.length) {
     fitOrgAgentMoreDataContent({
@@ -1387,6 +1391,7 @@ async function executeGetMoreData(args: {
     ...(matchingRuns ? { matchingRuns } : {}),
     ...(roleSearch ? { roleSearch } : {}),
     ...(companyMemory ? { companyMemory } : {}),
+    ...(decisions ? { decisions } : {}),
     ...(hiringBriefHistory ? {hiringBriefHistory} : {}),
   };
 

@@ -628,7 +628,7 @@ export const ORG_AGENT_TOOLS = [
     type: "function",
     function: {
       name: "get_more_data",
-      description: "Read additional company information. kinds selects members, teams, company_details, legacy workspace_memory, scoped company_memory, matching_runs, or hiring_brief_history. teams lists all accessible team IDs and names, including teams with no assigned people or Roles. hiring_brief_history lists saved Hiring Brief changes, authors and summaries; hiringBriefHistory.historyId returns complete before/after Brief and Criteria snapshots. With matching_runs alone, read recent history or older pages by offset. Add matching to read one run, current-Brief cumulative statistics, filtered candidate lists, or one person's evaluation history. Statistics count evaluations, not deliveries or consent. Missing historical measurements are unknown, not zero. company_memory returns editable row refs/revisions and actual scopes; memory filters narrow its inventory. Full field reads needed for edits use fullTextKeys. Read failures do not imply empty state.",
+      description: "Read additional company information. kinds selects members, teams, company_details, legacy workspace_memory, scoped company_memory, matching_runs, hiring_brief_history, or decisions. decisions pages the company's recorded decisions newest first (member and external candidates, role-start ratings, To-do answers and mutes, proposal answers) with reason text and tags, also tag-only ones; filter with decisions={roleId,subjectId,action}. Read decisions before judging candidates or saying what the company wants or rejected when visible evidence is thin; they are evidence to weigh, not rules. teams lists all accessible team IDs and names, including teams with no assigned people or Roles. hiring_brief_history lists saved Hiring Brief changes, authors and summaries; hiringBriefHistory.historyId returns complete before/after Brief and Criteria snapshots. With matching_runs alone, read recent history or older pages by offset. Add matching to read one run, current-Brief cumulative statistics, filtered candidate lists, or one person's evaluation history. Statistics count evaluations, not deliveries or consent. Missing historical measurements are unknown, not zero. company_memory returns editable row refs/revisions and actual scopes; memory filters narrow its inventory. Full field reads needed for edits use fullTextKeys. Read failures do not imply empty state.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -645,7 +645,7 @@ export const ORG_AGENT_TOOLS = [
           kinds: {
             description: "Requested independent data groups.",
             items: {
-              enum: ["members", "teams", "company_details", "workspace_memory", "company_memory", "matching_runs", "hiring_brief_history"],
+              enum: ["members", "teams", "company_details", "workspace_memory", "company_memory", "matching_runs", "hiring_brief_history", "decisions"],
               type: "string",
             },
             minItems: 1,
@@ -669,6 +669,11 @@ export const ORG_AGENT_TOOLS = [
           hiringBriefHistory: {type:"object",additionalProperties:false,required:["roleId"],properties:{
             roleId:{type:"string"},historyId:{type:"string",description:"Exact change id for full before/after snapshots. Omit for compact history list."},
             offset:{type:"integer",minimum:0},limit:{type:"integer",minimum:1},
+          }},
+          decisions: {type:"object",additionalProperties:false,description:"Filters for kinds=[decisions]. Omit to read the newest decisions this conversation may see.",properties:{
+            roleId:{type:"string",description:"Exact Role."},subjectId:{type:"string",description:"Exact talent_id, external candidateRef, or other subject id from an earlier row."},
+            action:{type:"string",enum:["pass","request_intro","save","unsave","stage_change","stop","rate","note","accept","reject","mute","unmute","cancel"]},
+            offset:{type:"integer",minimum:0},limit:{type:"integer",minimum:1,maximum:50},
           }},
           memory: {type:"object",additionalProperties:false,properties:{
             scope:{type:"string",enum:["company","team","role"]},roleId:{type:"string"},teamId:{type:"string"},

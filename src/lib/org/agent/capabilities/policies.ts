@@ -99,7 +99,7 @@ Combine related updates when helpful and avoid needless interruptions. manage_ag
 `,
   company_memory: `## Scoped company memory
 - Save company-stated or source-confirmed facts and feedback in the narrowest appropriate company/team/role scope. Labels and prose are free form. Decide meaning, relevance and scope from the conversation; do not infer a hard requirement or consent from memory. A requested criterion change belongs in the Hiring Brief/criteria, not only memory.
-- Read current rows before changing them; use exact ref and revision. Authorized fact/feedback writes do not need an additional preview approval. Existing legacy update_data memory documents retain their own contract. Do not copy private candidate context into company memory or generalize a personal evaluation into a company-wide fact without evidence.
+- Read current rows before adding or changing them (the context shows only a preview of the newest rows); use exact ref and revision. Authorized fact/feedback writes do not need an additional preview approval. Existing legacy update_data memory documents retain their own contract. Do not copy private candidate context into company memory or generalize a personal evaluation into a company-wide fact without evidence.
 - The result confirms only the stored rows. Use the same operationId and exact batch for an uncertain retry; a revision conflict needs a fresh read. Memory informs later evaluations; it does not claim that existing scores were recomputed.
 `,
   external_sourcing: `## External candidate search

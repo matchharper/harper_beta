@@ -55,6 +55,8 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     jobId: job.id,
     leaseOwner: job.locked_by,
   };
+  // A follow-up on an introduction also writes to the candidate's agent.
+  let candidateCorrespondence = job.action_name === "agent_contact_received";
   const assertCurrent = async () => {
     await assertAgentContactSource(db.query, source, source.roleId);
     if (job.action_name === "agent_contact_received") {
@@ -83,6 +85,7 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
       if (!schedule)
         throw new AgentContactSupersededError("Company schedule changed");
       if (schedule.target_refs?.introductionRootId) {
+        candidateCorrespondence = true;
         const [root] = await db.query(
           "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid AND cancelled_at IS NULL",
           [schedule.target_refs.introductionRootId]
@@ -99,8 +102,8 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
   const admin = withCompanyAgentScope(getSupabaseAdmin(), {
     ...source,
     assertCurrent,
-    // Company-wide memory stays out of correspondence with a candidate's agent.
-    companyMemory: job.action_name !== "agent_contact_received",
+    // Company-wide memory and decisions stay out of correspondence with a candidate's agent.
+    companyMemory: !candidateCorrespondence,
   });
   const { getOrgWorkspaceLocale } =
     await import("@/lib/org/workspaceLocale.server");

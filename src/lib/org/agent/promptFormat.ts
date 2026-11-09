@@ -1,6 +1,7 @@
 import { formatPromptText } from "@/lib/llm/promptText";
 import { formatLlmDateTime, projectLlmDateTimes } from '@/lib/llm/promptDateTime';
 import {formatHiringBriefHistory} from '../hiringBriefHistory';
+import { formatCompanyDecisions } from "./companyDecisions";
 import { formatCompanyMemory } from "./companyMemory";
 import { formatCompanyRoleSearch } from "@/lib/companyFirstSearch/agenticSearch";
 import { companyPresentationFinalFitLabel } from "@/lib/org/companyCriteriaEvaluations";
@@ -1197,6 +1198,7 @@ export function serializeOrgAgentMoreData(value: OrgAgentMoreDataToolResult) {
   if (value.roleSearch) blocks.push(formatPromptSection("role_search", formatCompanyRoleSearch(value.roleSearch)));
   if (value.hiringBriefHistory) blocks.push(formatPromptSection("hiring_brief_history",formatHiringBriefHistory(value.hiringBriefHistory)));
   if (value.companyMemory) blocks.push(formatPromptSection("company_memory", formatCompanyMemory(value.companyMemory)));
+  if (value.decisions) blocks.push(formatPromptSection("company_decisions", formatCompanyDecisions(value.decisions)));
   if (value.teams) blocks.push(formatPromptSection("teams",[
     `현재 대화 권한으로 조회 가능한 활성 팀 ${value.teams.length}개. 배정된 팀원·역할·Memory 유무와 독립적인 전체 팀 목록이다.`,
     formatPromptTable(['team_id','name'],value.teams.map(team=>[team.teamId,team.name]),[100,Number.MAX_SAFE_INTEGER]),

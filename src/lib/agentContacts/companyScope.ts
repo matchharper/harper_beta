@@ -37,6 +37,12 @@ export function companyAgentReadsCompanyMemory(admin: object) {
   return companyAgentScope(admin)?.companyMemory === true;
 }
 
+/** True in a run that writes to a candidate's agent: the company's reasons and notes stay out. */
+export function companyAgentIsCorrespondence(admin: object) {
+  const scope = companyAgentScope(admin);
+  return scope !== undefined && scope.companyMemory !== true;
+}
+
 /** Service principals can inspect their Role, research public evidence and act on
  * existing correspondence. Membership-only hiring mutations remain unavailable.
  * Use the shared capability registry; the receiver has no separate tool catalog.
@@ -62,6 +68,6 @@ export function companyAgentCorrespondenceTools(): ReadonlySet<string> {
 export function formatCompanyAgentServiceScope(scope: Pick<CompanyAgentScope, "roleId" | "companyMemory">) {
   const base = `회사 에이전트의 서비스 실행입니다. 팀원 계정의 지시나 권한 위임을 가장하지 않습니다. 접근은 역할 ${scope.roleId}의 승인된 자료와 연락으로 제한됩니다. 채용 결정·결제·팀원 관리 권한은 없습니다.`;
   return scope.companyMemory === true
-    ? `${base}\n회사 전체(scope=company) 메모리와 회사 공용 메모는 판단에만 씁니다. 이 실행의 글을 받는 사람은 그 내용을 볼 수 없을 수 있으니 그대로 인용하거나 옮겨 적지 않습니다.`
+    ? `${base}\n회사 전체(scope=company) 메모리와 회사 공용 메모, 회사의 결정 이유(decisions)는 판단에만 씁니다. 이 실행의 글을 받는 사람은 그 내용을 볼 수 없을 수 있으니 그대로 인용하거나 옮겨 적지 않습니다.`
     : base;
 }
