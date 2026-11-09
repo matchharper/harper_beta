@@ -52,11 +52,6 @@ import {
 } from "@/hooks/org/useOrgAgent";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import {
-  DEFAULT_ORG_AGENT_MODEL,
-  migrateOrgAgentModel,
-  type OrgAgentModelId,
-} from "@/lib/org/agent/modelConfig";
-import {
   ORG_ROLE_QUICK_ACTION_IDLE_MS,
   ORG_ROLE_RUN_SEARCH_ACTION,
   shouldShowOrgRoleQuickActions,
@@ -262,7 +257,6 @@ export function OrgAgentChatSurface({
   const confirmRoleCreation = useConfirmOrgRoleCreation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const composerOverlayRef = useRef<HTMLDivElement | null>(null);
-  const [model, setModel] = useState<OrgAgentModelId>(DEFAULT_ORG_AGENT_MODEL);
   const [composerOverlayHeight, setComposerOverlayHeight] = useState(
     ORG_AGENT_COMPOSER_DEFAULT_HEIGHT_PX
   );
@@ -306,7 +300,7 @@ export function OrgAgentChatSurface({
   );
   const sendTodoMessage = (message: string) => {
     setStickToBottom(true);
-    void chat.sendMessage({ attachments: [], mentions: [], message, model });
+    void chat.sendMessage({ attachments: [], mentions: [], message });
   };
   // Pipeline summary and Run Search: chips above the chat input.
   const todoShortcuts = useOrgTodoShortcuts({
@@ -323,7 +317,6 @@ export function OrgAgentChatSurface({
               ORG_ROLE_RUN_SEARCH_ACTION.message,
               "Find more candidates for this role we might want to send an intro request to."
             ),
-            model,
           });
         } finally {
           await matchingSearchStatus.refetch();
@@ -336,21 +329,6 @@ export function OrgAgentChatSurface({
     onSend: sendTodoMessage,
     searching: isRunSearchActive,
   });
-
-  const handleModelChange = (nextModel: OrgAgentModelId) => {
-    setModel(nextModel);
-    window.localStorage.setItem("harper:org-agent:model", nextModel);
-  };
-
-  useEffect(() => {
-    const savedModel = window.localStorage.getItem("harper:org-agent:model");
-    const resolvedModel = migrateOrgAgentModel(savedModel);
-    if (!resolvedModel) return;
-    if (savedModel !== resolvedModel)
-      window.localStorage.setItem("harper:org-agent:model", resolvedModel);
-    const frame = window.requestAnimationFrame(() => setModel(resolvedModel));
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
 
   useEffect(() => {
     const now = Date.now();
@@ -544,8 +522,6 @@ export function OrgAgentChatSurface({
       compactWidth={initialRoleCreation}
       disabled={readOnly || !workspaceId}
       isStreaming={chat.isStreaming}
-      model={model}
-      onModelChange={handleModelChange}
       onSend={({ attachments, draft, mentions, message }) => {
         setStickToBottom(true);
         const sent = chat.sendMessage({
@@ -557,7 +533,6 @@ export function OrgAgentChatSurface({
               : null,
           mentions,
           message,
-          model,
         });
         // A message sent while Harper answers waits its turn; the input stays free.
         return chat.queueEnabled ? undefined : sent;

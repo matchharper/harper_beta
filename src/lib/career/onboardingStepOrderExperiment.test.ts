@@ -8,5 +8,6 @@ test("uses visibility before profile for all onboarding after retiring the exper
     "engagement",
     "visibility",
     "profile",
+    "guide",
   ]);
 });

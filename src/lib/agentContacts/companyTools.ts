@@ -110,7 +110,11 @@ export async function executeCompanyCorrespondence(
     input.channel = replyThread ? "slack" : "chat";
     scheduleKey = `${source.jobId}:contact_user:schedule`;
   }
-  const operationKey = scheduleKey ?? `${source.kind === "company_event" ? source.jobId : source.messageId}:${args.name}:${input.introductionRootId ?? input.roleId ?? ""}:${input.channel ?? input.scheduleId ?? input.operationId ?? ""}`;
+  // Web and Slack are two surfaces of the same company notification. A second
+  // call choosing the other surface must reuse its committed message and batch.
+  const companyNotification = args.name === "contact_user" && ["chat", "slack"].includes(input.channel);
+  const operationPrefix = `${source.kind === "company_event" ? source.jobId : source.messageId}:${args.name}:${input.introductionRootId ?? input.recommendationId ?? input.roleId ?? ""}`;
+  const operationKey = scheduleKey ?? `${operationPrefix}:${companyNotification ? "chat" : input.channel ?? input.scheduleId ?? input.operationId ?? ""}`;
   if (args.name === "read_agent_messages")
     return readAgentCorrespondence(source, input, database);
   if (args.name === "manage_agent_schedule") {
@@ -133,6 +137,9 @@ export async function executeCompanyCorrespondence(
         operationKey,
         message: String(input.messageContent ?? ""),
         rootId: input.introductionRootId,
+        recommendationId: input.recommendationId,
+        roleId: input.roleId,
+        talentId: input.talentId,
         replyToMessageId: input.replyToMessageId,
       },
       database
@@ -164,7 +171,7 @@ export async function executeCompanyCorrespondence(
       if (
         root.cancelled_at ||
         rec.agent_introduction_root_id !== root.id ||
-        rec.feedback !== "like"
+        !["like","positive"].includes(rec.feedback)
       )
         throw new Error("Introduction was withdrawn or superseded");
       if (input.roleId && input.roleId !== root.role_id)
@@ -173,6 +180,10 @@ export async function executeCompanyCorrespondence(
         "SELECT id,text,metadata FROM public.talent_progress WHERE metadata->>'agentIntroductionRootId'=$1 AND kind='intro_to_company' FOR UPDATE",
         [root.id]
       );
+      if (root.source?.legacyCorrespondence) {
+        const [original] = await q("SELECT id FROM talent_progress WHERE recommendation_id=$1::uuid AND kind='intro_to_company' ORDER BY id LIMIT 1",[rec.id]);
+        if (original) return companyPresentationReceipt("unchanged",original.id);
+      }
       const explanation = String(input.presentation ?? "").trim();
       if (!explanation) throw new Error("The company's original agent must provide the candidate presentation");
       if (existing) {
@@ -248,10 +259,126 @@ export async function executeCompanyCorrespondence(
   }
   if (!["chat", "slack"].includes(input.channel))
     throw new Error("Unsupported company contact channel");
-  const roleId =
-    source.kind === "company_event" ? source.roleId : input.roleId;
-  let reused = false;
-  const result = await database.transaction(async (q) => {
+  if (ownSchedule) {
+    const roleId =
+      source.kind === "company_event" ? source.roleId : input.roleId;
+    let reused = false;
+    const result = await database.transaction(async (q) => {
+      if (!roleId) throw new Error("Exact Role required");
+      await assertAgentContactSource(q, source, roleId);
+      if (input.introductionRootId) {
+        const [root] = await q(
+          "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid AND id=root_id AND cancelled_at IS NULL FOR SHARE",
+          [input.introductionRootId]
+        );
+        if (
+          !root ||
+          root.role_id !== roleId ||
+          root.company_workspace_id !== source.workspaceId
+        )
+          throw new Error("Introduction audience mismatch");
+        await assertAgentContactSource(q, source, roleId, root.talent_id);
+        await assertAgentContactPair(q, root as AgentContactMessage);
+      }
+      await q("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+        operationKey,
+      ]);
+      const [existing] = await q(
+        "SELECT * FROM public.company_messages WHERE company_workspace_id=$1::uuid AND metadata->>'agentContactDeliveryKey'=$2",
+        [source.workspaceId, operationKey]
+      );
+      if (existing) {
+        reused = true;
+        return existing;
+      }
+      let channel: any = null;
+      if (replyThread) channel = { id: replyThread.channelDbId };
+      const batchId = channel ? randomUUID() : null;
+      // A thread reply joins that thread's conversation, so its history has it.
+      let conversationId = replyThread?.conversationId;
+      if (!conversationId) {
+        await q(
+          'INSERT INTO public.company_conversations(company_workspace_id,role_id,metadata) VALUES($1::uuid,$2::uuid,\'{"phase":"completed","scope":"role_creation"}\') ON CONFLICT DO NOTHING',
+          [source.workspaceId, roleId]
+        );
+        const [conversation] = await q(
+          "SELECT id FROM public.company_conversations WHERE company_workspace_id=$1::uuid AND role_id=$2::uuid",
+          [source.workspaceId, roleId]
+        );
+        conversationId = conversation.id;
+      }
+      const [message] = await q(
+        `INSERT INTO public.company_messages(company_workspace_id,conversation_id,role_id,role,content,message_type,status,model,metadata)
+        VALUES($1::uuid,$2::uuid,$3::uuid,'assistant',$4,$5,'completed',$6,$7::jsonb) RETURNING *`,
+        [
+          source.workspaceId,
+          conversationId,
+          replyThread ? replyThread.threadRoleId : roleId,
+          body,
+          input.channel,
+          args.model ?? null,
+          JSON.stringify({
+            source: "agent_contact",
+            agentContactDeliveryKey: operationKey,
+            agentIntroductionRootId: input.introductionRootId ?? null,
+            webActionJobId: source.kind === "company_event" ? source.jobId : null,
+            ...(ownSchedule ? { scheduleId: ownSchedule.id } : {}),
+            ...(batchId
+              ? {
+                  companyMessageBatch: {
+                    batchId,
+                    ref: "message",
+                    sourceMessageId: args.sourceMessageId,
+                    channelDbId: channel.id,
+                    // The thread keeps its own Role; the audience is checked for this one.
+                    ...(replyThread ? { threadRef: replyThread.threadId, audienceRoleId: roleId } : {}),
+                  },
+                }
+              : {}),
+          }),
+        ]
+      );
+      return message;
+    });
+    const reuseNote = reused
+      ? `\nThis run had already sent this message; nothing new was sent:\n${result.content}`
+      : "";
+    if (result.metadata?.companyMessageBatch) {
+      await transport.deliverBatch({
+        batchId: result.metadata.companyMessageBatch.batchId,
+        workspaceId: source.workspaceId,
+        assertCanStart: async () => {
+          const q = database.query;
+          await assertAgentContactSource(q, source, roleId);
+          if (result.metadata.agentIntroductionRootId) {
+            const [root] = await q(
+              "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid AND id=root_id AND cancelled_at IS NULL",
+              [result.metadata.agentIntroductionRootId]
+            );
+            if (!root) throw new Error("Introduction was withdrawn");
+            await assertAgentContactPair(q, root as AgentContactMessage);
+          }
+        },
+      });
+      return {
+        status: "sent",
+        modelOutput: result.metadata.companyMessageBatch.threadRef
+          ? `Message ${result.id} delivered in the Slack thread where this schedule was asked; the company can answer there. Readership is unknown.${reuseNote}`
+          : `Message ${result.id} delivered to the approved company Slack audience. Readership is unknown.${reuseNote}`,
+      };
+    }
+    return {
+      status: "saved",
+      modelOutput: `Message ${result.id} saved in the company's Role chat.${
+        ownSchedule
+          ? `${threadUnavailable ? " The Slack thread where this schedule was asked can no longer take this Role's messages." : ""} The company can answer there.`
+          : ""
+      } Readership is unknown.${reuseNote}`,
+    };
+  }
+  const results = await database.transaction(async (q) => {
+    const roleId =
+      source.kind === "company_event" ? source.roleId : input.roleId;
     if (!roleId) throw new Error("Exact Role required");
     await assertAgentContactSource(q, source, roleId);
     if (input.introductionRootId) {
@@ -271,97 +398,85 @@ export async function executeCompanyCorrespondence(
     await q("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
       operationKey,
     ]);
-    const [existing] = await q(
-      "SELECT * FROM public.company_messages WHERE company_workspace_id=$1::uuid AND metadata->>'agentContactDeliveryKey'=$2",
-      [source.workspaceId, operationKey]
+    const existing = await q(
+      "SELECT * FROM public.company_messages WHERE company_workspace_id=$1::uuid AND metadata->>'agentContactDeliveryKey'=ANY($2::text[]) ORDER BY id",
+      [source.workspaceId, [operationKey, `${operationPrefix}:slack`]]
     );
-    if (existing) {
-      reused = true;
-      return existing;
-    }
-    let channel: any = null;
-    if (replyThread) channel = { id: replyThread.channelDbId };
-    else if (input.channel === "slack") {
-      const { getSupabaseAdmin } = await import("@/lib/server/candidateAccess");
-      const { data, error } = await getSupabaseAdmin()
-        .from("company_slack_channels")
-        .select("id,slack_channel_id")
-        .eq("company_workspace_id", source.workspaceId)
-        .eq("is_enabled", true);
-      if (error) throw error;
-      const allowed = [];
-      for (const candidate of data ?? [])
-        if (
-          await transport.audienceAllowed({
-            workspaceId: source.workspaceId,
-            roleId,
-            channelId: candidate.slack_channel_id,
-          })
-        )
-          allowed.push(candidate);
-      if (allowed.length !== 1)
-        throw new Error(
-          "An unambiguous approved Role Slack audience is required; use the Role chat"
-        );
-      channel = allowed[0];
-    }
-    const batchId = channel ? randomUUID() : null;
-    // A thread reply joins that thread's conversation, so its history has it.
-    let conversationId = replyThread?.conversationId;
-    if (!conversationId) {
-      await q(
-        'INSERT INTO public.company_conversations(company_workspace_id,role_id,metadata) VALUES($1::uuid,$2::uuid,\'{"phase":"completed","scope":"role_creation"}\') ON CONFLICT DO NOTHING',
-        [source.workspaceId, roleId]
-      );
-      const [conversation] = await q(
-        "SELECT id FROM public.company_conversations WHERE company_workspace_id=$1::uuid AND role_id=$2::uuid",
-        [source.workspaceId, roleId]
-      );
-      conversationId = conversation.id;
-    }
-    const [message] = await q(
-      `INSERT INTO public.company_messages(company_workspace_id,conversation_id,role_id,role,content,message_type,status,model,metadata)
-      VALUES($1::uuid,$2::uuid,$3::uuid,'assistant',$4,$5,'completed',$6,$7::jsonb) RETURNING *`,
-      [
-        source.workspaceId,
-        conversationId,
-        replyThread ? replyThread.threadRoleId : roleId,
-        body,
-        input.channel,
-        args.model ?? null,
-        JSON.stringify({
-          source: "agent_contact",
-          agentContactDeliveryKey: operationKey,
-          agentIntroductionRootId: input.introductionRootId ?? null,
-          webActionJobId: source.kind === "company_event" ? source.jobId : null,
-          ...(ownSchedule ? { scheduleId: ownSchedule.id } : {}),
-          ...(batchId
-            ? {
-                companyMessageBatch: {
-                  batchId,
-                  ref: "message",
-                  sourceMessageId: args.sourceMessageId,
-                  channelDbId: channel.id,
-                  // The thread keeps its own Role; the audience is checked for this one.
-                  ...(replyThread ? { threadRef: replyThread.threadId, audienceRoleId: roleId } : {}),
-                },
-              }
-            : {}),
-        }),
-      ]
+    if (existing.length) return existing;
+    const data = await q(
+      `SELECT c.id,c.slack_channel_id FROM public.company_slack_channels c
+         WHERE c.company_workspace_id=$1::uuid AND c.is_enabled=true
+           AND NOT EXISTS(SELECT 1 FROM public.company_role_notification_channels n
+             WHERE n.role_id=$2::uuid AND n.channel_id=c.id)
+         ORDER BY c.id`,
+      [source.workspaceId, roleId]
     );
-    return message;
+    const allowed: Array<{ id: string; slack_channel_id: string }> = [];
+    for (const candidate of data)
+      if (
+        await transport.audienceAllowed({
+          workspaceId: source.workspaceId,
+          roleId,
+          channelId: candidate.slack_channel_id,
+        })
+      )
+        allowed.push(candidate as { id: string; slack_channel_id: string });
+    if (input.channel === "slack" && !allowed.length)
+      throw new Error("No enabled Role notification channel has an approved Slack audience");
+    const channels = [null, ...allowed];
+    const batchId = channels.length > 1 ? randomUUID() : null;
+    await q(
+      'INSERT INTO public.company_conversations(company_workspace_id,role_id,metadata) VALUES($1::uuid,$2::uuid,\'{"phase":"completed","scope":"role_creation"}\') ON CONFLICT DO NOTHING',
+      [source.workspaceId, roleId]
+    );
+    const [conversation] = await q(
+      "SELECT id FROM public.company_conversations WHERE company_workspace_id=$1::uuid AND role_id=$2::uuid",
+      [source.workspaceId, roleId]
+    );
+    const messages = [];
+    for (const channel of channels) {
+      const [message] = await q(
+        `INSERT INTO public.company_messages(company_workspace_id,conversation_id,role_id,role,content,message_type,status,model,metadata)
+        VALUES($1::uuid,$2::uuid,$3::uuid,'assistant',$4,$5,'completed',$6,$7::jsonb) RETURNING *`,
+        [
+          source.workspaceId,
+          conversation.id,
+          roleId,
+          body,
+          channel ? "slack" : "chat",
+          args.model ?? null,
+          JSON.stringify({
+            source: "agent_contact",
+            agentContactDeliveryKey: operationKey,
+            agentIntroductionRootId: input.introductionRootId ?? null,
+            webActionJobId: source.kind === "company_event" ? source.jobId : null,
+            ...(batchId && channel
+              ? {
+                  companyEventUiDuplicateOf: messages[0].id,
+                  companyMessageBatch: {
+                    batchId,
+                    ref: channel.id,
+                    sourceMessageId: args.sourceMessageId,
+                    channelDbId: channel.id,
+                  },
+                }
+              : {}),
+          }),
+        ]
+      );
+      messages.push(message);
+    }
+    return messages;
   });
-  const reuseNote = reused
-    ? `\nThis run had already sent this message; nothing new was sent:\n${result.content}`
-    : "";
-  if (result.metadata?.companyMessageBatch) {
+  const batches = new Map(results.filter(result => result.metadata?.companyMessageBatch)
+    .map(result => [result.metadata.companyMessageBatch.batchId, result]));
+  for (const [batchId, result] of batches) {
     await transport.deliverBatch({
-      batchId: result.metadata.companyMessageBatch.batchId,
+      batchId,
       workspaceId: source.workspaceId,
       assertCanStart: async () => {
         const q = database.query;
-        await assertAgentContactSource(q, source, roleId);
+        await assertAgentContactSource(q, source, result.role_id);
         if (result.metadata.agentIntroductionRootId) {
           const [root] = await q(
             "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid AND id=root_id AND cancelled_at IS NULL",
@@ -372,19 +487,15 @@ export async function executeCompanyCorrespondence(
         }
       },
     });
+  }
+  if (batches.size) {
     return {
       status: "sent",
-      modelOutput: result.metadata.companyMessageBatch.threadRef
-        ? `Message ${result.id} delivered in the Slack thread where this schedule was asked; the company can answer there. Readership is unknown.${reuseNote}`
-        : `Message ${result.id} delivered to the approved company Slack audience. Readership is unknown.${reuseNote}`,
+      modelOutput: `${results.some(result => result.message_type === "chat") ? "Message saved in the company's Role chat and" : "Message"} delivered to the configured, approved company Slack audiences. Delivery records: ${results.map(result => result.id).join(", ")}. Readership is unknown.`,
     };
   }
   return {
     status: "saved",
-    modelOutput: `Message ${result.id} saved in the company's Role chat.${
-      ownSchedule
-        ? `${threadUnavailable ? " The Slack thread where this schedule was asked can no longer take this Role's messages." : ""} The company can answer there.`
-        : ""
-    } Readership is unknown.${reuseNote}`,
+    modelOutput: `Message ${results[0].id} saved in the company's Role chat. No Slack or email alert was sent. Readership is unknown.`,
   };
 }

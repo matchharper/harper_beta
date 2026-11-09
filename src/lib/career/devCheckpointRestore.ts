@@ -6,6 +6,7 @@ import {
   scopeSql,
   tableSql,
   canonicalRows,
+  DEFAULT_CHECKPOINT_SCOPES,
 } from "./devCheckpointData";
 
 export type CheckpointQuery = (
@@ -22,13 +23,14 @@ const beforeTable = (table: string) => `pg_temp.${q(`checkpoint_${table}`)}`;
 export async function readCheckpointRows(
   query: CheckpointQuery,
   userId: string,
-  tables = CHECKPOINT_TABLES
+  tables = CHECKPOINT_TABLES,
+  scopes = DEFAULT_CHECKPOINT_SCOPES
 ) {
   const rows = await query(
     tables
       .map(
         (table) =>
-          `select '${table}' as name, coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) as data from ${tableSql(table)} t where ${scopeSql(table, "t")}`
+          `select '${table}' as name, coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) as data from ${tableSql(table)} t where ${scopeSql(table, "t", "$1", scopes)}`
       )
       .join(" union all "),
     [userId]
@@ -47,7 +49,8 @@ export async function restoreCheckpointRows(
   query: CheckpointQuery,
   snapshot: CareerCheckpoint,
   tables = CHECKPOINT_TABLES,
-  beforeRestore?: () => Promise<void>
+  beforeRestore?: () => Promise<void>,
+  scopes = DEFAULT_CHECKPOINT_SCOPES
 ) {
   const selected = new Set(tables);
   const edges = snapshot.fks.filter(
@@ -61,7 +64,7 @@ export async function restoreCheckpointRows(
     if (edge.parent_schema === "public") locks.add(edge.parent);
   }
   await query(
-    `lock table ${[...locks].sort().map(tableSql).join(", ")} in share row exclusive mode`
+    `lock table ${[...locks].sort().map(tableSql).join(", ")} in share row exclusive mode nowait`
   );
   await beforeRestore?.();
   await query("set local standard_conforming_strings = on");
@@ -70,7 +73,7 @@ export async function restoreCheckpointRows(
   // restored first, and for checking external references after the replacement.
   for (const table of tables) {
     statements.push(
-      `create temporary table ${q(`checkpoint_${table}`)} on commit drop as select t.ctid as _checkpoint_ctid, t.* from ${tableSql(table)} t where ${scopeSql(table, "t", literal(snapshot.user.id))}`
+      `create temporary table ${q(`checkpoint_${table}`)} on commit drop as select t.ctid as _checkpoint_ctid, t.* from ${tableSql(table)} t where ${scopeSql(table, "t", literal(snapshot.user.id), scopes)}`
     );
   }
   statements.push("set local session_replication_role = replica");
@@ -101,22 +104,29 @@ export async function restoreCheckpointRows(
         .join(" and ");
     const affected: string[] = [];
     if (selected.has(edge.child))
-      affected.push(scopeSql(edge.child, "c", literal(snapshot.user.id)));
+      affected.push(
+        `select c.* from ${child} c where ${scopeSql(edge.child, "c", literal(snapshot.user.id), scopes)}`
+      );
     if (edge.parent_schema === "public" && selected.has(edge.parent)) {
       affected.push(
-        `exists(select 1 from ${beforeTable(edge.parent)} b where ${equality("c", "b")})`
+        `select c.* from ${beforeTable(edge.parent)} b join ${child} c on ${equality("c", "b")}`
       );
     }
     const required = edge.child_columns
       .map((col) => `c.${q(col)} is not null`)
       .join(" and ");
     checks.push(
-      `if exists(select 1 from ${child} c where (${affected.join(" or ")}) and ${required} and not exists(select 1 from ${parent} p where ${equality("c", "p")})) then raise exception '%', ${literal(`다른 기록이 연결돼 있어 복원하지 않았습니다: ${edge.child} → ${edge.parent}`)}; end if;`
+      `if exists(select 1 from (${affected.join(" union all ")}) c where ${required} and not exists(select 1 from ${parent} p where ${equality("c", "p")})) then raise exception '%', ${literal(`다른 기록이 연결돼 있어 복원하지 않았습니다: ${edge.child} → ${edge.parent}`)}; end if;`
     );
   }
   await query(`do ${literal(`begin ${checks.join("\n")} end`)};`);
   await query("set local session_replication_role = origin");
-  const restored = await readCheckpointRows(query, snapshot.user.id, tables);
+  const restored = await readCheckpointRows(
+    query,
+    snapshot.user.id,
+    tables,
+    scopes
+  );
   for (const table of tables) {
     if (
       JSON.stringify(canonicalRows(restored[table])) !==

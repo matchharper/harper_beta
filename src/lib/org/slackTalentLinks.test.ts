@@ -50,7 +50,7 @@ test("extracts unique valid talent IDs from company-side LLM markers", () => {
   );
 });
 
-test("prefers the Slack thread role and otherwise keeps the newest row", () => {
+test("uses the Slack thread Role without substituting another Role for an unmatched candidate", () => {
   const targets = selectSlackTalentLinkTargets({
     preferredRoleId: "role-preferred",
     rows: [
@@ -82,10 +82,29 @@ test("prefers the Slack thread role and otherwise keeps the newest row", () => {
       talentId: TALENT_A,
     },
     {
-      recommendationId: "recommendation-b",
-      roleId: "role-other",
       talentId: TALENT_B,
     },
+  ]);
+});
+
+test("an unscoped candidate with multiple Roles opens the profile without inventing a Role", () => {
+  const rows = [
+    { talentId: TALENT_A, roleId: ROLE_B, recommendationId: "new-marketing", recommendedAt: "2026-11-08T13:34:35Z" },
+    { talentId: TALENT_A, roleId: ROLE_A, recommendationId: "older-fde", recommendedAt: "2026-11-08T09:24:34Z" },
+  ];
+  const targets = selectSlackTalentLinkTargets({ rows });
+  assert.deepEqual(targets, [{ talentId: TALENT_A }]);
+  const message = renderSlackOrgLinks({
+    message: `[FDE](role:${ROLE_A}) 역할의 [김하퍼](talent:${TALENT_A})`,
+    workspaceId: "workspace", roleTargets: [{ roleId: ROLE_A }], talentTargets: targets,
+  });
+  assert.ok(message.includes(`/org/home?orgId=workspace&talentId=${TALENT_A}`), message);
+  assert.ok(!message.includes(ROLE_B), message);
+  assert.deepEqual(selectSlackTalentLinkTargets({ rows, preferredRoleId: ROLE_A }), [
+    { talentId: TALENT_A, roleId: ROLE_A, recommendationId: "older-fde" },
+  ]);
+  assert.deepEqual(selectSlackTalentLinkTargets({ rows: rows.slice(0, 1) }), [
+    { talentId: TALENT_A, roleId: ROLE_B, recommendationId: "new-marketing" },
   ]);
 });
 

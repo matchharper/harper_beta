@@ -21,6 +21,8 @@ import { buildOrgHomeInboxGroups } from "@/lib/org/inboxPagination";
 import { OrgReviewingLine } from "./OrgReviewingLine";
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
+import { OrgAgentModelDevControls } from "./internal/OrgAgentModelDevControls";
+import { canUseOrgDevControls } from "@/lib/internalAccess";
 import { OrgHomeFeed } from "./OrgHomeFeed";
 import { OrgHomeListItem } from "./OrgHomeListItem";
 import { useOrgMobileNavigation } from "./workspace/OrgMobileNavigation";
@@ -154,7 +156,7 @@ export function OrgHomeInbox() {
   const router = useRouter();
   const { openNavigation } = useOrgMobileNavigation();
   const { c } = useOrgLocale();
-  const { roles } = useOrgWorkspace();
+  const { roles, user } = useOrgWorkspace();
   const { board, boardQuery } = useOrgJobsBoard();
   const { workspaceId, detailRecommendationId, detailTalentId } =
     useOrgJobsNavigation();
@@ -498,6 +500,7 @@ export function OrgHomeInbox() {
             )}
           </aside>
         )}
+        {canUseOrgDevControls(user.email) && <OrgAgentModelDevControls />}
       </div>
       {(!hasBlockingInboxError || mobileDetail) &&
         (feed || isDesktop || mobileDetail) && (

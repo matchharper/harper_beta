@@ -382,7 +382,14 @@ const CareerCompanyWatchlistPanel = () => {
         className="md:my-4"
       />
 
-      {activeTab === "following" && <p className="mb-4 text-sm text-neutral-muted">{t("career.automation.coverage", "연결된 채용 공고를 확인합니다. 뉴스와 펀딩 소식은 아직 추적하지 않습니다.")}</p>}
+      {activeTab === "following" && (
+        <p className="mb-4 text-sm text-neutral-muted">
+          {t(
+            "career.automation.coverage",
+            "연결된 채용 공고를 확인합니다."
+          )}
+        </p>
+      )}
 
       <div className="space-y-4 pb-6">
         {actionError ? (

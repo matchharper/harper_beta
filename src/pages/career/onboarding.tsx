@@ -1,3 +1,8 @@
+import {
+  CareerOnboardingGuideHeader,
+  CareerOnboardingGuideBody,
+  getCareerOnboardingGuideDefinition,
+} from "@/components/career/CareerOnboardingGuide";
 import { ResumeTextRecovery } from "@/components/career/ResumeTextRecovery";
 import {
   OnboardingFrame,
@@ -233,6 +238,7 @@ const getOnboardingSteps = (
       bodyClassName: "grid w-full gap-3 text-left",
       footnoteClassName: "mt-3 text-[13px] leading-5 text-neutral-muted",
     },
+    getCareerOnboardingGuideDefinition(t),
   ];
 };
 
@@ -251,7 +257,7 @@ const getDoneStepDefinition = (t: CareerT): OnboardingStepDefinition => ({
   bodyClassName: "",
 });
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = getCareerOnboardingStepOrder().length;
 const ONBOARDING_STEP_DEFINITION_INDEX: Record<
   CareerOnboardingStepKind,
   number
@@ -260,6 +266,7 @@ const ONBOARDING_STEP_DEFINITION_INDEX: Record<
   engagement: 1,
   profile: 2,
   visibility: 3,
+  guide: 4,
 };
 
 const normalizeLink = (value: string) => {
@@ -814,7 +821,7 @@ const OnboardingFooterControls = ({
   step,
 }: {
   onNext: () => void;
-  onPrev: () => void;
+  onPrev?: () => void;
   step: number;
 }) => {
   const t = useCareerT();
@@ -825,25 +832,14 @@ const OnboardingFooterControls = ({
       onPrev={step > 0 ? onPrev : undefined}
       previousLabel={t("career.onboarding.onboarding.0wrohr9", "이전")}
       nextLabel={
-        step === TOTAL_STEPS - 1
-          ? t("career.onboarding.onboarding.0cvpvmv", "기회 탐색 시작하기")
-          : step === 0
-            ? t("career.onboarding.onboarding.1gr43li", "Harper 시작하기")
-            : t("career.onboarding.onboarding.0wbopf1", "다음")
+        step === 0
+          ? t("career.onboarding.onboarding.1gr43li", "Harper 시작하기")
+          : t("career.onboarding.onboarding.0wbopf1", "다음")
       }
       hint={
-        step === TOTAL_STEPS - 1 ? (
-          <span>
-            {t(
-              "career.onboarding.onboarding.0am0h8h",
-              "분석까지 약 2분 걸려요"
-            )}
-          </span>
-        ) : (
-          <span>
-            press <Badge>Enter</Badge>
-          </span>
-        )
+        <span>
+          press <Badge>Enter</Badge>
+        </span>
       }
     />
   );
@@ -1134,6 +1130,8 @@ const CareerNetworkOnboardingContent = () => {
   const [submitState, setSubmitState] = useState<"form" | "loading" | "done">(
     "form"
   );
+  const [guideVisible, setGuideVisible] = useState(false);
+  const submissionInFlightRef = useRef(false);
   const defaultDoneUserMessage = useMemo(
     () => getDefaultDoneUserMessage(t),
     [t]
@@ -1204,7 +1202,8 @@ const CareerNetworkOnboardingContent = () => {
       : null;
   }, [router.isReady, router.query.previewSubmitState]);
   const isPreviewSubmitState = previewSubmitState !== null;
-  const effectiveSubmitState = previewSubmitState ?? submitState;
+  const effectiveSubmitState =
+    previewSubmitState ?? (guideVisible ? "guide" : submitState);
   const onboardingNextPath = router.asPath || "/career/onboarding";
   const requestLocale = useMemo(
     () =>
@@ -1761,7 +1760,7 @@ const CareerNetworkOnboardingContent = () => {
   );
 
   const submitOnboarding = useCallback(async () => {
-    if (submitState === "loading") return;
+    if (submissionInFlightRef.current || submitState === "done") return true;
     if (!conversationId) {
       showToast({
         message: t(
@@ -1774,6 +1773,7 @@ const CareerNetworkOnboardingContent = () => {
       return;
     }
 
+    submissionInFlightRef.current = true;
     logCareerEvent("click_onboarding_submit");
     setSubmitState("loading");
     let resumeUploadFailureMessage: string | null = null;
@@ -1917,6 +1917,7 @@ const CareerNetworkOnboardingContent = () => {
 
       setResumeRecovery(false);
       completeOnboardingSubmission(payload);
+      return true;
     } catch (error) {
       if (!sourceFailed) {
         try {
@@ -1927,7 +1928,7 @@ const CareerNetworkOnboardingContent = () => {
             try {
               await waitForProfileIngestion(conversationId);
               completeOnboardingSubmission({});
-              return;
+              return true;
             } catch {
               sourceFailed = true;
             }
@@ -1935,7 +1936,7 @@ const CareerNetworkOnboardingContent = () => {
             sourceFailed = true;
           } else if (isTalentOnboardingSubmissionCommitted(recoveredSession)) {
             completeOnboardingSubmission({});
-            return;
+            return true;
           }
         } catch (recoveryError) {
           console.warn(
@@ -1962,6 +1963,9 @@ const CareerNetworkOnboardingContent = () => {
         duration: 5000,
       });
       setSubmitState("form");
+      return false;
+    } finally {
+      submissionInFlightRef.current = false;
     }
   }, [
     conversationId,
@@ -1986,23 +1990,46 @@ const CareerNetworkOnboardingContent = () => {
     waitForProfileIngestion,
   ]);
 
-  const { step, handleNext, handlePrev } = useOnboarding({
-    save: saveCurrentStep,
+  const { step, handleNext, handlePrev, setStep } = useOnboarding({
+    save: async (currentStep) => {
+      await saveCurrentStep(currentStep);
+      if (stepOrder[currentStep] !== "profile") return;
+      if (!conversationId) {
+        // Preserve the submission error and stay on the profile form.
+        await submitOnboarding();
+        throw new Error("Onboarding session is not ready");
+      }
+
+      setGuideVisible(true);
+      // Start the existing submission without waiting for analysis to finish.
+      void submitOnboarding().then((succeeded) => {
+        if (succeeded) return;
+        setGuideVisible(false);
+        setStep(stepOrder.indexOf("profile"));
+      });
+    },
     totalSteps: TOTAL_STEPS,
-    beforeNext: validateStep,
-    onComplete: submitOnboarding,
+    beforeNext: (currentStep) => {
+      // The hook also handles Enter; loading, recovery and done screens must
+      // not start another submission through their hidden form controls.
+      if (resumeRecovery || (!guideVisible && submitState !== "form")) {
+        return false;
+      }
+      return validateStep(currentStep);
+    },
+    onComplete: () => setGuideVisible(false),
     enableWheelNavigation: false,
   });
   const currentStepKind = stepOrder[step] ?? "basic";
 
   const handleLoggedNext = useCallback(() => {
     logCareerEvent(
-      step === TOTAL_STEPS - 1
+      currentStepKind === "profile"
         ? "click_onboarding_submit_button"
         : `click_onboarding_next_step_${step + 1}`
     );
     handleNext();
-  }, [handleNext, logCareerEvent, step]);
+  }, [currentStepKind, handleNext, logCareerEvent, step]);
 
   const handleLoggedPrev = useCallback(() => {
     logCareerEvent(`click_onboarding_prev_step_${step + 1}`);
@@ -2150,7 +2177,7 @@ const CareerNetworkOnboardingContent = () => {
       <main
         className={cn(
           "font-sans text-neutral-primary",
-          effectiveSubmitState === "form"
+          effectiveSubmitState === "form" || effectiveSubmitState === "guide"
             ? "min-h-svh"
             : "h-svh overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 hover:scrollbar-thumb-neutral-1000-a50",
           "career-onboarding"
@@ -2194,23 +2221,28 @@ const CareerNetworkOnboardingContent = () => {
             />
           </OnboardingFrame>
         )}
-        {effectiveSubmitState === "form" && !resumeRecovery && (
+        {(effectiveSubmitState === "form" || effectiveSubmitState === "guide") && !resumeRecovery && (
           <OnboardingFrame
             progressStep={step}
-            expandContent={currentStepKind === "profile"}
+            totalSteps={TOTAL_STEPS}
+            expandContent={currentStepKind === "profile" || currentStepKind === "guide"}
             title={
               <OnboardingTransition
                 stepKey={`header-${step}`}
                 className="h-full"
               >
-                <OnboardingStepHeader stepDefinition={currentStepDefinition} />
+                {currentStepKind === "guide" ? (
+                  <CareerOnboardingGuideHeader />
+                ) : (
+                  <OnboardingStepHeader stepDefinition={currentStepDefinition} />
+                )}
               </OnboardingTransition>
             }
             footer={
               <OnboardingFooterControls
                 step={step}
                 onNext={handleLoggedNext}
-                onPrev={handleLoggedPrev}
+                onPrev={currentStepKind === "guide" ? undefined : handleLoggedPrev}
               />
             }
           >
@@ -2218,6 +2250,7 @@ const CareerNetworkOnboardingContent = () => {
               stepKey={`body-${step}`}
               className="flex min-h-full w-full flex-col items-stretch"
             >
+              {currentStepKind === "guide" && <CareerOnboardingGuideBody />}
               {currentStepKind === "basic" && (
                 <div className={currentStepDefinition.bodyClassName}>
                   <div>

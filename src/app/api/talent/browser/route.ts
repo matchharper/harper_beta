@@ -8,6 +8,7 @@ import {
 import { executeUseBrowser, observeBrowserSession } from "@/lib/career/browser/tool";
 import { z } from "zod";
 import { returnBrowserControl } from "@/lib/career/browser/control";
+import { browserSessionTitles } from "@/lib/career/browser/sessionTitles.server";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 const headers = { "Cache-Control": "private, no-store" };
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
         await publishCareerInvocations(scope);
       });
       if (request.nextUrl.searchParams.get("viewer") === "true") liveUrl = observed.liveUrl;
+      const titles = await browserSessionTitles(context, [session]);
       // Never expose workspace credentials, authorization message content, or provider refs to the UI.
       return NextResponse.json(
         {
@@ -49,6 +51,7 @@ export async function GET(request: NextRequest) {
             id: session.id,
             status: session.status,
             revision: session.revision,
+            title: titles.get(session.id) || undefined,
           },
           executions: executions.map((op) => ({
             id: op.id,
@@ -57,6 +60,7 @@ export async function GET(request: NextRequest) {
           })),
           liveUrl,
           browserAvailability: observed.browserAvailability,
+          observationFailed: observed.observationFailed ?? false,
         },
         { headers }
       );
@@ -76,6 +80,8 @@ export async function GET(request: NextRequest) {
       && !(session.result.browser_availability === "stopped" && session.status === "idle")
     ) : stored;
     const sessions = await Promise.all(candidates.map((session) => observeBrowserSession(context, session)));
+    const titles = await browserSessionTitles(context, stored);
+    const observedById = new Map(sessions.map(observed => [observed.session.id, observed]));
     after(async () => {
       const { reconcileCareerDependencies } = await import("@/lib/career/work/events");
       const { publishCareerInvocations } = await import("@/lib/career/work/invocations");
@@ -84,11 +90,26 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json(
       {
-        sessions: sessions.filter(({ session, browserAvailability }) => !activeOnly || (session.status !== "closed" && !(browserAvailability === "stopped" && session.status === "idle"))).map(({ session, browserAvailability, liveUrl }) => ({
+        // History links need durable labels and terminal state even when their
+        // live viewer has gone away. Do not reopen/observe historical browsers.
+        summaries: stored.map(storedSession => {
+          const observed = observedById.get(storedSession.id);
+          const session = observed?.session ?? storedSession;
+          return {
+            id: session.id,
+            status: session.status,
+            revision: session.revision,
+            title: titles.get(session.id) || undefined,
+            browserAvailability: observed?.browserAvailability ?? session.result.browser_availability,
+          };
+        }),
+        sessions: sessions.filter(({ session, browserAvailability }) => !activeOnly || (session.status !== "closed" && !(browserAvailability === "stopped" && session.status === "idle"))).map(({ session, browserAvailability, liveUrl, observationFailed }) => ({
           id: session.id,
           status: session.status,
           revision: session.revision,
+          title: titles.get(session.id) || undefined,
           browserAvailability,
+          observationFailed: observationFailed ?? false,
           ...(request.nextUrl.searchParams.get("viewer") === "true" ? { liveUrl } : {}),
         })),
       },

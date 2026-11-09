@@ -14,9 +14,10 @@ export type CareerOnboardingStepKind =
   | "basic"
   | "engagement"
   | "profile"
+  | "guide"
   | "visibility";
 
 // The experiment is retired; all onboarding uses B (visibility first).
 export function getCareerOnboardingStepOrder(): readonly CareerOnboardingStepKind[] {
-  return ["basic", "engagement", "visibility", "profile"];
+  return ["basic", "engagement", "visibility", "profile", "guide"];
 }

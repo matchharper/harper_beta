@@ -1,8 +1,9 @@
+import { respondToCareerForms } from "@/lib/career/forms/batch";
 import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
-import { careerFormResponseInputSchema } from "@/lib/career/forms/schema";
+import { careerFormBatchInputSchema, careerFormResponseInputSchema } from "@/lib/career/forms/schema";
 import {
   listCareerForms,
   readCareerForm,
@@ -61,13 +62,13 @@ export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const parsed = careerFormResponseInputSchema.safeParse(
-    await req.json().catch(() => null)
-  );
+  const raw = await req.json().catch(() => null);
+  const batch = Boolean(raw && Array.isArray(raw.responses));
+  const parsed = (batch ? careerFormBatchInputSchema : careerFormResponseInputSchema).safeParse(raw);
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   try {
-    const message = await respondToCareerForm({
+    const message = await (batch ? respondToCareerForms : respondToCareerForm)({
       admin: getTalentSupabaseAdmin(),
       userId: user.id,
       conversationId: parsed.data.conversationId,

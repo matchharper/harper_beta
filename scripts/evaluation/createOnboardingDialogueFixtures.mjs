@@ -1,0 +1,18 @@
+// Frozen synthetic v1 fixture provenance. Do not rerun to change existing gold.
+import { writeFileSync } from 'node:fs';
+const root = 'docs/evaluation/career-onboarding-dialogue';
+const profile = 'Synthetic candidate: 6 years backend engineering, currently employed. No inferred compensation, language or desired location.';
+const base = '좋은 기회가 있으면 검토하며 급하지 않음. 백엔드 개발 역할, 한국 근무만 원함. 영어 업무 회의 가능. 회사 인지도가 중요하며 다른 회사·팀 조건은 없음.';
+const legacyCoverage = Object.fromEntries(['compensation', 'language', 'location', 'next_scope', 'search_intensity', 'team_style_fit'].map(k => [k, 'covered']));
+const cases = [
+  { id: 'priority_then_amount', saved: base + ' 보상이 중요하지만 희망 수준은 아직 알려주지 않음.', history: [{role:'assistant', content:'다음 기회를 볼 때 중요하게 생각하는 조건이 무엇인가요?'}], opening:'보상하고 회사 인지도가 가장 중요해요.', persona:'6년차 백엔드 개발자. 급하지 않고 좋은 기회만 검토. 한국만 근무. 영어 업무 회의 가능. 인지도 높은 회사면 팀 조건은 없음. 보상 질문을 받으면 원화 연 기본급 1억 2천만원 이상을 원한다고 답함. 현재 연봉은 비공개.', legacyCoverage, gold:'Despite old covered keys, ask desired compensation level. After annual KRW base minimum, complete without repeating known topics or requiring current pay.' },
+  { id:'undecided_expectation', saved:base, history:[{role:'assistant',content:'다음 기회에서 어느 정도 보상이면 고려해 볼 만할까요?'}], opening:'아직 금액은 모르겠어요. 일단 제안을 보고 판단할래요.', persona:'보상은 미정, 제안을 보고 판단. 다른 조건은 저장된 내용과 동일.', legacyCoverage:{}, gold:'Accept explicit undecided expectation and complete. Do not press for a number or previous salary.' },
+  { id:'private_compensation', saved:base, history:[{role:'assistant',content:'기대하는 보상 수준을 알려주실 수 있나요?'}], opening:'현재 연봉이나 원하는 금액은 지금 말하고 싶지 않아요. 공고에 제시된 보상을 보고 판단할게요.', persona:'현재·과거·희망 연봉 비공개. 공고 보상을 보고 판단. 다른 조건은 저장된 내용과 동일.', legacyCoverage:{}, gold:'Respect refusal and complete without rephrased compensation questions.' },
+  { id:'fresh_conversation', saved:'No saved preferences.', history:[], opening:'좋은 회사 있으면 한번 알아보고 싶어요.', persona:'6년차 백엔드 개발자. 급하지 않고 좋은 기회가 있으면 검토. 백엔드 역할, 한국 근무만 희망. 원화 연 기본급 1억 1천만원 이상. 영어 기술 회의 가능. 안정적인 중견 이상 회사 선호. 다른 조건은 없음. 현재 급여 비공개.', legacyCoverage:{}, gold:'Discover missing core context naturally, then finish without repeated answers, optional detours or approval rituals.' },
+  { id:'all_facts_correction', saved:'과거에는 해외와 연 기본급 9천만원 이상을 고려함.', history:[], opening:'지금은 급하게 옮길 생각은 없고 좋은 곳만 봐주세요. 백엔드 역할로 한국에서만 일하고 싶어요. 영어 회의는 가능하고, 안정적인 중견 이상 회사가 좋아요. 보상 기준도 바뀌어서 원화 연 기본급 1억 1천 이상은 되어야 해요. 다른 필수 조건은 없어요.', persona:'최신 발화가 현재 조건. 해외와 9천만원 조건은 적용하지 않음.', legacyCoverage:{}, gold:'Use latest corrections and complete without asking supplied topics again.' },
+].map(c => ({...c, profile}));
+const voice = cases.slice(0,3).map((c,i) => ({ id:c.id, saved:c.saved, covered:Object.keys(legacyCoverage), history:c.history.map(m => ({role:m.role,text:m.content})), utterance:c.opening, ...(i === 0 ? { followupUtterances:['원화로 연 기본급 1억 2천만원 이상이면 좋겠어요. 현재 연봉은 말하고 싶지 않아요.'] } : {}), gold:c.gold }));
+voice.push({id:'resume_last_answer', covered:[], saved:base.replace('영어 업무 회의 가능.','') + ' 원화 연 기본급 1억 2천만원 이상 희망.', history:[{role:'assistant',text:'업무에서 영어로 대화하는 건 어느 정도 가능하세요?'}], utterance:'영어로 기술 회의하고 업무 논의하는 건 가능해요.', gold:'Complete via end_call(true), no duplicate facts despite empty coverage.'});
+voice.push({id:'early_stop',covered:Object.keys(legacyCoverage),saved:'아직 조건을 묻지 않음.',history:[{role:'assistant',text:'다음에는 어떤 역할을 해보고 싶으세요?'}],utterance:'지금 시간이 없어서 여기까지만 할게요. 통화 끊어주세요.',gold:'end_call(false) immediately. Legacy coverage cannot force completion.'});
+writeFileSync(`${root}/cases-v1.json`, JSON.stringify({version:'v1',cases},null,2)+'\n', {flag:'wx'});
+writeFileSync(`${root}/live-prompt-cases-dialogue-v1.json`, JSON.stringify({version:'dialogue-v1',profile,cases:voice},null,2)+'\n', {flag:'wx'});

@@ -1822,9 +1822,7 @@ export const useCareerOnboardingVoice = ({
               if (payload?.nextStepInstructions) {
                 updateSessionInstructionsRef.current?.(payload.nextStepInstructions, payload.liveSessionUpdate);
               }
-              realtimeSessionRef.current?.triggerResponse(
-                "Onboarding has not been completed and the call is still connected. Use the updated required-topic facts and the latest conversation to ask one genuinely unanswered topic. Do not repeat a final confirmation or ask for permission to hang up."
-              );
+              reportCompletionFailure();
               return;
             }
             disconnectCall();

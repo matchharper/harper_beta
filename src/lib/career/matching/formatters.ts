@@ -9,6 +9,10 @@ const brief = (value: any) =>
     .join("\n");
 /** Deliberately compact evidence projection. Raw receipts stay available to executors. */
 export function formatCareerMatchingResult(value: any, locale?: string | null): string {
+  if (Array.isArray(value?.stageUpdates)) return value.stageUpdates.map((item: any) =>
+    item.error ? `Recommendation ${item.recommendationId ?? item.roleId}: stage unchanged; ${item.error}` :
+      `Recommendation ${item.recommendationId}; role ${item.roleId}; saved stage ${item.savedStage}; updated ${item.updatedAt}.`
+  ).join("\n");
   if (value?.source === "internal") return "Read existing Harper-connected recommendations with read_recommended_opportunities and get_role_context.";
   if (value?.error && !value.runId)
     return `Matching operation failed: ${value.error}`;

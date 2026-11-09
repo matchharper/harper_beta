@@ -252,9 +252,6 @@ export const CareerFlowProvider = ({
     opportunityFeedbackFollowUpTrigger,
     setOpportunityFeedbackFollowUpTrigger,
   ] = useState<CareerOpportunityFeedbackFollowUpTrigger | null>(null);
-  // Close the timer-to-render gap: the send guard must lock synchronously when
-  // follow-up generation starts, before pending state reaches the composer.
-  const opportunityFeedbackFollowUpRunningRef = useRef(false);
   const refreshLatestHistoryOpportunitiesRef = useRef<
     ((roleId?: string | null) => void | Promise<void>) | null
   >(null);
@@ -330,14 +327,6 @@ export const CareerFlowProvider = ({
     },
     [applyOnboardingChecklistProgress]
   );
-  const hasMinimumOnboardingChecklistCoverage = Boolean(
-    onboardingChecklistProgress &&
-    onboardingChecklistProgress.minCoveredCount > 0 &&
-    onboardingChecklistProgress.coveredCount +
-      (onboardingChecklistProgress.finalConfirmationCovered ? 1 : 0) >=
-      onboardingChecklistProgress.minCoveredCount
-  );
-
   const messageHistoryReady =
     Boolean(messageConversation) &&
     (!messageHistoryPending || persistedMessages.length > 0);
@@ -420,6 +409,7 @@ export const CareerFlowProvider = ({
     setStage,
     messages,
     scrollTick,
+    sentMessageTick,
     appendMessage,
     removeMessages,
     chatPending,
@@ -460,6 +450,7 @@ export const CareerFlowProvider = ({
     onMessagesChanged: appendLatestMessagesToCache,
     onRequestAdmitted: handleRequestAdmitted,
     hasDurableWork: openWork?.canStop,
+    hasActiveInputTurn: openWork?.hasActiveInputTurn,
   });
 
   const visibleUnlinkedOpportunityRuns = useMemo(() => {
@@ -554,7 +545,6 @@ export const CareerFlowProvider = ({
       pending: boolean;
       trigger: CareerOpportunityFeedbackFollowUpTrigger | null;
     }) => {
-      opportunityFeedbackFollowUpRunningRef.current = state.pending;
       setOpportunityFeedbackFollowUpPending(state.pending);
       setOpportunityFeedbackFollowUpTrigger(state.trigger);
     },
@@ -897,13 +887,6 @@ export const CareerFlowProvider = ({
       onError?: () => void;
       onSuccess?: () => void;
     }) => {
-      if (
-        opportunityFeedbackFollowUpRunningRef.current ||
-        opportunityFeedbackFollowUpPending
-      ) {
-        args.onError?.();
-        return;
-      }
       clearSessionReengagementAction();
       cancelPendingCompanyFollowUp();
       cancelPendingOpportunityFeedbackFollowUp();
@@ -915,7 +898,6 @@ export const CareerFlowProvider = ({
       cancelPendingCompanyFollowUp,
       cancelPendingOpportunityFeedbackFollowUp,
       clearSessionReengagementAction,
-      opportunityFeedbackFollowUpPending,
       profilePending,
       sendChatMessageBase,
     ]
@@ -983,9 +965,12 @@ export const CareerFlowProvider = ({
         }
 
         const hiddenFormId = typeof payload.hiddenFormId === "number" ? payload.hiddenFormId : null;
+        const deletedMessageIds = Array.isArray(payload.deletedMessageIds)
+          ? payload.deletedMessageIds.filter((id): id is number => typeof id === "number")
+          : [parsedMessageId];
         const removedIds = hiddenFormId
           ? [...new Set([parsedMessageId, ...[...messages, ...persistedMessages].filter((message) => message.careerForm?.formId === hiddenFormId || message.formResponse?.formId === hiddenFormId).map((message) => Number(message.id))])]
-          : [parsedMessageId];
+          : deletedMessageIds;
         removeMessagesFromCache(removedIds);
         removeMessages(removedIds);
         return true;
@@ -1179,7 +1164,7 @@ export const CareerFlowProvider = ({
     isVoiceInteractionLocked,
     isOnboardingDone:
       stage === "completed" || Boolean(talentPreferences?.isOnboardingDone),
-    canForceCompleteOnboarding: hasMinimumOnboardingChecklistCoverage,
+    canForceCompleteOnboarding: stage === "chat",
     onboardingChecklistProgress,
     onSendChatMessage: sendChatMessage,
     onOpportunityRunChanged: setOpportunityRun,
@@ -1897,6 +1882,7 @@ export const CareerFlowProvider = ({
     conversationId,
     initialScrollPending: chatSessionPending,
     messageCount: timelineMessages.length,
+    sentMessageTick,
     scrollRef,
     scrollTick: scrollTick + (sessionReengagementStreamMessage?.content.length ?? 0),
   });
@@ -1935,15 +1921,13 @@ export const CareerFlowProvider = ({
   const interviewProgress: CareerInterviewProgress = useMemo(
     () =>
       resolveCareerInterviewProgress({
-        canForceComplete:
-          stage === "chat" && hasMinimumOnboardingChecklistCoverage,
+        canForceComplete: stage === "chat",
         checklistProgress: onboardingChecklistProgress,
         isOnboardingDone,
         talentInsights,
         userChatCount,
       }),
     [
-      hasMinimumOnboardingChecklistCoverage,
       isOnboardingDone,
       onboardingChecklistProgress,
       stage,

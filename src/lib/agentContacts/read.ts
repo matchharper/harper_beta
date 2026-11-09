@@ -28,37 +28,30 @@ export async function readAgentCorrespondence(
   const ids = [
     ...new Set(page.messages.map((m) => m.material_id).filter(Boolean)),
   ];
-  const materials = ids.length
-    ? await db.query(
-        "SELECT * FROM public.talent_role_materials WHERE id=ANY($1::uuid[])",
-        [ids]
-      )
-    : [];
-  // Only the company's own delivery facts for introductions already authorized above.
-  // Provider status is not evidence that a team member read the email.
+  // These reads depend on the authorized correspondence page, not on each other.
   const roots = [...new Set(page.messages.map((message) => message.root_id))];
-  const introductions = await readIntroductionContexts(db.query, roots, { companyAudience: source.kind !== "career" });
-  const presentations = source.kind !== "career" && roots.length
-    ? await db.query(`SELECT id,text,metadata->>'agentIntroductionRootId' AS root_id,
-        metadata->>'sharedMaterialId' AS shared_material_id FROM public.talent_progress
-        WHERE metadata->>'agentIntroductionRootId'=ANY($1::text[]) AND kind='intro_to_company'`, [roots])
-    : [];
   const deliveryPageSize = 30;
-  const deliveries =
+  const [materials, introductions, presentations, deliveries] = await Promise.all([
+    ids.length
+      ? db.query("SELECT * FROM public.talent_role_materials WHERE id=ANY($1::uuid[])", [ids])
+      : Promise.resolve([]),
+    readIntroductionContexts(db.query, roots, { companyAudience: source.kind !== "career" }),
     source.kind !== "career" && roots.length
-      ? await db.query(
+      ? db.query(`SELECT id,text,metadata->>'agentIntroductionRootId' AS root_id,
+          metadata->>'sharedMaterialId' AS shared_material_id FROM public.talent_progress
+          WHERE metadata->>'agentIntroductionRootId'=ANY($1::text[]) AND kind='intro_to_company'`, [roots])
+      : Promise.resolve([]),
+    // Only the company's own delivery facts for introductions authorized above.
+    source.kind !== "career" && roots.length
+      ? db.query(
           `SELECT id,status,created_at,sent_at,provider_id,draft,snapshot->>'rootId' AS root_id
        FROM public.company_email_outbox WHERE topic='agent_contact_v1'
        AND snapshot->>'workspaceId'=$1 AND snapshot->>'rootId'=ANY($2::text[])
        ORDER BY created_at,id OFFSET $3 LIMIT $4`,
-          [
-            source.workspaceId,
-            roots,
-            input.deliveryOffset ?? 0,
-            deliveryPageSize + 1,
-          ]
+          [source.workspaceId, roots, input.deliveryOffset ?? 0, deliveryPageSize + 1],
         )
-      : [];
+      : Promise.resolve([]),
+  ]);
   const nextDeliveryOffset =
     deliveries.length > deliveryPageSize
       ? (input.deliveryOffset ?? 0) + deliveryPageSize

@@ -148,7 +148,7 @@ test("onboarding end-call callbacks keep the connection until completion is save
       }
     );
     await t.test(
-      "missing topics and server failure both keep the call connected",
+      "unconfirmed completion and server failure both keep the call connected without reopening questions",
       async () => {
         for (const result of [
           response({
@@ -163,6 +163,8 @@ test("onboarding end-call callbacks keep the connection until completion is save
           await tick();
           assert.equal(disconnected, 0);
           assert.equal(continuations.length, 1);
+          assert.ok(continuations[0].includes("completion has not been verified"));
+          assert.ok(!continuations[0].includes("ask one genuinely unanswered topic"));
         }
       }
     );

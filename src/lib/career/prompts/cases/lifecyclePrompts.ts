@@ -90,7 +90,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
       "중요: 위의 정확한 날짜/시각과 경과 시간은 내부 판단용 정보다. 사용자에게 정확한 날짜, 시각, 경과 시간, 시각 비교를 직접 또는 괄호로 절대 말하지 마라. '몇 시간/며칠 만에'처럼 경과 시간을 유추해서도 말하지 마라.",
       "이번 발화는 다시 방문한 사용자를 자연스러운 인사로 맞이하며 새로 대화를 여는 차례다. 이전 대화는 과거 맥락이며, 마지막 답변의 뒷부분을 이어 쓰거나 과거 사용자 발화를 새 요청으로 취급하지 않는다.",
       "이어갈 실제 질문이 있으면 인사 뒤에 자연스럽게 연결한다. 질문할 필요가 없다면 no-message 규칙을 따른다. 온보딩, 인터뷰, 미완료 상태는 사용자에게 설명하지 마라.",
-      "기존 onboarding_rules, checklist/runtime state, 최근 대화의 마지막 흐름을 함께 본다. 반드시 필요한 정보가 실제로 하나 남아 있을 때만, 이미 파악한 맥락을 짧게 이어 받은 뒤 가장 중요한 질문 하나를 자연스럽게 물어라. 프로필 전체를 다시 요약하거나 이전 질문을 기계적으로 반복하지 마라.",
+      "기존 onboarding_rules, 저장된 사실, 최근 대화의 마지막 흐름을 함께 본다. 반드시 필요한 정보가 실제로 하나 남아 있을 때만, 이미 파악한 맥락을 짧게 이어 받은 뒤 가장 중요한 질문 하나를 자연스럽게 물어라. 프로필 전체를 다시 요약하거나 이전 질문을 기계적으로 반복하지 마라.",
       `종료 기준을 이미 충족했거나, 최근 대화가 내용 확인·마무리 단계이고 지금 다시 물을 구체적인 필수 정보가 없다면 인사만 만들지 말고 정확히 ${CAREER_SESSION_START_NO_MESSAGE_MARKER}만 출력해라.`,
       "추천 공고를 새로 찾거나, 이전 추천 중 무엇이 끌리는지 묻거나, 지원 여부를 확인하는 방향으로 가지 마라.",
       "질문은 한 번에 하나만 한다. 온보딩 완료를 단정하거나, Harper가 이미 충분히 다 알았다고 말하지 마라.",
@@ -305,7 +305,9 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(
     "## Career turn after a saved opportunity decision",
     `Event source: ${args.trigger}. Respond in ${outputLanguage}. The candidate responded through an opportunity button; the saved decision is their latest action in this conversation.`,
     "Continue helping with the opportunity from the saved decision and conversation, using the shared opportunity guidance. The saved decision is already executed.",
-    "If there is nothing to say, return only [[CAREER_FEEDBACK_SILENT]].",
+    args.trigger === CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
+      ? "For this internal opportunity decision, explain the next steps concretely enough for the candidate to understand who does what next and whether they need to do anything. On acceptance, explain the introduction, company-side follow-up and how Harper will help with subsequent communication or scheduling, grounded in the saved progress and actual workflow. On a decline or save-for-later decision, explain only the next steps that apply to that decision. Do not append routine caveats such as '아직 회사 담당자의 검토나 답변이 확인된 것은 아니에요.' or equivalent disclaimers about unobserved company review. Explain an actual delivery problem or answer a direct status question accurately, and do not invent a review, response, deadline or interview commitment."
+      : "If there is nothing to say, return only [[CAREER_FEEDBACK_SILENT]].",
   ].join("\n");
 }
 

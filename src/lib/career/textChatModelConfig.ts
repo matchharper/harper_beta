@@ -1,8 +1,9 @@
 import {
+  SOL_CHAT_PRESETS,
+  getSolChatPreset,
   CLAUDE_HAIKU_MODEL,
   CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
-  GPT_61_SOL_MODEL,
   GPT_61_TERRA_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
@@ -16,7 +17,7 @@ export const CAREER_TEXT_CHAT_MODEL_IDS = [
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
   GPT_6_LUNA_MODEL,
-  GPT_61_SOL_MODEL,
+  ...SOL_CHAT_PRESETS.map((preset) => preset.id),
   GPT_61_TERRA_MODEL,
 ] as const;
 
@@ -63,7 +64,9 @@ export function resolveCareerTextChatModel(value: unknown): {
       openAIResponsesReasoningEffort: "xhigh",
     };
   }
-  if (model === GPT_61_SOL_MODEL || model === GPT_61_TERRA_MODEL) {
+  const preset = getSolChatPreset(model);
+  if (preset) return { model, openAIResponsesReasoningEffort: preset.effort };
+  if (model === GPT_61_TERRA_MODEL) {
     return {
       model,
       openAIResponsesReasoningEffort: "high",

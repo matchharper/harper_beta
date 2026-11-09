@@ -1,3 +1,5 @@
+import { withOrgReadScope } from "./requestScope.server";
+import { withCompanyAgentScope } from "@/lib/agentContacts/companyScope";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createClient, type User } from "@supabase/supabase-js";
@@ -121,4 +123,29 @@ test("role authorization reads the extension and denies sibling, unassigned and 
     if (allowed) assert.equal((await result).teamId, "a");
     else await assert.rejects(result, (error: any) => error.status === 404);
   }
+});
+
+
+test("service access is shared only inside a read scope and fresh or later checks see revocation", async () => {
+  let checks = 0;
+  let available = true;
+  const admin = withCompanyAgentScope(createClient("https://team-access.invalid", "synthetic-key", {
+    auth: { persistSession: false }, global: { fetch: async () =>
+      new Response(JSON.stringify({ is_reviewing: false }), { headers: { "Content-Type": "application/json" } }) },
+  }), { kind: "company_event", workspaceId: "workspace", roleId: "role", jobId: "job", leaseOwner: "lease",
+    assertCurrent: async () => { checks++; if (!available) throw Error("lease revoked"); },
+  });
+  const args = { admin, user: { id: "job" } as User, workspaceId: "workspace" };
+  await withOrgReadScope(async () => {
+    const access = await Promise.all([readOrgRoleAccess(args), readOrgRoleAccess(args)]);
+    assert.deepEqual(access.map(value => value.roleIds), [["role"], ["role"]]);
+    assert.equal(checks, 1);
+    await assert.rejects(readOrgRoleAccess({ ...args, workspaceId: "other" }), /workspace mismatch/);
+    available = false;
+    await assert.rejects(readOrgRoleAccess({ ...args, fresh: true }), /lease revoked/);
+  });
+  assert.equal(checks, 2);
+  await assert.rejects(withOrgReadScope(() => readOrgRoleAccess(args)), /lease revoked/);
+  await assert.rejects(readOrgRoleAccess(args), /lease revoked/);
+  assert.equal(checks, 4);
 });

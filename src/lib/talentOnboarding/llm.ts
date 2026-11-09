@@ -541,7 +541,7 @@ export async function runTalentAssistantToolLoop(args: {
       if (await args.toolRuntime?.shouldDeferToolCall()) {
         workingMessages.push({ role: "tool", tool_call_id: String(toolCall.id),
           name: String(toolCall.function?.name ?? "unknown_tool"),
-          content: "Not executed: new conversation input arrived. Read that input before choosing the next action." });
+          content: args.toolRuntime!.deferredToolMessage() });
         continue;
       }
       totalToolCalls += 1;
@@ -595,7 +595,7 @@ export async function runTalentAssistantToolLoop(args: {
           name: toolName,
           input: parsedArguments,
         });
-            if (capabilityStep) await observeToolCall(() => args.toolRuntime!.recordResult(toolName, result, capabilityStep));
+            if (capabilityStep) await observeToolCall(() => args.toolRuntime!.recordResult(toolName, result, capabilityStep, parsedArguments, toolCallId));
             return result;
           }, { callId: toolCallId, name: toolName, input: parsedArguments });
           capturedDiagnostics = toolCapture.diagnostics;
@@ -633,16 +633,17 @@ export async function runTalentAssistantToolLoop(args: {
           name: toolName,
           source: usageLabel ?? "talent-assistant-tool-loop",
         });
+        const failureOutput = args.formatToolFailure
+          ? args.formatToolFailure({ name: toolName, callId: toolCallId, input: parsedArguments, error, diagnostics: capturedDiagnostics })
+          : serializeToolResultForModel(toolErrorResult(error), formatToolResultText, capturedDiagnostics);
         if (capabilityStep) await observeToolCall(() => args.toolRuntime!.recordResult(
-          toolName, { ok: false, status: "failed" }, capabilityStep
+          toolName, { ok: false, status: "failed", modelOutput: failureOutput }, capabilityStep, parsedArguments, toolCallId
         ));
         workingMessages.push({
           role: "tool",
           tool_call_id: toolCallId,
           name: toolName,
-          content: args.formatToolFailure
-            ? args.formatToolFailure({ name: toolName, callId: toolCallId, input: parsedArguments, error, diagnostics: capturedDiagnostics })
-            : serializeToolResultForModel(toolErrorResult(error), formatToolResultText, capturedDiagnostics),
+          content: failureOutput,
         });
       }
     }

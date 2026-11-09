@@ -28,6 +28,8 @@ type CareerWorkspaceUiStoreState = {
   setConversationVersion: (version: CareerConversationVersion) => void;
   chatPanelWidthPct: number;
   desktopSidebarCollapsed: boolean;
+  devControlsHidden: boolean;
+  setDevControlsHidden: (hidden: boolean) => void;
   companyJobsOpportunity: CareerHistoryOpportunity | null;
   companyJobsOnOpenChat: (() => void) | null;
   setCompanyJobsOpportunity: (
@@ -54,6 +56,8 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
       setConversationVersion: (conversationVersion) => set({ conversationVersion }),
       chatPanelWidthPct: CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
       desktopSidebarCollapsed: false,
+      devControlsHidden: false,
+      setDevControlsHidden: (devControlsHidden) => set({ devControlsHidden }),
       companyJobsOpportunity: null,
       companyJobsOnOpenChat: null,
       setCompanyJobsOpportunity: (item, onOpenChat) =>
@@ -81,6 +85,7 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
         conversationVersion: state.conversationVersion,
         chatPanelWidthPct: state.chatPanelWidthPct,
         desktopSidebarCollapsed: state.desktopSidebarCollapsed,
+        devControlsHidden: state.devControlsHidden,
       }),
       merge: (persistedState, currentState) => {
         const state =
@@ -99,6 +104,7 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
             state?.chatPanelWidthPct
           ),
           desktopSidebarCollapsed: state?.desktopSidebarCollapsed === true,
+          devControlsHidden: state?.devControlsHidden === true,
         };
       },
     }

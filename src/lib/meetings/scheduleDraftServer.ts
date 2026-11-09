@@ -160,7 +160,7 @@ export async function saveStageMeetingDefaults(args: {
   if (error) throw error;
 }
 
-async function resolveWorkspaceAttendees(args: {
+export async function resolveWorkspaceAttendees(args: {
   actorLabel: string;
   admin: OrgAgentAdminClient;
   attendeeEmails: string[];

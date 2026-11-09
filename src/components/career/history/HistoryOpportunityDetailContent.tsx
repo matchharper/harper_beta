@@ -52,6 +52,7 @@ import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
 import NewOpportunityCompanyRoleSwitcher from "./NewOpportunityCompanyRoleSwitcher";
 import HistoryOpportunityRoleActions from "./HistoryOpportunityRoleActions";
 import OpportunityCard from "./OpportunityCard";
+import OpportunityAgentMessages from "./OpportunityAgentMessages";
 import { OpportunityAppointmentSummary } from "./ProgressOpportunityRow";
 import HistoryOpportunityDetailActions from "./HistoryOpportunityDetailActions";
 
@@ -331,7 +332,7 @@ export const HistoryOpportunityOverview = ({
             <div className="min-w-0">
               {t("career.common.career.1xe09ft", "Harper가 요약한 정보")}
             </div>
-            <div className="shrink-0">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
               {roleLink && (
                 <BareButton
                   type="button"
@@ -342,6 +343,7 @@ export const HistoryOpportunityOverview = ({
                   {t("career.common.career.0wohsg4", "원문 보기")}
                 </BareButton>
               )}
+              <OpportunityAgentMessages item={item} />
             </div>
           </div>
           <div className="mt-1 h-[1px] w-full bg-neutral-1000-a05" />
@@ -381,17 +383,22 @@ export const HistoryOpportunityOverview = ({
         </div>
       )}
 
-      {hasStandaloneJdButton && (
-        <BareButton
-          type="button"
-          onClick={() => {
-            if (roleLink) onOpenLink(roleLink);
-          }}
-          className="mt-5 bg-bg-weak hover:bg-interaction-hover inline-flex min-h-10 items-center justify-center w-full gap-2 rounded-control px-4 text-[13px] font-normal"
-        >
-          {t("career.common.career.0wohsg4", "원문 보기")}
-          <ArrowUpRight className="h-4 w-4" />
-        </BareButton>
+      {!hasRecommendationContent && (
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {hasStandaloneJdButton && (
+            <BareButton
+              type="button"
+              onClick={() => {
+                if (roleLink) onOpenLink(roleLink);
+              }}
+              className="bg-bg-weak hover:bg-interaction-hover inline-flex min-h-10 items-center justify-center gap-2 rounded-control px-4 text-[13px] font-normal"
+            >
+              {t("career.common.career.0wohsg4", "원문 보기")}
+              <ArrowUpRight className="h-4 w-4" />
+            </BareButton>
+          )}
+          <OpportunityAgentMessages item={item} />
+        </div>
       )}
 
       {process.env.NODE_ENV === "development" ? (

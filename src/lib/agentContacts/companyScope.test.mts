@@ -34,8 +34,8 @@ test("service capability loading provides ordinary research without membership m
   const { companyAgentServiceTools } = await import("./companyScope");
   const { resolveCompanyCapabilities } = await import("@/lib/org/agent/capabilities/resolver");
   const allowed = companyAgentServiceTools();
-  const resolved = resolveCompanyCapabilities({surface:"chat",mode:"progressive",loaded:new Set(["agent_correspondence", "web_research", "role_management", "candidate_contact", "candidate_search"]),allowedToolNames:allowed,agentService:true});
-  for(const name of ["read_role","read_talent","get_talents","web_search","open_url","contact_talent","read_agent_messages","contact_user"])
+  const resolved = resolveCompanyCapabilities({surface:"chat",mode:"progressive",loaded:new Set(["agent_correspondence", "meeting_coordination", "web_research", "role_management", "candidate_contact", "candidate_search"]),allowedToolNames:allowed,agentService:true});
+  for(const name of ["manage_meeting","read_role","read_talent","get_talents","web_search","open_url","contact_talent","read_agent_messages","contact_user"])
     assert.ok(resolved.offeredToolNames.has(name), name);
   for(const name of ["change_role_status","update_role_criteria","decide_company_intro","move_candidate_stage"])
     assert.ok(!resolved.offeredToolNames.has(name), name);

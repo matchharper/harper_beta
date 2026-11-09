@@ -5,11 +5,16 @@ import { runOrgAgentCompletion, runOrgAgentToolLoop } from "./chat";
 import { ORG_AGENT_GEMINI_FLASH_MODEL } from "./modelConfig";
 import { createOrgAgentTextStream } from "./textStream";
 import { OrgAgentToolInputError } from "./toolExecution";
+import { AgentContactSupersededError, assertAgentContactSource } from "@/lib/agentContacts/store";
+import type { Query } from "@/lib/career/matching/internalScoring/database";
 
 function fixture(): Parameters<typeof runOrgAgentToolLoop>[0] {
   return {
     actorId: "actor", actorLabel: "팀원", currentUserMessageId: 1,
-    admin: new Proxy({}, { get() { throw Error("Unexpected DB access"); } }),
+    admin: new Proxy({}, { get(_target, key) {
+      if (key === Symbol.for("harper.companyAgentScope")) return undefined;
+      throw Error("Unexpected DB access");
+    } }),
     conversation: { id: "conversation", role_id: null, company_workspace_id: "workspace" },
     context: {
       workspace: { workspaceId: "workspace" }, roles: [], companyText: "합성 회사",
@@ -65,6 +70,78 @@ test("durable events still let the original model correct input errors and finis
   assert.equal(result.reply, "");
   assert.equal(executions, 2);
   assert.equal(completions, 3);
+});
+
+test("candidate scope rejection reaches the next provider request with authorized references", async () => {
+  const original = openrouterClient.chat.completions.create;
+  const bodies: any[] = [];
+  const executions: string[] = [];
+  let pairChecks = 0;
+  const source = { kind: "company_event" as const, workspaceId: "workspace", roleId: "role", jobId: "job", leaseOwner: "lease" };
+  const query: Query = async (sql, params) => {
+    if (sql.includes("FROM public.company_agent_web_action_jobs")) return [{ id: "job", action_name: "agent_contact_received", action_context: { introductionRootId: "root" } }];
+    if (sql.includes("FROM public.agent_contact_messages")) return [{ id: "root", talent_id: "authorized-talent", role_id: "role", company_workspace_id: "workspace", recommendation_id: "recommendation" }];
+    if (sql.includes("JOIN public.talent_opportunity_recommendation rec")) {
+      pairChecks++;
+      assert.equal(params?.[1], "authorized-talent");
+      return [{ role_id: "role", profile_visibility: "share" }];
+    }
+    if (sql.includes("FROM public.company_roles")) return [{ role_id: "role" }];
+    throw Error(`Unexpected query: ${sql}`);
+  };
+  (openrouterClient.chat.completions as any).create = async (body: any) => {
+    bodies.push(structuredClone(body));
+    if (bodies.length === 2) {
+      const error = body.messages.find((m: any) => m.role === "tool" && m.tool_call_id === "scope-1");
+      assert.ok(error, "the original model must receive the rejected call's result");
+      for (const fact of ["does not authorize another candidate relationship", "Requested talentId=other-talent", "talentId=authorized-talent", "roleId=role", "introductionRootId=root"])
+        assert.ok(error.content.includes(fact), fact);
+    }
+    return { choices: [{ message: bodies.length < 3 ? {
+      content: "", tool_calls: [{ id: `scope-${bodies.length}`, type: "function", function: {
+        name: "read_agent_messages", arguments: JSON.stringify({ roleId: "role", talentId: bodies.length === 1 ? "other-talent" : "authorized-talent" }),
+      } }],
+    } : { content: "" } }] };
+  };
+  try {
+    const result = await runOrgAgentToolLoop({
+      ...fixture(), allowSilentCompletion: true, throwOnToolExecutionError: true,
+      initialCapabilities: ["agent_correspondence"],
+    }, {
+      executeTool: async args => {
+        const { talentId } = args.input as { talentId: string };
+        executions.push(talentId);
+        await assertAgentContactSource(query, source, "role", talentId);
+        return { messages: [] };
+      },
+    });
+    assert.equal(result.reply, "");
+    assert.deepEqual(executions, ["other-talent", "authorized-talent"]);
+    assert.equal(pairChecks, 1, "the rejected candidate never passes the relationship guard");
+    assert.equal(bodies.length, 3);
+    assert.deepEqual(result.state.toolResults.map(r => r.status), ["error"]);
+    assert.ok(bodies[2].messages.some((m: any) => m.role === "tool" && m.tool_call_id === "scope-2"));
+  } finally {
+    openrouterClient.chat.completions.create = original;
+  }
+});
+
+test("a stale company event remains a terminating control error", async () => {
+  let completions = 0;
+  await assert.rejects(runOrgAgentToolLoop({
+    ...fixture(), allowSilentCompletion: true, throwOnToolExecutionError: true,
+  }, {
+    complete: async args => {
+      completions++;
+      return { model: args.model, response: { choices: [{ message: {
+        content: "", tool_calls: [{ id: "stale", type: "function", function: { name: "get_talents", arguments: "{}" } }],
+      } }] } };
+    },
+    executeTool: async () => assertAgentContactSource(async () => [], {
+      kind: "company_event", workspaceId: "workspace", roleId: "role", jobId: "job", leaseOwner: "expired",
+    }, "role", "talent"),
+  }), AgentContactSupersededError);
+  assert.equal(completions, 1);
 });
 
 test("web loop emits the first answer token before completion, preserves signatures and executes tools once", { timeout: 5_000 }, async () => {

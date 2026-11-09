@@ -1,3 +1,6 @@
+import { appendCareerExecutionObservation } from "./executionHistory";
+import { renderCareerExecutionHistory } from "./executionHistory";
+import { renderCareerResearchHistory } from "./researchHistory";
 import { observeCareerDependency, readCareerEventContext } from "./work/events";
 import { readWorkContext } from "./work/store";
 import { formatCareerActionItemResponse } from "./actionItems";
@@ -95,7 +98,7 @@ export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAge
     : "Upcoming appointments could not be read; their absence is unknown.");
   for (const index of [matching, schedules]) if (index.status === "fulfilled" && index.value) lines.push(String(index.value));
   if (documents.status === "fulfilled") {
-    lines.push("Saved document index (newest first; read_document retrieves content, list_documents retrieves more metadata):",
+    lines.push("Saved document index (primary resume first, then newest; read_document retrieves content, list_documents retrieves more metadata):",
       ...documents.value.rows.map(row => `- document_id ${row.id}; ${row.file_name}; ${row.kind}${row.revision != null ? `; revision ${row.revision}` : ""}${row.is_primary ? "; primary" : ""}`));
     if (!documents.value.rows.length) lines.push("No saved resumes or documents.");
     if (documents.value.hasMore) lines.push(`More documents; list_documents offset ${documents.value.nextOffset}.`);
@@ -159,19 +162,32 @@ export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAge
  * Append an observation; never rewrite the original running tool result.
  */
 async function appendBrowserContinuationResults(args: Pick<PrepareCareerAgentTurnArgs, "admin" | "userId" | "conversationId" | "workId">, resume: CareerReplyCheckpoint) {
-  const ids = [...new Set((resume.waitFor ?? []).filter(work => work.kind === "browser_run").map(work => work.id))];
-  if (!ids.length) return resume;
-  let query = (args.admin.from as any)("talent_external_operations").select("*")
-    .eq("user_id", args.userId).eq("conversation_id", args.conversationId).eq("kind", "browser_run").in("id", ids);
-  if (args.workId) query = query.eq("request->>work_id", args.workId);
-  const { data, error } = await query;
-  if (error) throw error;
-  const completed = ((data ?? []) as ExternalOperation[]).filter(run =>
-    !["reserved", "preparing", "dispatching", "capacity_wait", "running", "cancelling"].includes(run.status));
-  if (!completed.length) return resume;
-  const { formatBrowserToolResult } = await import("./browser/tool");
-  const text = `Browser execution update for this resumed work:\n${formatBrowserToolResult(completed)}`;
-  return { ...resume, messages: [...resume.messages, { role: "user", content: resume.transport === "anthropic" ? [{ type: "text", text }] : text }] };
+  const pending = (resume.waitFor ?? []).filter(work => ["browser_run", "browser_control"].includes(work.kind));
+  if (!pending.length) return resume;
+  const { formatBrowserToolResult, formatBrowserSessionResult } = await import("./browser/tool");
+  const { readOperation } = await import("./externalOperations/store");
+  const consumed = new Set<string>();
+  for (const kind of ["browser_run", "browser_control"] as const) {
+    const waits = pending.filter(work => work.kind === kind);
+    if (!waits.length) continue;
+    let query = (args.admin.from as any)("talent_external_operations").select("*")
+      .eq("user_id", args.userId).eq("conversation_id", args.conversationId)
+      .eq("kind", kind === "browser_run" ? kind : "browser_session").in("id", waits.map(work => work.id));
+    if (args.workId) query = query.eq("request->>work_id", args.workId);
+    const { data, error } = await query;
+    if (error) throw error;
+    for (const wait of waits) {
+      const operation = (data as ExternalOperation[] | null)?.find(row => row.id === wait.id);
+      if (operation && kind === "browser_run" && ["reserved", "preparing", "dispatching", "capacity_wait", "running", "cancelling"].includes(operation.status)) continue;
+      const currentId = kind === "browser_control" ? operation?.provider_refs?.current_execution_id : undefined;
+      const current = typeof currentId === "string" ? await readOperation(args, currentId) : null;
+      const observation = !operation ? `Browser execution ${wait.id} is unavailable. Completion has not been established.`
+        : kind === "browser_control" ? formatBrowserSessionResult(operation, current?.parent_id === operation.id ? [current] : []) : formatBrowserToolResult([operation]);
+      resume = appendCareerExecutionObservation(resume, wait.toolCallId, observation);
+      consumed.add(wait.id);
+    }
+  }
+  return { ...resume, waitFor: resume.waitFor?.filter(work => !consumed.has(work.id)) };
 }
 
 /** One claim covers a logical delivered reply, including any request continuations. */
@@ -254,7 +270,7 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
     let resume = saved ? { ...saved, handbooks: [...resumedBooks.values()] } : undefined;
     // The claimed checkpoint owns readiness. Refresh its browser observation
     // before building the resource index so it cannot report an older status.
-    const dependencyState = args.inboxId && resume
+    const dependencyState = resume
       ? careerCheckpointIsReady(args.admin, args.userId, resume).then(ready => !ready)
       : Promise.resolve(args.resumeDependenciesPending);
     const [resourceIndex, laterUserMessages, delegatedContext, inboxSnapshot, resumeDependenciesPending] = await Promise.all([
@@ -265,7 +281,7 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
       args.inboxId ? readCareerInbox(args, args.inboxId) : Promise.resolve(undefined),
       dependencyState,
     ]);
-    if (resumeDependenciesPending && inboxSnapshot && !inboxSnapshot.messages.length && !inboxSnapshot.events?.length)
+    if (resumeDependenciesPending && (resume?.waitFor?.some(work => ["browser_run", "browser_control", "external_capacity"].includes(work.kind)) || (inboxSnapshot && !inboxSnapshot.messages.length && !inboxSnapshot.events?.length)))
       throw new CareerReplyContinuation(resume!);
     if (resume) resume = await appendBrowserContinuationResults(args, resume);
     const knownWorkRevisions = new Map(delegatedContext.works.map(work => [work.id, work.revision]));
@@ -292,7 +308,11 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
       readEvents: events => readCareerEventContext(args, events),
       timeZone: args.promptArgs.timeZone, preferredLocale: args.promptArgs.currentPreferences?.preferredLocale,
     }) : undefined;
-    const resources = [delegatedContext.text, resourceIndex, laterUserMessages, selectedOpportunityContext].filter(Boolean).join("\n\n");
+    // Artifact-only turns may have no final chat message. Their durable turn
+    // receipt still supplies research to the next invocation.
+    const research = renderCareerExecutionHistory({ agentTurn: { record: previous } }) || renderCareerResearchHistory({ agentTurn: { record: previous } });
+    const unrepresentedResearch = research && !args.selectorInput?.messages.some(message => message.content.includes(research)) ? research : "";
+    const resources = [delegatedContext.text, resourceIndex, laterUserMessages, selectedOpportunityContext, unrepresentedResearch].filter(Boolean).join("\n\n");
     const appendResources = (instruction?: string | null) => [instruction, resources].filter(Boolean).join("\n\n");
     const turn = await createCareerCapabilityTurn({
       ...args,

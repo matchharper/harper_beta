@@ -1,3 +1,4 @@
+import { criterionLevel } from "@/lib/org/roleCriteria";
 import {readHiringBriefHistory} from '../hiringBriefHistory.server';
 import {formatHiringBriefHistory} from '../hiringBriefHistory';
 import { readCompanyMemory, formatCompanyMemory } from "./companyMemory";
@@ -588,6 +589,20 @@ export function formatOrgAgentContactSummary(
     "count_unit=contact_records; response counts are contacts with at least one stored response, not individual reply messages.",
     "instruction=자세한 연락 목록과 개별 연락의 현재 상태·메시지·답장은 list_contacts와 read_contact로 확인한다. 이 집계만으로 특정 연락이 없다고 판단하지 않는다.",
   ].join("\n");
+}
+
+/** Reuse the authorized Role already fetched for an agent event, without another tool round. */
+export function formatOrgAgentCurrentRoleContext(context: Pick<OrgAgentPromptContext, "roles">, roleId: string) {
+  const role = context.roles.find(role => role.roleId === roleId);
+  if (!role) return "";
+  return formatPromptSection("current_role_details", [
+    `Role ${role.roleId}; updated ${formatPromptKstDateTime(role.updatedAt)}`,
+    formatPromptSection("role_description", role.description ?? ""),
+    formatPromptSection("company_private_hiring_brief", role.request ?? ""),
+    formatPromptSection("company_private_criteria", role.criteria.map(criterion =>
+      `${criterion.name} (${criterionLevel(criterion)}): ${criterion.criteria}`
+    ).join("\n")),
+  ].join("\n"));
 }
 
 /**

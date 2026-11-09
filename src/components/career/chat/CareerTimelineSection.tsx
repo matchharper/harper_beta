@@ -1,4 +1,4 @@
-import { createCareerTurnProjection } from "@/hooks/career/careerTurnProjection";
+import { createCareerTurnProjection, projectCareerInputDelivery } from "@/hooks/career/careerTurnProjection";
 import { useCareerOpenForms } from "@/hooks/career/useCareerOpenForms";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { ApplicationQuestionHistoryRow } from "./ApplicationQuestionHistoryRow";
@@ -238,7 +238,7 @@ type TimelineMessageRowProps = Omit<
   isSimulationMode: boolean;
   suppressRolePreviews: boolean;
   turnStartedAt?: string;
-  showTurnStopped: boolean;
+  stopDisplay?: "label" | "search";
   dateLabel: string;
   dateAriaPrefix: string;
   simulationSession?: CareerMessage["simulationSession"];
@@ -256,7 +256,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
   isSimulationMode,
   suppressRolePreviews,
   turnStartedAt,
-  showTurnStopped,
+  stopDisplay,
   dateLabel,
   dateAriaPrefix,
   simulationSession,
@@ -287,6 +287,12 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
       followingAssistantThinkingLogs ?? EMPTY_THINKING_LOGS
     ).latestStatus?.state === "stopped";
   const isRunningRecommendationSearch = latestStatus?.state === "running";
+  const isActivity = message.messageType === "career_turn_activity";
+  const stoppedLabel = t("career.chat.stopped", "중단됨");
+  const displayEvents = message.workBackgroundLogs?.length ? [
+    ...(message.workEvents?.length ? message.workEvents : (message.thinkingLogs ?? []).map((text, index) => ({ id: `tool:${index}`, kind: "tool" as const, text }))),
+    ...message.workBackgroundLogs.map((text, index) => ({ id: `delegate:${index}`, kind: "tool" as const, text })),
+  ] : message.workEvents;
   const recommendationSearchRun = !isUser
     ? (message.recommendationSearchRun ?? null)
     : null;
@@ -344,7 +350,9 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
     <div
       data-career-message-container="true"
       data-career-message-role={message.role}
-      className={cn("group relative flex flex-col gap-2", startsNewSpeaker && "mt-3")}
+      data-career-input-pending={isUser ? Boolean(message.inputPending) : undefined}
+      aria-busy={isUser && message.inputPending ? true : undefined}
+      className={cn("group relative flex flex-col gap-2", isUser && "career-user-message", startsNewSpeaker && "mt-3")}
     >
       {!isUser && (textLogs.length > 0 || message.workEvents || message.workStartedAt || message.workPending) && (
         <ThinkingLogPanel
@@ -354,16 +362,13 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
           }
           completedAt={message.workCompletedAt ?? message.createdAt}
           logs={textLogs}
-          events={message.workBackgroundLogs?.length ? [
-            ...(message.workEvents?.length ? message.workEvents : (message.thinkingLogs ?? []).map((text, index) => ({ id: `tool:${index}`, kind: "tool" as const, text }))),
-            ...message.workBackgroundLogs.map((text, index) => ({ id: `delegate:${index}`, kind: "tool" as const, text })),
-          ] : message.workEvents}
+          events={displayEvents}
           startedAt={message.workStartedAt ?? turnStartedAt}
         />
       )}
       {message.workArtifacts?.map(artifact => (
         artifact.browserSession ? (
-          <BrowserSessionAnchor key={artifact.id} sessionId={artifact.browserSession.sessionId} />
+          <BrowserSessionAnchor key={artifact.id} sessionId={artifact.browserSession.sessionId} source="artifact" />
         ) : (
           <CareerMessageBubble
             key={artifact.id}
@@ -383,7 +388,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
           />
         )}
       {message.browserSession ? (
-        <BrowserSessionAnchor sessionId={message.browserSession.sessionId} />
+        <BrowserSessionAnchor sessionId={message.browserSession.sessionId} source="artifact" />
       ) : message.applicationQuestions ? (
         <>
           <ApplicationQuestionHistoryRow batch={message.applicationQuestions} />
@@ -530,26 +535,27 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
             onOpenOpportunity={onOpenOpportunity}
           />
         )}
-      {message.messageType !== "career_turn_activity" && (
-        <CareerMessageActions
-          message={message}
-          onDeleteMessage={onDeleteMessage}
-        />
+      {stopDisplay === "label" && (
+        <div role="status" className="text-[12px] text-neutral-muted">
+          {stoppedLabel}
+        </div>
       )}
+      <CareerMessageActions
+        message={message}
+        copyText={isActivity
+          ? displayEvents?.map(event => event.text).join("\n\n") || textLogs.join("\n\n") || (stopDisplay ? stoppedLabel : message.content)
+          : undefined}
+        onDeleteMessage={onDeleteMessage}
+      />
     </div>
   );
 
   return (
-    <Fragment key={message.workReplyId ?? String(message.id)}>
+    <Fragment>
       {dateLabel && (
         <TimelineDateDivider ariaPrefix={dateAriaPrefix} label={dateLabel} />
       )}
       {messageNode}
-      {showTurnStopped && (
-        <div role="status" className="text-[12px] text-neutral-muted">
-          {t("career.chat.stopped", "중단됨")}
-        </div>
-      )}
     </Fragment>
   );
 });
@@ -637,12 +643,13 @@ export const TimelineMessageList = memo(function TimelineMessageList({
         ? formatChatDateDividerLabel(message.createdAt, locale)
         : "";
     if (messageDateKey) previousDateKey = messageDateKey;
+    const stopDisplay = turnHasStoppedSearch ? "search" : turnStopped ? "label" : undefined;
     // A previous user message is not an execution start: autonomous greetings
     // and resumed work may arrive much later. Only measured timing can supply
     // a duration; message chronology must not manufacture hours of work.
     rows.push(
       <TimelineMessageRow
-        key={message.workReplyId ?? String(message.id)}
+        key={message.workSegmentId ?? message.workReplyId ?? message.clientRequestId ?? String(message.id)}
         message={message}
         startsNewSpeaker={
           !dateLabel && index > 0 && messages[index - 1].role !== message.role
@@ -655,6 +662,8 @@ export const TimelineMessageList = memo(function TimelineMessageList({
         thinkingLogs={
           message.workBackgroundLogs?.length
             ? [...(message.thinkingLogs ?? []), ...message.workBackgroundLogs]
+            : message.workEvents !== undefined
+            ? (message.thinkingLogs ?? EMPTY_THINKING_LOGS)
             : message.thinkingLogs?.length
             ? message.thinkingLogs
             : message.role === "user"
@@ -673,9 +682,7 @@ export const TimelineMessageList = memo(function TimelineMessageList({
           previewSuppressionCounts[turnEnds[index]] >
           previewSuppressionCounts[turnStart]
         }
-        showTurnStopped={
-          turnStopped && !turnHasStoppedSearch && index + 1 === turnEnds[index]
-        }
+        stopDisplay={index + 1 === turnEnds[index] ? stopDisplay : undefined}
         dateLabel={dateLabel}
         dateAriaPrefix={dateAriaPrefix}
         simulationSession={
@@ -974,7 +981,16 @@ const CareerTimelineSection = ({
 
   const workStatus = useCareerOpenForms(conversationId);
   const projectTurns = useMemo(() => createCareerTurnProjection(), [conversationId]);
-  const projectedMessages = useMemo(() => projectTurns(messages, friendly ? undefined : workStatus.data), [messages, workStatus.data, projectTurns, friendly]);
+  const [deletedReplyIds, setDeletedReplyIds] = useState<string[]>([]);
+  const projectedMessages = useMemo(() => projectTurns(projectCareerInputDelivery(messages, workStatus.data), friendly ? undefined : workStatus.data, deletedReplyIds), [messages, workStatus.data, projectTurns, friendly, deletedReplyIds]);
+  const handleDeleteTimelineMessage = useCallback(async (messageId: string | number) => {
+    const replyId = projectedMessages.find(message => String(message.id) === String(messageId))?.workReplyId;
+    const deleted = await onDeleteMessage?.(messageId);
+    if (deleted && replyId) {
+      setDeletedReplyIds(ids => [...ids, replyId]);
+    }
+    return Boolean(deleted);
+  }, [onDeleteMessage, projectedMessages]);
   const timelineMessages = useMemo(
     () =>
       projectedMessages.filter(
@@ -1361,7 +1377,7 @@ const CareerTimelineSection = ({
             assistantTyping={assistantTyping}
             thinkingLogsByMessageId={thinkingLogsByMessageId}
             assistantChoiceActionsDisabled={assistantChoiceActionsDisabled}
-            onDeleteMessage={onDeleteMessage}
+            onDeleteMessage={onDeleteMessage ? handleDeleteTimelineMessage : undefined}
             onSelectAssistantChoice={handleSelectAssistantChoice}
             onSelectReengagementAction={handleSelectReengagementAction}
             onRegenerateOnboardingWrapup={onRegenerateOnboardingWrapup}

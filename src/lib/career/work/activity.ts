@@ -1,14 +1,15 @@
+import { readCareerTurnEvents, type CareerTurnEvent } from "../turnDisplay";
 import type { CareerReplyCheckpoint } from "../capabilities/runtime";
 import type { WorkScope } from "./store";
 
-export type CareerWorkActivity = { id: string; ownerReplyId?: string; logs: string[]; createdAt?: string; startedAt?: string };
+export type CareerWorkActivity = { id: string; ownerReplyId?: string; logs: string[]; events?: CareerTurnEvent[]; createdAt?: string; startedAt?: string };
 
 /** Only public tool labels used by chat SSE; never the saved model transcript. */
 export function projectCareerWorkActivity(row: {
   id: string;
   created_at?: string;
   request?: { cleanup?: boolean; cleanup_browser_session?: string };
-  result?: { activity?: { logs?: unknown; startedAt?: string; waitingForReply?: boolean } };
+  result?: { activity?: { logs?: unknown; events?: unknown; startedAt?: string; waitingForReply?: boolean } };
 }): CareerWorkActivity[] {
   if (
     row.request?.cleanup ||
@@ -20,6 +21,7 @@ export function projectCareerWorkActivity(row: {
   return [
     {
       id: row.id,
+      events: row.result?.activity?.events === undefined ? undefined : readCareerTurnEvents(row.result.activity.events),
       ...(row.created_at ? { createdAt: row.created_at } : {}),
       ...(row.result?.activity?.startedAt ? { startedAt: row.result.activity.startedAt } : {}),
       logs: Array.isArray(logs)
@@ -37,11 +39,12 @@ export function createCareerInvocationActivity(
 ) {
   let attemptId: string | undefined;
   let logs: string[] = [];
+  let events: CareerTurnEvent[] = [];
   let startedAt: string;
   let writes = Promise.resolve();
   const save = (waitingForReply: boolean) => {
     if (!attemptId) return writes;
-    const activity = { attemptId, startedAt, logs: [...logs], waitingForReply,
+    const activity = { attemptId, startedAt, logs: [...logs], events: [...events], waitingForReply,
       ...(browserControlReturns.length ? { browserControlReturns } : {}) };
     writes = writes
       .then(async () => {
@@ -68,7 +71,10 @@ export function createCareerInvocationActivity(
       return save(false);
     },
     record(nextLogs: string[]) {
-      logs = nextLogs;
+      events = nextLogs.map((text, index) => events[index]?.text === text ? events[index] : {
+        id: `delegate:${invocationId}:${index}`, kind: "tool", text, createdAt: new Date().toISOString(),
+      });
+      logs = [...nextLogs];
       void save(false);
     },
     checkpoint(checkpoint: CareerReplyCheckpoint) {

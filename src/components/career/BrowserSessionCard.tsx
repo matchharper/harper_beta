@@ -12,9 +12,10 @@ import {
 } from "./BrowserPreviewFrame";
 
 export type BrowserSessionViewData = {
-  session: { id: string; status: string; revision: number };
+  session: { id: string; status: string; revision: number; title?: string };
   executions: { id: string; status: string; result: { summary?: string } }[];
   liveUrl: string | null;
+  observationFailed?: boolean;
   browserAvailability?: "active" | "stopped" | "unknown";
 };
 
@@ -50,7 +51,8 @@ export function BrowserSessionView({
   const stopped =
     view?.browserAvailability === "stopped" &&
     ["idle", "human"].includes(view.session.status);
-  const title = t("career.application.browser.title", "Harper의 브라우저");
+  const previewFailed = Boolean(view?.observationFailed);
+  const title = view?.session.title || t("career.application.browser.title", "Harper의 브라우저");
   const status =
     closed || stopped
       ? t("career.browser.closed", "종료된 브라우저")
@@ -63,9 +65,10 @@ export function BrowserSessionView({
     <>
       <BrowserPreviewSurface
         liveUrl={!closed && !stopped ? (view?.liveUrl ?? null) : null}
-        loading={!error && !preview}
+        loading={!error && !preview && !previewFailed && !closed && !stopped}
+        loadingLabel={t("career.browser.loading", "브라우저를 불러오는 중이에요.")}
         showViewport={
-          (preview || Boolean(view?.liveUrl)) && !closed && !stopped
+          (preview || Boolean(view?.liveUrl) || (!error && !previewFailed)) && !closed && !stopped
         }
         showViewportControls={false}
         fillViewport={fullScreen}
@@ -130,19 +133,36 @@ export function BrowserSessionView({
         view &&
         !human &&
         view.session.status !== "human" ? (
-          <BrowserPreviewAction
-            type="button"
-            disabled={busy || preview || view.session.status === "closing"}
-            onClick={() => setPendingAction("handoff")}
-          >
-            {t("career.browser.handoff", "직접 조작")}
-          </BrowserPreviewAction>
+          <div className="col-span-2 grid grid-cols-2 gap-2">
+            <MuteButton
+              type="button"
+              size="md"
+              className="w-full rounded-pill"
+              disabled={busy || preview || view.session.status === "closing"}
+              onClick={() => setPendingAction("close")}
+            >
+              {["idle", "ready"].includes(view.session.status)
+                ? t("career.browser.close", "닫기")
+                : t("career.application.review.stop", "중단하기")}
+            </MuteButton>
+            <BrowserPreviewAction
+              type="button"
+              disabled={busy || preview || view.session.status === "closing"}
+              onClick={() => setPendingAction("handoff")}
+            >
+              {t("career.browser.handoff", "직접 조작")}
+            </BrowserPreviewAction>
+          </div>
         ) : null}
-        {human && view?.liveUrl && !stopped && !busy ? (
-          <MuteButton asChild size="md" className="w-full cursor-pointer rounded-pill bg-white bg-none hover:bg-white/90">
-            <a href={view.liveUrl} target="_blank" rel="noopener noreferrer">
-              {t("career.browser.openWindow", "새 창에서 열기")}
-            </a>
+        {human && !stopped ? (
+          <MuteButton
+            type="button"
+            size="md"
+            className="w-full rounded-pill"
+            disabled={busy || preview}
+            onClick={() => setPendingAction("close")}
+          >
+            {t("career.application.review.stop", "중단하기")}
           </MuteButton>
         ) : null}
         {human ? (
@@ -150,14 +170,12 @@ export function BrowserSessionView({
             {t("career.browser.done", "완료")}
           </BrowserPreviewAction>
         ) : null}
-        {!preview && !view?.liveUrl && !closed && !stopped && !error ? (
-          <p className="text-sm text-neutral-muted">
-            {view
-              ? t(
-                  "career.browser.noPreview",
-                  "브라우저 화면을 불러올 수 없어요. 세션 상태를 확인해 주세요."
-                )
-              : t("career.browser.loading", "브라우저를 불러오는 중이에요.")}
+        {!preview && previewFailed && !view?.liveUrl && !closed && !stopped && !error ? (
+          <p role="alert" className="text-sm text-neutral-muted">
+            {t(
+              "career.browser.noPreview",
+              "브라우저 화면을 불러올 수 없어요. 세션 상태를 확인해 주세요."
+            )}
           </p>
         ) : null}
         {error ? (

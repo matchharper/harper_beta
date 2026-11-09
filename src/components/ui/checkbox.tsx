@@ -117,11 +117,11 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
           unstyled
             ? className
             : cn(
-                "shrink-0 appearance-none border-(length:--control-border-width) bg-control bg-center bg-no-repeat bg-size-[14px_14px] shadow-(--shadow-control) backdrop-blur-control outline-none transition-[opacity,transform] focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-55 active:scale-[0.97]",
+                "shrink-0 appearance-none border-[length:var(--checkbox-border-width,var(--control-border-width))] bg-control bg-center bg-no-repeat bg-size-[14px_14px] shadow-(--shadow-control) backdrop-blur-control outline-none transition-[opacity,transform] focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-55 active:scale-[0.97]",
                 checkboxSizeClassNames[size],
                 state === "error"
                   ? "border-critical/20"
-                  : "border-control-border",
+                  : "border-[color:var(--checkbox-border-color,var(--color-control-border))]",
                 "checked:border-control-checked checked:bg-control-checked",
                 "indeterminate:border-control-checked indeterminate:bg-control-checked",
                 resolvedDisabled &&

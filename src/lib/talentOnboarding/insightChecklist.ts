@@ -6,7 +6,7 @@ export type InsightChecklistItem = {
   label: string;
   /** One-line description for LLM extraction guidance */
   promptHint: string;
-  /** Lower = ask earlier in conversation (1-10) */
+  /** Stable display order for stored Briefs */
   priority: number;
   /** Whether the item is a ranking item */
   isRanking?: boolean;
@@ -28,7 +28,7 @@ export type OnboardingQuestionChecklistItem = {
   label: string;
   /** One-line description for LLM extraction and next-question guidance */
   promptHint: string;
-  /** Lower = ask earlier in conversation (1-20) */
+  /** Stable display order, not a required question sequence */
   priority: number;
   kind: OnboardingQuestionChecklistKind;
 };
@@ -56,7 +56,7 @@ const CROSS_BORDER_WORK_AUTHORIZATION_ONBOARDING_ITEM = {
   insightKey: "cross_border_work_authorization",
   label: "거주국 외 국가의 근무 자격",
   promptHint:
-    "Use the user's explicit current location to determine its country, then confirm nationality with the assertive wording '[location-country] 국적이신 거죠?' Do not soften this into an open-ended nationality question. Continue by asking whether the user already has citizenship, permanent residency, or another valid work authorization in any country other than that location country. Briefly explain that Harper also explores global opportunities and some roles require existing local work authorization. A natural Korean example is: '현재 [location-country]에 계신 것으로 확인되는데, [location-country] 국적이신 거죠? 하퍼가 글로벌 기회도 함께 살펴보고 있고 일부 역할은 현지 근무 자격이 필요해요. 혹시 [location-country] 외에 시민권이나 영주권처럼 이미 일할 수 있는 자격을 가진 나라가 있다면 알려주세요.' If the current location is unavailable, ask the user's nationality directly before asking about other countries. Keep it factual and do not expand into broad visa advice unless the user asks.",
+    "Existing work authorization or a need for sponsorship when relevant to the countries the user wants to work in. Do not infer nationality or authorization from residence.",
   priority: 5,
   kind: "question",
 } satisfies OnboardingQuestionChecklistItem;
@@ -77,7 +77,7 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     insightKey: "location",
     label: "선호 근무 지역",
     promptHint:
-      "The user's preferred work location or region, while gently also checking whether they are open to or considering overseas opportunities",
+      "Where the user would consider working, including any remote, relocation or cross-border constraints relevant to their search",
     priority: 2,
     kind: "question",
   },
@@ -87,7 +87,7 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     relatedInsightKeys: [MUST_HAVES_INSIGHT_ITEM.key],
     label: "다음 역할과 꼭 필요한 조건",
     promptHint:
-      "Ask in one natural question what role, responsibility, or direction the user wants next and whether there are any non-negotiable requirements or special requests that Harper must apply when exploring opportunities. Keep the desired role in next_scope and any separate hard requirement in must_haves.",
+      "The work, responsibilities or direction the user wants next, and any conditions essential to considering an opportunity.",
     priority: 3,
     kind: "question",
   },
@@ -96,7 +96,7 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     insightKey: "compensation",
     label: "기대 보상 조건",
     promptHint:
-      "Whether the user has a minimum acceptable compensation level or 'this much would make sense' expectation for the next opportunity",
+      "The compensation level or range that would make a next opportunity worth considering, and what that expectation means (such as currency and base versus total compensation when relevant). A stated priority alone does not describe an expected level; an explicitly undecided or private expectation is also useful context.",
     priority: 4,
     kind: "question",
   },
@@ -106,7 +106,7 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     insightKey: "language",
     label: "외국어 능력",
     promptHint:
-      "Ask which languages the user can use in work conversations, the level for each language, and concrete situations where they can communicate at that level. Ask for examples such as 1:1 meetings, team meetings, interviews, technical/product discussions, negotiation, client communication, or async writing. Briefly explain that Harper asks because many opportunities involve global teams. If the user's explicit current residence is Hong Kong or Indonesia, explicitly cover English and Chinese rather than treating 'Chinese' as one language: distinguish Mandarin/Putonghua and Cantonese, and for Indonesia also ask about Indonesian when it is not already clear. Never infer proficiency from residence, nationality, education, or employer.",
+      "Languages the user can work in and their practical communication ability, to understand which teams they could work with. Residence, nationality or employer alone does not establish proficiency.",
     priority: 6,
     kind: "question",
   },
@@ -124,7 +124,7 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     insightKey: "team_style_fit",
     label: "선호하는 회사의 조건",
     promptHint:
-      "다음으로 선호하는 회사·팀을 파악한다. 프로필과 대화를 바탕으로 사용자가 다음 기회로 선호할 법한 실제 회사명을 구체적으로 언급하며 질문하면 좋다. 해당 회사들에 관심이 있을 것 같다는 추측을 제시하고, 사용자가 확인하거나 정정할 수 있게 한다. 회사명은 사용자 맥락에 맞춰 고르고, 근거가 부족하면 열린 질문으로 선호를 파악한다. 추측 자체를 확인된 선호나 이 주제에 대한 답변으로 취급하지 않는다.",
+      "사용자가 어떤 회사나 팀을 매력적으로 느끼는지와 그 이유. 회사 인지도, 사업, 일하는 방식 등 사용자가 중요하게 여기는 기준을 이해한다.",
     priority: 8,
     kind: "question",
   },

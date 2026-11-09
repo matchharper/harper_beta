@@ -12,6 +12,7 @@ import {
   readAgentContacts,
 } from "../../src/lib/agentContacts/store";
 import { encodeMaterialSelection } from "../../src/lib/agentContacts/contracts";
+import { OrgAgentToolInputError } from "../../src/lib/org/agent/toolAvailability";
 
 const { env } = stackEnv();
 const url = new URL(env.DATABASE_URL);
@@ -495,7 +496,13 @@ try {
     };
     await assert.rejects(
       assertAgentContactSource(query, companySource, role, randomUUID()),
-      /another candidate relationship/
+      (error: unknown) => {
+        assert.ok(error instanceof OrgAgentToolInputError);
+        assert.ok(error.message.includes(`talentId=${first.message.talent_id}`));
+        assert.ok(error.message.includes(`roleId=${role}`));
+        assert.ok(error.message.includes(`introductionRootId=${first.message.id}`));
+        return true;
+      }
     );
     Object.assign(process.env, env);
     const { executeCompanyCorrespondence, companyContactSource } =

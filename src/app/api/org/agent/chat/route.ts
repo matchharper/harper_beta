@@ -1,3 +1,4 @@
+import { canUseOrgDevControls } from "@/lib/internalAccess";
 import { NextRequest, NextResponse } from "next/server";
 import { getLlmErrorMessage } from "@/lib/llm/llm";
 import { runOrgAgentChat } from "@/lib/org/agent/chat";
@@ -60,12 +61,13 @@ export async function POST(req: NextRequest) {
       screenLocale: body.responseLocale ?? undefined,
       userId: user.id,
     });
+    const model = canUseOrgDevControls(user.email) ? body.model ?? null : null;
     const args = {
       signal: req.signal,
       attachments: Array.isArray(body.attachments) ? body.attachments : [],
       mentions: Array.isArray(body.mentions) ? body.mentions : [],
       message: body.message ?? "",
-      model: body.model ?? null,
+      model,
       responseLocale,
       roleId: body.mode === "role" ? (body.roleId ?? null) : null,
       user,
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
       view: body.roleCreationView === "role_details" ? "role_details" as const : undefined,
       mentions: Array.isArray(body.mentions) ? body.mentions : [],
       message: body.message ?? "",
-      model: body.model ?? null,
+      model,
       responseLocale,
       roleId: body.roleId ?? null,
       user,

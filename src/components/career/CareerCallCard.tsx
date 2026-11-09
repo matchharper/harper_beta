@@ -1,5 +1,5 @@
 import { Loader2, Phone, PhoneCall, PhoneOff, Square } from "lucide-react";
-import { useId, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { ActionButton } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -30,7 +30,6 @@ export default function CareerCallCard({
   forceCompletePending = false,
   isOnboardingCompleted,
   onForceComplete,
-  progressPercent,
   onStartCall,
   title,
 }: CareerCallCardProps) {
@@ -38,12 +37,6 @@ export default function CareerCallCard({
   const resolvedCtaLabel =
     ctaLabel ?? t("career.call.career_call_card.0ocs6vv", "통화 시작");
   const pendingLabel = t("career.call.career_call_card.1vn8y3k", "연결 중...");
-  const progressTitleId = useId();
-  const resolvedProgressPercent = Math.max(
-    0,
-    Math.min(100, Math.round(progressPercent))
-  );
-
   return (
     <div
       className={cn(
@@ -103,48 +96,8 @@ export default function CareerCallCard({
         </div>
       ) : (
         <div className="flex w-full flex-col items-center justify-center gap-1 px-4 py-2">
-          <div
-            aria-labelledby={progressTitleId}
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={resolvedProgressPercent}
-            className="relative flex size-14 shrink-0 items-center justify-center"
-            role="progressbar"
-          >
-            <svg
-              aria-hidden="true"
-              className="size-14 -rotate-90"
-              viewBox="0 0 56 56"
-            >
-              <circle
-                className="stroke-neutral-300"
-                cx="28"
-                cy="28"
-                fill="none"
-                pathLength="100"
-                r="24"
-                strokeWidth="4"
-              />
-              <circle
-                className="stroke-primary transition-[stroke-dashoffset] duration-500"
-                cx="28"
-                cy="28"
-                fill="none"
-                pathLength="100"
-                r="24"
-                strokeDasharray="100"
-                strokeDashoffset={100 - resolvedProgressPercent}
-                strokeLinecap="round"
-                strokeWidth="4"
-              />
-            </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold tabular-nums text-neutral-primary">
-              {resolvedProgressPercent}%
-            </span>
-          </div>
           <Text
             as="h3"
-            id={progressTitleId}
             type="head2"
             className="mt-4 text-center"
           >

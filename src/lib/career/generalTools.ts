@@ -1,4 +1,5 @@
 import { withEffectWaiting } from "./externalOperations/effects";
+import { readCareerBrowserServiceTier } from "./browserServiceTier.server";
 import { CAREER_WORK_TOOLS } from "./work/tools";
 import { CAREER_ACTION_ITEM_TOOLS } from "./actionItemsTool";
 import { CAREER_CONTENT_SUGGESTION_TOOLS } from "./contentSuggestionsTool";
@@ -8,7 +9,7 @@ import { createHash } from "node:crypto";
 import type { TalentToolDefinition, TalentToolExecutionContext } from "@/lib/talentOnboarding/tools";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { suggestFormTool, executeSuggestForm } from "./forms/server";
-import { USE_BROWSER_TOOL, executeUseBrowser, browserHasHumanControl } from "./browser/tool";
+import { USE_BROWSER_TOOL, executeUseBrowser } from "./browser/tool";
 import { WRITE_EMAIL_TOOL, executeWriteEmail } from "./emailWriting/tool";
 import { CAREER_PROFILE_TOOLS, formatProfileToolResult } from "./profiles/tools";
 import { CAREER_INTERNAL_APPLICATION_TOOLS, formatInternalApplicationToolResult } from "./internalApplications/tools";
@@ -67,23 +68,22 @@ export const CAREER_GENERAL_TOOLS: Record<string, TalentToolDefinition> = {
     execute: (input, context) => executeSuggestForm({
       ...executionContext(context, "suggest_form", input), input,
       onMessage: context?.onArtifactMessage,
-      presentForm: context?.presentForm,
     }),
   },
   use_browser: {
     ...USE_BROWSER_TOOL,
     channels: ["chat"],
     async execute(input, context) {
+      const browserContext = executionContext(context, "use_browser", input);
+      const browserServiceTier = input.action === "run"
+        ? await readCareerBrowserServiceTier(browserContext) : undefined;
       const result = await withEffectWaiting(() => executeUseBrowser(
-        input, { ...executionContext(context, "use_browser", input),
-          ...(["run", "read"].includes(String(input.action)) ? { deadlineAt: Date.now() } : {}) }, context?.onArtifactMessage
+        input, { ...browserContext, browserServiceTier }, context?.onArtifactMessage
       ));
       if ("message" in result && result.message && input.action !== "run") context?.onArtifactMessage?.(result.message);
       const operation = "operation" in result ? result.operation : undefined;
       const pending = operation && ["running", "cancelling"].includes(operation.status) ? operation
         : "operations" in result ? result.operations?.find(op => op.kind === "browser_run" && ["running", "cancelling"].includes(op.status)) : undefined;
-      const session = "session" in result ? result.session : undefined;
-      if (session && browserHasHumanControl(session)) return { ...result, careerContinuation: { kind: "browser_control", id: session.id } };
       return { ...result, ...(pending ? { careerContinuation: { kind: "browser_run", id: pending.id } } : {}) };
     },
   },

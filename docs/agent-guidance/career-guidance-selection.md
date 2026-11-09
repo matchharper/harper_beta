@@ -40,3 +40,7 @@ git apply docs/evaluation/career-agent-autonomy/restore-a.patch
 - `src/lib/career/prompts/promptCaching.test.ts`
 
 2026-11-03 현재 C 코드에 대해 복원 패치의 `git apply --check`가 통과했다. 실제 복원은 실행하지 않았고 C가 유지돼 있다. 기준 commit과 패치를 저장했으므로 태그가 없는 다른 checkout에서도 복원 절차를 사용할 수 있다.
+
+## 2026-11-08 지원 준비 후속 수정 (로컬, 미배포)
+
+현재 요청에 따라 직접 연락을 의무화하던 application 지침과 최소 정보만으로 준비를 끝내게 하던 main/resume 지침을 수정했다. documents capability에는 작성 전 resume handbook을 제공하고, proactive_career는 실제 background invocation에만 제공한다. 웹 조사 사실은 기존 turn record와 메시지 projection으로 다음 턴에 전달한다. 저장 기회 단계 변경은 기존 Jobs executor를 upsert_opportunities의 set_stage로 제공한다. 기존 C 전체를 A로 되돌린 변경이 아니다. 실제 반복 결과와 한계는 [지원 시나리오 평가](../evaluation/career-application-scenarios/README.md)에 기록한다.

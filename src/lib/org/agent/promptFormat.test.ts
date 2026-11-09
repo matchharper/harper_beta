@@ -1270,8 +1270,8 @@ test("blocked scheduled movement identifies company organizer availability witho
   assert.match(compact, /meeting_request_created=false/);
   assert.match(compact, /candidate_contacted=false/);
   assert.match(compact, /organizer_availability_required=true/);
-  assert.match(compact, /original_candidate_meeting_request_authorized=true/);
-  assert.match(compact, /continuation_after_prerequisite=/);
+  assert.match(compact, /execution_mode=candidate_time_selection_page/);
+  assert.doesNotMatch(compact, /original_candidate_meeting_request_authorized|continuation_after_prerequisite/);
   assert.match(compact, /calendar_settings_url=/);
   assert.match(compact, /org\/settings\?orgId=workspace&tab=calendar/);
   assert.doesNotMatch(compact, /draftBlocker|user_facing_state=/);
@@ -1975,11 +1975,13 @@ test("current talent reader carries acceptance origin into the company prompt", 
     candidate: { talentId: "synthetic", name: "Synthetic Talent" },
     positions: [{ roleId: "role", roleName: "Backend", stage: "pending_connection",
       candidateAcceptedAt: "2026-09-28T03:00:00Z", recommendationOrigin: "harper_recommendation",
-      agentIntroductionRootId: "introduction-root" }],
+      recommendationId: "accepted-recommendation", agentIntroductionRootId: "introduction-root" }],
   });
   assert.match(result, /candidate_accepted_kst/);
   assert.match(result, /2026-09-28 12:00/);
   assert.match(result, /harper_recommendation/);
+  assert.match(result, /recommendation_id/);
+  assert.match(result, /accepted-recommendation/);
   assert.match(result, /agent_correspondence_root_id/);
   assert.match(result, /introduction-root/);
 });

@@ -26,7 +26,7 @@ function fixture(options: { accepted?: boolean; completed?: boolean; checkpoint?
       const query: any = { then: (resolve: (value: unknown) => unknown) => Promise.resolve(kind === "delegated_work" ? { data: [], error: null } : result).then(resolve),
         maybeSingle: async () => ({ data: null, error: null }),
         eq: (key: string, value: string) => { if (key === "kind") kind = value; return query; } };
-      for (const name of ["select", "neq", "order", "limit", "or"]) query[name] = () => query;
+      for (const name of ["select", "neq", "order", "limit", "or", "in"]) query[name] = () => query;
       return query;
     },
   } as any;
@@ -386,27 +386,28 @@ test("resource context supplies the document metadata page and preserves its nex
   } finally { await turn.release(); }
 });
 
-for (const transport of ["chat", "anthropic"] as const) {
-  test(`${transport} continuation receives the complete browser receipt without a read tool, and checkpoints it once`, async (t) => {
+for (const transport of ["chat", "anthropic"] as const) for (const needsUser of [false, true]) {
+  test(`${transport} (needsUser=${needsUser}) continuation receives the complete browser receipt without a read tool, and checkpoints it once`, async (t) => {
     const initial = await prepareCareerAgentTurn(fixture().args);
     const step = initial.runtime.resolveStep(false);
     const originalMessages = [{ role: "user", content: "Prepare the application and preserve all observed requirements." }];
     const checkpoint = { version: 1 as const, checkpointId: "browser-wait", replyId: "event:exact", transport,
       messages: originalMessages, systemBlocks: step.systemBlocks, tools: step.tools, capabilityIds: [], handbooks: [],
-      record: initial.runtime.completedRecord(), waitFor: [{ kind: "browser_run" as const, id: "finished-browser" }] };
+      record: initial.runtime.completedRecord(), waitFor: [{ kind: "browser_run" as const, id: "00000000-0000-4000-8000-000000000077" }] };
     await initial.release();
     const { args, calls } = fixture({ checkpoint });
     const originalFrom = args.admin.from.bind(args.admin) as any;
     const evidence = "Optional survey source text is preserved in full. No submission occurred.";
-    const run = { id: "finished-browser", kind: "browser_run", parent_id: "closed-session", status: "completed", revision: 4,
-      updated_at: "2026-11-05T03:00:00Z", request: { task: "PRIVATE_EXECUTION_INSTRUCTION" },
-      result: { summary: "Resume selected; visa answer still missing.", evidence: [evidence], needsUser: false }, provider_refs: { liveUrl: "PRIVATE_TOKEN" } };
+    const run = { id: "00000000-0000-4000-8000-000000000077", kind: "browser_run", parent_id: null, status: "completed", revision: 4,
+      user_id: "00000000-0000-4000-8000-000000000001", conversation_id: null, idempotency_key: "fixture", created_at: "2026-11-05T03:00:00Z", updated_at: "2026-11-05T03:00:00Z", request: { task: "PRIVATE_EXECUTION_INSTRUCTION" },
+      result: { summary: "Resume selected; visa answer still missing.", evidence: [evidence], needsUser }, provider_refs: { liveUrl: "PRIVATE_TOKEN" } };
     args.admin.from = ((table: string) => {
       const query = originalFrom(table) as any;
       if (table !== "talent_external_operations") return query;
       const filters: Record<string, unknown> = {};
       const originalEq = query.eq;
       query.eq = (key: string, value: unknown) => { filters[key] = value; return originalEq(key, value); };
+      query.maybeSingle = async () => ({ data: filters.id === run.id ? run : null, error: null });
       query.in = (key: string, ids: string[]) => {
         assert.deepEqual([key, ids], ["id", [run.id]]);
         assert.deepEqual(filters, { user_id: args.userId, conversation_id: args.conversationId, kind: "browser_run" });
@@ -415,9 +416,7 @@ for (const transport of ["chat", "anthropic"] as const) {
       return query;
     }) as any;
     run.status = "running";
-    const runningTurn = await prepareCareerAgentTurn({ ...args, resumeDependenciesPending: true });
-    try { assert.deepEqual(runningTurn.runtime.resumedMessages(transport), originalMessages); }
-    finally { await runningTurn.release(); }
+    await assert.rejects(prepareCareerAgentTurn(args), CareerReplyContinuation);
     run.status = "completed";
     const turn = await prepareCareerAgentTurn(args);
     try {
@@ -426,7 +425,7 @@ for (const transport of ["chat", "anthropic"] as const) {
       assert.equal(messages.length, 2);
       const text = JSON.stringify(messages[1]);
       assert.ok(text.includes(evidence) && text.includes(run.result.summary));
-      assert.ok(text.includes("execution_id: finished-browser") && !text.includes("PRIVATE_"));
+      assert.ok(text.includes("execution_id: 00000000-0000-4000-8000-000000000077") && !text.includes("PRIVATE_"));
       assert.equal(originalMessages.length, 1);
 
       const { runCareerChatAssistant } = await import("./llm");
@@ -497,15 +496,15 @@ test("a delegated continuation receives the exact action selected for a later or
 });
 
 
-test("manual browser control checkpoints the original turn until the user returns it", async () => {
+test("manual browser control allows the original model to explain the required human input", async () => {
   const { args, calls } = fixture();
   const turn = await prepareCareerAgentTurn(args);
   try {
     const step = turn.runtime.resolveStep(false);
     await turn.runtime.recordResult("use_browser", { careerContinuation: { kind: "browser_control", id: "human-session" } }, step);
-    await assert.rejects(turn.runtime.beforeCompletion(step, { transport: "chat", messages: [{ role: "tool", content: "The user controls the browser." }] }), CareerReplyContinuation);
-    assert.deepEqual(calls.findLast(call => call.name === "checkpoint_career_agent_turn")?.args.p_checkpoint.waitFor,
-      [{ kind: "browser_control", id: "human-session" }]);
+    await turn.runtime.beforeCompletion(step, { transport: "chat", messages: [{ role: "tool", content: "The user controls the browser." }] });
+    assert.equal(calls.some(call => call.name === "checkpoint_career_agent_turn"), false);
+    assert.equal(await turn.runtime.shouldDeferToolCall(), false);
   } finally { await turn.release(); }
 });
 
@@ -513,7 +512,7 @@ test("manual browser control checkpoints the original turn until the user return
 for (const transport of ["chat", "anthropic"] as const) {
   test(`${transport} provider receives browser Done as execution context and preserves the original request`, async t => {
     const { formatBrowserControlReturn } = await import("./browser/control");
-    const session = { id: "returned-browser", kind: "browser_session", status: "idle", revision: 5,
+    const session = { id: "00000000-0000-4000-8000-000000000078", kind: "browser_session", status: "idle", revision: 5,
       updated_at: "2026-11-06T00:00:00Z", request: {}, result: { requested_action: "resume", control_source: "user" },
       provider_refs: { current_execution_id: "previous-run", liveUrl: "PRIVATE_VIEWER_TOKEN" } } as any;
     const event = formatBrowserControlReturn(session, [{ id: "previous-run", kind: "browser_run", parent_id: session.id,

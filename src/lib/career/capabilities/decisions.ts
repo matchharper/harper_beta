@@ -1,3 +1,5 @@
+import type { CareerExecutionReceipt } from "../executionHistory";
+import type { CareerResearchReceipt } from "../researchHistory";
 import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { getLlmUsageContext } from "@/lib/llm/usageContext";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
@@ -12,7 +14,7 @@ import { careerCapabilityDescription } from "./catalog";
 export const CAREER_DECISIONS_ENDPOINT = "https://api.openai.com/v1/decisions";
 export const CAREER_DECISIONS_VERSION = "career-preload-v1";
 export const CAREER_DECISIONS_MESSAGE_COUNT = 12;
-export type CareerToolUseFact = { name: string; successful: boolean; status?: string };
+export type CareerToolUseFact = { callId?: string; name: string; successful: boolean; status?: string; research?: CareerResearchReceipt; execution?: CareerExecutionReceipt };
 export type CareerPreviousTurn = {
   offeredCapabilities?: readonly string[];
   toolResults?: readonly CareerToolUseFact[];
@@ -32,7 +34,7 @@ export type CareerPreloadSelection = {
 };
 export type CareerDecisionCatalogItem = { name: string; kind: "capability" | "handbook"; id: string; description: string };
 
-export function buildCareerDecisionCatalog(eligibleNames: ReadonlySet<string>, promptExperiment?: CareerPromptExperiment, eligibleTools: readonly TalentChatTool[] = []) {
+export function buildCareerDecisionCatalog(eligibleNames: ReadonlySet<string>, promptExperiment?: CareerPromptExperiment, eligibleTools: readonly TalentChatTool[] = [], background = false) {
   const schemas = new Map(eligibleTools.map(tool => [tool.function.name, tool]));
   const capabilities: CareerDecisionCatalogItem[] = CAREER_CAPABILITIES.flatMap(capability => {
     if ("manualOnly" in capability && capability.manualOnly) return [];
@@ -51,7 +53,7 @@ export function buildCareerDecisionCatalog(eligibleNames: ReadonlySet<string>, p
       ].join(" "),
     }] : [];
   });
-  return [...capabilities, ...careerHandbookCatalog().map(book => ({
+  return [...capabilities, ...careerHandbookCatalog(background).map(book => ({
     name: `handbook:${book.id}`, kind: "handbook" as const, id: book.id,
     description: `${book.description} (${book.characters} characters; approximately ${countConversationSummaryTokens(findCareerHandbook(book.id)!.body)} body tokens; version ${book.version})`,
   }))];
@@ -142,6 +144,7 @@ export async function selectCareerPreloads(args: {
   eligibleTools?: readonly TalentChatTool[];
   signal?: AbortSignal; timeoutMs?: number;
   promptExperiment?: CareerPromptExperiment;
+  background?: boolean;
 }): Promise<CareerPreloadSelection> {
   args.signal?.throwIfAborted();
   const started = Date.now();
@@ -149,7 +152,7 @@ export async function selectCareerPreloads(args: {
   try {
     const key = process.env.OPENAI_API_KEY?.trim();
     if (!key) throw new Error("Decisions credential unavailable");
-    const catalog = buildCareerDecisionCatalog(args.eligibleNames, args.promptExperiment, args.eligibleTools);
+    const catalog = buildCareerDecisionCatalog(args.eligibleNames, args.promptExperiment, args.eligibleTools, args.background);
     const timeout = AbortSignal.timeout(args.timeoutMs ?? 5_000);
     const response = await fetch(CAREER_DECISIONS_ENDPOINT, {
       method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },

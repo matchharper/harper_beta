@@ -19,6 +19,7 @@ import { useLiveBrowserViewport } from "./useLiveBrowserViewport";
 export function BrowserPreviewSurface({
   liveUrl,
   loading = true,
+  loadingLabel,
   expanded = false,
   onExpand,
   title,
@@ -33,6 +34,7 @@ export function BrowserPreviewSurface({
 }: {
   liveUrl: string | null;
   loading?: boolean;
+  loadingLabel?: string;
   expanded?: boolean;
   onExpand?: () => void;
   title: string;
@@ -80,12 +82,12 @@ export function BrowserPreviewSurface({
         >
           {/* Keep one iframe mounted across both sizes; no second viewer connection. */}
           <div
-            inert={!interactive}
-            aria-busy={Boolean(liveUrl && !ratio && loading)}
+            aria-busy={Boolean(!ratio && loading)}
             className={`relative h-full w-full [container-type:size] ${interactive ? "" : "pointer-events-none"}`}
           >
             {liveUrl ? (
               <iframe
+                inert={!interactive}
                 ref={iframeRef}
                 src={liveUrl}
                 title={title}
@@ -103,11 +105,13 @@ export function BrowserPreviewSurface({
               />
             ) : null}
             {!ratio && loading ? (
-              <div className="absolute inset-0 flex items-center justify-center text-neutral-soft">
+              <div role="status" className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-neutral-soft">
                 <Loader2
                   className="size-5 animate-spin motion-reduce:animate-none"
-                  aria-label={title}
+                  aria-label={loadingLabel ? undefined : title}
+                  aria-hidden={loadingLabel ? true : undefined}
                 />
+                {loadingLabel ? <p className="text-sm">{loadingLabel}</p> : null}
               </div>
             ) : null}
           </div>

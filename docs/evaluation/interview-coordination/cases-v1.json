@@ -1,0 +1,19 @@
+{
+  "clock": "2026-11-08T01:00:00Z",
+  "cases": [
+    {
+      "id": "unconnected-start",
+      "origin": "company",
+      "message": "연결된 김지민님과 플랫폼 역할 인터뷰 잡아줘. 나는 다음 주 화~목 오후 2~5시 중 한 시간이면 돼. 그 안에서 후보자가 되는 시간으로 확정하고 초대까지 보내줘. 내 캘린더는 아직 연결 안 했어.",
+      "personalCalendar": false,
+      "prepared": false
+    },
+    {
+      "id": "personal-calendar-delegated-reply",
+      "origin": "candidate_event",
+      "message": "Candidate agent correspondence: 김지민님이 2026-11-10 화요일 오후 2시~3시(Asia/Seoul) 플랫폼 역할 인터뷰에 동의했습니다. Saved meeting 00000000-0000-4000-8000-000000000006. Introduction 00000000-0000-4000-8000-000000000009. Continue the original company request within its delegation.",
+      "personalCalendar": true,
+      "prepared": true
+    }
+  ]
+}

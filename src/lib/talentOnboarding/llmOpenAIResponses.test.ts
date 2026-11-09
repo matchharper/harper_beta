@@ -430,21 +430,30 @@ test("Responses tool loop sends structured unexpected errors back to the model",
     requests.push(body);
     return { id: `response-${requests.length}`, model: "gpt-6-luna", status: "completed",
       output: requests.length === 1
-        ? [{ type: "function_call", name: "read_context", call_id: "error-call", arguments: "{}" }]
+        ? [{ type: "function_call", name: "read_talent_context", call_id: "error-call", arguments: "{}" }]
         : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "확인하지 못했어요." }] }],
     };
   };
+  const tools = [{ type: "function" as const, function: { name: "read_talent_context", description: "Read context", parameters: { type: "object", properties: {} } } }];
+  const { CareerCapabilityRuntime } = await import("@/lib/career/capabilities/runtime");
+  const runtime = new CareerCapabilityRuntime({ mode: "progressive", eligibleTools: tools,
+    promptArgs: () => ({ channel: "chat", isOnboardingDone: true, profile: null, structuredProfileText: "", talentContextSection: "" }),
+  });
   try {
     await runTalentAssistantToolLoop({
+      toolRuntime: runtime,
       messages: [{ role: "user", content: "저장된 내용을 확인해줘" }],
       modelConfig: { primaryModel: "gpt-6-luna", fallbackModel: "gpt-4.1-mini" },
       openAIResponsesReasoningEffort: "high",
       executeTool: async () => { throw { message: "read failed", code: "NEW_DB_CODE", details: "remote unavailable" }; },
-      tools: [{ type: "function", function: { name: "read_context", description: "Read context", parameters: { type: "object", properties: {} } } }],
+      tools,
     });
     const output = requests[1].input.find((item: any) => item.type === "function_call_output").output;
     assert.match(output, /NEW_DB_CODE/);
     assert.match(output, /remote unavailable/);
     assert.ok(!output.includes("[object Object]"));
+    const receipt = runtime.completedRecord().toolResults?.find(result => result.name === "read_talent_context");
+    assert.equal(receipt?.successful, false);
+    assert.equal(receipt?.execution?.output, output, "the next conversation receives the same failure details as this completion");
   } finally { prototype.create = original; }
 });

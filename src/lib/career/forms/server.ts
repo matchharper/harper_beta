@@ -7,7 +7,7 @@ import {
   type TalentMessageResponse,
 } from "@/lib/talentOnboarding/models";
 import {
-  careerFormDraftSchema,
+  careerFormToolDraftSchema,
   careerFormResponseInputSchema,
   findCareerFormAction,
   getCareerFormContent,
@@ -27,11 +27,11 @@ import {
 type Admin = ReturnType<typeof getTalentSupabaseAdmin>;
 type Scope = { admin: Admin; userId: string; conversationId: string };
 const formInputSchema = z.object({
-  action: z.enum(["create", "update", "read", "list", "present", "resolve"]),
+  action: z.enum(["create", "update", "read", "list", "resolve"]),
   formId: z.number().int().positive().optional(),
   revision: z.number().int().positive().optional(),
   expectedRevision: z.number().int().positive().optional(),
-  form: careerFormDraftSchema.optional(),
+  form: careerFormToolDraftSchema.optional(),
   beforeFormId: z.number().int().positive().optional(),
 });
 
@@ -55,7 +55,7 @@ export const suggestFormTool = {
       properties: {
         action: {
           type: "string",
-          enum: ["create", "update", "read", "list", "present", "resolve"],
+          enum: ["create", "update", "read", "list", "resolve"],
         },
         formId: { type: "integer" },
         revision: { type: "integer" },
@@ -66,8 +66,9 @@ export const suggestFormTool = {
         },
         form: {
           type: "object",
+          description: "Structured form draft with the properties below.",
           properties: {
-            kind: { type: "string", enum: ["suggestion", "form"] },
+            kind: { type: "string", enum: ["form"] },
             title: { type: "string" },
             items: {
               type: "array",
@@ -79,7 +80,7 @@ export const suggestFormTool = {
                   description: {
                     type: "string",
                     description:
-                      "Visible question/change context, including why the user is being asked. For suggestions, explain what information is missing and how it will help.",
+                      "Visible question/change context, including why the user is being asked. ",
                   },
                   type: {
                     type: "string",
@@ -88,14 +89,12 @@ export const suggestFormTool = {
                   },
                   content: {
                     description:
-                      "String or object. Inputs: value, options [{id,label}]. Change: originalText, suggestedText, reason, documentId, entryId. Document: owned documentId, optional revision. Markdown: value.",
+                      "String or object. Inputs: value, options [{id,label}]. Checkbox: boolean value; a text value displays the terms and starts unchecked. Change: originalText, suggestedText, reason, documentId, entryId. Document: owned documentId, optional revision. Markdown: value.",
                     anyOf: [
                       { type: "string" },
                       { type: "object", additionalProperties: true },
                     ],
                   },
-                  positive: actionProperties,
-                  negative: actionProperties,
                 },
                 required: ["id", "label", "type", "content"],
                 additionalProperties: false,
@@ -172,7 +171,12 @@ export async function readCareerForm(
   if (error) throw new Error(error.message);
   const form = parseCareerForm(data?.payload);
   if (!data || !form || form.hidden) throw new Error("Form not found");
-  return { form, row: data as TalentMessageRow };
+  const state = await (scope.admin.rpc as any)("read_career_form_status", {
+    p_user_id: scope.userId, p_conversation_id: scope.conversationId,
+    p_form_id: form.formId, p_revision: form.revision,
+  });
+  if (state.error) throw new Error(state.error.message);
+  return { form: { ...form, state: state.data } as CareerForm, row: data as TalentMessageRow };
 }
 
 export async function readCareerFormResponses(
@@ -244,7 +248,6 @@ export async function executeSuggestForm(
     input: unknown;
     requestId?: string;
     workId?: string;
-    presentForm?: (form: CareerForm) => Promise<void>;
     onMessage?: (message: TalentMessageResponse) => void | Promise<void>;
   }
 ) {
@@ -273,7 +276,7 @@ export async function executeSuggestForm(
       ].join("\n"),
     };
   }
-  if (input.action === "read" || input.action === "present") {
+  if (input.action === "read") {
     if (!input.formId) throw new Error("formId is required");
     const { form } = await readCareerForm({
       ...args,
@@ -284,28 +287,12 @@ export async function executeSuggestForm(
       ...args,
       formId: form.formId,
     });
-    let message: TalentMessageResponse | undefined;
-    if (input.action === "present" && args.presentForm) {
-      await args.presentForm(form);
-    } else if (input.action === "present") {
-      const row = await writeForm(args, {
-        p_action: "present",
-        p_form_id: form.formId,
-        p_revision: form.revision,
-        p_payload: form,
-        p_content: "",
-        p_request_id: args.requestId ?? null,
-      });
-      message = toTalentMessageResponse(row);
-      await args.onMessage?.(message);
-    }
     return {
       ok: true,
       formId: form.formId,
       revision: form.revision,
       form,
       responses,
-      message,
       modelOutput: [
         formatCareerFormForModel(form),
         ...responses.map(
@@ -349,24 +336,18 @@ export async function executeSuggestForm(
     p_action: input.action,
     p_form_id: input.formId ?? null,
     p_expected_revision: input.expectedRevision ?? null,
-    p_payload: args.presentForm
-      ? { ...input.form, presentationDeferred: true }
-      : input.form,
+    p_payload: { ...input.form, presentationDeferred: true },
     p_content: "",
     p_request_id: args.requestId ?? null,
   });
   const form = parseCareerForm(row.payload);
   if (!form) throw new Error("Form write returned invalid payload");
-  const message = toTalentMessageResponse(row);
-  if (args.presentForm) await args.presentForm(form);
-  else await args.onMessage?.(message);
   return {
     ok: true,
     formId: form.formId,
     revision: form.revision,
     form,
-    message,
-    modelOutput: formatCareerFormForModel(form),
+    modelOutput: `Saved; not displayed.\n${formatCareerFormForModel(form)}`,
   };
 }
 
@@ -385,19 +366,23 @@ function validateResponse(
   if (input.actionId) {
     if (!findCareerFormAction(form, input.actionId, input.itemId))
       throw new Error("Form action not found");
-  } else if (
-    form.kind !== "suggestion" ||
-    !input.itemId ||
-    (input.message === undefined && input.skipped !== true)
-  ) {
-    throw new Error("A saved action or suggestion response is required");
   }
+  if (form.kind === "form" && input.itemId) throw new Error("Submit the whole form together");
   for (const id of Object.keys(input.values)) {
     if (
       !form.items.some((item) => item.id === id) ||
       (input.itemId && id !== input.itemId)
     )
       throw new Error("Form item not found");
+    const item = form.items.find(item => item.id === id)!;
+    const value = input.values[id];
+    if (item.type === "checkbox" && typeof value !== "boolean") throw new Error("Checkbox value must be boolean");
+    if (["select", "multiselect"].includes(item.type)) {
+      const options = getCareerFormContent(item).options;
+      const ids = new Set((Array.isArray(options) ? options : []).map(option => typeof option === "string" ? option : option?.id));
+      if (item.type === "select" && (typeof value !== "string" || (value !== "" && !ids.has(value)))) throw new Error("Unknown selected option");
+      if (item.type === "multiselect" && (!Array.isArray(value) || value.some(selected => !ids.has(selected)))) throw new Error("Unknown selected option");
+    }
   }
 }
 
@@ -406,15 +391,30 @@ export async function respondToCareerForm(args: Scope & { input: unknown }) {
   const previous = await args.admin.from("talent_messages").select("*")
     .eq("user_id", args.userId).eq("conversation_id", args.conversationId).eq("message_type", "career_form_response")
     .eq("payload->>requestId", input.requestId).maybeSingle();
-  if (previous.error) throw previous.error;
+  if (previous.error) throw new Error(previous.error.message);
   if (previous.data) return toTalentMessageResponse(previous.data as TalentMessageRow);
+
+  const response = await prepareCareerFormResponse(args);
+  const row = await writeForm(args, {
+    p_action: "respond", p_form_id: response.formId, p_revision: response.revision,
+    p_payload: response, p_request_id: input.requestId,
+    p_content: response.answers
+      ? buildCareerSuggestionResponseMessage(response.formSnapshot, response.answers)
+      : buildCareerFormResponseMessage(response.formSnapshot, response.actionId, response.values, response.itemId, response),
+  });
+  return toTalentMessageResponse(row);
+}
+
+export async function prepareCareerFormResponse(args: Scope & { input: unknown; batch?: boolean }) {
+  const input = careerFormResponseInputSchema.parse(args.input);
   const { form } = await readCareerForm({
     ...args,
     formId: input.formId,
     revision: input.revision,
   });
+  if (form.state !== "open") throw new Error("Form changed or closed; review the current form");
   let answers: CareerSuggestionAnswer[] | undefined;
-  if (form.kind === "suggestion") {
+  if (form.kind === "suggestion" && !args.batch) {
     if (!input.answers?.length)
       throw new Error(
         "At least one suggestion answer is required"
@@ -436,14 +436,17 @@ export async function respondToCareerForm(args: Scope & { input: unknown }) {
       throw new Error(
         "Each submitted answer must identify a distinct current form item"
       );
-    for (const answer of input.answers) validateResponse(form, answer);
+    for (const answer of input.answers) {
+      if (!answer.actionId && answer.message === undefined && !answer.skipped && !Object.keys(answer.values).length) throw new Error("Answer content required");
+      validateResponse(form, answer);
+    }
     answers = input.answers;
   } else {
     if (input.answers)
       throw new Error(
         "Review forms use a saved action, not a suggestion batch"
       );
-    validateResponse(form, input);
+    validateResponse({ ...form, kind: "form" }, input);
   }
   const submitted = answers ?? [input];
   await assertDocumentOwnership(
@@ -488,55 +491,9 @@ export async function respondToCareerForm(args: Scope & { input: unknown }) {
     selectedFiles.push({ itemId: item.id, documentId, revision: file.revision ?? null, snapshotId: file.snapshotId, fileName: file.name });
   }
   if (selectedFiles.length) response.selectedFiles = selectedFiles;
-  const row = await writeForm(args, {
-    p_action: "respond",
-    p_form_id: form.formId,
-    p_revision: form.revision,
-    p_payload: response,
-    p_content: answers
-      ? buildCareerSuggestionResponseMessage(form, answers)
-      : buildCareerFormResponseMessage(
-          form,
-          input.actionId,
-          input.values,
-          input.itemId,
-          input
-        ),
-    p_request_id: input.requestId,
-  });
-  return toTalentMessageResponse(row);
+  return response;
 }
 
 export async function hideCareerForm(scope: Scope & { formId: number }) {
   return writeForm(scope, { p_action: "hide", p_form_id: scope.formId });
-}
-
-/** Persist each presentation before yielding; no in-memory list is the only reader. */
-export function createCareerFormPresenter(
-  scope: Scope,
-  onMessage: (message: TalentMessageResponse) => void | Promise<void>,
-  turnId: string
-) {
-  const pending: CareerForm[] = [];
-  const present = async (form: CareerForm) => {
-    const row = await writeForm(scope, {
-      p_action: "present",
-      p_form_id: form.formId,
-      p_revision: form.revision,
-      p_payload: form,
-      p_content: "",
-      p_request_id: `presentation:${turnId}:${form.formId}:${form.revision}`,
-    });
-    await onMessage(toTalentMessageResponse(row));
-  };
-  return {
-    hasPending: () => pending.length > 0,
-    presentForm: async (form: CareerForm) => {
-      await present(form);
-      pending.push(form);
-    },
-    flush: async () => {
-      pending.length = 0;
-    },
-  };
 }

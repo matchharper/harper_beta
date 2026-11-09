@@ -1,13 +1,13 @@
+import { deliverContinuationResponse } from "./onboardingContinuation.server";
 import { hasDeliveredCareerContact } from "./background/contactHistory";
 import { createCareerAssistantMessageWriter } from "./assistantMessageWriter";
 import { readCareerConversationVersion } from "./conversationVersion";
 import { readCareerReengagementOpportunities, REENGAGEMENT_OPPORTUNITY_PRELOAD } from "./reengagementOpportunities";
-import { createCareerFormPresenter } from "./forms/server";
 import { watchCareerTurnCancellation } from "./turnCancellation.server";
 import { prepareCareerAgentTurn } from "./agentTurnRuntime.server";
 import { readCareerSourceTextChatModel, resolveCareerTextChatModel, type CareerTextChatModelId } from "./textChatModelConfig";
 import { readCareerConversationTextChatModel } from "./conversationTextChatModel.server";
-import type { CareerReplyCheckpoint } from "./capabilities/runtime";
+import { CareerReplyContinuation, type CareerReplyCheckpoint } from "./capabilities/runtime";
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { isCareerCapabilityTurn, readCareerCapabilityCoaching } from "@/lib/career/capabilities/server";
 import { getCareerCapabilityMode } from "@/lib/career/capabilities/registry";
@@ -21,7 +21,6 @@ import {
   buildCareerConversationPromptPlan,
 } from "@/lib/career/prompts";
 import {
-  recoverCareerChatAssistantText,
   runCareerChatAssistant,
   runCareerChatAssistantStream,
 } from "@/lib/career/llm";
@@ -39,9 +38,7 @@ import {
   fetchTalentDocuments,
   serializeTalentDocuments,
   fetchTalentUserProfile,
-  getCareerOnboardingChecklistCoverage,
   getCareerOnboardingChecklistProgress,
-  getOnboardingChecklistCoverageStats,
   normalizeTalentEngagementTypes,
   projectBriefsToLegacyInsights,
   renderTalentContextPrompt,
@@ -75,7 +72,6 @@ import {
 } from "@/lib/talentOnboarding/onboarding";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import {
-  TALENT_ONBOARDING_DONE_MARKER,
   resolveTalentOnboardingCompletion,
   stripTalentOnboardingCompletionMarker,
 } from "@/lib/talentOnboarding/completion";
@@ -278,7 +274,9 @@ function appendThinkingLog(logs: string[], status: string) {
     .slice(0, 160);
   if (!normalized) return logs;
   if (logs[logs.length - 1] === normalized) return logs;
-  return [...logs, normalized].slice(-12);
+  // The activity writer consumes appended entries by index. Truncating this
+  // sequence silently freezes visible progress after the first twelve tools.
+  return [...logs, normalized];
 }
 
 function appendRecommendationStatusLog(
@@ -405,11 +403,6 @@ async function buildTalentProfileSnapshot(args: {
   };
 }
 
-function startOpportunityDiscoveryInBackground(runId: string) {
-  console.info("[opportunity-discovery] queued for harper_worker", {
-    runId,
-  });
-}
 
 export async function runCareerChatTurn(
   args: RunCareerChatTurnArgs
@@ -442,6 +435,7 @@ export async function runCareerChatTurn(
     String(args.assistantMessageType ?? "").trim() || "chat";
   const isMobile = args.isMobile;
   const skipConversationWrites = Boolean(args.skipConversationWrites);
+  const isConversationContinuation = args.backgroundInvocation?.replyChannel === "chat";
   const suppressOnboarding = Boolean(args.suppressOnboarding);
   const rawUserMessage = stripPostgresUnsafeChars(
     String(args.userMessage ?? "")
@@ -617,14 +611,6 @@ export async function runCareerChatTurn(
   const isOnboardingActiveForTurn =
     !Boolean(talentSetting?.is_onboarding_done) &&
     (!suppressOnboarding || args.adapter?.onboardingActive === true) && !continuingCareer;
-  const onboardingChecklistCoverage = isOnboardingActiveForTurn
-    ? await getCareerOnboardingChecklistCoverage({
-        admin,
-        conversationId,
-        currentInsightContent,
-        userId,
-      })
-    : null;
   const isSessionReengagement =
     (args.assistantMessagePayload as { kind?: string } | null)?.kind ===
       "session_reengagement";
@@ -787,7 +773,7 @@ export async function runCareerChatTurn(
   }
 
   const defaultToolSelection = resolveCareerChatTools({
-    background: Boolean(args.backgroundInvocation),
+    background: Boolean(args.backgroundInvocation) && !isConversationContinuation,
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
@@ -841,7 +827,7 @@ export async function runCareerChatTurn(
       conversationMode: careerCoachingActivity?.status === "active" ? "career_coaching" : "default",
       activeInternalFitHoldQuestion,
       channel: "chat",
-      backgroundInvocation: Boolean(args.backgroundInvocation),
+      backgroundInvocation: Boolean(args.backgroundInvocation) && !isConversationContinuation,
       companyTalentRequestText: companyContactContext,
       talentContextSection,
       currentPreferences,
@@ -851,7 +837,6 @@ export async function runCareerChatTurn(
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn
         ? officialJobSignupIntentEvent?.summary
         : null,
-      onboardingChecklistCoverage,
       opportunityStatus,
       pendingOpportunityFeedbackContext:
         fetchedPendingOpportunityFeedbackContext,
@@ -882,7 +867,7 @@ export async function runCareerChatTurn(
     workRevision: args.workRevision,
     backgroundRunId: args.backgroundInvocation?.runId,
     sourceMessageCursor: args.backgroundInvocation?.sourceMessageCursor ?? args.sourceMessageCursor,
-    ...(args.backgroundInvocation ? { selectionSnapshot: {
+    ...(args.backgroundInvocation && !isConversationContinuation ? { selectionSnapshot: {
       capabilityIds: ["schedules", "career_delivery", "company_contact"],
       handbookIds: ["proactive_career"], status: "selected" as const, elapsedMs: 0,
     } } : isSessionReengagement ? { selectionSnapshot: REENGAGEMENT_OPPORTUNITY_PRELOAD } : {}),
@@ -917,6 +902,7 @@ export async function runCareerChatTurn(
     ? watchCareerTurnCancellation({ admin, userId, conversationId, sourceMessageId: insertedUserMessage.id }, args.abortSignal) : undefined;
   args = { ...args, abortSignal: capabilityTurn?.runtime.abortSignal ?? standaloneCancellation?.signal ?? args.abortSignal };
   let messageWriter: Awaited<ReturnType<typeof createCareerAssistantMessageWriter>> | null = null;
+  let thinkingLogs: string[] = [];
   try {
   if (capabilityTurn) await args.onAgentTurnStarted?.(capabilityTurn.claimId);
   await standaloneCancellation?.check();
@@ -931,12 +917,7 @@ export async function runCareerChatTurn(
     artifactMessages.set(message.id, message);
     args.onArtifactMessage?.(message);
   };
-  const formPresenter = createCareerFormPresenter(
-    { admin, userId, conversationId }, onArtifactMessage,
-    capabilityTurn?.replyId ?? args.agentReplyId ?? `message:${insertedUserMessage?.id}`
-  );
   let documentsChanged = false;
-  let thinkingLogs: string[] = [];
   let pendingRecommendationPostingRoleIds: string[] = [];
   const pendingProcessClosureNotices = new Map<string, PendingProcessClosureNotice>();
   const registerProcessClosureNotices = (notices: PendingProcessClosureNotice[]) => {
@@ -1055,7 +1036,6 @@ export async function runCareerChatTurn(
         abortSignal: args.abortSignal,
         deadlineAt: capabilityTurn?.runtime.deadlineAt ?? args.deadlineAt,
         onArtifactMessage,
-        presentForm: formPresenter.presentForm,
         userId,
       },
       logging: false,
@@ -1097,7 +1077,7 @@ export async function runCareerChatTurn(
   try {
     const assistantArgs: Omit<Parameters<typeof runCareerChatAssistant>[0], "onToolStart"> = {
       toolRuntime: capabilityTurn?.runtime,
-      hasDeliveredArtifact: () => (!args.adapter || args.adapter.artifactsVisible === true) && (Array.from(artifactMessages.values()).some(message => message.messageType !== "career_turn_activity" || message.workEvents?.some(event => event.kind === "message")) || formPresenter.hasPending()),
+      hasDeliveredArtifact: () => (!args.adapter || args.adapter.artifactsVisible === true) && (Array.from(artifactMessages.values()).some(message => message.messageType !== "career_turn_activity" || message.workEvents?.some(event => event.kind === "message"))),
       onAssistantMessage: args.backgroundInvocation || args.adapter ? undefined : async (text) => {
         const visibleText = normalizeNoMessageContent(text, noMessageMarker);
         if (!visibleText) return;
@@ -1181,7 +1161,9 @@ export async function runCareerChatTurn(
         })
       : await runCareerChatAssistant(assistantArgs);
   } catch (error) {
-    const row = await messageWriter?.interrupt().catch(() => null);
+    const row = error instanceof CareerReplyContinuation
+      ? await messageWriter?.suspend(thinkingLogs).catch(() => null)
+      : await messageWriter?.interrupt().catch(() => null);
     if (row) onArtifactMessage(toTalentMessageResponse(row));
     throwIfToolControlError(error);
     args.abortSignal?.throwIfAborted();
@@ -1266,9 +1248,14 @@ export async function runCareerChatTurn(
   // yet be delivered. Persistence rechecks ownership after finalization.
   await args.adapter?.beforeAssistantFinalization?.();
   if (args.backgroundInvocation) {
-    // Only deliver_career_email emits candidate-visible output. Empty or
-    // intermediate assistant text is a normal background outcome, not a reason
-    // to call a second writer or synthesize a user/assistant chat message.
+    if (isConversationContinuation) {
+      await deliverContinuationResponse(
+        stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(assistantText)),
+        executeDefaultTalentTool,
+      );
+    }
+    // Scheduled work keeps explicit delivery; conversational continuations
+    // persist the original model's final text before acknowledging completion.
     await capabilityTurn?.complete();
     return buildResult([]);
   }
@@ -1281,33 +1268,24 @@ export async function runCareerChatTurn(
   if (recommendationReceiptRef.current) {
     assistantTextSource = recommendationReceiptRef.current.answerDraft;
   }
-  if (!assistantTextSource && (!args.adapter || args.adapter.artifactsVisible === true) && (!isOnboardingActiveForTurn || artifactMessages.size > 0 || formPresenter.hasPending())) {
+  if (!assistantTextSource && !assistantMessagePrefix && !noMessageMarker && (messageWriter || args.adapter)) {
     // An empty final message can follow already delivered progress, a form or
     // delegated work. A second writer without that execution transcript/tools
     // would invent a new account of what happened.
-    const row = await messageWriter?.finish("", thinkingLogs, undefined, delegatedEvents);
-    if (row) onArtifactMessage(toTalentMessageResponse(row));
-    await formPresenter.flush();
+    const agentTurn = capabilityTurn?.getCompletionPayload();
+    const row = args.adapter
+      ? await args.adapter.persistAssistant({ content: "", notices: Array.from(pendingProcessClosureNotices.values()), agentTurn })
+      : await messageWriter?.finish("", thinkingLogs, {
+          ...(args.assistantMessagePayload as Record<string, unknown> ?? {}),
+          ...(sourceModel ? { careerTextChatModel: sourceModel.model } : {}),
+          ...(agentTurn ? { agentTurn } : {}),
+        }, delegatedEvents);
+    if (row && !args.adapter) onArtifactMessage(toTalentMessageResponse(row));
     await capabilityTurn?.complete();
     await commitDeliveredProcessClosureNotices({
       admin, notices: pendingProcessClosureNotices.values(), talentId: userId,
     });
     return buildResult(Array.from(artifactMessages.values()));
-  }
-  if (!assistantTextSource && !noMessageMarker) {
-    assistantTextSource = (
-      await recoverCareerChatAssistantText({
-          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
-          abortSignal: args.abortSignal,
-        primaryModel: assistantModel,
-        anthropicEffort: args.assistantAnthropicEffort,
-        latestUserMessage: normalizedContent || proactiveContext,
-        messages: llmMessages,
-        responseLocale,
-        systemBlocks,
-        usageLabel: args.usageLabel,
-      })
-    ).trim();
   }
   let normalizedNoMessageContent = normalizeNoMessageContent(
     assistantTextSource,
@@ -1344,45 +1322,13 @@ export async function runCareerChatTurn(
     };
   }
 
-  if (!normalizedNoMessageContent) {
-    throw new Error(
-      "Career assistant returned no visible text after recovery."
-    );
-  }
-
-  let assistantTextWithMarkers = normalizedNoMessageContent;
+  const assistantTextWithMarkers = normalizedNoMessageContent ?? "";
   const completion = resolveTalentOnboardingCompletion({
     assistantContent: assistantTextWithMarkers,
   });
   let safeAssistantText = stripPostgresUnsafeChars(
     stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
   );
-  if (!safeAssistantText) {
-    const recoveredText = (
-      await recoverCareerChatAssistantText({
-          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
-          abortSignal: args.abortSignal,
-        primaryModel: assistantModel,
-        anthropicEffort: args.assistantAnthropicEffort,
-        latestUserMessage: normalizedContent || proactiveContext,
-        messages: llmMessages,
-        responseLocale,
-        systemBlocks,
-        usageLabel: args.usageLabel,
-      })
-    ).trim();
-    if (!recoveredText) {
-      throw new Error(
-        "Career assistant returned only control markers after recovery."
-      );
-    }
-    assistantTextWithMarkers = completion.completed
-      ? `${recoveredText}\n\n${TALENT_ONBOARDING_DONE_MARKER}`
-      : recoveredText;
-    safeAssistantText = stripPostgresUnsafeChars(
-      stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
-    );
-  }
   // Web cards need fallback links/markers. Transport adapters author their
   // complete reply through the model and supply usable links in its context.
   if (!args.adapter) safeAssistantText = ensureStandalonePostingLinksInText(
@@ -1504,32 +1450,7 @@ export async function runCareerChatTurn(
   const finalAssistantThinkingLogs = thinkingLogs;
   if (!args.workId) summarizeConversationInBackground();
 
-  const latestChecklistCoverage = isOnboardingActiveForTurn
-    ? await getCareerOnboardingChecklistCoverage({
-        admin,
-        conversationId,
-        currentInsightContent: projectBriefsToLegacyInsights(
-          await fetchAllTalentContexts({
-            admin,
-            collection: "brief",
-            userId,
-          })
-        ),
-        userId,
-      })
-    : null;
-  const checklistCompleted =
-    latestChecklistCoverage &&
-    getOnboardingChecklistCoverageStats(latestChecklistCoverage, profile)
-      .isComplete;
-  const resolvedCompletion = completion.completed
-    ? completion
-    : checklistCompleted
-      ? {
-          completed: true,
-          reason: "question_checklist_covered" as const,
-        }
-      : completion;
+  const resolvedCompletion = completion;
   const isCompleted = Boolean(
     insertedUserMessage && resolvedCompletion.completed
   );
@@ -1546,9 +1467,6 @@ export async function runCareerChatTurn(
           userId,
         })
       : null;
-  if (completedOpportunityRun) {
-    startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
-  }
   const completionMessages =
     shouldApplyCompletion && insertedUserMessage
       ? await createOnboardingCompletionMessages({
@@ -1567,7 +1485,6 @@ export async function runCareerChatTurn(
   const insertedCompletionNextStepsMessage =
     completionMessages?.nextStepsMessage ?? null;
 
-  await formPresenter.flush();
   await capabilityTurn?.complete();
 
   const recommendationSearchRun = recommendationReceiptRef.current?.statusRunId
@@ -1625,7 +1542,11 @@ export async function runCareerChatTurn(
         recommendationReceiptRef.current?.newRunCreated === true,
       recommendationSearchRun,
     }
-  );  } finally {
+  );  } catch (error) {
+    if (error instanceof CareerReplyContinuation)
+      await messageWriter?.suspend(thinkingLogs).catch(() => undefined);
+    throw error;
+  } finally {
     await messageWriter?.interrupt().catch(() => undefined);
     standaloneCancellation?.dispose();
     await capabilityTurn?.release().catch(error => {

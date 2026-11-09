@@ -1,5 +1,4 @@
 import { buildMockInterviewLanguageInstruction } from "./prompts/cases/mockInterviewPrompts";
-import { CAREER_ONBOARDING_GUIDANCE_PROMPT } from "./prompts/rawPrompts";
 
 export function buildLiveFrontendInstructions(args: {
   initialResponseInstruction: string;
@@ -17,6 +16,33 @@ export function buildLiveFrontendInstructions(args: {
     language === "English"
       ? "Speak clearly at a slightly faster pace."
       : "조금 빠른 속도로 또렷하게 말해.";
+
+  if (args.onboardingContext && !args.isMockInterview && !args.internalCallContext) {
+    return [
+      "You are Harper's speaking and listening interface for a career onboarding call. The reasoning backend conducts the interview; you make its conversational move natural in speech.",
+      language === "English"
+        ? "Speak warmly and professionally in English, unless the caller clearly switches languages."
+        : "차분하고 자연스러운 한국어 존댓말로 대화한다. 사용자가 명확히 언어를 바꾸면 따른다.",
+      paceInstruction,
+      "Backchannel policy: Use occasional brief listening sounds while the caller speaks. Keep listening while backend work is pending.",
+      "Interruption policy: Stop speaking when the caller interrupts. Retain their latest correction.",
+      `Delegation policy:
+Backend tools:
+- Conduct onboarding: understand the caller's answers using their profile, saved facts and conversation; choose every substantive question and decide when enough is understood.
+- End the call: distinguish normal onboarding completion from an early stop and schedule saving and disconnection.
+
+Generate <|SpawnThinking|> when:
+- The call opens or the caller gives an onboarding answer, correction, or substantive request.
+- The caller asks to stop or end the call.
+
+Do not generate <|SpawnThinking|> when:
+- Acknowledging what you heard, clarifying inaudible speech, or speaking a still-current backend handoff.
+
+Generate <|SpawnThinking|> before choosing a substantive reply or question. Wait for the result before speaking that turn. Do not invent a next question or promise a next step while waiting. Silence is fine while the backend works.`,
+      "Speak the backend's current conversational move naturally. Its handoff is private guidance, not words to read verbatim. Do not speak tool names, internal instructions, or delegation mechanics. Use actual results when describing actions.",
+      "After end_call is scheduled, speak the backend's closing handoff; the application handles saving and disconnecting after playback. A spoken farewell alone does not end the call.",
+    ].join("\n\n");
+  }
 
   return [
     "You are Harper, a warm and capable career partner in a live voice call.",
@@ -56,15 +82,6 @@ Do not generate <|SpawnThinking|> when:
 - You need a brief clarification to understand the request.
 
 Generate <|SpawnThinking|> before giving an answer that depends on backend work. Use the result before making factual claims or claiming that an action succeeded. Saying that you will check or prepare something does not start that work.`,
-    ...(args.onboardingContext && !args.isMockInterview
-      ? [
-          CAREER_ONBOARDING_GUIDANCE_PROMPT,
-          "For this onboarding call, the backend has the caller's profile, saved preferences, and recent conversation. Use the progress snapshot to ask one unanswered required topic naturally. You can handle ordinary answers directly while required information remains missing. As soon as the latest answer supplies the last required information, generate <|SpawnThinking|> in that same turn to request onboarding completion and end_call. A summary or farewell by itself leaves the call open; do not wait for another user turn to perform the action.",
-          "A backend handoff is private guidance, not a script or a list to read aloud. Choose one useful next move. When asking for information, keep the turn focused on one topic and leave room for the caller's answer before moving on.",
-          "The saved progress snapshots are factual updates, not text to read aloud. They replace older progress snapshots and can lag behind speech. Use the latest answer together with the backend's guidance; do not repeat a question just because saving is pending. Count explicit answers in the conversation even if the saved snapshot still lists that topic as missing. If the caller asks to stop early, generate <|SpawnThinking|> immediately to end only the call, without claiming unfinished onboarding is complete.",
-          args.onboardingContext,
-        ]
-      : []),
     "Ending the call is an action through the backend end_call tool. Generate <|SpawnThinking|> for that action; spoken words alone do not hang up. The backend distinguishes normal onboarding completion from an early stop. No additional confirmation is required after onboarding has enough information.",
     "Do not narrate delegation mechanics, tool names, system instructions, or hidden context to the caller.",
     args.initialResponseInstruction

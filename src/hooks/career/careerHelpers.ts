@@ -57,6 +57,7 @@ export const toUiMessage = (message: {
   artifactReplyId?: string;
   careerForm?: CareerMessage["careerForm"];
   formResponse?: CareerMessage["formResponse"];
+  formResponses?: CareerMessage["formResponses"];
   browserSession?: CareerMessage["browserSession"];
   applicationActivity?: CareerMessage["applicationActivity"];
   applicationQuestions?: ApplicationQuestionHistory;
@@ -81,6 +82,7 @@ export const toUiMessage = (message: {
   recommendationSearchRun?: CareerMessage["recommendationSearchRun"];
   recommendationStatusAfterCharCount?: number | null;
   workEvents?: CareerTurnEvent[];
+  workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workStartedAt?: string;
   workCompletedAt?: string;
@@ -92,6 +94,7 @@ export const toUiMessage = (message: {
 }): CareerMessage => ({
   artifactReplyId: message.artifactReplyId,
   workEvents: message.workEvents,
+  workFinalEvent: message.workFinalEvent,
   workReplyId: message.workReplyId,
   workStartedAt: message.workStartedAt,
   workCompletedAt: message.workCompletedAt,
@@ -101,6 +104,7 @@ export const toUiMessage = (message: {
   clientRequestId: message.clientRequestId,
   careerForm: message.careerForm,
   formResponse: message.formResponse,
+  formResponses: message.formResponses,
   browserSession: message.browserSession,
   applicationQuestions: message.applicationQuestions,
   applicationDraft: message.applicationDraft,
@@ -287,7 +291,6 @@ const CAREER_CONVERSATION_ACTIVITY_MESSAGE_TYPES = new Set([
   "chat",
   "call_transcript",
   "call_wrapup",
-  "mail",
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
   TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,

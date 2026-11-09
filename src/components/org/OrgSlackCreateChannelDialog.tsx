@@ -24,12 +24,14 @@ export function OrgSlackCreateChannelDialog({
   onCreated,
   onOpenChange,
   open,
+  showInviteWarningInToast = true,
   workspaceId,
 }: {
   initialName?: string;
-  onCreated?: (channel: OrgSlackChannel) => void;
+  onCreated?: (channel: OrgSlackChannel, creatingUserInvited: boolean) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  showInviteWarningInToast?: boolean;
   workspaceId: string;
 }) {
   const modalFormId1 = useId();
@@ -61,13 +63,13 @@ export function OrgSlackCreateChannelDialog({
         isPrivate,
       });
       onOpenChange(false);
-      onCreated?.(payload.channel);
+      onCreated?.(payload.channel, payload.creatingUserInvited);
       const name = payload.channel.channelName || payload.channel.channelId;
       const formattedName = name.startsWith("#") ? name : `#${name}`;
-      const followUp = !payload.creatingUserInvited
+      const followUp = !payload.creatingUserInvited && showInviteWarningInToast
         ? c(
-            " Slack 계정을 찾지 못해 본인은 자동으로 초대하지 못했어요. Slack 관리자에게 채널 초대를 요청해 주세요.",
-            " Harper couldn't find a Slack account and couldn't auto-invite itself. Request a channel invite from a Slack admin."
+            " 내 Slack 계정을 자동으로 초대하지 못했어요. Slack에서 채널 참여 여부를 확인해 주세요.",
+            " We couldn't invite your Slack account. Check your channel membership in Slack."
           )
         : !payload.welcomeMessageSent
           ? c(

@@ -735,6 +735,7 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
           "candidate_accepted",
           "candidate_accepted_kst",
           "recommendation_origin",
+          "recommendation_id",
           "agent_correspondence_root_id",
         ],
         positions.map((item: any) => [
@@ -762,6 +763,7 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
           item?.candidateAccepted,
           item?.candidateAcceptedAt ? formatPromptKstDateTime(item?.candidateAcceptedAt) : null,
           item?.recommendationOrigin,
+          item?.recommendationId,
           item?.agentIntroductionRootId,
         ]),
       )
@@ -1525,8 +1527,7 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
       `meeting_purpose=${formatPromptCell(meetingConfig.meetingPurpose, 700)}`,
       `meeting_duration_minutes=${formatPromptCell(meetingConfig.durationMinutes, 20)}`,
       `saved_candidate_context=${formatPromptCell(meetingStage.candidateMessage, 1_500)}`,
-      "original_candidate_meeting_request_authorized=true",
-      "continuation_after_prerequisite=complete_the_same_stage_move_and_time_selection_invitation",
+      "execution_mode=candidate_time_selection_page",
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
   }
@@ -2446,6 +2447,7 @@ export function formatOrgAgentToolResult(
   if (name === "prepare_candidate_connection") {
     return formatCandidateConnectionPreparationResult(result);
   }
+  if (name === "manage_meeting") return typeof result.modelOutput === "string" ? result.modelOutput : "Meeting result unavailable.";
   const unsupported: never = name;
   throw new Error(`Unsupported tool result: ${unsupported}`);
 }

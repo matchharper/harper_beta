@@ -34,7 +34,7 @@ export function simpleApplicationPage() {
 <div class="field"><label for="name">이름</label><input id="name" name="name" autocomplete="name" placeholder="이름을 입력해 주세요" required></div>
 <div class="field"><label for="email">이메일</label><input id="email" name="email" type="email" autocomplete="email" placeholder="name@example.com" required></div>
 <div class="field"><label for="resume">이력서</label><input id="resume" name="resume" type="file" accept=".pdf,.doc,.docx" required aria-describedby="file-help"><small id="file-help">PDF, Word · 최대 4 MB</small></div>
-<details class="privacy" id="privacy" open><summary>개인정보 수집·이용 안내</summary><div class="privacy-copy" id="privacy-copy"><dl><dt>수집·이용 목적</dt><dd>Harper 테스트 지원서 접수 및 첨부 파일 확인</dd><dt>수집 항목</dt><dd>이름, 이메일, 이력서 파일과 파일에 포함된 개인정보</dd><dt>보유 및 이용 기간</dt><dd>접수 요청 처리 중에만 사용하며, 별도로 저장하거나 채용팀에 전달하지 않습니다.</dd></dl><p>동의를 거부할 수 있으나, 동의하지 않으면 이 테스트 지원서를 제출할 수 없습니다.</p></div></details>
+<details class="privacy" id="privacy" open><summary>개인정보 수집·이용 안내</summary><div class="privacy-copy" id="privacy-copy"><dl><dt>수집·이용 목적</dt><dd>Harper 지원서 접수 및 첨부 파일 확인</dd><dt>수집 항목</dt><dd>이름, 이메일, 이력서 파일과 파일에 포함된 개인정보</dd><dt>보유 및 이용 기간</dt><dd>접수 요청 처리 완료 시까지</dd></dl><p>동의를 거부할 수 있으나, 동의하지 않으면 지원서를 제출할 수 없습니다.</p></div></details>
 <label class="consent" for="privacy-consent"><input id="privacy-consent" name="privacyConsent" type="checkbox" value="accepted" required aria-describedby="privacy-copy"><span>개인정보 수집 및 이용에 동의합니다. <span class="required">(필수)</span></span></label>
 <p id="error" role="alert"></p><button class="button" type="submit">지원서 제출 <span aria-hidden="true">↗</span></button></form></section></div>
 <script>

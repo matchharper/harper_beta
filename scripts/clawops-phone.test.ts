@@ -40,3 +40,36 @@ test("does not execute tools from a failed backend response", async () => {
   await session.stop();
   assert.deepEqual(tools,[]);
 });
+
+
+test("end_call waits for a final backend handoff before arming phone hangup", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const { session } = fixture();
+  const sent: any[] = [];
+  let hangups = 0;
+  // Isolated transport: no socket connection, phone call, or database write.
+  Object.assign(session, {
+    socket: { readyState: 1, send: (value: string) => sent.push(JSON.parse(value)), close: () => {} },
+    call: { hangup: async () => { hangups++; }, recordToolCall: () => {}, recordEndReason: () => {}, sendAudio: () => {} },
+  });
+  const receive = (event: unknown) => session.receive({ type: "response.event", event });
+  const completed = { type: "response.completed", response: { id: "end-request", output: [{ type: "function_call", call_id: "end-1", name: "end_call", arguments: '{"complete_onboarding":false}' }] } };
+  receive(completed);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(sent.at(-1).type, "response.create");
+  assert.ok(sent.at(-2).item.output.includes("still connected"));
+  receive(completed);
+  await new Promise(resolve => setImmediate(resolve));
+  t.mock.timers.tick(20_000);
+  assert.equal(hangups, 0);
+  receive({ type: "response.completed", response: { id: "closing-handoff", output: [] } });
+  await new Promise(resolve => setImmediate(resolve));
+  t.mock.timers.tick(1000);
+  assert.equal(hangups, 0);
+  session.receive({ type: "session.output_audio.delta", delta: Buffer.from("audio").toString("base64") });
+  t.mock.timers.tick(2000);
+  assert.equal(hangups, 1);
+  assert.equal(session.completeOnboarding, false);
+  await session.stop();
+  t.mock.timers.reset();
+});

@@ -20,10 +20,13 @@ export function formatDocumentToolModelResult(name: string, result: Data): strin
     });
   }
   if (name === "read_document") {
-    return formatPromptText({
-      document: metadata(result.document),
-      ...pick(result, ["ok", "error", "structuredContent", "excerpt", "textAvailable", "offset", "hasMore", "nextOffset", "matchFound", "matchOffset", "pdfExport"]),
+    const projectRead = (entry: Data) => ({
+      ...(entry.document ? { document: metadata(entry.document) } : pick(entry, ["documentId"])),
+      ...pick(entry, ["ok", "error", "structuredContent", "excerpt", "textAvailable", "offset", "hasMore", "nextOffset", "matchFound", "matchOffset", "pdfExport"]),
     });
+    return formatPromptText(Array.isArray(result.documents)
+      ? { documents: result.documents.map(entry => projectRead(record(entry))) }
+      : projectRead(result));
   }
   return formatPromptText({
     ...pick(result, ["ok", "error", "action", "type", "contentSaved", "isDeleted"]),

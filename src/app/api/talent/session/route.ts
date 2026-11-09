@@ -11,8 +11,6 @@ import {
   fetchVisibleMessagesPage,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
-  getCareerOnboardingChecklistCoverage,
-  getOnboardingChecklistCoverageStats,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
   markTalentUserLoggedIn,
@@ -20,7 +18,6 @@ import {
   projectBriefsToLegacyInsights,
   pickLatestResumeDocument,
   serializeTalentDocuments,
-  serializeOnboardingChecklistProgress,
   type TalentConversationRow,
   type TalentMessageRow,
   type TalentStructuredProfile,
@@ -704,26 +701,7 @@ export async function GET(req: NextRequest) {
       (message) => !(message.message_type ?? "").startsWith("mock_interview")
     );
     const normalizedInsights = projectBriefsToLegacyInsights(talentBrief);
-    const onboardingChecklistProgress = !Boolean(
-      talentSetting?.is_onboarding_done
-    )
-      ? await withSessionFallback({
-          fallback: null,
-          label: "onboarding checklist progress",
-          promise: (async () => {
-            const coverage = await getCareerOnboardingChecklistCoverage({
-              admin,
-              conversationId: conversation.id,
-              currentInsightContent: normalizedInsights,
-              userId: user.id,
-            });
-            return serializeOnboardingChecklistProgress(
-              getOnboardingChecklistCoverageStats(coverage, profile)
-            );
-          })(),
-          userId: user.id,
-        })
-      : null;
+    const onboardingChecklistProgress = null;
     const historyPageOpportunities = historyOpportunitiesPage.items;
     const historyOpportunities = historyOpportunitiesIncluded
       ? historyPageOpportunities

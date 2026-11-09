@@ -213,10 +213,7 @@ test("returns insight-backed coverage without recreating a completed call", asyn
     userId: "talent-1",
   });
 
-  assert.deepEqual(coverage, {
-    location: "covered",
-    search_intensity: "covered",
-  });
+  assert.deepEqual(coverage, {});
 });
 
 

@@ -1,4 +1,8 @@
 import "server-only";
+import { resolveMeetingCalendarOwner, type MeetingCalendarOwner } from "./calendarOwner";
+import { deliverMeetingCalendar } from "./calendarDelivery";
+import { assertMeetingDeliveryCurrent } from "./coordinationStore";
+import { agentContactDatabase } from "@/lib/agentContacts/store";
 
 import type { User } from "@supabase/supabase-js";
 import {
@@ -9,17 +13,7 @@ import {
 import { createGoogleCalendarService } from "@/lib/integrations/googleCalendar";
 import { GoogleCalendarError } from "@/lib/integrations/googleCalendarError";
 import { createGoogleCalendarStore } from "@/lib/integrations/googleCalendarStore";
-import {
-  buildGoogleCalendarCreateEventArguments,
-  buildGoogleCalendarEventLookupArguments,
-  GOOGLE_CALENDAR_CREATE_EVENT_TOOL,
-  GOOGLE_CALENDAR_LIST_EVENTS_TOOL,
-  GOOGLE_CALENDAR_TOOL_VERSION,
-  isValidCalendarTimezone,
-  parseCreatedGoogleCalendarEvent,
-  parseExistingGoogleCalendarEvent,
-  type GoogleCalendarEventResult,
-} from "@/lib/integrations/googleCalendarTools";
+import { isValidCalendarTimezone } from "@/lib/integrations/googleCalendarTools";
 import type {
   MeetingCalendarDelivery,
   MeetingCalendarDeliveryStatus,
@@ -64,16 +58,19 @@ function deliveryStatus(value: unknown): MeetingCalendarDeliveryStatus {
     "created",
     "created_without_meet",
     "failed",
+    "cancelled",
   ]).has(status)
     ? status
     : "failed";
 }
 
 function toDelivery(row: Record<string, unknown>): MeetingCalendarDelivery {
+  const owner = isRecord(row.calendar_owner) ? row.calendar_owner : null;
   return {
-    calendarUrl: clean(row.calendar_url, 2_048) || null,
+    organizerSource: owner?.kind === "personal" || owner?.kind === "harper" ? owner.kind : null,
+    calendarUrl: row.status === "cancelled" ? null : clean(row.calendar_url, 2_048) || null,
     error: clean(row.last_error, 1_000) || null,
-    meetUrl: clean(row.conference_url, 2_048) || null,
+    meetUrl: row.status === "cancelled" ? null : clean(row.conference_url, 2_048) || null,
     status: deliveryStatus(row.status),
     updatedAt: clean(row.updated_at, 80),
   };
@@ -87,43 +84,11 @@ export async function fetchMeetingCalendarDelivery(args: {
   const { data, error } = await (
     admin.from("meeting_schedule_calendar_events" as any) as any
   )
-    .select("status, calendar_url, conference_url, last_error, updated_at")
+    .select("status, calendar_url, conference_url, last_error, updated_at, calendar_owner")
     .eq("schedule_id", args.scheduleId)
     .maybeSingle();
   if (error) throw error;
   return data ? toDelivery(data) : null;
-}
-
-async function updateDelivery(args: {
-  admin: AdminClient;
-  calendar?: GoogleCalendarEventResult;
-  error?: string;
-  scheduleId: string;
-  status: MeetingCalendarDeliveryStatus;
-}) {
-  const { data, error } = await (
-    args.admin.from("meeting_schedule_calendar_events" as any) as any
-  )
-    .update({
-      calendar_url: args.calendar?.calendarUrl ?? null,
-      conference_url: args.calendar?.meetUrl ?? null,
-      external_event_id: args.calendar?.eventId ?? null,
-      last_error: args.error ? clean(args.error, 1_000) : null,
-      status: args.status,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("schedule_id", args.scheduleId)
-    .eq("status", "creating")
-    .select("status, calendar_url, conference_url, last_error, updated_at")
-    .maybeSingle();
-  if (error) throw error;
-  if (data) return toDelivery(data);
-  const existing = await fetchMeetingCalendarDelivery({
-    admin: args.admin,
-    scheduleId: args.scheduleId,
-  });
-  if (existing) return existing;
-  throw new Error("Meeting calendar delivery row disappeared");
 }
 
 async function loadConfirmedSchedule(admin: AdminClient, scheduleId: string) {
@@ -131,14 +96,14 @@ async function loadConfirmedSchedule(admin: AdminClient, scheduleId: string) {
     admin.from("meeting_schedules" as any) as any
   )
     .select(
-      "id, active_round_id, company_workspace_id, organizer_company_user_id, company_attendees, talent_id, title, status, confirmed_start_at, confirmed_end_at"
+      "id, active_round_id, company_workspace_id, organizer_company_user_id, company_attendees, talent_id, title, status, version, timezone, confirmed_start_at, confirmed_end_at"
     )
     .eq("id", scheduleId)
     .maybeSingle();
   if (scheduleError) throw scheduleError;
   if (
     !schedule ||
-    schedule.status !== "confirmed" ||
+    !["confirmed", "cancelled"].includes(schedule.status) ||
     !schedule.confirmed_start_at ||
     !schedule.confirmed_end_at ||
     !schedule.active_round_id
@@ -243,117 +208,68 @@ export async function ensureMeetingCalendarEvent(scheduleIdValue: string) {
   const scheduleId = clean(scheduleIdValue, 80);
   if (!scheduleId) throw new OrgHttpError(400, "미팅 일정을 확인해 주세요.");
   const admin = getSupabaseAdmin();
-  const { data: claimData, error: claimError } = await (admin.rpc as any)(
-    "claim_meeting_schedule_calendar_event_v1",
-    { p_schedule_id: scheduleId }
-  );
-  if (claimError?.code === "55000") {
-    throw new OrgHttpError(409, "확정된 미팅 시간을 찾지 못했어요.");
-  }
-  if (claimError) throw claimError;
-  const claim = claimData as Record<string, unknown> | null;
-  if (claim?.claimed !== true) {
+  const { data: claim, error } = await (admin.rpc as any)("claim_meeting_calendar_delivery_v2", { p_schedule_id: scheduleId });
+  if (error) throw error;
+  if (!claim?.claimed) {
     const current = await fetchMeetingCalendarDelivery({ admin, scheduleId });
-    if (current) return current;
-    throw new Error("Meeting calendar delivery claim was not persisted");
+    if (!current) throw new Error("Calendar delivery record unavailable");
+    return current;
   }
-
   try {
-    const { candidate, round, schedule } = await loadConfirmedSchedule(
-      admin,
-      scheduleId
-    );
-    const timezone = parseTimezone(round);
-    const startAt = new Date(schedule.confirmed_start_at);
-    const endAt = new Date(schedule.confirmed_end_at);
-    const invitationCandidate = isRecord(round.invitation_snapshot)
-      ? round.invitation_snapshot.candidate
-      : null;
-    const candidateEmail =
-      validEmail(candidate.email) ||
-      validEmail(
-        isRecord(invitationCandidate) ? invitationCandidate.email : null
-      );
-    const attendees = buildMeetingCalendarAttendeeEmails({
-      candidateEmail,
-      companyAttendees: schedule.company_attendees,
-      organizerCompanyUserId: schedule.organizer_company_user_id,
-    });
-    if (!candidateEmail || attendees.length === 0) {
-      throw new OrgHttpError(
-        409,
-        "후보자의 이메일을 확인할 수 없어 Calendar 초대를 보내지 못했어요."
-      );
-    }
-    const meetingConfig = isRecord(round.meeting_config_snapshot)
-      ? round.meeting_config_snapshot
-      : null;
-
+    const { candidate, round, schedule } = await loadConfirmedSchedule(admin, scheduleId);
     const { service, vendor } = createCalendarRuntime(admin);
-    const accountId = await service.requireActiveAccountId(
-      schedule.organizer_company_user_id
-    );
-    const existingPayload = await vendor.executeTool<unknown>({
-      accountId,
-      arguments: buildGoogleCalendarEventLookupArguments({
-        endAt,
-        scheduleId: schedule.id,
-        startAt,
-      }),
-      slug: GOOGLE_CALENDAR_LIST_EVENTS_TOOL,
-      userId: schedule.organizer_company_user_id,
-      version: GOOGLE_CALENDAR_TOOL_VERSION,
+    const owner = await resolveMeetingCalendarOwner({
+      organizerId: schedule.organizer_company_user_id, pinned: claim.owner as MeetingCalendarOwner | null,
+      personalAccount: id => service.requireActiveAccountId(id), getAccount: id => vendor.getAccount(id),
+      authConfigId: readComposioEnv("COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID"),
+      hostedAccountId: process.env.HARPER_GOOGLE_CALENDAR_ACCOUNT_ID,
+      hostedUserId: process.env.HARPER_GOOGLE_CALENDAR_USER_ID,
     });
-    let calendar = parseExistingGoogleCalendarEvent(existingPayload);
-    if (!calendar) {
-      const createdPayload = await vendor.executeTool<unknown>({
-        accountId,
-        arguments: buildGoogleCalendarCreateEventArguments({
-          attendees,
-          endAt,
-          invitationKind:
-            clean(meetingConfig?.invitationKind, 80) === "process_stage"
-              ? "process_stage"
-              : "first_company_conversation",
-          meetingPurpose: clean(meetingConfig?.meetingPurpose, 600) || null,
-          processStageName: clean(meetingConfig?.processStageName, 80) || null,
-          scheduleId: schedule.id,
-          startAt,
-          summary: schedule.title,
-          timezone,
+    if (owner.kind === "harper") {
+      const primary = await vendor.calendarRequest({accountId:owner.accountId,userId:owner.userId,path:"/calendar/v3/calendars/primary",method:"GET"});
+      const expectedEmail = process.env.HARPER_GOOGLE_CALENDAR_EMAIL?.trim().toLowerCase();
+      if (!expectedEmail || primary.status!==200 || primary.data.id?.toLowerCase()!==expectedEmail) throw new OrgHttpError(409,"Harper 공용 Calendar 계정 설정을 확인해야 해요.");
+    }
+    // Bind credentials before any external write. A later reconnect must not create another event.
+    const { data: bound, error: bindError } = await (admin.from("meeting_schedule_calendar_events" as any) as any)
+      .update({ calendar_owner: owner }).eq("schedule_id", scheduleId).eq("lease_token", claim.token)
+      .select("schedule_id").maybeSingle();
+    if (bindError) throw bindError;
+    if (!bound) throw new Error("Calendar delivery lease changed");
+    const candidateEmail = validEmail(candidate.email);
+    const attendees = buildMeetingCalendarAttendeeEmails({ candidateEmail, companyAttendees: schedule.company_attendees,
+      organizerCompanyUserId: owner.kind === "personal" ? schedule.organizer_company_user_id : "" });
+    if (!candidateEmail || !attendees.length) throw new Error("Meeting attendee email is unavailable");
+    const delivered = await deliverMeetingCalendar({
+      request: input => input.method === "GET"
+        ? vendor.calendarRequest({ ...input, accountId: owner.accountId, userId: owner.userId })
+        : agentContactDatabase().transaction(async q => {
+          await assertMeetingDeliveryCurrent(q,scheduleId,Number(claim.version),claim.token);
+          return vendor.calendarRequest({ ...input, accountId: owner.accountId, userId: owner.userId });
         }),
-        slug: GOOGLE_CALENDAR_CREATE_EVENT_TOOL,
-        userId: schedule.organizer_company_user_id,
-        version: GOOGLE_CALENDAR_TOOL_VERSION,
-      });
-      calendar = parseCreatedGoogleCalendarEvent(createdPayload);
-    }
-    if (!calendar) {
-      throw new Error("Google Calendar returned no event identifier");
-    }
-    return updateDelivery({
-      admin,
-      calendar,
-      scheduleId,
-      status: calendar.meetUrl
-        ? "created"
-        : calendar.conferencePending
-          ? "creating"
-          : "created_without_meet",
+      scheduleId, version: Number(claim.version), status: schedule.status,
+      startAt: schedule.confirmed_start_at, endAt: schedule.confirmed_end_at,
+      timezone: schedule.timezone || parseTimezone(round), title: schedule.title,
+      purpose: round.meeting_config_snapshot?.meetingPurpose || "",
+      attendees, eventId: claim.eventId, deliveredVersion: claim.deliveredVersion, attempt: claim.attempt,
     });
+    const { error: saveError } = await (admin.from("meeting_schedule_calendar_events" as any) as any).update({
+      status: delivered.status, delivered_version: Number(claim.version),
+      ...(delivered.calendar ? { external_event_id: delivered.calendar.eventId, calendar_url: delivered.calendar.calendarUrl, conference_url: delivered.calendar.meetUrl } : {}),
+      last_error: null, lease_token: null, updated_at: new Date().toISOString(),
+    }).eq("schedule_id", scheduleId).eq("lease_token", claim.token);
+    if (saveError) throw saveError;
   } catch (error) {
-    console.error("[meeting-schedule/calendar-delivery]", {
-      scheduleId,
-      ...getIntegrationErrorDiagnostics(error),
-      ...(error instanceof GoogleCalendarError ? { code: error.code } : {}),
-    });
-    return updateDelivery({
-      admin,
-      error: publicDeliveryError(error),
-      scheduleId,
-      status: "failed",
-    });
+    console.error("[meeting-schedule/calendar-delivery]", { scheduleId, ...getIntegrationErrorDiagnostics(error) });
+    // Retain event ID, owner and URLs after partial success or an uncertain result.
+    const { error: saveError } = await (admin.from("meeting_schedule_calendar_events" as any) as any)
+      .update({ status: "failed", last_error: publicDeliveryError(error), updated_at: new Date().toISOString() })
+      .eq("schedule_id", scheduleId).eq("lease_token", claim.token);
+    if (saveError) throw saveError;
   }
+  const delivery = await fetchMeetingCalendarDelivery({ admin, scheduleId });
+  if (!delivery) throw new Error("Calendar delivery record unavailable");
+  return delivery;
 }
 
 export async function retryMeetingCalendarEvent(args: {

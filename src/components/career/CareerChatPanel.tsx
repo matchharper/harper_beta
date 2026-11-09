@@ -1,4 +1,3 @@
-import { CareerSuggestionProvider } from "./chat/CareerSuggestionComposer";
 import { InternalCallAnswersProvider } from "./chat/InternalCallAnswers";
 import { ApplicationHistoryProvider } from "./chat/ApplicationPreparationContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,6 +13,7 @@ import CareerWelcomeScreen from "./chat/CareerWelcomeScreen";
 import { cn } from "@/lib/utils";
 import { useCareerAutoStart } from "@/hooks/career/useCareerAutoStart";
 import React from "react";
+import { CareerFormReferenceProvider } from "./chat/CareerFormReferenceProvider";
 import { useCareerT } from "@/i18n/useCareerT";
 import Face from "../common/Face";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
@@ -326,9 +326,9 @@ function CareerChatPanel(
   return (
     <ApplicationHistoryProvider>
       <InternalCallAnswersProvider>
-        <CareerSuggestionProvider>
+        <CareerFormReferenceProvider>
           <CareerChatPanelContent {...props} />
-        </CareerSuggestionProvider>
+        </CareerFormReferenceProvider>
       </InternalCallAnswersProvider>
     </ApplicationHistoryProvider>
   );

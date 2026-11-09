@@ -354,7 +354,7 @@ test("feedback events preserve the saved decision, event identity and optional s
     const prompt = buildCareerOpportunityFeedbackFollowUpTurnInstruction({ preferredLocale: "ko", trigger });
     assert.ok(prompt.includes(`Event source: ${trigger}`));
     assert.ok(prompt.includes("The saved decision is already executed."));
-    assert.ok(prompt.includes("[[CAREER_FEEDBACK_SILENT]]"));
+    assert.equal(prompt.includes("[[CAREER_FEEDBACK_SILENT]]"), trigger !== CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback);
     assert.ok(!prompt.includes("recommend_job_postings"));
     assert.ok(!prompt.includes("ask exactly one"));
   }

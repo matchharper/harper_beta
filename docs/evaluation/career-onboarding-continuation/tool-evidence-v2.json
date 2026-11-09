@@ -1,0 +1,93 @@
+[
+  {
+    "roleId": "00000000-0000-4000-8000-000000000101",
+    "company": "Cedar",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.cedar.example/jobs/00000000-0000-4000-8000-000000000101"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000102",
+    "company": "Maple",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.maple.example/jobs/00000000-0000-4000-8000-000000000102"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000103",
+    "company": "Birch",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.birch.example/jobs/00000000-0000-4000-8000-000000000103"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000104",
+    "company": "Pine",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.pine.example/jobs/00000000-0000-4000-8000-000000000104"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000105",
+    "company": "Willow",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.willow.example/jobs/00000000-0000-4000-8000-000000000105"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000106",
+    "company": "Aspen",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.aspen.example/jobs/00000000-0000-4000-8000-000000000106"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000107",
+    "company": "Elm",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.elm.example/jobs/00000000-0000-4000-8000-000000000107"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000108",
+    "company": "Oak",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.oak.example/jobs/00000000-0000-4000-8000-000000000108"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000109",
+    "company": "Juniper",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.juniper.example/jobs/00000000-0000-4000-8000-000000000109"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000110",
+    "company": "Alder",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.alder.example/jobs/00000000-0000-4000-8000-000000000110"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000111",
+    "company": "Spruce",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.spruce.example/jobs/00000000-0000-4000-8000-000000000111"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000112",
+    "company": "Fir",
+    "title": "Backend Engineer",
+    "description": "Python/PostgreSQL ownership, Seoul or remote, full-time, no weekend work; public posting verified open.",
+    "url": "https://careers.fir.example/jobs/00000000-0000-4000-8000-000000000112"
+  },
+  {
+    "roleId": "00000000-0000-4000-8000-000000000199",
+    "company": "Cedar",
+    "title": "Platform Engineer",
+    "description": "Python platform tooling, Seoul, full-time, no weekend work; slightly less backend ownership than Cedar Backend Engineer.",
+    "url": "https://careers.cedar.example/jobs/00000000-0000-4000-8000-000000000199"
+  }
+]

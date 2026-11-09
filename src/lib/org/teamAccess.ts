@@ -37,9 +37,14 @@ export async function readOrgRoleAccess(args: RoleAccessArgs): Promise<OrgRoleAc
   const service = companyAgentScope(args.admin);
   if (service) {
     if (service.workspaceId !== args.workspaceId) throw new OrgHttpError(403, "Company event workspace mismatch");
-    await assertWorkspaceAvailable(args);
-    await service.assertCurrent();
-    return { authority: "admin", scope: "team", teamId: null, teamName: null, teamIds: [], teamNames: [], roleIds: [service.roleId], audienceRestricted: true };
+    const read = async (): Promise<OrgRoleAccess> => {
+      await assertWorkspaceAvailable(args);
+      await service.assertCurrent();
+      return { authority: "admin", scope: "team", teamId: null, teamName: null, teamIds: [], teamNames: [], roleIds: [service.roleId], audienceRestricted: true };
+    };
+    // Share only within a read scope; later tools and fresh checks revalidate the lease.
+    return args.fresh ? read() : memoOrgRead(args.admin,
+      ["service-role-access", service.workspaceId, service.roleId, service.jobId, service.leaseOwner], read);
   }
   if (args.fresh || args.allowReviewSetup || (args.admin as any)[orgRoleAudienceScope] !== undefined || isReviewOnboarding(args.workspaceId, args.user.id)) {
     return readCurrentOrgRoleAccess(args);

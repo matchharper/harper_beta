@@ -1,3 +1,4 @@
+import { ownsCareerExecution } from "./executionEnvironment";
 import { z } from "zod";
 import { CAREER_TEXT_CHAT_MODEL_IDS } from "./textChatModelConfig";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
@@ -10,6 +11,7 @@ import { dispatchCareerCheckpoint } from "./agentContinuation";
 import { CareerTurnCancelled } from "./turnCancellation.server";
 
 const jobSchema = z.object({
+  executionEnvironment: z.string().optional(),
   invocationId: z.string().uuid().optional(),
   assistantModel: z.string().optional(),
   textChatModel: z.enum(CAREER_TEXT_CHAT_MODEL_IDS).optional(),
@@ -26,6 +28,7 @@ const jobSchema = z.object({
 /** Both queue transports resume through the same ownership checks and reply claim. */
 export async function processCareerAgentReply(raw: unknown) {
   const job = jobSchema.parse(raw);
+  if (!ownsCareerExecution(job.executionEnvironment)) return;
   const admin = getTalentSupabaseAdmin();
   const { data: conversation, error } = await admin.from("talent_conversations")
     .select("id").eq("id", job.conversationId).eq("user_id", job.userId).maybeSingle();

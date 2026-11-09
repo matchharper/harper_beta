@@ -61,6 +61,15 @@ export function createCareerMessageMerger() {
               : { persisted, local, result: { ...persisted, ...local } };
           existing.message = entry.result;
           current.set(id, entry);
+        } else if (local.role === "user" && local.inputPending !== undefined) {
+          // Preserve the send-time queue state across the history/HTTP handover.
+          // The delivery projection clears it once a covering snapshot arrives.
+          const cached = previous.get(id);
+          const entry = cached?.persisted === persisted && cached.local === local
+            ? cached
+            : { persisted, local, result: { ...persisted, inputPending: local.inputPending } };
+          existing.message = entry.result;
+          current.set(id, entry);
         }
         cursor = existing;
       } else {

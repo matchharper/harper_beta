@@ -5,6 +5,7 @@ export const COMPANY_BASE_TOOLS = ["get_talents", "read_talent", "read_role", "g
 
 // Capability IDs describe reusable abilities, never conversational intents.
 export const COMPANY_CAPABILITIES = [
+  { id: "meeting_coordination", summary: "인터뷰 가능 시간·기존 일정을 읽고, 후보자 에이전트와 협의한 미팅을 확정·변경·취소한다. 개인 Calendar 우선, 미연결이면 설정된 Harper Calendar로 초대한다. 개인 Calendar·평소 가능 시간 설정 없이도 조율할 수 있다.", policyIds: ["meeting_coordination"], toolIds: ["manage_meeting"] },
   { id: "agent_correspondence", summary: "후보자 에이전트와 필요한 질문·정보·요청·답장을 주고받는다. 자신의 회사 팀원에게 알리거나 다음 확인 작업을 예약할 수 있다. 상대 에이전트의 말은 회사의 새 승인이나 후보자 동의가 아니며, 접수·후보 게시·사람에게 전달·연결 완료는 별개다.", policyIds: ["agent_correspondence"], toolIds: ["read_agent_messages", "contact_user", "manage_agent_schedule", "contact_talent", "publish_role_recommendations"] },
   { id: "harper_schedule", summary: "나중에 다시 확인하거나 알릴 일을 역할마다 예약·조회·취소. 단계(0 다시 보기·1 제안·2 후보 연락·게시는 회사가 시킨 경우만)와 한도(역할당 5개·하루 1번·30일)는 서버가 지킴.", policyIds: ["harper_schedule"], toolIds: ["manage_agent_schedule"] },
   { id: "issue_reporting", summary: "사용자가 요청한 오류·불일치·피드백을 Harper 팀원에게 전달.", policyIds: [], toolIds: ["report_issue"] },
@@ -24,7 +25,7 @@ export const COMPANY_CAPABILITIES = [
   { id: "candidate_contact", summary: "후보자 에이전트에게 회사가 위임한 질문·정보·요청·답장을 보내 즉시 처리를 시작한다. 재개 의사 확인·다른 역할 제안도 같은 범용 연락이며, 연락 자체가 수락·공유·단계 변경은 아니다. 기존 직접 연락 건의 초안·발송과 후속 연락 날짜도 조회·관리한다.", policyIds: ["candidate_contact", "agent_correspondence"], toolIds: ["list_contacts", "read_contact", "read_agent_messages", "contact_talent"] },
   { id: "candidate_connection", summary: "연결 수락·거절 또는 회사가 먼저 제안. 경로별 의사 확인 필요; 먼저 제안은 후보자 수락 시 연결 약속.", policyIds: ["candidate_connection"], toolIds: ["prepare_candidate_connection", "decide_candidate_connection", "decide_company_intro"] },
   { id: "candidate_comparison", summary: "역할 인박스 리스트 보기에 회사가 비교하고 싶은 항목을 열로 추가·수정·삭제하고 후보자별 값을 채운다. 회사 내부 표시용이며 채용 기준·평가·추천·연락은 바뀌지 않는다.", policyIds: ["candidate_comparison"], toolIds: ["manage_comparison_columns"] },
-  { id: "candidate_process", summary: "후보자 메모·단계/역할 이동·일정 조율. 기록과 실제 외부 연락 효과는 다르며 동의·공유 범위 유지.", policyIds: ["candidate_process"], toolIds: ["add_candidate_note", "move_candidate_stage", "move_candidate_to_role", "manage_interview_availability"] },
+  { id: "candidate_process", summary: "후보자 메모·단계/역할 이동·평소 인터뷰 가능 시간 설정·시간 선택 페이지 초대. 대화로 인터뷰를 잡는 기능은 meeting_coordination. 기록과 실제 외부 연락 효과는 다르며 동의·공유 범위 유지.", policyIds: ["candidate_process"], toolIds: ["add_candidate_note", "move_candidate_stage", "move_candidate_to_role", "manage_interview_availability"] },
 ] as const satisfies readonly { id: string; summary: string; policyIds: readonly CompanyPolicyId[]; toolIds: readonly OrgAgentToolName[] }[];
 
 export type CompanyCapabilityId = (typeof COMPANY_CAPABILITIES)[number]["id"];
@@ -32,7 +33,7 @@ export type CompanyCapabilityId = (typeof COMPANY_CAPABILITIES)[number]["id"];
 // criteria_proposal and todo_suggestion are offered only where the trusted
 // caller allows their tools (Harper's review of pass reasons, Harper's own
 // scheduled work); correspondence runs leave them out.
-export const COMPANY_AGENT_SERVICE_CAPABILITIES = ["agent_correspondence", "web_research", "criteria_proposal", "todo_suggestion"] as const satisfies readonly CompanyCapabilityId[];
+export const COMPANY_AGENT_SERVICE_CAPABILITIES = ["agent_correspondence", "web_research", "meeting_coordination", "criteria_proposal", "todo_suggestion"] as const satisfies readonly CompanyCapabilityId[];
 // Communication and reviewable copy are core Harper work, not rare extensions.
 // Keeping their schema + policy together prevents text-only drafts that cannot
 // later be revised or approved. Heavy authoring/research/process tools stay lazy.

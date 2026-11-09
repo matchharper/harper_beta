@@ -3,6 +3,7 @@ import { z } from "zod";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { runBrowserUseDev } from "@/lib/career/browserUseDev.server";
+import { resolveCareerRequestBrowserServiceTier } from "@/lib/career/browserServiceTier.server";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
         } catch {
           cancelled.abort();
         }
-      }).finally(() => {
+      }, resolveCareerRequestBrowserServiceTier(req, user)).finally(() => {
         try { controller.close(); } catch { /* Client disconnected. */ }
       });
     },

@@ -6,6 +6,7 @@ import {
   CareerRoleResetConflict,
   resetWonderfulRoleRecommendation,
 } from "@/lib/career/devWonderfulRoleReset";
+import { getWonderfulRoleResetTarget } from "@/lib/career/devWonderfulRoleResetTargets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,13 +19,19 @@ export async function POST(req: NextRequest) {
     if (!canUseCareerDevControls(user.email)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    // No target account or role is accepted from the request body.
+    const body = await req.json().catch(() => ({}));
+    const target = getWonderfulRoleResetTarget(body?.target === undefined ? "korea-fde" : body.target);
+    if (!target) {
+      return NextResponse.json({ error: "지원하지 않는 초기화 대상입니다." }, { status: 400 });
+    }
+    // Only named dev targets are accepted; account and role IDs stay server-owned.
     const result = await getCareerDevSqlClient().begin(async (tx) => {
       await tx`set local statement_timeout = '15s'`;
       await tx`set local lock_timeout = '5s'`;
       return resetWonderfulRoleRecommendation(
         (sql, parameters = []) => tx.unsafe(sql, parameters),
-        user.id
+        user.id,
+        target.key
       );
     });
     return NextResponse.json({ ok: true, ...result });

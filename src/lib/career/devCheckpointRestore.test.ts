@@ -178,3 +178,94 @@ test("quiescence checks run under the table locks before any state is replaced",
     await db.close();
   }
 });
+
+test("application scopes rewind runtime, drafts and follow-ups repeatedly while preserving other accounts", async () => {
+  const { db, query, snapshot } = await fixture();
+  try {
+    await db.exec(`
+      create table career_action_items(id int primary key,user_id text,title text);
+      create table talent_agent_runtime(conversation_id int primary key,user_id text,state jsonb);
+      create table talent_external_operations(id int primary key,user_id text,status text);
+      create table talent_documents(id int primary key,talent_id text,content text);
+      insert into career_action_items values(1,'daniel','before'),(2,'other','keep');
+      insert into talent_agent_runtime values(1,'daniel','{"handbooks":[],"completedSequence":3}');
+    `);
+    const { DEFAULT_CHECKPOINT_SCOPES } = await import("./devCheckpointData");
+    const scopes = {
+      owners: {
+        ...DEFAULT_CHECKPOINT_SCOPES.owners,
+        career_action_items: "user_id",
+        talent_agent_runtime: "user_id",
+        talent_external_operations: "user_id",
+      },
+      children: DEFAULT_CHECKPOINT_SCOPES.children,
+    };
+    const selected = [
+      ...tables,
+      "career_action_items",
+      "talent_agent_runtime",
+      "talent_external_operations",
+      "talent_documents",
+    ];
+    snapshot.tables = await readCheckpointRows(
+      query,
+      "daniel",
+      selected,
+      scopes
+    );
+    snapshot.columns = (await query(
+      "select table_name,column_name,is_generated from information_schema.columns where table_schema='public'"
+    )) as typeof snapshot.columns;
+    for (let repeat = 0; repeat < 2; repeat++) {
+      await db.exec(`update career_action_items set title='changed' where user_id='daniel';
+        update talent_agent_runtime set state='{"handbooks":["application"],"completedSequence":9}' where user_id='daniel';
+        insert into talent_external_operations values(1,'daniel','completed');
+        insert into talent_documents values(1,'daniel','new draft');`);
+      await db.transaction(async (tx) => {
+        await restoreCheckpointRows(
+          async (sql, params = []) =>
+            (await tx.query<Record<string, any>>(sql, params)).rows,
+          snapshot,
+          selected,
+          undefined,
+          scopes
+        );
+      });
+      assert.deepEqual(
+        await readCheckpointRows(query, "daniel", selected, scopes),
+        snapshot.tables
+      );
+      assert.equal(
+        (
+          await query(
+            "select title from career_action_items where user_id='other'"
+          )
+        )[0].title,
+        "keep"
+      );
+    }
+  } finally {
+    await db.close();
+  }
+});
+
+test("a changed-table restore preserves unchanged parents and still rejects dangling external children", async () => {
+  const { db, query, snapshot } = await fixture();
+  try {
+    await query("update talent_messages set content='changed' where id=1");
+    const queries: string[] = [];
+    await db.transaction(async tx => {
+      await restoreCheckpointRows(async (sql, params = []) => {
+        queries.push(sql);
+        return (await tx.query<Record<string, any>>(sql, params)).rows;
+      }, snapshot, ["talent_messages"]);
+    });
+    assert.deepEqual(await readCheckpointRows(query, "daniel", tables), snapshot.tables);
+    assert.ok(!queries.some(sql => sql.includes('create temporary table "checkpoint_talent_users"')));
+    await db.exec("insert into talent_messages(user_id,conversation_id,content) values('daniel',1,'sent'); insert into external_receipts values(1,3);");
+    await assert.rejects(db.transaction(async tx => {
+      await restoreCheckpointRows(async (sql, params = []) => (await tx.query<Record<string, any>>(sql, params)).rows, snapshot, ["talent_messages"]);
+    }), /external_receipts/);
+    assert.equal((await query("select count(*)::int n from external_receipts"))[0].n, 1);
+  } finally { await db.close(); }
+});

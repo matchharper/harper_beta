@@ -9,10 +9,10 @@ import { PROACTIVE_CAREER_HANDBOOK } from "./proactiveCareer";
 export const CAREER_HANDBOOK_LOADER = "load_handbook";
 export const CAREER_HANDBOOK_REPLIES = 3;
 export const CAREER_HANDBOOKS = [
-  { id: "resume", version: "2026-11-03-v3", description: "Read and improve a resume for the user's purpose; write useful proposals and questions and save the requested document.", body: RESUME_HANDBOOK_V1 },
-  { id: "application", version: "2026-11-05-v5", description: "Pursue a company or role the candidate wants to join: research useful contact routes and people, prepare applications or direct outreach for a send decision, and carry out authorized external actions.", body: APPLICATION_HANDBOOK },
+  { id: "resume", version: "2026-11-08-v5", description: "Create or improve a resume when writing is needed; research experience context, discover missing material and save useful, accurate documents.", body: RESUME_HANDBOOK_V1 },
+  { id: "application", version: "2026-11-09-v21", description: "Explore ways into a company the candidate wants to join, including companies outside recommendations or without an open role; prepare available web applications and evidenced email or LinkedIn outreach for review, then carry out final approved actions.", body: APPLICATION_HANDBOOK },
   { id: "opportunity_search", version: "2026-11-06-v16", description: "Find external career opportunities, manage matching criteria and existing recommendations, and help with internal Roles the candidate explicitly chose.", body: `${OPPORTUNITY_SEARCH_HANDBOOK}\n\n${SALARY_TARGET_FX_CONTEXT}` },
-  { id: "proactive_career", version: "2026-11-02-v2", description: "Continue delegated work from a schedule or source event, choose useful contact or silence, and save the next check.", body: PROACTIVE_CAREER_HANDBOOK },
+  { id: "proactive_career", backgroundOnly: true, version: "2026-11-08-v3", description: "Continue delegated work from a schedule or source event, choose useful contact or silence, and save the next check.", body: PROACTIVE_CAREER_HANDBOOK },
 ] as const;
 export type CareerHandbookId = (typeof CAREER_HANDBOOKS)[number]["id"];
 export type CareerHandbookLease = { id: CareerHandbookId; version: string; remainingReplies: number };
@@ -20,28 +20,33 @@ export type CareerHandbookLease = { id: CareerHandbookId; version: string; remai
 export function findCareerHandbook(id: unknown) {
   return CAREER_HANDBOOKS.find(book => book.id === id);
 }
-export function careerHandbookCatalog() {
-  return CAREER_HANDBOOKS.map(({ id, version, description, body }) => ({ id, version, description, characters: Array.from(body).length }));
+export function isCareerHandbookAvailable(id: unknown, background: boolean) {
+  const book = findCareerHandbook(id);
+  return Boolean(book && (!("backgroundOnly" in book) || background));
 }
-export function renderCareerHandbookCatalog() {
+export function careerHandbookCatalog(background = true) {
+  return CAREER_HANDBOOKS.filter(book => isCareerHandbookAvailable(book.id, background)).map(({ id, version, description, body }) => ({ id, version, description, characters: Array.from(body).length }));
+}
+export function renderCareerHandbookCatalog(background = true) {
   return [
     "## Available handbooks",
     "Use load_handbook when a guide would help. Loading grants no execution permission. A guide remains for three delivered replies, including the first reply after it is supplied; tool-loop completions do not consume extra replies.",
-    ...careerHandbookCatalog().map(book => `- ${book.id}: ${book.description} (${book.characters} characters; version ${book.version})`),
+    ...careerHandbookCatalog(background).map(book => `- ${book.id}: ${book.description} (${book.characters} characters; version ${book.version})`),
   ].join("\n");
 }
-export const careerHandbookLoaderTool: TalentChatTool = {
+export function careerHandbookLoaderToolFor(background = true): TalentChatTool { return {
   type: "function",
   function: {
     name: CAREER_HANDBOOK_LOADER,
-    description: TOOL_DESCRIPTIONS.load_handbook(careerHandbookCatalog()),
+    description: TOOL_DESCRIPTIONS.load_handbook(careerHandbookCatalog(background)),
     parameters: {
       type: "object", additionalProperties: false,
-      properties: { handbook_ids: { type: "array", items: { type: "string", enum: CAREER_HANDBOOKS.map(book => book.id) } } },
+      properties: { handbook_ids: { type: "array", items: { type: "string", enum: careerHandbookCatalog(background).map(book => book.id) } } },
       required: ["handbook_ids"],
     },
   },
-};
+}; }
+export const careerHandbookLoaderTool = careerHandbookLoaderToolFor();
 
 /** Keep the remaining lifetime while resolving each guide to its current source. */
 export function normalizeCareerHandbookLeases(value: unknown): CareerHandbookLease[] {

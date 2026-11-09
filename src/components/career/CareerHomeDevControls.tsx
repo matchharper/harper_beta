@@ -1,4 +1,8 @@
 // career-i18n-skip-file: Internal developer controls and synthetic preview copy.
+import { APPLICATION_TEST_START } from "@/lib/career/devApplicationStart";
+import { APPLICATION_CHECKPOINT_USER_ID, APPLICATION_CHECKPOINT_LABEL, APPLICATION_CHECKPOINT_SHA256 } from "@/lib/career/devApplicationCheckpoint";
+import { CONSECUTIVE_APPLICATIONS_CHECKPOINT } from "@/lib/career/devConsecutiveApplicationsCheckpoint";
+import { WONDERFUL_ROLE_RESET_TARGETS, type WonderfulRoleResetTarget } from "@/lib/career/devWonderfulRoleResetTargets";
 import {
   AlertTriangle,
   BriefcaseBusiness,
@@ -13,9 +17,12 @@ import {
   RefreshCw,
   Search,
   Terminal,
+  X,
 } from "lucide-react";
 import React from "react";
+import CareerScenarioDevControls from "./CareerScenarioDevControls";
 import CareerCheckpointDevControls from "./CareerCheckpointDevControls";
+import WonderfulFdeResetDevControl from "./WonderfulFdeResetDevControl";
 import { CAREER_CHECKPOINT_USER_ID } from "@/lib/career/devCheckpointContract";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
@@ -34,7 +41,7 @@ import {
   CLAUDE_HAIKU_MODEL,
   CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
-  GPT_61_SOL_MODEL,
+  SOL_CHAT_PRESETS,
   GPT_61_TERRA_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
@@ -49,6 +56,7 @@ import {
   type CareerVoiceModelOverride,
 } from "@/lib/career/voiceModel";
 import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
+import { useCareerBrowserServiceTierStore } from "@/store/useCareerBrowserServiceTierStore";
 import { useCareerPromptVariantStore } from "@/store/useCareerPromptVariantStore";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import {
@@ -104,11 +112,11 @@ const devTextChatModelOptions: Array<{
     label: "GPT-6 Luna · xhigh",
     value: GPT_6_LUNA_MODEL,
   },
-  {
-    eventKey: "gpt_6_1_sol_high",
-    label: "GPT-6.1 Sol · high",
-    value: GPT_61_SOL_MODEL,
-  },
+  ...SOL_CHAT_PRESETS.map(({ id, tierModel, effort, label }) => ({
+    eventKey: `${tierModel.replaceAll(/[-.]/g, "_")}_${effort}`,
+    label,
+    value: id,
+  })),
   {
     eventKey: "gpt_6_1_terra_high",
     label: "GPT-6.1 Terra · high",
@@ -199,6 +207,12 @@ export default function CareerHomeDevControls({
   onOpenChat: () => void;
 }) {
   const logCareerEvent = useCareerLogEvent();
+  const devControlsHidden = useCareerWorkspaceUiStore(
+    (state) => state.devControlsHidden
+  );
+  const setDevControlsHidden = useCareerWorkspaceUiStore(
+    (state) => state.setDevControlsHidden
+  );
   const conversationVersion = useCareerWorkspaceUiStore(
     (state) => state.conversationVersion
   );
@@ -222,6 +236,8 @@ export default function CareerHomeDevControls({
     (state) => state.setModelOverride
   );
   const textChatModel = useCareerTextChatModelStore((state) => state.model);
+  const browserServiceTier = useCareerBrowserServiceTierStore((state) => state.serviceTier);
+  const setBrowserServiceTier = useCareerBrowserServiceTierStore((state) => state.setServiceTier);
   const promptVariant = useCareerPromptVariantStore((state) => state.variant);
   const setPromptVariant = useCareerPromptVariantStore(
     (state) => state.setVariant
@@ -260,7 +276,7 @@ export default function CareerHomeDevControls({
   const [devRoleFtsLoading, setDevRoleFtsLoading] = React.useState(false);
   const [devRoleFtsStatus, setDevRoleFtsStatus] = React.useState("");
   const [wonderfulResetPending, setWonderfulResetPending] =
-    React.useState(false);
+    React.useState<WonderfulRoleResetTarget | null>(null);
   const [wonderfulResetStatus, setWonderfulResetStatus] = React.useState("");
   const wonderfulResetSubmitting = React.useRef(false);
   const [harperResetPending, setHarperResetPending] = React.useState(false);
@@ -338,17 +354,18 @@ export default function CareerHomeDevControls({
     }
   };
   const queryClient = useQueryClient();
-  const handleResetWonderfulRole = async () => {
+  const handleResetWonderfulRole = async (target: typeof WONDERFUL_ROLE_RESET_TARGETS[number]) => {
     if (!user || wonderfulResetSubmitting.current) return;
     wonderfulResetSubmitting.current = true;
-    setWonderfulResetPending(true);
+    setWonderfulResetPending(target.key);
     setWonderfulResetStatus("");
     try {
-      logCareerEvent("click_home_dev_reset_wonderful_role");
+      logCareerEvent(`click_home_dev_reset_wonderful_role_${target.key}`);
       const response = await fetchWithAuth(
         "/api/talent/dev-reset-wonderful-role",
         {
           method: "POST",
+          body: JSON.stringify({ target: target.key }),
         }
       );
       const payload = await response.json();
@@ -367,7 +384,7 @@ export default function CareerHomeDevControls({
         )
       );
       setWonderfulResetStatus(
-        "Wonderful Korea FDE를 Harper의 연결 제안으로 다시 추천했습니다."
+        `${target.label}를 Harper의 연결 제안으로 다시 추천했습니다.`
       );
     } catch (error) {
       setWonderfulResetStatus(
@@ -375,7 +392,7 @@ export default function CareerHomeDevControls({
       );
     } finally {
       wonderfulResetSubmitting.current = false;
-      setWonderfulResetPending(false);
+      setWonderfulResetPending(null);
     }
   };
   const handleResetHarperRole = async () => {
@@ -687,25 +704,52 @@ export default function CareerHomeDevControls({
 
   if (!showDevRunControls) return null;
 
+  if (devControlsHidden) {
+    return (
+      <div data-career-i18n-skip="true" className="mt-5">
+        <MuteButton
+          variant="transparent"
+          size="sm"
+          aria-label="Dev controls 열기"
+          title="Dev controls 열기"
+          onClick={() => setDevControlsHidden(false)}
+        >
+          <Terminal aria-hidden className="size-3.5" />
+        </MuteButton>
+      </div>
+    );
+  }
+
   return (
     <div
       data-career-i18n-skip="true"
       className="mt-5 rounded-2xl border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 shadow-(--shadow-sm)"
     >
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between gap-2">
         <Text as="div" type="eyebrow">
           Dev controls
         </Text>
-        {opportunityRunLocked ? (
-          <Text
-            as="div"
-            type="subtle"
-            className="mt-1 inline-flex items-center gap-1.5 sm:mt-0"
+        <div className="flex items-center gap-2">
+          {opportunityRunLocked ? (
+            <Text
+              as="div"
+              type="subtle"
+              className="inline-flex items-center gap-1.5"
+            >
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              worker 처리 대기 중
+            </Text>
+          ) : null}
+          <MuteButton
+            variant="transparent"
+            size="sm"
+            aria-label="Dev controls 닫기"
+            title="Dev controls 닫기"
+            onClick={() => setDevControlsHidden(true)}
           >
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            worker 처리 대기 중
-          </Text>
-        ) : null}
+            <X aria-hidden className="size-3.5" />
+          </MuteButton>
+        </div>
       </div>
       <fieldset className="mt-4 min-w-0 space-y-2">
         <legend className="text-[13px] font-medium text-neutral-primary">
@@ -737,20 +781,34 @@ export default function CareerHomeDevControls({
         </div>
       </fieldset>
       <div className="mt-3 space-y-2">
+        {process.env.NODE_ENV !== "production" && user?.id === APPLICATION_CHECKPOINT_USER_ID && (
+          <CareerCheckpointDevControls
+            endpoint="/api/talent/dev-application-checkpoint?fixture=application-start"
+            label={APPLICATION_TEST_START.label}
+            checkpoint={APPLICATION_TEST_START.key}
+            restoreLabel="지원 테스트 시작 상태로 초기화"
+            showComparison={false}
+            description="링크알파·SearchOS·Harper 외부 공고·Wonderful FDE의 지원 초안과 진행 기록을 지우고 새 기회로 돌립니다. 11월 8일 14:15 추천 답변(#472788) 이후의 채팅·폼·할 일과 그 대화에서 새로 저장한 Brief·Memory도 지웁니다."
+          />
+        )}
+        <WonderfulFdeResetDevControl user={user} />
         <div className="flex flex-wrap items-center gap-2">
-          <MuteButton
-            onClick={() => void handleResetWonderfulRole()}
-            disabled={!user || wonderfulResetPending}
-          >
-            {wonderfulResetPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="h-3.5 w-3.5" />
-            )}
-            {wonderfulResetPending
-              ? "초기화 중..."
-              : "Wonderful Korea FDE 초기화 · 다시 추천"}
-          </MuteButton>
+          {WONDERFUL_ROLE_RESET_TARGETS.map((target) => (
+            <MuteButton
+              key={target.key}
+              onClick={() => void handleResetWonderfulRole(target)}
+              disabled={!user || wonderfulResetPending !== null}
+            >
+              {wonderfulResetPending === target.key ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              {wonderfulResetPending === target.key
+                ? `${target.label} 초기화 중...`
+                : `${target.label} 초기화 · 다시 추천`}
+            </MuteButton>
+          ))}
           <MuteButton
             onClick={() => void handleResetHarperRole()}
             disabled={!user || harperResetPending}
@@ -836,6 +894,19 @@ export default function CareerHomeDevControls({
           onClose={() => setBackgroundRunModalOpen(false)}
         />
       ) : null}
+      <fieldset className="mt-3">
+        <legend className="text-[12px] text-neutral-muted">Browser Use · GPT-6 Luna · high</legend>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {(["priority", "default"] as const).map((tier) => (
+            <MuteButton key={tier} aria-pressed={browserServiceTier === tier}
+              variant={browserServiceTier === tier ? "dark" : "default"}
+              onClick={() => setBrowserServiceTier(tier)}>
+              {tier === "priority" ? "Priority (기본값)" : "Standard"}
+            </MuteButton>
+          ))}
+          <Text as="span" type="subtle">다음 텍스트 메시지·Browser Use 테스트부터 적용</Text>
+        </div>
+      </fieldset>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <MuteButton onClick={() => setBrowserUseOpen(true)}>
           <Play className="size-3.5" />
@@ -917,6 +988,7 @@ export default function CareerHomeDevControls({
           return (
             <MuteButton
               key={option.value}
+              aria-pressed={selected}
               onClick={() => {
                 logCareerEvent(`click_home_dev_text_model_${option.eventKey}`);
                 setTextChatModel(option.value);
@@ -1442,6 +1514,25 @@ export default function CareerHomeDevControls({
           </div>
         </div>
       </details>
+      {process.env.NODE_ENV !== "production" && user?.id === APPLICATION_CHECKPOINT_USER_ID ? (
+        <>
+        <CareerCheckpointDevControls
+          endpoint="/api/talent/dev-application-checkpoint?fixture=consecutive-applications"
+          label={CONSECUTIVE_APPLICATIONS_CHECKPOINT.label}
+          checkpoint={CONSECUTIVE_APPLICATIONS_CHECKPOINT.sha256}
+          restoreLabel="지원 QA 공고 6개 · 새 기회로 복원"
+          description="11월 8일 저장한 계정 데이터로 되돌리고 Harper Founding Engineer, 캐치테이블 AI Agent Engineer, Wonderful Marketing Manager, Search OS FDE, 링크알파 FDE, 픽스업 Founding AI Engineer를 새 기회로 복원합니다. 이후 테스트 대화·초안은 지워집니다. 실제 발송·제출 이력이 달라지면 복원을 중단합니다."
+        />
+        <CareerScenarioDevControls />
+        <CareerCheckpointDevControls
+          endpoint="/api/talent/dev-application-checkpoint"
+          label={APPLICATION_CHECKPOINT_LABEL}
+          checkpoint={APPLICATION_CHECKPOINT_SHA256}
+          restoreLabel="채널톡 지원 전으로 되돌리기"
+          description="지원 요청 이후의 대화·질문·초안과 테스트 중 변경한 Career 데이터를 고정 기준으로 복원합니다. 당시 기록으로 재구성한 기준이며, 계정 설정은 기준 파일 작성 시점의 값입니다. 외부 발송·제출은 되돌리지 않습니다."
+        />
+        </>
+      ) : null}
       {process.env.NODE_ENV !== "production" &&
       user?.id === CAREER_CHECKPOINT_USER_ID ? (
         <CareerCheckpointDevControls />

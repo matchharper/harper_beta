@@ -201,6 +201,10 @@ export async function upsertOpportunities(
   }
 ) {
   const { admin, userId, operationId, ...command } = args;
+  if (command.action === "set_stage") {
+    const { setOpportunityStages } = await import("./opportunityStages");
+    return setOpportunityStages({ admin, userId, items: command.items });
+  }
   const { data, error } = await admin.rpc(
     "write_career_opportunities" as never,
     { p_talent: userId, p_operation: operationId, p_command: command } as never

@@ -1,0 +1,42 @@
+# SBVA company exploration — 2026-11-09
+
+Status: **v18 preserved-history preparation passed twice**. Three earlier v17 runs also prepared contact drafts; one exceeded the search cap. A fresh v18 run was interrupted by separate real account input, so fresh-request completion under v18 is not established. No deployment or employer contact was performed by this evaluation.
+
+## Input and implementation
+
+Frozen `company-exploration-v1`, current authorized account checkpoint captured 11:24 KST, exact ordinary message `SBVA 코리아 가고싶은데 갈 수 있는 방법 다 찾아줘.`. No role ID, preselected opportunity, email instruction, recipient or gold is added to the model input. The account preserves its prior history and existing real introduction. A read-only recommendation lookup returned no SBVA/SoftBank recommendation. This is not a blank-profile test; earlier company interests remain part of the real account context.
+
+Application v17 expands the original goal and discoverable catalog from selected postings to a company the candidate wants to join. It limits new opening searches to three, continues to evidenced email/LinkedIn preparation without an open vacancy, and connects verified candidate experience to the recipient's organization without inventing achievements or availability. It retains the existing explicit review before sending. Actual Terra high requests contain the new handbook; Decisions uses Luna. These are product instructions, not test-injected expectations or SBVA-specific code.
+
+The canonical scenario runner now supports an account-only ordinary-chat setup, avoiding a fictional role/recommendation just to run a company request. The new frozen checkpoint is separate from older fixtures.
+
+## Observations and corrections
+
+- Initial v17 run `2026-11-09T02-25-18-926Z-sbva-v17`, repetition 1: 167,420 ms, no recorded tool/runtime errors. Three opening searches and one contact search. Saved an SBVA resume revision 1, complete recruiting email, LinkedIn alternative message and a visibly referenced review form. The email uses the [official historical Korea investment-team recruiting address](https://kr.linkedin.com/posts/sbva_sbva-activity-7424240476943237120--A0J), `recruit_investment@sbvacorp.com`. It is a team inbox, not a verified personal email. Both form and response distinguish an inquiry about current/future opportunities from a currently open application. No browser or send operation was used.
+- Its attempted second repetition stopped before restoring because `career_follow_mutation` was treated as an unknown external effect. The model had saved an internal company follow. The SQL writer changes only the owned follow row and its idempotency receipt, both covered by the same reset transaction. The reset guard now permits completed follow mutations while continuing to reject unfinished mutations, external sends/work effects, changed delivery/schedule records and active work. Focused tests cover those boundaries. No delivery guard was bypassed.
+- Run `2026-11-09T02-29-03-446Z-sbva-v17-reset-fix`, repetition 1: 173,791 ms, complete persisted email/resume/form, no recorded errors. **Search limit failed:** three opening web searches plus one `search_opportunities(action=search)` call made four. Two other web calls researched a contact/person. The existing phrase about all tools did not reliably establish shared counting. This is a quality failure despite successful preparation.
+- The same run's repetition 2 completed in 201,454 ms with no recorded errors: three opening searches and two contact/source-verification searches, saved email and LinkedIn draft, and one final form reference. The model reread its resume, corrected the document and updated the same form to pin revision 2 before its final response. It checked Gmail availability, but did not send or submit. The corrected reset successfully restored the identical 67-message/5-document baseline before both repetitions.
+- Application v18 rewrites that same search-limit paragraph to identify `web_search` for openings and `search_opportunities(action=search)` as a shared three-call budget, after which the agent continues source reading and outreach preparation. No runtime keyword classifier, hidden retry, counter state or company branch was added. The already running v17 process retained its imported v17 module; its captured requests verify v17, not v18.
+
+## Verification boundaries
+
+Review full saved drafts, source pages and final form references; successful process exits are insufficient. Opening-search counts are manually classified from exact tool purposes, not an automatic quality filter. A known historical recruiting inbox does not establish current recruiting or deliverability. No message was sent and Gmail connection remains an execution requirement. Public LinkedIn access varies: Harper's source reader retained a public profile capture, while an independent browserless fetch of one profile returned HTTP 999. Do not equate a retrieved profile with account/login access.
+
+Ten existing handbook/runtime tests and three reset-guard tests passed, including a combined final rerun; scoped lint passed. The workspace TypeScript check reported three unrelated `status` union-access errors in `src/lib/agentContacts/companyDelivery.test.ts` (lines 68, 69, 89); no changed-file error appeared. Concurrent/unrelated files were preserved.
+
+## Final v18 evidence
+
+Fresh-case run `2026-11-09T02-35-31-601Z-sbva-v18` stopped at 117,975 ms: separate real user input arrived at 11:37 KST. The runner detected the input before further execution/finalization, and did not reset it. Until then, the actual v18 input produced three opening searches, one contact search and source/profile reads. It did not complete its final preparation and does not count as a pass.
+
+A read-only next-decision comparison (`2026-11-09T02-38-17-424Z-decision-probe`) replayed the precise v17 decision that previously requested the third web opening search and a fourth internal opening search together. With the same two preceding opening searches, both captured-v17 repetitions and both current-v18 repetitions proposed only one additional opening search. This bounded result is consistent with the cap but does not establish a comparative improvement or end-to-end reliability. None of its returned calls was executed.
+
+After the user confirmed the account was no longer in use, a new checkpoint preserved the email request, its stop record, the existing introduction and interrupted SBVA research: 72 messages and 7 documents, captured 11:39 KST. Frozen `company-exploration-v2` keeps the exact ordinary user request. Run `2026-11-09T02-39-41-898Z-sbva-v18-recovery` restored this state before each repetition and used actual v18 / Terra high input:
+
+| Repetition | Time | New opening searches | Saved result |
+| --- | --- | --- | --- |
+| 1 | 119,163 ms | 0 | Form 476861: historical recruiting inbox/source, editable subject/body, resume revision 1, named LinkedIn contact/message, remaining career-date questions; final inline reference |
+| 2 | 120,548 ms | 2 web searches | Form 476875: same complete preparation and final inline reference; no current vacancy invented |
+
+Both read prior source material and draft documents. The email explicitly acknowledges the historical posting and asks about current/future opportunities. It connects verified audio-model, product deployment and startup experience to evaluating AI companies and productization constraints; it does not claim investment experience. The LinkedIn alternative addresses a partner who publicly discussed recruiting and coffee chats. Conflicting career dates remain visible for review. Both runs ended with no recorded tool/runtime errors, send attempts, browser execution or application submission. Neither required an email-specific instruction from the user. These are actual saved-form runs, not just proposed calls, but this phase did not repeat rendered-browser interaction or delivery.
+
+The final account retains form 476875 and its exact attachment. A read-only snapshot at 11:44 KST confirms all baseline message IDs remain present and company correspondence, contact queue, career emails, delivery records and schedules are unchanged. There are no new external-operation receipts relative to the preserved baseline. No real email request or company introduction was erased. Preparation success is established; recipient deliverability, current vacancy availability and sending after approval remain outside this test.

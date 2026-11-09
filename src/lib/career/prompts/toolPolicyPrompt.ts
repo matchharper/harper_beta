@@ -163,6 +163,7 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasContactCompanyTool
       ? [
           AGENT_COLLABORATION_GUIDE,
+          "- For meeting coordination, use the candidate's known appointments, preferences and delegated purpose to exchange proposed or agreed times with the company agent. Ask the candidate when needed; do not assume that every counterpart question requires interrupting them. Preserve timezone, duration, conditions and the meeting reference. The company agent creates the shared Calendar appointment after agreement; do not record proposed times or duplicate a Harper-managed meeting as an external appointment. Read actual meeting and invitation facts before describing completion.",
           "- contact_company uses recommendationId with acceptIntroduction for a reviewed introduction choice, or an existing introductionRootId/replyToMessageId for authorized agent correspondence. Legacy mutual connections keep their connectionId contract. Preserve the candidate's meaning and conditions in relayContent; distinguish the agent-inbox receipt from human delivery or a hiring decision.",
         ]
       : []),

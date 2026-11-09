@@ -11,13 +11,16 @@ function fixture() {
   const receipts = new Map<string, any>();
   const sent: number[] = [];
   const payloads: any[] = [];
-  let failAfterPost = 0, linkFailure = false, allowed = true;
+  let failAfterPost = 0, linkFailure = false, allowed = true, notificationEnabled = true;
   const admin: any = {
     from(table: string) {
       const filters: any = {};
       const q: any = { select() { return q; }, eq(k: string, v: unknown) { filters[k] = v; return q; }, contains() { return q; },
         order() { return Promise.resolve({ data: structuredClone(rows), error: null }); },
-        maybeSingle() { return Promise.resolve({ data: { id: "channel", slack_channel_id: "C1", is_enabled: true } }); },
+        maybeSingle() {
+          if (table === "company_role_notification_channels") return Promise.resolve({ data: notificationEnabled ? null : { channel_id: "channel" } });
+          return Promise.resolve({ data: { id: "channel", slack_channel_id: "C1", is_enabled: true } });
+        },
         single() { assert.equal(table, "company_slack_threads"); return Promise.resolve({ data: threads.get(filters.id) }); } };
       return q;
     },
@@ -47,7 +50,8 @@ function fixture() {
     reconcile: async (args: any) => { const receipt = receipts.get(args.idempotencyKey); if (!receipt) throw Error("uncertain"); return receipt; },
   };
   return { rows, attempts, sent, payloads, deps, failAfterPost: (id: number) => { failAfterPost = id; },
-    linkFailure: (value: boolean) => { linkFailure = value; }, allowed: (value: boolean) => { allowed = value; } };
+    linkFailure: (value: boolean) => { linkFailure = value; }, allowed: (value: boolean) => { allowed = value; },
+    notificationEnabled: (value: boolean) => { notificationEnabled = value; } };
 }
 
 test("partial delivery recovers the exact posted parent and resumes its reply without reposting", async () => {
@@ -108,6 +112,19 @@ test("current audience denial stops even a partially delivered batch", async () 
   f.allowed(false);
   await assert.rejects(deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, f.deps), /no longer allowed/);
   assert.deepEqual(f.sent, [1, 2]);
+});
+
+test("automatic company notifications recheck Role opt-outs before unsent copies", async () => {
+  const f = fixture();
+  for (const row of f.rows) row.metadata.source = "agent_contact";
+  f.failAfterPost(2);
+  await assert.rejects(deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, f.deps));
+  f.notificationEnabled(false);
+  await assert.rejects(deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, f.deps), /notifications are no longer enabled/);
+  assert.deepEqual(f.sent, [1, 2]);
+  f.notificationEnabled(true);
+  await deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, f.deps);
+  assert.deepEqual(f.sent, [1, 2, 3]);
 });
 
 test("a reply in an existing thread is checked for the Role it is about", async () => {

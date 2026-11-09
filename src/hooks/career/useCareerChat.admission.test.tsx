@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import type { User } from "@supabase/supabase-js";
 import { MessagesProvider } from "@/i18n/useMessage";
 
-test("post-onboarding card actions and saved answers are admitted together without locking chat or losing their references", async () => {
+for (const active of [false, true]) test(`rapid actions keep order and ${active ? "wait behind an active turn" : "stay normal while idle"}`, async () => {
   const { useCareerChat } = await import("./useCareerChat");
   const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost/career" });
   const originals = new Map<string, PropertyDescriptor | undefined>();
@@ -23,12 +23,12 @@ test("post-onboarding card actions and saved answers are admitted together witho
     requests.push(body);
     const id = requests.length;
     return new Promise<Response>(resolve => finish.push(() => resolve(Response.json({userMessage:{
-      id, role:"user", content:body.message || "Saved written answers", messageType:"chat", clientRequestId:body.clientRequestId,
+      id, role:"user", content:body.message || "Saved written answers", messageType:"chat", clientRequestId:body.clientRequestId, turnPending:true,
     }},{status:202}))));
   };
   function Harness() {
     api=useCareerChat({user:{id:"user"} as User,conversationId:"conversation",isOnboardingDone:true,sessionPending:false,
-      persistedMessages:[],fetchWithAuth,hasDurableWork:true,onRequestAdmitted:()=>{admissions++;}});
+      persistedMessages:[],fetchWithAuth,hasDurableWork:true,hasActiveInputTurn:active,onRequestAdmitted:()=>{admissions++;}});
     return null;
   }
   const root=createRoot(dom.window.document.getElementById("root")!);
@@ -43,8 +43,15 @@ test("post-onboarding card actions and saved answers are admitted together witho
     ];
     let pending!: Promise<void>[];
     await act(async()=>{pending=inputs.map(input=>api.sendChatMessage(input));});
-    assert.equal(requests.length,5,"every action reaches admission before any HTTP request finishes");
+    assert.equal(requests.length,1,"only persistence waits for the previous acknowledgement");
+    assert.equal(api.messages.length,5,"all inputs appear immediately while admission is pending");
     assert.equal(api.chatPending,false);
+    assert.ok(api.messages.every(message => Boolean(message.inputPending) === active));
+    for (let index=0; index<inputs.length; index++) {
+      assert.equal(requests.length,index+1);
+      await act(async()=>{finish[index]();await pending[index];});
+      assert.ok(api.messages.every(message => Boolean(message.inputPending) === active), "HTTP receipts do not change the send-time queue state");
+    }
     assert.equal(new Set(requests.map(request=>request.clientRequestId)).size,5);
     requests.forEach((request,index)=>{
       assert.equal(request.durable,true);
@@ -52,7 +59,7 @@ test("post-onboarding card actions and saved answers are admitted together witho
       for (const key of ["conversationStarterId","coachingActivityAction","formResponseMessageId","internalCallAnswerSubmission"] as const)
         assert.deepEqual(request[key],inputs[index][key]);
     });
-    await act(async()=>{finish.toReversed().forEach(resolve=>resolve());await Promise.all(pending);});
+    await Promise.all(pending);
     assert.equal(admissions,5);
     assert.equal(api.messages.length,5);
     assert.ok(api.messages.every(message=>message.role==="user"&&!String(message.id).startsWith("temp-")));

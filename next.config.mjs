@@ -44,7 +44,7 @@ const nextConfig = {
     "@fontsource/noto-sans-kr",
   ],
   // Private local checkpoints must never be packaged into deployed functions.
-  outputFileTracingExcludes: { "/*": ["./.local/career-reset/**", "./.local/resume-parser-audit-*/**", "./.local/resume-reprocess-*/**"] },
+  outputFileTracingExcludes: { "/*": ["./.local/career-reset/**", "./.local/channel-reset/**", "./.local/resume-parser-audit-*/**", "./.local/resume-reprocess-*/**"] },
   outputFileTracingIncludes: {
     "/*": ["./src/lib/career/simulation/applicationStagehand/*.mjs", "./src/lib/career/simulation/applicationStagehand/*.cjs", "./src/lib/career/simulation/applicationStagehand/package*.json"],
     "/api/{talent/documents/upload,talent/resume/*,internal/career/email-onboarding/ingest-profile,internal/company-talent-requests/ingest-resume,org/agent/role-creation/extract-file,internal/org-agent/slack-turn,queues/process-slack-turn}": [

@@ -37,15 +37,15 @@ export function LandingStats({
       {[
         {
           label: c(
-            "Harper와 직접 이야기 나눈 인재",
-            "Candidates who’ve spoken with Harper"
+            "Harper와 함께하는 인재",
+            "People who’ve spoken with Harper"
           ),
           value: formatStat(stats?.talentCount, c("명", " people")),
         },
         {
           label: c(
             "한 명과 주고받은 평균 메시지",
-            "Average messages per candidate"
+            "Average messages per person"
           ),
           value: formatStat(
             stats?.averageConversationMessages,
@@ -53,7 +53,7 @@ export function LandingStats({
           ),
         },
         {
-          label: c("인재와 포지션을 맞춰본 횟수", "Candidate–role matches assessed"),
+          label: c("검토한 기회의 수", "Opportunities assessed"),
           value: formatStat(stats?.assessedPairCount, c("건", "")),
         },
       ].map(({ label, value }) => (
@@ -79,7 +79,9 @@ export function LandingStats({
           <span
             className={cn(
               "block text-xs break-keep text-neutral-muted md:mt-2 md:text-[13px]",
-              align === "center" ? "mt-2 text-center" : "text-right md:text-left"
+              align === "center"
+                ? "mt-2 text-center"
+                : "text-right md:text-left"
             )}
           >
             {label}

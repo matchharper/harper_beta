@@ -397,14 +397,16 @@ export default function RichText({
           className="mt-4 overflow-x-auto first:mt-0"
           data-rich-text-table="true"
         >
-          <table
-            className={cn(
-              "min-w-full border-collapse text-left text-sm leading-6 text-neutral-primary",
-              variant === "career" && "[&_tbody>tr:last-child>td]:border-b-0"
-            )}
-          >
-            {children}
-          </table>
+          <div data-rich-text-table-surface="true">
+            <table
+              className={cn(
+                "min-w-full border-collapse text-left text-sm leading-6 text-neutral-primary",
+                variant === "career" && "[&_tbody>tr:last-child>td]:border-b-0"
+              )}
+            >
+              {children}
+            </table>
+          </div>
         </div>
       ),
       th: ({ children, style }) => (

@@ -298,6 +298,7 @@ test("description is available in list/read model text and editable on resumes w
   const saved = await upsertDocument({ admin, userId: "talent-a", userMessageId: 1, input });
   assert.match(formatToolResultText(withCompactTalentToolModelResult("upsert_document", saved)), /데이터 플랫폼 리더 지원용/);
   const read = await readTalentDocumentForTool({ admin, userId: "talent-a", input });
+  assert.ok("document" in read);
   assert.equal(read.document.description, input.description);
   assert.equal(read.excerpt, "# Career history\n\n## Acme — Engineer");
   assert.match(formatToolResultText(withCompactTalentToolModelResult("read_document", read)), /데이터 플랫폼 리더 지원용/);
@@ -311,4 +312,18 @@ test("description is available in list/read model text and editable on resumes w
   await upsertDocument({ admin, userId: "talent-a", userMessageId: 5, input: { document_id: document.id, is_deleted: false, description: "복원한 이력서" } });
   assert.equal(document.is_deleted, false);
   assert.equal(document.description, "복원한 이력서");
+});
+
+test("batch reads return ordered passages, cursors and per-document access failures to the model", async () => {
+  const { admin } = createDocumentAdmin([
+    createGmailDocument({ id: "short", extracted_text: "Short passage" }),
+    createGmailDocument({ id: "other", talent_id: "talent-b", extracted_text: "Private passage" }),
+    createGmailDocument({ id: "long", extracted_text: "Long passage".repeat(60) }),
+  ]);
+  const result = await readTalentDocumentForTool({
+    admin, userId: "talent-a", input: { document_ids: ["long", "other", "short"], max_chars: 500 },
+  });
+  const model = formatToolResultText(withCompactTalentToolModelResult("read_document", result));
+  assert.match(model, /documentId: long[\s\S]*Long passage[\s\S]*nextOffset: 500[\s\S]*documentId: other[\s\S]*Document not found[\s\S]*documentId: short[\s\S]*Short passage/);
+  assert.doesNotMatch(model, /Private passage/);
 });

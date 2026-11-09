@@ -102,7 +102,9 @@ export async function readTalentDocumentMetadataPage(args: {
   if (kind) query = query.eq("kind", kind);
 
   const { data, error } = await query
+    .order("is_primary", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .range(offset, offset + limit);
   if (error) {
     throw new Error(error.message ?? "Failed to list talent documents.");
@@ -156,11 +158,42 @@ export async function listTalentDocumentsForTool(args: {
   };
 }
 
-export async function readTalentDocumentForTool(args: {
+type ReadDocumentArgs = {
   admin: TalentAdminClient;
   input: Record<string, unknown>;
   userId: string;
-}): Promise<{
+};
+
+export function readTalentDocumentForTool(args: ReadDocumentArgs & {
+  input: { document_id: string; document_ids?: never } & Record<string, unknown>;
+}): ReturnType<typeof readSingleDocument>;
+export function readTalentDocumentForTool(args: ReadDocumentArgs): Promise<
+  Awaited<ReturnType<typeof readSingleDocument>> | { documents: Array<
+    Awaited<ReturnType<typeof readSingleDocument>> | { documentId: string; error: string }
+  > }
+>;
+export async function readTalentDocumentForTool(args: ReadDocumentArgs) {
+  const ids = args.input.document_ids;
+  if (ids === undefined) return readSingleDocument(args);
+  if (args.input.document_id !== undefined || !Array.isArray(ids) || !ids.length) {
+    throw new Error("Provide either document_id or a nonempty document_ids array.");
+  }
+  const documents = [];
+  for (const id of ids) {
+    const documentId = optionalString(id);
+    if (!documentId) throw new Error("Each document_ids entry must be a document ID.");
+    try {
+      documents.push(await readSingleDocument({
+        ...args, input: { ...args.input, document_id: documentId },
+      }));
+    } catch (error) {
+      documents.push({ documentId, error: error instanceof Error ? error.message : "Document read failed." });
+    }
+  }
+  return { documents };
+}
+
+async function readSingleDocument(args: ReadDocumentArgs): Promise<{
   document: ReturnType<typeof toDocumentMetadata>;
   revision?: number;
   structuredContent?: TalentDocumentRow["structured_content"];

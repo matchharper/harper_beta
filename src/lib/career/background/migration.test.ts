@@ -25,6 +25,7 @@ async function database() {
   `);
   await db.exec(await readFile("supabase/migrations/20261029215555_career_background_agent_delivery.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261102084400_career_meeting_delivery_admission.sql", "utf8"));
+  await db.exec(await readFile("supabase/migrations/20261108120000_career_onboarding_direct_continuation.sql", "utf8"));
   await db.query("insert into talent_users values($1)", [user]);
   await db.query("insert into talent_conversations values($1,$2)", [conversation,user]);
   await db.query("insert into talent_messages(user_id,conversation_id,role,content) values($1,$2,'user','원래 요청')",[user,conversation]);
@@ -106,9 +107,20 @@ test("waiting checkpoints are recovered only after the child is terminal, includ
 
 test("onboarding completion and its single invocation are committed together",async()=>{
   const db=await database();try {
-    const first=(await db.query<any>("select enqueue_career_onboarding_invocation($1,$2,'{}') r",[user,conversation])).rows[0].r;
-    const retry=(await db.query<any>("select enqueue_career_onboarding_invocation($1,$2,'{}') r",[user,conversation])).rows[0].r;
+    const first=(await db.query<any>("select enqueue_career_onboarding_continuation($1,$2,'{}') r",[user,conversation])).rows[0].r;
+    const retry=(await db.query<any>("select enqueue_career_onboarding_continuation($1,$2,'{}') r",[user,conversation])).rows[0].r;
     assert.equal(first.id,retry.id);assert.equal(first.trigger_payload.runContract,"career_agent_v1");
+    assert.equal(first.status, "handed_off");
+    assert.equal(first.lease_token, null);
+    assert.equal(first.trigger_payload.agentInvocation.replyId, `background:${first.id}`);
+    assert.equal(first.trigger_payload.agentInvocation.sourceMessageCursor, 1);
+    const children = (await db.query<any>("select * from opportunity_discovery_run where trigger='onboarding_internal_evaluation'")).rows;
+    assert.equal(children.length, 1);
+    assert.equal(children[0].trigger_payload.onboardingRunId, first.id);
+    await assert.rejects(() => db.query("select enqueue_career_onboarding_continuation($1,$2,'{}')", [child,conversation]), /Conversation unavailable/);
+    await claim(db, first.trigger_payload.agentInvocation.replyId);
+    assert.equal((await db.query<any>("select finish_career_background_reply($1,$2,$3,'agent-claim',$4) done", [user,conversation,first.trigger_payload.agentInvocation.replyId,first.id])).rows[0].done, true);
+
     assert.equal((await db.query<any>("select is_onboarding_done from talent_setting")).rows[0].is_onboarding_done,true);
   }finally{await db.close();}
 });
@@ -263,5 +275,27 @@ test('audit failure rolls back secondary history but preserves the separately co
     assert.equal((await db.query<any>('select count(*) count from career_email_messages')).rows[0].count, 1);
     assert.equal((await db.query<any>('select count(*) count from talent_progress')).rows[0].count, 1);
     assert.equal((await db.query<any>('select status from company_talent_followups where id=$1', [child])).rows[0].status, 'delivered');
+  } finally { await db.close(); }
+});
+
+
+test("DB-first rollout preserves deployed Worker admission and never reowns an existing run", async () => {
+  const db = await database();
+  try {
+    const before = (await db.query<any>("select pg_get_functiondef('enqueue_career_onboarding_invocation(uuid,uuid,jsonb)'::regprocedure) definition")).rows[0].definition;
+    await db.exec(await readFile("supabase/migrations/20261108120000_career_onboarding_direct_continuation.sql", "utf8"));
+    const after = (await db.query<any>("select pg_get_functiondef('enqueue_career_onboarding_invocation(uuid,uuid,jsonb)'::regprocedure) definition")).rows[0].definition;
+    assert.equal(after, before);
+    const legacy = (await db.query<any>("select enqueue_career_onboarding_invocation($1,$2,'{}') r", [user,conversation])).rows[0].r;
+    assert.equal(legacy.status, "queued");
+    const retry = (await db.query<any>("select enqueue_career_onboarding_continuation($1,$2,'{}') r", [user,conversation])).rows[0].r;
+    assert.equal(retry.id, legacy.id);
+    assert.equal(retry.status, "queued");
+    assert.equal((await db.query<any>("select count(*)::int n from opportunity_discovery_run where trigger='conversation_completed'")).rows[0].n, 1);
+    for (const role of ["anon", "authenticated"]) {
+      const permission = (await db.query<any>("select has_function_privilege($1,'enqueue_career_onboarding_continuation(uuid,uuid,jsonb)','EXECUTE') allowed", [role])).rows[0];
+      assert.equal(permission.allowed, false);
+    }
+    assert.equal((await db.query<any>("select has_function_privilege('service_role','enqueue_career_onboarding_continuation(uuid,uuid,jsonb)','EXECUTE') allowed")).rows[0].allowed, true);
   } finally { await db.close(); }
 });

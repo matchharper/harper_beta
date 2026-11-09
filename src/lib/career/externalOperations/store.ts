@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { z } from "zod";
 import { assertCareerTurnActive } from "../turnCancellation.server";
+import type { CareerBrowserServiceTier } from "../browserServiceTier";
 
 const record = z.record(z.unknown());
 export const operationSchema = z.object({
@@ -33,6 +34,7 @@ export type ExternalToolContext = {
   signal?: AbortSignal;
   /** Request budget; yielding observation preserves the already dispatched run. */
   deadlineAt?: number;
+  browserServiceTier?: CareerBrowserServiceTier;
   /** Set only by the authenticated viewer endpoint, never from model arguments. */
   controlSource?: "user";
 };

@@ -1,3 +1,4 @@
+import { CareerInlineForms } from "../CareerInlineForms";
 import dynamic from "next/dynamic";
 import {
   createContext,
@@ -575,6 +576,7 @@ function InlineUiView({
   runtime: CareerInlineUiRuntime;
 }) {
   if (!runtime.userId) return <CareerInlineUiUnavailable />;
+  if (reference.type === "forms") return <CareerInlineForms formIds={reference.formIds} grouped={reference.grouped} />;
   if (reference.type === "meetings" || reference.type === "automations" || reference.type === "actions")
     return <CareerInlineWorkspaceUi reference={reference} />;
   if (reference.type === "matching")
@@ -730,6 +732,7 @@ export default function CareerInlineUi({
   reference: CareerInlineUiReference;
 }) {
   const runtime = useContext(RuntimeContext);
+  if (reference.type === "forms") return <CareerInlineForms formIds={reference.formIds} grouped={reference.grouped} />;
   return runtime ? (
     <InlineUiView reference={reference} runtime={runtime} />
   ) : (

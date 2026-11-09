@@ -118,7 +118,7 @@ export function buildGmailCapabilityPrompt(capability: GmailCapability) {
  * 블록 포함 규칙:
  * - 일반 채팅: mainPrompts.ts의 career_main + profile_context, dynamic_state.
  * - 그 외 채널: chat_core + 해당 mode guidance + profile_context, dynamic_state.
- * - 온보딩 중에만 포함: onboarding_rules, dynamic_state 안의 checklist/runtime progress.
+ * - 온보딩 중에만 포함: onboarding_rules, dynamic_state 안의 주제별 정보 목적.
  * - 온보딩 완료 후 대화에는 post-onboarding guide를 포함하되, wrap-up 같은 별도 산출물은 명시적으로 제외할 수 있다.
  * - voice call에만 포함: voice_call_rules, dynamic_state 안의 최근 채팅 맥락.
  * - text chat에만 포함: dynamic_state 안의 opportunity feedback, recent activity summaries.
@@ -177,7 +177,7 @@ export function buildCareerConversationPromptPlan(args: {
     ? "Background Career work"
     : getCareerChannelType(args.channel);
   const channelContextRules = args.backgroundInvocation
-    ? "This is scheduled or event-triggered Career work. The user is not in a live conversation. Use real URLs for saved artifacts rather than chat-only card markers."
+    ? "This is server-triggered Career work. Use the triggering context and recent conversation to determine whether you are continuing an active chat or handling work for later delivery. Use real URLs for saved artifacts rather than chat-only card markers."
     : buildCareerChannelContextRules(args.channel, true);
 
   const outputLanguage = getCareerPromptLanguageName(
@@ -204,7 +204,7 @@ export function buildCareerConversationPromptPlan(args: {
   const normalizedToolNames =
     capabilities?.policyToolNames ?? normalizeToolNames(args.toolNames);
 
-  // 온보딩 중에는 checklist 진행/종료 조건을 하나의 runtime state 블록으로 넣는다.
+  // 온보딩에서는 주제별 정보 목적을 제공하고 질문·완료 판단은 대화 모델에 맡긴다.
   // 저장된 Brief/Memory 본문은 아래 talentContextSection에서만 한 번 제공한다.
   const onboardingRuntimeStateSection = isOnboardingActive
     ? buildOnboardingRuntimeStateSection({
@@ -266,7 +266,7 @@ export function buildCareerConversationPromptPlan(args: {
     if (args.backgroundInvocation)
       return {
         key: "background_execution",
-        text: "Decide useful work from the delegated purpose, current facts and available tools. There is no fixed recommendation count or sequence. Read relevant history before repeating work. You may complete quietly, deliver a useful email, or schedule a future check. Do not fabricate a user turn, consent, or company response.",
+        text: "Decide useful work from the delegated purpose, current facts and available tools. There is no fixed recommendation count or sequence. Read relevant history before repeating work. Continue through chat or email when the purpose calls for a response; otherwise you may complete quietly or schedule a concrete future check. Do not fabricate a user turn, consent, or company response.",
         cacheable: true,
       };
     if (isOnboardingActive)
@@ -528,7 +528,7 @@ ${args.gmailCapability === "not_connected"
 
   const dynamicStateLines = [
     // 항상 포함: 현재 채널, 현재 시각, 활성 runtime instruction.
-    `## Runtime context\n${args.backgroundInvocation ? "후보자가 참여하지 않는 백그라운드 실행입니다." : `현재 후보자와 ${channelType}을 통해 소통하고 있습니다.`}\n현재 시각: ${formatCareerPromptKoreanDateTime(
+    `## Runtime context\n${args.backgroundInvocation ? "서버 이벤트로 이어진 Career 실행입니다. 대화와 이벤트 맥락을 참고하세요." : `현재 후보자와 ${channelType}을 통해 소통하고 있습니다.`}\n현재 시각: ${formatCareerPromptKoreanDateTime(
       (args.requestTime ?? new Date()).toISOString(),
       {
         preferredLocale: args.currentPreferences?.preferredLocale,

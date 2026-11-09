@@ -154,7 +154,7 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     key: "scheduling",
     question: "면접 일정도 Harper가 조율해 주나요?",
     answer:
-      "네. 일정 담당자가 개인 메뉴의 일정 연동에서 Google Calendar를 연결하고 가능한 시간을 설정하면 Harper가 면접 일정을 조율할 수 있어요. 연결된 Calendar에서 이미 바쁜 시간을 제외해 후보자에게 선택지를 보내고, 후보자가 시간을 고르면 회사 참석자와 후보자에게 Calendar 초대와 Google Meet 링크를 전달해요. 누구와 어떤 역할의 무슨 대화를 할지 알려 주세요. 후보자가 아직 회사 제안을 수락하지 않았다면 먼저 수락이 필요해요. Pipeline의 다른 단계로 옮기는 것만으로 일정 요청이 발송되지는 않으며, 기존 미팅이 확정됐다는 사실만으로 새 미팅의 초대가 전달됐다고 판단하지 않아요.",
+      "네. 채팅에서 누구와 어떤 대화를 하고 싶은지 알려 주시면 Harper가 후보자 측 Harper와 시간을 조율해요. 연결된 개인 Google Calendar와 저장한 가능한 시간을 우선 참고하고, 개인 Calendar가 없어도 대화로 시간을 정할 수 있어요. 합의한 일정은 개인 Calendar를 우선 사용해 초대하고, 미연결이면 설정된 Harper 공용 Calendar로 초대와 Google Meet 링크를 만들어요. 개인 Calendar를 연결하지 않았다면 그 안의 다른 일정은 확인할 수 없어요. 필요한 연결 수락은 기존 절차대로 진행하며, 시간 합의와 실제 초대 발송은 구분해서 확인해요.",
     tags: ["locale:ko", "topic:scheduling", "topic:limitation"],
     category: "후보자 소통과 전형",
   },

@@ -7,6 +7,10 @@ export function getCareerToolStartThinkingLog(
   input?: Record<string, unknown>
 ) {
   switch (toolName) {
+    case "use_browser":
+      return input?.action === "run" && input.mode !== "execute"
+        ? careerT(locale, "career.application.browser.checking", "지원 정보 확인 중...")
+        : "";
     case "update_language_setting":
       return getCareerLanguageSettingToolStatus(input?.language);
     case "update_setting":

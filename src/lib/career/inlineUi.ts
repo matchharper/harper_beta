@@ -2,6 +2,7 @@ import { isPostingRoleId, normalizePostingRoleId } from "./postingLinks";
 
 /** Presentation references only. They never authorize or execute an action. */
 export type CareerInlineUiReference =
+  | { type: "forms"; formIds: number[]; grouped: boolean }
   | { type: "matching"; matchingId: string; runId?: string }
   | { type: "opportunities"; scope: "all" | "saved" | "progress" }
   | { type: "opportunities"; roleIds: string[] }
@@ -22,6 +23,8 @@ export function readCareerInlineUiReference(
 ): CareerInlineUiReference | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
+  if (row.type === "forms" && Array.isArray(row.formIds) && row.formIds.length && row.formIds.every(id => Number.isSafeInteger(id) && Number(id) > 0))
+    return { type: "forms", formIds: [...new Set(row.formIds as number[])], grouped: row.grouped === true };
   if (row.type === "brief" || row.type === "automations" || row.type === "actions") return { type: row.type };
   if (row.type === "meetings") {
     if (row.roleId !== undefined && (typeof row.roleId !== "string" || !isPostingRoleId(row.roleId))) return null;
@@ -110,6 +113,24 @@ export function parseCareerInlineUi(
     }
     if (fence || /^(?: {4}|\t|\s{0,3}>)/.test(line)) {
       text.push(line);
+      return;
+    }
+    const formPrefixes = ["[[form:", "[[forms:"];
+    const incompleteForm = streaming && index === lines.length - 1 && trimmed.length > 0 &&
+      formPrefixes.some(prefix => prefix.startsWith(trimmed) || (trimmed.startsWith(prefix) && !trimmed.endsWith("]]")));
+    if (incompleteForm) { flush(); return; }
+    if (formPrefixes.some(prefix => trimmed.startsWith(prefix))) {
+      flush();
+      let reference: CareerInlineUiReference | null = null;
+      try {
+        const grouped = trimmed.startsWith("[[forms:");
+        const raw = trimmed.slice(grouped ? 8 : 7, -2);
+        const ids = grouped ? JSON.parse(raw) : [Number(raw)];
+        if (trimmed.endsWith("]]")) reference = readCareerInlineUiReference({ type: "forms", formIds: ids, grouped });
+      } catch { /* Unfinished or invalid references perform no action. */ }
+      if (!reference && streaming && index === lines.length - 1) return;
+      parts.push(reference ? { kind: "ui", reference, key: `ui-${start}` } : { kind: "invalid", key: `ui-${start}` });
+      textStart = offset;
       return;
     }
     const incomplete =

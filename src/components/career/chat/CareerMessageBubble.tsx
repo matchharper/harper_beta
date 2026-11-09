@@ -2,9 +2,8 @@ import {
   CAREER_BUBBLE_BREAK,
   splitCareerMessageBubbles,
 } from "@/lib/career/conversationVersion";
-import { CareerSuggestionHistory } from "./CareerSuggestionComposer";
+import { CareerInlineForms } from "./CareerInlineForms";
 import { ApplicationReviewEntry } from "./ApplicationReviewPanel";
-import { CareerFormCard } from "./CareerFormCard";
 import { CareerFormResponseHistory } from "./CareerFormResponseHistory";
 import { GmailIntegrationAction } from "./GmailIntegrationAction";
 import { extractGmailIntegrationMarker } from "@/lib/career/forms/integrationMarker";
@@ -493,7 +492,7 @@ const CareerMessageBubbleContent = ({
         />
       ) : null}
       <ChatMessageBubbleFrame
-        animateEntrance={isUser && String(message.id).startsWith("temp-user-")}
+        animateEntrance={isUser && !message.inputPending && String(message.id).startsWith("temp-user-")}
         active={isAssistantSpeaking}
         className={cn(
           isUser && "my-0 md:my-0",
@@ -545,7 +544,11 @@ const CareerMessageBubbleContent = ({
         typographyClassName={careerTimelineMessageTextClassName}
         unstyled={isOpportunityFeedbackNote}
       >
-        {isUser && message.formResponse ? (
+        {isUser && message.formResponses?.length ? (
+          <div className="space-y-4">{message.formResponses.map(response =>
+            <CareerFormResponseHistory key={`${response.formId}:${response.revision}`} response={response} />
+          )}</div>
+        ) : isUser && message.formResponse ? (
           <CareerFormResponseHistory response={message.formResponse} />
         ) : isUser ? (
           <div className="whitespace-pre-wrap wrap-break-word">
@@ -580,11 +583,7 @@ const CareerMessageBubbleContent = ({
           </>
         )}
         {!isUser && !message.typing && message.careerForm ? (
-          message.careerForm.kind === "suggestion" ? (
-            <CareerSuggestionHistory form={message.careerForm} />
-          ) : (
-            <CareerFormCard form={message.careerForm} />
-          )
+          <CareerInlineForms formIds={[message.careerForm.formId]} />
         ) : null}
         {!isUser &&
           browserExtraction.sessionIds.map((id) => (
@@ -842,11 +841,7 @@ const CareerMessagePresentation = (props: Props) => {
           careerTimelineMessageTextClassName
         )}
       >
-        {message.careerForm.kind === "suggestion" ? (
-          <CareerSuggestionHistory form={message.careerForm} />
-        ) : (
-          <CareerFormCard form={message.careerForm} />
-        )}
+        {<CareerInlineForms formIds={[message.careerForm.formId]} />}
       </div>
     ) : null;
 

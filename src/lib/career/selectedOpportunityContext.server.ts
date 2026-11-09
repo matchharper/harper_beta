@@ -2,6 +2,7 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { extractCareerOpportunityMentions } from "./opportunityMentionText";
 import { normalizePostingRoleIds } from "./postingLinks";
 import { readSelectedOpportunityProgress } from "./selectedOpportunityProgress.server";
+import { employeeCountRangeText } from "@/lib/talentOnboarding/roleContextFormat";
 
 /** Resolve explicit selections from authenticated messages, never client-supplied JD text. */
 export async function readSelectedOpportunityContext(args: {
@@ -28,6 +29,7 @@ export async function readSelectedOpportunityContext(args: {
     return [readSelectedOpportunityProgress(args, item.roleId, args.knownWorkRevisions).then(progress => [
       `Role: ${role.name ?? "unknown"} (roleId: ${item.roleId})`,
       `Company: ${item.companyDb?.name ?? "unknown"}`,
+      `Company size (stored): ${employeeCountRangeText(item.companyDb?.employeeCountRange) || "not recorded"}`,
       `JD link: ${role.externalJdUrl ?? "not recorded"}`,
       progress,
       `Job description (original):\n${role.description ?? "not recorded"}`,

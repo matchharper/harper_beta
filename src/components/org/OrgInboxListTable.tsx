@@ -22,7 +22,6 @@ import {
 } from "@/hooks/org/useOrgAgent";
 import { useOrgRoleListColumns } from "@/hooks/org/useOrgRoleViews";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { migrateOrgAgentModel } from "@/lib/org/agent/modelConfig";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { getOrgCandidateCardDate } from "@/lib/org/candidateCardDate";
 import { getOrgCandidateDisplayName } from "./OrgCandidateCard";
@@ -267,18 +266,9 @@ export function OrgInboxListTable({
   });
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const requestColumn = (request: { label: string; message: string }) => {
-    let model: string | null = null;
-    try {
-      model = migrateOrgAgentModel(
-        window.localStorage.getItem("harper:org-agent:model")
-      );
-    } catch {
-      model = null;
-    }
     setPendingLabel(request.label);
     void chat.sendMessage({
       message: request.message,
-      model,
       onComplete: () => setPendingLabel(null),
     });
   };

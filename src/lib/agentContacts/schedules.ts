@@ -356,7 +356,7 @@ export async function enqueueDueCompanyAgentSchedules(
         const [root] = await q(
           `SELECT m.* FROM public.agent_contact_messages m
           JOIN public.talent_opportunity_recommendation r ON r.agent_introduction_root_id=m.id
-          WHERE m.id=$1::uuid AND m.id=m.root_id AND m.cancelled_at IS NULL AND r.feedback='like'`,
+          WHERE m.id=$1::uuid AND m.id=m.root_id AND m.cancelled_at IS NULL AND r.feedback in ('like','positive')`,
           [row.target_refs.introductionRootId]
         );
         let available = Boolean(root);

@@ -29,14 +29,6 @@ import {
   useChatComposerPickerKeyboard,
 } from "@/components/chat/ChatComposerPicker";
 import { MuteButton } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useOrgAgentMentionCandidates } from "@/hooks/org/useOrgAgent";
 import { useChatComposerTokens } from "@/hooks/chat/useChatComposerTokens";
 import {
@@ -45,15 +37,6 @@ import {
   type DraftChatAttachment,
 } from "@/lib/chat/attachmentClient";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
-import {
-  ORG_AGENT_CLAUDE_MODEL,
-  ORG_AGENT_GEMINI_FLASH_MODEL,
-  ORG_AGENT_GLM_53_FLASH_MODEL,
-  ORG_AGENT_LUNA_MODEL,
-  ORG_AGENT_SOL_MODEL,
-  isOrgAgentModelId,
-  type OrgAgentModelId,
-} from "@/lib/org/agent/modelConfig";
 import { serializeOrgAgentDraftMentionTokens } from "@/lib/org/agent/mentionText";
 import {
   mergeOrgAgentDraftSnapshots,
@@ -127,71 +110,6 @@ function TalentMentionAvatar({
   );
 }
 
-function ModelSelector({
-  model,
-  onChange,
-  visible,
-}: {
-  model: OrgAgentModelId;
-  onChange: (model: OrgAgentModelId) => void;
-  visible: boolean;
-}) {
-  const { c } = useOrgLocale();
-  const options: Array<{ label: string; value: OrgAgentModelId }> = [
-    {
-      label: c(
-        "Gemini 3.8 Flash · OpenRouter",
-        "Gemini 3.8 Flash · OpenRouter"
-      ),
-      value: ORG_AGENT_GEMINI_FLASH_MODEL,
-    },
-    {
-      label: c("GLM 5.3 Flash · OpenRouter", "GLM 5.3 Flash · OpenRouter"),
-      value: ORG_AGENT_GLM_53_FLASH_MODEL,
-    },
-    {
-      label: c("Luna · GPT-5.6", "Luna · GPT-5.6"),
-      value: ORG_AGENT_LUNA_MODEL,
-    },
-    {
-      label: c("Sol · GPT-6.1", "Sol · GPT-6.1"),
-      value: ORG_AGENT_SOL_MODEL,
-    },
-    {
-      label: c("Claude Sonnet 5.5", "Claude Sonnet 5.5"),
-      value: ORG_AGENT_CLAUDE_MODEL,
-    },
-  ];
-
-  if (!visible) return null;
-  return (
-    <Select
-      items={options}
-      value={model}
-      onValueChange={(value) => {
-        if (isOrgAgentModelId(value)) onChange(value);
-      }}
-    >
-      <SelectTrigger
-        aria-label={c("Harper 모델 선택", "Select Harper model")}
-        className="w-56 text-xs"
-        size="sm"
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent align="start" alignItemWithTrigger={false}>
-        <SelectGroup>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  );
-}
-
 export function OrgAgentComposer({
   placeholder,
   allowAttachments,
@@ -200,8 +118,6 @@ export function OrgAgentComposer({
   disabled,
   initialMessage = "",
   isStreaming,
-  model,
-  onModelChange,
   onSend,
   onStop,
   onSubmitBlocked,
@@ -223,8 +139,6 @@ export function OrgAgentComposer({
   disabled?: boolean;
   initialMessage?: string;
   isStreaming: boolean;
-  model: OrgAgentModelId;
-  onModelChange: (model: OrgAgentModelId) => void;
   onSend: (args: {
     attachments: Awaited<ReturnType<typeof readRoleCreationAttachments>>;
     /** The input as it was, so a send that never reached the conversation can come back. */
@@ -848,13 +762,6 @@ export function OrgAgentComposer({
             ))}
           </div>
         ) : null}
-        {/* <div className="mt-2 flex items-center justify-between gap-2">
-            <ModelSelector
-              model={model}
-              onChange={onModelChange}
-              visible={true}
-            />
-          </div> */}
       </div>
     </form>
   );

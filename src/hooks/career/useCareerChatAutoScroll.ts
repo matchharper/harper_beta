@@ -6,6 +6,7 @@ export const useCareerChatAutoScroll = ({
   messageCount,
   scrollRef,
   scrollTick,
+  sentMessageTick = 0,
   preserveReadingPosition = false,
 }: {
   conversationId: string | null;
@@ -13,6 +14,7 @@ export const useCareerChatAutoScroll = ({
   messageCount: number;
   scrollRef: RefObject<HTMLDivElement | null>;
   scrollTick: number;
+  sentMessageTick?: number;
   preserveReadingPosition?: boolean;
 }) => {
   const nearBottom = useRef(true);
@@ -24,6 +26,16 @@ export const useCareerChatAutoScroll = ({
     element.addEventListener("scroll",measure,{passive:true});
     return ()=>element.removeEventListener("scroll",measure);
   },[scrollRef,conversationId]);
+  const lastSentMessageTick = useRef(sentMessageTick);
+  useEffect(() => {
+    if (lastSentMessageTick.current === sentMessageTick) return;
+    lastSentMessageTick.current = sentMessageTick;
+    const element = scrollRef.current;
+    if (!element) return;
+    nearBottom.current = true;
+    element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+  }, [scrollRef, sentMessageTick]);
+
   const initialScrollConversationRef = useRef<string | null>(null);
 
   useEffect(() => {

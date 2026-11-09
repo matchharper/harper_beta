@@ -3,6 +3,38 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-08 Career 폼 묶음·실행 환경 분리·중복 응답 방지 (운영 DB 적용·앱 미배포)
+
+사용자의 “운영 DB까지는 반영해도 됨” 요청으로 Harper 운영 DB에 다음 세 migration을 적용했다. 웹·Worker 배포, push, 운영 재시작은 하지 않았다. 같은 migration을 다시 적용하지 않는다.
+
+| 운영 version | 이름 | 로컬 정본 |
+| --- | --- | --- |
+| `20261108132629` | `career_form_batches` | `supabase/migrations/20261108140000_career_form_batches.sql` |
+| `20261108132725` | `career_execution_environment` | `supabase/migrations/20261108141000_career_execution_environment.sql` |
+| `20261108132730` | `career_execution_boundaries` | `supabase/migrations/20261108142000_career_execution_boundaries.sql` |
+
+로컬 정본 SHA-256은 순서대로 `6274319c444c164b20b18fb471ca2c7233a5a4f148409012bba1664965a6358e`, `5488d584941152cadeae6f73136751bbd641a4f1feb3260d3eb6be6f55fdcd72`, `4ee7f96a27496924db47280e9d3899cf88d24778880ae36573e16219c71a8b2f`다. 적용 직전 기존 함수 8개의 본문을 기존 migration 정본과 대조했고, 각 교체 transaction에도 사전 관측한 함수 정의의 해시 검사를 넣어 동시 변경을 덮어쓰지 않도록 했다.
+
+폼 묶음은 검토한 revision 전체를 한 transaction에서 저장하고 하나의 대화 입력만 접수한다. 단일·묶음 제출은 같은 conversation 잠금 안에서 이미 답변한 revision의 새 요청을 거부하며, 같은 request ID의 재시도는 기존 영수증을 반환한다. 폼 상태 조회와 해당 UI 번역 11개 키의 한국어·영어 22개 행도 적용했다. 큐 접수·claim·checkpoint 복구는 실행 환경을 구분하고, 브라우저 복구 조건은 실제 자동 작업의 종료 여부를 확인한다.
+
+운영 권한 대조에서 직접 Postgres로 메시지를 저장하는 `harper_worker`가 새 환경 조회 helper를 호출해야 함을 확인해 그 읽기 함수의 EXECUTE만 허용했다. 폼 저장·큐 변경 RPC 권한은 추가하지 않았다. 환경 migration의 첫 시도는 기존 실행 기록 일괄 갱신과 운영 작업의 잠금 충돌로 롤백됐고, 함수·trigger·migration 이력이 남지 않았음을 확인했다. 기존 기록은 모든 reader가 이미 production으로 해석하므로 불필요한 backfill을 제거한 뒤 짧은 lock timeout으로 성공했다. 기존 실행 기록을 일괄 재작성하지 않았다.
+
+적용 후 함수 12개의 본문이 로컬 정본과 정확히 일치하고 모두 SECURITY INVOKER임을 확인했다. 기존 테이블 RLS·ACL을 보존했고 새 trigger 2개와 기존 trigger를 확인했다. 변경 RPC는 service_role 전용이며, 환경 조회 helper만 authenticated·harper_worker에도 허용된다. 운영에서 기본 production, 요청 header의 개발 환경, harper_worker 역할의 helper 실행, 대기 조건 조회, 원래 중지된 검토 폼의 resolved 상태를 읽기 검사했다. 번역 22개 행은 로컬 사전과 일치하며 security advisor의 대상·건수 증가는 없다. 환경 분리·legacy 무표시 기록 호환·Worker 권한·중복 응답·checkpoint 경계의 변경 관련 로컬 검사도 통과했다.
+
+새 폼 UI, 브라우저와 LLM의 순차 실행, 도구 이력 전달, 별도 답변 재작성 제거는 앱 코드 미배포 상태다. 실제 폼 제출·지원·브라우저 실행·메시지 발송을 검증 목적으로 재실행하지 않았다. Notion 동기화 범위를 검토했으며 아직 제공되지 않은 UI·대화 동작을 운영 기능으로 문서화하지 않았다. 이번 DB 선반영은 기존 실행 무결성 보완과 새 앱 경로 준비이므로 제품 정책 페이지는 변경하지 않았다.
+
+## 2026-11-08 Career 중지 후 정기 접수 차단 복구 (운영 DB 적용 완료)
+
+사용자의 원인 수정·현재 상황 복구 요청으로 운영 migration `20261108041003` (`career_stop_background_ledger`)을 적용했다. 로컬 정본은 `supabase/migrations/20261108040732_career_stop_background_ledger.sql`이다. 웹·Worker 배포, push, 운영 서비스 재시작은 하지 않았다. 같은 migration을 다시 적용하지 않는다.
+
+대화 중지와 개별 대기 요청 취소가 runtime reply만 종료하고 `opportunity_discovery_run.status='handed_off'`를 남겼다. 스케줄러는 이를 계속 활성 작업으로 집계했고, 웹 recovery는 `completedReplyIds`가 있는 reply를 다시 접수하지 않아 풀리지 않았다. 실제로 취소된 8건이 목표 6개를 초과해 `schedule_capacity=0`이었다. 삭제 계정의 대기 작업 7건은 운영 Worker `4b7ece38ef79c1d22b41df22264ac6812958b4ff`에서 이미 집계 제외 중이므로 이번 장애의 현재 차단 원인과 구분한다. 11월 4일 최초 중단의 원인까지 확정한 기록은 아니다.
+
+기존 `stop_career_conversation`과 `cancel_career_pending_reply`가 해당 후보자·대화·reply의 Career background run도 같은 transaction 안에서 취소하도록 수정했다. 기존 실행 완료와 같은 discovery → runtime 잠금 순서를 유지한다. 기존 8건은 runtime 종료 기록과 같은 reply의 완료된 취소 cleanup 영수증이 모두 있는 경우에만 취소했다. 정상 진행·완료 작업, 미래 일정, 기존 발송 payload는 변경하지 않는다. 실제 정리된 8건의 runtime 전체 행 해시는 적용 전후 같고 해당 run의 delivery는 모두 0건으로 유지됐다.
+
+적용 전 두 운영 함수의 본문이 기존 로컬 정본과 일치했다. 적용 후 새 본문 해시 일치, SECURITY INVOKER, anon/authenticated 실행 차단·service_role 실행 허용을 확인했다. Security advisor WARN/ERROR 증가는 없고 health 항목도 없다. 대화 실행 DB 검사 34개와 기존 background 전달·recovery 검사 16개, 합계 50개가 통과했다. 신규 검사는 활성/대기 background 중지, 다른 소유자·완료 작업 보존, 오래된 checkpoint 거부, 취소 영수증에 한정한 복구, 반복 적용 시 상태 보존과 접수 여유 회복을 확인한다.
+
+13:10:26 KST 운영 scheduler 로그가 `target=6 schedule_capacity=6 career_queued=6 company_due=0`으로 바뀌었다. 첫 2건이 `no_send`로 완료된 뒤 13:12:46에 여유 2개가 보충됐으며, 13:13:40에는 run `bf0e9149-09da-4f20-aca8-3167f54994b0`의 추천 2개 안내 메일이 실제 발송됐다. Delivery `083dcdfb-6612-4728-a377-4fb3cbff8d54`의 `sent` 상태와 provider 영수증 `01a1b95c-a93a-7d2b-8117-8fb5a8e99315`, run 완료·source 정리를 확인했다. 13:14 기준 새 정기 run 9건 중 3건 완료(발송 1·미발송 2), 6건 진행으로 접수·실행·완료·보충 순환이 재개됐다. 이는 수신자의 실제 열람이나 전체 backlog 해소를 뜻하지 않는다. 제품 판단·정기 주기·모델 prompt는 변경하지 않았다.
+
 ## 2026-11-06 Request Intro → 원본 Career agent (운영 DB 준비 완료·앱 미배포)
 
 사용자의 타입 오류 수정·DB 적용 요청으로 운영 Harper DB에 다음 두 migration을 순서대로 적용했다. 기존 로컬 `request_company_intro_v2` 호출이 필요로 하는 의사결정 기록이 운영에는 없어 선행 migration도 포함했다. 같은 migration을 다시 적용하지 않는다.
@@ -234,3 +266,10 @@ Worker는 기존 호스트의 불변 release artifact를 준비하고 해당 rel
 - 2026-10-26 로컬 평가 원장 통합(Worker 미배포, DB 선반영): 온보딩/Opportunity 내부 평가와 정기 Role 검색은 `opp/matching/worker_inputs.py`의 전체 입력·fingerprint와 `worker_evaluations.py`의 단계별 저장·동시 중복 방지를 공유한다. 새 평가는 `company_role_candidate_evaluations`에만 저장하며 `run_id`는 회사 검색 생산 실행, `discovery_run_id`는 Opportunity 생산 실행이다. 재사용은 원래 평가 ID·생산 실행을 유지한다. 기존 `opportunity_decisions.py`/`service.assess_pairs`의 fit-cache 경로는 legacy 호환용으로 남았으며 신규 Opportunity refresh는 호출하지 않는다. 운영 migration `20261026052249`(`shared_worker_role_evaluations`) 적용·정본/권한 검증 완료; 코드 배포·backfill·연락은 하지 않았다. 상세 검증은 beta `docs/evaluation/unified-talent-role-fit/README.md`를 따른다.
 
 ## 출처: `AGENTS.md`
+
+
+## 2026-11-08 온보딩 직후 Career 대화 직접 실행 (운영 DB 선반영·웹 미배포)
+
+사용자 승인으로 운영 migration `20261108085212` (`career_onboarding_direct_continuation`)을 적용했다. 로컬 정본은 `supabase/migrations/20261108120000_career_onboarding_direct_continuation.sql`이다. 새 서버 전용 `enqueue_career_onboarding_continuation`은 온보딩 완료와 웹 실행 접수를 원자적으로 저장한다. 기존 `enqueue_career_onboarding_invocation`은 본문 해시까지 보존해 현재 운영 웹·Worker의 동작을 바꾸지 않았다. 새 웹 코드가 배포된 뒤에만 직접 실행 경로를 사용한다. 내부 Role 최초 평가는 별도 Worker 작업으로 유지하며 대화 실행을 막지 않는다.
+
+운영 함수 본문 로컬 일치, SECURITY INVOKER·권한·소유권 거부와 기존 함수 보존을 확인했다. 실제 후보자 실행·추천·발송·웹/Worker 배포는 하지 않았다. 현재 팀원 대상 기능/정책 변경이 없는 DB 선반영이므로 Notion 변경은 없다. 상세 확인과 로컬 구현 수정은 `docs/evaluation/career-onboarding-continuation/review-2026-11-08.md`에 기록했다. 동일 migration을 재적용하지 않는다.

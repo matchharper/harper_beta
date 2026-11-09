@@ -164,12 +164,16 @@ test("delegation is discoverable but only manually loaded, including full mode a
   }
 });
 
-test("a pending external receipt is observed durably without suspending the conversation", async () => {
-  const observed: unknown[] = [];
-  const runtime = make({ observePendingWork: async dependency => { observed.push(dependency); } });
+test("a browser wait checkpoints the same provider transcript even when new input arrives", async () => {
+  const observed: unknown[] = []; const saved: any[] = [];
+  const runtime = make({ observePendingWork: async dependency => { observed.push(dependency); },
+    checkpoint: async checkpoint => { saved.push(checkpoint); } });
   const step = runtime.resolveStep(false);
   await runtime.recordResult("use_browser", { careerContinuation: { kind: "browser_run", id: "run-a" } }, step);
-  await runtime.recordResult("use_browser", { careerContinuation: { kind: "browser_control", id: "session-b" } }, step);
-  await runtime.beforeCompletion(step, { transport: "chat", messages: [] });
-  assert.deepEqual(observed, [{ kind: "browser_run", id: "run-a" }, { kind: "browser_control", id: "session-b" }]);
+  assert.equal(await runtime.shouldDeferToolCall(), true);
+  const messages = [{ role: "assistant", content: "Research already completed" }, { role: "tool", content: "run-a pending" }];
+  await assert.rejects(runtime.beforeCompletion(step, { transport: "chat", messages }), CareerReplyContinuation);
+  assert.deepEqual(saved[0].messages, messages);
+  assert.deepEqual(saved[0].waitFor, [{ kind: "browser_run", id: "run-a" }]);
+  assert.deepEqual(observed, [], "browser completion must not create an independent invocation");
 });

@@ -28,6 +28,7 @@ import {
 } from "../src/lib/career/prompts/cases/mockInterviewPrompts";
 import { renderCareerPromptBlocks } from "../src/lib/career/prompts/promptUtils";
 import { buildLiveSessionUpdateEvents } from "../src/lib/career/liveSessionUpdates";
+import { buildCareerEndCallScheduledResult, parseCareerEndCallArguments } from "../src/lib/career/realtimeEndCall";
 import { getCareerLiveSessionConfig } from "../src/lib/career/llm";
 import { getCareerRealtimeToolCandidates } from "../src/lib/career/llmTools";
 
@@ -46,15 +47,17 @@ type Case = {
   updatedCovered?: string[];
   history: { role: "user" | "assistant"; text: string }[];
   utterance: string;
+  followupUtterances?: string[];
+  saved?: string;
   gold: string;
   mockInterview?: MockInterviewContext;
   internalCall?: InternalOpportunityCallRequest;
   utteranceDelayMs?: number;
   searchResult?: unknown;
 };
-const root = path.resolve("docs/evaluation/career-voice-onboarding");
+const root = path.resolve(process.env.CAREER_VOICE_EVAL_ROOT ?? "docs/evaluation/career-voice-onboarding");
 const version = process.env.CAREER_VOICE_EVAL_VERSION ?? "v1";
-if (!["v1", "v2", "mock-interview-v1", "internal-call-v1"].includes(version))
+if (!["v1", "v2", "mock-interview-v1", "internal-call-v1", "dialogue-v1"].includes(version))
   throw new Error("Unknown fixture version");
 const fixturePath = path.join(root, `live-prompt-cases-${version}.json`);
 const fixtureBytes = readFileSync(fixturePath);
@@ -138,8 +141,7 @@ function makeInstructions(item: Case, keys: string[]) {
     profile: { current_location: "Seoul" },
     currentPreferences: { preferredLocale: "ko" },
     structuredProfileText: fixture.profile,
-    talentContextSection:
-      "No saved facts beyond the synthetic profile and conversation below.",
+    talentContextSection: item.saved ?? "No saved facts beyond the synthetic profile and conversation below.",
     onboardingChecklistCoverage: coverage(keys),
     recentConversationSection: item.history
       .map((message) => `${message.role}: ${message.text}`)
@@ -150,6 +152,9 @@ function makeInstructions(item: Case, keys: string[]) {
     instructions: buildLiveBackendInstructions(plan),
     onboardingContext: buildLiveOnboardingContext({
       checklistCoverage: coverage(keys),
+      structuredProfileText: fixture.profile,
+      talentContextSection: item.saved,
+      recentConversationSection: item.history.map(m => `${m.role}: ${m.text}`).join("\n"),
     }),
   };
 }
@@ -179,9 +184,10 @@ async function runCase(item: Case) {
     );
   const audioDir = path.join(root, "private", fixture.version);
   mkdirSync(audioDir, { recursive: true, mode: 0o700 });
-  const audioPath = path.join(audioDir, `${item.id}.pcm`);
+  const audioBuffers = [item.utterance, ...(item.followupUtterances ?? [])].map((utterance, index) => {
+  const audioPath = path.join(audioDir, `${item.id}-${index}.pcm`);
   if (!existsSync(audioPath)) {
-    const aiffPath = path.join(audioDir, `${item.id}.aiff`);
+    const aiffPath = path.join(audioDir, `${item.id}-${index}.aiff`);
     execFileSync("say", [
       "-v",
       "Yuna",
@@ -189,7 +195,7 @@ async function runCase(item: Case) {
       "170",
       "-o",
       aiffPath,
-      item.utterance,
+      utterance,
     ]);
     execFileSync("ffmpeg", [
       "-loglevel",
@@ -205,7 +211,10 @@ async function runCase(item: Case) {
       audioPath,
     ]);
   }
-  const pcm = readFileSync(audioPath);
+  return readFileSync(audioPath);
+  });
+  let utteranceIndex = 0;
+  let pcm = audioBuffers[0];
   const initial = makeInstructions(item, item.covered);
   const updated = item.updatedCovered
     ? makeInstructions(item, item.updatedCovered)
@@ -228,16 +237,9 @@ async function runCase(item: Case) {
     model: config.model,
     store: false,
     instructions: frontend,
-    input: item.history.map((message) => ({
-      type: "message",
-      role: message.role,
-      content: [
-        {
-          type: message.role === "assistant" ? "output_text" : "input_text",
-          text: message.text,
-        },
-      ],
-    })),
+    // Production starts with no frontend input history. Prior conversation is
+    // already in the backend instructions; replaying it here primes a second
+    // interviewer that the actual session configuration does not create.
     audio: {
       format: { type: "audio/pcm", rate: 24000 },
       output: { voice: config.voice },
@@ -263,7 +265,7 @@ async function runCase(item: Case) {
   save(`${item.id}-input.json`, {
     session,
     updated,
-    audioSha256: hash(pcm),
+    audioSha256: audioBuffers.map(hash),
     gold: item.gold,
   });
   const events: Record<string, unknown>[] = [];
@@ -275,6 +277,7 @@ async function runCase(item: Case) {
   let closeInfo: { code: number; reason: string } | null = null;
   const errors: unknown[] = [];
   const pendingSearchCalls: string[] = [];
+  const pendingEndCalls: Array<{ call_id: string; arguments: string }> = [];
   const pendingRecordCalls: Array<{ call_id: string; arguments: string }> = [];
   let lastCallContext = initial.internalCallContext;
   await new Promise<void>((resolve, reject) => {
@@ -283,9 +286,12 @@ async function runCase(item: Case) {
     });
     let pump: ReturnType<typeof setInterval> | undefined;
     let closeTimeout: ReturnType<typeof setTimeout> | undefined;
+    let outputAtUtteranceStart = 0;
+    let utteranceStarted = 0;
     let offset = 0,
       started = 0,
       lastOutput = 0,
+      lastBackendDone = 0,
       audioFinishedAt = 0,
       closing = false,
       backendPending = false;
@@ -300,7 +306,7 @@ async function runCase(item: Case) {
     const timeout = setTimeout(() => {
       errors.push("session timeout");
       ws.terminate();
-    }, 105000);
+    }, 105000 * audioBuffers.length);
     ws.on("open", () => send({ type: "session.start", session }));
     ws.on("error", (error: Error) => {
       errors.push(error.message);
@@ -348,8 +354,10 @@ async function runCase(item: Case) {
           nested?.type === "response.output_item.done" &&
           nested.item?.type === "function_call" &&
           nested.item.name === "end_call"
-        )
+        ) {
           endedByTool = true;
+          pendingEndCalls.push(nested.item);
+        }
         if (
           nested?.type === "response.output_item.done" &&
           nested.item?.type === "function_call" &&
@@ -368,6 +376,7 @@ async function runCase(item: Case) {
           nested?.type === "response.completed"
         ) {
           backendPending = false;
+          lastBackendDone = Date.now();
           if (pendingRecordCalls.length && item.internalCall) {
             backendPending = true;
             for (const call of pendingRecordCalls.splice(0)) {
@@ -428,6 +437,15 @@ async function runCase(item: Case) {
             send({ type: "response.create" });
             backendPending = true;
           }
+          if (pendingEndCalls.length) {
+            for (const call of pendingEndCalls.splice(0)) {
+              const output = buildCareerEndCallScheduledResult(parseCareerEndCallArguments(call.arguments));
+              events.push({ type: "eval.tool_result", callId: call.call_id, output });
+              send({ type: "response.item.create", item: { type: "function_call_output", call_id: call.call_id, output } });
+            }
+            send({ type: "response.create" });
+            backendPending = true;
+          }
           if (
             nested.response?.output?.some(
               (output: { type: string; name?: string }) =>
@@ -439,6 +457,7 @@ async function runCase(item: Case) {
       }
       if (event.type === "session.started") {
         started = Date.now();
+        utteranceStarted = started;
         if (item.mockInterview || (item.internalCall && !item.history.length))
           for (const opening of buildLiveSessionOpeningEvents()) send(opening);
         if (updated)
@@ -450,7 +469,7 @@ async function runCase(item: Case) {
             send(update);
         // Continuous 40 ms frames including silence, paced like a microphone.
         pump = setInterval(() => {
-          const elapsed = Date.now() - started;
+          const elapsed = Date.now() - utteranceStarted;
           const chunk =
             elapsed < (item.utteranceDelayMs ?? 1200)
               ? Buffer.alloc(1920)
@@ -468,11 +487,20 @@ async function runCase(item: Case) {
             elapsed > 70000 ||
             (offset > pcm.length &&
               Date.now() - audioFinishedAt > 8000 &&
-              outputText &&
+              outputText.length > outputAtUtteranceStart &&
               !backendPending &&
+              Date.now() - lastBackendDone > 6000 &&
               Date.now() - lastOutput > (endedByTool ? 2500 : 5000))
-          )
-            close();
+          ) {
+            if (!endedByTool && utteranceIndex + 1 < audioBuffers.length) {
+              events.push({ type: "eval.next_utterance", afterOutput: outputText });
+              pcm = audioBuffers[++utteranceIndex];
+              offset = 0;
+              audioFinishedAt = 0;
+              outputAtUtteranceStart = outputText.length;
+              utteranceStarted = Date.now();
+            } else close();
+          }
         }, 40);
       }
       if (event.type === "session.closed") {

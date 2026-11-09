@@ -23,7 +23,7 @@ const request = {
   input: {
     action: "create", document_name: "Source verification",
     content: { language: "en", basics: { name: "Synthetic candidate" } },
-    source_refs: [{ kind: "profile", id: "experience:unverified-id", section: "experience" }],
+    source_refs: [{ kind: "profile", id: "experience:unverified-id", section: "experience", entry_id: "51268" }],
   },
 };
 

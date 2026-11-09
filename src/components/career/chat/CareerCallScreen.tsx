@@ -5,7 +5,6 @@ import {
   useCareerChatPanelContext,
 } from "@/components/career/CareerChatPanelContext";
 import Face, { type FaceStatus } from "@/components/common/Face";
-import { Tooltips } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
 import type {
@@ -247,11 +246,6 @@ const CareerCallScreen = () => {
     : isAssistantSpeaking
       ? "idle"
       : "listening";
-  const forceCompleteTooltip = t(
-    "career.chat.career_call_screen.0n1pl8k",
-    "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다."
-  );
-
   const showInterviewCallProgress = !isOnboardingDone && !mockInterviewDisplay;
 
   const requestEndCall = useCallback(
@@ -271,10 +265,12 @@ const CareerCallScreen = () => {
   );
 
   const handleEndCall = useCallback(() => {
-    requestEndCall({
-      forceCompleteOnboarding: interviewProgress.canForceComplete,
-    });
-  }, [interviewProgress.canForceComplete, requestEndCall]);
+    requestEndCall();
+  }, [requestEndCall]);
+
+  const handleCompleteOnboarding = useCallback(() => {
+    requestEndCall({ forceCompleteOnboarding: true });
+  }, [requestEndCall]);
 
   useEffect(() => {
     return () => {
@@ -400,22 +396,6 @@ const CareerCallScreen = () => {
                   "커리어 인터뷰 진행 중"
                 )}
               </span>
-              <span className="text-[13px] font-normal text-neutral-00/80">
-                {t("career.chat.career_call_screen.082qr7j", "완료율")}
-              </span>
-            </div>
-            <div
-              className="mt-2 h-1 overflow-hidden rounded-full bg-bg-default/15"
-              role="progressbar"
-              aria-label={"커리어 인터뷰 진행률"}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={interviewProgress.percent}
-            >
-              <div
-                className="h-full rounded-full bg-accent-300 transition-[width] duration-700 ease-out"
-                style={{ width: `${interviewProgress.percent}%` }}
-              />
             </div>
           </div>
         ) : null}
@@ -474,37 +454,34 @@ const CareerCallScreen = () => {
 
           {/* End call */}
           {interviewProgress.canForceComplete ? (
-            <Tooltips text={forceCompleteTooltip} side="top">
-              <BareButton
-                type="button"
-                onClick={handleEndCall}
-                disabled={
-                  isClosing || forceCompletePending || onboardingWrapupPending
-                }
-                className="flex h-12 items-center justify-center gap-2 rounded-full bg-critical px-4 text-sm font-semibold text-neutral-00 transition-colors hover:opacity-90 disabled:opacity-60"
-              >
-                {t(
-                  "career.chat.career_call_screen.force_complete_label",
-                  "지금 마무리하기"
-                )}
-                {forceCompletePending || onboardingWrapupPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <PhoneOff className="h-4 w-4" strokeWidth={1.6} />
-                )}
-              </BareButton>
-            </Tooltips>
-          ) : (
             <BareButton
               type="button"
-              onClick={handleEndCall}
-              disabled={isClosing}
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-critical text-neutral-00 transition-opacity hover:opacity-90 disabled:opacity-60"
-              aria-label={"통화 종료"}
+              onClick={handleCompleteOnboarding}
+              disabled={
+                isClosing || forceCompletePending || onboardingWrapupPending
+              }
+              className="flex h-12 items-center justify-center gap-2 rounded-full bg-critical px-4 text-sm font-semibold text-neutral-00 transition-colors hover:opacity-90 disabled:opacity-60"
             >
-              <PhoneOff className="h-4 w-4" strokeWidth={1.6} />
+              {t(
+                "career.chat.career_call_screen.force_complete_label",
+                "지금 마무리하기"
+              )}
+              {forceCompletePending || onboardingWrapupPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <PhoneOff className="h-4 w-4" strokeWidth={1.6} />
+              )}
             </BareButton>
-          )}
+          ) : null}
+          <BareButton
+            type="button"
+            onClick={handleEndCall}
+            disabled={isClosing}
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-critical text-neutral-00 transition-opacity hover:opacity-90 disabled:opacity-60"
+            aria-label={"통화 종료"}
+          >
+            <PhoneOff className="h-4 w-4" strokeWidth={1.6} />
+          </BareButton>
         </div>
       </div>
     </div>

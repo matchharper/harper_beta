@@ -66,12 +66,25 @@ export const careerFormDraftSchema = z
       });
   });
 export type CareerFormDraft = z.infer<typeof careerFormDraftSchema>;
+// Tool transports may carry the structured draft as a JSON-encoded string.
+// Decode only that declared representation; the same draft validation applies.
+export const careerFormToolDraftSchema = z.union([
+  z.string().transform((value, ctx): unknown => {
+    try { return JSON.parse(value); }
+    catch {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "form must contain valid JSON" });
+      return z.NEVER;
+    }
+  }),
+  z.object({}).passthrough(),
+]).pipe(careerFormDraftSchema.refine(form => form.kind === "form", "Use kind=form"));
 export type CareerFormItem = z.infer<typeof careerFormItemSchema>;
 export type CareerFormAction = z.infer<typeof actionSchema>;
 export type CareerForm = CareerFormDraft & {
   formId: number;
   revision: number;
   hidden?: boolean;
+  state?: "open" | "answered" | "resolved" | "superseded";
 };
 const answerFields = {
   itemId: z.string().optional(),
@@ -114,6 +127,7 @@ export function parseCareerForm(value: unknown): CareerForm | undefined {
     formId: Number(input.formId),
     revision: Number(input.revision),
     ...(input.hidden === true ? { hidden: true } : {}),
+    ...(["open", "answered", "resolved", "superseded"].includes(String(input.state)) ? { state: input.state as CareerForm["state"] } : {}),
   };
 }
 
@@ -173,6 +187,7 @@ export function getCareerFormInitialValues(
       )
       .map((item) => {
         const content = getCareerFormContent(item);
+        if (item.type === "checkbox") return [item.id, content.value === true];
         const initial =
           content.value ??
           (item.type === "change"
@@ -228,4 +243,18 @@ export function getCareerSuggestionAnswers(
     }
   }
   return answers;
+}
+
+export const careerFormBatchInputSchema = z.object({
+  conversationId: z.string().uuid(),
+  requestId: z.string().min(1),
+  responses: z.array(careerFormResponseInputSchema.omit({ conversationId: true, requestId: true })).min(1),
+}).refine(value => new Set(value.responses.map(r => r.formId)).size === value.responses.length, "Duplicate form IDs");
+
+export function parseCareerFormResponses(value: unknown): CareerFormResponse[] {
+  const payload = value as { responses?: unknown[] } | null;
+  return (Array.isArray(payload?.responses) ? payload.responses : [value]).flatMap(item => {
+    const response = parseCareerFormResponse(item);
+    return response ? [response] : [];
+  });
 }

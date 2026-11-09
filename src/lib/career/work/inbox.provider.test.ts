@@ -3,11 +3,75 @@ import test from "node:test";
 import { CareerCapabilityRuntime, CareerReplyContinuation, type CareerReplyCheckpoint } from "../capabilities/runtime";
 import { createCareerInputInbox, formatCareerInboxMessages } from "./inbox";
 import type { TalentMessageRow } from "@/lib/talentOnboarding/models";
+import { appendCareerExecutionObservation } from "../executionHistory";
 
 const row = (id: number): TalentMessageRow => ({ id, role: "user", content: `Request-${id}: 2026-12-01T09:00:00+09:00 그대로 사용해.`,
   conversation_id: "conversation", user_id: "user", message_type: "chat", payload: {}, created_at: "2026-11-04T01:00:00Z" } as TalentMessageRow);
 const promptArgs = () => ({ channel: "chat" as const, isOnboardingDone: true, profile: null, structuredProfileText: "Synthetic profile", talentContextSection: "" });
 const sse = (events: unknown[]) => new Response(events.map(event => `data: ${JSON.stringify(event)}\n\n`).join(""), { headers: { "Content-Type": "text/event-stream" } });
+
+test("browser waits block another tool and the next model call; completion resumes the same transcript", async () => {
+  const originalFetch = globalThis.fetch;
+  const keys = [process.env.OPENAI_API_KEY, process.env.ANTHROPIC_API_KEY];
+  process.env.OPENAI_API_KEY = "fixture"; process.env.ANTHROPIC_API_KEY = "fixture";
+  try {
+    const { runCareerChatAssistant, runCareerChatAssistantStream } = await import("../llm");
+    for (const native of [false, true]) for (const streaming of [false, true]) {
+      const model = native ? "claude-sonnet-4-6" : "gpt-6.1-sol";
+      let saved: CareerReplyCheckpoint | undefined, calls = 0, executions = 0;
+      const source = [row(1)];
+      const make = (resume?: CareerReplyCheckpoint) => new CareerCapabilityRuntime({
+        replyId: "browser-owner", mode: "full", allowLoaders: false, promptArgs, resume,
+        eligibleTools: [{ type: "function", function: { name: "use_browser", description: "Browser", parameters: { type: "object", properties: {} } } }],
+        checkpoint: async checkpoint => { saved = structuredClone(checkpoint); },
+        observePendingWork: async () => assert.fail("browser cannot register an independent completion event"),
+        inputInbox: createCareerInputInbox({ deliveredIds: resume?.inputMessageIds ?? [], save: async () => {},
+          read: async () => ({ messages: source, deliveredIds: resume?.inputMessageIds ?? [], inputIds: source.map(m => m.id), completed: false }) }),
+      });
+      globalThis.fetch = async (url, init) => {
+        if (String(url).includes("/rest/v1/")) return Response.json([]);
+        calls++;
+        assert.ok(calls <= 2);
+        const done = calls === 2;
+        if (done) {
+          const body = JSON.parse(String(init?.body));
+          const text = JSON.stringify(body.messages ?? body.input);
+          for (const evidence of ["run-a pending", "Required fields: phone and consent", "Request-2:", "an earlier tool is still running"])
+            assert.ok(text.includes(evidence), evidence);
+        }
+        if (native) {
+          const content = done ? [{ type: "text", text: "질문을 확인해 주세요.\n[[form:42]]" }]
+            : [0,1].map(i => ({ type: "tool_use", id: `browser-${i}`, name: "use_browser", input: { action: "run" } }));
+          const response = { id: `m${calls}`, model, content, stop_reason: done ? "end_turn" : "tool_use", usage: { input_tokens: 1, output_tokens: 1 } };
+          return streaming ? sse([{ type: "message_start", message: response }, ...content.flatMap((block,index) => [{ type: "content_block_start", index, content_block: block }, { type: "content_block_stop", index }]), { type: "message_delta", delta: { stop_reason: response.stop_reason }, usage: { output_tokens: 1 } }, { type: "message_stop" }]) : Response.json(response);
+        }
+        const response = { id: `r${calls}`, model, status: "completed", output: done
+          ? [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "질문을 확인해 주세요.\n[[form:42]]" }] }]
+          : [0,1].map(i => ({ type: "function_call", call_id: `browser-${i}`, name: "use_browser", arguments: '{"action":"run"}' })), usage: { input_tokens: 1, output_tokens: 1 } };
+        return streaming ? sse([{ type: "response.completed", response }]) : Response.json(response);
+      };
+      const invoke = (runtime: CareerCapabilityRuntime) => {
+        const step = runtime.resolveStep(false);
+        const args = { primaryModel: model, toolRuntime: runtime, tools: step.tools, systemBlocks: step.systemBlocks, messages: [],
+          usageLabel: "test:browser-serial-continuation", onTextDelta: () => {}, executeTool: async () => {
+            executions++; source.push(row(2));
+            return { modelOutput: "run-a pending", careerContinuation: { kind: "browser_run", id: "run-a" } };
+          } };
+        return streaming ? runCareerChatAssistantStream(args) : runCareerChatAssistant(args);
+      };
+      await assert.rejects(invoke(make()), CareerReplyContinuation);
+      assert.equal(calls, 1); assert.equal(executions, 1);
+      assert.deepEqual(saved?.waitFor, [{ kind: "browser_run", id: "run-a", toolCallId: "browser-0" }]);
+      assert.deepEqual(saved?.inputMessageIds, [1,2]);
+      const completed = appendCareerExecutionObservation(saved!, "browser-0", "Required fields: phone and consent");
+      assert.equal(await invoke(make({ ...completed, waitFor: [] })), "질문을 확인해 주세요.\n[[form:42]]");
+      assert.equal(executions, 1, "the completed browser is never started again");
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [i,key] of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"].entries()) if (keys[i] === undefined) delete process.env[key]; else process.env[key] = keys[i];
+  }
+});
 
 test("the next provider call gets all four pending inputs in one message; restart preserves them and completed tool results", async () => {
   const originalFetch = globalThis.fetch;

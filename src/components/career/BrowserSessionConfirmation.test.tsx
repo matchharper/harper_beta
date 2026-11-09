@@ -135,7 +135,34 @@ test("browser control and termination require confirmation; dismissal and foldin
       "the dock X still only folds the viewer"
     );
     assert.equal(dom.window.document.querySelector("iframe"), iframe);
+    const stop = [...dom.window.document.querySelectorAll("button")].find(button => button.textContent === "중단하기")!;
+    assert.equal(stop.nextElementSibling?.textContent, "직접 조작", "Stop appears to the left of manual control");
+    await clickText("중단하기");
+    assert.match(dialog()?.textContent ?? "", /브라우저가 종료되고/);
+    await clickText("취소");
+    assert.deepEqual(actions, ["handoff", "close"], "Cancelling Stop leaves work running");
+    await clickText("중단하기");
+    await clickText("중단하고 종료");
+    assert.deepEqual(actions, ["handoff", "close", "close"], "Stop uses the existing close action in the dock");
+    await act(async () => render(undefined, "running", "https://example.test/viewer", true));
+    const countBeforeBusyStop = actions.length;
+    await clickText("중단하기");
+    assert.equal(dialog(), null);
+    assert.equal(actions.length, countBeforeBusyStop);
     await act(async () => render(undefined, "human"));
+    assert.equal(dom.window.document.querySelector('a[target="_blank"]'), null);
+    const humanStop = [...dom.window.document.querySelectorAll("button")].find(button => button.textContent === "중단하기")!;
+    assert.equal(humanStop.nextElementSibling?.textContent, "완료");
+    const beforeHumanStop = actions.length;
+    await clickText("중단하기");
+    assert.match(dialog()?.textContent ?? "", /브라우저가 종료되고/);
+    assert.equal(actions.length, beforeHumanStop);
+    await clickText("취소");
+    assert.equal(actions.length, beforeHumanStop);
+    await clickText("중단하기");
+    await clickText("중단하고 종료");
+    assert.equal(actions.at(-1), "close");
+    assert.equal(dom.window.document.querySelector("iframe"), iframe);
     await clickText("완료");
     assert.equal(actions.at(-1), "resume");
     assert.equal(dialog(), null, "Done returns control without another confirmation");
@@ -144,8 +171,10 @@ test("browser control and termination require confirmation; dismissal and foldin
     assert.equal(actions.at(-1), "resume", "An expired browser must still allow returning control");
     const count = actions.length;
     await act(async () => render(undefined, "human", "https://example.test/viewer", true));
+    await clickText("중단하기");
+    assert.equal(dialog(), null);
     await clickText("완료");
-    assert.equal(actions.length, count, "Busy return cannot be submitted again");
+    assert.equal(actions.length, count, "Busy stop and return cannot be submitted again");
     assert.equal(dom.window.document.querySelector("iframe")?.classList.contains("pointer-events-none"), true);
   } finally {
     await act(async () => root.unmount());

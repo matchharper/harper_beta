@@ -33,6 +33,7 @@ import {
   CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
+  GPT_61_TERRA_MODEL,
 } from "@/lib/llm/modelConfig";
 import {
   runTalentAssistantCompletion,
@@ -151,8 +152,8 @@ export const CAREER_LLM_CONFIG = {
   // GPT Live는 음성 프런트엔드와 Responses 기반 판단 모델을 분리한다.
   // 기존 Realtime 경로와 섞지 않고 /api/live/session에서만 사용한다.
   live: {
-    delegationModel: GPT_61_SOL_MODEL,
-    delegationReasoningEffort: "xhigh" as const,
+    delegationModel: GPT_61_TERRA_MODEL,
+    delegationReasoningEffort: "medium" as const,
     model: "gpt-live-1",
     voice: "cedar",
   },
@@ -1657,16 +1658,7 @@ async function runCareerChatAssistantImpl(args: {
         temperature,
         usageLabel,
       });
-      if (text || args.hasDeliveredArtifact?.()) return text;
-      return recoverVisibleTextFromAnthropicMessages({
-      abortSignal: args.abortSignal,
-        messages: workingMessages,
-        modelConfig,
-        reason: "empty_text_without_tools",
-        responseLocale: args.responseLocale,
-        systemBlocks: args.systemBlocks,
-        usageLabel,
-      });
+      return text;
     }
 
     const maxToolLoops =
@@ -1745,17 +1737,7 @@ async function runCareerChatAssistantImpl(args: {
         const responseText = cleanModelText(
           extractAnthropicText(assistantBlocks)
         );
-        if (responseText || args.hasDeliveredArtifact?.()) return responseText;
-        return recoverVisibleTextFromAnthropicMessages({
-      checkCancellation: args.toolRuntime?.options.checkCancellation,
-      abortSignal: args.abortSignal,
-          messages: workingMessages,
-          modelConfig,
-          reason: "empty_text_without_tool_use",
-          responseLocale: args.responseLocale,
-          systemBlocks: systemBlocksForStep,
-          usageLabel,
-        });
+        return responseText;
       }
 
       const stepText = cleanModelText(extractAnthropicText(assistantBlocks));
@@ -1791,7 +1773,7 @@ async function runCareerChatAssistantImpl(args: {
       for (const toolCall of executableToolCalls) {
         if (await args.toolRuntime?.shouldDeferToolCall()) {
           toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id,
-            content: "Not executed: new conversation input arrived. Read that input before choosing the next action." });
+            content: args.toolRuntime!.deferredToolMessage() });
           continue;
         }
         totalToolCalls += 1;
@@ -1858,7 +1840,8 @@ async function runCareerChatAssistantImpl(args: {
                   args.toolRuntime!.recordResult(
                     toolCall.name,
                     result,
-                    capabilityStep
+                    capabilityStep,
+                    toolInput, toolCall.id
                   )
                 );
               return result;
@@ -1903,24 +1886,26 @@ async function runCareerChatAssistantImpl(args: {
             name: toolCall.name,
             source: "career/chat:assistant:anthropic",
           });
+          const failureOutput = formatCareerToolFailure({
+            name: toolCall.name,
+            callId: toolCall.id,
+            input: toolInput,
+            error,
+            diagnostics: capturedDiagnostics,
+          });
           if (capabilityStep)
             await observeToolCall(() =>
               args.toolRuntime!.recordResult(
                 toolCall.name,
-                { ok: false, status: "failed" },
-                capabilityStep
+                { ok: false, status: "failed", modelOutput: failureOutput },
+                capabilityStep,
+                toolInput, toolCall.id
               )
             );
           toolResultBlocks.push({
             type: "tool_result",
             tool_use_id: toolCall.id,
-            content: formatCareerToolFailure({
-              name: toolCall.name,
-              callId: toolCall.id,
-              input: toolInput,
-              error,
-              diagnostics: capturedDiagnostics,
-            }),
+            content: failureOutput,
             is_error: true,
           });
         }
@@ -2047,54 +2032,6 @@ async function runCareerChatAssistantImpl(args: {
     return fallbackWithExistingClient(nativeFallback.modelConfig,
       workingMessages.map(message => ({ role: message.role, content: stringifyAnthropicContent(message.content) })));
   }
-}
-
-export async function recoverCareerChatAssistantText(args: {
-  anthropicEffort?: AnthropicEffort | null;
-  abortSignal?: AbortSignal;
-  checkCancellation?: () => Promise<void>;
-  primaryModel?: string;
-  latestUserMessage?: string | null;
-  messages: Array<{
-    content: string;
-    role: "user" | "assistant";
-  }>;
-  onTextDelta?: (delta: string) => void | Promise<void>;
-  responseLocale?: string | null;
-  systemBlocks: CareerChatSystemBlock[];
-  usageLabel?: string;
-}) {
-  const workingMessages: AnthropicMessage[] = args.messages
-    .filter((message) => message.content.trim().length > 0)
-    .map((message) => ({
-      role: message.role,
-      content: message.content,
-    }));
-  const latestUserMessage = String(args.latestUserMessage ?? "").trim();
-  const instruction = [
-    buildEmptyVisibleTextRecoveryInstruction(args.responseLocale),
-    latestUserMessage ? `Latest user message: ${latestUserMessage}` : "",
-  ]
-    .filter((line) => line.trim().length > 0)
-    .join("\n");
-
-  return recoverVisibleTextFromAnthropicMessages({
-    checkCancellation: args.checkCancellation,
-      abortSignal: args.abortSignal,
-    instruction,
-    messages: workingMessages,
-    modelConfig: {
-      ...assistantModelConfig(),
-      ...(isCareerTextChatModelId(args.primaryModel) ? careerTextAssistantModelOptions(args.primaryModel) : {}),
-      ...(args.primaryModel ? { primaryModel: args.primaryModel } : {}),
-      ...(args.anthropicEffort !== undefined ? { anthropicEffort: args.anthropicEffort } : {}),
-    },
-    onTextDelta: args.onTextDelta,
-    reason: "route_empty_assistant_text",
-    responseLocale: args.responseLocale,
-    systemBlocks: args.systemBlocks,
-    usageLabel: args.usageLabel ?? "career/chat:assistant",
-  });
 }
 
 export function runCareerChatAssistantStream(
@@ -2241,17 +2178,7 @@ async function runCareerChatAssistantStreamImpl(args: {
         temperature,
         usageLabel,
       });
-      if (text || args.hasDeliveredArtifact?.()) return text;
-      return recoverVisibleTextFromAnthropicMessages({
-      abortSignal: args.abortSignal,
-        messages: workingMessages,
-        modelConfig,
-        onTextDelta: forwardTextDelta,
-        reason: "stream_empty_text_without_tools",
-        responseLocale: args.responseLocale,
-        systemBlocks: args.systemBlocks,
-        usageLabel,
-      });
+      return text;
     }
 
     const maxToolCalls =
@@ -2348,22 +2275,7 @@ async function runCareerChatAssistantStreamImpl(args: {
         const responseText = cleanModelText(
           extractAnthropicText(assistantBlocks)
         );
-        if (!responseText && args.hasDeliveredArtifact?.())
-          return getForwardedVisibleText();
-        if (!responseText) {
-          const recoveredText = await recoverVisibleTextFromAnthropicMessages({
-      checkCancellation: args.toolRuntime?.options.checkCancellation,
-      abortSignal: args.abortSignal,
-            messages: workingMessages,
-            modelConfig,
-            onTextDelta: forwardTextDelta,
-            reason: "stream_empty_text_without_tool_use",
-            responseLocale: args.responseLocale,
-            systemBlocks: systemBlocksForStep,
-            usageLabel,
-          });
-          return getForwardedVisibleText() || recoveredText;
-        }
+        if (!responseText) return getForwardedVisibleText();
         const forwardedText = getForwardedVisibleText();
         if (forwardedText) return forwardedText;
         await forwardTextDelta(responseText);
@@ -2405,7 +2317,7 @@ async function runCareerChatAssistantStreamImpl(args: {
       for (const toolCall of executableToolCalls) {
         if (await args.toolRuntime?.shouldDeferToolCall()) {
           toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id,
-            content: "Not executed: new conversation input arrived. Read that input before choosing the next action." });
+            content: args.toolRuntime!.deferredToolMessage() });
           continue;
         }
         totalToolCalls += 1;
@@ -2487,7 +2399,8 @@ async function runCareerChatAssistantStreamImpl(args: {
                   args.toolRuntime!.recordResult(
                     toolCall.name,
                     result,
-                    capabilityStep
+                    capabilityStep,
+                    toolInput, toolCall.id
                   )
                 );
               return result;
@@ -2532,24 +2445,26 @@ async function runCareerChatAssistantStreamImpl(args: {
             name: toolCall.name,
             source: "career/chat:assistant:anthropic-stream",
           });
+          const failureOutput = formatCareerToolFailure({
+            name: toolCall.name,
+            callId: toolCall.id,
+            input: toolInput,
+            error,
+            diagnostics: capturedDiagnostics,
+          });
           if (capabilityStep)
             await observeToolCall(() =>
               args.toolRuntime!.recordResult(
                 toolCall.name,
-                { ok: false, status: "failed" },
-                capabilityStep
+                { ok: false, status: "failed", modelOutput: failureOutput },
+                capabilityStep,
+                toolInput, toolCall.id
               )
             );
           toolResultBlocks.push({
             type: "tool_result",
             tool_use_id: toolCall.id,
-            content: formatCareerToolFailure({
-              name: toolCall.name,
-              callId: toolCall.id,
-              input: toolInput,
-              error,
-              diagnostics: capturedDiagnostics,
-            }),
+            content: failureOutput,
             is_error: true,
           });
         }

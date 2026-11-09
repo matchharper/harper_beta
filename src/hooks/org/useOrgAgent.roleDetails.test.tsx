@@ -1,3 +1,5 @@
+import { saveOrgAgentModelPreference } from "@/lib/org/agent/modelPreference";
+import { ORG_AGENT_SOL_ULTRAFAST_MODEL } from "@/lib/org/agent/modelConfig";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
@@ -25,6 +27,7 @@ test("role details preserve the request and notify completion only after a succe
   globalThis.fetch = async (url, init) => {
     assert.equal(url, "/api/org/agent/chat");
     const payload = JSON.parse(String(init?.body));
+    assert.equal(payload.model, succeed ? ORG_AGENT_SOL_ULTRAFAST_MODEL : null);
     assert.equal(payload.message, request);
     assert.equal(payload.roleCreationView, "role_details");
     assert.equal(payload.mode, "role_creation");
@@ -47,6 +50,7 @@ test("role details preserve the request and notify completion only after a succe
     await act(async () => { await send(); });
     assert.equal(completed, 0);
     assert.ok(chat.error);
+    saveOrgAgentModelPreference(ORG_AGENT_SOL_ULTRAFAST_MODEL);
     succeed = true;
     refreshes = 0;
     await act(async () => { await send(); });

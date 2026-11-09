@@ -22,3 +22,13 @@ export function shouldSpeakRealtimeEndCallFallback(args: {
 }) {
   return args.endCallRequested && !args.responseText.trim();
 }
+
+/** Acknowledges the scheduled action, not successful persistence or hangup. */
+export function buildCareerEndCallScheduledResult(options: CareerEndCallOptions) {
+  return [
+    "Call ending is scheduled after the final spoken handoff. The call is still connected.",
+    options.completeOnboarding === true
+      ? "Onboarding completion was requested. Saving the final answers and completion is still pending."
+      : "Only ending the call was requested; this does not complete onboarding.",
+  ].join("\n");
+}

@@ -449,6 +449,8 @@ export const CareerSidebarProvider = ({
   );
 };
 
+export const useOptionalCareerSidebarContext = () => useContext(CareerSidebarContext);
+
 export const useCareerSidebarContext = () => {
   const context = useContext(CareerSidebarContext);
   if (!context) {

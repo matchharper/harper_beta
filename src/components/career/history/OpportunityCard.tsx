@@ -21,6 +21,7 @@ import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
 import { getHiringPostLabel, isHiringPostOpportunity } from "./hiringPost";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
+import OpportunityAgentMessages from "./OpportunityAgentMessages";
 
 const DESCRIPTION_PREVIEW_HEIGHT = 280;
 const DETAIL_SECTION_CLASS = "career-opportunity-detail-section";
@@ -255,7 +256,14 @@ export default function OpportunityCard({
               />
             ) : null}
           </div>
-          <span className="career-opportunity-type">{connectionLabel}</span>
+          <span className={cn(
+            "career-opportunity-type",
+            isInternal && item.opportunityType !== OpportunityType.IntroRequest
+              ? "text-black"
+              : "text-(--career-ink-soft)"
+          )}>
+            {connectionLabel}
+          </span>
           <span className="career-opportunity-role">
             <span className={cn("career-opportunity-title", titleClassName)}>
               {item.title}
@@ -375,8 +383,8 @@ export default function OpportunityCard({
             items={item.preferenceFit}
             variant="icons"
           />
-          {postingUrl && onOpenLink ? (
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {postingUrl && onOpenLink ? (
               <MuteButton
                 className="underline underline-offset-4"
                 onClick={() => onOpenLink(item, postingUrl)}
@@ -386,8 +394,9 @@ export default function OpportunityCard({
                 {t("career.common.career.0wohsg4", "원문 보기")}
                 <ArrowUpRight aria-hidden className="size-3.5" />
               </MuteButton>
-            </div>
-          ) : null}
+            ) : null}
+            <OpportunityAgentMessages item={item} />
+          </div>
           {process.env.NODE_ENV === "development" ? (
             <EstimatedSalaryNotice item={item} />
           ) : null}

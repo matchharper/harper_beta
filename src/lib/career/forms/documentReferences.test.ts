@@ -33,6 +33,7 @@ function fixture() {
       return query;
     },
     rpc: async (name: string, args: any) => {
+      if (name === "read_career_form_status") return { data: "open", error: null };
       assert.equal(name, "write_career_form");
       const row = { id: 42 + rows.length, role: args.p_action === "respond" ? "user" : "assistant", user_id: userId, conversation_id: conversationId,
         message_type: args.p_action === "respond" ? "career_form_response" : "career_form", content: args.p_content,
@@ -41,7 +42,7 @@ function fixture() {
       return { data: row, error: null };
     },
   };
-  const input = { action: "create", form: { kind: "suggestion", title: "Application questions", items: [
+  const input = { action: "create", form: { kind: "form", title: "Application questions", items: [
     { id: "resume", label: "Resume", type: "document", content: { documentId, revision: 1 } },
     { id: "visa", label: "Visa sponsorship", type: "text", content: { value: "" } },
   ] } };
@@ -57,8 +58,8 @@ test("document and question presentation does not need PDF generation; a separat
   assert.ok(result.modelOutput.includes(documentId) && result.modelOutput.includes("revision: 1"));
   assert.equal(rows.length, 1);
   const response = await respondToCareerForm({ ...scope, input: { conversationId, formId: 42, revision: 1,
-    answers: [{ itemId: "visa", message: "No sponsorship needed", values: { visa: "No" } }], values: {}, requestId: "answer-1" } });
-  assert.ok(response.content.includes("No sponsorship needed"));
+    values: { visa: "No" }, requestId: "answer-1" } });
+  assert.ok(response.content.includes("Visa sponsorship: No"));
   assert.equal(rows.length, 2);
 });
 
@@ -68,7 +69,7 @@ test("a document edited after presentation cannot silently become the approved a
   document.revision = 2;
   t.mock.method(globalThis, "fetch", async () => { throw new Error("Revision conflict must precede export"); });
   await assert.rejects(respondToCareerForm({ ...scope, input: { conversationId, formId: 42, revision: 1,
-    answers: [{ itemId: "resume", message: "Use this file", values: { resume: documentId } }], values: {}, requestId: "answer-2" } }), /Attachment revision changed/);
+    values: { resume: documentId }, requestId: "answer-2" } }), /Attachment revision changed/);
   assert.equal(rows.length, 1);
 });
 

@@ -1,0 +1,61 @@
+import { canonicalRows } from "./devCheckpointData";
+const equal = (a: Record<string, unknown>[], b: Record<string, unknown>[]) =>
+  JSON.stringify(canonicalRows(a)) === JSON.stringify(canonicalRows(b));
+/** These kinds have no irreversible effect of their own. Execute-mode browser
+ * and send tools reserve a work_effect or their own delivery operation first. */
+export function assertApplicationOperationsQuiescent(
+  current: Record<string, any>[],
+  baseline: Record<string, any>[]
+) {
+  for (const row of current) {
+    if (row.kind === "browser_session" && row.status !== "closed")
+      throw new Error("지원 브라우저를 종료한 뒤 복원해 주세요.");
+    if (
+      [
+        "career_invocation",
+        "career_dependency",
+        "career_event",
+        "delegated_work",
+        "browser_run",
+      ].includes(row.kind) &&
+      !["completed", "cancelled", "failed"].includes(row.status)
+    )
+      throw new Error("진행 중인 작업이 있어 복원할 수 없습니다.");
+    if (
+      equal(
+        [row],
+        baseline.filter((old) => old.id === row.id)
+      )
+    )
+      continue;
+    // Immutable PDF exports and pinned attachment bytes are preparation caches,
+    // not deliveries. Their send/submit receipts live in separate operations.
+    if (["pdf_artifact", "attachment_snapshot"].includes(row.kind) && row.status === "ready")
+      continue;
+    // write_career_company_follow changes only the owned follow row and its
+    // idempotency receipt, both restored in the same checkpoint transaction.
+    // Any later delivery/schedule is still protected by its separate guard.
+    if (row.kind === "career_follow_mutation" && row.status === "completed")
+      continue;
+    if (
+      ![
+        "career_invocation",
+        "career_dependency",
+        "career_event",
+        "delegated_work",
+        "browser_session",
+        "browser_run",
+      ].includes(row.kind)
+    )
+      throw new Error(
+        `외부 실행 또는 별도 작업 기록이 바뀌어 복원하지 않았습니다 (${row.kind}).`
+      );
+    if (row.kind === "browser_session" && row.result?.control_source === "user")
+      throw new Error(
+        "사용자가 직접 조작한 외부 브라우저 기록은 되돌릴 수 없습니다."
+      );
+  }
+  for (const row of baseline)
+    if (!current.some((item) => item.id === row.id))
+      throw new Error("기준 실행 기록이 없어 복원을 중단했습니다.");
+}

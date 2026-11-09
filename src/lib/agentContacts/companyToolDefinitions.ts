@@ -2,7 +2,7 @@
  * cannot execute their legacy human-delivery or company-first discovery modes.
  * Keep these contracts shared with the full tools; no scenario chooses them.
  */
-export const AGENT_CONTACT_DESCRIPTION = "Communicate with the candidate's agent within the company's delegated purpose and sharing permissions. action=send_to_agent immediately queues that agent to handle questions, information, requests or replies. The receiving agent has its own conversation history and sources and acts for its user; this does not directly notify the candidate or change interest, sharing consent or hiring stage.";
+export const AGENT_CONTACT_DESCRIPTION = "Send a message to the candidate's agent within the company's delegated purpose and sharing permissions. action=send_to_agent immediately queues that agent to continue the conversation. Message content is open-ended; no particular intent or new company-user message is required. The receiving agent has its own conversation history and sources and acts for its user; this does not directly notify the candidate or change interest, sharing consent or hiring stage.";
 export const AGENT_MESSAGE_DESCRIPTION = "Your message to the candidate's agent within the company's delegated purpose. The counterpart can answer from its own knowledge and sources and decides how to act for its user.";
 export const AGENT_PRESENTATION_DESCRIPTION = "Deliver your considered candidate assessment and shared profile to the hiring team for review through the Role inbox. Publication itself communicates to the team; this is not storage for private working notes or an ongoing investigation. It uses your own assessment without another writer or score gate. It does not send a separate chat/email alert or make a hiring decision.";
 

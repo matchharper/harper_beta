@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   careerFormDraftSchema,
+  getCareerFormInitialValues,
   parseCareerForm,
   parseCareerFormResponse,
   type CareerForm,
@@ -41,6 +42,32 @@ const form: CareerForm = {
     message: "내용을 수정하고 싶어.",
   },
 };
+
+test("checkbox terms remain unchecked boolean values instead of being submitted as consent text", () => {
+  assert.deepEqual(getCareerFormInitialValues({ ...form, items: [
+    { id: "terms", type: "checkbox", label: "Consent", content: { value: "I agree to the terms" } },
+    { id: "off", type: "checkbox", label: "Option", content: { value: false } },
+    { id: "on", type: "checkbox", label: "Existing option", content: { value: true } },
+  ] }), { terms: false, off: false, on: true });
+});
+
+test("one grouped user message retains exact choices in both API serialization and model input", () => {
+  const responses = [42,43].map((formId, index) => ({ formId, revision: index + 1, requestId: `batch:${formId}`,
+    formSnapshot: { ...form, formId, revision: index + 1 }, actionId: index === 0 ? "send" : undefined,
+    values: { location: index === 0 ? "서울" : "부산" } }));
+  const row = { id: 90, role: "user", message_type: "career_form_response", content: "두 답변", payload: { requestId: "batch", responses } } as any;
+  const serialized = toTalentMessageResponse(row);
+  assert.equal(serialized.formResponse, undefined);
+  assert.deepEqual(toUiMessage(serialized).formResponses, responses);
+  for (const message of [row, serialized]) {
+    const input = formatTalentMessageContentForLlmPrompt(message);
+    assert.match(input, /selected form 42, revision 1, action send/);
+    assert.match(input, /answered form 43, revision 2/);
+    assert.match(input, /서울/); assert.match(input, /부산/);
+    assert.equal(input.split("User selected form 42").length - 1, 1);
+    assert.doesNotMatch(input, /action undefined/);
+  }
+});
 
 test("form payload survives storage, response serialization and UI mapping", () => {
   const row = {
@@ -133,6 +160,7 @@ test("click uses the exact displayed revision and stored action while preserving
       return builder;
     },
     async rpc(_name: string, args: Record<string, unknown>) {
+      if (_name === "read_career_form_status") return { data: "open", error: null };
       rpcArguments = args;
       return {
         data: {
@@ -170,7 +198,7 @@ test("click uses the exact displayed revision and stored action while preserving
     message.content,
     "이 내용으로 지원해줘.\n사는 곳: \n병역: 사용자가 입력한 내용"
   );
-  assert.deepEqual((rpcArguments?.p_payload as any).formSnapshot, form);
+  assert.deepEqual((rpcArguments?.p_payload as any).formSnapshot, { ...form, state: "open" });
   assert.equal(
     parseCareerFormResponse(message.formResponse)?.values.location,
     ""
@@ -283,6 +311,7 @@ test("suggestion explanations and free replies survive storage and reach the mod
       return builder;
     },
     async rpc(_name: string, args: Record<string, unknown>) {
+      if (_name === "read_career_form_status") return { data: "open", error: null };
       writes.push(args);
       return {
         data: {
@@ -320,7 +349,7 @@ test("suggestion explanations and free replies survive storage and reach the mod
   assert.equal(message.content, `어떤 부분을 맡았나요?\n${answer.message}`);
   assert.equal(message.formResponse?.actionId, undefined);
   assert.equal(message.formResponse?.answers?.[0].message, answer.message);
-  assert.deepEqual(toUiMessage(message).formResponse?.formSnapshot, suggestion);
+  assert.deepEqual(toUiMessage(message).formResponse?.formSnapshot, { ...suggestion, state: "open" });
   const providerInput = formatTalentMessageContentForLlmPrompt(message);
   assert.match(providerInput, /User answered 1 items of form 42, revision 2/);
   assert.match(providerInput, /팀 결과와 본인의 기여를 구분해/);

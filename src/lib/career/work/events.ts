@@ -1,3 +1,5 @@
+import { careerExecutionEnvironment } from "../executionEnvironment";
+import { readCareerTurnEvents } from "../turnDisplay";
 import type { CareerDeferredWork } from "../capabilities/runtime";
 import { careerCheckpointIsReady } from "../agentContinuation";
 import { createOperation, operationSchema } from "../externalOperations/store";
@@ -24,7 +26,7 @@ export async function readCareerDelegatedEvents(scope: WorkScope, eventIds: stri
   const executions = await db("talent_external_operations").select("id,result->activity")
     .eq("user_id", scope.userId).eq("conversation_id", scope.conversationId).eq("kind", "career_invocation").in("id", refs);
   if (executions.error) throw executions.error;
-  return (executions.data ?? []).flatMap((row: any) => (Array.isArray(row.activity?.logs) ? row.activity.logs : [])
+  return (executions.data ?? []).flatMap((row: any) => row.activity?.events ? readCareerTurnEvents(row.activity.events) : (Array.isArray(row.activity?.logs) ? row.activity.logs : [])
     .flatMap((text: unknown, index: number) => typeof text === "string" ? [{id: `delegate:${row.id}:${index}`, kind: "tool" as const, text}] : []));
 }
 
@@ -79,7 +81,8 @@ export async function observeCareerDependency(scope: WorkScope & { sourceMessage
 /** Existing recovery dispatcher observes receipts without spending model calls. */
 export async function reconcileCareerDependencies(scope: { admin: WorkScope["admin"]; userId?: string; conversationId?: string; deadlineAt?: number }) {
   let query = (scope.admin.from as any)("talent_external_operations").select("*")
-    .eq("kind", "career_dependency").eq("status", "reserved").order("updated_at").limit(20);
+    .eq("kind", "career_dependency").eq("status", "reserved")
+    .eq("request->>execution_environment", careerExecutionEnvironment()).order("updated_at").limit(20);
   if (scope.userId) query = query.eq("user_id", scope.userId);
   if (scope.conversationId) query = query.eq("conversation_id", scope.conversationId);
   const { data, error } = await query;

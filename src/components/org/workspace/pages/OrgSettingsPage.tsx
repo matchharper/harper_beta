@@ -52,6 +52,7 @@ import { orgRoleNotificationSettingsQueryOptions } from "@/hooks/org/useOrgRoleN
 import { buildOrgHref } from "@/lib/org/routes";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { ISO_WEEKDAYS } from "@/lib/meetings/availability";
+import { getSlackChannelUrl } from "@/lib/org/slackChannelCreation";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/store/useToastStore";
 
@@ -101,7 +102,7 @@ export function OrgSettingsPage() {
   const [removeChannelId, setRemoveChannelId] = useState<string | null>(null);
   const [addChannelOpen, setAddChannelOpen] = useState(false);
   const [roleChannel, setRoleChannel] = useState<
-    | (Pick<OrgSlackChannel, "channelId" | "channelName"> & { isNew?: boolean })
+    | (Pick<OrgSlackChannel, "channelId" | "channelName"> & { isNew?: boolean; isPrivate?: boolean; creatingUserInvited?: boolean })
     | null
   >(null);
   const statusQuery = useOrgSlackStatus({
@@ -552,13 +553,14 @@ export function OrgSettingsPage() {
                         </span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="truncate text-[14px] font-normal text-neutral-primary">
+                            <a className="truncate text-[14px] font-normal text-link hover:underline"
+                              href={getSlackChannelUrl(channel.channelId, status.teamId)} target="_blank" rel="noopener noreferrer">
                               {formatChannel(
                                 c,
                                 channel.channelName,
                                 channel.channelId
                               )}
-                            </span>
+                            </a>
                             <Badge
                               radius="full"
                               size="sm"
@@ -875,9 +877,10 @@ export function OrgSettingsPage() {
       {createChannelOpen ? (
         <OrgSlackCreateChannelDialog
           initialName={createChannelInitialName}
-          onCreated={(channel) => setRoleChannel({ ...channel, isNew: true })}
+          onCreated={(channel, creatingUserInvited) => setRoleChannel({ ...channel, isNew: true, creatingUserInvited })}
           onOpenChange={setCreateChannelOpen}
           open
+          showInviteWarningInToast={false}
           workspaceId={workspace.workspaceId}
         />
       ) : null}
@@ -886,8 +889,10 @@ export function OrgSettingsPage() {
         <OrgSlackChannelRolesDialog
           key={`${workspace.workspaceId}:${roleChannel.channelId}`}
           channel={roleChannel}
+          creatingUserInvited={roleChannel.creatingUserInvited}
           isNewChannel={roleChannel.isNew ?? false}
           onClose={() => setRoleChannel(null)}
+          slackTeamId={status?.teamId}
         />
       ) : null}
 
