@@ -1,0 +1,40 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "screen-present-state-diagnostic-v1",
+  "sourceRun": "experiment-v2-ars09/ARS09",
+  "objective": "Distinguish an explicitly required present-state eligibility condition from future workplace and mobility preferences, using unchanged real pointwise inputs.",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "labelProvenance": "Manual unblinded review of the actual v2 ARS09 stage1 errors and complete current Brief/Memory, frozen before prompt-v5 replay. Separate from other frozen diagnostic datasets.",
+  "goldChanged": false,
+  "limitations": [
+    "Three post-observation cases, not representative model accuracy.",
+    "Exact private source profile/Brief/Memory/Behavior inputs; no synthetic replacement facts.",
+    "No DB writes, recommendations, or external delivery."
+  ],
+  "cases": [
+    {
+      "id": "present-state-01",
+      "sourceTrace": "decisions-548fb47474fa4a258098427c5af43b44.json",
+      "sourceTraceSha256": "a0bc85aea8b344d6ccb06b45d9455a6ab70d9f992d161f380794b9aabef8a23c",
+      "inputSha256": "c8664f615d830b0961b4ce4f18e4a9c0159ab0c9ebbf5aa285b06d584ec73944",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current Hiring Brief explicitly requires an existing present-state eligibility condition. The supplied current profile contradicts it, and dated Brief/Memory contain no superseding evidence. Openness to future work or movement does not satisfy that present-state requirement."
+    },
+    {
+      "id": "present-state-02",
+      "sourceTrace": "decisions-f9c777d74ce74743a88d6ac87f2d7617.json",
+      "sourceTraceSha256": "61076c4dace5629837ad4fbd8ef14bdb5385cf98863efba249704a0789f89999",
+      "inputSha256": "46a48c5b833641153491dc711cdb3f0230cca9c9cd3f5eb3fc5d883c68f45ffa",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current Hiring Brief explicitly requires an existing present-state eligibility condition. The supplied current profile contradicts it, and dated Brief/Memory contain no superseding evidence. Openness to future work or movement does not satisfy that present-state requirement."
+    },
+    {
+      "id": "present-state-03",
+      "sourceTrace": "decisions-332c2b6504254e5eaba67b11119b56c2.json",
+      "sourceTraceSha256": "91b03f01efdf0e8b25f2b9044a22336a63a04d169ab6378c148e0b71b7e537da",
+      "inputSha256": "743884696c514df7078b6b6273076f98a4dfdc3ec639f27d93bb8395ade133c9",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current Hiring Brief explicitly requires an existing present-state eligibility condition. The supplied current profile contradicts it, and dated Brief/Memory contain no superseding evidence. Openness to future work or movement does not satisfy that present-state requirement."
+    }
+  ]
+}

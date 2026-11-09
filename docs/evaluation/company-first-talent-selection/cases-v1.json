@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-first-talent-selection-v1",
+  "capturedAt": "2026-09-11T11:42:00Z",
+  "cases": [
+    {
+      "caseId": "CFTS001",
+      "workspaceAlias": "W01",
+      "roleFamily": "enterprise_ai_forward_deployed_engineer_singapore",
+      "effectiveFitRows": 219,
+      "packetizedPairs": 2,
+      "hardEligibleAfterFullRouteGuard": 1,
+      "inputManifestSha256": "99d24a38f2ee8010880df500256afc631b0212926f00989278bfeb3c716babb2"
+    },
+    {
+      "caseId": "CFTS002",
+      "workspaceAlias": "W02",
+      "roleFamily": "applied_ai_engineer_seoul",
+      "effectiveFitRows": 62,
+      "packetizedPairs": 1,
+      "hardEligibleAfterFullRouteGuard": 1,
+      "inputManifestSha256": "bbc6790e0ecb4fabc393267039356a6c9211cf72a9a50828ffecbbd67d8c0f36"
+    },
+    {
+      "caseId": "CFTS003",
+      "workspaceAlias": "W03",
+      "roleFamily": "venture_investment_senior_associate_vp_seoul",
+      "effectiveFitRows": 68,
+      "packetizedPairs": 1,
+      "hardEligibleAfterFullRouteGuard": 0,
+      "inputManifestSha256": "2b9b1446f4058e5b065115394ccc2d8210ef3c50884923bf800109f4069a2dc8"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "datasetVersion": "production-recommendation-v1",
+  "capturedAt": "2026-10-12T05:47:03.744203+00:00",
+  "fixtureHash": "aab3c2cbf87611eb74be2a65488884929eac8f0cfe5929a9250a2257d11b6342",
+  "caseCount": 10,
+  "selection": "Most recent eligible sent Sonnet 5.5 run; five internal-only and five mixed; distinct talents; current canonical eligibility guards",
+  "inputBoundary": "Reconstructed current Profile + full Search Brief + existing Behavior Context + current role facts, stored selections, current runtime prompt. Not historical exact replay. Current context can include later facts and the original delivery.",
+  "privacy": "Production read-only capture; raw data owner-only in ignored private/runs. Explicit user authorization for direct Anthropic comparison. No DB writes, cache rebuild, recommendation or email send.",
+  "provider": "https://api.anthropic.com/v1/messages; existing direct provider account; no new data-collection opt-in",
+  "gold": "production-recommendation-gold-v1; author-assessed rubric, independent human gold absent",
+  "source": {
+    "revision": "5c6ba484fbea7f56461201fd1d103975cde08b91",
+    "sourceFingerprint": "d9afcc45c374378936dcf91aaacf64d119b98e894461311ae08efa1973f9eb53",
+    "dirty": true
+  },
+  "rawFixture": "private/production-recommendation-v1/cases.json",
+  "runner": "harper_worker/llm_evals/final_delivery/compare_production_recommendations.py",
+  "caseContracts": [
+    {
+      "id": "FD01",
+      "scenario": "internal_only",
+      "locale": "ko",
+      "requestHash": "7279ac0d09f48223297f925f4f231fdc74b5d3e2bef8f706c5290a3f4c80f9fe"
+    },
+    {
+      "id": "FD02",
+      "scenario": "mixed",
+      "locale": "en",
+      "requestHash": "8520edd97c1dc87bfa18c2651437a12af662d2ec62bb421464133c35fffd4467"
+    },
+    {
+      "id": "FD03",
+      "scenario": "mixed",
+      "locale": "ko",
+      "requestHash": "a02603de6fe941d6da1ce1f4b24ce192dbf6dc8af398a220bc1f453c19792ca2"
+    },
+    {
+      "id": "FD04",
+      "scenario": "mixed",
+      "locale": "ko",
+      "requestHash": "d077f0b82f69ecebabbd074e06577424c5bf09d75f79c3fe764be6108a016252"
+    },
+    {
+      "id": "FD05",
+      "scenario": "mixed",
+      "locale": "en",
+      "requestHash": "b088a277e3a64feadc7eb028bf020854a6859d1606c7181fe0ad0c5645a805ef"
+    },
+    {
+      "id": "FD06",
+      "scenario": "mixed",
+      "locale": "ko",
+      "requestHash": "aaa9fe6fc5e8a9019cb1bbd12971cdde3a75b43d7695828a9b32c260e5f9d1ba"
+    },
+    {
+      "id": "FD07",
+      "scenario": "internal_only",
+      "locale": "ko",
+      "requestHash": "e5955eebbaedc72347fcc1898a022b345e54b6bad1fcec8af4905bdebd46f4d5"
+    },
+    {
+      "id": "FD08",
+      "scenario": "internal_only",
+      "locale": "ko",
+      "requestHash": "6e1cddf9f50b7e01a956e93b9e2746b62a841a5abb2583cfa7cafb660dac8e72"
+    },
+    {
+      "id": "FD09",
+      "scenario": "internal_only",
+      "locale": "ko",
+      "requestHash": "df35bdf5ef71712c4634a243c8c897d0c2cda3a438e6c1b9ee7683ee70032c60"
+    },
+    {
+      "id": "FD10",
+      "scenario": "internal_only",
+      "locale": "ko",
+      "requestHash": "61bddc333774435e94b2a04c97260434c52b00faf414ead28712d60a1243b0ad"
+    }
+  ]
+}

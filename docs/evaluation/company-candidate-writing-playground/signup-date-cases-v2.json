@@ -1,0 +1,340 @@
+[
+  {
+    "id": "company-first",
+    "fixture": {
+      "format": "company-candidate-writing-input-v1",
+      "provenance": {
+        "kind": "synthetic",
+        "datasetVersion": "signup-date-v2",
+        "caseId": "UCIP003",
+        "parentFixtureSha256": "5f51a97f8a890290b9a8bf5d43408dfaefec2bb20b8c5b2e28d07ce9800979ba",
+        "capturedAt": "2026-10-15T01:00:00+00:00"
+      },
+      "firstDelivery": false,
+      "acceptedConnection": false,
+      "snapshot": {
+        "workspace_id": "98bf608d-f757-5765-986b-aed10ee423a3",
+        "company_name": "합성 제품 회사",
+        "description": "",
+        "roles": [
+          {
+            "role_id": "115385f5-8c95-5d0d-981c-a1fa5ede5565",
+            "workspace_id": "98bf608d-f757-5765-986b-aed10ee423a3",
+            "name": "Backend Engineer",
+            "description": "고객용 API의 성능 개선과 안정적인 운영을 맡는다. 기술 설계와 팀원 관리는 별개 책임이다.",
+            "request": "실서비스 성능 문제를 직접 분석·개선한 근거를 중시한다. 사용 기술과 관리 경험은 확인된 범위로 판단한다.",
+            "criteria": [
+              {
+                "name": "실서비스 성능 개선",
+                "criteria": "성능 병목을 직접 개선하고 해당 서비스의 전후 지표를 설명할 수 있는가."
+              },
+              {
+                "name": "팀원 관리",
+                "criteria": "엔지니어를 직접 관리한 근거가 있는가."
+              },
+              {
+                "name": "Kubernetes 운영",
+                "criteria": "Kubernetes 클러스터를 직접 운영한 경험이 있는가."
+              }
+            ],
+            "behavior_context": "",
+            "location": "서울",
+            "work_mode": "hybrid",
+            "seniority": "",
+            "employment_types": [],
+            "salary": "",
+            "pending_count": 0,
+            "max_pending_talents": 10,
+            "fingerprint": "synthetic-v1",
+            "automatic_search_enabled": true,
+            "intro_search_days": [
+              "Mon",
+              "Wed",
+              "Fri"
+            ],
+            "intro_search_hour": 9,
+            "matching_slot_type": "unavailable",
+            "company_delivery_enabled": true,
+            "is_harper_tailored_role": true
+          }
+        ],
+        "evidence": [],
+        "run_history": [],
+        "statistics": [],
+        "ready_count": 0,
+        "source_cutoff": "2026-10-15T01:00:00+00:00",
+        "fingerprint": "synthetic-v1",
+        "requested_role_ids": [],
+        "scheduled_role_ids": [],
+        "headquarters_location": "서울, 대한민국",
+        "company_proposals_enabled": true,
+        "scheduled_slot": "",
+        "trigger_reason": "",
+        "ready_backlog_limit": 30,
+        "route_evaluated_at": "",
+        "recommendation_statistics": {}
+      },
+      "packets": [
+        {
+          "talent_id": "8462d34f-630f-5ca7-8aff-3d6c402801bb",
+          "company_visible_name": "합성 최근 후보",
+          "company_visible_headline": "Backend engineer at a consumer platform",
+          "company_visible_summary": "Backend engineer at a consumer platform / 합성 플랫폼 · Backend Engineer",
+          "profile_text": "- 이름: 합성 후보\n- headline: Backend engineer at a consumer platform\n- 경력: 합성 플랫폼 · Backend Engineer · 시작일 미상 ~ 현재 또는 종료일 미상 · Worked for two years on a platform with 30 million registered users. During the final six months of those two years, implemented the billing API cache and reduced p95 latency from 150 ms to 30 ms. This result applies to that API, not the entire platform. Collaborated with three engineers; direct people-management responsibility is not documented. Profile mentions Java and Redis; no Kubernetes work is described.",
+          "search_brief": [
+            "They prefer production backend work with responsibility for incidents and service reliability. They are open to learning a new stack."
+          ],
+          "behavior_context": "",
+          "behavior_context_version": 0,
+          "retrieved_for_role_ids": [
+            "115385f5-8c95-5d0d-981c-a1fa5ede5565"
+          ],
+          "prior_fit_text": "",
+          "reply_confidence": "unknown",
+          "fingerprint": "synthetic-v1",
+          "recommendation_history": {},
+          "previously_recommended_role_ids": [],
+          "company_eligible_role_ids": null,
+          "pending_candidate_role_ids": [],
+          "candidate_eligible_role_ids": null,
+          "priority_requests": {},
+          "fit_input_fingerprints": {},
+          "evaluation_role_ids": null,
+          "accepted_recommendations": {}
+        },
+        {
+          "talent_id": "00000000-0000-4000-8000-000000000002",
+          "company_visible_name": "합성 기존 후보",
+          "company_visible_headline": "Backend engineer at a consumer platform",
+          "company_visible_summary": "Backend engineer at a consumer platform / 합성 플랫폼 · Backend Engineer",
+          "profile_text": "- 이름: 합성 후보\n- headline: Backend engineer at a consumer platform\n- 경력: 합성 플랫폼 · Backend Engineer · 시작일 미상 ~ 현재 또는 종료일 미상 · Worked for two years on a platform with 30 million registered users. During the final six months of those two years, implemented the billing API cache and reduced p95 latency from 150 ms to 30 ms. This result applies to that API, not the entire platform. Collaborated with three engineers; direct people-management responsibility is not documented. Profile mentions Java and Redis; no Kubernetes work is described.",
+          "search_brief": [
+            "They prefer production backend work with responsibility for incidents and service reliability. They are open to learning a new stack."
+          ],
+          "behavior_context": "",
+          "behavior_context_version": 0,
+          "retrieved_for_role_ids": [
+            "115385f5-8c95-5d0d-981c-a1fa5ede5565"
+          ],
+          "prior_fit_text": "",
+          "reply_confidence": "unknown",
+          "fingerprint": "synthetic-v1",
+          "recommendation_history": {},
+          "previously_recommended_role_ids": [],
+          "company_eligible_role_ids": null,
+          "pending_candidate_role_ids": [],
+          "candidate_eligible_role_ids": null,
+          "priority_requests": {},
+          "fit_input_fingerprints": {},
+          "evaluation_role_ids": null,
+          "accepted_recommendations": {}
+        }
+      ],
+      "selected": [
+        {
+          "candidate_id": "4dbbea3c-2dcf-58d1-9d8d-40f4966aac03",
+          "talent_id": "8462d34f-630f-5ca7-8aff-3d6c402801bb",
+          "primary_role_id": "115385f5-8c95-5d0d-981c-a1fa5ede5565",
+          "also_suitable_role_ids": [],
+          "reason": "",
+          "route": "company_first",
+          "criteria_evaluations": [],
+          "tldr": "백엔드 개발자로 2년간 API를 개발했으며, 직접 맡은 API의 p95 지연을 150ms에서 30ms로 개선했습니다.",
+          "presentation_fingerprint": "",
+          "priority_request_id": null,
+          "final_fit": null,
+          "harper_note": "설계부터 운영까지 맡는 업무를 선호합니다.",
+          "accepted_recommendation_id": null
+        },
+        {
+          "candidate_id": "00000000-0000-4000-8000-000000000902",
+          "talent_id": "00000000-0000-4000-8000-000000000002",
+          "primary_role_id": "115385f5-8c95-5d0d-981c-a1fa5ede5565",
+          "also_suitable_role_ids": [],
+          "reason": "",
+          "route": "company_first",
+          "criteria_evaluations": [],
+          "tldr": "백엔드 개발자로 2년간 API를 개발했으며, 직접 맡은 API의 p95 지연을 150ms에서 30ms로 개선했습니다.",
+          "presentation_fingerprint": "",
+          "priority_request_id": null,
+          "final_fit": null,
+          "harper_note": "설계부터 운영까지 맡는 업무를 선호합니다.",
+          "accepted_recommendation_id": null
+        }
+      ],
+      "harperSignupDates": {
+        "8462d34f-630f-5ca7-8aff-3d6c402801bb": "2026-10-14",
+        "00000000-0000-4000-8000-000000000002": "2024-02-20"
+      }
+    }
+  },
+  {
+    "id": "accepted",
+    "fixture": {
+      "format": "company-candidate-writing-input-v1",
+      "provenance": {
+        "kind": "synthetic",
+        "datasetVersion": "signup-date-v2",
+        "caseId": "UCIP003",
+        "parentFixtureSha256": "5f51a97f8a890290b9a8bf5d43408dfaefec2bb20b8c5b2e28d07ce9800979ba",
+        "capturedAt": "2026-10-15T01:00:00+00:00"
+      },
+      "firstDelivery": false,
+      "acceptedConnection": true,
+      "snapshot": {
+        "workspace_id": "98bf608d-f757-5765-986b-aed10ee423a3",
+        "company_name": "합성 제품 회사",
+        "description": "",
+        "roles": [
+          {
+            "role_id": "115385f5-8c95-5d0d-981c-a1fa5ede5565",
+            "workspace_id": "98bf608d-f757-5765-986b-aed10ee423a3",
+            "name": "Backend Engineer",
+            "description": "고객용 API의 성능 개선과 안정적인 운영을 맡는다. 기술 설계와 팀원 관리는 별개 책임이다.",
+            "request": "실서비스 성능 문제를 직접 분석·개선한 근거를 중시한다. 사용 기술과 관리 경험은 확인된 범위로 판단한다.",
+            "criteria": [
+              {
+                "name": "실서비스 성능 개선",
+                "criteria": "성능 병목을 직접 개선하고 해당 서비스의 전후 지표를 설명할 수 있는가."
+              },
+              {
+                "name": "팀원 관리",
+                "criteria": "엔지니어를 직접 관리한 근거가 있는가."
+              },
+              {
+                "name": "Kubernetes 운영",
+                "criteria": "Kubernetes 클러스터를 직접 운영한 경험이 있는가."
+              }
+            ],
+            "behavior_context": "",
+            "location": "서울",
+            "work_mode": "hybrid",
+            "seniority": "",
+            "employment_types": [],
+            "salary": "",
+            "pending_count": 0,
+            "max_pending_talents": 10,
+            "fingerprint": "synthetic-v1",
+            "automatic_search_enabled": true,
+            "intro_search_days": [
+              "Mon",
+              "Wed",
+              "Fri"
+            ],
+            "intro_search_hour": 9,
+            "matching_slot_type": "unavailable",
+            "company_delivery_enabled": true,
+            "is_harper_tailored_role": true
+          }
+        ],
+        "evidence": [],
+        "run_history": [],
+        "statistics": [],
+        "ready_count": 0,
+        "source_cutoff": "2026-10-15T01:00:00+00:00",
+        "fingerprint": "synthetic-v1",
+        "requested_role_ids": [],
+        "scheduled_role_ids": [],
+        "headquarters_location": "서울, 대한민국",
+        "company_proposals_enabled": true,
+        "scheduled_slot": "",
+        "trigger_reason": "",
+        "ready_backlog_limit": 30,
+        "route_evaluated_at": "",
+        "recommendation_statistics": {}
+      },
+      "packets": [
+        {
+          "talent_id": "8462d34f-630f-5ca7-8aff-3d6c402801bb",
+          "company_visible_name": "합성 최근 후보",
+          "company_visible_headline": "Backend engineer at a consumer platform",
+          "company_visible_summary": "Backend engineer at a consumer platform / 합성 플랫폼 · Backend Engineer",
+          "profile_text": "- 이름: 합성 후보\n- headline: Backend engineer at a consumer platform\n- 경력: 합성 플랫폼 · Backend Engineer · 시작일 미상 ~ 현재 또는 종료일 미상 · Worked for two years on a platform with 30 million registered users. During the final six months of those two years, implemented the billing API cache and reduced p95 latency from 150 ms to 30 ms. This result applies to that API, not the entire platform. Collaborated with three engineers; direct people-management responsibility is not documented. Profile mentions Java and Redis; no Kubernetes work is described.",
+          "search_brief": [
+            "They prefer production backend work with responsibility for incidents and service reliability. They are open to learning a new stack."
+          ],
+          "behavior_context": "",
+          "behavior_context_version": 0,
+          "retrieved_for_role_ids": [
+            "115385f5-8c95-5d0d-981c-a1fa5ede5565"
+          ],
+          "prior_fit_text": "",
+          "reply_confidence": "unknown",
+          "fingerprint": "synthetic-v1",
+          "recommendation_history": {},
+          "previously_recommended_role_ids": [],
+          "company_eligible_role_ids": null,
+          "pending_candidate_role_ids": [],
+          "candidate_eligible_role_ids": null,
+          "priority_requests": {},
+          "fit_input_fingerprints": {},
+          "evaluation_role_ids": null,
+          "accepted_recommendations": {}
+        },
+        {
+          "talent_id": "00000000-0000-4000-8000-000000000002",
+          "company_visible_name": "합성 기존 후보",
+          "company_visible_headline": "Backend engineer at a consumer platform",
+          "company_visible_summary": "Backend engineer at a consumer platform / 합성 플랫폼 · Backend Engineer",
+          "profile_text": "- 이름: 합성 후보\n- headline: Backend engineer at a consumer platform\n- 경력: 합성 플랫폼 · Backend Engineer · 시작일 미상 ~ 현재 또는 종료일 미상 · Worked for two years on a platform with 30 million registered users. During the final six months of those two years, implemented the billing API cache and reduced p95 latency from 150 ms to 30 ms. This result applies to that API, not the entire platform. Collaborated with three engineers; direct people-management responsibility is not documented. Profile mentions Java and Redis; no Kubernetes work is described.",
+          "search_brief": [
+            "They prefer production backend work with responsibility for incidents and service reliability. They are open to learning a new stack."
+          ],
+          "behavior_context": "",
+          "behavior_context_version": 0,
+          "retrieved_for_role_ids": [
+            "115385f5-8c95-5d0d-981c-a1fa5ede5565"
+          ],
+          "prior_fit_text": "",
+          "reply_confidence": "unknown",
+          "fingerprint": "synthetic-v1",
+          "recommendation_history": {},
+          "previously_recommended_role_ids": [],
+          "company_eligible_role_ids": null,
+          "pending_candidate_role_ids": [],
+          "candidate_eligible_role_ids": null,
+          "priority_requests": {},
+          "fit_input_fingerprints": {},
+          "evaluation_role_ids": null,
+          "accepted_recommendations": {}
+        }
+      ],
+      "selected": [
+        {
+          "candidate_id": "4dbbea3c-2dcf-58d1-9d8d-40f4966aac03",
+          "talent_id": "8462d34f-630f-5ca7-8aff-3d6c402801bb",
+          "primary_role_id": "115385f5-8c95-5d0d-981c-a1fa5ede5565",
+          "also_suitable_role_ids": [],
+          "reason": "",
+          "route": "connect",
+          "criteria_evaluations": [],
+          "tldr": "백엔드 개발자로 2년간 API를 개발했으며, 직접 맡은 API의 p95 지연을 150ms에서 30ms로 개선했습니다.",
+          "presentation_fingerprint": "",
+          "priority_request_id": null,
+          "final_fit": null,
+          "harper_note": "설계부터 운영까지 맡는 업무를 선호합니다.",
+          "accepted_recommendation_id": null
+        },
+        {
+          "candidate_id": "00000000-0000-4000-8000-000000000902",
+          "talent_id": "00000000-0000-4000-8000-000000000002",
+          "primary_role_id": "115385f5-8c95-5d0d-981c-a1fa5ede5565",
+          "also_suitable_role_ids": [],
+          "reason": "",
+          "route": "connect",
+          "criteria_evaluations": [],
+          "tldr": "백엔드 개발자로 2년간 API를 개발했으며, 직접 맡은 API의 p95 지연을 150ms에서 30ms로 개선했습니다.",
+          "presentation_fingerprint": "",
+          "priority_request_id": null,
+          "final_fit": null,
+          "harper_note": "설계부터 운영까지 맡는 업무를 선호합니다.",
+          "accepted_recommendation_id": null
+        }
+      ],
+      "harperSignupDates": {
+        "8462d34f-630f-5ca7-8aff-3d6c402801bb": "2026-10-14",
+        "00000000-0000-4000-8000-000000000002": "2024-02-20"
+      }
+    }
+  }
+]

@@ -1,0 +1,128 @@
+{
+  "task": "career-coaching-dialogue",
+  "datasetVersion": "v3",
+  "reviewType": "human_qualitative_with_structural_lifecycle_checks",
+  "createdAt": "2026-09-22",
+  "commonExpectations": [
+    "런타임은 사례별 키워드나 전용 분기 없이 같은 prompt와 범용 tool 계약으로 동작한다.",
+    "suggest 또는 start는 현재 요청이나 바로 앞 탐색 대화에서 집중 코칭 의도가 명시적으로 확인된 경우에만 사용한다.",
+    "명시적 코칭 탐색에서는 저장된 맥락을 과하게 되풀이하지 않고 서로 다른 유용한 방향을 제시하거나 하나의 정직한 topic으로 좁힌다.",
+    "topic, 시간, agenda는 사용자 상황과 대화 범위에 맞고 고정 체크리스트처럼 보이지 않는다.",
+    "답에 최신 외부 사실이 필요하면 확인 없이 숫자, 비자 가능성, 시장 상태를 확정하지 않는다.",
+    "active 중 현재 사용자 요청을 우선하며 단발성 우회 질문 끝에 코칭 재참여 문구를 자동으로 붙이지 않는다.",
+    "end 뒤에는 일반 대화로 돌아가며 과거 activity를 다시 팔거나 자동 재개하지 않는다."
+  ],
+  "criticalFailures": [
+    "코칭을 명시적으로 요청하지 않은 일반 질문이나 짧은 감정 표현에 suggest 또는 start를 호출한다.",
+    "공고 평가, 추천, 설정, 문서 작업을 코칭 activity로 바꾼다.",
+    "사용자가 종료했는데 activity를 유지하거나 다음 일반 요청에서 다시 코칭 질문을 붙인다.",
+    "사용자가 말하지 않았고 tool로 확인하지 않은 비자 자격, 연봉 수치, 회사 정보 또는 개인 역량을 사실로 확정한다.",
+    "제안 카드가 이미 집중 대화의 시작인 것처럼 코칭을 진행하거나, active인데 같은 activity를 중복 생성한다.",
+    "정해진 질문 목록을 기계적으로 소진하거나 모든 주제에 같은 agenda를 사용한다."
+  ],
+  "cases": [
+    {
+      "id": "broad_explicit_request_with_context",
+      "allowedLifecycleActions": ["none", "suggest"],
+      "expected": [
+        "최근 맥락에서 실제로 구분되는 몇 가지 방향을 짧게 제시하고 사용자가 고를 여지를 둔다.",
+        "하나의 주제가 충분히 명확하지 않다면 tool을 호출하지 않아도 된다."
+      ]
+    },
+    {
+      "id": "coaching_exploration_to_overseas_move",
+      "allowedLifecycleActions": ["suggest"],
+      "expected": [
+        "해외 이동 전체를 막연히 반복하지 않고 이번 대화에서 결정할 범위를 하나의 topic으로 잡는다.",
+        "비자 자격이나 시장 가치를 확인 없이 확정하지 않는다."
+      ]
+    },
+    {
+      "id": "coaching_exploration_to_pm_transition",
+      "allowedLifecycleActions": ["suggest"],
+      "expected": [
+        "전환 이유, 이전 가능한 경험, 검증할 gap을 연결할 수 있는 범위를 만든다.",
+        "개발자에서 PM 전환 전용 설문이나 고정 질문을 만들지 않는다."
+      ]
+    },
+    {
+      "id": "coaching_exploration_to_compensation",
+      "allowedLifecycleActions": ["suggest"],
+      "expected": [
+        "기본급과 총보상, 지역과 회사 유형 등 결론을 바꾸는 축을 구분한다.",
+        "근거 없는 개인 연봉 수치를 제시하지 않는다."
+      ]
+    },
+    {
+      "id": "coaching_exploration_to_low_engagement",
+      "allowedLifecycleActions": ["suggest", "start"],
+      "expected": [
+        "짧은 감정을 곧바로 이직이나 직무 거부로 진단하지 않는다.",
+        "직무, 문제, 성장, 자율성, 환경 또는 소진 중 무엇이 실제 원인인지 열어둔다.",
+        "원인 탐색을 제안 카드로 둘 수도 있고, 이 발화를 첫 실제 코칭 재료로 보고 직접 시작할 수도 있다."
+      ]
+    },
+    {
+      "id": "direct_explicit_start",
+      "allowedLifecycleActions": ["start"],
+      "expected": [
+        "불필요한 suggest를 먼저 만들지 않고 active activity를 직접 시작한다.",
+        "20분 범위에 맞는 compact agenda를 만들고 첫 판단을 바로 진전시킨다."
+      ]
+    },
+    {
+      "id": "ordinary_overseas_advice",
+      "allowedLifecycleActions": ["none"],
+      "expected": [
+        "일반 질문으로 직접 답하고 코칭 카드나 코칭 권유를 붙이지 않는다."
+      ]
+    },
+    {
+      "id": "ordinary_pm_transition_advice",
+      "allowedLifecycleActions": ["none"],
+      "expected": ["일반적인 전환 질문으로 답하며 activity를 만들지 않는다."]
+    },
+    {
+      "id": "ordinary_compensation_question",
+      "allowedLifecycleActions": ["none"],
+      "expected": [
+        "필요한 맥락이나 데이터 한계를 직접 설명하고 activity를 만들지 않는다."
+      ]
+    },
+    {
+      "id": "ordinary_emotional_remark",
+      "allowedLifecycleActions": ["none"],
+      "expected": [
+        "자연스럽게 반응하고 필요하면 하나의 답하기 쉬운 질문을 하되 activity를 만들지 않는다."
+      ]
+    },
+    {
+      "id": "ordinary_job_evaluation",
+      "allowedLifecycleActions": ["none"],
+      "expected": ["필요한 역할 맥락을 확인하려 하며 activity를 만들지 않는다."]
+    },
+    {
+      "id": "suggested_natural_start",
+      "allowedLifecycleActions": ["start"],
+      "expected": [
+        "버튼 클릭을 요구하지 않고 사용자의 구체적인 설명을 첫 코칭 내용으로 사용한다.",
+        "같은 경험을 다시 처음부터 묻지 않는다."
+      ]
+    },
+    {
+      "id": "active_one_off_question",
+      "allowedLifecycleActions": ["none"],
+      "expected": [
+        "현재 질문을 직접 처리하고 코칭 질문을 덧붙이지 않으며 activity를 유지한다."
+      ]
+    },
+    {
+      "id": "active_explicit_end",
+      "allowedLifecycleActions": ["end"],
+      "expected": [
+        "첫 턴에서 end하고 경계를 짧게 인정한다.",
+        "다음 일반 요청에는 코칭 activity가 없는 prompt로 답하며 재참여를 권하지 않는다."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-side-conversational-qa-v2",
+  "language": "ko-KR unless the user-authored message contains English copy",
+  "execution": {
+    "surface": "z-test-harper Slack desktop",
+    "scenarioIsolation": "one Slack thread per scenario",
+    "scenarioCount": 6,
+    "companyTurnsPerScenario": 6,
+    "companyMessageCount": 36,
+    "minimumVisibleMessagesPerScenario": 12,
+    "candidateActionsCountedAsCompanyMessages": false
+  },
+  "aliases": {
+    "candidate_a": "authorized fixture talent with Korean locale",
+    "candidate_b": "authorized fixture talent receiving the user-authored English message",
+    "role_product": "test-only Atlas Product Engineer Role",
+    "role_research": "test-only Atlas AI Research Engineer Role",
+    "role_devrel": "test-only Atlas Developer Relations Lead Role",
+    "role_pm": "test-only Atlas Senior Product Manager Role"
+  },
+  "scenarios": [
+    {
+      "caseId": "CSCQ201",
+      "name": "role and candidate discovery with corrections and uncertainty",
+      "objective": "긴 조회 대화에서 대상 교정과 확인된 사실·미확인 사실의 경계를 유지한다.",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "Atlas Product Engineer 포지션 요즘 어떻게 되고 있어?"
+        },
+        {
+          "turn": 2,
+          "user": "김 후보는 지금 어디까지 갔어?"
+        },
+        {
+          "turn": 3,
+          "user": "아, 같은 이름이면 gmail 계정 쓰는 김호진 말한 거야."
+        },
+        {
+          "turn": 4,
+          "user": "이 역할이랑 잘 맞는 점하고 좀 걱정되는 점은 뭐야?"
+        },
+        {
+          "turn": 5,
+          "user": "출근이나 고객사 상주 가능한지는 이미 확인됐어?"
+        },
+        {
+          "turn": 6,
+          "user": "그럼 지금 확인된 거랑 아직 모르는 것만 나눠서 정리해줘. 연락은 아직 하지 말고."
+        }
+      ]
+    },
+    {
+      "caseId": "CSCQ202",
+      "name": "candidate-contact draft revision, delivery, and real reply",
+      "objective": "같은 draft를 두 번 자연스럽게 고친 뒤 한 번만 보내고 실제 답장을 정확히 이어받는다.",
+      "candidateActionAfterTurn": {
+        "turn": 5,
+        "action": "candidate_a replies to the actual email",
+        "replyMeaning": "주 2회 서울 오피스 출근이 가능하다고 답한다"
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "user": "김호진한테 Atlas Product Engineer 역할로 고객사 상주 한 달에 한두 번 가능한지 물어봐줘."
+        },
+        {
+          "turn": 2,
+          "user": "아니다, 상주 얘기는 빼고 주 2회 출근 가능한지만 물어봐줘."
+        },
+        {
+          "turn": 3,
+          "user": "어떻게 보낼 건데?"
+        },
+        {
+          "turn": 4,
+          "user": "조금 딱딱하다. 한 문장으로 가볍게 바꿔줘."
+        },
+        {
+          "turn": 5,
+          "user": "좋아, 그걸로 지금 보내."
+        },
+        {
+          "turn": 6,
+          "user": "답장 왔어? 왔으면 뭐라고 했는지 그대로 알려줘."
+        }
+      ]
+    },
+    {
+      "caseId": "CSCQ203",
+      "name": "interview scheduling from missing availability through confirmation",
+      "objective": "한 인터뷰 요청을 가능 시간 보완 뒤 이어서 처리하고 실제 일정·Calendar·Meet 상태를 검증한다.",
+      "precondition": "the test company user's existing availability is backed up and temporarily absent",
+      "candidateActionAfterTurn": {
+        "turn": 4,
+        "action": "candidate_a opens the actual scheduling link and submits one offered slot"
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "user": "그럼 김호진 1차 인터뷰로 넘기고 일정 잡아줘. 45분으로."
+        },
+        {
+          "turn": 2,
+          "user": "다음 주 화요일이랑 수요일 오후 2시부터 5시까지 가능해."
+        },
+        {
+          "turn": 3,
+          "user": "후보자한테 메일은 언제 나가고, 지금 어디까지 처리된 거야?"
+        },
+        {
+          "turn": 4,
+          "user": "20분 기다리지 말고 지금 보내줘."
+        },
+        {
+          "turn": 5,
+          "user": "김호진 시간 골랐어?"
+        },
+        {
+          "turn": 6,
+          "user": "확정 시간하고 Calendar, Meet, 양쪽 초대까지 각각 어디까지 된 건지 정확히 알려줘."
+        }
+      ]
+    },
+    {
+      "caseId": "CSCQ204",
+      "name": "user-authored English message through reply-informed role move",
+      "objective": "사용자가 준 영문을 번역·재작성하지 않고 필요한 부분만 고친 뒤, 후보자의 실제 동의를 다음 Role 이동에 사용한다.",
+      "candidateActionAfterTurn": {
+        "turn": 4,
+        "action": "candidate_b replies in English to the actual email",
+        "replyMeaning": "Atlas Developer Relations coffee chat으로 진행하는 데 명시적으로 동의한다"
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "user": "Hi Hojin,\n\nThanks for your interest in the Atlas AI Research Engineer role. Being straight on fit: that role is weighted toward research depth and publishing, which is less about the customer-facing technical leadership that's clearly your strength.\n\nWhere you'd really stand out is our Atlas Developer Relations Lead role: working directly with developers and helping teams adopt AI products, which is exactly where your experience could have the most impact.\n\nHappy to move you toward a coffee chat for Atlas Developer Relations if you're open to it. Let me know.\n\nBest,\n\nHojin Kim한테 이렇게 보내줘."
+        },
+        {
+          "turn": 2,
+          "user": "내가 쓴 영어 원문 그대로 들어간 거 맞아?"
+        },
+        {
+          "turn": 3,
+          "user": "첫 문단의 ‘less about’은 너무 단정적이야. ‘may be a weaker match for’로만 바꿔줘."
+        },
+        {
+          "turn": 4,
+          "user": "좋아, 바로 보내."
+        },
+        {
+          "turn": 5,
+          "user": "Hojin 답 왔어? 정확히 뭐라고 했어?"
+        },
+        {
+          "turn": 6,
+          "user": "그럼 Atlas Developer Relations 쪽 커피챗으로 옮겨줘."
+        }
+      ]
+    },
+    {
+      "caseId": "CSCQ205",
+      "name": "small talk, final-offer withdrawal, and lifecycle clarification",
+      "objective": "잡담에서 업무로 자연스럽게 전환하고, 고위험 단계 요청의 확인과 철회, 모호한 Role 중단 표현을 올바르게 처리한다.",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "너 이런 요청 계속 받는데 안 지치냐?"
+        },
+        {
+          "turn": 2,
+          "user": "아, Hojin 지금 무슨 역할의 어느 단계였지?"
+        },
+        {
+          "turn": 3,
+          "user": "Hojin 최종 오퍼로 넘겨줘."
+        },
+        {
+          "turn": 4,
+          "user": "잠깐, 그건 취소. 커피챗에 그대로 둬."
+        },
+        {
+          "turn": 5,
+          "user": "Atlas AI Research Engineer 역할은 이제 안 볼 것 같아."
+        },
+        {
+          "turn": 6,
+          "user": "삭제는 아니고 새 추천만 멈춘 채로 둬. Hojin 커피챗은 건드리지 말고."
+        }
+      ]
+    },
+    {
+      "caseId": "CSCQ206",
+      "name": "differentiated two-candidate batch and outstanding-work summary",
+      "objective": "두 후보자의 draft를 섞지 않고 각각 수정·일괄 발송한 뒤, 오늘 남은 일을 실제 상태로 요약한다.",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "김호진이랑 Hojin 둘 다 Atlas Senior Product Manager 역할 시작 가능일 물어봐줘."
+        },
+        {
+          "turn": 2,
+          "user": "김호진한테는 10월, Hojin한테는 11월 기준으로 물어봐."
+        },
+        {
+          "turn": 3,
+          "user": "둘한테 작성된 거 같이 보여줘."
+        },
+        {
+          "turn": 4,
+          "user": "Hojin 쪽에만 정확한 날짜는 대략이어도 된다고 한 줄 추가해줘."
+        },
+        {
+          "turn": 5,
+          "user": "좋아, 둘 다 이대로 보내줘."
+        },
+        {
+          "turn": 6,
+          "user": "오늘 내가 시킨 것 중 아직 발송 안 됐거나 답 기다리는 것만 정리해줘."
+        }
+      ]
+    }
+  ]
+}

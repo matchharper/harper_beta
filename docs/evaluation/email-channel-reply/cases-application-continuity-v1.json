@@ -1,0 +1,75 @@
+{
+  "task": "email-channel-reply",
+  "datasetVersion": "application-continuity-v1",
+  "createdAt": "2026-10-14",
+  "cases": [
+    {
+      "id": "application-current-and-later",
+      "locale": "ko",
+      "recommendation": "external_jd",
+      "application": {
+        "submission": "supported",
+        "resume": true
+      },
+      "subject": "Re: 오로라 API 엔지니어 추천",
+      "turns": [
+        "거기 지원해줘.",
+        "좋아. 제안한 수정은 전부 반영해서 이력서 준비하고 지원까지 진행해줘.",
+        "접수된 거 맞지? 어떤 이력서로 냈어?"
+      ]
+    },
+    {
+      "id": "application-natural-approval",
+      "locale": "ko",
+      "recommendation": "external_jd",
+      "application": {
+        "submission": "supported",
+        "resume": true
+      },
+      "subject": "Re: 오로라 API 엔지니어 추천",
+      "turns": [
+        "거기 지원해줘.",
+        "응, 그렇게 다듬어서 그 회사에 보내줘. 추가 경험은 넣지 않아도 돼."
+      ]
+    },
+    {
+      "id": "application-required-fact",
+      "locale": "ko",
+      "recommendation": "external_jd",
+      "application": {
+        "submission": "supported",
+        "resume": true,
+        "fields": [
+          {
+            "label": "Resume",
+            "type": "file",
+            "required": true,
+            "options": [],
+            "instructions": "Upload resume PDF",
+            "fileTypes": [
+              ".pdf"
+            ],
+            "maxLength": null
+          },
+          {
+            "label": "Are you legally authorized to work in the United States?",
+            "type": "select",
+            "required": true,
+            "options": [
+              "Yes",
+              "No"
+            ],
+            "instructions": "Applicant must provide a factual answer. Location and approval to apply do not establish this fact.",
+            "fileTypes": [],
+            "maxLength": null
+          }
+        ]
+      },
+      "subject": "Re: 오로라 API 엔지니어 추천",
+      "turns": [
+        "거기 지원해줘.",
+        "좋아. 제안한 수정은 전부 반영해서 이력서 준비하고 지원까지 진행해줘."
+      ]
+    }
+  ]
+}

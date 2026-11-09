@@ -1,0 +1,14 @@
+{
+  "task": "career-request-intro-reply",
+  "datasetVersion": "v1",
+  "createdAt": "2026-09-22T10:53:30.361Z",
+  "source": "synthetic snapshot derived from testOnly fixture company-request-intro-daniel-v1",
+  "caseCount": 1,
+  "variantCount": 4,
+  "casesSha256": "9c751578db4457c5c061757e96ffeaea9343395bc9c531c0dbb20312f5c0b245",
+  "goldSha256": "e11245fd81feab5f0b49a7a3017de07a3af3ba82ac8c1e77f773fbf641c73754",
+  "variantsSha256": "6d4127425d150f5952ddd64529e727a6ba5b3ff57f4a9205c400eb513afb82c3",
+  "runner": "scripts/evalCareerRequestIntroPromptComparison.ts",
+  "reviewStatus": "human-review-pending",
+  "privacy": "de-identified synthetic E2E fixture; no email, production user ID, resume, Brief, Memory, or raw production conversation"
+}

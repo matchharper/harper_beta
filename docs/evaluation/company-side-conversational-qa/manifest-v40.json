@@ -1,0 +1,16 @@
+{
+  "datasetVersion": "v40",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v40.json": "6e486c48cc25b9a8d1463c1fb2b8e2e21dd519698b48bef97d6ffb84c8beeeae",
+    "gold-v40.md": "c3c817a9040d9da9e04c7f53db64b28a005a49845adada8722f68dea8c133c16",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "2 synthetic conversations / 2 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v40 --run=<fresh>",
+  "model": "Production Gemini 3.8 Flash / medium; exact configuration and input captured by runner",
+  "provenance": "Synthetic policy clarification cases authored before execution on 2026-10-27. No production data.",
+  "privacy": "Synthetic only; production DB and external delivery blocked. Raw output in ignored owner-only runs/.",
+  "releaseGate": "2/2 manual semantic review; zero critical errors or unauthorized effects",
+  "knownLimitations": "Small synthetic policy challenge, not production DB/browser/payment E2E or independent review."
+}

@@ -1,0 +1,11 @@
+{
+  "datasetVersion": "v1",
+  "date": "2026-10-14",
+  "provenance": "Derived from frozen external-fit-playground v2 synthetic only; original left unchanged. Additional parity rows duplicate facts under distinct synthetic identifiers.",
+  "goldReviewer": "Codex author, not independent human labels",
+  "files": {
+    "cases-v1.json": "1f782e62f04605143aca1a4d78012627f68a994e025f6b49724e8d1c21c8ddd9",
+    "gold-v1.json": "84439e2776463d1410caa2bd6612823a8eea079a2ce59e55709dc3fa87233ad3",
+    "control-rerank-prompts.v1.json": "2a26e7157eab26745f1a79f8920c590f3d6f34e194816f47085197aff15c81b2"
+  }
+}

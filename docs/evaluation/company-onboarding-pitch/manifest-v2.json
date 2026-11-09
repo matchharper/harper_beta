@@ -1,0 +1,16 @@
+{
+  "version": "v2",
+  "frozenAt": "2026-10-09T02:32:42.224545+00:00",
+  "provenance": "2026-10-09 user clarified Pitch as company appeal for candidates. PITCH01-03 inputs retained from v1 (unblinded); PITCH04-06 are new synthetic challenges. Frozen before v2 model execution; self-authored gold, independent teammate review pending.",
+  "labelHistory": [
+    {
+      "date": "2026-10-09",
+      "reviewer": "Codex self-authored; independent teammate review pending",
+      "reason": "User clarified the artifact purpose. Added company appeal, conditional benefits and Pitch versus job-description gold, with v1 input retention and three new synthetic cases. No v2 model output had been viewed."
+    }
+  ],
+  "files": {
+    "cases-v2.json": "e258a2d27b656f7baccaae53e5ec76025cee91944cac225c26670bbdc2f5211c",
+    "gold-v2.md": "d9d628432835c6f498a03e8ab1e6cbc8a18d2a57f1ee4c3908d5e4b33d5549e3"
+  }
+}

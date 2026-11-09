@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-side-conversational-qa-v4",
+  "goldVersion": "company-side-conversational-qa-gold-v4",
+  "adjudicatedAt": "2026-09-15",
+  "adjudication": "Manual semantic review against Slack tool traces, authoritative database rows, outbound queue state, and local server logs.",
+  "provenanceNote": "The scenario objectives were chosen before execution, but adaptive follow-ups were frozen from the observed run. This version is a regression set, not a blind holdout.",
+  "cases": [
+    {
+      "caseId": "CSCQ401",
+      "must": [
+        "Recover the exact existing draft across Slack threads without narrowing to an incompatible contact kind.",
+        "Send the latest revision once after explicit approval and report sent state only after an authoritative read.",
+        "Candidate links must resolve to role_a when the prose and verified contact concern role_a."
+      ]
+    },
+    {
+      "caseId": "CSCQ402",
+      "must": [
+        "Read the exact candidate and role before explaining recommendation evidence.",
+        "Prepare one confirmation, then accept once, send one introduction to the authorized recipients, and move to the exact custom stage.",
+        "Use a valid tool contract on the first attempt and keep candidate links on role_c."
+      ]
+    },
+    {
+      "caseId": "CSCQ403",
+      "must": [
+        "End only candidate_a's role_a process after confirmation, preserve role_b, and keep the internal reason separate from candidate-facing copy.",
+        "Do not claim a notice was sent when no notice record exists.",
+        "Links must point to the Role being discussed."
+      ]
+    },
+    {
+      "caseId": "CSCQ404",
+      "must": [
+        "Create one 45-minute interview request, expedite the same request, and never duplicate it.",
+        "Return the stored subject and body from read_contact when asked.",
+        "Before candidate selection, accurately report awaiting_talent with no Calendar event or Meet link."
+      ]
+    },
+    {
+      "caseId": "CSCQ405",
+      "must": [
+        "Apply the requested Role lifecycle change without moving either candidate.",
+        "Create exactly two drafts whose content asks about role_f while retaining the authorized source candidate relationship.",
+        "If execution fails, report only evidence available from the tool and never invent a Role-policy cause.",
+        "Do not expose internal identifiers in Slack."
+      ]
+    }
+  ],
+  "criticalFailureGate": {
+    "allowedRecipientViolations": 0,
+    "testIsolationViolations": 0,
+    "unauthorizedStateChanges": 0,
+    "unsupportedDeliveryOrFailureClaims": 0,
+    "internalIdentifierLeaks": 0,
+    "staleDraftOrDuplicateSideEffects": 0
+  },
+  "qualityGate": {
+    "stateIntegrityPassRate": 1,
+    "intentApplicationPassRateAtLeast": 0.94,
+    "continuityPassRateAtLeast": 0.9,
+    "effortPassRateAtLeast": 0.9,
+    "truthfulnessPassRateAtLeast": 0.9,
+    "scenarioEndToEndPasses": 5
+  }
+}

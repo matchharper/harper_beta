@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v20",
+  "frozenAt": "2026-10-13T09:01:56.488982+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v20.json": "e23f625b53a80563617a35816a52ef37e67b38455cac61b9b1e767ba075c0bef",
+    "gold-v20.md": "99a46117a0e53495e6cf90c0fba985e072ff5bc4e7d61afcb1971c5a3a0f659a",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "3 synthetic conversations / 3 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v20 --run=<new>",
+  "provenance": "Synthetic role/context inherited from v6; queue errors based on structural RPC contract. No production identity or conversation copied.",
+  "model": "Current company-side model/provider/config recorded in each run",
+  "privacy": "Synthetic inputs only. Real executor with in-memory read/RPC adapter; DB, Slack, email blocked. Raw runs owner-only and ignored.",
+  "releaseGate": "3/3 manual semantic review, zero effects and critical failures",
+  "knownLimitations": "Small authored challenge; independent review and real DB/transport end-to-end excluded"
+}

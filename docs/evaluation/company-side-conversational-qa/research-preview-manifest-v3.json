@@ -1,0 +1,18 @@
+{
+  "datasetVersion": "research-preview-v3",
+  "frozenAt": "2026-10-15T05:03:45.275Z",
+  "files": {
+    "research-preview-v3.json": "54df7cdf98fc89b0349b1fff2499e4f7a2a9a4364a6bc01708bd9934c4f83f61",
+    "research-preview-gold-v3.md": "e62cd2af224af1d0aba74099a9e523a39295431f31bb5beb846bbbe80d046f65"
+  },
+  "runner": "scripts/runRoleSearchResearchPreview.ts",
+  "provenance": "User corrected level-versus-exact-origin interpretation after v2. Case inputs unchanged; new author gold frozen before first v3 run. Historical v1/v2 artifacts retained.",
+  "releaseGate": "4/4 mandatory meaning, critical 0; selected-case runs are not whole gate.",
+  "knownLimitations": [
+    "Synthetic/adapted internal evidence",
+    "Live web varies in RSR03",
+    "Author review, not blind evaluation",
+    "No production writes or delivery",
+    "Model and prompt change together"
+  ]
+}

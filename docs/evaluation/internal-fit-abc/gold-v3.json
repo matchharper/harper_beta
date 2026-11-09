@@ -1,0 +1,1021 @@
+{
+  "axisDefinitions": {
+    "a": {
+      "definition": "객관적 직무 수행 가능성과 JD hard requirement. 결정적 후보 사실 하나가 없으면 hold, 증거가 넓게 혼재하면 ambiguous, 명시적 충돌이면 unfit.",
+      "labels": [
+        "fit",
+        "hold",
+        "ambiguous",
+        "unfit"
+      ],
+      "name": "role_fit"
+    },
+    "b": {
+      "definition": "후보의 명시·행동 기반 선호와 현재 만족 가능성. 역할 scope/level, 회사·보상·위치·근무 방식·검색 상태를 포함.",
+      "labels": [
+        "fit",
+        "middle",
+        "unfit"
+      ],
+      "name": "candidate_fit"
+    },
+    "c": {
+      "definition": "회사별 품질·선별성·선호 기준에 비춘 인터뷰 의향. A의 직무 가능성과 분리해 판단.",
+      "labels": [
+        "fit",
+        "ambiguous",
+        "unfit"
+      ],
+      "name": "company_fit"
+    }
+  },
+  "capturedAt": "2026-09-02T09:19:58.634162+00:00",
+  "caseCount": 13,
+  "cases": [
+    {
+      "anchorRole": "R-1d074d5e8328",
+      "baseline": {
+        "label": "fit",
+        "lastEvaluatedAt": "2026-08-19T18:14:50.994666+00:00",
+        "recommend": true,
+        "score": 87
+      },
+      "caseId": "ABC01",
+      "company": "Config",
+      "gold": {
+        "companyFitGroundTruth": {
+          "observedAt": "2026-08-20T02:10:01.819000+00:00",
+          "source": "production_pipeline_stage",
+          "strictPositive": true,
+          "tier": "explicit_pending_connection"
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "already_in_company_pipeline",
+        "evidence": [
+          "Woowa Brothers Head of Robotics Lab으로 실제 robot-delivery 서비스를 운영하고 50명 이상 조직과 기술 방향을 책임",
+          "Kakao Mobility 자율주행과 Samsung sensor-fusion/ROS2 이력, KAIST CS 박사, 한국어·영어 협업 근거",
+          "동일 후보×동일 role이 production에서 명시적 연결 대기 단계에 도달"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "최근까지 로봇 서비스·자율주행 시스템을 직접 구축·운영한 hands-on 기술 리더이며 Head 역할의 회사 bar를 충족한다. Physical AI 방향과 서울 근무 선호도 일치한다. C는 추론이 아니라 동일 pair의 명시적 production 연결 대기 이력으로 고정한다.",
+        "slice": "observed_positive_head_of_robotics"
+      },
+      "inputFingerprint": "6f7181b891d626f1c1b98900f5cb8eeb488ae45afa864f217def7591bfb0b7a3",
+      "role": "Head of Robotics Systems",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-1e71e3d78eec",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-c071a48493fa",
+      "baseline": {
+        "label": "fit",
+        "lastEvaluatedAt": "2026-08-25T14:55:50.162306+00:00",
+        "recommend": true,
+        "score": 92
+      },
+      "caseId": "ABC02",
+      "company": "Config",
+      "gold": {
+        "companyFitGroundTruth": {
+          "observedAt": "2026-08-26T13:17:00.669000+00:00",
+          "source": "production_pipeline_stage",
+          "strictPositive": true,
+          "tier": "explicit_pending_connection"
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "already_in_company_pipeline",
+        "evidence": [
+          "Samsung에서 휴머노이드 middleware·500Hz 실시간 제어·VLA/teleop·ROS2·C++ 시스템을 직접 구축",
+          "다종 로봇과 제조물류 AMR 약 300대에 적용한 시스템 통합·운영 및 기술 리딩 근거",
+          "동일 후보×동일 role이 production에서 명시적 연결 대기 단계에 도달"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "Config Robotics Systems의 control, middleware, robot integration, hands-on production 기준을 직접 충족한다. 후보도 시스템 코어를 바탕으로 AI와 하드웨어를 잇는 역할을 원한다. C는 동일 pair의 명시적 production 연결 대기 이력으로 고정한다.",
+        "slice": "observed_positive_robotics_systems_engineer"
+      },
+      "inputFingerprint": "d82cfc1c101599b87f868c4517f89713319e38ca3f07485ea485eddd81d96453",
+      "role": "Robotics Systems Engineer",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-3b4f1daa9797",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-44b0b05aa5bd",
+      "baseline": {
+        "label": "fit",
+        "lastEvaluatedAt": "2026-08-28T13:45:32.147952+00:00",
+        "recommend": true,
+        "score": 86
+      },
+      "caseId": "ABC03",
+      "company": "Wonderful",
+      "gold": {
+        "companyFitGroundTruth": {
+          "observedAt": "2026-08-31T11:10:59.957000+00:00",
+          "source": "production_pipeline_stage",
+          "strictPositive": true,
+          "tier": "explicit_pending_connection"
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "already_in_company_pipeline",
+        "evidence": [
+          "Databricks·Imply 등에서 enterprise data/AI architecture, pre-sales, POC, adoption과 대형 deal을 직접 리드",
+          "Sydney 기반·호주 영주권, Site CTO 지향, Series B-D 선호와 역할 조건이 일치",
+          "동일 후보×동일 role이 production에서 명시적 연결 대기 단계에 도달"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "Field CTO의 enterprise technical sales, architecture, executive communication과 지역 조건을 충족하고 후보의 다음 역할 선호도 일치한다. C는 동일 pair의 명시적 production 연결 대기 이력으로 고정한다.",
+        "slice": "observed_positive_field_cto_australia"
+      },
+      "inputFingerprint": "4a22dc7f988dbee96beaad67040a5dccd58f38f39e217cc755774988ce6b5ca8",
+      "role": "Field CTO - Australia",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-0eadf128ce87",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-49237828d5dc",
+      "baseline": {
+        "label": "fit",
+        "lastEvaluatedAt": "2026-07-03T02:29:06.355262+00:00",
+        "recommend": true,
+        "score": 90
+      },
+      "caseId": "ABC04",
+      "company": "Wonderful",
+      "gold": {
+        "companyFitGroundTruth": {
+          "observedAt": "2026-08-03T08:58:21.126322+00:00",
+          "source": "production_pipeline_stage",
+          "strictPositive": true,
+          "tier": "advanced_custom_stage"
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "already_in_company_pipeline",
+        "evidence": [
+          "15년 이상 embedded·full-stack·cloud 경력과 wearable/LLM/RAG/tool-calling 기반 healthcare product end-to-end 구축",
+          "한국 기반이며 senior engineer/architect와 초기 회사에서의 넓은 ownership을 선호",
+          "동일 후보×동일 role이 production에서 연결 대기 후 custom company stage까지 진행"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "모호한 문제를 product와 production system으로 만드는 hands-on breadth, AI agent 구축, 시스템 통합이 한국 FDE 핵심과 맞는다. 후보 선호도 충돌하지 않는다. C는 동일 pair의 명시적 후속 company-stage 이력으로 고정한다.",
+        "slice": "observed_positive_fde_korea"
+      },
+      "inputFingerprint": "2849fc2a60c706c3065e2282a268c17d397c4678d8a2449ed04ac9f050cbf0ca",
+      "role": "Forward Deployed Engineer (FDE)",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-402f53ded2cd",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-8e766a61839f",
+      "baseline": {
+        "label": "fit",
+        "lastEvaluatedAt": "2026-07-10T04:38:48.962213+00:00",
+        "recommend": true,
+        "score": 93
+      },
+      "caseId": "ABC05",
+      "company": "Wonderful",
+      "gold": {
+        "companyFitGroundTruth": {
+          "observedAt": "2026-08-31T10:18:45.725000+00:00",
+          "source": "production_pipeline_stage",
+          "strictPositive": true,
+          "tier": "advanced_final_offer"
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "already_in_company_pipeline",
+        "evidence": [
+          "Google Senior SWE/Tech Lead와 Azure Container Apps founding 경험, production AI/LLM 평가·tool-calling 구축",
+          "Sydney 기반·호주 영주권, FDE 관심과 active search가 명시됨",
+          "동일 후보×동일 role이 production에서 최종 오퍼 단계까지 진행"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "production engineering, ambiguous product ownership, AI/LLM hands-on 경험과 호주 FDE 조건을 충족하며 후보가 이 역할을 원한다. C는 동일 pair가 final offer까지 진행한 가장 강한 관측 outcome으로 고정한다.",
+        "slice": "observed_positive_fde_australia_final_offer"
+      },
+      "inputFingerprint": "20f42280f0b0e5184df904fff4a2f52e90a99c78b18bf1a1a40d4e0c7aba390c",
+      "role": "Forward Deployed Engineer (FDE) - Australia",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-83574ee151cc",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-530725be6621",
+      "baseline": {
+        "label": "fit",
+        "lastEvaluatedAt": "2026-07-21T09:02:17.453188+00:00",
+        "recommend": true,
+        "score": 84
+      },
+      "caseId": "ABC06",
+      "company": "Wonderful",
+      "gold": {
+        "companyFitGroundTruth": {
+          "observedAt": "2026-07-29T08:33:33.313071+00:00",
+          "source": "production_pipeline_stage",
+          "strictPositive": true,
+          "tier": "advanced_custom_stage"
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "already_in_company_pipeline",
+        "evidence": [
+          "Square CashApp와 Scalar에서 고신뢰 production backend·distributed systems·ML service integration·0→1 product 구축",
+          "일본어 native·영어 업무 가능, Tokyo 기반이며 FDE/customer-facing technical role을 명시적으로 희망",
+          "동일 후보×동일 role이 production에서 두 차례 custom company stage까지 진행"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "강한 production systems engineering과 cross-team delivery, 일본어·영어, Japan FDE 선호가 역할의 수행·후보 조건과 맞는다. C는 동일 pair의 명시적 advanced company-stage 이력으로 고정한다.",
+        "slice": "observed_positive_fde_japan_advanced"
+      },
+      "inputFingerprint": "144329ad5f533199ab09b8e49d20a1f80ec433f0c3369537da5b8bef3760e7f3",
+      "role": "Forward Deployed Engineer (FDE) - Japan",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-a816bff17fa2",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-da3045353cb0",
+      "baseline": {
+        "label": "fit",
+        "lastEvaluatedAt": "2026-07-15T11:49:22.505020+00:00",
+        "recommend": true,
+        "score": 85
+      },
+      "caseId": "ABC07",
+      "company": "Wonderful",
+      "gold": {
+        "companyFitGroundTruth": {
+          "observedAt": "2026-07-20T12:21:39.704000+00:00",
+          "source": "production_pipeline_stage",
+          "strictPositive": true,
+          "tier": "advanced_custom_stage"
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "already_in_company_pipeline",
+        "evidence": [
+          "Goldman Sachs VP로 enterprise platform architecture·delivery를 리드하고 장기간 full-stack/cloud systems를 직접 구축",
+          "RAG·LangGraph·CrewAI 기반 enterprise GenAI 구축, Singapore PR·영어 업무, FDE를 매우 진지하게 희망",
+          "동일 후보×동일 role이 production에서 custom company stage까지 진행"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "enterprise integration, hands-on architecture와 GenAI workflow 경험이 Singapore FDE 역할과 맞고 후보 선호도 명시적이다. C는 동일 pair의 명시적 advanced company-stage 이력으로 고정한다.",
+        "slice": "observed_positive_fde_singapore_advanced"
+      },
+      "inputFingerprint": "6652d99da80dde8f6358774a70f91d4f40c760e70247d9ab662decfdf6668194",
+      "role": "Forward Deployed Engineer (FDE) - Singapore",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-0a368c9d7182",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-198259bebf92",
+      "baseline": {
+        "label": "hold",
+        "lastEvaluatedAt": "2026-09-01T13:28:16.917366+00:00",
+        "recommend": false,
+        "score": 77
+      },
+      "caseId": "ABC08",
+      "company": "Config",
+      "gold": {
+        "companyFitGroundTruth": {
+          "source": "expert_adjudicated_no_observed_positive",
+          "strictPositive": false
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "fit"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow"
+          ]
+        },
+        "deliverySuppressionReason": "required_language_unverified",
+        "evidence": [
+          "Google AI Foundry와 Morgan Stanley에서 production AI·customer workflow를 직접 구축",
+          "FDE 역할 선호는 명시적이지만 한국어 기술 협업 근거는 없음",
+          "동일 후보×동일 role의 관측된 연결 대기·후속 company stage가 없어 C를 hard positive로 두지 않음"
+        ],
+        "expected": {
+          "a": "hold",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "holdQuestion": "한국 고객이나 동료와 기술 요구사항, 설계 결정, 장애 대응을 한국어로 진행할 수 있는 업무 수준인가요?",
+        "policy": {
+          "candidateMentionable": true,
+          "mustAskHoldQuestion": true,
+          "recommendNow": false
+        },
+        "rationale": "기술과 후보 선호는 강하지만 한국어 업무 능력 한 가지가 A의 결정 사실로 비어 있다. 회사 bar 통과 가능성은 높아도 관측 outcome이 없으므로 C는 ambiguous positive challenge로 둔다.",
+        "slice": "role_ready_language_hold_company_unvalidated"
+      },
+      "inputFingerprint": "0e8a2d80b220f1dad1b6312b0b25cd9e97ed155bd7f7f91a07519fc491d643db",
+      "role": "Forward-Deployed Engineer",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-d6dc1ba500ae",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-a422587d1c0a",
+      "baseline": {
+        "label": "hold",
+        "lastEvaluatedAt": "2026-09-02T05:56:17.792511+00:00",
+        "recommend": false,
+        "score": 68
+      },
+      "caseId": "ABC09",
+      "company": "Mistral AI",
+      "gold": {
+        "companyFitGroundTruth": {
+          "source": "expert_adjudicated_no_observed_positive",
+          "strictPositive": false
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "company_outcome_unobserved",
+        "evidence": [
+          "고객 문제를 제품·데이터 모델로 바꾸고 adoption까지 만든 경험",
+          "Python 자동화와 React·JavaScript·Node.js 기반 end-to-end 구현 ownership",
+          "동일 후보×동일 role의 관측된 연결 대기·후속 company stage가 없음"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "JavaScript와 end-to-end product ownership은 TypeScript full-stack으로 전이 가능한 충분한 A 근거이고 후보도 FDE를 원한다. 다만 회사의 실제 positive outcome이 없는 상태에서 C를 fit으로 고정하지 않고 ambiguous로 둔다.",
+        "slice": "transferable_fullstack_company_unvalidated"
+      },
+      "inputFingerprint": "5d705b8b4083e904b1465872113d27eb04f60eef503612954d516b73fed1c370",
+      "role": "Applied AI Engineer, Fullstack",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-f4702bd979f3",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-ef8a052fa3bd",
+      "baseline": {
+        "label": "dissatisfied",
+        "lastEvaluatedAt": "2026-08-29T18:38:40.415060+00:00",
+        "recommend": false,
+        "score": 55
+      },
+      "caseId": "ABC10",
+      "company": "Wonderful",
+      "gold": {
+        "companyFitGroundTruth": {
+          "source": "expert_adjudicated_no_observed_positive",
+          "strictPositive": false
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "candidate_preference_and_company_outcome_uncertain",
+        "evidence": [
+          "30년 이상 APAC enterprise sales·partner ecosystem·GTM·CEO/P&L·major deal ownership",
+          "현재 재직이나 일시적 off-market 상태는 B 판단에서 제외하며 직접 역할 선호가 약해 B middle",
+          "동일 후보×동일 role의 관측된 연결 대기·후속 company stage가 없음"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "middle",
+          "c": "ambiguous"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "역할 수행 근거는 충분하고 모든 후보를 구직 중으로 가정하므로 일시적 availability를 B unfit으로 쓰지 않는다. 후보의 직접 선호와 회사의 실제 positive outcome은 확인되지 않아 B middle, C ambiguous다.",
+        "slice": "search_status_excluded_company_unvalidated"
+      },
+      "inputFingerprint": "339be460e73d565d46b9baa85d4c1861213d2a3764564f4fa7a2819b4a2807e5",
+      "role": "Head of Partnerships, APAC",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-4cc195037ed0",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-e20944bcfd6c",
+      "baseline": {
+        "label": "unfit",
+        "lastEvaluatedAt": "2026-09-02T04:52:34.266442+00:00",
+        "recommend": false,
+        "score": 5
+      },
+      "caseId": "ABC11",
+      "company": "Wonderful",
+      "gold": {
+        "companyFitGroundTruth": {
+          "source": "expert_adjudicated_negative",
+          "strictPositive": false
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "fit"
+            },
+            {
+              "axis": "b",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "obvious_function_mismatch",
+        "evidence": [
+          "communications/editorial 경력",
+          "software engineering·production AI·systems integration 근거 없음",
+          "Thailand FDE로의 직무 전환 선호도 없음"
+        ],
+        "expected": {
+          "a": "unfit",
+          "b": "unfit",
+          "c": "unfit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "핵심 경력과 선호가 software/AI FDE 기능과 명백히 다르므로 세 축 모두 unfit이다. work authorization 같은 부차적 질문으로 obvious mismatch를 hold로 바꾸면 안 된다.",
+        "slice": "obvious_function_mismatch"
+      },
+      "inputFingerprint": "24d1fde5555aad8d04fb71cbdbf6c24ac0937b5e6ef734622a15889cc16b98ac",
+      "role": "Forward Deployed Engineer (FDE) - Thailand",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-abf6c85b43d2",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-1abc450110f8",
+      "baseline": {
+        "label": "dissatisfied",
+        "lastEvaluatedAt": "2026-08-28T04:58:50.399703+00:00",
+        "recommend": false,
+        "score": 55
+      },
+      "caseId": "ABC12",
+      "company": "Sierra",
+      "gold": {
+        "companyFitGroundTruth": {
+          "source": "expert_adjudicated_negative",
+          "strictPositive": false
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "company_caliber_bar_not_met",
+        "evidence": [
+          "실제 FDE로 의료 고객 AI agent와 Python backend를 대규모 운영",
+          "영어·한국어 professional bilingual이며 SWE/FDE와 한국 이전을 원함",
+          "Sierra의 독립된 최상위 caliber 신호 2개 이상 기준은 충족하지 못함"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "unfit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "직무 수행과 후보 선호는 명확히 fit이다. 다만 Sierra가 요구한 별도의 매우 높은 회사 선별 bar는 충족 근거가 부족하므로 C만 unfit이다.",
+        "slice": "role_and_candidate_fit_company_unfit"
+      },
+      "inputFingerprint": "65d5694672864df0a9cd82a43684b4d09bd770d7b1186aa90a90c0397ac49d3a",
+      "role": "Software Engineer, Agent",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-47769c67fc2b",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-198259bebf92",
+      "baseline": {
+        "label": "unfit",
+        "lastEvaluatedAt": "2026-08-24T07:39:40.055333+00:00",
+        "recommend": false,
+        "score": 39
+      },
+      "caseId": "ABC13",
+      "company": "Config",
+      "gold": {
+        "companyFitGroundTruth": {
+          "source": "expert_adjudicated_negative",
+          "strictPositive": false
+        },
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "fit"
+            },
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "verified_robotics_domain_mismatch",
+        "evidence": [
+          "AbbVie에서 MES·SAP·Dataiku·agentic AI와 산업 자동화·IT-OT 시스템을 production에 배포",
+          "RFID·autonomous warehouse program은 인접 근거지만 robot control·ROS·sensor/calibration ownership은 확인되지 않음",
+          "Config가 요구하는 직접 robotics systems 산업·연구 신호를 충족하지 못함"
+        ],
+        "expected": {
+          "a": "unfit",
+          "b": "fit",
+          "c": "unfit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "후보가 FDE와 hands-on operational deployment를 원하므로 B는 fit이다. 산업 자동화와 IT-OT 경험을 무시해서는 안 되지만 Config FDE의 핵심인 직접 robot control·sensor·robotics-system deployment 근거는 없다. 한국어만 확인하면 해결되는 문제가 아니므로 A hold로 바꾸지 않고 A/C unfit으로 둔다.",
+        "slice": "candidate_wants_fde_but_robotics_core_missing"
+      },
+      "inputFingerprint": "e523f59bde76798f165c28df898fda7f127a53f95e740066d33ee38daeeb2468",
+      "role": "Forward-Deployed Engineer",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-0f1e66f570b3",
+      "task": "internal_fit_abc"
+    }
+  ],
+  "containsProductionPII": false,
+  "evaluationContract": {
+    "criticalForbiddenAssignmentsMustBeZero": true,
+    "exactAxisMatch": true,
+    "holdQuestionAllowedOnlyWhenMustAskHoldQuestionIsTrue": true,
+    "policyBooleansMustMatch": true,
+    "questionTextIsSemanticNotExactString": true
+  },
+  "revisionHistory": [
+    {
+      "at": "2026-09-02T06:45:24.138999+00:00",
+      "change": "ABC11-ABC13 추가: company-caliber unfit, robotics-domain hard unfit, explicit required-language unfit"
+    },
+    {
+      "at": "2026-09-02T08:40:54Z",
+      "change": "v2 user adjudication: accept transferable adjacent stack evidence for ABC03; ignore employment/search status and set ABC08 candidate fit to middle"
+    },
+    {
+      "at": "2026-09-02T09:19:58.634162+00:00",
+      "change": "v3 rebuilt C=fit positives from explicit same-pair production pipeline stages; talent-side saved_stage=connected is excluded"
+    }
+  ],
+  "updatedAt": "2026-09-02T09:19:58.634162+00:00",
+  "version": "internal_fit_abc_gold_v3",
+  "warnings": [
+    "의도적으로 구성한 13개 challenge set이므로 전체 모집단 성능 추정용이 아니다.",
+    "C=fit은 동일 후보×동일 role의 명시적 production pending/custom/final stage가 있는 사례만 사용한다.",
+    "C가 ambiguous 또는 unfit인 사례는 부정 outcome의 대표 표본이 아니라 reviewer가 고른 challenge case다.",
+    "현재 production context snapshot이며 과거 stage 이동 당시의 causal replay가 아니다."
+  ],
+  "workerRevision": "53448d179c1a73427688d6d89a923d7942ad37c4"
+}

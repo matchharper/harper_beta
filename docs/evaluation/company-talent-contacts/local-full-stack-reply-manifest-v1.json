@@ -1,0 +1,12 @@
+{
+  "datasetVersion": "local-full-stack-reply-v1",
+  "frozenAt": "2026-09-28T13:01:52.197639+00:00",
+  "files": {
+    "local-full-stack-reply-v1.json": "ed4bf8c1a2dca6a4167361e7c971475c7904bfa44f0738fa642f67fdf3fa2930"
+  },
+  "evaluationUnit": "Two local full-stack question/reply conversations",
+  "runner": "docs/local-full-stack-e2e-ko.md plus scripts/localE2e/stack.mjs and actual application UI",
+  "releaseGate": "Manual complete-flow semantic/visibility/isolation review; no duplicate or unrelated changes",
+  "privacy": "Authorized fixture identity only; synthetic Role/profile/messages; exact raw outputs in ignored owner-only runs",
+  "limitations": "Capture transport is not Gmail delivery; real inbox requires active Gmail auth and observed reply; independent review pending"
+}

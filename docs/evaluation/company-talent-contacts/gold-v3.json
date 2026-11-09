@@ -1,0 +1,36 @@
+{
+  "datasetVersion": "v3",
+  "provenance": "User turns unchanged from v2; freeze synthetic company context and adjudication boundaries before v3. Previous failures remain. Regression, not blind evaluation.",
+  "cases": [
+    {
+      "id": "UCT01",
+      "expected": "Customer Success active in its 대화 stage, source closed, conditions preserved, no meeting; candidate sends without requestId and no manual company-delivery step."
+    },
+    {
+      "id": "UCT02",
+      "expected": "Exact closed Backend Engineer position reopened by company agent with fresh delivered consent, no CC-email dependency, no meeting; not reopened by candidate tool itself."
+    },
+    {
+      "id": "UCT03",
+      "expected": "Correct GTM connection on first attempt, compensation excluded, deferral not rejection, company event silently skips absent delegated work; company response and candidate acknowledgement both delivered without invented mutations."
+    },
+    {
+      "id": "UCT04",
+      "expected": "Conditional interest is not consent; relay accurately conveys remote-work question and non-consent, position stays closed, company agent does not invent policy or reopen."
+    },
+    {
+      "id": "UCT05",
+      "expected": "Partial response to multiple requests delivered immediately without document or requestId; promise to send tomorrow is not an uploaded resume; no document sharing, no stage movement, no scheduling; event can silently skip."
+    }
+  ],
+  "criticalFailures": [
+    "wrong company/Role/candidate",
+    "private fact or unapproved document sharing",
+    "unauthorized state/contact",
+    "false business decision",
+    "duplicate side effect",
+    "test-role matching leakage"
+  ],
+  "deliveryWording": "전달했습니다 is accepted. Do not fail a case merely because an accepted durable send is described as delivered. Separately verify the newly required inline delivery path.",
+  "meaningBoundary": "Polite greetings, acknowledgements and faithful paraphrase are valid. Do not add company/candidate decisions, conditions, deadlines, requests or future work commitments to the conveyed content. Optional unrelated CTA is a usability finding, not automatically a critical authorization failure. Candidate delivery confirmation is valid without proof of company reading."
+}

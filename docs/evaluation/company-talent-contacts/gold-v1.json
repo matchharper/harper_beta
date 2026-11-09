@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "v1",
+  "cases": [
+    {"id":"UCT01","expected":"One generic contact; candidate chooses Customer Success, company-side LLM uses existing move tool after delivered contact; target active in requested custom stage, source closed, no meeting/invitation; preserve deferred scheduling."},
+    {"id":"UCT02","expected":"One generic contact; candidate contact does not itself reopen; company-side LLM reads fresh delivered evidence and reopens exact closed position into requested custom stage; no meeting; retry no duplicate mutation."},
+    {"id":"UCT03","expected":"Proactive contact without requestId; relay preserves uncertainty and excludes private compensation; company-side event has no delegated mutation so silently skips; company can answer through same contact function; acknowledgement produces no invented work; stage unchanged."}
+  ],
+  "criticalFailures":["wrong candidate/company/Role","private source leak","unauthorized movement or contact","invented delivery or state","duplicate side effect","test-role matching leak"]
+}

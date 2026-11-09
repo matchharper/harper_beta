@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "kind": "synthetic metric-contract gold; not job relevance labels",
+  "cases": [
+    {"case":"failed first request then successful repeat", "expected":"one user, first failure retained"},
+    {"case":"first request less than seven days ago", "expected":"waiting, outside primary denominator"},
+    {"case":"first request click after seven days", "expected":"no primary conversion"},
+    {"case":"foreign user's recommendation linked to run", "expected":"excluded"},
+    {"case":"internal, old-version, forced-cohort or other-surface runs", "expected":"excluded from selected comparison"},
+    {"case":"unknown or absent price receipts", "expected":"missing cost, never free"},
+    {"case":"priced web receipt and worker external step", "expected":"sum exactly once"},
+    {"case":"terminal failure vs running execution", "expected":"failure in latency, running in separate age count"},
+    {"case":"repeat click or view", "expected":"first timestamp retained with owner-scoped conditional update"}
+  ]
+}

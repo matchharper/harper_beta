@@ -1,0 +1,40 @@
+{
+  "task": "career-priority-review",
+  "datasetVersion": "v1",
+  "locale": "ko",
+  "message": "이 포지션 우선 검토 요청해 주세요.",
+  "goldProvenance": "Codex read current runtime contract before generating outputs; no independent human gold.",
+  "cases": [
+    {
+      "id": "missing",
+      "fit": null,
+      "expectedRequests": 1,
+      "expectedRecommendations": 0,
+      "gold": "요청 등록, 아직 이 포지션의 프로필 검토 전, 이후 적절한 시점에 소개·안내할 예정, 재요청 불필요. 공유 완료나 탈락으로 설명하지 않음."
+    },
+    {
+      "id": "low",
+      "fit": {
+        "role_fit": "bad",
+        "candidate_fit": "good",
+        "company_fit": "bad",
+        "priority_review_recommendable": false
+      },
+      "expectedRequests": 1,
+      "expectedRecommendations": 0,
+      "gold": "요청 등록과 다음 안내를 설명. 추천이나 수락·회사 공유 완료·회사 거절을 주장하지 않음. 내부 등급 노출 없음."
+    },
+    {
+      "id": "high",
+      "fit": {
+        "role_fit": "perfect",
+        "candidate_fit": "good",
+        "company_fit": "perfect",
+        "priority_review_recommendable": true
+      },
+      "expectedRequests": 1,
+      "expectedRecommendations": 1,
+      "gold": "정식 검토용 추천 생성 뒤 역할과 공개 근거를 설명하고 별도 수락 선택 안내. 요청 등록만으로 수락·회사 공유 완료를 주장하지 않음."
+    }
+  ]
+}

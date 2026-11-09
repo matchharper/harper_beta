@@ -1,0 +1,229 @@
+[
+  {
+    "id": "skipped-login-public-docs",
+    "profileContext": "Alex Example, alex@example.test. Example Studio Backend Engineer, 2022–2025. Confirmed work: built APIs; designed Redis caching for search API in 2024 and reduced p95 from 800ms to 240ms; on-call incident response. These facts are already stored. No portfolio or work-sample file has been supplied. Do not infer private life or long-held preferences.",
+    "suggestions": [
+      {
+        "kind": "question",
+        "title": "별도 검색 품질 평가 경험이 있나요?",
+        "reason": "직접 진행한 평가 경험이 있다면 이력서에 보완할 수 있어요."
+      }
+    ],
+    "applicationForm": {
+      "status": "partial",
+      "url": "https://example.test/apply",
+      "checkedAt": "2026-10-29T00:00:00Z",
+      "fields": [],
+      "limitations": [
+        "After clicking Apply, the browser reached a login page. No form fields were visible."
+      ],
+      "submission": {
+        "status": "unsupported",
+        "reason": "The browser clicked Apply on the posting then a login/signup dialog appeared. Applicant must log in."
+      },
+      "text": "Public job description requires a resume plus a separate document describing one relevant project, personal contribution, results and professional interest in this API engineering role."
+    },
+    "application": "Public JD requires resume plus project/contribution/results/professional-interest document. Login hides the actual form. No additional original artifact is requested.",
+    "steps": [
+      {
+        "responses": [
+          {
+            "decision": "skip"
+          }
+        ],
+        "automaticContinuation": true
+      }
+    ]
+  },
+  {
+    "id": "draft-fields-and-document",
+    "profileContext": "Alex Example, alex@example.test. Example Studio Backend Engineer, 2022–2025. Confirmed work: built APIs; designed Redis caching for search API in 2024 and reduced p95 from 800ms to 240ms; on-call incident response. These facts are already stored. No portfolio or work-sample file has been supplied. Do not infer private life or long-held preferences.",
+    "suggestions": [
+      {
+        "kind": "question",
+        "title": "별도 검색 품질 평가 경험이 있나요?",
+        "reason": "직접 진행한 평가 경험이 있다면 이력서에 보완할 수 있어요."
+      }
+    ],
+    "applicationForm": {
+      "status": "read",
+      "fields": [
+        {
+          "label": "이름",
+          "type": "text",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "이메일",
+          "type": "email",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "지원 동기와 관련 경험",
+          "type": "textarea",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "이력서",
+          "type": "file",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "프로젝트 소개서",
+          "type": "file",
+          "required": true,
+          "options": [],
+          "instructions": "대표 프로젝트의 기여와 성과를 정리한 문서",
+          "fileTypes": [
+            "pdf"
+          ],
+          "maxLength": null
+        },
+        {
+          "label": "개인정보 제공 동의",
+          "type": "checkbox",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        }
+      ],
+      "limitations": [],
+      "submission": {
+        "status": "supported",
+        "reason": "Public application path is accessible without login. No CAPTCHA observed."
+      },
+      "url": "https://example.test/apply",
+      "checkedAt": "2026-10-29T00:00:00Z"
+    },
+    "application": "Name, email, motivation, resume, project summary PDF and unselected privacy consent. Use profile evidence for writing.",
+    "steps": [
+      {
+        "responses": [
+          {
+            "decision": "skip"
+          }
+        ],
+        "automaticContinuation": true
+      }
+    ]
+  },
+  {
+    "id": "portfolio-original-missing",
+    "profileContext": "Alex Example, alex@example.test. Example Studio Backend Engineer, 2022–2025. Confirmed work: built APIs; designed Redis caching for search API in 2024 and reduced p95 from 800ms to 240ms; on-call incident response. These facts are already stored. No portfolio or work-sample file has been supplied. Do not infer private life or long-held preferences.",
+    "suggestions": [
+      {
+        "kind": "question",
+        "title": "별도 검색 품질 평가 경험이 있나요?",
+        "reason": "직접 진행한 평가 경험이 있다면 이력서에 보완할 수 있어요."
+      }
+    ],
+    "applicationForm": {
+      "status": "read",
+      "fields": [
+        {
+          "label": "이름",
+          "type": "text",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "이메일",
+          "type": "email",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "지원 동기와 관련 경험",
+          "type": "textarea",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "이력서",
+          "type": "file",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "프로젝트 소개서",
+          "type": "file",
+          "required": true,
+          "options": [],
+          "instructions": "대표 프로젝트의 기여와 성과를 정리한 문서",
+          "fileTypes": [
+            "pdf"
+          ],
+          "maxLength": null
+        },
+        {
+          "label": "개인정보 제공 동의",
+          "type": "checkbox",
+          "required": true,
+          "options": [],
+          "instructions": "",
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "포트폴리오",
+          "type": "file",
+          "required": true,
+          "options": [],
+          "instructions": "본인의 실제 작업물 원본",
+          "fileTypes": [
+            "pdf"
+          ],
+          "maxLength": null
+        }
+      ],
+      "limitations": [],
+      "submission": {
+        "status": "supported",
+        "reason": "Public application path is accessible without login. No CAPTCHA observed."
+      },
+      "url": "https://example.test/apply",
+      "checkedAt": "2026-10-29T00:00:00Z"
+    },
+    "application": "Name, email, motivation, resume, project summary PDF and unselected privacy consent. Use profile evidence for writing. Portfolio original is also required. All available documents are the selected resume; there is no portfolio/work-sample original. Ordinary project summary is a separate required document.",
+    "steps": [
+      {
+        "responses": [
+          {
+            "decision": "skip"
+          }
+        ],
+        "automaticContinuation": true
+      }
+    ]
+  }
+]

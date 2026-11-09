@@ -1,0 +1,9 @@
+{
+  "version": "storage-live-v1",
+  "frozenBeforeExecution": true,
+  "expectedFilename": "Harper Storage Test.pdf",
+  "expectedSize": 2748,
+  "expectedSha256": "f71885a38527f96f3a939ad87d4ed7bd06c7a20639faaeb2e78725d83d6aa61c",
+  "gate": "Actual observed resume file input name/size/SHA256 matches original Storage bytes; file appears in the real page; final submission remains false. If server acknowledgement is unobserved, report only client selection, not server receipt.",
+  "privacyBoundary": "Exact public application destinations, user-designated E2E PDF only, no consent selection or final submission. Automatic PDF upload to ATS is explicitly authorized."
+}

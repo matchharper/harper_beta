@@ -1,0 +1,15 @@
+{
+  "datasetVersion": "v36",
+  "frozenAt": "2026-10-20T12:21:19.774148+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v36.json": "0e04ec35c84df362f71e3a1d762f918522577090503830da4ab0ca891667fc17",
+    "gold-v36.md": "613eb264d748d2cd9e1030ece665bcfca9ea815a53252165c47dd83e57bf7ce6",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "3 synthetic single-turn candidate contact events",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v36 --run=<new>",
+  "privacy": "Synthetic only; DB/Slack/email blocked; raw provider output ignored owner-only",
+  "releaseGate": "3/3 manual semantic review; no unauthorized move; exact consent reference",
+  "knownLimitations": "Pipeline/transport adapters, no production delivery or independent reviewer."
+}

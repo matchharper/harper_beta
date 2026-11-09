@@ -1,0 +1,13 @@
+{
+  "datasetVersion": "v23",
+  "frozenAt": "2026-10-13T11:54:15.974907+00:00",
+  "files": {
+    "cases-v23.json": "db06dd5720ebab7a10ec6a53bf44b1a84a364d5896efbb9008a44e7d1764e8b9",
+    "gold-v23.md": "5a6724eab78594c57ad64076bf7fe2088e17b0e59445cd66b4f7dc1475538c6a"
+  },
+  "runner": "scripts/evalCompanyUpdateComposition.ts",
+  "provenance": "synthetic, no production data",
+  "privacy": "only model endpoint allowed; ignored runs owner-only",
+  "releaseGate": "2/2 semantic review, card coverage and links",
+  "knownLimitations": "composition only; database reads and Slack delivery not E2E"
+}

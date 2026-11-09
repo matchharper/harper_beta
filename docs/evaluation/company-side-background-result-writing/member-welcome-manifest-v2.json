@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "member-welcome-v2",
+  "inputSha256": "dc0349ea0d972956c462e56ba327ea00e22794572a47ce3a5ca59d6959969eac",
+  "goldSha256": "0dd9287b220bcd5ffe41dc4dcc23c38c32874b5b8675534d391ffc59d89cfefd",
+  "runner": "scripts/evalOrgOnboardingSlackWelcome.ts <fresh> v2",
+  "provenance": "Synthetic user-requested two-draft onboarding setup; no production data",
+  "releaseGate": "All mandatory meaning, critical 0",
+  "privacy": "Only synthetic model input; DB/Slack blocked; raw ignored 0700/0600"
+}

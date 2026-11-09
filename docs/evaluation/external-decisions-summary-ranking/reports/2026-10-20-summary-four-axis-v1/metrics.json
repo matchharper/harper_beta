@@ -1,0 +1,333 @@
+{
+  "createdAt": "2026-10-20T01:47:08.620716+00:00",
+  "dataset": {
+    "datasetVersion": "harper-eval-decisions-summary-v1",
+    "harper_eval_commit": "8b4eadeffa2f63149bce408f6fef611316b74fe5",
+    "casesVersion": "talent/cases/20260909-20261008/20261017T090550Z",
+    "prepVersion": "experiments/issue-1/prep/scoring-inputs-v1/20260909-20261008/20261017T090550Z",
+    "goldVersion": "experiments/issue-1/prep/pairs-v1/20260909-20261008/20261017T090550Z",
+    "summarySource": "Historical shown[].card.roleSummary[locale].content; no new summaries or pool data",
+    "cases": 359,
+    "talents": 268,
+    "roles": 2023,
+    "pairs": 2338,
+    "summaryRoles": 1932,
+    "fallbackRawRoles": 91,
+    "sourceFiles": {
+      "talent/cases/20260909-20261008/20261017T090550Z/manifest.json": "a7e6337ba6f2ad1a9869ecb75f268e89a75cd731d33ace8d1d1180125bdceb60",
+      "talent/cases/20260909-20261008/20261017T090550Z/part-000.jsonl.xz": "c4351396c9704941435ca42f02fdbba0f1ad81725b45ae2297a2fcfde1cacb30",
+      "talent/cases/20260909-20261008/20261017T090550Z/part-001.jsonl.xz": "f916d2530620fba3beddbd87ba9adb4cea425a02f2b15583124fd30ba8c0117d",
+      "experiments/issue-1/prep/scoring-inputs-v1/20260909-20261008/20261017T090550Z/inputs.jsonl": "3f9c032105a18c08032167ae5b99e9daf8809c49b13462042bc7699022e8f0ec",
+      "experiments/issue-1/prep/scoring-inputs-v1/20260909-20261008/20261017T090550Z/manifest.json": "391e99f8306a02db73e2b22a346ad5600c2d66ea9f5dbc3df4f6379f7072a192",
+      "experiments/issue-1/prep/pairs-v1/20260909-20261008/20261017T090550Z/pairs.jsonl": "d99e3c04c33c7d85bc1df43fced78b73d6e1a691a98db9f37ebeabeb88b03c93",
+      "experiments/issue-1/prep/pairs-v1/20260909-20261008/20261017T090550Z/manifest.json": "b8dbe9436ab37e64d0efea1b37f1d3bd9da4dcce092dc770ad1398d2d81fe9be"
+    },
+    "files": {
+      "cases.jsonl": "df6b055fa0fb80680be7dcbb73393c2dde3f10b9339d8639c2c09769f791e392",
+      "pairs.jsonl": "63d1f2b0a3ef02ae9676bf65d3b864334b29304e0bf9d6045bb6f06943ec3c48"
+    },
+    "limitations": [
+      "Only historically shown roles; max 15 per run, not full pre-rerank pool",
+      "Historical input restoration limitations are inherited from scoring-inputs-v1",
+      "Summaries may omit original requirements; their content is not regenerated"
+    ]
+  },
+  "accuracy": {
+    "baseline-r1": 0.588109495295124,
+    "baseline-r2": 0.588109495295124,
+    "treatment-r1": 0.5936698032506416,
+    "treatment-r2": 0.5936698032506416
+  },
+  "pair_outcomes": {
+    "baseline-r1": {
+      "dislike_ahead": 963,
+      "like_ahead": 1375
+    },
+    "baseline-r2": {
+      "dislike_ahead": 963,
+      "like_ahead": 1375
+    },
+    "treatment-r1": {
+      "dislike_ahead": 949,
+      "like_ahead": 1387,
+      "tie": 2
+    },
+    "treatment-r2": {
+      "dislike_ahead": 949,
+      "like_ahead": 1387,
+      "tie": 2
+    }
+  },
+  "paired": {
+    "all": {
+      "pairs": 2338,
+      "talents": 268,
+      "baseline": 0.588109495295124,
+      "treatment": 0.5936698032506416,
+      "delta": 0.0055603079555175405,
+      "baseline_ci95": [
+        0.5530676942114554,
+        0.6234449619611796
+      ],
+      "treatment_ci95": [
+        0.5526734611522747,
+        0.6338408957096399
+      ],
+      "delta_ci95": [
+        -0.03647803043990741,
+        0.04410600291407437
+      ]
+    },
+    "brief_exact": {
+      "pairs": 2204,
+      "talents": 240,
+      "baseline": 0.5911978221415608,
+      "treatment": 0.5948275862068966,
+      "delta": 0.003629764065335772,
+      "baseline_ci95": [
+        0.5543699947954267,
+        0.6285435112545993
+      ],
+      "treatment_ci95": [
+        0.5513233580412912,
+        0.6371015851946624
+      ],
+      "delta_ci95": [
+        -0.0418189559831895,
+        0.04491306651462666
+      ]
+    },
+    "both_summaries": {
+      "pairs": 2164,
+      "talents": 260,
+      "baseline": 0.583641404805915,
+      "treatment": 0.589648798521257,
+      "delta": 0.00600739371534198,
+      "baseline_ci95": [
+        0.5475089754211545,
+        0.6205889271876415
+      ],
+      "treatment_ci95": [
+        0.5472309009704827,
+        0.6310613183660326
+      ],
+      "delta_ci95": [
+        -0.03945393161864484,
+        0.0473537604456824
+      ]
+    },
+    "any_raw_fallback": {
+      "pairs": 174,
+      "talents": 55,
+      "baseline": 0.6436781609195402,
+      "treatment": 0.6436781609195402,
+      "delta": 0.0,
+      "baseline_ci95": [
+        0.5514705882352942,
+        0.7323966089530816
+      ],
+      "treatment_ci95": [
+        0.5253164556962026,
+        0.7441860465116279
+      ],
+      "delta_ci95": [
+        -0.09938132093265266,
+        0.08928761398176291
+      ]
+    }
+  },
+  "rank_gap": {
+    "baseline-r1": 0.0903042720514919,
+    "baseline-r2": 0.0903042720514919,
+    "treatment-r1": 0.09267485555979996,
+    "treatment-r2": 0.09267485555979996
+  },
+  "repeat_stability": {
+    "baseline": {
+      "accuracy_delta_r2_minus_r1": 0.0,
+      "pair_decisions_changed": 0,
+      "median_absolute_score_change": 0.0,
+      "constraint_boundary_changes": 0
+    },
+    "treatment": {
+      "accuracy_delta_r2_minus_r1": 0.0,
+      "pair_decisions_changed": 0,
+      "median_absolute_score_change": 0.0,
+      "constraint_boundary_changes": 0
+    }
+  },
+  "constraint_changes_not_gold": {
+    "1": {
+      "roles": 2023,
+      "baseline_blocked": 32,
+      "treatment_blocked": 22,
+      "baseline_blocked_treatment_pass": 24,
+      "baseline_pass_treatment_blocked": 14
+    },
+    "2": {
+      "roles": 2023,
+      "baseline_blocked": 32,
+      "treatment_blocked": 22,
+      "baseline_blocked_treatment_pass": 24,
+      "baseline_pass_treatment_blocked": 14
+    }
+  },
+  "usage_by_repeat": {
+    "baseline-r1": {
+      "calls": 428,
+      "roles_expected": 2023,
+      "valid_roles": 2023,
+      "failed_calls": 0,
+      "attempts": 428,
+      "retry_attempts": 0,
+      "input_tokens": 6386897,
+      "output_tokens": 0,
+      "cached_tokens": 0,
+      "receipts_with_usage": 428,
+      "estimated_usd": 0.6386897000000001,
+      "costed_input_tokens": 6386897,
+      "known_cost_usd": 0.6386897000000001,
+      "mean_ms": 612.2616822429907,
+      "p50_ms": 537.0,
+      "p95_ms": 1025.6999999999991,
+      "usd_per_1000_roles": 0.3157141374196738,
+      "input_per_role": 3157.1413741967376
+    },
+    "baseline-r2": {
+      "calls": 428,
+      "roles_expected": 2023,
+      "valid_roles": 2023,
+      "failed_calls": 0,
+      "attempts": 428,
+      "retry_attempts": 0,
+      "input_tokens": 6386897,
+      "output_tokens": 0,
+      "cached_tokens": 0,
+      "receipts_with_usage": 428,
+      "estimated_usd": 0.6386897000000001,
+      "costed_input_tokens": 6386897,
+      "known_cost_usd": 0.6386897000000001,
+      "mean_ms": 577.9649532710281,
+      "p50_ms": 515.5,
+      "p95_ms": 991.1499999999997,
+      "usd_per_1000_roles": 0.3157141374196738,
+      "input_per_role": 3157.1413741967376
+    },
+    "treatment-r1": {
+      "calls": 428,
+      "roles_expected": 2023,
+      "valid_roles": 2023,
+      "failed_calls": 0,
+      "attempts": 428,
+      "retry_attempts": 0,
+      "input_tokens": 4257819,
+      "output_tokens": 0,
+      "cached_tokens": 0,
+      "receipts_with_usage": 428,
+      "estimated_usd": 0.4257819,
+      "costed_input_tokens": 4257819,
+      "known_cost_usd": 0.4257819,
+      "mean_ms": 533.8014018691589,
+      "p50_ms": 454.0,
+      "p95_ms": 903.8999999999999,
+      "usd_per_1000_roles": 0.2104705388037568,
+      "input_per_role": 2104.705388037568
+    },
+    "treatment-r2": {
+      "calls": 428,
+      "roles_expected": 2023,
+      "valid_roles": 2023,
+      "failed_calls": 0,
+      "attempts": 428,
+      "retry_attempts": 0,
+      "input_tokens": 4257819,
+      "output_tokens": 0,
+      "cached_tokens": 0,
+      "receipts_with_usage": 428,
+      "estimated_usd": 0.4257819,
+      "costed_input_tokens": 4257819,
+      "known_cost_usd": 0.4257819,
+      "mean_ms": 508.4929906542056,
+      "p50_ms": 470.5,
+      "p95_ms": 839.8499999999998,
+      "usd_per_1000_roles": 0.2104705388037568,
+      "input_per_role": 2104.705388037568
+    }
+  },
+  "combined": {
+    "baseline": {
+      "calls": 856,
+      "roles_expected": 4046,
+      "valid_roles": 4046,
+      "input_tokens": 12773794,
+      "cached_tokens": 0,
+      "known_cost_usd": 1.2773794000000003,
+      "unknown_cost_attempts": 0,
+      "failed_calls": 0,
+      "cost_per_repeat_usd": 0.6386897000000001,
+      "cost_per_1000_roles_usd": 0.3157141374196738,
+      "mean_ms": 595.1133177570093,
+      "p50_ms": 526.0,
+      "p95_ms": 1010.5
+    },
+    "treatment": {
+      "calls": 856,
+      "roles_expected": 4046,
+      "valid_roles": 4046,
+      "input_tokens": 8515638,
+      "cached_tokens": 0,
+      "known_cost_usd": 0.8515638,
+      "unknown_cost_attempts": 0,
+      "failed_calls": 0,
+      "cost_per_repeat_usd": 0.4257819,
+      "cost_per_1000_roles_usd": 0.2104705388037568,
+      "mean_ms": 521.1471962616822,
+      "p50_ms": 464.0,
+      "p95_ms": 874.25
+    }
+  },
+  "relative_change": {
+    "input_tokens": -0.33335092142553735,
+    "known_cost_usd": -0.33335092142553746,
+    "p50_ms": -0.11787072243346008,
+    "p95_ms": -0.13483424047501236,
+    "mean_ms": -0.1242891383679775
+  },
+  "gate": {
+    "noninferiority_margin": -0.02,
+    "quality_noninferiority_demonstrated": false,
+    "quality_improvement_demonstrated": false,
+    "structural_errors": 0,
+    "not_deployment_approval": true
+  },
+  "run_started_at": "2026-10-20T01:41:57.862Z",
+  "run_finished_at": "2026-10-20T01:44:37.727Z",
+  "reporter_sha256": "c2c64602783aeaba7f37322b95b56aab54f2cb86c0d731cd5487c175527e7cb8",
+  "pricing": {
+    "usdPerMillionUncachedInput": 0.1,
+    "output": 0,
+    "source": "https://developers.openai.com/api/docs/guides/decisions#pricing-and-availability",
+    "verifiedAt": "2026-10-20",
+    "invoiceVerified": false
+  },
+  "sources": {
+    "revision": "1122120ab8b13d27ed9dd53d6c623d7bf91a01f6",
+    "dirtyDiffSha256": "d9512d40d8a76af7eed0d42e737486b3156d36875dc1e5c3c2b86af2ac5e5b51",
+    "files": {
+      "scripts/evalExternalDecisionsSummary.ts": "f0509f099d6722bdb9e2fdc8f2bcdd9d3a33cdd4b09f224b1700e179fe3211b1",
+      "scripts/prepareExternalDecisionsSummary.py": "8fc5d2c878d8d1700e6db8614eec4f7ad77cbd88a9cb2378613bf56e75833aa5",
+      "src/lib/externalRecommendationsV2/decisions.ts": "a3dd31a7b8011c16ed7da7acb3866f09653817dacc579c82f693b6d4085b14be",
+      "src/lib/externalRecommendationsV2/scoringInput.ts": "be0dc59dc63bc1f60ce5f350cedd46013076046ef3a2a11437e1653011adc038",
+      "src/lib/externalRecommendationsV2/workerInputText.ts": "9bf544c7aa652b27292ef593c60b3048a5efac2ff5e73442c111665fe504e409",
+      "src/lib/externalRecommendationsV2/descriptionText.ts": "1e236ad6337274b7ef811c6ab46122c94d85c673b1d61f84ffb615dbf9ba6ef8",
+      "src/lib/externalRecommendationsV2/fitQuestions.v4.json": "1238723717fa4c1b7ded382d9099607c83e719f4a048a88ca9e0b8be05725279",
+      "src/lib/externalRecommendationsV2/contract.ts": "115a80b040b6c626307c12336a4c1b4500a3e15c7b54b22ecb45c7f316af5a59",
+      "src/lib/talentOnboarding/jobPostingRecommendations.ts": "ac4e181869930ae148f8c9df651baaf261ff055c8e60fe707425a11064ecfe0d"
+    }
+  },
+  "limitations": [
+    "Shown-only cases contain at most 15 roles: cannot measure top-20 shortlist recall over full retrieval",
+    "Two requested changes and the new rank formula are evaluated together; no attribution to individual components",
+    "Historical restoration and feedback selection bias inherited from harper_eval"
+  ]
+}

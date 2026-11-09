@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v19",
+  "frozenAt": "2026-10-12T10:23:11.302530+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v19.json": "1483ef1ba0113b3e81f15d52ae3dbeb4d0cfe2f1161d33bb6e0b6aa51223278d",
+    "gold-v19.md": "6cf64c8f565427530f258ba6a1094fa05ea1c11cfa97123fbd5c9d4911caa559",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "3 synthetic conversations / 3 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v19 --run=<new>",
+  "provenance": "User-approved optional Team access design; synthetic identities, roles and questions authored before execution. Older frozen inputs and labels preserved.",
+  "model": "Current company-side model/config; exact provider/model/reasoning and source fingerprint saved per run",
+  "privacy": "Only synthetic data sent to model provider. DB/email/Slack blocked. Raw artifacts ignored with owner-only permissions.",
+  "releaseGate": "3/3 manual semantic review; zero critical failures or effects",
+  "knownLimitations": "Small challenge set, author review, synthetic tools. Real executor/DB/browser verified separately; no production delivery or independent review."
+}

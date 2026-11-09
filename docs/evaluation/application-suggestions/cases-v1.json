@@ -1,0 +1,27 @@
+[
+  {
+    "id": "grounded-edits",
+    "language": "Korean",
+    "candidate": "Name: Alex Example. Profile memo: owned API design and on-call incident response; shipped weekly. Search Brief: remote preferred. Private memory: does not want current employer to know. Links: https://example.test/alex",
+    "resume": "Alex Example\\nBackend Engineer — Example Studio, 2022–2025\\nBuilt APIs.\\nEducation: Example University, BSc Computer Science, 2022.",
+    "role": "Backend engineer. Own API design and production operations. Company builds developer tools.",
+    "application": "{\"status\":\"read\",\"fields\":[{\"label\":\"Name\",\"required\":true},{\"label\":\"Email\",\"required\":true},{\"label\":\"Resume\",\"required\":true}],\"limitations\":[]}"
+  },
+  {
+    "id": "requested-material-and-missing-link",
+    "language": "Korean",
+    "candidate": "Alex Example, alex@example.test. Memo: built API services and wants to work on developer tooling because they enjoy helping other engineers. No LinkedIn URL is recorded.",
+    "resume": "Alex Example\\nSoftware Engineer, Example Studio 2023–present\\nDesigned API services for internal developers.",
+    "role": "Developer tools engineer, API design and user empathy. Company provides tools for engineers.",
+    "application": "{\"status\":\"read\",\"fields\":[{\"label\":\"Resume\",\"required\":true},{\"label\":\"LinkedIn URL\",\"required\":true},{\"label\":\"Why do you want this role?\",\"required\":true,\"maxLength\":600}],\"limitations\":[]}"
+  },
+  {
+    "id": "unknown-experience-and-sensitive",
+    "language": "Korean",
+    "candidate": "Alex Example, backend engineer. Known experience: API design. No model training or evaluation experience recorded.",
+    "resume": "Alex Example\\nBackend engineer\\nDesigned APIs and maintained services.",
+    "role": "ML platform engineer. Relevant model evaluation or training infrastructure experience is important.",
+    "application": "{\"status\":\"partial\",\"fields\":[{\"label\":\"Resume\",\"required\":true},{\"label\":\"Disability status\",\"required\":false},{\"label\":\"Gender\",\"required\":false}],\"limitations\":[\"Conditional questions not inspected.\"]}"
+  }
+]
+

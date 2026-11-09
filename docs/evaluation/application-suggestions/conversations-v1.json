@@ -1,0 +1,24 @@
+[
+  {
+    "id": "direct-rewrite",
+    "rounds": 1,
+    "kind": "change",
+    "user": "제안한 문장을 조금 더 담백하게 다듬어서 바로 반영해줘. 숫자는 추가하지 말고, 나머지 이력은 그대로 둬.",
+    "answer": "Please make this wording more restrained and apply it directly. Do not add numbers."
+  },
+  {
+    "id": "new-experience",
+    "rounds": 1,
+    "kind": "question",
+    "user": "학습은 안 해봤고, 검색 결과 80개를 직접 비교해서 오류 유형을 분류하는 평가를 했어요.",
+    "answer": "I did not train a model. I manually compared 80 search results and categorized errors."
+  },
+  {
+    "id": "ceiling-skip",
+    "rounds": 3,
+    "kind": "question",
+    "user": "추가 경험 질문은 건너뛸게. 알고 있는 내용으로 준비를 마무리해줘.",
+    "answer": null
+  }
+]
+

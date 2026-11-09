@@ -1,0 +1,20 @@
+{
+  "task": "career-voice-onboarding",
+  "datasetVersion": "pilot-v1",
+  "asOf": "2026-09-28T01:17:29.323990Z",
+  "capturedAt": "2026-09-28T01:27:58.408Z",
+  "sourceRevision": "bd5c847a25e836c49d9f7ca7bfee4c977e4ad4e6",
+  "sourceDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "snapshotSha256": "b6530c42f739024596f338ecfb15a45d1daaa402b13e671d7642c88bb99b4165",
+  "rubricSha256": "d34fff5cf1496743218bba511a610c4f348b91a215bb2a020e79d4af199a1eb7",
+  "runnerSha256": "bd5894778563390580e82dd356223c45d0a9089a549053f31b9dc28d121b1e32",
+  "caseCount": 50,
+  "matureCount": 40,
+  "rawArtifact": "docs/evaluation/career-voice-onboarding/private/pilot-v1.json",
+  "evaluator": "Codex direct qualitative review; independent human gold pending",
+  "privacy": "Production raw data local-only; no additional external LLM API calls",
+  "models": [
+    "gpt-realtime-2.1",
+    "gpt-live-1"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "datasetVersion": "read-only-roles-v1",
+  "goldVersion": "structural-v1",
+  "createdAt": "2026-10-23",
+  "cases": ["consumer-product-designer", "customer-facing-founding-engineer"],
+  "inputContract": "Full real role, profile, Search Brief, Memory and stored Behavior Context captured read-only; private capture is immutable per run.",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/read_only_role.py",
+  "configuration": {"scope": "all", "startStage": 1, "limit": 5000, "recommendCount": 10, "concurrency": 64, "scoringModel": "gpt-6-luna", "scoringApi": "Decisions", "promptVersion": "company_requested_decisions_v60"},
+  "gold": {
+    "databaseWrites": 0,
+    "delivered": 0,
+    "syntheticCandidates": 0,
+    "stage2Population": "Exactly the successful stage-one passes, except explicitly recorded evaluation failures",
+    "criterionDenominator": "Each current criterion covers every successful stage-two evaluation",
+    "selectedIdentifiers": "Subset of retrieved, eligible candidates successfully evaluated at stage two",
+    "errors": "Never counted as rejection or hidden",
+    "inputMultiplicity": "Shared policy and original evidence once per provider request; questions reference shared evidence"
+  },
+  "privacy": "Actual IDs, production text and model outputs only in ignored owner-only runs directories.",
+  "limitations": ["No candidate relevance gold", "Pass rates are not accuracy", "No third-stage presentation or delivery", "Read-only capture is not a global database snapshot"]
+}

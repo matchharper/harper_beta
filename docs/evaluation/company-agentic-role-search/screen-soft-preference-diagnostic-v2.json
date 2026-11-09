@@ -1,0 +1,66 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "screen-soft-preference-diagnostic-v2",
+  "sourceRun": "experiment-v4-ars09",
+  "objective": "Inspect affirmative practical prohibition versus nonexclusive preference using actual first-stage false-positive concerns.",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "labelProvenance": "Codex Worker review of five first-stage cases isolated by actual company/work continue and candidate-practical exclude. Two concerns frozen before further prompt/API comparison; unblinded post-observation diagnostic, not a representative sample. Independent parent review of all remaining candidate-only exclusions added ordinal 22 and 40 before their next API calls; original two cases unchanged.",
+  "goldChanged": false,
+  "limitations": [
+    "Checks one explicit machine decision axis; overall stage1 decision may also depend on independent work evidence.",
+    "Two post-observation cases cannot establish general recall.",
+    "Original profile/Brief/Memory/Behavior remain owner-private and unchanged.",
+    "The four cases are still failure-selected diagnostics, not a random sample."
+  ],
+  "cases": [
+    {
+      "id": "soft-preference-01",
+      "stage": 1,
+      "sourceTrace": "decisions-13aedeb6ed5e48c9945c0dd952336144.json",
+      "sourceTraceSha256": "6ca377736f2543755663fe42b97527118439ad22a724cd9d0ce506db6f25a195",
+      "inputSha256": "cafbfc80b4f0453bbf9089d4c472e39a6afa75fba3edffdfd4a25e9b840b38ff",
+      "expectedObservation": "candidatePracticalScreen=continue: the source describes preferences and/or conditional on-site openness, without an explicit incompatible practical prohibition. Work-screen suitability is a separate judgment, not the target of this diagnostic.",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "reviewNote": "Full Profile, Brief, Memory and Behavior evidence manually read. A preferred region list is not asserted to be an exclusive permitted list; do not infer unwillingness from absent relocation confirmation."
+    },
+    {
+      "id": "soft-preference-02",
+      "stage": 1,
+      "sourceTrace": "decisions-1960a826c35a4a339c181b108e4b6bcd.json",
+      "sourceTraceSha256": "cd31996cd52acd9b97683afef50bcbfaa5ea49e0d325a260ba7f67c80fbf59a0",
+      "inputSha256": "f56715663c963608b532b6e7b2a04c12f1580de036f5e012ec506d3009466cc4",
+      "expectedObservation": "candidatePracticalScreen=continue: the source describes preferences and/or conditional on-site openness, without an explicit incompatible practical prohibition. Work-screen suitability is a separate judgment, not the target of this diagnostic.",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "reviewNote": "Full Profile, Brief, Memory and Behavior evidence manually read. A preferred region list is not asserted to be an exclusive permitted list; do not infer unwillingness from absent relocation confirmation."
+    },
+    {
+      "id": "soft-preference-03",
+      "stage": 1,
+      "sourceTrace": "decisions-7e8cf65b34b947feb9d62f30757c9247.json",
+      "sourceTraceSha256": "f9387e5ebf322194752853d15028b2a153d9b7f8615576411be1c55b5d17efc9",
+      "inputSha256": "2767c97e93c93f29bdc900ea52e74300358773dca6799bca44345995bb84631d",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "expectedObservation": "candidatePracticalScreen=continue: positive preferred regions and conditional mobility, without explicit practical prohibition of this role.",
+      "reviewNote": "Independent parent read of complete original Brief/Memory/Behavior. Current Korea is recorded; target regions are not asserted exclusive. Work suitability is separate."
+    },
+    {
+      "id": "soft-preference-04",
+      "stage": 1,
+      "sourceTrace": "decisions-fcd128280b0d4258ae3b3e2de9ae25cb.json",
+      "sourceTraceSha256": "0c977eb78f95b1a7a5e46c2879f289fdaa156ab5af18d8f50f2efdbb0015e2a4",
+      "inputSha256": "40b10fa621064542290d9798eeedc900f87e7a41f67f7fa80cb5548b6646b328",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "expectedObservation": "candidatePracticalScreen=continue: positive preferred regions and conditional mobility, without explicit practical prohibition of this role.",
+      "reviewNote": "Independent parent read of complete original Brief/Memory/Behavior. Current Korea is recorded; target regions are not asserted exclusive. Work suitability is separate."
+    }
+  ],
+  "previousVersion": "screen-soft-preference-diagnostic-v1"
+}

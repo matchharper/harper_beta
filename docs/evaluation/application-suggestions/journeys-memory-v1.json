@@ -1,0 +1,135 @@
+[
+  {
+    "id": "career-fact-to-profile",
+    "profileRows": [
+      {
+        "rowId": "33333333-3333-4333-8333-333333333333",
+        "type": "experience",
+        "company": "Example Studio",
+        "role": "Backend Engineer",
+        "memo": "API 설계와 온콜 장애 대응을 담당함."
+      }
+    ],
+    "suggestions": [
+      {
+        "kind": "question",
+        "title": "Example Studio에서 API에 사용한 언어와 직접 구현한 기능이 있나요?",
+        "reason": "이 역할에 필요한 구현 경험을 이력서에 구체적으로 담기 위해 확인해요."
+      }
+    ],
+    "applicationForm": {
+      "status": "read",
+      "fields": [],
+      "limitations": [],
+      "submission": {
+        "status": "supported",
+        "reason": "Public form is accessible."
+      },
+      "url": "https://example.test/apply",
+      "checkedAt": "2026-10-13T00:00:00Z"
+    },
+    "steps": [
+      {
+        "responses": [
+          {
+            "decision": "answer",
+            "text": "Example Studio에서 Python과 FastAPI로 API를 만들었고, 실패한 작업을 재시도하는 비동기 작업 큐를 직접 구현했어요. 이 내용은 이번 이력서에 바로 반영해줘."
+          }
+        ],
+        "user": "질문에 답변했어. 이 답변을 바탕으로 지원 준비를 이어서 해줘."
+      }
+    ],
+    "nextRole": "Another Studio · Backend Engineer. This role requires Python, FastAPI and implementing asynchronous task retries. No additional technology, metrics or experience requirements."
+  },
+  {
+    "id": "independent-experience-to-memory",
+    "profileRows": [
+      {
+        "rowId": "33333333-3333-4333-8333-333333333333",
+        "type": "experience",
+        "company": "Example Studio",
+        "role": "Backend Engineer",
+        "memo": "API 설계와 온콜 장애 대응을 담당함."
+      }
+    ],
+    "suggestions": [
+      {
+        "kind": "question",
+        "title": "모델 평가 경험이 있나요?",
+        "reason": "이 역할에 필요한 구현 경험을 이력서에 구체적으로 담기 위해 확인해요."
+      }
+    ],
+    "applicationForm": {
+      "status": "read",
+      "fields": [],
+      "limitations": [],
+      "submission": {
+        "status": "supported",
+        "reason": "Public form is accessible."
+      },
+      "url": "https://example.test/apply",
+      "checkedAt": "2026-10-13T00:00:00Z"
+    },
+    "steps": [
+      {
+        "responses": [
+          {
+            "decision": "answer",
+            "text": "회사 업무가 아닌 개인 프로젝트에서 검색 결과 80개를 직접 비교하고 오류 유형을 분류했어요. 모델 학습은 하지 않았어요."
+          }
+        ],
+        "user": "질문에 답변했어. 답변을 바탕으로 이력서에 넣을 문장을 제안해줘."
+      },
+      {
+        "responses": [
+          {
+            "decision": "accept"
+          }
+        ],
+        "user": "제안한 문장으로 적용하고 준비를 마무리해줘."
+      }
+    ],
+    "nextRole": "Another Studio · Search Quality Analyst. This role needs hands-on manual search-result evaluation and error categorization. Independent projects count. No additional technical requirements."
+  },
+  {
+    "id": "skip-is-not-negative-memory",
+    "profileRows": [
+      {
+        "rowId": "33333333-3333-4333-8333-333333333333",
+        "type": "experience",
+        "company": "Example Studio",
+        "role": "Backend Engineer",
+        "memo": "API 설계와 온콜 장애 대응을 담당함."
+      }
+    ],
+    "suggestions": [
+      {
+        "kind": "question",
+        "title": "어떤 프로그래밍 언어를 사용했나요?",
+        "reason": "이 역할에 필요한 구현 경험을 이력서에 구체적으로 담기 위해 확인해요."
+      }
+    ],
+    "applicationForm": {
+      "status": "read",
+      "fields": [],
+      "limitations": [],
+      "submission": {
+        "status": "supported",
+        "reason": "Public form is accessible."
+      },
+      "url": "https://example.test/apply",
+      "checkedAt": "2026-10-13T00:00:00Z"
+    },
+    "steps": [
+      {
+        "responses": [
+          {
+            "decision": "answer",
+            "text": "언어 질문은 이번에 건너뛸게. 확인된 기존 내용만으로 준비를 마무리해줘."
+          }
+        ],
+        "user": "질문에 답변했어. 이 답변을 바탕으로 지원 준비를 이어서 해줘."
+      }
+    ]
+  }
+]

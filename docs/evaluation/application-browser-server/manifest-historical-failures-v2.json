@@ -1,0 +1,65 @@
+{
+  "task": "application-browser-server",
+  "datasetVersion": "historical-failures-v2",
+  "preparedAt": "2026-10-23",
+  "status": "executed-reviewed",
+  "sourceRevision": "296269eb440f921e0567aa0c9eb5dc944ceee485",
+  "dirty": true,
+  "sourceHashes": {
+    "lib/preflight.js": "b5953c3eb9dd668757f45c44072ae9f2ddfda24b5c7b1e19b5b095830fb3c1f9",
+    "lib/preflight-guard.js": "0ecde9b14ce62e958e4cde220b7bab58b96af6a03479222c7fa1a5f50ee10328",
+    "lib/preflight-cases.js": "3ba20eb6856d5d21d28e660d438c5405176f25ce0586d6e7c262b8e947033ee4",
+    "package-lock.json": "2989a0077b44bc5407ab1c0d8a946caf6656758ed8cd0c11902c5931469310b6",
+    "app/api/run/route.js": "bbe3e8291917e1699cd95430f2121ec532d2b08f10614bf45c4a0e8524815b9d"
+  },
+  "canonicalRunner": "scripts/experiments/application-browser-lab/invoke.mjs",
+  "model": "anthropic/claude-sonnet-5-5",
+  "provider": "Anthropic direct",
+  "reasoning": "SDK default",
+  "sampling": "provider default",
+  "agentTimeoutSeconds": 450,
+  "browserTimeoutSeconds": 600,
+  "maxSteps": 55,
+  "proxy": false,
+  "provenance": "Historical read-only inspection and attachment failures, no real submission baseline",
+  "privacy": "Synthetic candidate/files only; private traces ignored and owner-only",
+  "deployment": "Isolated lab authorized and deployed; Harper production unchanged",
+  "deployments": [
+    {
+      "id": "dpl_DZqyaJhXiTkfg8FVBQTFuEoTUxyQ",
+      "change": "Initial preflight, first five attempts"
+    },
+    {
+      "id": "dpl_APYnYYRS33wCQLv7rfgyT4yZCwML",
+      "change": "Native file chooser and single-argument file metadata support; no measured run"
+    },
+    {
+      "id": "dpl_CTrqjyM6FndQS6iLVZL3gC4HJb7o",
+      "change": "Recognize observed Greenhouse S3 file upload; Science37/Peregrine/SpaceX second attempts and Nuua/Xation second attempts"
+    },
+    {
+      "id": "dpl_Aueov9nfNNCUpGpYnpY3HzsWYFy4",
+      "change": "Recognize observed Ninehire S3 and Greeting file-ticket shapes; Xation/Nuua third attempts",
+      "readyState": "READY"
+    }
+  ],
+  "sourceHashCaveat": "Initial sourceHashes above freeze initial preparation only. Earlier invoke collected local hashes after the response; local code changed during remote runs. Retries collect hashes before HTTP dispatch, but local state is not proof of deployed source. Attribute execution by the deployment sequence, not raw local hashes alone.",
+  "limitations": [
+    "Historical failures are inspections/attachments, not a controlled production submit comparison",
+    "Science37 original URL failed; agent substituted a current job on the same board. This is a separate exploratory observation, not a pass of the frozen original.",
+    "First Science37 HTTP client timed out before capturing a response. Browser session was released, exact LLM cost is unknown.",
+    "File guards were fixed between attempts; guard-induced blocks are not website failures."
+  ],
+  "completedAt": "2026-10-22T15:42:24.116Z",
+  "report": "report-2026-10-23.md",
+  "results": {
+    "xation": "reviewed-pre-submit",
+    "peregrine": "reviewed-pre-submit",
+    "nuua": "form-and-upload-complete-email-confirmation-unverified",
+    "spacex": "incomplete-step-limit",
+    "science37": "original-unavailable-agent-substituted-job-not-a-pass"
+  },
+  "knownUsageUsd": 14.666691333333333,
+  "unmeasuredAttempt": "Initial Science37 client headers timeout; exact model usage unavailable",
+  "activeBrowserSessionsAtCompletion": 0
+}

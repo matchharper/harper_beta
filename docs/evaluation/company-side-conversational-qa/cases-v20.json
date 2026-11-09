@@ -1,0 +1,56 @@
+{
+  "datasetVersion": "v20",
+  "baseDataset": "cases-v6.json",
+  "provenance": "De-identified synthetic regression for explicit search membership rejection versus response loss. Frozen before model calls. Internal actor passes application Role access but has no direct membership at the queue RPC.",
+  "scenarios": [
+    {
+      "id": "CSCQ2001",
+      "variants": [
+        {
+          "id": "membership_chat",
+          "surface": "chat",
+          "matchingSearchRpc": {
+            "data": null,
+            "error": {
+              "code": "42501",
+              "message": "company_matching_search_workspace_forbidden",
+              "details": "private database diagnostic"
+            }
+          },
+          "turns": [
+            "현재 저장된 Hiring Brief 기준으로 후보자 재탐색을 지금 요청해줘."
+          ]
+        },
+        {
+          "id": "membership_slack",
+          "surface": "slack",
+          "matchingSearchRpc": {
+            "data": null,
+            "error": {
+              "code": "42501",
+              "message": "company_matching_search_workspace_forbidden",
+              "details": "private database diagnostic"
+            }
+          },
+          "turns": [
+            "현재 저장된 Hiring Brief 기준으로 후보자 재탐색을 지금 요청해줘."
+          ]
+        },
+        {
+          "id": "transport_unknown",
+          "surface": "chat",
+          "matchingSearchRpc": {
+            "data": null,
+            "error": {
+              "code": "08006",
+              "message": "Connection closed before response"
+            }
+          },
+          "turns": [
+            "현재 저장된 Hiring Brief 기준으로 후보자 재탐색을 지금 요청해줘."
+          ]
+        }
+      ]
+    }
+  ]
+}

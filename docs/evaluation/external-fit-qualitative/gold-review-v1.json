@@ -1,0 +1,15 @@
+{
+  "version": "review-rubric-v1",
+  "humanGoldStatus": "pending",
+  "labels": [],
+  "reviewDimensions": [
+    "Actual role duties and seniority plausibly match candidate evidence",
+    "Candidate's expressed next scope and preferences are honored",
+    "Employer screening fit is grounded in explicit JD qualifications",
+    "Explicit candidate hard constraints are distinguished from soft preferences",
+    "Missing information is not invented as either a match or a contradiction",
+    "Higher-ranked opportunities offer more defensible value than displaced ones"
+  ],
+  "reviewMethod": "Read frozen evidence before assigning better/tie/uncertain, record cited fields and disagreements; assistant observations are not human labels.",
+  "releaseGate": "No production model switch from this pilot alone. Independent human review and broader coverage are required."
+}
