@@ -26,6 +26,7 @@ const SETUP = `
     recommendation_id uuid, user_id text, company_user_id uuid, kind text, text text, metadata jsonb,
     created_at timestamptz default now(),
     open_to_talent boolean, open_to_company boolean);
+  create table company_candidate_notes(talent_id uuid, deleted_at timestamptz);
   create function company_role_search_brief_snapshot_v1(p_role_id uuid) returns jsonb language sql stable set search_path = public as $$
     select jsonb_build_object('roleId', r.role_id, 'name', r.name, 'request', ir.request, 'criteria', ir.criteria)
     from company_roles r join company_internal_roles ir using(role_id) where r.role_id = p_role_id $$;

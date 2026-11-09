@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 
-// A deleted candidate account keeps its talent_users row (deleted_at is set),
-// so what companies were shown and their notes are removed by trigger. Only
+// A deleted candidate account keeps its talent_users row (deleted_at is set).
+// The 11/6 migration removed what companies were shown and their notes by
+// trigger; the 11/9 one keeps them and closes the notes instead. Only
 // the objects the migrations read are created; company_presentations is cut
 // down to the columns this migration uses.
 const SETUP = `
@@ -70,11 +71,24 @@ test("a deleted candidate's presentations, notes and note history go with the ac
     assert.equal(await can(
       "has_function_privilege('service_role', 'delete_company_records_of_deleted_talent_v1()', 'EXECUTE')"), false);
 
-    // Withdrawal no longer removes the company's records; running it twice is safe.
+    // Withdrawal keeps what the company was shown and every version of its notes,
+    // but the notes close: nothing is left on screen or for Harper to read.
     const keep = "20261109010000_keep_company_records_on_talent_withdrawal.sql";
     await migration(keep);
     await migration(keep);
+    await db.exec(`insert into talent_progress(talent_id, role_id, kind, text)
+      values ('${staying}', '${role}', 'org_note', 'copy of a Pass reason'), ('${staying}', '${role}', 'status', 'kept');`);
+    const copies = async (kind: string) => (await db.query<any>(
+      "select count(*)::int n from talent_progress where talent_id = $1 and kind = $2", [staying, kind])).rows[0].n;
+    assert.equal(await copies("org_note"), 2, "the note's copy and the Pass reason copy");
     await db.exec(`update talent_users set deleted_at = now() where user_id = '${staying}';`);
-    assert.deepEqual(await left(staying), { presentations: 1, notes: 1, revisions: 2 });
+    assert.equal(await copies("org_note"), 0);
+    assert.equal(await copies("status"), 1);
+    assert.deepEqual(await left(staying), { presentations: 1, notes: 1, revisions: 3 });
+    const open = await db.query("select 1 from company_candidate_notes where talent_id = $1 and deleted_at is null", [staying]);
+    assert.equal(open.rows.length, 0);
+    const kept = await db.query<any>(
+      "select text from company_candidate_note_revisions where talent_id = $1 order by created_at desc, revision desc limit 1", [staying]);
+    assert.equal(kept.rows[0].text, "strong Go, ask about pay");
   } finally { await db.close(); }
 });
