@@ -98,6 +98,8 @@ const UNAVAILABLE_MEANING: Record<string, string> = {
   company_request_only: "Harper does not start an external search on its own; offer it to the company, which can ask for one.",
 };
 
+const SEARCH_USES_SAVED_ROLE = "search_input=This search uses only what is saved for the Role: its Hiring Brief and criteria decide who passes (saved Role memory and search hints only steer where it looks). The free-text reason is only a record; the search does not read it. A condition from this conversation does not apply unless it is saved into the Role's criteria, so offer the company to add it there rather than saying this search uses it.";
+
 export function formatExternalSearchRequestResult(result: {
   status: string; runId?: string | null; roleName?: string; trigger?: string; reason?: string;
 }) {
@@ -105,9 +107,9 @@ export function formatExternalSearchRequestResult(result: {
   if (result.runId) lines.push(`run_id=${result.runId}`);
   if (result.trigger) lines.push(`trigger=${result.trigger}`);
   if (result.status === "queued") {
-    lines.push("result_meaning=An external search is queued. It looks for people outside Harper on public profiles and usually takes several minutes. The outcome is shared separately when it finishes; nobody is contacted.");
+    lines.push("result_meaning=An external search is queued. It looks for people outside Harper on public profiles and usually takes several minutes. The outcome is shared separately when it finishes; nobody is contacted.", SEARCH_USES_SAVED_ROLE);
   } else if (result.status === "already_running") {
-    lines.push("result_meaning=An external search for this Role is already queued or running. No new search was started; its outcome is shared when it finishes.");
+    lines.push("result_meaning=An external search for this Role is already queued or running. No new search was started; its outcome is shared when it finishes.", SEARCH_USES_SAVED_ROLE);
   } else {
     lines.push(`unavailable_reason=${cell(result.reason, 60)}`, `result_meaning=No search was started. ${UNAVAILABLE_MEANING[result.reason ?? ""] ?? ""}`.trim());
   }

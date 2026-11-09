@@ -113,6 +113,12 @@ test("candidate results are text: criteria named once, numbered per person, no q
 
 test("request results explain queued, running and refused searches", () => {
   assert.match(formatExternalSearchRequestResult({ status: "queued", runId: "r", roleName: "Product Engineer" }), /nobody is contacted/);
+  for (const status of ["queued", "already_running"]) {
+    const saved = formatExternalSearchRequestResult({ status, runId: "r", roleName: "Product Engineer" });
+    assert.match(saved, /uses only what is saved for the Role/);
+    assert.match(saved, /free-text reason is only a record/);
+    assert.match(saved, /saved into the Role's criteria/);
+  }
   assert.match(formatExternalSearchRequestResult({ status: "already_running", runId: "r", roleName: "Product Engineer" }), /No new search was started/);
   const refused = formatExternalSearchRequestResult({ status: "not_queued", roleName: "Product Engineer", reason: "company_request_only" });
   assert.match(refused, /unavailable_reason=company_request_only/);
