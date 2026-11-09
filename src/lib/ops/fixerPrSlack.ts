@@ -56,7 +56,7 @@ export const FIXER_PR_UNAVAILABLE_TEXT =
 export const FIXER_INCIDENTS_URL = `https://github.com/${FIXER_PR_GITHUB_OWNER}/harper_incidents/issues`;
 const INCIDENTS_URL = FIXER_INCIDENTS_URL;
 const CARD_BLOCK_ID = "harper_fixer_pr_card";
-/** An open card on which 배포까지 하기 was picked: no buttons, kept until the PR changes. */
+/** An open card on which 배포까지 하기 was picked: [머지 안 함] (and [머지] unless a DB PR) stay; kept until the PR changes. */
 const DEPLOY_BLOCK_ID = "harper_fixer_pr_deploy";
 /** Cards for a merged or closed PR, one kind per outcome. */
 const FINAL_BLOCK_IDS = {
