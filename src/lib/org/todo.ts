@@ -61,6 +61,8 @@ export type OrgTodoKind =
   // notice
   | "intro_accepted"
   | "intro_declined"
+  /** A candidate the team was working with left Harper. */
+  | "talent_withdrew"
   | "candidate_message"
   | "candidate_response"
   | "meeting_confirmed"

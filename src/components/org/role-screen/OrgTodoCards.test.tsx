@@ -100,6 +100,17 @@ test("the To-do keeps the chat in focus: only decisions are large cards, the res
   assert.ok(!html.includes("파이프라인을 요약해 드릴까요?"));
 
   // Nothing to decide: the title still says so, nothing else is invented.
+  // Someone who left Harper is an update with no link to a profile that no longer opens.
+  items = [{ id: "talent-withdrew:t9", column: "notice", kind: "talent_withdrew", at: null,
+    talent: { id: "t9", name: "한지우", recommendationId: null } }];
+  const withdrew = render();
+  // Why (leaving Harper, a privacy setting) stays the candidate's own.
+  assert.match(withdrew, /한지우님과 더 이상 진행할 수 없어요/);
+  assert.ok(!withdrew.includes("탈퇴"));
+  assert.match(withdrew, /class="career-card-close"[^>]*>읽음</);
+  assert.ok(!withdrew.includes("talentId=t9"), "no link to the profile");
+  assert.ok(!/class="org-todo-go"[^>]*>보기</.test(withdrew), "nothing to open");
+
   items = [];
   const empty = render();
   assert.match(empty, /<h1>결정할 것 0<\/h1>/);

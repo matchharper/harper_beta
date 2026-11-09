@@ -7,6 +7,7 @@ import {
   summarizePassReasons,
   summarizeSearchRun,
 } from "./decisionEvidence.server";
+import { withCandidateFacingRun } from "@/lib/agentContacts/companyScope";
 import { loadCompanyProactiveAwareness } from "./proactiveReview.server";
 import { buildCompanyProactiveReviewPrompt } from "./proactiveReview";
 
@@ -122,6 +123,17 @@ test("an unreadable part is marked unavailable, not empty", async () => {
   const [evidence] = await loadRoleDecisionEvidence({ admin, workspaceId: "w", roleIds: ["r"], user: null, now },
     { readCounts: async () => { throw new Error("board down"); } });
   assert.deepEqual(evidence, { roleId: "r", decisionWait: "unavailable", lastSearch: "unavailable", recentPassReasons: "unavailable" });
+});
+
+test("a run that can contact a candidate reads no written reasons", async () => {
+  const calls: any[] = [];
+  const admin = withCandidateFacingRun(fakeAdmin({
+    company_first_search_runs: { data: [], error: null },
+    company_decision_events: { data: [{ reason_text: "비밀 이유", created_at: "2026-11-06T00:00:00Z" }], error: null },
+  }, calls));
+  const [evidence] = await loadRoleDecisionEvidence({ admin, workspaceId: "w", roleIds: ["r"], user: null, now }, { readCounts: async () => new Map() as any });
+  assert.equal(evidence.recentPassReasons, "unavailable");
+  assert.ok(!calls.some((c) => c.table === "company_decision_events"));
 });
 
 test("proactive awareness carries the evidence for active Roles and the prompt leaves the choice to Harper", async () => {

@@ -53,6 +53,7 @@ function from(table: string) {
       return builder;
     },
     in: (column: string, values: unknown[]) => (filters.push((row) => values.includes(row[column])), builder),
+    gt: (column: string, value: unknown) => (filters.push((row) => String(row[column]) > String(value)), builder),
     order: (column: string, options?: { ascending?: boolean }) => ((order = { column, ascending: options?.ascending !== false }), builder),
     limit: (count: number) => ((limit = count), builder),
     maybeSingle: async () => ({ data: (run().data as Row[] | null)?.[0] ?? null, error: null }),
@@ -65,18 +66,25 @@ function from(table: string) {
   return builder;
 }
 
-// The proposal functions as the migration defines them (20261107021000):
-// one pending per Role, never a change the company already answered.
+// The proposal function as the migration defines it (20261109005900):
+// up to the open limit per Role, never a change the company already answered.
 const RPC: Record<string, (args: Row) => unknown> = {
   company_decision_consolidation_input_v1: () => structuredClone(input),
   consume_company_decisions_v1: (args) => args.p_through_id,
-  create_company_brief_proposal_v1: (args) => {
-    if (proposals.some((proposal) => proposal.status === "pending")) return { status: "pending_exists" };
+  create_company_brief_proposal_v2: (args) => {
     if ((input.answeredKeys as string[]).includes(args.p_content_key)) return { status: "answered_before" };
+    const replaced = new Set(args.p_replaces as string[]);
+    const waiting = proposals.filter((proposal) => proposal.status === "pending" && !replaced.has(proposal.id));
+    if (waiting.length >= args.p_open_limit) return { status: "limit_reached", open: waiting.length };
+    for (const proposal of proposals) if (replaced.has(proposal.id)) proposal.status = "superseded";
+    for (const row of tables.company_agent_update_proposals ?? []) if (replaced.has(row.id)) row.status = "superseded";
     const id = `proposal-${proposals.length + 1}`;
     proposals.push({ id, status: "pending", ...args });
-    (tables.company_agent_update_proposals ??= []).push({ id, workspace_id: args.p_workspace_id, status: "pending", summary: args.p_summary });
-    return { status: "created", proposalId: id };
+    (tables.company_agent_update_proposals ??= []).push({
+      id, workspace_id: args.p_workspace_id, scope_key: `brief:${args.p_role_id}`, status: "pending", summary: args.p_summary,
+      content_key: args.p_content_key, expires_at: args.p_expires_at, created_at: `2026-11-06T09:00:${String(proposals.length).padStart(2, "0")}Z`, payload: args.p_payload,
+    });
+    return { status: "created", proposalId: id, replaced: [...replaced] };
   },
 };
 const admin: any = {
@@ -106,7 +114,7 @@ function seed(reasons: Array<string | null>, extra: Partial<Row> = {}) {
   }));
   input = {
     roleId, workspaceId, open: true, criteria, cursor: 100, briefRevision: 4,
-    decisions, pending: null, answeredKeys: [], ...extra,
+    decisions, answeredKeys: [], ...extra,
   };
   tables = {
     company_agent_web_action_jobs: [{
@@ -210,7 +218,7 @@ test("a clear pattern in free-text reasons: Harper files one suggestion and the 
 
   // What Harper was given: three tools, the policy, and the company's own words.
   const [first, second] = stand.seen;
-  assert.deepEqual(first.tools, ["propose_criteria_change", "read_role", "read_talent"]);
+  assert.deepEqual(first.tools, ["get_more_data", "propose_criteria_change", "read_role", "read_talent"]);
   assert.deepEqual([...CRITERIA_REVIEW_TOOLS].sort(), first.tools);
   assert.match(first.system, /<capability_policy id="criteria_proposal">/);
   assert.match(first.review, /Passed since your last review, with a stated reason \(6\):/);
@@ -218,7 +226,7 @@ test("a clear pattern in free-text reasons: Harper files one suggestion and the 
   assert.match(first.review, /- c-rn \| React Native 실무 경험 \| nice to have \(있으면 좋음\) \| can be raised to important \(중요\)/);
 
   // One suggestion, through the same To-do path as before, in Harper's words.
-  const [create] = called("create_company_brief_proposal_v1");
+  const [create] = called("create_company_brief_proposal_v2");
   assert.deepEqual(create.args.p_payload, {
     version: 1,
     change: { type: "criterion_level", criterionKey: "c-rn", criterionName: "React Native 실무 경험", from: "nice", to: "important" },
@@ -252,30 +260,34 @@ test("mixed reasons: Harper makes no suggestion and the cursor still moves", asy
   const result = await run(stand);
   assert.deepEqual(result, { status: "nothing", throughDecisionId: 106 });
   assert.equal(stand.seen.length, 1);
-  assert.equal(called("create_company_brief_proposal_v1").length, 0);
+  assert.equal(called("create_company_brief_proposal_v2").length, 0);
   assert.equal(called("consume_company_decisions_v1").length, 1);
   assert.equal(job().status, "completed_silent");
   assert.equal(job().action_context.criteriaReview.withReason, 6);
   assert.equal(job().action_context.criteriaReview.proposalId, undefined);
 });
 
-test("no duplicate: one suggestion per review, none while one waits, never an answered change", async () => {
+test("no duplicate: one suggestion per review, waiting ones are read and replaced, never an answered change", async () => {
   // Twice in one review: the second is refused by the review itself.
   seed(RN_PATTERN);
   const args = { criterionId: "c-rn", decisionIds: [106, 105, 103, 101], reason: "RN 경험 부족이 반복돼요." };
   const twice = model((_, index) => (index < 2 ? { tool: { args } } : null));
   assert.equal((await run(twice)).status, "proposed");
-  assert.equal(called("create_company_brief_proposal_v1").length, 1);
+  assert.equal(called("create_company_brief_proposal_v2").length, 1);
   assert.match(twice.seen[2].last, /Not added: this review already added suggestion proposal-1; one suggestion per review\./);
 
-  // The next review while that suggestion waits: Harper does not run.
+  // The next review while that suggestion waits: Harper reads it and the same criterion replaces it.
   rpcs = [];
-  seed(RN_PATTERN, { pending: { id: "proposal-1", expiresAt: "2026-11-20T00:00:00Z", payload: proposals[0].p_payload } });
-  const waiting = model(() => {
-    throw new Error("Harper must not run while a suggestion waits");
-  });
-  assert.deepEqual(await run(waiting), { status: "pending", throughDecisionId: 106 });
+  const keep = tables.company_agent_update_proposals;
+  seed(RN_PATTERN);
+  tables.company_agent_update_proposals = keep;
+  const again = model((_, index) => (index === 0 ? { tool: { args } } : null));
+  assert.equal((await run(again)).status, "proposed");
+  assert.match(again.seen[0].review, /still waiting for the company's answer \(1 of 5 open\):\n- proposal proposal-1 \| React Native 실무 경험/);
+  assert.deepEqual(called("create_company_brief_proposal_v2")[0].args.p_replaces, ["proposal-1"]);
   assert.equal(called("consume_company_decisions_v1").length, 1);
+  assert.deepEqual(proposals.map((proposal) => [proposal.id, proposal.status]), [["proposal-1", "superseded"], ["proposal-2", "pending"]]);
+  assert.match(again.seen[1].last, /It replaced waiting suggestion proposal-1/);
 
   // The company dismissed that change: it is not added again, and Harper is told.
   rpcs = [];
@@ -311,7 +323,7 @@ test("the evidence is checked before anything is filed; refusals go back to Harp
   assert.match(results[2], /Decision 103 is not a pass with a stated reason in this review/);
   assert.match(results[3], /already required \(필수\), the strictest level Harper suggests/);
   assert.match(results[4], /Role unavailable in this company event/);
-  assert.equal(called("create_company_brief_proposal_v1").length, 0);
+  assert.equal(called("create_company_brief_proposal_v2").length, 0);
   assert.match(stand.seen[0].review, /Earlier passes with a stated reason on this Role, for context \(2\):/);
   assert.match(stand.seen[0].review, /Passed without any reason \(not citable\): 4 since your last review, 0 earlier\./);
 });
@@ -323,7 +335,7 @@ test("a lost lease ends the review as superseded, before the cursor moves", asyn
     return { tool: { args: { criterionId: "c-rn", decisionIds: [106, 105, 103], reason: "RN" } } };
   });
   await assert.rejects(run(stand), (error: any) => error?.constructor?.name === "AgentContactSupersededError");
-  assert.equal(called("create_company_brief_proposal_v1").length, 0);
+  assert.equal(called("create_company_brief_proposal_v2").length, 0);
   assert.equal(called("consume_company_decisions_v1").length, 0);
 });
 
@@ -353,7 +365,7 @@ test("the tool exists only in Harper's review: not in member chats, not in agent
     kind: "company_event", workspaceId, roleId, jobId, leaseOwner: "worker-1", assertCurrent: async () => undefined,
   });
   await assert.rejects(proposeCriteriaChange({ admin: elsewhere, input: { criterionId: "c-rn" } }), /only in Harper's review of pass reasons/);
-  assert.equal(called("create_company_brief_proposal_v1").length, 0);
+  assert.equal(called("create_company_brief_proposal_v2").length, 0);
 });
 
 const PAYMENT_PATTERN = [
@@ -374,7 +386,7 @@ test("reasons outside the current criteria: Harper suggests one new criterion th
   };
   const stand = model((_, index) => (index === 0 ? { tool: { args } } : null));
   assert.deepEqual(await run(stand), { proposalId: "proposal-1", status: "proposed", throughDecisionId: 106 });
-  const [create] = called("create_company_brief_proposal_v1");
+  const [create] = called("create_company_brief_proposal_v2");
   assert.equal(create.args.p_kind, "criteria_refinement");
   assert.equal(create.args.p_content_key, "criterion_add:결제 도메인 경험");
   assert.deepEqual(create.args.p_payload.change, {
@@ -420,13 +432,18 @@ test("a new suggestion is also told once in the Role's web chat, in the card's w
     }
   );
 
-  // Harper calling again in that review, or the next review while it waits: no second message.
+  // The next review repeating the same change while it waits: the card is renewed, no second message.
   rpcs = [];
   const keep = { messages: tables.company_messages, proposals: tables.company_agent_update_proposals };
-  seed(RN_PATTERN, { pending: { id: "proposal-1", expiresAt: "2026-11-20T00:00:00Z", payload: proposals[0].p_payload } });
+  seed(RN_PATTERN);
   Object.assign(tables, { company_messages: keep.messages, company_agent_update_proposals: keep.proposals });
-  assert.equal((await run(model(() => null), "chat")).status, "pending");
-  assert.equal(sent().length, 1);
+  const repeat = model((_, index) => (index === 0 ? { tool: { args } } : null));
+  assert.equal((await run(repeat, "chat")).status, "proposed");
+  assert.equal(job().action_context.criteriaReview.repeated, true);
+  assert.equal(tables.company_messages.length, 1);
+
+  // Harper calling again in that review: no second message.
+  rpcs = [];
   proposals = [];
   seed(RN_PATTERN);
   const twice = model((_, index) => (index < 2 ? { tool: { args } } : null));
@@ -470,7 +487,7 @@ test("reasons about a lasting company preference: Harper suggests one company me
   const note = (tool.function.parameters as any).properties.memoryNote;
   assert.deepEqual([note.required, note.properties.scope.enum], [["text", "scope"], ["company", "team"]]);
   assert.match(tool.function.description, /Give exactly one of the three/);
-  const [create] = called("create_company_brief_proposal_v1");
+  const [create] = called("create_company_brief_proposal_v2");
   assert.equal(create.args.p_kind, "criteria_refinement");
   assert.equal(create.args.p_content_key, "memory_note:최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요");
   assert.deepEqual(create.args.p_payload, {
@@ -514,10 +531,10 @@ test("reasons about a lasting company preference: Harper suggests one company me
   tables.company_internal_roles = [{ role_id: roleId, team_id: "team-1" }];
   const team = model((_, index) => (index === 0 ? { tool: { args: { ...args, memoryNote: { ...args.memoryNote, scope: "team" } } } } : null));
   assert.equal((await run(team, "off")).status, "proposed");
-  assert.deepEqual(called("create_company_brief_proposal_v1")[0].args.p_payload.change, {
+  assert.deepEqual(called("create_company_brief_proposal_v2")[0].args.p_payload.change, {
     type: "memory_note", note: "최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요.", scope: "team", teamId: "team-1",
   });
-  assert.match(called("create_company_brief_proposal_v1")[0].args.p_summary, /내용을 팀 기억에 남길까요\?/);
+  assert.match(called("create_company_brief_proposal_v2")[0].args.p_summary, /내용을 팀 기억에 남길까요\?/);
 });
 
 test("the review's context carries company memory, so Harper does not suggest what it already says", async () => {
@@ -538,4 +555,38 @@ test("the review's context carries company memory, so Harper does not suggest wh
   assert.deepEqual(built[0].initialDataKinds, ["workspace_memory"]);
   assert.match(stand.seen[0].all, /<context_notes>\n저장된 회사 메모리 1행; .*후보를 찾고 평가할 때 함께 쓰임.*\n#9 r1 · company · 채용 규칙 .*\nReact Native 앱 출시 경험이 있는 분만 봐요\./);
   assert.match(stand.seen[0].system, /Do not suggest a new criterion or a memory note for what it already says\./);
+});
+
+test("several suggestions stay open; at the limit Harper gets a clear refusal or names one to replace", async () => {
+  const args = { criterionId: "c-rn", decisionIds: [106, 105, 103, 101], reason: "RN 경험 부족이 반복돼요." };
+  const change = (index: number) => ({ type: "criterion_add", criterionName: `기준 ${index}`, description: "확인", to: "nice" });
+  seed(RN_PATTERN);
+  proposals = [1, 2, 3, 4, 5].map((index) => ({ id: `open-${index}`, status: "pending" }));
+  tables.company_agent_update_proposals = proposals.map((proposal, index) => ({
+    id: proposal.id, workspace_id: workspaceId, scope_key: `brief:${roleId}`, status: "pending", summary: `s${index}`,
+    content_key: `criterion_add:기준 ${index + 1}`, expires_at: "2099-01-01T00:00:00Z", created_at: `2026-11-0${index + 1}T00:00:00Z`,
+    payload: { version: 1, change: change(index + 1), evidence: { count: 2, window: 3, decisionIds: [1, 2] } },
+  }));
+  const full = model((_, index) => (index === 0 ? { tool: { args } } : null));
+  assert.equal((await run(full)).status, "nothing");
+  assert.match(full.seen[1].last, /Not added: this Role already has 5 suggestions waiting/);
+  assert.equal(proposals.filter((proposal) => proposal.status === "pending").length, 5);
+
+  // Harper decides this one matters more and names what it makes out of date.
+  rpcs = [];
+  const keep = tables.company_agent_update_proposals;
+  seed(RN_PATTERN);
+  tables.company_agent_update_proposals = keep;
+  const named = model((_, index) => (index === 0 ? { tool: { args: { ...args, replacesProposalId: "open-3" } } } : null));
+  assert.equal((await run(named)).status, "proposed");
+  assert.deepEqual(called("create_company_brief_proposal_v2")[0].args.p_replaces, ["open-3"]);
+  assert.equal(proposals.find((proposal) => proposal.id === "open-3")!.status, "superseded");
+
+  // Only a suggestion open on this Role can be named.
+  rpcs = [];
+  seed(RN_PATTERN);
+  tables.company_agent_update_proposals = keep;
+  const wrong = model((_, index) => (index === 0 ? { tool: { args: { ...args, replacesProposalId: "other-role" } } } : null));
+  await run(wrong).catch(() => null);
+  assert.equal(called("create_company_brief_proposal_v2").length, 0);
 });

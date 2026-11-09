@@ -1853,6 +1853,24 @@ test("skipped scheduled search tells the provider no new search started", () => 
   assert.doesNotMatch(text,/is now queued or already running/);
 });
 
+test("read_talent says a person is no longer available without saying they withdrew", () => {
+  const text = serializeOrgAgentToolResult("read_talent", { items: [], notFoundTalentIds: [], withdrawnTalentIds: ["talent-left"], requestedCount: 1, returnedCount: 0 });
+  assert.match(text, /no_longer_available_talent_ids/);
+  assert.match(text, /talent-left\n이 사람들과는 더 이상 진행할 수 없다/);
+  assert.doesNotMatch(text, /탈퇴|withdr/i);
+  assert.match(text, /not_found_count=0/);
+});
+
+test("interactive search receipt says a new condition must be saved to apply", () => {
+  const text = serializeOrgAgentToolResult("request_matching_search", {
+    status: "queued", effect: "evaluation_only", requestedRoleName: "Founding Engineer",
+    options: { scope: "unassessed", startStage: 1, limit: 100, reason: "Rust only" },
+  });
+  assert.match(text, /저장된 Hiring Brief와 Criteria로만/);
+  assert.match(text, /평가 조건이 아니다/);
+  assert.match(text, /Criteria에 저장해야/);
+});
+
 test("interactive search receipt separates worker scope from the original company request", () => {
   const text = serializeOrgAgentToolResult("request_matching_search", {
     status: "queued", effect: "evaluation_only", runId: "run-1", briefVersion: "brief-2",

@@ -51,6 +51,7 @@ function from(table: string) {
     insert: (values: Row) => ((insertRow = values), builder),
     update: (values: Row) => ((patch = values), builder),
     eq: (column: string, value: unknown) => (filters.push((row) => row[column] === value), builder),
+    in: (column: string, values: unknown[]) => (filters.push((row) => values.includes(row[column])), builder),
     order: (column: string, options?: { ascending?: boolean }) => ((order = { column, ascending: options?.ascending !== false }), builder),
     limit: (count: number) => ((limit = count), builder),
     maybeSingle: async () => ({ data: (run().data as Row[] | null)?.[0] ?? null, error: null }),

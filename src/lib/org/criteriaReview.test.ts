@@ -111,13 +111,13 @@ test("the review text gives criteria, reasons and answered changes as facts, in 
 const snapshot = criteriaReviewSnapshot(
   {
     passes: [
-      { decisionId: 30, talentId: "t-a", isNew: true, at: null, action: "pass", reasons: ["RN 없음"], tags: [], headline: null },
-      { decisionId: 29, talentId: "t-b", isNew: true, at: null, action: "pass", reasons: ["RN 없음"], tags: [], headline: null },
-      { decisionId: 20, talentId: "t-c", isNew: false, at: null, action: "pass", reasons: ["RN 없음"], tags: [], headline: null },
-      { decisionId: 19, talentId: "t-d", isNew: false, at: null, action: "pass", reasons: ["연차"], tags: [], headline: null },
-      { decisionId: 18, talentId: "t-c", isNew: false, at: null, action: "pass", reasons: ["RN 없음"], tags: [], headline: null },
+      { criteriaChangedSince: [], decisionId: 30, talentId: "t-a", isNew: true, at: null, action: "pass", reasons: ["RN 없음"], tags: [], headline: null },
+      { criteriaChangedSince: [], decisionId: 29, talentId: "t-b", isNew: true, at: null, action: "pass", reasons: ["RN 없음"], tags: [], headline: null },
+      { criteriaChangedSince: [], decisionId: 20, talentId: "t-c", isNew: false, at: null, action: "pass", reasons: ["RN 없음"], tags: [], headline: null },
+      { criteriaChangedSince: [], decisionId: 19, talentId: "t-d", isNew: false, at: null, action: "pass", reasons: ["연차"], tags: [], headline: null },
+      { criteriaChangedSince: [], decisionId: 18, talentId: "t-c", isNew: false, at: null, action: "pass", reasons: ["RN 없음"], tags: [], headline: null },
     ],
-    silent: { newCount: 1, earlierCount: 0 },
+    silent: { newCount: 1, earlierCount: 0 }, companyMessages: [],
   },
   "ko"
 );
@@ -185,7 +185,7 @@ test("a new criterion: a name the Role lacks, below required, with the same evid
   refused({ decisionIds: [20, 19] }, /at least one pass since the last review/);
   // An answered new criterion is listed as never suggested again.
   const text = formatCriteriaReview({
-    roleId: "role-1", criteria, review: { passes: [], silent: { newCount: 0, earlierCount: 0 } },
+    roleId: "role-1", criteria, review: { passes: [], silent: { newCount: 0, earlierCount: 0 }, companyMessages: [] },
     answeredKeys: ["criterion_add:결제 도메인"], locale: "ko",
   });
   assert.match(text, /never suggested again\):\n- new criterion 결제 도메인$/);
@@ -196,11 +196,11 @@ test("a new criterion: a name the Role lacks, below required, with the same evid
 const noteSnapshot = criteriaReviewSnapshot(
   {
     passes: [
-      { decisionId: 30, talentId: "t-a", isNew: true, at: null, action: "pass", reasons: ["두 회사 연속 6개월 안에 퇴사"], tags: [], headline: null },
-      { decisionId: 29, talentId: "t-b", isNew: true, at: null, action: "pass", reasons: [], tags: ["role_fit"], headline: null },
-      { decisionId: 20, talentId: "t-c", isNew: false, at: null, action: "pass", reasons: ["이전 두 직장 모두 짧게 다님"], tags: [], headline: null },
+      { criteriaChangedSince: [], decisionId: 30, talentId: "t-a", isNew: true, at: null, action: "pass", reasons: ["두 회사 연속 6개월 안에 퇴사"], tags: [], headline: null },
+      { criteriaChangedSince: [], decisionId: 29, talentId: "t-b", isNew: true, at: null, action: "pass", reasons: [], tags: ["role_fit"], headline: null },
+      { criteriaChangedSince: [], decisionId: 20, talentId: "t-c", isNew: false, at: null, action: "pass", reasons: ["이전 두 직장 모두 짧게 다님"], tags: [], headline: null },
     ],
-    silent: { newCount: 0, earlierCount: 0 },
+    silent: { newCount: 0, earlierCount: 0 }, companyMessages: [],
   },
   "ko"
 );
@@ -251,9 +251,51 @@ test("a memory note: one short note in the company's words, backed by written re
 
   // An answered note is listed as never suggested again, and the purpose names notes.
   const text = formatCriteriaReview({
-    roleId: "role-1", criteria, review: { passes: [], silent: { newCount: 0, earlierCount: 0 } },
+    roleId: "role-1", criteria, review: { passes: [], silent: { newCount: 0, earlierCount: 0 }, companyMessages: [] },
     answeredKeys: ["memory_note:최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요"], locale: "ko",
   });
   assert.match(text, /never suggested again\):\n- memory note "최근 두 회사에서 모두 6개월 안에 나온 분은 뽑지 않아요"$/);
   assert.match(text, /lasting company preference or fact rather than something to check for this Role, whether to save one company memory note/);
+});
+
+test("what the company said can back a suggestion alone, and only messages in this review count", () => {
+  const withMessage = { ...snapshot, messageIds: [501] };
+  const payload = criteriaProposalFromReview({
+    criteria,
+    snapshot: withMessage,
+    criterionId: null,
+    memoryNote: { text: "인턴 경험만 있는 사람은 보지 않아요", scope: "company" },
+    decisionIds: [],
+    messageIds: [501],
+    rationale: "앞으로 인턴 경험만 있는 분은 안 본다고 하셨어요.",
+  });
+  assert.deepEqual(payload.evidence.messageIds, [501]);
+  assert.deepEqual(payload.evidence.decisionIds, []);
+  assert.throws(
+    () => criteriaProposalFromReview({ criteria, snapshot: withMessage, criterionId: "c-rn", decisionIds: [], messageIds: [999], rationale: "x" }),
+    (error: unknown) => error instanceof CriteriaReviewInputError && /Message 999/.test(error.message)
+  );
+  assert.throws(
+    () => criteriaProposalFromReview({ criteria, snapshot: withMessage, criterionId: "c-rn", decisionIds: [], rationale: "x" }),
+    CriteriaReviewInputError
+  );
+  assert.deepEqual(parseCriteriaReviewSnapshot({ passes: [], withReason: 0, messageIds: [501], locale: "ko" })?.messageIds, [501]);
+  assert.deepEqual(parseCriteriaReviewSnapshot({ passes: [], withReason: 0, locale: "ko" })?.messageIds, []);
+});
+
+test("each pass says how the criteria changed after it, and the review lists what the company said", () => {
+  const review = buildCriteriaReview({
+    cursor: 0,
+    decisions: [{ ...decision(30, "t-a"), briefRevision: 2 }, { ...decision(29, "t-b"), briefRevision: 3 }],
+    details: [{ id: 30, action: "pass", reasonText: "경력이 부족함" }, { id: 29, action: "pass", reasonText: "경력이 부족함" }],
+    criteria,
+    briefCriteriaAt: { "2": criteria.slice(1), "3": criteria },
+    messages: [{ id: 501, channel: "slack", text: " 앞으로   인턴만 한 분은 안 봐요 ", createdAt: at(40) }],
+  });
+  assert.deepEqual(review.passes.find((pass) => pass.decisionId === 30)?.criteriaChangedSince, ["React Native 실무 경험 added"]);
+  assert.deepEqual(review.passes.find((pass) => pass.decisionId === 29)?.criteriaChangedSince, []);
+  assert.deepEqual(criteriaReviewSnapshot(review, "ko").messageIds, [501]);
+  const text = formatCriteriaReview({ roleId: "r", criteria, review, locale: "ko" });
+  assert.match(text, /criteria changed after this decision: React Native 실무 경험 added/);
+  assert.match(text, /message 501 \| .* \| Slack\n  said: "앞으로 인턴만 한 분은 안 봐요"/);
 });

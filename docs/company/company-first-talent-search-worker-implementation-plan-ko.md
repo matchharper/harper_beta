@@ -1129,7 +1129,7 @@ route 범위와 실제 완료 상태만 전달한다. Company-side LLM은 최근
 알린다. 이때 내부 stage별 count를 기계적으로 나열하거나 전체 pool에 적합한 사람이 없다고 확대하지 않는다.
 이번 company-first 경로에서 현재 먼저 보여 줄 사람을 고르지 못했다는 사실과, candidate-first 또는 이미
 진행 중인 다른 route는 이 결과에 포함되지 않을 수 있다는 user-safe 의미를 LLM context로 제공한다. 정기
-run의 0명은 별도 요청을 기다리는 사용자가 없으므로 기존처럼 알림을 만들지 않는다. Candidate-first 결과는
+run의 0명도 company-side LLM이 이유와 제안을 회사에 보고한다(2026-11-09 결정, 로컬·미배포). Candidate-first 결과는
 별도로 기존 Opportunity Worker가 후보자 delivery를 수행한다.
 
 ## 15. Slack 전달 직전 live guard
@@ -1200,7 +1200,7 @@ private trace 또는 hash로 남긴다.
 | Planner JSON invalid | fallback 1회; 실패하면 `failed`, write 0 |
 | 일부 Role SQL 실패 | repair/fallback 후 성공 Role로 계속; partial count 기록 |
 | 모든 SQL 실패 | `failed`, scoring·write 없음 |
-| Retrieval 0명 | `succeeded`, selected 0, 회사 Slack 없음 |
+| Retrieval 0명 | `succeeded`, selected 0, 후보 카드 없음. 결과 보고는 company-side LLM |
 | Scoring 일부 실패 | 실패 Talent만 제외; retry 뒤 실패율이 20%를 초과하면 `failed`, route write 0 |
 | Rerank invalid | repair 1회; 실패하면 `failed/rerank_invalid`, route write 0 |
 | Live guard stale | stale pair 제외, 자동 padding 없음 |

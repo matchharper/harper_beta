@@ -113,6 +113,12 @@ test("candidate results are text: criteria named once, numbered per person, no q
 
 test("request results explain queued, running and refused searches", () => {
   assert.match(formatExternalSearchRequestResult({ status: "queued", runId: "r", roleName: "Product Engineer" }), /nobody is contacted/);
+  for (const status of ["queued", "already_running"]) {
+    const saved = formatExternalSearchRequestResult({ status, runId: "r", roleName: "Product Engineer" });
+    assert.match(saved, /uses only what is saved for the Role/);
+    assert.match(saved, /free-text reason is only a record/);
+    assert.match(saved, /saved into the Role's criteria/);
+  }
   assert.match(formatExternalSearchRequestResult({ status: "already_running", runId: "r", roleName: "Product Engineer" }), /No new search was started/);
   const refused = formatExternalSearchRequestResult({ status: "not_queued", roleName: "Product Engineer", reason: "company_request_only" });
   assert.match(refused, /unavailable_reason=company_request_only/);
@@ -325,12 +331,18 @@ test("an external search asked inside a company Harper run carries that run; one
 });
 
 /** Admin for the plan and request checks: runs counted as `roleRuns`, the plan summary and Role access from `billing`. */
-function billingAdmin(billing: { model: string; creditSlots?: Array<Record<string, unknown>>; slotType?: string }, roleRuns = 0) {
+function billingAdmin(billing: { model: string; creditSlots?: Array<Record<string, unknown>>; slotType?: string; debitError?: string }, roleRuns = 0) {
   const inserts: string[] = [];
   const rpcs: string[] = [];
+  const debits: unknown[] = [];
   const admin = {
-    rpc: (name: string) => {
+    rpc: (name: string, params?: unknown) => {
       rpcs.push(name);
+      if (name === "workspace_billing_debit_v1") {
+        debits.push(params);
+        inserts.push("connection held");
+        return Promise.resolve(billing.debitError ? { data: null, error: { message: billing.debitError } } : { data: "ev1", error: null });
+      }
       if (name === "workspace_billing_summary_v2") return Promise.resolve({ data: { model: billing.model, creditSlots: billing.creditSlots ?? [] }, error: null });
       if (name === "role_matching_slot_type_v1") return Promise.resolve({ data: billing.slotType ?? "free", error: null });
       return Promise.resolve({ data: true, error: null });
@@ -345,7 +357,7 @@ function billingAdmin(billing: { model: string; creditSlots?: Array<Record<strin
       return builder;
     },
   };
-  return { admin: admin as never, inserts, rpcs };
+  return { admin: admin as never, inserts, rpcs, debits };
 }
 
 test("a free workspace that used today's search for a Role is told so; a paid one is not held to it", async (t) => {
@@ -363,33 +375,28 @@ test("a free workspace that used today's search for a Role is told so; a paid on
   for (const model of ["slot", "scale", "legacy"]) assert.equal((await ask(model)).result.status, "queued", model);
 });
 
-test("an outside connection request needs a connection left, like a member Intro request", async (t) => {
+test("an outside connection request holds one connection before it is recorded", async (t) => {
   serverModules(t, { ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*" });
   const { requestExternalIntro } = await import("./externalSourcing.server");
   const { WorkspaceBillingError, billingErrorCopy } = await import("@/lib/org/billing/types");
-  const shared = (remaining: number) => ({ id: "free", slotId: null, roleId: null, remaining });
   const candidate = { id: "c1", name: "Ada", role_id: "r1", contact: { status: "found" }, intro: null } as never;
   const ask = (fake: ReturnType<typeof billingAdmin>, person = candidate) => requestExternalIntro({ admin: fake.admin, workspaceId: "w1",
     roleId: "r1", userId: "u1", candidate: person, companyAppeal: "Agent infra", introRecipientEmails: ["me@acme.example"], channel: "web" });
 
-  const empty = billingAdmin({ model: "free", creditSlots: [shared(0)] });
+  // No connection left: nothing is recorded, with the same message as a member Intro request.
+  const empty = billingAdmin({ model: "free", debitError: "workspace_credits_exhausted" });
   await assert.rejects(ask(empty), (error: unknown) => error instanceof WorkspaceBillingError && error.code === "credits_exhausted");
-  assert.deepEqual(empty.inserts, []);
-  // The same message as a member Intro request.
+  assert.deepEqual(empty.inserts, ["connection held"]);
   assert.match(billingErrorCopy("credits_exhausted", "ko"), /연결이 모두 소진됐어요/);
 
-  for (const [label, fake] of [
-    ["one left", billingAdmin({ model: "free", creditSlots: [shared(1)] })],
-    ["own slot credits", billingAdmin({ model: "slot", creditSlots: [shared(0), { id: "s1", slotId: "s1", roleId: "r1", remaining: 12 }] })],
-    ["Harper-tailored Role", billingAdmin({ model: "free", creditSlots: [shared(0)], slotType: "paid" })],
-    ["legacy", billingAdmin({ model: "legacy" })],
-    ["scale", billingAdmin({ model: "scale" })],
-  ] as const) {
-    assert.equal((await ask(fake)).status, "requested", label);
-    assert.deepEqual(fake.inserts, ["external_intro_requests"], label);
-  }
-  // An existing request is answered as before, without a credit check.
-  const repeat = billingAdmin({ model: "free", creditSlots: [shared(0)] });
+  const held = billingAdmin({ model: "free" });
+  assert.equal((await ask(held)).status, "requested");
+  assert.deepEqual(held.inserts, ["connection held", "external_intro_requests"]);
+  assert.deepEqual(held.debits[0], { p_workspace: "w1", p_action: "intro_request", p_key: "external:c1", p_role: "r1",
+    p_talent: "c1", p_actor: "u1", p_payload: {}, p_complete: true });
+
+  // An existing request is answered as before, without taking another connection.
+  const repeat = billingAdmin({ model: "free", debitError: "workspace_credits_exhausted" });
   await ask(repeat, { ...(candidate as object), intro: { status: "invited" } } as never);
-  assert.equal(repeat.rpcs.includes("workspace_billing_summary_v2"), false);
+  assert.equal(repeat.rpcs.includes("workspace_billing_debit_v1"), false);
 });
