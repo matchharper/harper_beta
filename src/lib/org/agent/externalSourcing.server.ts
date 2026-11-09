@@ -110,7 +110,7 @@ export async function requestExternalSourcing(args: {
       loadCreditSummary(args.admin, args.workspaceId).then((summary) => summary?.model ?? null)])
     : [{ activeRunId: null, roleRunsLast24h: 0, workspaceRunsLast24h: 0 }, null];
   const decision = decideExternalSourcing({ enabled, trigger: args.trigger, history, now, plan,
-    limits: externalSourcingLimits(process.env, plan) });
+    limits: externalSourcingLimits(process.env, plan, args.workspaceId) });
   const base = { roleName: args.roleName, trigger: args.trigger };
   if (!decision.allowed) {
     const result = decision.status === "already_running"

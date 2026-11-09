@@ -23,15 +23,25 @@ function intEnv(env: Record<string, string | undefined>, name: string, fallback:
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
+/** Harper's own company workspace (internal testing): no per-Role limit, the company limit still applies. */
+export const NO_ROLE_LIMIT_WORKSPACE_IDS: readonly string[] = ["720254d7-aeb7-4709-a56f-7b822f89eac5"];
+
 /** Each run costs about $1 to $4. These limits are enforced in code, whatever the model asks for. */
-export function externalSourcingLimits(env: Record<string, string | undefined> = process.env, plan?: string | null) {
+export function externalSourcingLimits(env: Record<string, string | undefined> = process.env, plan?: string | null,
+  workspaceId?: string | null) {
   const roleDaily = intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 5);
+  // runs one workspace may start in 24 hours across all its Roles: the cost ceiling per company
+  const workspaceDaily = intEnv(env, "ORG_EXTERNAL_SOURCING_WORKSPACE_DAILY_LIMIT", 20);
+  // Harper's own company workspace keeps only the company ceiling; the Role check never fires, so hitting
+  // the ceiling reads as workspace_daily_limit.
+  if (workspaceId && NO_ROLE_LIMIT_WORKSPACE_IDS.includes(workspaceId)) {
+    return { roleDaily: Number.POSITIVE_INFINITY, workspaceDaily };
+  }
   return {
     // runs one Role may start in 24 hours (the company's requests; Harper never starts one on its own);
     // a free workspace gets one per Role
     roleDaily: plan === "free" ? Math.min(1, roleDaily) : roleDaily,
-    // runs one workspace may start in 24 hours across all its Roles: the cost ceiling per company
-    workspaceDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_WORKSPACE_DAILY_LIMIT", 20),
+    workspaceDaily,
   };
 }
 
