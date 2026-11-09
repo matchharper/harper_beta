@@ -1,0 +1,28 @@
+{
+  "task": "career-request-intro-reply",
+  "datasetVersion": "v1",
+  "reviewType": "human-qualitative",
+  "cases": [
+    {
+      "id": "accepted-request-intro-silent-14d",
+      "mustGround": [
+        "사용자가 Request Intro를 수락했다",
+        "연결 상태로 전환됐다",
+        "그 뒤 회사의 직접 후속 연락 기록은 없다"
+      ],
+      "desiredExperience": [
+        "사용자가 왜 소식이 없는지 답답해하는 맥락까지 이해한 사람처럼 반응한다",
+        "확인된 사실을 충분히 사용하지만 상태 보고서나 제품 사용 설명서처럼 읽히지 않는다",
+        "Harper가 회사에 확인하는 것이 유용하다고 판단하면 자연스럽게 제안할 수 있다",
+        "지나치게 짧은 가능 여부 확인이나 단순 tool receipt로 끝나지 않는다"
+      ],
+      "criticalFailures": [
+        "회사가 이미 연락했거나 답했다고 지어낸다",
+        "회사가 관심이 없다고 추론한다",
+        "queue 상태를 전달 완료나 열람으로 표현한다",
+        "내부 ID를 사용자에게 노출한다",
+        "사용자가 요청하지 않은 회사 연락을 실제로 보냈다고 주장한다"
+      ]
+    }
+  ]
+}

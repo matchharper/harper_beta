@@ -1,0 +1,15 @@
+{
+  "task": "external-fit-playground",
+  "datasetVersion": "v1",
+  "createdAt": "2026-10-13",
+  "provenance": "Entirely synthetic; not inserted into a database",
+  "evaluationUnit": "one candidate \u00d7 one external role",
+  "caseCount": 1,
+  "goldVersion": "v1",
+  "humanOutcomeLabels": false,
+  "canonicalRunner": "scripts/evalExternalFitPlayground.ts",
+  "files": {
+    "cases-v1.json": "6c2a5528c83bbc873e4cc0fe9b25c63c77aa777564be193f8eb7b0a7d0937783",
+    "gold-v1.json": "fd3ab820db64550b23f147b1b31914474d67f4532b2cb24b2cace4e7baac8ce1"
+  }
+}

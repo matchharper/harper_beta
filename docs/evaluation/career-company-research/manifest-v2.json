@@ -1,0 +1,24 @@
+{
+  "task": "career-company-research",
+  "datasetVersion": "v1",
+  "goldVersion": "v2",
+  "outputContract": "concise Harper insight; no interview-question or exhaustive due-diligence section",
+  "capturedAt": "2026-09-17T12:00:00.000Z",
+  "caseCount": 5,
+  "fixtureSource": "cases-v1.json",
+  "productionFieldsRead": [
+    "company_snapshot.company_name",
+    "company_snapshot.created_at",
+    "company_snapshot.status"
+  ],
+  "productionFieldsExcluded": [
+    "user_id",
+    "conversation content",
+    "profile",
+    "Search Brief",
+    "Memory",
+    "prior model output"
+  ],
+  "fixtureReview": "Company names verified against recent completed snapshots; all decision context is synthetic.",
+  "runner": "scripts/evalCareerCompanyResearch.ts"
+}

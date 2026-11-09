@@ -1,0 +1,16 @@
+{
+  "datasetVersion": "v12",
+  "frozenAt": "2026-09-28T11:49:20.170481+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v12.json": "175fca85cf70e9a43d40a7c1b33cf790c3a5f22bc9d2e826a8b347d72294ce81",
+    "gold-v12.md": "381291a6c73a71be9c07bdcd88a4ee9f22179b9d564d32b62b14e67b859892d5"
+  },
+  "evaluationUnit": "5 independent synthetic conversations / 5 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v12 --copy=real --run=<new>",
+  "model": "Production company-side model plus actual copy.ts writer; exact settings captured per run",
+  "provenance": "User-requested casual outreach plus two analogous requests; synthetic alias and history. Frozen before first run; independent label review pending.",
+  "privacy": "Synthetic fixture only. No real profile, interview fact, DB or external delivery. Owner-only ignored raw artifacts.",
+  "releaseGate": "5/5 semantic content/target/authorization; critical 0; actual draft/send selection separately reported.",
+  "knownLimitations": "One sample per case; actual loop/schema/writer but synthetic executor. Not DB/browser/transport E2E or production reliability measurement."
+}

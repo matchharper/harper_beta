@@ -1,0 +1,68 @@
+{
+  "datasetVersion": "v16",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Same synthetic inputs as v13. Expected policy updated before calls for user-approved Slot terminology and optional separately agreed Enterprise pricing.",
+  "scenarios": [
+    {
+      "id": "CSCQ1314",
+      "variants": [
+        {
+          "id": "pricing_ko",
+          "surface": "chat",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "serviceAnswerExamplesText": "<service_answer_examples>과거 답변 예시: Harper는 월 구독료나 사용료가 없으며 채용 성공 시에만 수수료를 받습니다.</service_answer_examples>",
+          "turns": [
+            "구독료가 없다고 들었는데 지금 요금제가 어떻게 돼? 우리 회사는 어떤 요금제야?"
+          ]
+        },
+        {
+          "id": "pricing_en",
+          "surface": "slack",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "serviceAnswerExamplesText": "<service_answer_examples>Previous approved answer: There are no subscriptions or usage fees. We charge only when you hire.</service_answer_examples>",
+          "turns": [
+            "Do you only charge when we hire, or are there subscriptions? Where can I check what our company pays?"
+          ]
+        },
+        {
+          "id": "intro_exhausted",
+          "surface": "slack",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "stage": "company_intro"
+            }
+          },
+          "faults": [
+            {
+              "phase": "before",
+              "tool": "decide_company_intro",
+              "billingCode": "credits_exhausted",
+              "repeat": true
+            }
+          ],
+          "turns": [
+            "Daniel Park님께 Intro 요청해줘. Python API 운영과 장애 대응 경험이 우리 서비스 안정화 업무와 잘 맞아서 만나고 싶어. 수락하면 user@example.invalid로 소개해줘."
+          ]
+        },
+        {
+          "id": "connect_exhausted",
+          "surface": "chat",
+          "faults": [
+            {
+              "phase": "before",
+              "tool": "decide_candidate_connection",
+              "billingCode": "credits_exhausted",
+              "repeat": true
+            }
+          ],
+          "turns": [
+            "Connect us with Daniel Park. Please send the introduction to user@example.invalid.",
+            "Yes, accept the connection and introduce us."
+          ]
+        }
+      ]
+    }
+  ]
+}

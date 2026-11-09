@@ -1,0 +1,500 @@
+{
+  "task": "external-v2-weight-replay",
+  "datasetVersion": "production-score-pool-v1",
+  "goldVersion": "observed-feedback-v1",
+  "runId": "2026-10-26T06-11-08.251Z",
+  "sourceRevision": "079f24f79278394864a882aac20ab05dfa994705",
+  "sourceFiles": {
+    "scripts/captureExternalV2WeightReplay.py": "ec0f8dfc759345b24af2b9b8946327008a2d1819df1b75f634ab94a7a54723b1",
+    "scripts/reportExternalV2WeightReplay.ts": "08b6260e6a3d3bca5ec01d0451623364049ae5e1d12d969366a1265c5a221376",
+    "src/lib/externalRecommendationsV2/contract.ts": "115a80b040b6c626307c12336a4c1b4500a3e15c7b54b22ecb45c7f316af5a59"
+  },
+  "captureSha256": "beed3c91722985a77a6a5f202a5c2e58927419de965538e156aa1ed599dcc0b3",
+  "model": "stored gpt-6-luna Decisions scores; no new inference",
+  "measurementVersion": "filter-first-hnsw-2026-10-16-v1",
+  "variants": [
+    {
+      "name": "기존",
+      "weights": [
+        65,
+        15,
+        10,
+        10
+      ]
+    },
+    {
+      "name": "균등",
+      "weights": [
+        25,
+        25,
+        25,
+        25
+      ]
+    },
+    {
+      "name": "후보자 관심 중심",
+      "weights": [
+        30,
+        50,
+        10,
+        10
+      ]
+    },
+    {
+      "name": "직무 적합도 중심",
+      "weights": [
+        30,
+        15,
+        10,
+        45
+      ]
+    },
+    {
+      "name": "관심·직무 균형",
+      "weights": [
+        20,
+        40,
+        10,
+        30
+      ]
+    },
+    {
+      "name": "상호 적합도 제외",
+      "weights": [
+        0,
+        60,
+        5,
+        35
+      ]
+    }
+  ],
+  "metrics": {
+    "capturedAt": "2026-10-26T06:10:08.718543+00:00",
+    "sourceRuns": 516,
+    "sourceDislikes": 482,
+    "includedRuns": 125,
+    "includedUsers": 125,
+    "totalScoredRoles": 57589,
+    "excluded": {
+      "cached_pool_membership_unavailable": 383,
+      "incomplete_or_overwritten_pool": 8
+    },
+    "dislikes": 99,
+    "likes": 190,
+    "baselineDislikesTop25": 99,
+    "baselineLikesTop25": 190,
+    "variants": [
+      {
+        "name": "기존",
+        "weights": [
+          65,
+          15,
+          10,
+          10
+        ],
+        "dislikesDropped": 0,
+        "dislikesDroppedBeyondTie": 0,
+        "dislikesTop25": 99,
+        "likesDropped": 0,
+        "likesTop25": 190,
+        "meanDislikeRankChange": 0,
+        "affectedUsers": 0
+      },
+      {
+        "name": "균등",
+        "weights": [
+          25,
+          25,
+          25,
+          25
+        ],
+        "dislikesDropped": 2,
+        "dislikesDroppedBeyondTie": 2,
+        "dislikesTop25": 97,
+        "likesDropped": 3,
+        "likesTop25": 187,
+        "meanDislikeRankChange": 0.6161616161616161,
+        "affectedUsers": 2
+      },
+      {
+        "name": "후보자 관심 중심",
+        "weights": [
+          30,
+          50,
+          10,
+          10
+        ],
+        "dislikesDropped": 3,
+        "dislikesDroppedBeyondTie": 3,
+        "dislikesTop25": 96,
+        "likesDropped": 10,
+        "likesTop25": 180,
+        "meanDislikeRankChange": 1.1515151515151516,
+        "affectedUsers": 2
+      },
+      {
+        "name": "직무 적합도 중심",
+        "weights": [
+          30,
+          15,
+          10,
+          45
+        ],
+        "dislikesDropped": 3,
+        "dislikesDroppedBeyondTie": 3,
+        "dislikesTop25": 96,
+        "likesDropped": 4,
+        "likesTop25": 186,
+        "meanDislikeRankChange": 1.1818181818181819,
+        "affectedUsers": 1
+      },
+      {
+        "name": "관심·직무 균형",
+        "weights": [
+          20,
+          40,
+          10,
+          30
+        ],
+        "dislikesDropped": 1,
+        "dislikesDroppedBeyondTie": 1,
+        "dislikesTop25": 98,
+        "likesDropped": 4,
+        "likesTop25": 186,
+        "meanDislikeRankChange": 0.47474747474747475,
+        "affectedUsers": 1
+      },
+      {
+        "name": "상호 적합도 제외",
+        "weights": [
+          0,
+          60,
+          5,
+          35
+        ],
+        "dislikesDropped": 6,
+        "dislikesDroppedBeyondTie": 6,
+        "dislikesTop25": 93,
+        "likesDropped": 16,
+        "likesTop25": 174,
+        "meanDislikeRankChange": 2.5757575757575757,
+        "affectedUsers": 4
+      }
+    ],
+    "bySurface": {
+      "worker": {
+        "dislikes": 94,
+        "likes": 186,
+        "baselineDislikesTop25": 94,
+        "baselineLikesTop25": 186,
+        "variants": [
+          {
+            "name": "기존",
+            "weights": [
+              65,
+              15,
+              10,
+              10
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 94,
+            "likesDropped": 0,
+            "likesTop25": 186,
+            "meanDislikeRankChange": 0,
+            "affectedUsers": 0
+          },
+          {
+            "name": "균등",
+            "weights": [
+              25,
+              25,
+              25,
+              25
+            ],
+            "dislikesDropped": 2,
+            "dislikesDroppedBeyondTie": 2,
+            "dislikesTop25": 92,
+            "likesDropped": 3,
+            "likesTop25": 183,
+            "meanDislikeRankChange": 0.6170212765957447,
+            "affectedUsers": 2
+          },
+          {
+            "name": "후보자 관심 중심",
+            "weights": [
+              30,
+              50,
+              10,
+              10
+            ],
+            "dislikesDropped": 3,
+            "dislikesDroppedBeyondTie": 3,
+            "dislikesTop25": 91,
+            "likesDropped": 10,
+            "likesTop25": 176,
+            "meanDislikeRankChange": 1.1914893617021276,
+            "affectedUsers": 2
+          },
+          {
+            "name": "직무 적합도 중심",
+            "weights": [
+              30,
+              15,
+              10,
+              45
+            ],
+            "dislikesDropped": 3,
+            "dislikesDroppedBeyondTie": 3,
+            "dislikesTop25": 91,
+            "likesDropped": 4,
+            "likesTop25": 182,
+            "meanDislikeRankChange": 1.2234042553191489,
+            "affectedUsers": 1
+          },
+          {
+            "name": "관심·직무 균형",
+            "weights": [
+              20,
+              40,
+              10,
+              30
+            ],
+            "dislikesDropped": 1,
+            "dislikesDroppedBeyondTie": 1,
+            "dislikesTop25": 93,
+            "likesDropped": 4,
+            "likesTop25": 182,
+            "meanDislikeRankChange": 0.4787234042553192,
+            "affectedUsers": 1
+          },
+          {
+            "name": "상호 적합도 제외",
+            "weights": [
+              0,
+              60,
+              5,
+              35
+            ],
+            "dislikesDropped": 6,
+            "dislikesDroppedBeyondTie": 6,
+            "dislikesTop25": 88,
+            "likesDropped": 16,
+            "likesTop25": 170,
+            "meanDislikeRankChange": 2.6595744680851063,
+            "affectedUsers": 4
+          }
+        ]
+      },
+      "web": {
+        "dislikes": 3,
+        "likes": 0,
+        "baselineDislikesTop25": 3,
+        "baselineLikesTop25": 0,
+        "variants": [
+          {
+            "name": "기존",
+            "weights": [
+              65,
+              15,
+              10,
+              10
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 3,
+            "likesDropped": 0,
+            "likesTop25": 0,
+            "meanDislikeRankChange": 0,
+            "affectedUsers": 0
+          },
+          {
+            "name": "균등",
+            "weights": [
+              25,
+              25,
+              25,
+              25
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 3,
+            "likesDropped": 0,
+            "likesTop25": 0,
+            "meanDislikeRankChange": 0.3333333333333333,
+            "affectedUsers": 0
+          },
+          {
+            "name": "후보자 관심 중심",
+            "weights": [
+              30,
+              50,
+              10,
+              10
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 3,
+            "likesDropped": 0,
+            "likesTop25": 0,
+            "meanDislikeRankChange": 0,
+            "affectedUsers": 0
+          },
+          {
+            "name": "직무 적합도 중심",
+            "weights": [
+              30,
+              15,
+              10,
+              45
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 3,
+            "likesDropped": 0,
+            "likesTop25": 0,
+            "meanDislikeRankChange": 0.3333333333333333,
+            "affectedUsers": 0
+          },
+          {
+            "name": "관심·직무 균형",
+            "weights": [
+              20,
+              40,
+              10,
+              30
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 3,
+            "likesDropped": 0,
+            "likesTop25": 0,
+            "meanDislikeRankChange": 0,
+            "affectedUsers": 0
+          },
+          {
+            "name": "상호 적합도 제외",
+            "weights": [
+              0,
+              60,
+              5,
+              35
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 3,
+            "likesDropped": 0,
+            "likesTop25": 0,
+            "meanDislikeRankChange": 0.3333333333333333,
+            "affectedUsers": 0
+          }
+        ]
+      },
+      "daily": {
+        "dislikes": 2,
+        "likes": 4,
+        "baselineDislikesTop25": 2,
+        "baselineLikesTop25": 4,
+        "variants": [
+          {
+            "name": "기존",
+            "weights": [
+              65,
+              15,
+              10,
+              10
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 2,
+            "likesDropped": 0,
+            "likesTop25": 4,
+            "meanDislikeRankChange": 0,
+            "affectedUsers": 0
+          },
+          {
+            "name": "균등",
+            "weights": [
+              25,
+              25,
+              25,
+              25
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 2,
+            "likesDropped": 0,
+            "likesTop25": 4,
+            "meanDislikeRankChange": 1,
+            "affectedUsers": 0
+          },
+          {
+            "name": "후보자 관심 중심",
+            "weights": [
+              30,
+              50,
+              10,
+              10
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 2,
+            "likesDropped": 0,
+            "likesTop25": 4,
+            "meanDislikeRankChange": 1,
+            "affectedUsers": 0
+          },
+          {
+            "name": "직무 적합도 중심",
+            "weights": [
+              30,
+              15,
+              10,
+              45
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 2,
+            "likesDropped": 0,
+            "likesTop25": 4,
+            "meanDislikeRankChange": 0.5,
+            "affectedUsers": 0
+          },
+          {
+            "name": "관심·직무 균형",
+            "weights": [
+              20,
+              40,
+              10,
+              30
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 2,
+            "likesDropped": 0,
+            "likesTop25": 4,
+            "meanDislikeRankChange": 1,
+            "affectedUsers": 0
+          },
+          {
+            "name": "상호 적합도 제외",
+            "weights": [
+              0,
+              60,
+              5,
+              35
+            ],
+            "dislikesDropped": 0,
+            "dislikesDroppedBeyondTie": 0,
+            "dislikesTop25": 2,
+            "likesDropped": 0,
+            "likesTop25": 4,
+            "meanDislikeRankChange": 2,
+            "affectedUsers": 0
+          }
+        ]
+      }
+    }
+  },
+  "privacy": "IDs, scores, and raw feedback remain in ignored owner-only private/runs"
+}

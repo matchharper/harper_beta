@@ -1,0 +1,71 @@
+{
+  "datasetVersion": "v11",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic no-custom-stage workflow challenge derived from user-approved requirement; frozen before model calls. Calendar/availability ready in adapter.",
+  "scenarios": [
+    {
+      "id": "CSCQ1113",
+      "variants": [
+        {
+          "id": "accept_web",
+          "surface": "chat",
+          "turns": [
+            "Daniel Park님 연결 수락할게. 소개 이메일은 user@example.invalid로 보내줘.",
+            "응, 그렇게 연결해줘."
+          ]
+        },
+        {
+          "id": "intro_slack",
+          "surface": "slack",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "stage": "company_intro"
+            }
+          },
+          "turns": [
+            "Daniel Park님께 Intro 요청해줘. Python API 운영과 장애 대응 경험이 우리 서비스 안정화 업무와 잘 맞아서 만나고 싶어. 수락하면 user@example.invalid로 소개해줘.",
+            "응, 요청해줘."
+          ]
+        },
+        {
+          "id": "meeting_web",
+          "surface": "chat",
+          "turns": [
+            "Daniel Park님과 API 장애 대응 경험을 이야기할 인터뷰 잡아줘.",
+            "그분과 시스템 설계 역량을 이야기할 후속 인터뷰도 하나 더 잡아줘. 이번에는 45분으로."
+          ]
+        },
+        {
+          "id": "purpose_only",
+          "surface": "slack",
+          "turns": [
+            "Daniel Park님 인터뷰 잡아줘.",
+            "API 운영 경험과 서비스 장애 대응 방식에 관해 이야기하고 싶어."
+          ]
+        },
+        {
+          "id": "existing_invitation",
+          "surface": "slack",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "stage": "connected"
+            }
+          },
+          "meetings": [
+            {
+              "scheduleId": "00000000-0000-4000-8000-000000000900",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "purpose": "기술 경험 확인",
+              "durationMinutes": 45,
+              "status": "awaiting_talent",
+              "deliveryState": "queued"
+            }
+          ],
+          "turns": [
+            "Daniel Park님께 보내기로 한 인터뷰 안내 지금 바로 보내줘."
+          ]
+        }
+      ]
+    }
+  ]
+}

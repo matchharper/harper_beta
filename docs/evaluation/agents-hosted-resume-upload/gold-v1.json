@@ -1,0 +1,7 @@
+{
+  "version": "v1",
+  "required": {"apiFamily": "agents", "environmentType": "openai_hosted", "localBrowser": false, "externalBrowserService": false},
+  "ashby_demo": {"selectedFilename": "Harper Test Resume.pdf", "selectedSizeMatches": true, "selectedSha256Matches": true, "submitted": false, "proofArtifact": "attachment-proof.json"},
+  "owned_fixture": {"selectedFilename": "Harper Test Resume.pdf", "selectedSizeMatches": true, "selectedSha256Matches": true, "submitted": true, "serverReceiptSha256Matches": true, "serverReceiptCount": 1},
+  "review": "Inspect screenshot and downloaded proof; provider prose is not byte-identity evidence. Gold frozen before model execution."
+}

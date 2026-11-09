@@ -1,0 +1,16 @@
+{
+  "version": "role-move-live-v1",
+  "fixture": "org-candidate-role-move-consent-live-v1",
+  "cases": {
+    "accept": {
+      "reply": "네, [E2E 1020] 플랫폼 엔지니어 역할로 변경해서 진행하는 데 동의합니다. Harper 회사에 이 답변을 전달하고 해당 역할로 옮겨 주세요.",
+      "expected": "The existing company-side LLM executes the preauthorized move once and explains the actual result. Pending connection remains pending connection."
+    },
+    "decline": {
+      "reply": "[E2E 1020] 백엔드 엔지니어 역할로 다시 옮기는 것은 원하지 않습니다. 현재 [E2E 1020] 플랫폼 엔지니어 역할을 유지하고 싶다고 회사에 전달해 주세요.",
+      "expected": "The company receives the refusal. No Role or stage changes and no new candidate outreach."
+    }
+  },
+  "scope": "Explicitly authorized production fixture only. Browser request, real candidate delivery, persisted fixture candidate reply through the ordinary relay RPC, local company-side event processor, actual database move and Slack delivery.",
+  "limitations": "The reply is injected as a test-account message, not sent through Gmail inbound parsing or the Career conversational tool-selection loop. No web or worker deployment."
+}

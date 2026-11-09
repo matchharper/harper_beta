@@ -1,0 +1,18 @@
+{
+  "datasetVersion": "v1",
+  "casesSha256": "31d40b84a58befd349bc56812080480d871b2e1a12f7288c5729c1fe50be2a68",
+  "goldSha256": "08fceae5f994421153c74cb7b9cf569321b2ec622568b0f7e1a879649785e581",
+  "frozenBeforeModelCalls": true,
+  "provenance": "Synthetic scenarios derived from the requested unified contact contract; private mapping to explicitly authorized identities",
+  "canonicalRunner": "scripts/evalUnifiedCompanyContacts.ts",
+  "captureRunner": "../harper_worker/scripts/capture_company_contact_test.py",
+  "unit": "stateful bidirectional contact scenario",
+  "modelConfiguration": "current production runtime defaults, recorded per run",
+  "releaseGate": "3/3 end-state and UX pass, zero critical failures",
+  "privacy": "Owner-only ignored private/runs; read-only production capture; mutations local only",
+  "limitations": [
+    "small challenge set",
+    "local auth/transport adapters do not verify external delivery",
+    "embedding lookup unavailable in local schema replica"
+  ]
+}

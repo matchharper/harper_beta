@@ -1,0 +1,30 @@
+{
+  "datasetVersion": "native-random-v1",
+  "goldVersion": null,
+  "capturedAt": "2026-10-12T13:09:08.281920+00:00",
+  "sampleSize": 5,
+  "sampling": "Uniform pseudorandom ordering of unique live external JD URLs by md5(url || cryptographic seed); no provider/ATS stratification.",
+  "inclusion": "source_type external; nonempty http(s) URL; no expired/ended/closed/inactive/archived/testOnly marker; no elapsed expires_at.",
+  "privateCapture": "private/native-random-v1/sample.json",
+  "sampleSha256": "5f55ad085a97a419c3582bd99a8c78d2549c7880839a250783b58fae5676d12f",
+  "seedSha256": "586dda22e28143a7280946cac518b60cbb2f3b851336ea98af4b94fa549480bc",
+  "canonicalRunner": "output/jupyter-notebook/agents_api_application_inputs.ipynb",
+  "runnerSha256": "99ea6651269824932f12cc5b4dcef964097a34d71967f7350881f87892fa024d",
+  "provider": "openai_agents",
+  "model": "gpt-6.1-sol",
+  "reasoning": "provider_default",
+  "timeoutSeconds": 600,
+  "sourcePagesFrozen": false,
+  "review": "Unblinded manual review after output. One public form-schema cross-check; successful final screenshots inspected. No independent full gold for all cases.",
+  "summary": {
+    "publicFormsRetrieved": 4,
+    "closedPage": 1,
+    "runsIncludingOriginCorrection": 6,
+    "allSessionsDeleted404": true,
+    "actualSubmissionRequested": false
+  },
+  "rawRuns": [
+    "runs/native-random-v1-20261012T131002Z",
+    "runs/native-random-v1-20261012T131310Z"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "task": "email-channel-reply",
+  "datasetVersion": "application-v2",
+  "createdAt": "2026-10-14",
+  "cases": [
+    {
+      "id": "application-assisted",
+      "locale": "ko",
+      "recommendation": "external_jd",
+      "application": {
+        "submission": "supported",
+        "resume": true
+      },
+      "subject": "Re: 오로라 API 엔지니어 추천",
+      "turns": [
+        "거기 지원해줘.",
+        "좋아. 제안한 수정은 전부 반영해서 이력서 준비하고 지원까지 진행해줘."
+      ]
+    },
+    {
+      "id": "application-manual",
+      "locale": "ko",
+      "recommendation": "external_jd",
+      "application": {
+        "submission": "unsupported",
+        "resume": true
+      },
+      "subject": "Re: 오로라 API 엔지니어 추천",
+      "turns": [
+        "거기 지원해줘.",
+        "제안한 수정은 모두 반영해줘. 지원은 내가 할게."
+      ]
+    },
+    {
+      "id": "application-no-resume",
+      "locale": "ko",
+      "recommendation": "external_jd",
+      "application": {
+        "submission": "supported",
+        "resume": false
+      },
+      "subject": "Re: 오로라 API 엔지니어 추천",
+      "turns": [
+        "거기 지원해줘."
+      ]
+    }
+  ]
+}

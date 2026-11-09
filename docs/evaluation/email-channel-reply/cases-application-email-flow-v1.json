@@ -1,0 +1,41 @@
+{
+  "task": "email-channel-reply",
+  "datasetVersion": "application-email-flow-v1",
+  "createdAt": "2026-10-27",
+  "cases": [
+    {
+      "id": "application-auto-select-approve",
+      "locale": "ko",
+      "recommendation": "external_jd",
+      "application": {
+        "submission": "supported",
+        "resume": true,
+        "extraResumes": [
+          {
+            "fileName": "예전 데이터분석 직무용 이력서.txt",
+            "text": "이가온. 데이터 분석 지원용 요약: 합성 SaaS 기업에서 PostgreSQL로 데이터 조회. 학력: 합성대학교 컴퓨터공학 학사, 2021년 졸업."
+          }
+        ]
+      },
+      "subject": "Re: 오로라 API 엔지니어 추천",
+      "turns": [
+        "이 회사 대신 지원해줘.",
+        "그렇게 해줘. 추가로 적을 경험은 없어."
+      ]
+    },
+    {
+      "id": "application-direct-rewrite-handoff",
+      "locale": "ko",
+      "recommendation": "external_jd",
+      "application": {
+        "submission": "unsupported",
+        "resume": true
+      },
+      "subject": "Re: 오로라 API 엔지니어 추천",
+      "turns": [
+        "여기 지원해줘.",
+        "수정은 제안한 대로 하되 성과 문장은 \"합성 테스트에서 API 지연 시간을 40% 줄임\"으로 써줘. 다른 경험은 추가하지 말고 이대로 만들어줘."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "task": "company-side-background-result-writing",
+  "datasetVersion": "member-welcome-v1",
+  "createdAt": "2026-10-15",
+  "unit": "one synthetic completed teammate onboarding and its channel mention/thread",
+  "inputSha256": "8836cb913c89a410fda70e0cdd04514796a8de21fa8e189de6af1894803c3a3e",
+  "goldSha256": "ea6beb0839afd55d67356ec88ae1c818b5dfb097aa9afe403475affc79f2061c",
+  "canonicalRunner": "scripts/evalOrgOnboardingSlackWelcome.ts",
+  "provenance": "Four author-created synthetic Korean/English welcome cases; frozen before model execution.",
+  "privacy": "Synthetic facts only. No production capture, DB calls or Slack delivery. Only the configured existing company-side provider may receive inputs. Raw inputs/outputs stay in ignored runs with 0700/0600 permissions.",
+  "metrics": "Human semantic review 4/4; critical failures 0; targeted membership and delivery-order tests pass.",
+  "limitations": "Small challenge set, no independent teammate review or production/browser delivery verification.",
+  "modelConfiguration": "Current Slack company-side model, provider, reasoning and temperature; actual settings and source fingerprints are recorded per run."
+}

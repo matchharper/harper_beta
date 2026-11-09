@@ -1,0 +1,9 @@
+{
+  "task": "company-side-conversational-qa",
+  "datasetVersion": "role-setup-v1",
+  "frozenAt": "2026-10-25",
+  "inputSha256": "73fded413f060121aed519cb45d62a5cadbaa21ec43ca77a23941ac78b0dd485",
+  "goldSha256": "7c563d7fb17543b5c958260bfd18a973f201d15d776c3b8b484cbeb4b75465c2",
+  "provenance": "Synthetic sparse-JD and supplied-JD cases authored before this run; existing role-criteria-v1 context shape reused. No production data.",
+  "review": "Author-defined gold frozen before first run; no independent review."
+}

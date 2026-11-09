@@ -1,0 +1,15 @@
+{
+  "datasetVersion": "v30",
+  "frozenAt": "2026-10-15T12:39:51.887939+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v30.json": "14dc9b1ca23933dc16e3a7d29c1c9f3313faa64388ef80eaf82f7fab3f7b5fff",
+    "gold-v30.md": "af0143a20db0ab8023b3cdf171c0a2ce7a8fd90f60258832744f90161818e186",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "one synthetic first-intro-reply event turn",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v30 --run=<new>",
+  "privacy": "synthetic; model API only; no production DB or Slack/email writes",
+  "releaseGate": "manual semantic review; no fabricated facts or unauthorized effects",
+  "knownLimitations": "single example, isolated tools; not production transport E2E"
+}

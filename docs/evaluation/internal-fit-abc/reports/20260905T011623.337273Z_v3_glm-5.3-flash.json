@@ -1,0 +1,569 @@
+{
+  "caseCount": 13,
+  "cases": [
+    {
+      "allAxesCorrect": true,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": true,
+        "roleFit": true
+      },
+      "caseId": "ABC01",
+      "company": "Config",
+      "costUsd": 0.0016044,
+      "criticalViolationCount": 0,
+      "criticalViolations": [],
+      "derivedMustAskHoldQuestion": false,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 53.058,
+      "mustAskHoldQuestionCorrect": true,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "requestOk": true,
+      "role": "Head of Robotics Systems",
+      "roleCoverage": {
+        "expected": 3,
+        "returned": 3
+      },
+      "talent": "T-1e71e3d78eec"
+    },
+    {
+      "allAxesCorrect": true,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": true,
+        "roleFit": true
+      },
+      "caseId": "ABC02",
+      "company": "Config",
+      "costUsd": 0.00172553,
+      "criticalViolationCount": 0,
+      "criticalViolations": [],
+      "derivedMustAskHoldQuestion": false,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 56.206,
+      "mustAskHoldQuestionCorrect": true,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "requestOk": true,
+      "role": "Robotics Systems Engineer",
+      "roleCoverage": {
+        "expected": 3,
+        "returned": 3
+      },
+      "talent": "T-3b4f1daa9797"
+    },
+    {
+      "allAxesCorrect": false,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": false,
+        "roleFit": false
+      },
+      "caseId": "ABC03",
+      "company": "Wonderful",
+      "costUsd": 0.00317025,
+      "criticalViolationCount": 1,
+      "criticalViolations": [
+        "forbidden companyFit=ambiguous"
+      ],
+      "derivedMustAskHoldQuestion": false,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 151.102,
+      "mustAskHoldQuestionCorrect": true,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "ambiguous",
+        "roleFit": "ambiguous"
+      },
+      "requestOk": true,
+      "role": "Field CTO - Australia",
+      "roleCoverage": {
+        "expected": 14,
+        "returned": 14
+      },
+      "talent": "T-0eadf128ce87"
+    },
+    {
+      "allAxesCorrect": true,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": true,
+        "roleFit": true
+      },
+      "caseId": "ABC04",
+      "company": "Wonderful",
+      "costUsd": 0.00246693,
+      "criticalViolationCount": 0,
+      "criticalViolations": [],
+      "derivedMustAskHoldQuestion": false,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 83.126,
+      "mustAskHoldQuestionCorrect": true,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "requestOk": true,
+      "role": "Forward Deployed Engineer (FDE)",
+      "roleCoverage": {
+        "expected": 14,
+        "returned": 14
+      },
+      "talent": "T-402f53ded2cd"
+    },
+    {
+      "allAxesCorrect": true,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": true,
+        "roleFit": true
+      },
+      "caseId": "ABC05",
+      "company": "Wonderful",
+      "costUsd": 0.00261313,
+      "criticalViolationCount": 0,
+      "criticalViolations": [],
+      "derivedMustAskHoldQuestion": false,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 118.597,
+      "mustAskHoldQuestionCorrect": true,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "requestOk": true,
+      "role": "Forward Deployed Engineer (FDE) - Australia",
+      "roleCoverage": {
+        "expected": 14,
+        "returned": 14
+      },
+      "talent": "T-83574ee151cc"
+    },
+    {
+      "allAxesCorrect": false,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": false,
+        "roleFit": false
+      },
+      "caseId": "ABC06",
+      "company": "Wonderful",
+      "costUsd": 0.00284522,
+      "criticalViolationCount": 3,
+      "criticalViolations": [
+        "forbidden roleFit=hold",
+        "forbidden companyFit=ambiguous",
+        "forbidden mustAskHoldQuestion=true"
+      ],
+      "derivedMustAskHoldQuestion": true,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 715.48,
+      "mustAskHoldQuestionCorrect": false,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "ambiguous",
+        "roleFit": "hold"
+      },
+      "requestOk": true,
+      "role": "Forward Deployed Engineer (FDE) - Japan",
+      "roleCoverage": {
+        "expected": 14,
+        "returned": 14
+      },
+      "talent": "T-a816bff17fa2"
+    },
+    {
+      "allAxesCorrect": false,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": true,
+        "roleFit": false
+      },
+      "caseId": "ABC07",
+      "company": "Wonderful",
+      "costUsd": 0.00214005,
+      "criticalViolationCount": 2,
+      "criticalViolations": [
+        "forbidden roleFit=hold",
+        "forbidden mustAskHoldQuestion=true"
+      ],
+      "derivedMustAskHoldQuestion": true,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "fit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 784.261,
+      "mustAskHoldQuestionCorrect": false,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "hold"
+      },
+      "requestOk": true,
+      "role": "Forward Deployed Engineer (FDE) - Singapore",
+      "roleCoverage": {
+        "expected": 14,
+        "returned": 14
+      },
+      "talent": "T-0a368c9d7182"
+    },
+    {
+      "allAxesCorrect": false,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": false,
+        "roleFit": true
+      },
+      "caseId": "ABC08",
+      "company": "Config",
+      "costUsd": 0.00170692,
+      "criticalViolationCount": 1,
+      "criticalViolations": [
+        "forbidden companyFit=fit"
+      ],
+      "derivedMustAskHoldQuestion": true,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "ambiguous",
+        "roleFit": "hold"
+      },
+      "expectedMustAskHoldQuestion": true,
+      "jsonParseOk": true,
+      "latencySec": 60.388,
+      "mustAskHoldQuestionCorrect": true,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "fit",
+        "roleFit": "hold"
+      },
+      "requestOk": true,
+      "role": "Forward-Deployed Engineer",
+      "roleCoverage": {
+        "expected": 3,
+        "returned": 3
+      },
+      "talent": "T-d6dc1ba500ae"
+    },
+    {
+      "allAxesCorrect": true,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": true,
+        "roleFit": true
+      },
+      "caseId": "ABC09",
+      "company": "Mistral AI",
+      "costUsd": 0.00123486,
+      "criticalViolationCount": 0,
+      "criticalViolations": [],
+      "derivedMustAskHoldQuestion": false,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "ambiguous",
+        "roleFit": "fit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 86.553,
+      "mustAskHoldQuestionCorrect": true,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "ambiguous",
+        "roleFit": "fit"
+      },
+      "requestOk": true,
+      "role": "Applied AI Engineer, Fullstack",
+      "roleCoverage": {
+        "expected": 3,
+        "returned": 3
+      },
+      "talent": "T-f4702bd979f3"
+    },
+    {
+      "allAxesCorrect": false,
+      "axisCorrect": {
+        "candidateFit": false,
+        "companyFit": true,
+        "roleFit": true
+      },
+      "caseId": "ABC10",
+      "company": "Wonderful",
+      "costUsd": 0.00170585,
+      "criticalViolationCount": 0,
+      "criticalViolations": [],
+      "derivedMustAskHoldQuestion": false,
+      "expected": {
+        "candidateFit": "middle",
+        "companyFit": "ambiguous",
+        "roleFit": "fit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 535.328,
+      "mustAskHoldQuestionCorrect": true,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "ambiguous",
+        "roleFit": "fit"
+      },
+      "requestOk": true,
+      "role": "Head of Partnerships, APAC",
+      "roleCoverage": {
+        "expected": 14,
+        "returned": 14
+      },
+      "talent": "T-4cc195037ed0"
+    },
+    {
+      "allAxesCorrect": true,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": true,
+        "roleFit": true
+      },
+      "caseId": "ABC11",
+      "company": "Wonderful",
+      "costUsd": 0.00093936,
+      "criticalViolationCount": 0,
+      "criticalViolations": [],
+      "derivedMustAskHoldQuestion": false,
+      "expected": {
+        "candidateFit": "unfit",
+        "companyFit": "unfit",
+        "roleFit": "unfit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 76.763,
+      "mustAskHoldQuestionCorrect": true,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "unfit",
+        "companyFit": "unfit",
+        "roleFit": "unfit"
+      },
+      "requestOk": true,
+      "role": "Forward Deployed Engineer (FDE) - Thailand",
+      "roleCoverage": {
+        "expected": 14,
+        "returned": 14
+      },
+      "talent": "T-abf6c85b43d2"
+    },
+    {
+      "allAxesCorrect": false,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": false,
+        "roleFit": true
+      },
+      "caseId": "ABC12",
+      "company": "Sierra",
+      "costUsd": 0.00144821,
+      "criticalViolationCount": 1,
+      "criticalViolations": [
+        "forbidden companyFit=ambiguous"
+      ],
+      "derivedMustAskHoldQuestion": false,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "unfit",
+        "roleFit": "fit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 69.67,
+      "mustAskHoldQuestionCorrect": true,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "ambiguous",
+        "roleFit": "fit"
+      },
+      "requestOk": true,
+      "role": "Software Engineer, Agent",
+      "roleCoverage": {
+        "expected": 3,
+        "returned": 3
+      },
+      "talent": "T-47769c67fc2b"
+    },
+    {
+      "allAxesCorrect": false,
+      "axisCorrect": {
+        "candidateFit": true,
+        "companyFit": false,
+        "roleFit": false
+      },
+      "caseId": "ABC13",
+      "company": "Config",
+      "costUsd": 0.00149474,
+      "criticalViolationCount": 3,
+      "criticalViolations": [
+        "forbidden roleFit=hold",
+        "forbidden companyFit=ambiguous",
+        "forbidden mustAskHoldQuestion=true"
+      ],
+      "derivedMustAskHoldQuestion": true,
+      "expected": {
+        "candidateFit": "fit",
+        "companyFit": "unfit",
+        "roleFit": "unfit"
+      },
+      "expectedMustAskHoldQuestion": false,
+      "jsonParseOk": true,
+      "latencySec": 26.727,
+      "mustAskHoldQuestionCorrect": false,
+      "normalizationErrorCount": 0,
+      "predicted": {
+        "candidateFit": "fit",
+        "companyFit": "ambiguous",
+        "roleFit": "hold"
+      },
+      "requestOk": true,
+      "role": "Forward-Deployed Engineer",
+      "roleCoverage": {
+        "expected": 3,
+        "returned": 3
+      },
+      "talent": "T-0f1e66f570b3"
+    }
+  ],
+  "datasetKind": "production-snapshot-challenge-set",
+  "datasetVersion": "v3",
+  "finishedAt": "2026-09-05T04:32:16.429439+00:00",
+  "fixtureSha256": "b382e14e1a348fe8e9fee1a5441a37588dac3b49de5dc8fff5698e1d9063fe41",
+  "goldSha256": "0d223a4dbc1ad56b64958ead9aa1e5bf551702c496d2f18a964e9e3ffd9a9ead",
+  "limitations": [
+    "This is a 13-pair challenge set, not a representative production sample.",
+    "The fixture is a current-context snapshot, not a causal historical replay.",
+    "Hold-criterion semantic quality requires human review; this summary checks presence and derived ask policy only.",
+    "Second-stage routing is intentionally not part of the model output or this metric."
+  ],
+  "metrics": {
+    "allAxesAccuracy": 0.4615,
+    "allAxesExact": 6,
+    "candidateFitAccuracy": 0.9231,
+    "candidateFitExact": 12,
+    "companyFitAccuracy": 0.6154,
+    "companyFitExact": 8,
+    "criticalViolationCount": 11,
+    "jsonParseSuccess": 13,
+    "latencyP50Sec": 83.126,
+    "latencyP95Sec": 784.261,
+    "mustAskHoldQuestionExact": 10,
+    "mustAskHoldQuestionFalseNegative": 0,
+    "mustAskHoldQuestionFalsePositive": 3,
+    "mustAskHoldQuestionPrecision": 0.25,
+    "mustAskHoldQuestionRecall": 1.0,
+    "mustAskHoldQuestionTruePositive": 1,
+    "normalizationErrorCount": 0,
+    "requestSuccess": 13,
+    "roleFitAccuracy": 0.6923,
+    "roleFitExact": 9,
+    "totalCostUsd": 0.02509545
+  },
+  "model": {
+    "allowFallbacks": false,
+    "dataCollection": "deny",
+    "label": "glm-5.3-flash",
+    "provider": "openrouter",
+    "providerOnly": [
+      "z-ai"
+    ],
+    "providerSort": "price",
+    "reasoningEffort": "high",
+    "requestModel": "z-ai/glm-5.3-flash",
+    "responseModels": [
+      "z-ai/glm-5.3-flash"
+    ],
+    "temperature": 0.3
+  },
+  "predictedDistributions": {
+    "candidateFit": {
+      "fit": 12,
+      "unfit": 1
+    },
+    "companyFit": {
+      "ambiguous": 6,
+      "fit": 6,
+      "unfit": 1
+    },
+    "roleFit": {
+      "ambiguous": 1,
+      "fit": 7,
+      "hold": 4,
+      "unfit": 1
+    }
+  },
+  "promptSha256": "75d4afaec1af3d70e06038001a4296b0aa71875963cabdf4798062bf5eeaa698",
+  "promptVersion": "v2",
+  "runId": "20260905T011623.337273Z_v3_glm-5.3-flash",
+  "runnerVersion": "internal_fit_abc_prefilter_eval_v1",
+  "sourceHashes": {
+    "llmConfig": "e1c7ccf688b98281d80f5e941311843129942632fa0198d5097ca29305ad9b39",
+    "llmSerialization": "68af4fb843cfe7695243dbbfdb14ff37f9960f067a5c00a10d43673aa3cf6e10",
+    "modelBenchmark": "b838c302cf0e66e93ce1df9f7c69670834de948f0585dd08e1a0a18abed52691"
+  },
+  "sourceRevision": "7fa24062bf4da8c96ca6f1823c11cba70c5a1b47",
+  "startedAt": "2026-09-05T01:16:23.337430+00:00",
+  "task": "internal-fit-abc"
+}

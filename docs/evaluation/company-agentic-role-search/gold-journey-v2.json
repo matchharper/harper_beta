@@ -1,0 +1,11 @@
+{
+  "version": "journey-v2",
+  "expectations": [
+    "현재 토론토 거주와 주 5일 출근 조건을 원문 의미에 따라 저장한다.",
+    "변경된 조건으로 전체 미응답 추천 목록을 재검토한다.",
+    "기존 결정·진행 이력을 보존하고 외부 연락을 만들지 않는다.",
+    "유지·제외·추가·최종 인원을 실제 전후 후보 집합과 일치하게 설명한다."
+  ],
+  "source": "Successful journey-v1 step 2, local actual-data copy; no production writes",
+  "reviewBasis": "User clarified nationality was only an example of a list-changing instruction; job-related example selected before calls."
+}

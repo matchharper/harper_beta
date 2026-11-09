@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "provenance": "Synthetic fixture source introduced in PR155 at ab50b1410f60be9aa74bd391667fbeb4f9aaa65a. Inline input/gold remain frozen in Git at that revision. Registered during local integration; these runners were not executed here.",
+  "frozenInputSourceRevision": "ab50b1410f60be9aa74bd391667fbeb4f9aaa65a",
+  "files": {
+    "scripts/evals/simulationSession.ts": "04ded94d2a7bc71c3bd167a7e7ac65bb401c1a1f1b4ccf2cd44ea3148b7f3575",
+    "scripts/evals/simulationActionCoverage.ts": "0a0d4c6eb28d67c485f15c8aec954febdb40a3d0a3ca4c7007da00379df5df28",
+    "scripts/evals/simulationCompletionBudget.ts": "4bb93702ea244789f5899555ef950b5e4fe9dff8f3212fee0e6291924ce30f23"
+  },
+  "goldFile": "gold-v1.json",
+  "goldHash": "6828f80b3e9cd4341bce30872d1bca782eb47e73ac0575d5a999387b7aa9af30",
+  "goldStatus": "Codex contract review; independent human review pending."
+}

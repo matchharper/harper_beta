@@ -1,0 +1,125 @@
+{
+  "datasetVersion": "v9",
+  "cases": [
+    {
+      "id": "application_direct_switch",
+      "semanticCriteria": [
+        "추가 종료 확인 없이 같은 턴에 기존 준비를 저장하고 지정한 공고 시작 카드를 제공한다.",
+        "카드 안내에서 기존 준비의 보존·재개 가능성과 새 공고의 다음 행동을 자연스럽게 이해할 수 있다.",
+        "준비 분석이나 실제 접수가 완료됐다고 주장하지 않는다. 기존 이력서 선택을 재질문하지 않는다."
+      ],
+      "forbidden": [
+        "apply_for_role",
+        "ready_for_role",
+        "generate_resume"
+      ],
+      "forbiddenActions": [
+        {
+          "turnIndex": 0,
+          "name": "manage_simulation_session",
+          "action": "request_switch"
+        }
+      ],
+      "required": [
+        "simulate_application"
+      ],
+      "requiredActions": [
+        {
+          "turnIndex": 0,
+          "name": "manage_simulation_session",
+          "action": "end"
+        }
+      ],
+      "startOffer": {
+        "turnIndex": 0,
+        "slug": "synthetic-field-engineer"
+      },
+      "maxSuccessfulCalls": {
+        "simulate_application": 1
+      }
+    },
+    {
+      "id": "application_confirmed_switch",
+      "semanticCriteria": [
+        "추가 종료 확인 없이 같은 턴에 기존 준비를 저장하고 지정한 공고 시작 카드를 제공한다.",
+        "카드 안내에서 기존 준비의 보존·재개 가능성과 새 공고의 다음 행동을 자연스럽게 이해할 수 있다.",
+        "준비 분석이나 실제 접수가 완료됐다고 주장하지 않는다. 기존 이력서 선택을 재질문하지 않는다."
+      ],
+      "forbidden": [
+        "apply_for_role",
+        "ready_for_role",
+        "generate_resume"
+      ],
+      "forbiddenActions": [
+        {
+          "turnIndex": 0,
+          "name": "manage_simulation_session",
+          "action": "request_switch"
+        }
+      ],
+      "required": [
+        "simulate_application"
+      ],
+      "requiredActions": [
+        {
+          "turnIndex": 0,
+          "name": "manage_simulation_session",
+          "action": "end"
+        }
+      ],
+      "startOffer": {
+        "turnIndex": 0,
+        "slug": "synthetic-field-engineer"
+      },
+      "maxSuccessfulCalls": {
+        "simulate_application": 1
+      }
+    },
+    {
+      "id": "application_switch_question",
+      "semanticCriteria": [
+        "가능 여부에 답하되 실제 작업을 종료하거나 새 공고를 시작하지 않는다."
+      ],
+      "forbidden": [
+        "apply_for_role",
+        "ready_for_role",
+        "generate_resume",
+        "manage_simulation_session",
+        "simulate_application"
+      ],
+      "forbiddenActions": [
+        {
+          "turnIndex": 0,
+          "name": "manage_simulation_session",
+          "action": "request_switch"
+        }
+      ]
+    },
+    {
+      "id": "application_pause_only",
+      "semanticCriteria": [
+        "현재 준비를 저장하고 종료하여 나중에 이어갈 수 있음을 설명한다. 새 공고를 임의로 시작하지 않는다."
+      ],
+      "forbidden": [
+        "apply_for_role",
+        "ready_for_role",
+        "generate_resume",
+        "simulate_application"
+      ],
+      "forbiddenActions": [
+        {
+          "turnIndex": 0,
+          "name": "manage_simulation_session",
+          "action": "request_switch"
+        }
+      ],
+      "requiredActions": [
+        {
+          "turnIndex": 0,
+          "name": "manage_simulation_session",
+          "action": "end"
+        }
+      ]
+    }
+  ]
+}

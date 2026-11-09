@@ -1,0 +1,10 @@
+{
+  "version": "v1",
+  "recipient": {"id":"fixture-owner","name":null,"locale":"ko","verifiedEmail":true,"suppressed":false},
+  "workspace": {"name":"Example Company","internal":true,"membership":"owner","setupUrl":"https://example.invalid/org/settings?orgId=fixture-workspace"},
+  "role": {"name":"투자 심사역","active":true,"testOnly":false,"canDeliverToSlack":false},
+  "cases": [
+    {"id":"pending-and-ready","now":"2026-10-16T01:00:00Z","setupNeeded":"Slack 앱과 알림 채널을 연결하고 이 역할의 알림을 받을 수 있도록 설정","pendingConnectionCount":3,"readyCandidateCount":5,"previouslyPresentedReadyCount":0,"receipts":[]},
+    {"id":"empty-third-notice","now":"2026-10-19T01:00:00Z","setupNeeded":"Slack 앱은 연결되어 있으나 이 역할을 전달할 활성 채널이 없어 채널을 등록하고 역할 알림을 연결","pendingConnectionCount":0,"readyCandidateCount":0,"previouslyPresentedReadyCount":0,"receipts":[{"recipientId":"fixture-owner","sentAt":"2026-10-12T01:00:00Z","eventId":"notice-1"},{"recipientId":"fixture-owner","sentAt":"2026-10-14T01:00:00Z","eventId":"notice-2"}]}
+  ]
+}

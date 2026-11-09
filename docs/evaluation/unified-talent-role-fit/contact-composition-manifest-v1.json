@@ -1,0 +1,7 @@
+{
+  "datasetVersion": "contact-composition-v1",
+  "sha256": "a84f5193cc85f1e1531185e75b5d9914deb783e401247f82b47b16b8e0c48d16",
+  "provenance": "Entirely synthetic, authored before execution. No production people or companies.",
+  "goldReview": "Codex authored rubric before live model execution; no independent human review",
+  "runner": "harper_worker/llm_evals/unified_talent_role_fit/eval_contact_composition.py"
+}

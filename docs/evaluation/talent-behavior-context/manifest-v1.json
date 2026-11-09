@@ -1,0 +1,34 @@
+{
+  "task": "talent-behavior-context",
+  "datasetVersion": "v1",
+  "goldVersion": "talent_behavior_context_review_v1",
+  "datasetKind": "deidentified-synthetic-regression-and-critical-failure-challenge-set",
+  "caseCount": 7,
+  "modeDistribution": {"initial": 5, "update": 2},
+  "createdAt": "2026-09-09T00:00:00+09:00",
+  "source": {
+    "runtimeOwner": "harper_worker",
+    "canonicalRunner": "harper_worker/llm_evals/talent_behavior_context/eval.py",
+    "productionPromptImport": "harper_worker/opp/agentic/behavior_context.py",
+    "dataProvenance": "Hand-authored de-identified synthetic challenge cases derived from previously observed failure classes; no production text or identifiers."
+  },
+  "privacy": {
+    "containsProductionPii": false,
+    "databaseAccess": "none",
+    "externalProviderInput": "Synthetic evidence plus production Behavior Context prompts",
+    "rawOutputs": "gitignored harper_worker/llm_evals/talent_behavior_context/results with file mode 0600"
+  },
+  "releaseGate": {
+    "structuralSuccessRate": 1.0,
+    "criticalFabricationCount": 0,
+    "singleOrDuplicateEventOvergeneralizationCount": 0,
+    "staleInferenceAfterCorrectionCount": 0,
+    "briefOrMemoryCopyCount": 0,
+    "manualReviewRequired": true
+  },
+  "knownLimitations": [
+    "The dataset is a small challenge set and is not representative traffic.",
+    "Qualitative release gates require manual review of raw outputs.",
+    "Downstream recommendation quality is outside this task."
+  ]
+}

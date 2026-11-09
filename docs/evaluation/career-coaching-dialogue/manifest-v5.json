@@ -1,0 +1,63 @@
+{
+  "task": "career-coaching-dialogue",
+  "datasetVersion": "v5",
+  "createdAt": "2026-09-22",
+  "sourceRevisionAtFreeze": "b5b18dce76a0d2bc75786dd3b540806bcf8a1c00",
+  "parentVersion": "v4",
+  "versionChange": "Adds three multi-turn active text-chat quality challenges and a frozen human rubric for substantive contribution before questions, cumulative reasoning, correction handling, factual grounding, and useful closing.",
+  "files": {
+    "cases-v5.json": {
+      "sha256": "5470925d2d6f2a8d8ed2e205af4f4042b1ac07cde7919e7bbbf0e1c203a5b8da"
+    },
+    "gold-v5.json": {
+      "sha256": "87112b675372b252436825f4379ef4ac359c4a7b46a276404d59b1c16a4d7ab1"
+    },
+    "canonicalRunner": {
+      "path": "scripts/evalCareerCoachingLifecycle.ts",
+      "sha256AtRegistration": "6cd94dd384cc2f88334241ffea0973875be6f306cba482b80618853882f6e150"
+    }
+  },
+  "distribution": {
+    "caseCount": 3,
+    "assistantResponseOpportunities": 22,
+    "language": {
+      "ko": 3
+    },
+    "caseTypes": {
+      "hypothesis_correction_and_role_experiment": 1,
+      "emotional_opening_and_cause_revision": 1,
+      "direct_compensation_question_and_factual_grounding": 1
+    },
+    "source": {
+      "synthetic": 3,
+      "production": 0
+    }
+  },
+  "promptContract": {
+    "channel": "chat",
+    "conversationMode": "active_career_coaching",
+    "locale": "ko",
+    "productionBuilderRequired": true,
+    "productionChatToolSchemaRequired": true,
+    "lifecycleStateStubbedInMemory": true,
+    "multiTurnHistoryRequired": true
+  },
+  "review": {
+    "goldType": "human_qualitative_active_chat_quality_with_structural_lifecycle_checks",
+    "status": "frozen_before_first_v5_model_run",
+    "reviewer": "Codex using user-specified coaching quality criteria",
+    "unblindedToModelOutput": false
+  },
+  "privacy": {
+    "containsProductionData": false,
+    "containsPii": false,
+    "rawOutputsGitignored": true,
+    "productionDatabaseAccessAllowed": false
+  },
+  "knownLimitations": [
+    "Three synthetic conversations are a targeted challenge, not a representative production sample.",
+    "Fixed user turns may not answer every model question as naturally as a live user.",
+    "Tool execution is in memory and does not test the database or browser UI.",
+    "Human transcript review is required; structural runner success is not a quality pass."
+  ]
+}

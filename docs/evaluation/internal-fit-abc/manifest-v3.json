@@ -1,0 +1,82 @@
+{
+  "adjudication": {
+    "changes": [
+      "Replaced every inferred C=fit case with an exact production pair that reached an explicit pending/custom/final stage.",
+      "Kept selected v2 challenge inputs only with C=ambiguous or C=unfit.",
+      "Added machine-checkable companyFitGroundTruth provenance to every C=fit gold case."
+    ],
+    "reviewedBy": "Codex correction after owner reminder",
+    "scope": [
+      "ABC01",
+      "ABC02",
+      "ABC03",
+      "ABC04",
+      "ABC05",
+      "ABC06",
+      "ABC07",
+      "ABC08",
+      "ABC09",
+      "ABC10",
+      "ABC11",
+      "ABC12",
+      "ABC13"
+    ]
+  },
+  "artifacts": {
+    "gold": {
+      "containsProductionPII": false,
+      "path": "gold-v3.json",
+      "sha256": "0d223a4dbc1ad56b64958ead9aa1e5bf551702c496d2f18a964e9e3ffd9a9ead",
+      "tracked": true
+    },
+    "privateFixture": {
+      "containsProductionPII": true,
+      "path": "private/fixture-v3.json",
+      "requiredMode": "0600",
+      "sha256": "b382e14e1a348fe8e9fee1a5441a37588dac3b49de5dc8fff5698e1d9063fe41",
+      "tracked": false
+    },
+    "prompt": {
+      "fileSha256": "333ad9da48998e300b4d1dfd8b63e21e92732efc5cbda43ac4fede5c9e29e2e0",
+      "path": "prompt-v2.md",
+      "tracked": true,
+      "trimmedContentSha256": "75d4afaec1af3d70e06038001a4296b0aa71875963cabdf4798062bf5eeaa698"
+    }
+  },
+  "capturedAt": "2026-09-02T09:19:58.634162+00:00",
+  "caseCount": 13,
+  "datasetKind": "outcome-anchored-production-snapshot-challenge-set",
+  "datasetVersion": "v3",
+  "labelDistribution": {
+    "axisA": {
+      "fit": 10,
+      "hold": 1,
+      "unfit": 2
+    },
+    "axisB": {
+      "fit": 11,
+      "middle": 1,
+      "unfit": 1
+    },
+    "axisC": {
+      "ambiguous": 3,
+      "fit": 7,
+      "unfit": 3
+    }
+  },
+  "policyDistribution": {
+    "ask": 1,
+    "suppress": 12
+  },
+  "runner": {
+    "capturePath": "harper_worker/llm_evals/internal_fit_abc/capture_outcome_anchored_fixture.py",
+    "path": "harper_worker/llm_evals/internal_fit_abc/abc_prefilter_eval.py"
+  },
+  "source": {
+    "cFitContract": "explicit same-pair pending_connection, custom company stage, or final_offer; saved_stage=connected alone is excluded",
+    "databaseMode": "default_transaction_read_only",
+    "workerRevision": "53448d179c1a73427688d6d89a923d7942ad37c4"
+  },
+  "task": "internal-fit-abc",
+  "updatedAt": "2026-09-02T09:19:58.634162+00:00"
+}

@@ -1,0 +1,274 @@
+{
+  "task": "role-criteria-writing",
+  "datasetVersion": "v1",
+  "goldVersion": null,
+  "createdAt": "2026-10-20T16:51:25.607348+00:00",
+  "provenance": "Codex authored synthetic profiles and fictional role descriptions on 2026-10-21 before model calls. No production capture, personal data, gold labels or automated semantic scoring.",
+  "source": {
+    "harper_worker": {
+      "revision": "088f295f43c6171d0fe580ed13f3fafc7382376b",
+      "dirtyDiffSha256": "d9b0611cda618f485556f5834ff4bc5d2dcbcfb5961ed65ab95b00c7dff756d3",
+      "dirty": true
+    },
+    "harper_beta": {
+      "revision": "5edb06523708973b833b6b281589432904552980",
+      "dirtyDiffSha256": "48022085dee1adbd0fd0c5e2cdfbf63c5834b5cabd12a7c0232f1361beee347f",
+      "dirty": true
+    },
+    "files": {
+      "llm_evals/role_criteria_writing/compare.py": "b6b11bf55506ac81160186f30bc63bd70c4b01511360dfc9f817124aa33acf91",
+      "opp/matching/presentation.py": "00c0a1f471a22a26812bd463eb24e96eb0dd59437c9ea66366622c8bb7a482e6",
+      "opp/matching/text.py": "b0b0898ea99698772e59ddfb8c7559030a25849654a8a870e93453e33b42a932",
+      "opp/utils/llm_input_text.py": "f6ec8380e26bddfe45dd5dab37b854c558c16b5053752cb9f591c7eede122c5e"
+    }
+  },
+  "fixtureSha256": "fa512447305fea15d36de5d9d98d21f4a00e72e4fb9dcb0f7c644b35caef1757",
+  "promptPath": "text-v1/system.txt",
+  "promptFingerprint": "76cccfa5c7a0a103c3496b98f24f189e6daefbc85b861bb4b0c475e79ca4f0f1",
+  "productionSystemSha256": "ac69648298816d88231b8e6b0dbf9107746847ef93f3018dfae2d98d26f3ae5d",
+  "inputTextVersion": "matching-readable-input-v1",
+  "promptProjection": "Production criterion content/fitness and factual fidelity verbatim; isolated criteria-only task wrapper. Excludes TLDR, Harper Note and finalFit.",
+  "cases": [
+    {
+      "id": "T01",
+      "roleId": "backend",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T01.txt",
+      "inputSha256": "809e2fbd48ae4335bb2cf095f4c61af2ae436823a5cb7988f0838cfddb6e82e6"
+    },
+    {
+      "id": "T02",
+      "roleId": "backend",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T02.txt",
+      "inputSha256": "50893ef4750ee40d4b5a952079811fd47ed286aa15ed34347a0f6b56606f7376"
+    },
+    {
+      "id": "T03",
+      "roleId": "backend",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T03.txt",
+      "inputSha256": "18ee7cbe4ea13376370761edd664a019fe4b3f6ff60736b914e79af7758272a7"
+    },
+    {
+      "id": "T04",
+      "roleId": "backend",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T04.txt",
+      "inputSha256": "7a51492b4d7037fd8376e3ba85a30d4abf4f75e20b3990e665d0453d0a1892df"
+    },
+    {
+      "id": "T05",
+      "roleId": "backend",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T05.txt",
+      "inputSha256": "1b4ab9d3152b036dc91b094bb7cf93596cebc4c0d4ff6684d8f76f5ce347bb94"
+    },
+    {
+      "id": "T06",
+      "roleId": "fde",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T06.txt",
+      "inputSha256": "99e24aeadb1098a7b05d762f97e0f2f013e8e3b67959c49e8b3d42dd2eb63a07"
+    },
+    {
+      "id": "T07",
+      "roleId": "fde",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T07.txt",
+      "inputSha256": "c2a0f8e00241ce7bfaeaa91b675d476f6556c5b1b4a6f8c8a468e87aa6b9455e"
+    },
+    {
+      "id": "T08",
+      "roleId": "fde",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T08.txt",
+      "inputSha256": "5becd476b1582171988407e3827339a84af5d85c9a6d8dfa6030962c088f19f3"
+    },
+    {
+      "id": "T09",
+      "roleId": "fde",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T09.txt",
+      "inputSha256": "7cc45b5f02444d64749d0b0112fa794a1ba6ab7c93db8c78adafa65bede208ab"
+    },
+    {
+      "id": "T10",
+      "roleId": "fde",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T10.txt",
+      "inputSha256": "82f02c436cee3a6cb7f71d9fbe5cf37c9de39f3bcc517cf7a10e79625d20a7e3"
+    },
+    {
+      "id": "T11",
+      "roleId": "product",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T11.txt",
+      "inputSha256": "ee9f17c6ff99c96c765486c2158c59e280578019572fd7e3622461336703911e"
+    },
+    {
+      "id": "T12",
+      "roleId": "product",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T12.txt",
+      "inputSha256": "f59d6571caddf4710c503293cb3a347c13dce9c435fbf10c16bb001da1d1f36c"
+    },
+    {
+      "id": "T13",
+      "roleId": "product",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T13.txt",
+      "inputSha256": "0c4841bb621533fa8239159510535f048ef41204d8468e4e0d909ded661e523c"
+    },
+    {
+      "id": "T14",
+      "roleId": "product",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T14.txt",
+      "inputSha256": "7dafeaadf6c141bdc6fe4ac8ee608acebc63083cf2c9109a373cb3628bb34c7c"
+    },
+    {
+      "id": "T15",
+      "roleId": "product",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T15.txt",
+      "inputSha256": "1e5692891896465049c2839b4e14baf04914734b07e90489b566c42d00684ada"
+    },
+    {
+      "id": "T16",
+      "roleId": "sales",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T16.txt",
+      "inputSha256": "885868abbb4f6ad7ada652346e9e5ef124202134efba9b3be585d96c7a4b2f49"
+    },
+    {
+      "id": "T17",
+      "roleId": "sales",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T17.txt",
+      "inputSha256": "e65a6caa2fb64c7246f6636fc59938dd518a85fca30188e4544fc9f8108858e4"
+    },
+    {
+      "id": "T18",
+      "roleId": "sales",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T18.txt",
+      "inputSha256": "7271baf0d9bb38430e937b0d9ee90a795cc44fc8e888e083302ea5492c4f0918"
+    },
+    {
+      "id": "T19",
+      "roleId": "sales",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T19.txt",
+      "inputSha256": "3eade5de20dbac1810152e3a66b9aed6e017c2d73e223403db667238e541e09f"
+    },
+    {
+      "id": "T20",
+      "roleId": "sales",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "text-v1/inputs/T20.txt",
+      "inputSha256": "62b3f7861c15b9262f2e8a1520e36fc283e4871e4ce3331835a304955807b37f"
+    }
+  ],
+  "qualityReview": "Full source/output reading by Codex; no gold or automatic semantic grader."
+}

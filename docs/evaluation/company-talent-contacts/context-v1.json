@@ -1,0 +1,10 @@
+{
+  "version": "context-v1",
+  "companyName": "Harper",
+  "description": "Harper는 채용팀과 후보자의 대화를 돕는 서비스입니다.",
+  "request": null,
+  "homepageUrl": null,
+  "relatedLinks": [],
+  "serviceAnswerExamples": [],
+  "boundary": "Synthetic company facts only. Existing approved account IDs/names/emails identify actors, not hiring criteria. No production history or resume capture. Retrieval is intentionally an empty read fixture, not a vector-search test."
+}

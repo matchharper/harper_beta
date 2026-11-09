@@ -1,0 +1,25 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v6",
+  "createdAt": "2026-10-12",
+  "provenance": "Fully synthetic. Preserves v5 inputs/gold except updates the unsupported_application capability claim for PR155 public-site support; adds four active-application conversations. No production records or example-based runtime branches.",
+  "goldStatus": "Codex contract review; independent human review pending.",
+  "labelReviewHistory": [
+    {
+      "date": "2026-10-12",
+      "reviewer": "Codex",
+      "change": "User decisions: public-site application remains; shared Memory/Brief/Profile tools remain in mode; unrelated tasks confirm ending before switching. v5 files remain unchanged.",
+      "evidence": [
+        "src/lib/career/simulation/sessionTool.ts",
+        "src/lib/career/simulation/preparationPrompt.ts",
+        "src/lib/career/simulation/session.ts"
+      ]
+    }
+  ],
+  "files": {
+    "cases-v6.json": "f3e9fad40893a500202528fbac99a7b2233e439d618ea6e38c5e4654f1c92040",
+    "gold-v6.json": "8a003146269fde28730cffe1aa1b226eb8cd382f1280004b39091c566c58c401"
+  },
+  "caseCount": 18,
+  "turnCount": 38
+}

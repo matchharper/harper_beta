@@ -1,0 +1,159 @@
+{
+  "datasetVersion": "v12",
+  "baseDataset": "cases-v6.json",
+  "clock": "2026-09-28T03:00:00.000Z",
+  "provenance": "Five independent synthetic single-turn outreach checks requested by the product owner on 2026-09-28. User-provided person name replaced with fictional alias 김하준; no real profile, interview, phone number, resume or company record. Frozen before model calls. Runtime/prompt unchanged.",
+  "scenarios": [
+    {
+      "id": "CSCQ1214",
+      "variants": [
+        {
+          "id": "phone_first",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "pending_connection"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할의 김하준님 보고 있어."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님은 Python API 운영과 장애 대응을 맡아온 분이에요. 현재 백엔드 엔지니어 역할의 연결 대기에 있어요."
+            }
+          ],
+          "contacts": [],
+          "turns": [
+            "이 사람 휴대폰 전화번호좀 물어봐줘"
+          ]
+        },
+        {
+          "id": "resume_first",
+          "surface": "slack",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "pending_connection"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할의 김하준님 보고 있어."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님은 Python API 운영과 장애 대응을 맡아온 분이에요. 현재 백엔드 엔지니어 역할의 연결 대기에 있어요."
+            }
+          ],
+          "contacts": [],
+          "turns": [
+            "이 사람 이력서좀 요청해줘"
+          ]
+        },
+        {
+          "id": "interview_absence",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "connected"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할의 김하준님과 면접 진행 중이야."
+            },
+            {
+              "role": "assistant",
+              "content": "네, 김하준님은 백엔드 엔지니어 역할로 연결되어 있고, 9월 25일 면접 안내를 전달한 이력이 있어요."
+            }
+          ],
+          "contacts": [
+            {
+              "contactId": "00000000-0000-4000-8000-000000000451",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "status": "delivered",
+              "createdAt": "2026-09-23T03:00:00.000Z",
+              "updatedAt": "2026-09-23T03:00:00.000Z",
+              "sentAt": "2026-09-23T03:00:00.000Z",
+              "subject": "Synthetic Labs 백엔드 엔지니어 면접 안내",
+              "body": "안녕하세요, 김하준님. Synthetic Labs 백엔드 엔지니어 면접은 9월 25일 오후 2시로 안내드립니다. 감사합니다. Harper 드림",
+              "requestContext": "9월 25일 오후 2시 면접 안내",
+              "revision": 1
+            }
+          ],
+          "turns": [
+            "김하준 왜 저번 면접때 안 나왔는지 물어봐"
+          ]
+        },
+        {
+          "id": "onsite_first",
+          "surface": "slack",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "pending_connection"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할의 김하준님 보고 있어."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님은 Python API 운영과 장애 대응을 맡아온 분이에요. 현재 백엔드 엔지니어 역할의 연결 대기에 있어요."
+            }
+          ],
+          "contacts": [],
+          "turns": [
+            "이 사람 주 3일 서울 사무실 출근 가능한지 물어봐줘"
+          ]
+        },
+        {
+          "id": "portfolio_followup",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "connected"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "김하준님 포트폴리오 요청했던 거 보고 있어."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님께 9월 23일 포트폴리오를 요청했고, 아직 받은 회신은 없어요."
+            }
+          ],
+          "contacts": [
+            {
+              "contactId": "00000000-0000-4000-8000-000000000451",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "status": "delivered",
+              "createdAt": "2026-09-23T03:00:00.000Z",
+              "updatedAt": "2026-09-23T03:00:00.000Z",
+              "sentAt": "2026-09-23T03:00:00.000Z",
+              "subject": "Synthetic Labs 백엔드 엔지니어 포트폴리오 요청",
+              "body": "안녕하세요, 김하준님. Synthetic Labs에서 백엔드 엔지니어 역할 검토를 위해 공유 가능한 포트폴리오를 부탁드렸습니다. 가능하시다면 이 메일에 답장으로 보내주세요. 감사합니다. Harper 드림",
+              "requestContext": "역할 검토를 위한 포트폴리오 공유 요청",
+              "revision": 1
+            }
+          ],
+          "turns": [
+            "김하준한테 지난번 요청한 포트폴리오 언제쯤 보내줄 수 있는지 가볍게 물어봐줘"
+          ]
+        }
+      ]
+    }
+  ]
+}

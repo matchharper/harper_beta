@@ -1,0 +1,38 @@
+{
+  "task": "company-role-salary-estimation",
+  "datasetVersion": "v7-search50",
+  "capturedAt": "2026-10-14T17:29:06.966347+00:00",
+  "seed": "salary-search50-v7-20261015",
+  "countryCounts": {
+    "KR": 25,
+    "US": 25
+  },
+  "selection": "25/country, one/company workspace; deterministic hashed random order; salary_min/max null; JD >100 chars",
+  "sourceRevision": "5c6ba484fbea7f56461201fd1d103975cde08b91",
+  "dirty": true,
+  "captureHash": "7fa634e836c4efe64f8d650d97c7d1fb32682c96420971dfc4ed39e685a8481c",
+  "capturePath": "private/capture-v7-search50.json",
+  "goldStatus": "6 primary annual cash/base roles + 4 secondary same-role ranges + 2 lower-bound only; source audit is unblinded",
+  "privacy": "Public company/JD only; read-only production; raw capture owner-only; no talent data",
+  "limitations": [
+    "Company-balanced country-stratified sample, not role-weighted production average",
+    "Structured-null may still have pay in JD; model builder blinds monetary expressions",
+    "Google evidence audit occurs after inference; source labels are not blind human gold"
+  ],
+  "fixtureHash": "f2598d33a3692dc307e648b466fd426e158b6852893bf2013317f18df83c21a9",
+  "promptFingerprint": "1746981dcc1c8e9bd2ba4d02e82f5fd36dcffea036012df1829be440a5b52a62",
+  "builderFingerprint": "d1adc298614b3a25047bbc997cd4ea1a3790ab190ba0aa678bd9cde4f97648a6",
+  "runner": "scripts/evalRoleSalarySearch50.ts",
+  "model": "gpt-6-luna",
+  "provider": "openai_decisions",
+  "endpoint": "https://api.openai.com/v1/decisions",
+  "method": "market_reasoning",
+  "batchSize": 1,
+  "calls": 50,
+  "timeoutMs": 40000,
+  "retries": 0,
+  "goldVersion": "web-review-v1",
+  "evidenceHash": "a6dd423df3a726107f41cb37883e175199a5d064c8aad53ea877afc6af5aac63",
+  "evidencePath": "runs/2026-10-14T17-29-33-782Z-search50/evidence-reviewed-v1.json",
+  "priorV6ExactRoleOverlap": []
+}

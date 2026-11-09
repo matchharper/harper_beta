@@ -1,0 +1,66 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "screen-diagnostic-v1",
+  "sourceRun": "bootstrap-v2",
+  "objective": "Diagnose gross-work mismatch while retaining actual adjacent work; not representative accuracy.",
+  "labelProvenance": "Codex manual review after observing original v1 outputs and before v2 API execution; unblinded diagnostic challenge.",
+  "goldChanged": false,
+  "cases": [
+    {
+      "id": "screen-01",
+      "sourceTrace": "decisions-7e653e46923844e1819ebf595d8c045a.json",
+      "sourceTraceSha256": "94f229dac58cad626fc6b337c4aaeea5ce51a1f60ecf748e6265fd40250a2d54",
+      "inputSha256": "a480166dfc7d74da345a22edd3129506e67eac5f7a1349487bea059a9756b8b6",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented software implementation work without a bridge to the role core function."
+    },
+    {
+      "id": "screen-02",
+      "sourceTrace": "decisions-c5a337d1664e446ca6cdbd9d4d3b8f87.json",
+      "sourceTraceSha256": "122238171ba436d489f18a4b2373ecd0693df469f259fb9933efd010f798e615",
+      "inputSha256": "4084eea47e7f42e71d4ceeeb19aea605d3be9d75608c181a69a2574b9db2797c",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented specialist research work without a bridge to the role core function."
+    },
+    {
+      "id": "screen-03",
+      "sourceTrace": "decisions-89d0ec31ab114be2a02fc0b1d8fd5b88.json",
+      "sourceTraceSha256": "32a68fcb09fac4f43a5e08050bd4e38f97568fe1a00861d235903feb3800d388",
+      "inputSha256": "8248c8a5305231e1563888ce1c652663b5ce521c38518fc61e4d13298d7f57ea",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented interface design work without a bridge to the role core function."
+    },
+    {
+      "id": "screen-04",
+      "sourceTrace": "decisions-86acfddc34e54d98b98648e119e5337c.json",
+      "sourceTraceSha256": "9e02b05dae63b055549fe6966db1652cf6b326e12c84dc3af4c460f8d32eb9b6",
+      "inputSha256": "fb77c559ca6d354c201c3e0a736538fe2d0effb4e9630e1ae99c693a5e58fbbe",
+      "expectedDecision": "continue",
+      "reviewNote": "Adjacent title with actual inventory, pricing and operating ownership."
+    },
+    {
+      "id": "screen-05",
+      "sourceTrace": "decisions-668820a45e064ff7a9135c42d616916c.json",
+      "sourceTraceSha256": "ce580c94a3a44af666abba5a53d21f9e922e592a049790717096390f83e46c40",
+      "inputSha256": "d039d66021fc4f14ec60f3fec655ecc2029ab3a41d23709ccd62d4a1e5b65881",
+      "expectedDecision": "continue",
+      "reviewNote": "Different sectors with actual financial modeling and operating ownership."
+    },
+    {
+      "id": "screen-06",
+      "sourceTrace": "decisions-24f6ed187cd84b1a8990b1aff7e86c75.json",
+      "sourceTraceSha256": "01aa77357929c5460224441d1054daa6b7fcde733647414b35155b0f55775a1c",
+      "inputSha256": "0cd63de50353589a57aacaac0341c6b2735baf16ad9d88d6bb9a856fb4f8625d",
+      "expectedDecision": "continue",
+      "reviewNote": "Different formal education with actual financial and operational ownership."
+    },
+    {
+      "id": "screen-07",
+      "sourceTrace": "decisions-0087bbe0df0844d2b73173ffc3de7034.json",
+      "sourceTraceSha256": "548e277222355dbf46cdc59ebff73c6938074509dfd4010f5afc00902f804af1",
+      "inputSha256": "a5d803c5ec56acba65043f56addcedaada1e7bf2cdc5aca5459e4e37b04669ae",
+      "expectedDecision": "exclude",
+      "reviewNote": "Existing correct exclusion: documented different core work."
+    }
+  ]
+}

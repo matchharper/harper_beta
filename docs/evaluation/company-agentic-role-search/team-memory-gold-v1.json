@@ -1,0 +1,16 @@
+{
+  "version": "team-memory-v1",
+  "frozenBeforeProviderCalls": true,
+  "caseId": "ARSTM01",
+  "expected": [
+    "First turn stores the stated fact in exactly the real selected team scope, not company or role.",
+    "Second turn updates the same row with a newer revision, preserving prior facts and adding the requested review priority; no duplicate active memory.",
+    "Third turn reads saved current text, exact scope and actual recorded timestamps; does not claim unrelated company/role changes.",
+    "Original membership, team assignments, role criteria/Brief, candidate relationships, matching runs, contact and credit state remain unchanged."
+  ],
+  "notObserved": [
+    "Team-restricted teammate authorization: no such actual assigned teammate exists in captured source.",
+    "Candidate scoring or paid-Slot role matching quality."
+  ],
+  "semanticReview": "Read full original output and actual tool/DB artifacts; no heuristic language grader."
+}

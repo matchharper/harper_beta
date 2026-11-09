@@ -1,0 +1,625 @@
+{
+  "version": "contact-composition-v1",
+  "cases": [
+    {
+      "id": "composition-1",
+      "cards": [
+        {
+          "roleId": "10000000-0000-4000-8000-000000000001",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000001",
+          "sourceType": "internal",
+          "companyName": "가상회사 오로라",
+          "roleName": "백엔드 엔지니어",
+          "roleDescription": "Go 기반 B2B API를 개발하고 운영합니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        },
+        {
+          "roleId": "10000000-0000-4000-8000-000000000002",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000001",
+          "sourceType": "internal",
+          "companyName": "가상회사 오로라",
+          "roleName": "서버 엔지니어",
+          "roleDescription": "동일한 B2B 제품의 Go API 및 서버 운영. 근무 조건은 이전 역할과 동일합니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        },
+        {
+          "roleId": "10000000-0000-4000-8000-000000000003",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000002",
+          "sourceType": "internal",
+          "companyName": "가상회사 브릿지",
+          "roleName": "플랫폼 엔지니어",
+          "roleDescription": "Kubernetes와 CI/CD 기반의 개발 플랫폼을 구축합니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        },
+        {
+          "roleId": "10000000-0000-4000-8000-000000000004",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000002",
+          "sourceType": "internal",
+          "companyName": "가상회사 브릿지",
+          "roleName": "개발 생산성 엔지니어",
+          "roleDescription": "같은 개발 조직에서 빌드 도구와 배포 자동화를 개선합니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        },
+        {
+          "roleId": "10000000-0000-4000-8000-000000000005",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000003",
+          "sourceType": "internal",
+          "companyName": "가상회사 시더",
+          "roleName": "백엔드 엔지니어",
+          "roleDescription": "실시간 데이터 제품의 Go 서비스와 데이터 처리 기반을 개발합니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        }
+      ],
+      "payload": {
+        "talent": {
+          "profile": {
+            "profile": {
+              "name": "가상 후보 민준",
+              "headline": "Backend / Platform Engineer",
+              "bio": "백엔드 7년, Kubernetes 운영 자동화와 배포 플랫폼 구축 경험",
+              "location": "서울"
+            },
+            "experiences": [
+              {
+                "companyName": "가상 전직장",
+                "role": "플랫폼 엔지니어",
+                "description": "배포 시간 40분에서 8분으로 단축. 서비스 운영 및 Go 개발."
+              }
+            ]
+          },
+          "searchBrief": [
+            "[1] 희망 업무: 플랫폼·백엔드. 인프라 개선과 제품 개발이 연결되는 역할 선호.",
+            "[2] 근무 조건: 서울 하이브리드 가능. 최소 연봉 1억원. 회사 규모나 이름 자체는 제한하지 않음."
+          ],
+          "behaviorContext": "제품팀이 직접 사용하는 개발 도구와 인프라 운영 개선에 관심을 보였다. 무응답을 거절로 단정할 근거는 없다."
+        },
+        "recentRecommendations": [
+          {
+            "role_id": "10000000-0000-4000-8000-000000000099",
+            "name": "백엔드 개발자",
+            "company_name": "가상회사 오로라",
+            "company_workspace_id": "20000000-0000-4000-8000-000000000001",
+            "created_at": "2026-10-20 10:00",
+            "delivered_at": "2026-10-20 10:01",
+            "feedback": null,
+            "saved_stage": null,
+            "processed_stage": null
+          }
+        ],
+        "priorContactDecisions": [],
+        "opportunities": {
+          "10000000-0000-4000-8000-000000000001": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000001",
+              "company_name": "가상회사 오로라",
+              "name": "백엔드 엔지니어",
+              "description": "Go 기반 B2B API를 개발하고 운영합니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          },
+          "10000000-0000-4000-8000-000000000002": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000001",
+              "company_name": "가상회사 오로라",
+              "name": "서버 엔지니어",
+              "description": "동일한 B2B 제품의 Go API 및 서버 운영. 근무 조건은 이전 역할과 동일합니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          },
+          "10000000-0000-4000-8000-000000000003": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000002",
+              "company_name": "가상회사 브릿지",
+              "name": "플랫폼 엔지니어",
+              "description": "Kubernetes와 CI/CD 기반의 개발 플랫폼을 구축합니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          },
+          "10000000-0000-4000-8000-000000000004": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000002",
+              "company_name": "가상회사 브릿지",
+              "name": "개발 생산성 엔지니어",
+              "description": "같은 개발 조직에서 빌드 도구와 배포 자동화를 개선합니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          },
+          "10000000-0000-4000-8000-000000000005": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000003",
+              "company_name": "가상회사 시더",
+              "name": "백엔드 엔지니어",
+              "description": "실시간 데이터 제품의 Go 서비스와 데이터 처리 기반을 개발합니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          }
+        }
+      },
+      "gold": {
+        "requiredRoleIds": [
+          "10000000-0000-4000-8000-000000000005"
+        ],
+        "oneOf": [
+          "10000000-0000-4000-8000-000000000003",
+          "10000000-0000-4000-8000-000000000004"
+        ],
+        "handledRoleIds": [
+          "10000000-0000-4000-8000-000000000001",
+          "10000000-0000-4000-8000-000000000002"
+        ],
+        "review": "이미 소개한 오로라의 유사 역할을 다시 독립 추천하지 않음. 새 회사 브릿지·시더의 추천은 존중. 브릿지는 유용한 주 역할을 중심으로 구성."
+      }
+    },
+    {
+      "id": "composition-2",
+      "cards": [
+        {
+          "roleId": "10000000-0000-4000-8000-000000000006",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000001",
+          "sourceType": "internal",
+          "companyName": "가상회사 오로라",
+          "roleName": "플랫폼 엔지니어",
+          "roleDescription": "API 기능 개발과 별개로 사내 개발 플랫폼과 CI/CD를 구축하는 역할입니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        },
+        {
+          "roleId": "10000000-0000-4000-8000-000000000007",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000004",
+          "sourceType": "internal",
+          "companyName": "가상회사 델타",
+          "roleName": "플랫폼 엔지니어",
+          "roleDescription": "서울 하이브리드 환경에서 Kubernetes 운영 자동화를 구축합니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        }
+      ],
+      "payload": {
+        "talent": {
+          "profile": {
+            "profile": {
+              "name": "가상 후보 민준",
+              "headline": "Backend / Platform Engineer",
+              "bio": "백엔드 7년, Kubernetes 운영 자동화와 배포 플랫폼 구축 경험",
+              "location": "서울"
+            },
+            "experiences": [
+              {
+                "companyName": "가상 전직장",
+                "role": "플랫폼 엔지니어",
+                "description": "배포 시간 40분에서 8분으로 단축. 서비스 운영 및 Go 개발."
+              }
+            ]
+          },
+          "searchBrief": [
+            "[1] 희망 업무: 플랫폼·백엔드. 인프라 개선과 제품 개발이 연결되는 역할 선호.",
+            "[2] 근무 조건: 서울 하이브리드 가능. 최소 연봉 1억원. 회사 규모나 이름 자체는 제한하지 않음."
+          ],
+          "behaviorContext": "제품팀이 직접 사용하는 개발 도구와 인프라 운영 개선에 관심을 보였다. 무응답을 거절로 단정할 근거는 없다."
+        },
+        "recentRecommendations": [
+          {
+            "role_id": "10000000-0000-4000-8000-000000000099",
+            "name": "백엔드 개발자",
+            "company_name": "가상회사 오로라",
+            "company_workspace_id": "20000000-0000-4000-8000-000000000001",
+            "created_at": "2026-10-20 10:00",
+            "delivered_at": "2026-10-20 10:01",
+            "feedback": "dislike",
+            "saved_stage": null,
+            "processed_stage": null,
+            "candidateResponse": "API 기능 개발 위주 역할은 원하지 않아요. 이 회사여도 개발 플랫폼 구축 역할이면 보고 싶어요."
+          }
+        ],
+        "priorContactDecisions": [],
+        "opportunities": {
+          "10000000-0000-4000-8000-000000000006": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000001",
+              "company_name": "가상회사 오로라",
+              "name": "플랫폼 엔지니어",
+              "description": "API 기능 개발과 별개로 사내 개발 플랫폼과 CI/CD를 구축하는 역할입니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          },
+          "10000000-0000-4000-8000-000000000007": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000004",
+              "company_name": "가상회사 델타",
+              "name": "플랫폼 엔지니어",
+              "description": "서울 하이브리드 환경에서 Kubernetes 운영 자동화를 구축합니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          }
+        }
+      },
+      "gold": {
+        "requiredRoleIds": [
+          "10000000-0000-4000-8000-000000000006",
+          "10000000-0000-4000-8000-000000000007"
+        ],
+        "oneOf": [],
+        "handledRoleIds": [],
+        "review": "이전 역할 거절을 회사 전체 거절로 확대하지 않고 새로운 방향과 새 회사 추천 모두 전달"
+      }
+    },
+    {
+      "id": "composition-3",
+      "cards": [
+        {
+          "roleId": "10000000-0000-4000-8000-000000000010",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000001",
+          "sourceType": "internal",
+          "companyName": "가상회사 오로라",
+          "roleName": "플랫폼 엔지니어",
+          "roleDescription": "제품 조직 1의 Kubernetes·CI/CD 개발 플랫폼을 구축합니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        },
+        {
+          "roleId": "10000000-0000-4000-8000-000000000011",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000002",
+          "sourceType": "internal",
+          "companyName": "가상회사 브릿지",
+          "roleName": "플랫폼 엔지니어",
+          "roleDescription": "제품 조직 2의 Kubernetes·CI/CD 개발 플랫폼을 구축합니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        },
+        {
+          "roleId": "10000000-0000-4000-8000-000000000012",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000003",
+          "sourceType": "internal",
+          "companyName": "가상회사 시더",
+          "roleName": "플랫폼 엔지니어",
+          "roleDescription": "제품 조직 3의 Kubernetes·CI/CD 개발 플랫폼을 구축합니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        },
+        {
+          "roleId": "10000000-0000-4000-8000-000000000013",
+          "companyWorkspaceId": "20000000-0000-4000-8000-000000000004",
+          "sourceType": "internal",
+          "companyName": "가상회사 델타",
+          "roleName": "플랫폼 엔지니어",
+          "roleDescription": "제품 조직 4의 Kubernetes·CI/CD 개발 플랫폼을 구축합니다.",
+          "salaryRange": "연봉 1억~1억 3천만원",
+          "locationText": "서울",
+          "workMode": "hybrid",
+          "company": {
+            "pitch": "기업용 소프트웨어를 만드는 제품팀"
+          },
+          "internalFit": {
+            "roleFit": "good",
+            "candidateFit": "good",
+            "companyFit": "good",
+            "candidateReason": "희망 업무와 조건에 부합",
+            "companyReason": "관련 구축·운영 경험이 있음"
+          }
+        }
+      ],
+      "payload": {
+        "talent": {
+          "profile": {
+            "profile": {
+              "name": "가상 후보 민준",
+              "headline": "Backend / Platform Engineer",
+              "bio": "백엔드 7년, Kubernetes 운영 자동화와 배포 플랫폼 구축 경험",
+              "location": "서울"
+            },
+            "experiences": [
+              {
+                "companyName": "가상 전직장",
+                "role": "플랫폼 엔지니어",
+                "description": "배포 시간 40분에서 8분으로 단축. 서비스 운영 및 Go 개발."
+              }
+            ]
+          },
+          "searchBrief": [
+            "[1] 희망 업무: 플랫폼·백엔드. 인프라 개선과 제품 개발이 연결되는 역할 선호.",
+            "[2] 근무 조건: 서울 하이브리드 가능. 최소 연봉 1억원. 회사 규모나 이름 자체는 제한하지 않음."
+          ],
+          "behaviorContext": "제품팀이 직접 사용하는 개발 도구와 인프라 운영 개선에 관심을 보였다. 무응답을 거절로 단정할 근거는 없다."
+        },
+        "recentRecommendations": [],
+        "priorContactDecisions": [],
+        "opportunities": {
+          "10000000-0000-4000-8000-000000000010": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000001",
+              "company_name": "가상회사 오로라",
+              "name": "플랫폼 엔지니어",
+              "description": "제품 조직 1의 Kubernetes·CI/CD 개발 플랫폼을 구축합니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          },
+          "10000000-0000-4000-8000-000000000011": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000002",
+              "company_name": "가상회사 브릿지",
+              "name": "플랫폼 엔지니어",
+              "description": "제품 조직 2의 Kubernetes·CI/CD 개발 플랫폼을 구축합니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          },
+          "10000000-0000-4000-8000-000000000012": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000003",
+              "company_name": "가상회사 시더",
+              "name": "플랫폼 엔지니어",
+              "description": "제품 조직 3의 Kubernetes·CI/CD 개발 플랫폼을 구축합니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          },
+          "10000000-0000-4000-8000-000000000013": {
+            "role": {
+              "company_workspace_id": "20000000-0000-4000-8000-000000000004",
+              "company_name": "가상회사 델타",
+              "name": "플랫폼 엔지니어",
+              "description": "제품 조직 4의 Kubernetes·CI/CD 개발 플랫폼을 구축합니다.",
+              "salary_range": "연봉 1억~1억 3천만원",
+              "work_mode": "hybrid",
+              "location_text": "서울"
+            },
+            "fit": {
+              "roleFit": "good",
+              "candidateFit": "good",
+              "companyFit": "good",
+              "candidateReason": "희망 업무와 조건에 부합",
+              "companyReason": "관련 구축·운영 경험이 있음"
+            },
+            "selectionReasons": [
+              "회사측 Worker가 실제 플랫폼 구축 경험과 현재 희망 조건을 근거로 candidate_first 추천 결정"
+            ]
+          }
+        }
+      },
+      "gold": {
+        "requiredRoleIds": [
+          "10000000-0000-4000-8000-000000000010",
+          "10000000-0000-4000-8000-000000000011",
+          "10000000-0000-4000-8000-000000000012",
+          "10000000-0000-4000-8000-000000000013"
+        ],
+        "oneOf": [],
+        "handledRoleIds": [],
+        "review": "새 회사 4개의 이미 선정된 추천을 임의 1~2개 할당량이나 더 높은 fit 기준으로 줄이지 않음"
+      }
+    }
+  ]
+}

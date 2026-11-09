@@ -1,0 +1,9 @@
+{
+  "task": "company-email-connection",
+  "datasetVersion": "v1",
+  "provenance": "synthetic; frozen before first model call",
+  "inputSha256": "f36f8b255d63a1eeb749722fe56e480b5dafc78aac14bf06508864d242be9f10",
+  "goldSha256": "11414bfd2f94b38282f13ba02809298593041fdef2dcc5d2e45f09b1db731c32",
+  "runner": "scripts/previewCompanyConnectionEmail.ts",
+  "privacy": "model only; no production DB or delivery"
+}
