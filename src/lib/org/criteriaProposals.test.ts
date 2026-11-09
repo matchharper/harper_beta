@@ -6,6 +6,7 @@ import {
   CRITERIA_PROPOSALS_ENABLED,
   criteriaProposalChangeReason,
   criteriaProposalContentKey,
+  criteriaProposalsOverlap,
   criteriaProposalStillApplies,
   criteriaProposalText,
   MEMORY_NOTE_MAX,
@@ -230,4 +231,16 @@ test("a stored memory note is read back exactly, or not at all", () => {
     { type: "memory_note", note: "팀은 주 4일 출근해요.", scope: "team" },
   ])
     assert.equal(parseCriteriaProposalPayload({ ...noteProposal, change }), null, JSON.stringify(change));
+});
+
+test("two suggestions overlap on the same criterion or the same memory note", () => {
+  const level = (criterionKey: string, criterionName: string) => ({ type: "criterion_level", criterionKey, criterionName, from: "nice", to: "important" }) as const;
+  const added = (criterionName: string) => ({ type: "criterion_add", criterionName, description: "d", to: "nice" }) as const;
+  const note = (text: string) => ({ type: "memory_note", note: text, scope: "company" }) as const;
+  assert.equal(criteriaProposalsOverlap(level("c-a", "Go"), { ...level("c-a", "Go"), from: "important", to: "required" }), true);
+  assert.equal(criteriaProposalsOverlap(level("c-a", "Go"), level("c-b", "TS")), false);
+  assert.equal(criteriaProposalsOverlap(added("Go  운영"), added("go 운영")), true);
+  assert.equal(criteriaProposalsOverlap(added("Go"), level("c-a", "go")), true);
+  assert.equal(criteriaProposalsOverlap(note("짧은 재직은 어려워요."), note("짧은 재직은 어려워요")), true);
+  assert.equal(criteriaProposalsOverlap(note("Go"), level("c-a", "Go")), false);
 });

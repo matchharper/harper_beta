@@ -815,10 +815,15 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "propose_criteria_change",
       description:
-        "In Harper's review of pass reasons only: add one suggestion to the Role's To-do, backed by the passes in this review whose stated reasons support it: make one existing criterion one level stricter (criterionId; nice to have → important → required), add one new criterion when the reasons point at something no current criterion checks (newCriterion; nice to have or important), or save one company memory note when they point at a lasting company preference or fact rather than something to check for this Role (memoryNote). Give exactly one of the three. Nothing changes until a company member applies it in the To-do; the company can dismiss it, and an applied or dismissed change is never suggested again. One suggestion per Role is open at a time and one per review. This does not edit the Role, remove or rewrite a criterion or a memory, contact anyone or start a search. The result says whether the suggestion was added.",
+        "In Harper's review of pass reasons only: add one suggestion to the Role's To-do, backed by the passes in this review whose stated reasons support it: make one existing criterion one level stricter (criterionId; nice to have → important → required), add one new criterion when the reasons point at something no current criterion checks (newCriterion; nice to have or important), or save one company memory note when they point at a lasting company preference or fact rather than something to check for this Role (memoryNote). Give exactly one of the three. Nothing changes until a company member applies it in the To-do; the company can dismiss it, and an applied or dismissed change is never suggested again. One suggestion per review, up to 5 waiting per Role. A suggestion on the same criterion or memory note replaces the one waiting; name any other it makes out of date with replacesProposalId. This does not edit the Role, remove or rewrite a criterion or a memory, contact anyone or start a search. The result says whether the suggestion was added.",
       parameters: {
         additionalProperties: false,
         properties: {
+          replacesProposalId: {
+            description: "Optional: an open suggestion listed in this review that this one makes out of date. It is removed from the To-do when this one is added.",
+            minLength: 1,
+            type: "string",
+          },
           criterionId: {
             description: "To raise an existing criterion: its id exactly as the review lists it. Omit with newCriterion or memoryNote.",
             minLength: 1,

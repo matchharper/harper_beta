@@ -10,6 +10,7 @@ import {
   criteriaProposalStillApplies,
   criteriaProposalText,
   parseCriteriaProposalPayload,
+  type CriteriaProposalChange,
   type CriteriaProposalMemoryNote,
   type CriteriaProposalPayload,
   type PassDecision,
@@ -75,12 +76,20 @@ type ConsolidationInput = {
   cursor: number | null;
   briefRevision: number | null;
   decisions: PassDecision[];
-  pending: { id: string; payload: unknown; expiresAt: string } | null;
   answeredKeys: string[];
 };
 
+/** A suggestion of this Role still waiting for the company's answer. */
+export type OpenCriteriaProposal = {
+  id: string;
+  contentKey: string | null;
+  summary: string;
+  expiresAt: string;
+  change: CriteriaProposalChange | null;
+};
+
 export type CriteriaConsolidationResult = {
-  status: "off" | "skipped" | "proposed" | "pending" | "nothing";
+  status: "off" | "skipped" | "proposed" | "nothing";
   proposalId?: string;
   /** The cursor after this run. */
   throughDecisionId: number | null;
@@ -93,6 +102,7 @@ export type PreparedCriteriaReview = {
   criteria: unknown;
   briefRevision: number | null;
   answeredKeys: string[];
+  openProposals: OpenCriteriaProposal[];
   review: CriteriaReview;
 };
 
@@ -107,6 +117,31 @@ export async function readConsolidationInput(admin: Admin, roleId: string, limit
     p_role_id: roleId,
     p_limit: limit,
   })) as ConsolidationInput | null;
+}
+
+/** The Role's suggestions still waiting, newest first; an expired one no longer waits. */
+export async function readOpenCriteriaProposals(args: {
+  admin: Admin;
+  workspaceId: string;
+  roleId: string;
+  now: Date;
+}): Promise<OpenCriteriaProposal[]> {
+  const { data, error } = await untypedTable(args.admin, "company_agent_update_proposals")
+    .select("id,content_key,summary,expires_at,payload")
+    .eq("workspace_id", args.workspaceId)
+    .eq("scope_key", `brief:${args.roleId}`)
+    .eq("status", "pending")
+    .gt("expires_at", args.now.toISOString())
+    .order("created_at", { ascending: false })
+    .limit(CRITERIA_PROPOSAL_RULES.maxOpen);
+  if (error) throw error;
+  return ((data ?? []) as Json[]).map((row) => ({
+    id: String(row.id),
+    contentKey: clean(row.content_key) || null,
+    summary: clean(row.summary),
+    expiresAt: String(row.expires_at),
+    change: parseCriteriaProposalPayload(row.payload)?.change ?? null,
+  }));
 }
 
 /**
@@ -205,28 +240,22 @@ export async function runCriteriaConsolidation(args: {
     return { status: "skipped", throughDecisionId: through };
   }
 
-  // One suggestion per Role at a time: while one waits, Harper does not run.
-  let pendingOpen = Boolean(input.pending);
-  if (input.pending) {
-    const payload = parseCriteriaProposalPayload(input.pending.payload);
-    if (Date.parse(input.pending.expiresAt) <= now.getTime()) {
-      // Expired: the next suggestion replaces it.
-      pendingOpen = false;
-    } else if (payload && !criteriaProposalStillApplies(payload.change, input.criteria)) {
-      // The criterion changed since: the suggestion no longer fits.
+  // Suggestions wait per Role; a criterion changed since closes only the ones about it.
+  const openProposals: OpenCriteriaProposal[] = [];
+  for (const proposal of await readOpenCriteriaProposals({ admin, workspaceId: args.workspaceId, roleId, now })) {
+    if (proposal.change && !criteriaProposalStillApplies(proposal.change, input.criteria)) {
       const resolved = await rpc(admin, "resolve_company_brief_proposal_v1", {
         p_action: "stale",
         p_actor_user_id: null,
         p_detail: {},
-        p_proposal_id: input.pending.id,
+        p_proposal_id: proposal.id,
         p_role_id: roleId,
         p_workspace_id: args.workspaceId,
       });
-      pendingOpen = clean(resolved?.status) !== "stale";
+      if (clean(resolved?.status) === "stale") continue;
     }
+    openProposals.push(proposal);
   }
-  // The cursor stays: these passes are read once the company answers (wakeCriteriaReview).
-  if (pendingOpen) return { status: "pending", throughDecisionId: null };
 
   const review = await readCriteriaReview({ admin, roleId, decisions, cursor: input.cursor });
   // Nothing new to read (no new pass gave a reason): no run.
@@ -238,6 +267,7 @@ export async function runCriteriaConsolidation(args: {
     answeredKeys: input.answeredKeys ?? [],
     briefRevision: input.briefRevision ?? null,
     criteria: input.criteria,
+    openProposals,
     review,
     roleId,
     workspaceId: args.workspaceId,
@@ -250,8 +280,9 @@ export async function runCriteriaConsolidation(args: {
 
 /**
  * Adds a suggestion to the Role's To-do through the one proposal path
- * (create_company_brief_proposal_v1): nothing is added while another one
- * waits or when the company already answered the same change.
+ * (create_company_brief_proposal_v2): replaces takes over those waiting ones,
+ * and nothing is added at the open limit or when the company already answered
+ * the same change.
  */
 export async function fileCriteriaProposal(args: {
   admin: Admin;
@@ -259,24 +290,27 @@ export async function fileCriteriaProposal(args: {
   roleId: string;
   payload: CriteriaProposalPayload;
   briefRevision: number | null;
+  replaces?: string[];
   now?: Date;
 }) {
   const now = args.now ?? new Date();
   const text = criteriaProposalText(args.payload, args.payload.locale ?? "ko");
-  const result = (await rpc(args.admin, "create_company_brief_proposal_v1", {
+  const result = (await rpc(args.admin, "create_company_brief_proposal_v2", {
     p_base_brief_revision: args.briefRevision ?? null,
     p_content_key: criteriaProposalContentKey(args.payload.change),
     p_expires_at: new Date(now.getTime() + CRITERIA_PROPOSAL_RULES.expiresInDays * DAY_MS).toISOString(),
     p_kind: "criteria_refinement",
+    p_open_limit: CRITERIA_PROPOSAL_RULES.maxOpen,
     p_payload: args.payload,
     p_preview: text.preview,
+    p_replaces: args.replaces ?? [],
     p_role_id: args.roleId,
     p_summary: text.summary,
     p_workspace_id: args.workspaceId,
   })) as Json | null;
   const status = clean(result?.status);
   return {
-    status: status === "created" || status === "pending_exists" || status === "answered_before" ? status : "unknown",
+    status: status === "created" || status === "answered_before" || status === "limit_reached" || status === "busy" ? status : "unknown",
     proposalId: status === "created" ? clean(result?.proposalId) || null : null,
     summary: text.summary,
   } as const;
@@ -351,7 +385,7 @@ export async function readRoleCriteriaProposalItems(args: {
     .eq("status", "pending")
     .gt("expires_at", now.toISOString())
     .order("created_at", { ascending: false })
-    .limit(3);
+    .limit(CRITERIA_PROPOSAL_RULES.maxOpen);
   if (error) throw error;
   return ((data ?? []) as Array<{ id: string; payload: unknown; created_at: string }>).flatMap((row) => {
     const payload = parseCriteriaProposalPayload(row.payload);
@@ -469,8 +503,9 @@ function answeredError(status: string) {
 }
 
 /**
- * An answered suggestion lets Harper read the passes that waited behind it.
- * The job reads the cursor itself and makes no model call when none are new.
+ * An answered suggestion lets Harper read the passes that came in since its
+ * last review. The job reads the cursor itself and makes no model call when
+ * none are new.
  * The answer stands even if this fails; the next pass queues the review.
  */
 async function wakeCriteriaReview(args: { admin: Admin; workspaceId: string; roleId: string; proposalId: string; userId: string }) {

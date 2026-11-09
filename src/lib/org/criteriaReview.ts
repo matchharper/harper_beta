@@ -74,6 +74,8 @@ export type CriteriaReviewSnapshot = {
   withReason: number;
   locale: CompanyTermLocale;
   proposalId?: string | null;
+  /** The added suggestion repeats one already waiting: the company was told about it then. */
+  repeated?: boolean;
 };
 
 const REASONS_PER_CANDIDATE = 3;
@@ -196,6 +198,7 @@ export function parseCriteriaReviewSnapshot(value: unknown): CriteriaReviewSnaps
     withReason: raw.withReason,
     locale: raw.locale === "en" ? "en" : "ko",
     proposalId: typeof raw.proposalId === "string" && raw.proposalId ? raw.proposalId : null,
+    ...(raw.repeated === true ? { repeated: true } : {}),
   };
 }
 
@@ -370,6 +373,13 @@ function quote(text: string) {
   return `"${text.replace(/"/g, "'")}"`;
 }
 
+/** A suggestion's change in one line, for Harper. */
+export function describeCriteriaChange(change: CriteriaProposalChange) {
+  if (change.type === "memory_note") return `${change.scope} memory note "${change.note}"`;
+  if (change.type === "criterion_add") return `new criterion ${change.criterionName} (${change.to})`;
+  return `${change.criterionName}: ${change.from} → ${change.to}`;
+}
+
 /**
  * The review as Harper reads it: the Role's criteria, the passes with their
  * reasons, and the changes the company already answered. Facts only; the
@@ -381,6 +391,8 @@ export function formatCriteriaReview(args: {
   criteria: unknown;
   review: CriteriaReview;
   answeredKeys?: string[];
+  /** Suggestions waiting for the company's answer. */
+  openProposals?: Array<{ id: string; summary: string; change: CriteriaProposalChange | null }>;
   locale: CompanyTermLocale;
 }) {
   const criteria = normalizeOrgRoleCriteria(args.criteria);
@@ -416,6 +428,9 @@ export function formatCriteriaReview(args: {
     const [, criterionKey, from, to] = match;
     return [`- ${names.get(criterionKey) ?? criterionKey}: ${levelLabel(from as OrgRoleCriterionLevel)} → ${levelLabel(to as OrgRoleCriterionLevel)}`];
   });
+  const open = (args.openProposals ?? []).map(
+    (proposal) => `- proposal ${proposal.id} | ${proposal.change ? describeCriteriaChange(proposal.change) : proposal.summary}`
+  );
   const { newCount, earlierCount } = args.review.silent;
   return [
     `Review of pass reasons for Role ${args.roleId}${args.roleTitle ? ` (${clean(args.roleTitle)})` : ""}. time_zone=Asia/Seoul. Workspace language: ${args.locale === "en" ? "English" : "Korean"}.`,
@@ -434,6 +449,9 @@ export function formatCriteriaReview(args: {
       : []),
     ...(answered.length
       ? ["", "Changes the company already applied or dismissed (never suggested again):", ...answered]
+      : []),
+    ...(open.length
+      ? ["", `Your suggestions still waiting for the company's answer (${open.length} of ${CRITERIA_PROPOSAL_RULES.maxOpen} open):`, ...open]
       : []),
   ].join("\n");
 }

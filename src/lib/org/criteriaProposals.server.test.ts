@@ -85,7 +85,6 @@ const input = (overrides: Record<string, unknown> = {}) => ({
   cursor: 90,
   briefRevision: 3,
   decisions: passes(4, ["c-go"]),
-  pending: null,
   answeredKeys: [],
   ...overrides,
 });
@@ -180,7 +179,7 @@ test("new passes with a reason go to Harper's review with the company's words; t
   assert.deepEqual(prepared.review.passes[3].tags, ["c-go"]);
   assert.equal(JSON.stringify(prepared).includes("다른 역할") || JSON.stringify(prepared).includes("비공개"), false);
   // The suggestion itself is the review's (and its tool's) to file.
-  assert.equal(called("create_company_brief_proposal_v1").length, 0);
+  assert.equal(called("create_company_brief_proposal_v2").length, 0);
   assert.deepEqual(called("consume_company_decisions_v1").map((call) => call.args), [
     { p_role_id: roleId, p_through_id: 120 },
   ]);
@@ -206,7 +205,7 @@ test("no new pass gave a reason: Harper does not run", async () => {
 });
 
 test("a suggestion goes through the one proposal path with Harper's sentence", async () => {
-  rpcResults.create_company_brief_proposal_v1 = () => ({ status: "created", proposalId: "proposal-9" });
+  rpcResults.create_company_brief_proposal_v2 = () => ({ status: "created", proposalId: "proposal-9" });
   const filed = await server.fileCriteriaProposal({
     admin, workspaceId, roleId, briefRevision: 3, now,
     payload: {
@@ -222,7 +221,7 @@ test("a suggestion goes through the one proposal path with Harper's sentence", a
     proposalId: "proposal-9",
     summary: "'Go 서비스 운영' 기준을 중요에서 필수로 올릴까요? 넘긴 후보 대부분이 Go 운영 경험이 없었어요. (이유를 남긴 6명 중 4명)",
   });
-  const [create] = called("create_company_brief_proposal_v1");
+  const [create] = called("create_company_brief_proposal_v2");
   assert.equal(create.args.p_kind, "criteria_refinement");
   assert.equal(create.args.p_content_key, "criterion_level:c-go:important>required");
   assert.equal(create.args.p_base_brief_revision, 3);
@@ -230,51 +229,58 @@ test("a suggestion goes through the one proposal path with Harper's sentence", a
   assert.equal(create.args.p_preview, "Go 서비스 운영: 중요 → 필수");
   assert.equal(create.args.p_summary, filed.summary);
   assert.equal(create.args.p_payload.rationale, "넘긴 후보 대부분이 Go 운영 경험이 없었어요.");
-  rpcResults.create_company_brief_proposal_v1 = () => ({ status: "pending_exists" });
-  assert.equal((await server.fileCriteriaProposal({ admin, workspaceId, roleId, briefRevision: 3, now, payload: create.args.p_payload })).status, "pending_exists");
+  assert.equal(create.args.p_open_limit, 5);
+  assert.deepEqual(create.args.p_replaces, []);
+  rpcResults.create_company_brief_proposal_v2 = () => ({ status: "limit_reached", open: 5 });
+  assert.equal((await server.fileCriteriaProposal({ admin, workspaceId, roleId, briefRevision: 3, now, payload: create.args.p_payload })).status, "limit_reached");
 });
 
-test("a pending suggestion waits; a stale one is closed first; an ended Role is only read", async () => {
-  const pending = {
-    id: "pending-1",
-    expiresAt: "2026-11-10T00:00:00Z",
-    payload: {
-      version: 1,
-      change: { type: "criterion_level", criterionKey: "c-lead", criterionName: "리드 경험", from: "nice", to: "important" },
-      evidence: { count: 3, window: 5, decisionIds: [1, 2, 3] },
-    },
-  };
-  rpcResults.company_decision_consolidation_input_v1 = () => input({ pending });
-  assert.equal((await server.runCriteriaConsolidation({ admin, roleId, workspaceId, enabled: true, now, review: noReview })).status, "pending");
-  assert.equal(called("create_company_brief_proposal_v1").length, 0);
-  // Passes that arrive while it waits stay unread, for the review after the answer.
-  assert.equal(called("consume_company_decisions_v1").length, 0);
-
-  // The team raised the criterion meanwhile: the old suggestion is stale.
-  rpcs.length = 0;
-  const raised = [criteria[0], { ...criteria[1], importance: 2 }];
-  rpcResults.company_decision_consolidation_input_v1 = () => input({ pending, criteria: raised });
-  rpcResults.resolve_company_brief_proposal_v1 = () => ({ status: "stale" });
+test("the review runs while suggestions wait; a stale one is closed alone; an ended Role is only read", async () => {
+  const waiting = (id: string, criterionKey: string, criterionName: string, from: string, to: string) => ({
+    id, workspace_id: workspaceId, scope_key: `brief:${roleId}`, status: "pending", expires_at: "2026-11-10T00:00:00Z",
+    created_at: "2026-11-05T00:00:00Z", summary: id, content_key: id,
+    payload: { version: 1, change: { type: "criterion_level", criterionKey, criterionName, from, to }, evidence: { count: 3, window: 5, decisionIds: [1, 2, 3] } },
+  });
+  tables.company_agent_update_proposals = [
+    waiting("pending-1", "c-lead", "리드 경험", "nice", "important"),
+    waiting("pending-2", "c-go", "Go 서비스 운영", "important", "required"),
+  ];
+  rpcResults.company_decision_consolidation_input_v1 = () => input({});
   tables.company_decision_events = [{ id: 100, role_id: roleId, action: "pass", detail: {}, reason_text: "Go" }];
+  reviewResult = { proposalId: null };
+  reviews.length = 0;
+  assert.equal((await server.runCriteriaConsolidation({ admin, roleId, workspaceId, enabled: true, now, review })).status, "nothing");
+  assert.deepEqual(reviews[0].openProposals.map((proposal: any) => proposal.id).sort(), ["pending-1", "pending-2"]);
+  assert.equal(called("resolve_company_brief_proposal_v1").length, 0);
+  assert.equal(called("consume_company_decisions_v1").length, 1);
+
+  // The team raised one criterion meanwhile: only the suggestion about it closes.
+  rpcs.length = 0;
+  reviews.length = 0;
+  const raised = [criteria[0], { ...criteria[1], importance: 2 }];
+  rpcResults.company_decision_consolidation_input_v1 = () => input({ criteria: raised });
+  rpcResults.resolve_company_brief_proposal_v1 = () => ({ status: "stale" });
   reviewResult = { proposalId: "proposal-2" };
   const after = await server.runCriteriaConsolidation({ admin, roleId, workspaceId, enabled: true, now, review });
   assert.equal(after.status, "proposed");
+  assert.deepEqual(called("resolve_company_brief_proposal_v1").map((call) => call.args.p_proposal_id), ["pending-1"]);
   assert.deepEqual(called("resolve_company_brief_proposal_v1")[0].args, {
     p_action: "stale", p_actor_user_id: null, p_detail: {}, p_proposal_id: "pending-1", p_role_id: roleId, p_workspace_id: workspaceId,
   });
-  // The stale one closed first, then Harper read the passes.
-  assert.equal(reviews.length, 1);
+  assert.deepEqual(reviews[0].openProposals.map((proposal: any) => proposal.id), ["pending-2"]);
 
-  // Someone is applying it right now: leave it.
+  // Someone is applying it right now: it stays open for Harper to see.
   rpcs.length = 0;
+  reviews.length = 0;
   rpcResults.resolve_company_brief_proposal_v1 = () => ({ status: "busy" });
-  assert.equal((await server.runCriteriaConsolidation({ admin, roleId, workspaceId, enabled: true, now, review: noReview })).status, "pending");
-  assert.equal(called("create_company_brief_proposal_v1").length, 0);
+  reviewResult = { proposalId: null };
+  await server.runCriteriaConsolidation({ admin, roleId, workspaceId, enabled: true, now, review });
+  assert.equal(reviews[0].openProposals.length, 2);
 
   rpcs.length = 0;
   rpcResults.company_decision_consolidation_input_v1 = () => input({ open: false });
   assert.equal((await server.runCriteriaConsolidation({ admin, roleId, workspaceId, enabled: true, now, review: noReview })).status, "skipped");
-  assert.deepEqual(called("create_company_brief_proposal_v1"), []);
+  assert.deepEqual(called("create_company_brief_proposal_v2"), []);
   assert.equal(called("consume_company_decisions_v1").length, 1);
 
   // Another workspace's Role is never read further.

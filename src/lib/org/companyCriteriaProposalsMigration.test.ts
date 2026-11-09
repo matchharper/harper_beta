@@ -344,3 +344,71 @@ test("suggestions: one pending per Role, answered in the To-do as decisions, nev
     await db.close();
   }
 });
+
+test("several open suggestions: replaced ones leave, the limit refuses, older web and chat proposals are unchanged", async () => {
+  const OPEN_MIGRATION = "20261107060200_company_criteria_open_proposals.sql";
+  const db = await setup();
+  try {
+    await db.exec(await sql(OPEN_MIGRATION));
+    await db.exec(await sql(OPEN_MIGRATION)); // applying the file again changes nothing
+    const expires = new Date(Date.now() + 14 * 86_400_000).toISOString();
+    const create = async (key: string, replaces: string[] = [], limit = 5) => (await db.query<any>(
+      `select create_company_brief_proposal_v2($1, $2, 'criteria_refinement', $3, 1, 's', 'p', '{"version":1}'::jsonb, $4, $5::uuid[], $6) r`,
+      [workspace, role, key, expires, replaces, limit])).rows[0].r;
+    const status = async (id: string) => (await db.query<any>("select status, payload from company_agent_update_proposals where id = $1", [id])).rows[0];
+    const events = async () => Number((await db.query<any>("select count(*) n from company_decision_events where subject_kind = 'proposal'")).rows[0].n);
+
+    const ids: string[] = [];
+    for (const key of ["a", "b", "c", "d", "e"]) ids.push((await create(key)).proposalId);
+    assert.equal(ids.every(Boolean), true);
+    const refused = await create("f");
+    assert.equal(refused.status, "limit_reached");
+    assert.equal((await status(ids[0])).status, "pending");
+
+    const replaced = await create("f", [ids[0]]);
+    assert.equal(replaced.status, "created");
+    assert.deepEqual(replaced.replaced, [ids[0]]);
+    assert.deepEqual(await status(ids[0]), { status: "superseded", payload: null });
+    assert.equal(await events(), 0);
+
+    // A suggestion a member is applying is not taken away; an id of no open suggestion replaces nothing.
+    await db.query(`update company_agent_update_proposals set payload = payload || jsonb_build_object('claim', jsonb_build_object('by', $2::text, 'at', now())) where id = $1`, [ids[1], kim]);
+    assert.equal((await create("g", [ids[1]])).status, "busy");
+    assert.equal((await status(ids[1])).status, "pending");
+    assert.equal((await create("h", [ids[0]])).status, "limit_reached");
+
+    // The web deployed before this migration still sees one at a time.
+    const older = (await db.query<any>(
+      `select create_company_brief_proposal_v1($1, $2, 'criteria_refinement', 'old', 1, 's', 'p', '{"version":1}'::jsonb, $3) r`,
+      [workspace, role, expires])).rows[0].r;
+    assert.equal(older.status, "pending_exists");
+
+    // Chat and Slack confirmations keep one pending per scope.
+    const chat = `insert into company_agent_update_proposals(workspace_id, scope_key, status, source, summary, preview, presentation_text, payload, message_type, presented_message_id, expires_at)
+      values ($1, 'chat:one', 'pending', 'chat', 's', 'p', 't', '{}', 'chat', 1, $2)`;
+    await db.query(chat, [workspace, expires]);
+    await assert.rejects(db.query(chat, [workspace, expires]), /one_pending/);
+
+    const signature = "create_company_brief_proposal_v2(uuid,uuid,text,text,integer,text,text,jsonb,timestamptz,uuid[],integer)";
+    const can = async (who: string) => (await db.query<any>(`select has_function_privilege('${who}', '${signature}', 'EXECUTE') ok`)).rows[0].ok;
+    assert.equal(await can("service_role"), true);
+    assert.equal(await can("authenticated"), false);
+  } finally {
+    await db.close();
+  }
+});
+
+test("the open-suggestions migration stops rather than break an upsert on the one-pending index", async () => {
+  const db = await setup();
+  try {
+    await db.exec(`create function public.upserts_proposal() returns void language sql as $$
+      insert into company_agent_update_proposals(workspace_id, scope_key, status, source, summary, message_type, expires_at, payload, preview, presentation_text, presented_message_id)
+      values (null, 'x', 'pending', 'chat', 's', 'chat', now(), '{}', 'p', 't', 1)
+      on conflict (workspace_id, scope_key) where status = 'pending' do nothing $$`);
+    await assert.rejects(db.exec(await sql("20261107060200_company_criteria_open_proposals.sql")), /upsert_depends_on_one_pending_index/);
+    const { rows } = await db.query<any>("select indexdef from pg_indexes where indexname = 'company_agent_update_proposals_one_pending'");
+    assert.equal(rows[0].indexdef.includes("criteria_refinement"), false);
+  } finally {
+    await db.close();
+  }
+});

@@ -44,6 +44,8 @@ export const CRITERIA_PROPOSAL_RULES = {
   highestLevel: "required" as OrgRoleCriterionLevel,
   /** Days an unanswered suggestion stays in the To-do. */
   expiresInDays: 14,
+  /** Suggestions a Role can have waiting at once. */
+  maxOpen: 5,
 };
 
 export type CriteriaProposalRules = typeof CRITERIA_PROPOSAL_RULES;
@@ -160,6 +162,17 @@ export function criteriaProposalContentKey(change: CriteriaProposalChange) {
     return Array.from(`memory_note:${memoryNoteKey(change.note)}`).slice(0, CONTENT_KEY_MAX).join("");
   if (change.type === "criterion_add") return `criterion_add:${criterionNameKey(change.criterionName)}`;
   return `criterion_level:${change.criterionKey}:${change.from}>${change.to}`;
+}
+
+/**
+ * Whether two suggestions are about the same thing: the same criterion, or
+ * the same memory note. The newer one then replaces the one still waiting.
+ */
+export function criteriaProposalsOverlap(a: CriteriaProposalChange, b: CriteriaProposalChange) {
+  if (a.type === "memory_note" || b.type === "memory_note")
+    return a.type === b.type && criteriaProposalContentKey(a) === criteriaProposalContentKey(b);
+  if (a.type === "criterion_level" && b.type === "criterion_level") return a.criterionKey === b.criterionKey;
+  return criterionNameKey(a.criterionName) === criterionNameKey(b.criterionName);
 }
 
 /**
